@@ -12,280 +12,484 @@
   <meta name="twitter:card" content="summary">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,400&family=Inter:wght@400;500&display=swap" rel="stylesheet">
-  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@4" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
   <style type="text/tailwindcss">
     @theme {
-      --font-serif: 'Cormorant Garamond', Georgia, serif;
+      --font-heading: 'Poppins', system-ui, sans-serif;
       --font-sans: 'Inter', system-ui, sans-serif;
-      --color-navy: #1b2a4a;
-      --color-navy-dark: #111d33;
-      --color-accent: #c45d2c;
-      --color-accent-dark: #a84d24;
-      --color-gold: #c49a6c;
-      --color-offwhite: #f9f7f4;
-      --color-warm-gray: #f0ebe3;
-      --color-body: #4a5568;
-      --color-heading: #1a202c;
-      --color-stroke: #e2ddd7;
+      --color-primary: #0068ff;
+      --color-primary-dark: #0055d4;
+      --color-dark: #111111;
+      --color-dark-2: #131313;
+      --color-body: #595959;
+      --color-muted: #a0a0a0;
+      --color-light: #edeef1;
+      --color-surface: #ffffff;
+      --color-stroke: #e5e7eb;
+    }
+  </style>
+  <style>
+    html { scroll-behavior: smooth; }
+    body { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+    .nav-blur { backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); }
+
+    /* Scroll-triggered reveal animations */
+    .reveal {
+      opacity: 0;
+      transform: translateY(32px);
+      transition: opacity 0.7s cubic-bezier(0.16, 1, 0.3, 1),
+                  transform 0.7s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .reveal.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    /* Stagger delays for children */
+    .reveal-delay-1 { transition-delay: 0.1s; }
+    .reveal-delay-2 { transition-delay: 0.2s; }
+    .reveal-delay-3 { transition-delay: 0.3s; }
+    .reveal-delay-4 { transition-delay: 0.4s; }
+
+    /* Hero entrance — plays on load */
+    .hero-enter {
+      opacity: 0;
+      transform: translateY(24px);
+      animation: heroFadeUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+    .hero-enter-1 { animation-delay: 0.1s; }
+    .hero-enter-2 { animation-delay: 0.25s; }
+    .hero-enter-3 { animation-delay: 0.4s; }
+    .hero-enter-4 { animation-delay: 0.55s; }
+
+    @keyframes heroFadeUp {
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Subtle scale-in for cards */
+    .reveal-scale {
+      opacity: 0;
+      transform: translateY(24px) scale(0.97);
+      transition: opacity 0.6s cubic-bezier(0.16, 1, 0.3, 1),
+                  transform 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .reveal-scale.visible {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+
+    /* Counter animation */
+    .counter { font-variant-numeric: tabular-nums; }
+
+    /* Fade-in from left/right for split layouts */
+    .reveal-left {
+      opacity: 0;
+      transform: translateX(-32px);
+      transition: opacity 0.7s cubic-bezier(0.16, 1, 0.3, 1),
+                  transform 0.7s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .reveal-right {
+      opacity: 0;
+      transform: translateX(32px);
+      transition: opacity 0.7s cubic-bezier(0.16, 1, 0.3, 1),
+                  transform 0.7s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .reveal-left.visible, .reveal-right.visible {
+      opacity: 1;
+      transform: translateX(0);
+    }
+
+    /* Respect reduced motion */
+    @media (prefers-reduced-motion: reduce) {
+      .reveal, .reveal-scale, .reveal-left, .reveal-right { transition: none; opacity: 1; transform: none; }
+      .hero-enter { animation: none; opacity: 1; transform: none; }
     }
   </style>
 </head>
-<body class="bg-offwhite text-body font-sans antialiased">
+<body class="bg-surface text-body font-sans">
 
-  <!-- ═══════════════════════════════════════════ -->
-  <!-- NAV                                         -->
-  <!-- ═══════════════════════════════════════════ -->
+  <!-- NAV -->
   <nav id="nav" class="fixed top-0 left-0 right-0 z-50 transition-all duration-300">
-    <div class="max-w-6xl mx-auto flex items-center justify-between px-6 py-4">
-      <a href="#" class="font-serif text-xl tracking-[.18em] text-white font-medium uppercase select-none">Health Data Lab</a>
-      <div class="hidden md:flex items-center gap-8">
-        <a href="#how-it-works" class="text-sm text-white/80 hover:text-white transition-colors duration-150">How It Works</a>
-        <a href="#platform" class="text-sm text-white/80 hover:text-white transition-colors duration-150">For Practitioners</a>
-        <a href="#founder-access" class="text-sm text-white/80 hover:text-white transition-colors duration-150">Early Access</a>
-        <a href="#founder-access" class="inline-flex items-center gap-2 rounded-full bg-accent px-5 py-2 text-sm font-medium text-white hover:bg-accent-dark transition-colors duration-150">
-          <span class="relative flex h-2 w-2"><span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-white/60"></span><span class="relative inline-flex h-2 w-2 rounded-full bg-white"></span></span>
-          Get Early Access
-        </a>
+    <div class="max-w-[1280px] mx-auto px-5 md:px-[52px]">
+      <div id="nav-inner" class="flex items-center justify-between rounded-[48px] px-5 py-3 mt-3 transition-all duration-300">
+        <a href="#" class="font-heading text-lg font-semibold text-dark tracking-tight select-none">Health Data Lab</a>
+        <div class="hidden md:flex items-center gap-6">
+          <a href="#platform" class="text-sm text-body hover:text-dark transition-colors">For Practitioners</a>
+          <a href="#how-it-works" class="text-sm text-body hover:text-dark transition-colors">How It Works</a>
+          <a href="#founder-access" class="text-sm text-body hover:text-dark transition-colors">Early Access</a>
+          <a href="#founder-access" class="inline-flex items-center rounded-[48px] bg-dark text-white text-sm font-medium px-5 py-2.5 hover:bg-dark-2 transition-colors">
+            Get Early Access
+          </a>
+        </div>
+        <button id="menu-toggle" class="md:hidden text-dark p-1" aria-label="Menu">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path id="menu-line-1" stroke-linecap="round" d="M4 7h16" class="origin-center transition-transform duration-200"/>
+            <path id="menu-line-2" stroke-linecap="round" d="M4 12h16" class="transition-opacity duration-200"/>
+            <path id="menu-line-3" stroke-linecap="round" d="M4 17h16" class="origin-center transition-transform duration-200"/>
+          </svg>
+        </button>
       </div>
-      <button id="menu-toggle" class="md:hidden text-white" aria-label="Menu">
-        <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path id="menu-icon" stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16"/></svg>
-      </button>
     </div>
     <!-- Mobile menu -->
-    <div id="mobile-menu" class="hidden md:hidden bg-navy/95 backdrop-blur-sm border-t border-white/10">
-      <div class="flex flex-col gap-1 px-6 py-4">
-        <a href="#how-it-works" class="nav-link block py-2 text-white/80 hover:text-white text-sm transition-colors">How It Works</a>
-        <a href="#platform" class="nav-link block py-2 text-white/80 hover:text-white text-sm transition-colors">For Practitioners</a>
-        <a href="#founder-access" class="nav-link block py-2 text-white/80 hover:text-white text-sm transition-colors">Early Access</a>
-        <a href="#founder-access" class="nav-link mt-2 inline-flex items-center justify-center gap-2 rounded-full bg-accent px-5 py-2.5 text-sm font-medium text-white hover:bg-accent-dark transition-colors">Get Early Access</a>
+    <div id="mobile-menu" class="hidden md:hidden">
+      <div class="mx-5 md:mx-[52px] mt-2 rounded-[32px] bg-surface border border-stroke/50 shadow-lg">
+        <div class="flex flex-col gap-1 px-6 py-5">
+          <a href="#platform" class="nav-link block py-2.5 text-body hover:text-dark text-sm transition-colors">For Practitioners</a>
+          <a href="#how-it-works" class="nav-link block py-2.5 text-body hover:text-dark text-sm transition-colors">How It Works</a>
+          <a href="#founder-access" class="nav-link block py-2.5 text-body hover:text-dark text-sm transition-colors">Early Access</a>
+          <a href="#founder-access" class="nav-link mt-2 flex items-center justify-center rounded-[48px] bg-dark text-white text-sm font-medium px-5 py-3 hover:bg-dark-2 transition-colors">Get Early Access</a>
+        </div>
       </div>
     </div>
   </nav>
 
-  <!-- ═══════════════════════════════════════════ -->
-  <!-- HERO                                        -->
-  <!-- ═══════════════════════════════════════════ -->
-  <section class="relative bg-navy text-white overflow-hidden">
-    <!-- Squiggle decoration -->
-    <svg class="absolute bottom-0 left-0 right-0 w-full opacity-[.06]" viewBox="0 0 1440 120" preserveAspectRatio="none" aria-hidden="true">
-      <path d="M0,60 C240,120 480,0 720,60 C960,120 1200,0 1440,60" fill="none" stroke="currentColor" stroke-width="2"/>
-      <path d="M0,80 C240,140 480,20 720,80 C960,140 1200,20 1440,80" fill="none" stroke="currentColor" stroke-width="1.5"/>
-    </svg>
-    <div class="max-w-4xl mx-auto px-6 pt-36 pb-24 md:pt-44 md:pb-32 text-center relative z-10">
-      <h1 class="font-serif text-4xl md:text-5xl lg:text-6xl font-light leading-tight tracking-tight">
-        Smarter health insights<br class="hidden sm:block"> for modern practitioners
-      </h1>
-      <p class="mt-6 text-lg md:text-xl text-white/70 max-w-2xl mx-auto leading-relaxed">
-        A structured platform that turns client health data into clear, actionable reports&nbsp;&mdash; so you can focus on what you do best.
-      </p>
-      <div class="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4">
-        <a href="#founder-access" class="inline-flex items-center gap-2 rounded-full bg-accent px-7 py-3 text-base font-medium text-white hover:bg-accent-dark transition-colors duration-150 shadow-lg shadow-accent/20">
-          Get Early Access
-        </a>
-        <a href="#how-it-works" class="inline-flex items-center gap-2 rounded-full border border-white/25 px-7 py-3 text-base text-white/90 hover:bg-white/10 transition-colors duration-150">
-          See How It Works
-        </a>
-      </div>
-      <p class="mt-12 text-sm text-gold tracking-wide">20 Founder Seats&ensp;&middot;&ensp;Practitioner-Only&ensp;&middot;&ensp;Launching 2026</p>
-    </div>
-  </section>
-
-  <!-- ═══════════════════════════════════════════ -->
-  <!-- THE PLATFORM                                -->
-  <!-- ═══════════════════════════════════════════ -->
-  <section id="platform" class="scroll-mt-20 bg-offwhite">
-    <div class="max-w-6xl mx-auto px-6 py-20 md:py-28">
-      <p class="text-xs font-medium tracking-[.2em] text-accent uppercase">The Platform</p>
-      <h2 class="mt-3 font-serif text-3xl md:text-4xl font-light text-heading leading-snug">Everything your practice needs,<br class="hidden md:block"> in one place</h2>
-      <div class="mt-14 grid gap-8 md:grid-cols-3">
-        <!-- Card 1 -->
-        <div class="rounded-2xl border border-stroke bg-white p-8 shadow-sm">
-          <div class="flex h-12 w-12 items-center justify-center rounded-xl bg-navy/5 text-navy">
-            <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z"/></svg>
-          </div>
-          <h3 class="mt-5 font-serif text-xl text-heading font-medium">Structured Reports</h3>
-          <p class="mt-3 text-sm leading-relaxed">Generate clear health reports your clients actually understand. Professional, branded, and ready to share.</p>
-        </div>
-        <!-- Card 2 -->
-        <div class="rounded-2xl border border-stroke bg-white p-8 shadow-sm">
-          <div class="flex h-12 w-12 items-center justify-center rounded-xl bg-navy/5 text-navy">
-            <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 0 1 3 19.875v-6.75ZM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V8.625ZM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V4.125Z"/></svg>
-          </div>
-          <h3 class="mt-5 font-serif text-xl text-heading font-medium">Client Dashboard</h3>
-          <p class="mt-3 text-sm leading-relaxed">Track progress, visualise trajectories, and share updates. Your clients stay informed and engaged.</p>
-        </div>
-        <!-- Card 3 -->
-        <div class="rounded-2xl border border-stroke bg-white p-8 shadow-sm">
-          <div class="flex h-12 w-12 items-center justify-center rounded-xl bg-navy/5 text-navy">
-            <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M11.42 15.17 17.25 21A2.652 2.652 0 0 0 21 17.25l-5.877-5.877M11.42 15.17l2.496-3.03c.317-.384.74-.626 1.208-.766M11.42 15.17l-4.655 5.653a2.548 2.548 0 1 1-3.586-3.586l6.837-5.63m5.108-.233c.55-.164 1.163-.188 1.743-.14a4.5 4.5 0 0 0 4.486-6.336l-3.276 3.277a3.004 3.004 0 0 1-2.25-2.25l3.276-3.276a4.5 4.5 0 0 0-6.336 4.486c.049.58.025 1.193-.14 1.743"/></svg>
-          </div>
-          <h3 class="mt-5 font-serif text-xl text-heading font-medium">Practice Tools</h3>
-          <p class="mt-3 text-sm leading-relaxed">Streamline intake, assessments, and follow-ups. Less admin, more time with your clients.</p>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- ═══════════════════════════════════════════ -->
-  <!-- HOW IT WORKS                                -->
-  <!-- ═══════════════════════════════════════════ -->
-  <section id="how-it-works" class="scroll-mt-20 bg-white">
-    <div class="max-w-6xl mx-auto px-6 py-20 md:py-28">
-      <p class="text-xs font-medium tracking-[.2em] text-accent uppercase">How It Works</p>
-      <h2 class="mt-3 font-serif text-3xl md:text-4xl font-light text-heading leading-snug">Three steps to better outcomes</h2>
-      <div class="mt-14 grid gap-10 md:grid-cols-3">
-        <!-- Step 1 -->
-        <div>
-          <span class="font-serif text-5xl font-light text-gold">1</span>
-          <h3 class="mt-4 font-serif text-xl text-heading font-medium">Onboard Your Client</h3>
-          <p class="mt-3 text-sm leading-relaxed">Simple intake form captures baseline data. Everything your practice needs to get started, nothing it doesn't.</p>
-        </div>
-        <!-- Step 2 -->
-        <div>
-          <span class="font-serif text-5xl font-light text-gold">2</span>
-          <h3 class="mt-4 font-serif text-xl text-heading font-medium">Generate Reports</h3>
-          <p class="mt-3 text-sm leading-relaxed">The platform produces clear, branded health reports. Professional documents your clients will understand and value.</p>
-        </div>
-        <!-- Step 3 -->
-        <div>
-          <span class="font-serif text-5xl font-light text-gold">3</span>
-          <h3 class="mt-4 font-serif text-xl text-heading font-medium">Track &amp; Adjust</h3>
-          <p class="mt-3 text-sm leading-relaxed">Monitor progress with visual dashboards and trajectory charts. See what's working and refine the approach.</p>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- ═══════════════════════════════════════════ -->
-  <!-- SAMPLE REPORT                               -->
-  <!-- ═══════════════════════════════════════════ -->
-  <section class="bg-warm-gray">
-    <div class="max-w-6xl mx-auto px-6 py-20 md:py-28">
-      <p class="text-xs font-medium tracking-[.2em] text-accent uppercase">Sample Report</p>
-      <h2 class="mt-3 font-serif text-3xl md:text-4xl font-light text-heading leading-snug">See what your clients will receive</h2>
-      <div class="mt-12 max-w-2xl mx-auto">
-        <div class="relative rounded-2xl border border-stroke bg-white overflow-hidden shadow-sm">
-          <!-- Placeholder mockup -->
-          <div class="aspect-[4/3] bg-gradient-to-br from-navy/5 via-transparent to-gold/10 flex items-center justify-center">
-            <div class="text-center px-8">
-              <div class="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-2xl bg-navy/5">
-                <svg class="w-8 h-8 text-navy/40" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z"/></svg>
-              </div>
-              <p class="font-serif text-xl text-heading/60">Report Preview</p>
-              <p class="mt-2 text-sm text-body/60">Full sample report coming soon</p>
-            </div>
-          </div>
-        </div>
-        <p class="mt-6 text-center text-sm text-body/80">Full sample report coming soon&nbsp;&mdash; get early access to be the first to see it.</p>
-        <div class="mt-6 text-center">
-          <a href="#founder-access" class="inline-flex items-center gap-2 rounded-full bg-accent px-6 py-2.5 text-sm font-medium text-white hover:bg-accent-dark transition-colors duration-150">
+  <!-- HERO -->
+  <section class="bg-gradient-to-b from-surface to-light overflow-hidden">
+    <div class="max-w-[1280px] mx-auto px-5 md:px-[52px] pt-36 pb-24 md:pt-44 md:pb-36 text-center">
+      <div class="max-w-3xl mx-auto">
+        <p class="hero-enter hero-enter-1 inline-flex items-center gap-2 rounded-[48px] bg-primary/8 text-primary text-xs font-medium px-4 py-1.5 mb-8">
+          <span class="relative flex h-1.5 w-1.5"><span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary/60"></span><span class="relative inline-flex h-1.5 w-1.5 rounded-full bg-primary"></span></span>
+          Launching 2026 — 20 Founder Seats Available
+        </p>
+        <h1 class="hero-enter hero-enter-2 font-heading text-[clamp(2rem,5vw,3rem)] font-medium text-dark leading-[1.16] tracking-[-0.03em]">
+          Smarter health insights for modern practitioners
+        </h1>
+        <p class="hero-enter hero-enter-3 mt-6 text-lg text-body max-w-xl mx-auto leading-relaxed">
+          A structured platform that turns client health data into clear, actionable reports&nbsp;&mdash; so you can focus on what you do best.
+        </p>
+        <div class="hero-enter hero-enter-4 mt-10 flex flex-col sm:flex-row items-center justify-center gap-3">
+          <a href="#founder-access" class="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-[48px] bg-primary text-white text-base font-medium px-8 py-3.5 hover:bg-primary-dark transition-colors shadow-[0_4px_20px_rgba(0,104,255,.25)]">
             Get Early Access
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3"/></svg>
+          </a>
+          <a href="#how-it-works" class="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-[48px] bg-dark text-white text-base font-medium px-8 py-3.5 hover:bg-dark-2 transition-colors">
+            See How It Works
           </a>
         </div>
       </div>
     </div>
   </section>
 
-  <!-- ═══════════════════════════════════════════ -->
-  <!-- FOUNDER ACCESS                              -->
-  <!-- ═══════════════════════════════════════════ -->
-  <section id="founder-access" class="scroll-mt-20 relative bg-navy text-white overflow-hidden">
-    <!-- Squiggle decoration -->
-    <svg class="absolute top-0 left-0 right-0 w-full opacity-[.06]" viewBox="0 0 1440 120" preserveAspectRatio="none" aria-hidden="true">
-      <path d="M0,60 C240,0 480,120 720,60 C960,0 1200,120 1440,60" fill="none" stroke="currentColor" stroke-width="2"/>
-    </svg>
-    <div class="max-w-3xl mx-auto px-6 py-20 md:py-28 text-center relative z-10">
-      <h2 class="font-serif text-3xl md:text-4xl font-light leading-snug">
-        Join as a <span class="text-gold">founding practitioner</span>
-      </h2>
-      <p class="mt-6 text-lg text-white/70 max-w-xl mx-auto leading-relaxed">
-        Limited to 20 founding practitioners. Manual onboarding with hands-on support. Founding members receive priority access and extended benefits as the platform grows.
-      </p>
-      <div class="mt-10">
-        <a href="mailto:hello@healthdatalab.com?subject=Founder%20Access%20Application&body=Hi%2C%0A%0AI'm%20interested%20in%20joining%20Health%20Data%20Lab%20as%20a%20founding%20practitioner.%0A%0AMy%20name%3A%20%0AMy%20practice%3A%20%0A%0AThanks!" class="inline-flex items-center gap-2 rounded-full bg-accent px-8 py-3.5 text-base font-medium text-white hover:bg-accent-dark transition-colors duration-150 shadow-lg shadow-accent/20">
-          Apply for Founder Access
-        </a>
+  <!-- SPECIALTIES BAR -->
+  <section class="bg-light overflow-hidden">
+    <div class="max-w-[1280px] mx-auto px-5 md:px-[52px] py-6">
+      <div class="reveal flex items-center justify-center gap-8 md:gap-16 text-sm text-muted flex-wrap">
+        <span class="flex items-center gap-2">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75m-3-7.036A11.959 11.959 0 0 1 3.598 6 11.99 11.99 0 0 0 3 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285Z"/></svg>
+          Naturopathy
+        </span>
+        <span class="flex items-center gap-2">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"/></svg>
+          Iridology
+        </span>
+        <span class="flex items-center gap-2">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9.75 3.104v5.714a2.25 2.25 0 0 1-.659 1.591L5 14.5M9.75 3.104c-.251.023-.501.05-.75.082m.75-.082a24.301 24.301 0 0 1 4.5 0m0 0v5.714c0 .597.237 1.17.659 1.591L19.8 15.3M14.25 3.104c.251.023.501.05.75.082M19.8 15.3l-1.57.393A9.065 9.065 0 0 1 12 15a9.065 9.065 0 0 0-6.23.693L5 14.5m14.8.8 1.402 1.402c1.232 1.232.65 3.318-1.067 3.611A48.309 48.309 0 0 1 12 21c-2.773 0-5.491-.235-8.135-.687-1.718-.293-2.3-2.379-1.067-3.61L5 14.5"/></svg>
+          Functional Testing
+        </span>
+        <span class="flex items-center gap-2">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733-.715-1.607-2.377-2.733-4.313-2.733C5.1 3.75 3 5.765 3 8.25c0 7.22 9 12 9 12s9-4.78 9-12Z"/></svg>
+          Integrative Health
+        </span>
       </div>
-      <p class="mt-8 text-sm text-gold/80 tracking-wide">Limited to 20&ensp;&middot;&ensp;Priority Support&ensp;&middot;&ensp;Founding Member Benefits</p>
     </div>
   </section>
 
-  <!-- ═══════════════════════════════════════════ -->
-  <!-- FOOTER                                      -->
-  <!-- ═══════════════════════════════════════════ -->
-  <footer class="bg-gradient-to-b from-navy to-navy-dark text-white">
-    <div class="max-w-6xl mx-auto px-6 py-16">
-      <div class="grid gap-10 md:grid-cols-3">
-        <!-- Brand -->
-        <div>
-          <p class="font-serif text-lg tracking-[.15em] uppercase font-medium">Health Data Lab</p>
-          <p class="mt-3 text-sm text-white/50 leading-relaxed">Smarter health insights<br>for modern practitioners.</p>
+  <!-- THE PLATFORM -->
+  <section id="platform" class="scroll-mt-20 bg-surface">
+    <div class="max-w-[1280px] mx-auto px-5 md:px-[52px] py-24 md:py-32">
+      <div class="reveal max-w-2xl">
+        <p class="text-primary text-sm font-medium">Health Data Lab</p>
+        <h2 class="mt-3 font-heading text-[clamp(1.75rem,3.5vw,2.5rem)] font-medium text-dark leading-[1.2] tracking-[-0.03em]">Everything your practice needs, in one place</h2>
+        <p class="mt-4 text-body leading-relaxed">Our platform gives practitioners structured tools to manage client health data, generate professional reports, and track outcomes over time.</p>
+      </div>
+      <div class="mt-14 grid gap-5 md:grid-cols-3">
+        <!-- Card 1 -->
+        <div class="reveal-scale reveal-delay-1 rounded-[32px] bg-light p-8 md:p-10 group hover:bg-dark transition-colors duration-300">
+          <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-surface text-dark group-hover:bg-white/10 group-hover:text-white transition-colors duration-300">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z"/></svg>
+          </div>
+          <h3 class="mt-6 font-heading text-xl text-dark font-medium group-hover:text-white transition-colors duration-300">Structured Reports</h3>
+          <p class="mt-3 text-sm text-body leading-relaxed group-hover:text-white/70 transition-colors duration-300">Generate clear health reports your clients actually understand. Professional, branded, and ready to share.</p>
         </div>
-        <!-- Links -->
-        <div>
-          <p class="text-xs font-medium tracking-[.15em] text-white/40 uppercase">Navigate</p>
-          <div class="mt-4 flex flex-col gap-2">
-            <a href="#platform" class="text-sm text-white/60 hover:text-white transition-colors">The Platform</a>
-            <a href="#how-it-works" class="text-sm text-white/60 hover:text-white transition-colors">How It Works</a>
-            <a href="#founder-access" class="text-sm text-white/60 hover:text-white transition-colors">Founder Access</a>
+        <!-- Card 2 -->
+        <div class="reveal-scale reveal-delay-2 rounded-[32px] bg-light p-8 md:p-10 group hover:bg-dark transition-colors duration-300">
+          <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-surface text-dark group-hover:bg-white/10 group-hover:text-white transition-colors duration-300">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 0 1 3 19.875v-6.75ZM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V8.625ZM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V4.125Z"/></svg>
+          </div>
+          <h3 class="mt-6 font-heading text-xl text-dark font-medium group-hover:text-white transition-colors duration-300">Client Dashboard</h3>
+          <p class="mt-3 text-sm text-body leading-relaxed group-hover:text-white/70 transition-colors duration-300">Track progress, visualise trajectories, and share updates. Your clients stay informed and engaged.</p>
+        </div>
+        <!-- Card 3 -->
+        <div class="reveal-scale reveal-delay-3 rounded-[32px] bg-light p-8 md:p-10 group hover:bg-dark transition-colors duration-300">
+          <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-surface text-dark group-hover:bg-white/10 group-hover:text-white transition-colors duration-300">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M11.42 15.17 17.25 21A2.652 2.652 0 0 0 21 17.25l-5.877-5.877M11.42 15.17l2.496-3.03c.317-.384.74-.626 1.208-.766M11.42 15.17l-4.655 5.653a2.548 2.548 0 1 1-3.586-3.586l6.837-5.63m5.108-.233c.55-.164 1.163-.188 1.743-.14a4.5 4.5 0 0 0 4.486-6.336l-3.276 3.277a3.004 3.004 0 0 1-2.25-2.25l3.276-3.276a4.5 4.5 0 0 0-6.336 4.486c.049.58.025 1.193-.14 1.743"/></svg>
+          </div>
+          <h3 class="mt-6 font-heading text-xl text-dark font-medium group-hover:text-white transition-colors duration-300">Practice Tools</h3>
+          <p class="mt-3 text-sm text-body leading-relaxed group-hover:text-white/70 transition-colors duration-300">Streamline intake, assessments, and follow-ups. Less admin, more time with your clients.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- HOW IT WORKS -->
+  <section id="how-it-works" class="scroll-mt-20 bg-light">
+    <div class="max-w-[1280px] mx-auto px-5 md:px-[52px] py-24 md:py-32">
+      <div class="reveal text-center max-w-2xl mx-auto">
+        <p class="text-primary text-sm font-medium">Health Data Lab</p>
+        <h2 class="mt-3 font-heading text-[clamp(1.75rem,3.5vw,2.5rem)] font-medium text-dark leading-[1.2] tracking-[-0.03em]">Three steps to better outcomes</h2>
+        <p class="mt-4 text-body leading-relaxed">Simple onboarding. Clear reports. Continuous progress tracking.</p>
+      </div>
+      <div class="mt-16 grid gap-5 md:grid-cols-3">
+        <!-- Step 1 -->
+        <div class="reveal-scale reveal-delay-1 rounded-[32px] bg-surface p-8 md:p-10">
+          <span class="inline-flex items-center justify-center h-10 w-10 rounded-full bg-primary text-white text-sm font-semibold">1</span>
+          <h3 class="mt-6 font-heading text-xl text-dark font-medium">Onboard Your Client</h3>
+          <p class="mt-3 text-sm text-body leading-relaxed">Simple intake form captures baseline data. Everything your practice needs to get started, nothing it doesn't.</p>
+        </div>
+        <!-- Step 2 -->
+        <div class="reveal-scale reveal-delay-2 rounded-[32px] bg-surface p-8 md:p-10">
+          <span class="inline-flex items-center justify-center h-10 w-10 rounded-full bg-primary text-white text-sm font-semibold">2</span>
+          <h3 class="mt-6 font-heading text-xl text-dark font-medium">Generate Reports</h3>
+          <p class="mt-3 text-sm text-body leading-relaxed">The platform produces clear, branded health reports. Professional documents your clients will understand and value.</p>
+        </div>
+        <!-- Step 3 -->
+        <div class="reveal-scale reveal-delay-3 rounded-[32px] bg-surface p-8 md:p-10">
+          <span class="inline-flex items-center justify-center h-10 w-10 rounded-full bg-primary text-white text-sm font-semibold">3</span>
+          <h3 class="mt-6 font-heading text-xl text-dark font-medium">Track &amp; Adjust</h3>
+          <p class="mt-3 text-sm text-body leading-relaxed">Monitor progress with visual dashboards and trajectory charts. See what's working and refine the approach over time.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- COMPREHENSIVE CARE -->
+  <section class="bg-surface">
+    <div class="max-w-[1280px] mx-auto px-5 md:px-[52px] py-24 md:py-32">
+      <div class="grid gap-5 md:grid-cols-2">
+        <!-- Left: Info -->
+        <div class="reveal-left rounded-[32px] bg-light p-8 md:p-12 flex flex-col justify-between">
+          <div>
+            <p class="text-primary text-sm font-medium">Health Data Lab</p>
+            <h2 class="mt-3 font-heading text-[clamp(1.75rem,3.5vw,2.25rem)] font-medium text-dark leading-[1.2] tracking-[-0.03em]">Comprehensive tools for every stage of care</h2>
+            <p class="mt-4 text-body leading-relaxed">From initial assessment to ongoing monitoring, our platform gives you structured workflows that enhance how you deliver care.</p>
+          </div>
+          <div class="mt-10 flex items-end gap-6">
+            <div>
+              <p class="counter font-heading text-4xl font-semibold text-dark" data-target="20">0</p>
+              <p class="text-sm text-muted mt-1">Founder seats</p>
+            </div>
+            <div class="h-12 w-px bg-stroke"></div>
+            <div>
+              <p class="counter font-heading text-4xl font-semibold text-dark" data-target="2026">0</p>
+              <p class="text-sm text-muted mt-1">Launch year</p>
+            </div>
           </div>
         </div>
-        <!-- Legal -->
-        <div>
-          <p class="text-xs font-medium tracking-[.15em] text-white/40 uppercase">Legal</p>
-          <div class="mt-4 flex flex-col gap-2">
-            <a href="#" class="text-sm text-white/60 hover:text-white transition-colors">Privacy Policy</a>
-            <a href="#" class="text-sm text-white/60 hover:text-white transition-colors">Terms of Service</a>
+        <!-- Right: feature list -->
+        <div class="reveal-right flex flex-col gap-5">
+          <div class="rounded-[32px] bg-light p-8 group hover:bg-primary transition-colors duration-300">
+            <h3 class="font-heading text-lg text-dark font-medium group-hover:text-white transition-colors duration-300">Personalised health management</h3>
+            <p class="mt-2 text-sm text-body leading-relaxed group-hover:text-white/70 transition-colors duration-300">Ongoing, structured tracking tailored to each client's needs. Your first step towards better practice outcomes.</p>
+            <a href="#founder-access" class="mt-4 inline-flex items-center gap-1 text-sm text-primary font-medium group-hover:text-white transition-colors duration-300">
+              Learn more
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3"/></svg>
+            </a>
+          </div>
+          <div class="rounded-[32px] bg-light p-8 group hover:bg-primary transition-colors duration-300">
+            <h3 class="font-heading text-lg text-dark font-medium group-hover:text-white transition-colors duration-300">Client-ready report generation</h3>
+            <p class="mt-2 text-sm text-body leading-relaxed group-hover:text-white/70 transition-colors duration-300">Professional, branded reports that communicate findings clearly. Give your clients documents they value and understand.</p>
+            <a href="#founder-access" class="mt-4 inline-flex items-center gap-1 text-sm text-primary font-medium group-hover:text-white transition-colors duration-300">
+              Learn more
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3"/></svg>
+            </a>
+          </div>
+          <div class="rounded-[32px] bg-light p-8 group hover:bg-primary transition-colors duration-300">
+            <h3 class="font-heading text-lg text-dark font-medium group-hover:text-white transition-colors duration-300">Advanced data visualisation</h3>
+            <p class="mt-2 text-sm text-body leading-relaxed group-hover:text-white/70 transition-colors duration-300">Trajectory charts, progress dashboards, and trend analysis. See the full picture of your client's health journey.</p>
+            <a href="#founder-access" class="mt-4 inline-flex items-center gap-1 text-sm text-primary font-medium group-hover:text-white transition-colors duration-300">
+              Learn more
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3"/></svg>
+            </a>
           </div>
         </div>
       </div>
-      <div class="mt-12 border-t border-white/10 pt-8 flex flex-col md:flex-row items-center justify-between gap-4">
-        <p class="text-xs text-white/40">&copy; 2026 Health Data Lab. All rights reserved.</p>
-        <p class="text-xs text-white/30">This is not a medical service.</p>
+    </div>
+  </section>
+
+  <!-- SAMPLE REPORT -->
+  <section class="bg-light">
+    <div class="max-w-[1280px] mx-auto px-5 md:px-[52px] py-24 md:py-32">
+      <div class="reveal text-center max-w-2xl mx-auto">
+        <p class="text-primary text-sm font-medium">Sample Report</p>
+        <h2 class="mt-3 font-heading text-[clamp(1.75rem,3.5vw,2.5rem)] font-medium text-dark leading-[1.2] tracking-[-0.03em]">See what your clients will receive</h2>
+      </div>
+      <div class="mt-12 max-w-2xl mx-auto">
+        <div class="reveal-scale rounded-[32px] bg-surface overflow-hidden border border-stroke/50">
+          <div class="aspect-[4/3] bg-gradient-to-br from-primary/5 via-transparent to-light flex items-center justify-center">
+            <div class="text-center px-8">
+              <div class="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/8">
+                <svg class="w-8 h-8 text-primary/50" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z"/></svg>
+              </div>
+              <p class="font-heading text-xl text-dark/50 font-medium">Report Preview</p>
+              <p class="mt-2 text-sm text-muted">Full sample report coming soon</p>
+            </div>
+          </div>
+        </div>
+        <p class="mt-6 text-center text-sm text-body">Full sample report coming soon&nbsp;&mdash; get early access to be the first to see it.</p>
+        <div class="mt-6 text-center">
+          <a href="#founder-access" class="inline-flex items-center gap-2 rounded-[48px] bg-primary text-white text-sm font-medium px-6 py-2.5 hover:bg-primary-dark transition-colors">
+            Get Early Access
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3"/></svg>
+          </a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FOUNDER ACCESS CTA -->
+  <section id="founder-access" class="scroll-mt-20 bg-surface">
+    <div class="max-w-[1280px] mx-auto px-5 md:px-[52px] py-10">
+      <div class="reveal-scale rounded-[24px] bg-primary p-10 md:p-16 flex flex-col md:flex-row items-center justify-between gap-8">
+        <div class="max-w-lg">
+          <h2 class="font-heading text-[clamp(1.5rem,3vw,2rem)] font-medium text-white leading-[1.2] tracking-[-0.02em]">Join as a founding practitioner</h2>
+          <p class="mt-4 text-white/70 leading-relaxed">Limited to 20 founding practitioners. Manual onboarding with hands-on support. Founding members receive priority access and extended benefits.</p>
+          <p class="mt-6 text-sm text-white/50">Limited to 20&ensp;&middot;&ensp;Priority Support&ensp;&middot;&ensp;Founding Member Benefits</p>
+        </div>
+        <a href="mailto:hello@healthdatalab.com?subject=Founder%20Access%20Application&body=Hi%2C%0A%0AI'm%20interested%20in%20joining%20Health%20Data%20Lab%20as%20a%20founding%20practitioner.%0A%0AMy%20name%3A%20%0AMy%20practice%3A%20%0A%0AThanks!" class="shrink-0 inline-flex items-center gap-2 rounded-[48px] bg-white text-dark text-base font-medium px-8 py-3.5 hover:bg-white/90 transition-colors">
+          Apply for Founder Access
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3"/></svg>
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <!-- FOOTER -->
+  <footer class="bg-dark text-white">
+    <div class="max-w-[1280px] mx-auto px-5 md:px-[52px] py-16 md:py-20">
+      <div class="reveal grid gap-10 md:grid-cols-3">
+        <div>
+          <p class="font-heading text-lg font-semibold tracking-tight">Health Data Lab</p>
+          <p class="mt-3 text-sm text-white/40 leading-relaxed">Smarter health insights<br>for modern practitioners.</p>
+        </div>
+        <div>
+          <p class="text-xs font-medium tracking-wide text-white/30 uppercase mb-4">Quick links</p>
+          <div class="flex flex-col gap-2.5">
+            <a href="#platform" class="text-sm text-white/50 hover:text-white transition-colors">For Practitioners</a>
+            <a href="#how-it-works" class="text-sm text-white/50 hover:text-white transition-colors">How It Works</a>
+            <a href="#founder-access" class="text-sm text-white/50 hover:text-white transition-colors">Founder Access</a>
+          </div>
+        </div>
+        <div>
+          <p class="text-xs font-medium tracking-wide text-white/30 uppercase mb-4">Legal</p>
+          <div class="flex flex-col gap-2.5">
+            <a href="#" class="text-sm text-white/50 hover:text-white transition-colors">Privacy Policy</a>
+            <a href="#" class="text-sm text-white/50 hover:text-white transition-colors">Terms of Service</a>
+          </div>
+        </div>
+      </div>
+      <div class="mt-14 border-t border-white/10 pt-8 flex flex-col md:flex-row items-center justify-between gap-4">
+        <p class="text-xs text-white/30">&copy; 2026 Health Data Lab. All rights reserved.</p>
+        <p class="text-xs text-white/20">This is not a medical service.</p>
       </div>
     </div>
   </footer>
 
-  <!-- ═══════════════════════════════════════════ -->
-  <!-- JS (nav toggle, scroll behavior, nav bg)    -->
-  <!-- ═══════════════════════════════════════════ -->
+  <!-- JS -->
   <script>
     // Mobile menu toggle
     const toggle = document.getElementById('menu-toggle');
     const menu = document.getElementById('mobile-menu');
+    const lines = [document.getElementById('menu-line-1'), document.getElementById('menu-line-2'), document.getElementById('menu-line-3')];
+    let menuOpen = false;
+
     toggle.addEventListener('click', () => {
-      menu.classList.toggle('hidden');
+      menuOpen = !menuOpen;
+      menu.classList.toggle('hidden', !menuOpen);
+      if (menuOpen) {
+        lines[0].setAttribute('d', 'M6 6l12 12');
+        lines[1].style.opacity = '0';
+        lines[2].setAttribute('d', 'M6 18L18 6');
+      } else {
+        lines[0].setAttribute('d', 'M4 7h16');
+        lines[1].style.opacity = '1';
+        lines[2].setAttribute('d', 'M4 17h16');
+      }
     });
-    // Close mobile menu on link click
+
     menu.querySelectorAll('.nav-link').forEach(link => {
-      link.addEventListener('click', () => menu.classList.add('hidden'));
+      link.addEventListener('click', () => {
+        menuOpen = false;
+        menu.classList.add('hidden');
+        lines[0].setAttribute('d', 'M4 7h16');
+        lines[1].style.opacity = '1';
+        lines[2].setAttribute('d', 'M4 17h16');
+      });
     });
 
     // Nav background on scroll
     const nav = document.getElementById('nav');
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting) {
-          nav.classList.remove('bg-navy/95', 'backdrop-blur-sm', 'shadow-lg');
-        } else {
-          nav.classList.add('bg-navy/95', 'backdrop-blur-sm', 'shadow-lg');
-        }
-      },
-      { threshold: 0.1 }
-    );
-    // Observe the hero section (first section after nav)
-    observer.observe(document.querySelector('section'));
+    const navInner = document.getElementById('nav-inner');
+    let lastScroll = 0;
+
+    window.addEventListener('scroll', () => {
+      const scrolled = window.scrollY > 40;
+      if (scrolled) {
+        navInner.classList.add('bg-surface/90', 'nav-blur', 'shadow-[0_2px_20px_rgba(0,0,0,.06)]');
+      } else {
+        navInner.classList.remove('bg-surface/90', 'nav-blur', 'shadow-[0_2px_20px_rgba(0,0,0,.06)]');
+      }
+      lastScroll = window.scrollY;
+    }, { passive: true });
 
     // Smooth scroll for anchor links
     document.querySelectorAll('a[href^="#"]').forEach(anchor => {
-      anchor.addEventListener('click', function (e) {
-        const target = document.querySelector(this.getAttribute('href'));
+      anchor.addEventListener('click', function(e) {
+        const id = this.getAttribute('href');
+        if (id === '#') return;
+        const target = document.querySelector(id);
         if (target) {
           e.preventDefault();
           target.scrollIntoView({ behavior: 'smooth' });
         }
       });
+    });
+
+    // Scroll-triggered reveal animations
+    const revealObserver = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          entry.target.classList.add('visible');
+          revealObserver.unobserve(entry.target);
+        }
+      });
+    }, { threshold: 0.15, rootMargin: '0px 0px -40px 0px' });
+
+    document.querySelectorAll('.reveal, .reveal-scale, .reveal-left, .reveal-right').forEach(el => {
+      revealObserver.observe(el);
+    });
+
+    // Counter animation
+    const counterObserver = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          const el = entry.target;
+          const target = parseInt(el.dataset.target);
+          const duration = 1200;
+          const start = performance.now();
+          const animate = (now) => {
+            const progress = Math.min((now - start) / duration, 1);
+            const eased = 1 - Math.pow(1 - progress, 3);
+            el.textContent = Math.round(eased * target);
+            if (progress < 1) requestAnimationFrame(animate);
+          };
+          requestAnimationFrame(animate);
+          counterObserver.unobserve(el);
+        }
+      });
+    }, { threshold: 0.5 });
+
+    document.querySelectorAll('.counter[data-target]').forEach(el => {
+      counterObserver.observe(el);
     });
   </script>
 </body>
