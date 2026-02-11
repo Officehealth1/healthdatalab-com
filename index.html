@@ -323,7 +323,7 @@
       </div>
       <div class="mt-12 max-w-3xl mx-auto">
         <div class="reveal-scale rounded-[32px] overflow-hidden">
-          <iframe class="w-full aspect-video" src="https://www.youtube.com/embed/K2rQSjwvTws?start=2" title="HealthDataLab — See It In Action" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen loading="lazy"></iframe>
+          <iframe id="yt-player" class="w-full aspect-video" src="https://www.youtube.com/embed/K2rQSjwvTws?start=2&autoplay=1&mute=1&enablejsapi=1" title="HealthDataLab — See It In Action" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen loading="lazy"></iframe>
         </div>
       </div>
     </div>
@@ -584,6 +584,18 @@
     document.querySelectorAll('.counter[data-target]').forEach(el => {
       counterObserver.observe(el);
     });
+
+    // YouTube player — autoplay with 15% volume
+    var tag = document.createElement('script');
+    tag.src = 'https://www.youtube.com/iframe_api';
+    document.head.appendChild(tag);
+    function onYouTubeIframeAPIReady() {
+      new YT.Player('yt-player', {
+        events: {
+          onReady: function(e) { e.target.unMute(); e.target.setVolume(15); }
+        }
+      });
+    }
   </script>
 </body>
 </html>
