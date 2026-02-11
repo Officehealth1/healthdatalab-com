@@ -3,10 +3,10 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Health Data Lab — Smarter health insights for modern practitioners</title>
-  <meta name="description" content="A structured platform that turns client health data into clear, actionable reports. Limited to 20 founding practitioners. Launching 2026.">
-  <meta property="og:title" content="Health Data Lab — Smarter health insights for modern practitioners">
-  <meta property="og:description" content="A structured platform that turns client health data into clear, actionable reports for practitioners.">
+  <title>Health Data Lab — Visual health insights for holistic practitioners</title>
+  <meta name="description" content="Invite clients to complete a quick health form. Instantly receive a visual PDF report packed with insights — so you can prepare with confidence. Limited to 20 founding practitioners.">
+  <meta property="og:title" content="Health Data Lab — Visual health insights for holistic practitioners">
+  <meta property="og:description" content="Visual health insights — before your client walks through the door. Quick health forms, instant PDF reports, client tracking.">
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://healthdatalab.com">
   <meta name="twitter:card" content="summary">
@@ -34,17 +34,26 @@
     body { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
     .nav-blur { backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); }
 
-    /* Scroll-triggered reveal animations */
-    .reveal {
+    /* Shared reveal easing */
+    :root { --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1); }
+
+    /* Scroll-triggered reveal animations — shared base */
+    .reveal, .reveal-scale, .reveal-left, .reveal-right {
       opacity: 0;
-      transform: translateY(32px);
-      transition: opacity 0.7s cubic-bezier(0.16, 1, 0.3, 1),
-                  transform 0.7s cubic-bezier(0.16, 1, 0.3, 1);
+      transition: opacity 0.7s var(--ease-out-expo),
+                  transform 0.7s var(--ease-out-expo);
     }
-    .reveal.visible {
+    .reveal       { transform: translateY(32px); }
+    .reveal-scale { transform: translateY(24px) scale(0.97); transition-duration: 0.6s; }
+    .reveal-left  { transform: translateX(-32px); }
+    .reveal-right { transform: translateX(32px); }
+
+    .reveal.visible, .reveal-scale.visible,
+    .reveal-left.visible, .reveal-right.visible {
       opacity: 1;
-      transform: translateY(0);
+      transform: none;
     }
+
     /* Stagger delays for children */
     .reveal-delay-1 { transition-delay: 0.1s; }
     .reveal-delay-2 { transition-delay: 0.2s; }
@@ -55,7 +64,7 @@
     .hero-enter {
       opacity: 0;
       transform: translateY(24px);
-      animation: heroFadeUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+      animation: heroFadeUp 0.8s var(--ease-out-expo) forwards;
     }
     .hero-enter-1 { animation-delay: 0.1s; }
     .hero-enter-2 { animation-delay: 0.25s; }
@@ -66,38 +75,8 @@
       to { opacity: 1; transform: translateY(0); }
     }
 
-    /* Subtle scale-in for cards */
-    .reveal-scale {
-      opacity: 0;
-      transform: translateY(24px) scale(0.97);
-      transition: opacity 0.6s cubic-bezier(0.16, 1, 0.3, 1),
-                  transform 0.6s cubic-bezier(0.16, 1, 0.3, 1);
-    }
-    .reveal-scale.visible {
-      opacity: 1;
-      transform: translateY(0) scale(1);
-    }
-
     /* Counter animation */
     .counter { font-variant-numeric: tabular-nums; }
-
-    /* Fade-in from left/right for split layouts */
-    .reveal-left {
-      opacity: 0;
-      transform: translateX(-32px);
-      transition: opacity 0.7s cubic-bezier(0.16, 1, 0.3, 1),
-                  transform 0.7s cubic-bezier(0.16, 1, 0.3, 1);
-    }
-    .reveal-right {
-      opacity: 0;
-      transform: translateX(32px);
-      transition: opacity 0.7s cubic-bezier(0.16, 1, 0.3, 1),
-                  transform 0.7s cubic-bezier(0.16, 1, 0.3, 1);
-    }
-    .reveal-left.visible, .reveal-right.visible {
-      opacity: 1;
-      transform: translateX(0);
-    }
 
     /* Respect reduced motion */
     @media (prefers-reduced-motion: reduce) {
@@ -152,10 +131,10 @@
           Launching 2026 — 20 Founder Seats Available
         </p>
         <h1 class="hero-enter hero-enter-2 font-heading text-[clamp(2rem,5vw,3rem)] font-medium text-dark leading-[1.16] tracking-[-0.03em]">
-          Smarter health insights for modern practitioners
+          Visual health insights&nbsp;&mdash; before your client walks through the door
         </h1>
         <p class="hero-enter hero-enter-3 mt-6 text-lg text-body max-w-xl mx-auto leading-relaxed">
-          A structured platform that turns client health data into clear, actionable reports&nbsp;&mdash; so you can focus on what you do best.
+          Invite clients to complete a quick health form. Instantly receive a visual PDF report packed with insights&nbsp;&mdash; so you can prepare with confidence and deliver personalised care.
         </p>
         <div class="hero-enter hero-enter-4 mt-10 flex flex-col sm:flex-row items-center justify-center gap-3">
           <a href="#founder-access" class="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-[48px] bg-primary text-white text-base font-medium px-8 py-3.5 hover:bg-primary-dark transition-colors shadow-[0_4px_20px_rgba(0,104,255,.25)]">
@@ -208,24 +187,24 @@
           <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-surface text-dark group-hover:bg-white/10 group-hover:text-white transition-colors duration-300">
             <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z"/></svg>
           </div>
-          <h3 class="mt-6 font-heading text-xl text-dark font-medium group-hover:text-white transition-colors duration-300">Structured Reports</h3>
-          <p class="mt-3 text-sm text-body leading-relaxed group-hover:text-white/70 transition-colors duration-300">Generate clear health reports your clients actually understand. Professional, branded, and ready to share.</p>
+          <h3 class="mt-6 font-heading text-xl text-dark font-medium group-hover:text-white transition-colors duration-300">Health Forms &amp; Reports</h3>
+          <p class="mt-3 text-sm text-body leading-relaxed group-hover:text-white/70 transition-colors duration-300">Clients complete a 4-minute health form. You instantly receive a detailed visual PDF report&nbsp;&mdash; ready before the first consultation.</p>
         </div>
         <!-- Card 2 -->
         <div class="reveal-scale reveal-delay-2 rounded-[32px] bg-light p-8 md:p-10 group hover:bg-dark transition-colors duration-300">
           <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-surface text-dark group-hover:bg-white/10 group-hover:text-white transition-colors duration-300">
             <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 0 1 3 19.875v-6.75ZM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V8.625ZM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V4.125Z"/></svg>
           </div>
-          <h3 class="mt-6 font-heading text-xl text-dark font-medium group-hover:text-white transition-colors duration-300">Client Dashboard</h3>
-          <p class="mt-3 text-sm text-body leading-relaxed group-hover:text-white/70 transition-colors duration-300">Track progress, visualise trajectories, and share updates. Your clients stay informed and engaged.</p>
+          <h3 class="mt-6 font-heading text-xl text-dark font-medium group-hover:text-white transition-colors duration-300">Client Tracker</h3>
+          <p class="mt-3 text-sm text-body leading-relaxed group-hover:text-white/70 transition-colors duration-300">Track your clients' health journeys over time. From dietary habits to energy levels, see clear visual snapshots of their progress.</p>
         </div>
         <!-- Card 3 -->
         <div class="reveal-scale reveal-delay-3 rounded-[32px] bg-light p-8 md:p-10 group hover:bg-dark transition-colors duration-300">
           <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-surface text-dark group-hover:bg-white/10 group-hover:text-white transition-colors duration-300">
             <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M11.42 15.17 17.25 21A2.652 2.652 0 0 0 21 17.25l-5.877-5.877M11.42 15.17l2.496-3.03c.317-.384.74-.626 1.208-.766M11.42 15.17l-4.655 5.653a2.548 2.548 0 1 1-3.586-3.586l6.837-5.63m5.108-.233c.55-.164 1.163-.188 1.743-.14a4.5 4.5 0 0 0 4.486-6.336l-3.276 3.277a3.004 3.004 0 0 1-2.25-2.25l3.276-3.276a4.5 4.5 0 0 0-6.336 4.486c.049.58.025 1.193-.14 1.743"/></svg>
           </div>
-          <h3 class="mt-6 font-heading text-xl text-dark font-medium group-hover:text-white transition-colors duration-300">Practice Tools</h3>
-          <p class="mt-3 text-sm text-body leading-relaxed group-hover:text-white/70 transition-colors duration-300">Streamline intake, assessments, and follow-ups. Less admin, more time with your clients.</p>
+          <h3 class="mt-6 font-heading text-xl text-dark font-medium group-hover:text-white transition-colors duration-300">Practitioner Tools</h3>
+          <p class="mt-3 text-sm text-body leading-relaxed group-hover:text-white/70 transition-colors duration-300">Practitioner Assistants, IrisMapper integration, consultation management&nbsp;&mdash; your holistic expertise augmented with smart tools.</p>
         </div>
       </div>
     </div>
@@ -243,20 +222,20 @@
         <!-- Step 1 -->
         <div class="reveal-scale reveal-delay-1 rounded-[32px] bg-surface p-8 md:p-10">
           <span class="inline-flex items-center justify-center h-10 w-10 rounded-full bg-primary text-white text-sm font-semibold">1</span>
-          <h3 class="mt-6 font-heading text-xl text-dark font-medium">Onboard Your Client</h3>
-          <p class="mt-3 text-sm text-body leading-relaxed">Simple intake form captures baseline data. Everything your practice needs to get started, nothing it doesn't.</p>
+          <h3 class="mt-6 font-heading text-xl text-dark font-medium">Client Completes Health Form</h3>
+          <p class="mt-3 text-sm text-body leading-relaxed">Share a simple link. Your client fills in a 4-minute questionnaire covering their health history, lifestyle, and well-being.</p>
         </div>
         <!-- Step 2 -->
         <div class="reveal-scale reveal-delay-2 rounded-[32px] bg-surface p-8 md:p-10">
           <span class="inline-flex items-center justify-center h-10 w-10 rounded-full bg-primary text-white text-sm font-semibold">2</span>
-          <h3 class="mt-6 font-heading text-xl text-dark font-medium">Generate Reports</h3>
-          <p class="mt-3 text-sm text-body leading-relaxed">The platform produces clear, branded health reports. Professional documents your clients will understand and value.</p>
+          <h3 class="mt-6 font-heading text-xl text-dark font-medium">Receive Visual Report</h3>
+          <p class="mt-3 text-sm text-body leading-relaxed">Instantly receive a detailed PDF report with visual health data. Review it before the consultation to prepare with confidence.</p>
         </div>
         <!-- Step 3 -->
         <div class="reveal-scale reveal-delay-3 rounded-[32px] bg-surface p-8 md:p-10">
           <span class="inline-flex items-center justify-center h-10 w-10 rounded-full bg-primary text-white text-sm font-semibold">3</span>
-          <h3 class="mt-6 font-heading text-xl text-dark font-medium">Track &amp; Adjust</h3>
-          <p class="mt-3 text-sm text-body leading-relaxed">Monitor progress with visual dashboards and trajectory charts. See what's working and refine the approach over time.</p>
+          <h3 class="mt-6 font-heading text-xl text-dark font-medium">Track &amp; Guide</h3>
+          <p class="mt-3 text-sm text-body leading-relaxed">Monitor your client's progress with visual snapshots over time. Guide their journey with data-driven insights.</p>
         </div>
       </div>
     </div>
@@ -270,8 +249,8 @@
         <div class="reveal-left rounded-[32px] bg-light p-8 md:p-12 flex flex-col justify-between">
           <div>
             <p class="text-primary text-sm font-medium">Health Data Lab</p>
-            <h2 class="mt-3 font-heading text-[clamp(1.75rem,3.5vw,2.25rem)] font-medium text-dark leading-[1.2] tracking-[-0.03em]">Comprehensive tools for every stage of care</h2>
-            <p class="mt-4 text-body leading-relaxed">From initial assessment to ongoing monitoring, our platform gives you structured workflows that enhance how you deliver care.</p>
+            <h2 class="mt-3 font-heading text-[clamp(1.75rem,3.5vw,2.25rem)] font-medium text-dark leading-[1.2] tracking-[-0.03em]">Built from 15 years of holistic health experience</h2>
+            <p class="mt-4 text-body leading-relaxed">From IRISLAB.com to HealthDataLab&nbsp;&mdash; two decades of building tools for natural health practitioners. We understand that every client is a unique tapestry of genetics, lifestyle, and health history.</p>
           </div>
           <div class="mt-10 flex items-end gap-6">
             <div>
@@ -288,24 +267,24 @@
         <!-- Right: feature list -->
         <div class="reveal-right flex flex-col gap-5">
           <div class="rounded-[32px] bg-light p-8 group hover:bg-primary transition-colors duration-300">
-            <h3 class="font-heading text-lg text-dark font-medium group-hover:text-white transition-colors duration-300">Personalised health management</h3>
-            <p class="mt-2 text-sm text-body leading-relaxed group-hover:text-white/70 transition-colors duration-300">Ongoing, structured tracking tailored to each client's needs. Your first step towards better practice outcomes.</p>
+            <h3 class="font-heading text-lg text-dark font-medium group-hover:text-white transition-colors duration-300">Consultation Management</h3>
+            <p class="mt-2 text-sm text-body leading-relaxed group-hover:text-white/70 transition-colors duration-300">Secure, efficient, and organised client consultations at your fingertips.</p>
             <a href="#founder-access" class="mt-4 inline-flex items-center gap-1 text-sm text-primary font-medium group-hover:text-white transition-colors duration-300">
               Learn more
               <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3"/></svg>
             </a>
           </div>
           <div class="rounded-[32px] bg-light p-8 group hover:bg-primary transition-colors duration-300">
-            <h3 class="font-heading text-lg text-dark font-medium group-hover:text-white transition-colors duration-300">Client-ready report generation</h3>
-            <p class="mt-2 text-sm text-body leading-relaxed group-hover:text-white/70 transition-colors duration-300">Professional, branded reports that communicate findings clearly. Give your clients documents they value and understand.</p>
+            <h3 class="font-heading text-lg text-dark font-medium group-hover:text-white transition-colors duration-300">Practitioner Assistants</h3>
+            <p class="mt-2 text-sm text-body leading-relaxed group-hover:text-white/70 transition-colors duration-300">Your holistic expertise augmented with a virtual assistant designed to streamline communication and client care.</p>
             <a href="#founder-access" class="mt-4 inline-flex items-center gap-1 text-sm text-primary font-medium group-hover:text-white transition-colors duration-300">
               Learn more
               <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3"/></svg>
             </a>
           </div>
           <div class="rounded-[32px] bg-light p-8 group hover:bg-primary transition-colors duration-300">
-            <h3 class="font-heading text-lg text-dark font-medium group-hover:text-white transition-colors duration-300">Advanced data visualisation</h3>
-            <p class="mt-2 text-sm text-body leading-relaxed group-hover:text-white/70 transition-colors duration-300">Trajectory charts, progress dashboards, and trend analysis. See the full picture of your client's health journey.</p>
+            <h3 class="font-heading text-lg text-dark font-medium group-hover:text-white transition-colors duration-300">IrisMapper Integration</h3>
+            <p class="mt-2 text-sm text-body leading-relaxed group-hover:text-white/70 transition-colors duration-300">Seamlessly connect your iridology practice with HealthDataLab's visual health mapping tools.</p>
             <a href="#founder-access" class="mt-4 inline-flex items-center gap-1 text-sm text-primary font-medium group-hover:text-white transition-colors duration-300">
               Learn more
               <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3"/></svg>
@@ -335,7 +314,7 @@
             </div>
           </div>
         </div>
-        <p class="mt-6 text-center text-sm text-body">Full sample report coming soon&nbsp;&mdash; get early access to be the first to see it.</p>
+        <p class="mt-6 text-center text-sm text-body">A comprehensive view of your client's well-being. Visual health data, areas to focus on, and a clear starting point for your consultation.</p>
         <div class="mt-6 text-center">
           <a href="#founder-access" class="inline-flex items-center gap-2 rounded-[48px] bg-primary text-white text-sm font-medium px-6 py-2.5 hover:bg-primary-dark transition-colors">
             Get Early Access
@@ -346,14 +325,38 @@
     </div>
   </section>
 
+  <!-- TESTIMONIALS -->
+  <section class="bg-surface">
+    <div class="max-w-[1280px] mx-auto px-5 md:px-[52px] py-24 md:py-32">
+      <div class="reveal text-center max-w-2xl mx-auto">
+        <p class="text-primary text-sm font-medium">Practitioners</p>
+        <h2 class="mt-3 font-heading text-[clamp(1.75rem,3.5vw,2.5rem)] font-medium text-dark leading-[1.2] tracking-[-0.03em]">Trusted by holistic health practitioners</h2>
+      </div>
+      <div class="mt-14 grid gap-5 md:grid-cols-3">
+        <div class="reveal-scale reveal-delay-1 rounded-[32px] bg-light p-8 md:p-10 flex flex-col justify-between">
+          <p class="text-sm text-body leading-relaxed italic">&ldquo;I was skeptical about transitioning from pen &amp; paper, but HealthDataLab's Tracker gives me visibility into my clients' progress like never before. I'm building stronger relationships with them.&rdquo;</p>
+          <p class="mt-6 font-heading text-dark font-medium text-sm">Yoko, Hiro</p>
+        </div>
+        <div class="reveal-scale reveal-delay-2 rounded-[32px] bg-light p-8 md:p-10 flex flex-col justify-between">
+          <p class="text-sm text-body leading-relaxed italic">&ldquo;HealthDataLab's user-friendly interface and supportive team have outperformed my expectations. Even with my limited tech skills, I've found it seamless.&rdquo;</p>
+          <p class="mt-6 font-heading text-dark font-medium text-sm">Jane, Smith</p>
+        </div>
+        <div class="reveal-scale reveal-delay-3 rounded-[32px] bg-light p-8 md:p-10 flex flex-col justify-between">
+          <p class="text-sm text-body leading-relaxed italic">&ldquo;The other software systems I used before were complicated and gave me more work. It's been easy to use and setup. I look forward to using the snippets more.&rdquo;</p>
+          <p class="mt-6 font-heading text-dark font-medium text-sm">John, Martin</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
   <!-- FOUNDER ACCESS CTA -->
   <section id="founder-access" class="scroll-mt-20 bg-surface">
     <div class="max-w-[1280px] mx-auto px-5 md:px-[52px] py-10">
       <div class="reveal-scale rounded-[24px] bg-primary p-10 md:p-16 flex flex-col md:flex-row items-center justify-between gap-8">
         <div class="max-w-lg">
-          <h2 class="font-heading text-[clamp(1.5rem,3vw,2rem)] font-medium text-white leading-[1.2] tracking-[-0.02em]">Join as a founding practitioner</h2>
-          <p class="mt-4 text-white/70 leading-relaxed">Limited to 20 founding practitioners. Manual onboarding with hands-on support. Founding members receive priority access and extended benefits.</p>
-          <p class="mt-6 text-sm text-white/50">Limited to 20&ensp;&middot;&ensp;Priority Support&ensp;&middot;&ensp;Founding Member Benefits</p>
+          <h2 class="font-heading text-[clamp(1.5rem,3vw,2rem)] font-medium text-white leading-[1.2] tracking-[-0.02em]">Ready to transform your practice?</h2>
+          <p class="mt-4 text-white/70 leading-relaxed">Join as a founding practitioner. Limited to 20 seats with hands-on onboarding, priority support, and founding member pricing. Start with a free trial&nbsp;&mdash; no credit card required.</p>
+          <p class="mt-6 text-sm text-white/50">Free Trial&ensp;&middot;&ensp;20 Founder Seats&ensp;&middot;&ensp;Priority Support&ensp;&middot;&ensp;From &pound;39/month</p>
         </div>
         <a href="mailto:hello@healthdatalab.com?subject=Founder%20Access%20Application&body=Hi%2C%0A%0AI'm%20interested%20in%20joining%20Health%20Data%20Lab%20as%20a%20founding%20practitioner.%0A%0AMy%20name%3A%20%0AMy%20practice%3A%20%0A%0AThanks!" class="shrink-0 inline-flex items-center gap-2 rounded-[48px] bg-white text-dark text-base font-medium px-8 py-3.5 hover:bg-white/90 transition-colors">
           Apply for Founder Access
@@ -369,7 +372,8 @@
       <div class="reveal grid gap-10 md:grid-cols-3">
         <div>
           <p class="font-heading text-lg font-semibold tracking-tight">Health Data Lab</p>
-          <p class="mt-3 text-sm text-white/40 leading-relaxed">Smarter health insights<br>for modern practitioners.</p>
+          <p class="mt-3 text-sm text-white/40 leading-relaxed">Built for holistic health practitioners.</p>
+          <p class="mt-2 text-xs text-white/25">From the makers of IRISLAB.com</p>
         </div>
         <div>
           <p class="text-xs font-medium tracking-wide text-white/30 uppercase mb-4">Quick links</p>
@@ -402,57 +406,41 @@
     const lines = [document.getElementById('menu-line-1'), document.getElementById('menu-line-2'), document.getElementById('menu-line-3')];
     let menuOpen = false;
 
+    function closeMenu() {
+      menuOpen = false;
+      menu.classList.add('hidden');
+      lines[0].setAttribute('d', 'M4 7h16');
+      lines[1].style.opacity = '1';
+      lines[2].setAttribute('d', 'M4 17h16');
+    }
+
     toggle.addEventListener('click', () => {
-      menuOpen = !menuOpen;
-      menu.classList.toggle('hidden', !menuOpen);
       if (menuOpen) {
+        closeMenu();
+      } else {
+        menuOpen = true;
+        menu.classList.remove('hidden');
         lines[0].setAttribute('d', 'M6 6l12 12');
         lines[1].style.opacity = '0';
         lines[2].setAttribute('d', 'M6 18L18 6');
-      } else {
-        lines[0].setAttribute('d', 'M4 7h16');
-        lines[1].style.opacity = '1';
-        lines[2].setAttribute('d', 'M4 17h16');
       }
     });
 
     menu.querySelectorAll('.nav-link').forEach(link => {
-      link.addEventListener('click', () => {
-        menuOpen = false;
-        menu.classList.add('hidden');
-        lines[0].setAttribute('d', 'M4 7h16');
-        lines[1].style.opacity = '1';
-        lines[2].setAttribute('d', 'M4 17h16');
-      });
+      link.addEventListener('click', closeMenu);
     });
 
     // Nav background on scroll
-    const nav = document.getElementById('nav');
     const navInner = document.getElementById('nav-inner');
-    let lastScroll = 0;
+    const scrollClasses = ['bg-surface/90', 'nav-blur', 'shadow-[0_2px_20px_rgba(0,0,0,.06)]'];
 
     window.addEventListener('scroll', () => {
-      const scrolled = window.scrollY > 40;
-      if (scrolled) {
-        navInner.classList.add('bg-surface/90', 'nav-blur', 'shadow-[0_2px_20px_rgba(0,0,0,.06)]');
+      if (window.scrollY > 40) {
+        navInner.classList.add(...scrollClasses);
       } else {
-        navInner.classList.remove('bg-surface/90', 'nav-blur', 'shadow-[0_2px_20px_rgba(0,0,0,.06)]');
+        navInner.classList.remove(...scrollClasses);
       }
-      lastScroll = window.scrollY;
     }, { passive: true });
-
-    // Smooth scroll for anchor links
-    document.querySelectorAll('a[href^="#"]').forEach(anchor => {
-      anchor.addEventListener('click', function(e) {
-        const id = this.getAttribute('href');
-        if (id === '#') return;
-        const target = document.querySelector(id);
-        if (target) {
-          e.preventDefault();
-          target.scrollIntoView({ behavior: 'smooth' });
-        }
-      });
-    });
 
     // Scroll-triggered reveal animations
     const revealObserver = new IntersectionObserver((entries) => {
