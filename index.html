@@ -78,6 +78,17 @@
     /* Counter animation */
     .counter { font-variant-numeric: tabular-nums; }
 
+    /* 3D report mockup */
+    .report-3d { perspective: 1200px; }
+    .report-3d-page {
+      transform: rotateY(-4deg) rotateX(2deg);
+      transform-origin: left center;
+      transition: transform 0.6s var(--ease-out-expo);
+    }
+    .report-3d-page:hover {
+      transform: rotateY(0) rotateX(0);
+    }
+
     /* Respect reduced motion */
     @media (prefers-reduced-motion: reduce) {
       .reveal, .reveal-scale, .reveal-left, .reveal-right { transition: none; opacity: 1; transform: none; }
@@ -300,69 +311,179 @@
     <div class="max-w-[1280px] mx-auto px-5 md:px-[52px] py-24 md:py-32">
       <div class="reveal text-center max-w-2xl mx-auto">
         <p class="text-primary text-sm font-medium">Sample Report</p>
-        <h2 class="mt-3 font-heading text-[clamp(1.75rem,3.5vw,2.5rem)] font-medium text-dark leading-[1.2] tracking-[-0.03em]">See what your clients will receive</h2>
+        <h2 class="mt-3 font-heading text-[clamp(1.75rem,3.5vw,2.5rem)] font-medium text-dark leading-[1.2] tracking-[-0.03em]">See what your clients receive</h2>
+        <p class="mt-4 text-body leading-relaxed">Each report gives you a clear visual snapshot of your client's health — ready before you even meet.</p>
       </div>
-      <div class="mt-12 max-w-2xl mx-auto">
-        <div class="reveal-scale rounded-[32px] bg-surface overflow-hidden border border-stroke/50">
-          <div class="aspect-[4/3] bg-gradient-to-br from-primary/5 via-transparent to-light flex items-center justify-center">
-            <div class="text-center px-8">
-              <div class="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/8">
-                <svg class="w-8 h-8 text-primary/50" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z"/></svg>
+      <div class="mt-14 max-w-sm mx-auto report-3d">
+        <div class="reveal-scale report-3d-page rounded-2xl bg-white shadow-[0_30px_60px_-15px_rgba(0,0,0,0.18),0_0_40px_-10px_rgba(0,104,255,0.08)] border border-stroke/40 overflow-hidden">
+          <!-- Report header -->
+          <div class="px-7 py-5 border-b border-stroke/40">
+            <div class="flex items-center justify-between">
+              <div>
+                <p class="font-heading text-xs font-semibold text-dark tracking-tight">Health Data Lab</p>
+                <p class="text-[10px] text-muted mt-0.5">Client Health Report</p>
               </div>
-              <p class="font-heading text-xl text-dark/50 font-medium">Report Preview</p>
-              <p class="mt-2 text-sm text-muted">Full sample report coming soon</p>
+              <div class="h-6 w-6 rounded-full bg-primary/10 flex items-center justify-center">
+                <svg class="w-3 h-3 text-primary" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/></svg>
+              </div>
+            </div>
+          </div>
+          <!-- Polar chart -->
+          <div class="px-7 pt-6 pb-4 flex justify-center">
+            <svg viewBox="0 0 200 200" class="w-36 h-36">
+              <polygon points="100,25 170,62 152,148 48,148 30,62" fill="none" stroke="#e5e7eb" stroke-width="0.75"/>
+              <polygon points="100,45 148,72 136,134 64,134 52,72" fill="none" stroke="#e5e7eb" stroke-width="0.5"/>
+              <polygon points="100,65 126,82 120,120 80,120 74,82" fill="none" stroke="#e5e7eb" stroke-width="0.5"/>
+              <polygon points="100,38 162,70 140,150 52,138 38,68" fill="rgba(0,104,255,0.06)" stroke="#0068ff" stroke-width="1.5" stroke-linejoin="round"/>
+              <circle cx="100" cy="38" r="2.5" fill="#0068ff"/>
+              <circle cx="162" cy="70" r="2.5" fill="#0068ff"/>
+              <circle cx="140" cy="150" r="2.5" fill="#0068ff"/>
+              <circle cx="52" cy="138" r="2.5" fill="#0068ff"/>
+              <circle cx="38" cy="68" r="2.5" fill="#0068ff"/>
+              <text x="100" y="18" text-anchor="middle" fill="#a0a0a0" font-size="7" font-family="Inter,sans-serif">Energy</text>
+              <text x="180" y="65" text-anchor="start" fill="#a0a0a0" font-size="7" font-family="Inter,sans-serif">Digestion</text>
+              <text x="158" y="160" text-anchor="start" fill="#a0a0a0" font-size="7" font-family="Inter,sans-serif">Sleep</text>
+              <text x="42" y="160" text-anchor="end" fill="#a0a0a0" font-size="7" font-family="Inter,sans-serif">Stress</text>
+              <text x="20" y="65" text-anchor="end" fill="#a0a0a0" font-size="7" font-family="Inter,sans-serif">Nutrition</text>
+            </svg>
+          </div>
+          <!-- Score bars -->
+          <div class="px-7 pb-6 space-y-2.5">
+            <div>
+              <div class="flex justify-between text-[10px] mb-1"><span class="text-body">Energy</span><span class="text-muted">72%</span></div>
+              <div class="h-1.5 bg-light rounded-full"><div class="h-full bg-primary/50 rounded-full" style="width:72%"></div></div>
+            </div>
+            <div>
+              <div class="flex justify-between text-[10px] mb-1"><span class="text-body">Sleep Quality</span><span class="text-muted">58%</span></div>
+              <div class="h-1.5 bg-light rounded-full"><div class="h-full bg-primary/50 rounded-full" style="width:58%"></div></div>
+            </div>
+            <div>
+              <div class="flex justify-between text-[10px] mb-1"><span class="text-body">Digestion</span><span class="text-muted">81%</span></div>
+              <div class="h-1.5 bg-light rounded-full"><div class="h-full bg-primary/50 rounded-full" style="width:81%"></div></div>
+            </div>
+            <div>
+              <div class="flex justify-between text-[10px] mb-1"><span class="text-body">Nutrition</span><span class="text-muted">65%</span></div>
+              <div class="h-1.5 bg-light rounded-full"><div class="h-full bg-primary/50 rounded-full" style="width:65%"></div></div>
             </div>
           </div>
         </div>
-        <p class="mt-6 text-center text-sm text-body">A comprehensive view of your client's well-being. Visual health data, areas to focus on, and a clear starting point for your consultation.</p>
-        <div class="mt-6 text-center">
-          <a href="#founder-access" class="inline-flex items-center gap-2 rounded-[48px] bg-primary text-white text-sm font-medium px-6 py-2.5 hover:bg-primary-dark transition-colors">
-            Get Early Access
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3"/></svg>
-          </a>
-        </div>
       </div>
-    </div>
-  </section>
-
-  <!-- TESTIMONIALS -->
-  <section class="bg-surface">
-    <div class="max-w-[1280px] mx-auto px-5 md:px-[52px] py-24 md:py-32">
-      <div class="reveal text-center max-w-2xl mx-auto">
-        <p class="text-primary text-sm font-medium">Practitioners</p>
-        <h2 class="mt-3 font-heading text-[clamp(1.75rem,3.5vw,2.5rem)] font-medium text-dark leading-[1.2] tracking-[-0.03em]">Trusted by holistic health practitioners</h2>
-      </div>
-      <div class="mt-14 grid gap-5 md:grid-cols-3">
-        <div class="reveal-scale reveal-delay-1 rounded-[32px] bg-light p-8 md:p-10 flex flex-col justify-between">
-          <p class="text-sm text-body leading-relaxed italic">&ldquo;I was skeptical about transitioning from pen &amp; paper, but HealthDataLab's Tracker gives me visibility into my clients' progress like never before. I'm building stronger relationships with them.&rdquo;</p>
-          <p class="mt-6 font-heading text-dark font-medium text-sm">Yoko, Hiro</p>
-        </div>
-        <div class="reveal-scale reveal-delay-2 rounded-[32px] bg-light p-8 md:p-10 flex flex-col justify-between">
-          <p class="text-sm text-body leading-relaxed italic">&ldquo;HealthDataLab's user-friendly interface and supportive team have outperformed my expectations. Even with my limited tech skills, I've found it seamless.&rdquo;</p>
-          <p class="mt-6 font-heading text-dark font-medium text-sm">Jane, Smith</p>
-        </div>
-        <div class="reveal-scale reveal-delay-3 rounded-[32px] bg-light p-8 md:p-10 flex flex-col justify-between">
-          <p class="text-sm text-body leading-relaxed italic">&ldquo;The other software systems I used before were complicated and gave me more work. It's been easy to use and setup. I look forward to using the snippets more.&rdquo;</p>
-          <p class="mt-6 font-heading text-dark font-medium text-sm">John, Martin</p>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- FOUNDER ACCESS CTA -->
-  <section id="founder-access" class="scroll-mt-20 bg-surface">
-    <div class="max-w-[1280px] mx-auto px-5 md:px-[52px] py-10">
-      <div class="reveal-scale rounded-[24px] bg-primary p-10 md:p-16 flex flex-col md:flex-row items-center justify-between gap-8">
-        <div class="max-w-lg">
-          <h2 class="font-heading text-[clamp(1.5rem,3vw,2rem)] font-medium text-white leading-[1.2] tracking-[-0.02em]">Ready to transform your practice?</h2>
-          <p class="mt-4 text-white/70 leading-relaxed">Join as a founding practitioner. Limited to 20 seats with hands-on onboarding, priority support, and founding member pricing. Start with a free trial&nbsp;&mdash; no credit card required.</p>
-          <p class="mt-6 text-sm text-white/50">Free Trial&ensp;&middot;&ensp;20 Founder Seats&ensp;&middot;&ensp;Priority Support&ensp;&middot;&ensp;From &pound;39/month</p>
-        </div>
-        <a href="mailto:hello@healthdatalab.com?subject=Founder%20Access%20Application&body=Hi%2C%0A%0AI'm%20interested%20in%20joining%20Health%20Data%20Lab%20as%20a%20founding%20practitioner.%0A%0AMy%20name%3A%20%0AMy%20practice%3A%20%0A%0AThanks!" class="shrink-0 inline-flex items-center gap-2 rounded-[48px] bg-white text-dark text-base font-medium px-8 py-3.5 hover:bg-white/90 transition-colors">
-          Apply for Founder Access
+      <div class="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4">
+        <a href="#" class="inline-flex items-center gap-2 rounded-[48px] bg-dark text-white text-sm font-medium px-7 py-3 hover:bg-dark-2 transition-colors">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3"/></svg>
+          Download Sample Report
+        </a>
+        <a href="#founder-access" class="inline-flex items-center gap-2 text-sm text-primary font-medium hover:text-primary-dark transition-colors">
+          Get Early Access
           <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3"/></svg>
         </a>
       </div>
+    </div>
+  </section>
+
+  <!-- VIDEO -->
+  <section class="bg-surface">
+    <div class="max-w-[1280px] mx-auto px-5 md:px-[52px] py-24 md:py-32">
+      <div class="reveal text-center max-w-2xl mx-auto">
+        <p class="text-primary text-sm font-medium">See It In Action</p>
+        <h2 class="mt-3 font-heading text-[clamp(1.75rem,3.5vw,2.5rem)] font-medium text-dark leading-[1.2] tracking-[-0.03em]">Watch Health Data Lab in practice</h2>
+        <p class="mt-4 text-body leading-relaxed">A walkthrough of the platform — from sending the health form to reviewing your client's visual report.</p>
+      </div>
+      <div class="mt-12 max-w-3xl mx-auto">
+        <div class="reveal-scale rounded-[32px] bg-dark aspect-video flex items-center justify-center overflow-hidden relative">
+          <div class="absolute inset-0 bg-gradient-to-br from-primary/8 to-transparent"></div>
+          <div class="relative flex flex-col items-center gap-4">
+            <div class="flex h-16 w-16 items-center justify-center rounded-full bg-white/10 border border-white/15">
+              <svg class="w-6 h-6 text-white ml-0.5" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+            </div>
+            <p class="text-white/40 text-sm">Presentation recording coming soon</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FOUNDING MEMBERS -->
+  <section class="bg-light">
+    <div class="max-w-[1280px] mx-auto px-5 md:px-[52px] py-24 md:py-32">
+      <div class="reveal text-center max-w-2xl mx-auto">
+        <p class="text-primary text-sm font-medium">Founding Cohort</p>
+        <h2 class="mt-3 font-heading text-[clamp(1.75rem,3.5vw,2.5rem)] font-medium text-dark leading-[1.2] tracking-[-0.03em]">What founding members get</h2>
+        <p class="mt-4 text-body leading-relaxed">We're onboarding our first 20 practitioners with hands-on support and pricing that won't change.</p>
+      </div>
+      <div class="mt-14 grid gap-5 md:grid-cols-3">
+        <div class="reveal-scale reveal-delay-1 rounded-[32px] bg-surface p-8 md:p-10">
+          <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/8 text-primary">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z"/></svg>
+          </div>
+          <h3 class="mt-5 font-heading text-lg text-dark font-medium">Personal onboarding</h3>
+          <p class="mt-2 text-sm text-body leading-relaxed">No generic sign-up flow. We'll set things up together and make sure you're comfortable before your first client uses it.</p>
+        </div>
+        <div class="reveal-scale reveal-delay-2 rounded-[32px] bg-surface p-8 md:p-10">
+          <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/8 text-primary">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M7.5 8.25h9m-9 3H12m-9.75 1.51c0 1.6 1.123 2.994 2.707 3.227 1.087.16 2.185.283 3.293.369V21l4.076-4.076a1.526 1.526 0 0 1 1.037-.443 48.282 48.282 0 0 0 5.68-.494c1.584-.233 2.707-1.626 2.707-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0 0 12 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018Z"/></svg>
+          </div>
+          <h3 class="mt-5 font-heading text-lg text-dark font-medium">Shape the product</h3>
+          <p class="mt-2 text-sm text-body leading-relaxed">Your feedback goes directly to the people building this. You'll help us get the details right for practitioners like you.</p>
+        </div>
+        <div class="reveal-scale reveal-delay-3 rounded-[32px] bg-surface p-8 md:p-10">
+          <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/8 text-primary">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z"/></svg>
+          </div>
+          <h3 class="mt-5 font-heading text-lg text-dark font-medium">Locked-in pricing</h3>
+          <p class="mt-2 text-sm text-body leading-relaxed">Your founding rate stays with you, even as prices change. Plus an extra year free while we're still in beta.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FOUNDER ACCESS -->
+  <section id="founder-access" class="scroll-mt-20 bg-surface">
+    <div class="max-w-[1280px] mx-auto px-5 md:px-[52px] py-24 md:py-32">
+      <div class="reveal text-center max-w-2xl mx-auto">
+        <p class="text-primary text-sm font-medium">Founder Access</p>
+        <h2 class="mt-3 font-heading text-[clamp(1.75rem,3.5vw,2.5rem)] font-medium text-dark leading-[1.2] tracking-[-0.03em]">Join the founding cohort</h2>
+        <p class="mt-4 text-body leading-relaxed">We're looking for 20 practitioners who want to be part of building something genuinely useful. No long contracts, no complicated setup.</p>
+      </div>
+      <!-- Pricing Card -->
+      <div class="reveal-scale mt-12 max-w-md mx-auto">
+        <div class="rounded-[32px] bg-dark text-white p-8 md:p-10 text-center">
+          <p class="text-xs font-medium tracking-wide text-white/40 uppercase">Founding Member</p>
+          <div class="mt-5 flex items-baseline justify-center gap-1">
+            <span class="font-heading text-5xl font-semibold">&pound;39</span>
+            <span class="text-white/40 text-lg">/month</span>
+          </div>
+          <p class="mt-3 text-sm text-white/50">Pay now and get an extra year free&nbsp;&mdash; because we're still building this together.</p>
+          <div class="mt-8 space-y-3 text-left">
+            <div class="flex items-start gap-3">
+              <svg class="w-4 h-4 text-primary mt-0.5 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5"/></svg>
+              <span class="text-sm text-white/70">Health forms &amp; visual PDF reports</span>
+            </div>
+            <div class="flex items-start gap-3">
+              <svg class="w-4 h-4 text-primary mt-0.5 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5"/></svg>
+              <span class="text-sm text-white/70">Client tracker &amp; progress dashboard</span>
+            </div>
+            <div class="flex items-start gap-3">
+              <svg class="w-4 h-4 text-primary mt-0.5 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5"/></svg>
+              <span class="text-sm text-white/70">Practitioner assistant tools</span>
+            </div>
+            <div class="flex items-start gap-3">
+              <svg class="w-4 h-4 text-primary mt-0.5 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5"/></svg>
+              <span class="text-sm text-white/70">Personal onboarding &amp; priority support</span>
+            </div>
+            <div class="flex items-start gap-3">
+              <svg class="w-4 h-4 text-primary mt-0.5 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5"/></svg>
+              <span class="text-sm text-white/70">Founding member pricing — locked in</span>
+            </div>
+          </div>
+          <a href="mailto:hello@healthdatalab.com?subject=Founding%20Member%20Interest&body=Hi%2C%0A%0AI'm%20interested%20in%20joining%20Health%20Data%20Lab%20as%20a%20founding%20practitioner.%0A%0AMy%20name%3A%20%0AMy%20practice%3A%20%0ALocation%3A%20%0A%0AThanks!" class="mt-8 flex items-center justify-center gap-2 rounded-[48px] bg-primary text-white text-base font-medium px-8 py-3.5 hover:bg-primary-dark transition-colors w-full shadow-[0_4px_20px_rgba(0,104,255,.3)]">
+            I'm Interested — Let's Talk
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 0 1-2.25 2.25h-15a2.25 2.25 0 0 1-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25m19.5 0v.243a2.25 2.25 0 0 1-1.07 1.916l-7.5 4.615a2.25 2.25 0 0 1-2.36 0L3.32 8.91a2.25 2.25 0 0 1-1.07-1.916V6.75"/></svg>
+          </a>
+          <p class="mt-4 text-xs text-white/30">Only 20 seats &middot; No credit card required &middot; Cancel anytime</p>
+        </div>
+      </div>
+      <p class="reveal mt-10 text-center text-sm text-muted">Health Data Lab will also be available as part of a longevity course for practitioners.&ensp;<a href="mailto:hello@healthdatalab.com?subject=Longevity%20Course%20Interest" class="text-primary hover:text-primary-dark transition-colors">Ask us about it</a></p>
     </div>
   </section>
 
@@ -374,6 +495,10 @@
           <p class="font-heading text-lg font-semibold tracking-tight">Health Data Lab</p>
           <p class="mt-3 text-sm text-white/40 leading-relaxed">Built for holistic health practitioners.</p>
           <p class="mt-2 text-xs text-white/25">From the makers of IRISLAB.com</p>
+          <a href="mailto:hello@healthdatalab.com" class="mt-4 inline-flex items-center gap-2 text-sm text-white/50 hover:text-white transition-colors">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 0 1-2.25 2.25h-15a2.25 2.25 0 0 1-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25m19.5 0v.243a2.25 2.25 0 0 1-1.07 1.916l-7.5 4.615a2.25 2.25 0 0 1-2.36 0L3.32 8.91a2.25 2.25 0 0 1-1.07-1.916V6.75"/></svg>
+            hello@healthdatalab.com
+          </a>
         </div>
         <div>
           <p class="text-xs font-medium tracking-wide text-white/30 uppercase mb-4">Quick links</p>
@@ -386,8 +511,8 @@
         <div>
           <p class="text-xs font-medium tracking-wide text-white/30 uppercase mb-4">Legal</p>
           <div class="flex flex-col gap-2.5">
-            <a href="#" class="text-sm text-white/50 hover:text-white transition-colors">Privacy Policy</a>
-            <a href="#" class="text-sm text-white/50 hover:text-white transition-colors">Terms of Service</a>
+            <a href="mailto:hello@healthdatalab.com?subject=Privacy%20Policy%20Request" class="text-sm text-white/50 hover:text-white transition-colors">Privacy Policy</a>
+            <a href="mailto:hello@healthdatalab.com?subject=Terms%20of%20Service%20Request" class="text-sm text-white/50 hover:text-white transition-colors">Terms of Service</a>
           </div>
         </div>
       </div>
