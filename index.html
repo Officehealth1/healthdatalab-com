@@ -889,7 +889,7 @@
           </button>
           <button onclick="checkout('course_installment')"
             class="mt-2 w-full text-center text-xs text-primary/70 hover:text-primary transition-colors cursor-pointer">
-            or pay in 3 instalments
+            or pay in 3 monthly instalments
           </button>
 
           <div class="mt-8 space-y-3 border-t border-stroke pt-6 flex-1">
@@ -936,7 +936,7 @@
           </button>
           <button onclick="checkout('signature_installment')"
             class="mt-2 w-full text-center text-xs text-white/50 hover:text-white/80 transition-colors cursor-pointer">
-            or pay in 6 instalments
+            or pay in 6 monthly instalments
           </button>
 
           <div class="mt-8 space-y-3 border-t border-white/10 pt-6 flex-1">
@@ -1096,13 +1096,15 @@
         const stripe = Stripe('pk_live_51T0LeuAARZOPki7nuJiOtjwC48eWIrW05xzKMr666n52jjArjOOBG2NjnNOb3l6Yzay0TpOkIVFhT4EhA7ezGbwj00Nh2fcC4r');
 
         async function checkout(tier) {
-          let priceId, mode;
+          let priceId, mode, trialDays = 0;
           if (tier === 'course_installment') {
             priceId = PRICE_IDS.course.installment; mode = 'subscription';
           } else if (tier === 'signature_installment') {
             priceId = PRICE_IDS.signature.installment; mode = 'subscription';
-          } else if (tier === 'launchpad' || tier === 'minimum') {
-            priceId = PRICE_IDS[tier]; mode = 'subscription';
+          } else if (tier === 'launchpad') {
+            priceId = PRICE_IDS.launchpad; mode = 'subscription'; trialDays = 90;
+          } else if (tier === 'minimum') {
+            priceId = PRICE_IDS.minimum; mode = 'subscription';
           } else {
             priceId = PRICE_IDS[tier][currentPricingMode]; mode = 'payment';
           }
@@ -1111,7 +1113,7 @@
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
-                priceId, mode,
+                priceId, mode, trialDays,
                 successUrl: window.location.origin + '/?success=true',
                 cancelUrl:  window.location.origin + '/#founder-access',
               }),

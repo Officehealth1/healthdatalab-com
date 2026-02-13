@@ -6,26 +6,33 @@ exports.handler = async (event) => {
     }
 
     try {
-        const { priceId, mode, successUrl, cancelUrl } = JSON.parse(event.body);
+        const { priceId, mode, successUrl, cancelUrl, trialDays } = JSON.parse(event.body);
 
         if (!priceId) {
             return { statusCode: 400, body: 'Missing priceId' };
         }
 
-        const session = await stripe.checkout.sessions.create({
+        const sessionParams = {
             payment_method_types: ['card'],
-            line_items: [
-                {
-                    price: priceId,
-                    quantity: 1,
-                },
-            ],
-            mode: mode || 'payment', // 'payment' or 'subscription'
+            line_items: [{ price: priceId, quantity: 1 }],
+            mode: mode || 'payment',
             success_url: successUrl,
             cancel_url: cancelUrl,
             automatic_tax: { enabled: true },
             allow_promotion_codes: true,
-        });
+        };
+
+        // Free trial for Launchpad (collect card but don't charge during trial)
+        if (trialDays > 0 && mode === 'subscription') {
+            sessionParams.subscription_data = {
+                trial_period_days: trialDays,
+                trial_settings: {
+                    end_behavior: { missing_payment_method: 'cancel' },
+                },
+            };
+        }
+
+        const session = await stripe.checkout.sessions.create(sessionParams);
 
         return {
             statusCode: 200,
