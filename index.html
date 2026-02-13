@@ -1229,40 +1229,42 @@
       <script>
         const PRICE_IDS = {
           course: {
-            super_early: 'price_TODO_super_early_course',
+            super_early: 'price_1T0RzZAARZOPki7ntFFvn9sT',
             founding: 'price_1T0MrLAARZOPki7nfXckkNqh',
             standard: 'price_1T0MrKAARZOPki7nJre4xDFt',
-            installment: 'price_1T0MrLAARZOPki7ncedlhLG6',
-            installment_super_early: 'price_TODO_super_early_course_installment',
+            installment_super_early: 'price_1T0RzZAARZOPki7nqvhHqbht',
+            installment_founding: 'price_1T0RzaAARZOPki7nkFk4aiEm',
+            installment_standard: 'price_1T0MrLAARZOPki7ncedlhLG6',
           },
           signature: {
-            super_early: 'price_TODO_super_early_signature',
+            super_early: 'price_1T0RzZAARZOPki7nq98AvjGG',
             founding: 'price_1T0MrMAARZOPki7n9cinYvKE',
             standard: 'price_1T0MrMAARZOPki7nDfv04ySN',
-            installment: 'price_1T0MrNAARZOPki7nZzc5Tjoo',
-            installment_super_early: 'price_TODO_super_early_sig_installment',
+            installment_super_early: 'price_1T0RzaAARZOPki7ntdAHvkXt',
+            installment_founding: 'price_1T0RzaAARZOPki7nTEd3sEln',
+            installment_standard: 'price_1T0MrNAARZOPki7nZzc5Tjoo',
           },
           launchpad: 'price_1T0MrIAARZOPki7nIC4fsZ8h',
           minimum:   'price_1T0MrJAARZOPki7nT8Lwbckc',
-          consumer_single: 'price_TODO_consumer_single',
-          consumer_annual: 'price_TODO_consumer_annual',
+          consumer_single: 'price_1T0RzbAARZOPki7nJ3aPqt6C',
+          consumer_annual: 'price_1T0RzbAARZOPki7n2LT6SZBm',
         };
 
         let currentPricingMode = 'super_early';
         const stripe = Stripe('pk_live_51T0LeuAARZOPki7nuJiOtjwC48eWIrW05xzKMr666n52jjArjOOBG2NjnNOb3l6Yzay0TpOkIVFhT4EhA7ezGbwj00Nh2fcC4r');
 
         async function checkout(tier) {
-          let priceId, mode, trialDays = 0;
+          let priceId, mode, trialDays = 0, installments = 0, tierName = '';
           if (tier === 'course_installment') {
-            priceId = currentPricingMode === 'super_early'
-              ? PRICE_IDS.course.installment_super_early
-              : PRICE_IDS.course.installment;
+            priceId = PRICE_IDS.course['installment_' + currentPricingMode];
             mode = 'subscription';
+            installments = 3;
+            tierName = 'Pro Practitioner Course';
           } else if (tier === 'signature_installment') {
-            priceId = currentPricingMode === 'super_early'
-              ? PRICE_IDS.signature.installment_super_early
-              : PRICE_IDS.signature.installment;
+            priceId = PRICE_IDS.signature['installment_' + currentPricingMode];
             mode = 'subscription';
+            installments = 6;
+            tierName = 'HealthDataLab Signature';
           } else if (tier === 'launchpad') {
             priceId = PRICE_IDS.launchpad; mode = 'subscription'; trialDays = 90;
           } else if (tier === 'minimum') {
@@ -1274,12 +1276,16 @@
           } else {
             priceId = PRICE_IDS[tier][currentPricingMode]; mode = 'payment';
           }
+          if (!priceId || priceId.startsWith('price_TODO')) {
+            alert('This option is not yet available. Please email hello@healthdatalab.com for early access.');
+            return;
+          }
           try {
             const res = await fetch('/.netlify/functions/create-checkout', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
-                priceId, mode, trialDays,
+                priceId, mode, trialDays, installments, tierName,
                 successUrl: window.location.origin + '/?success=true',
                 cancelUrl:  window.location.origin + '/#founder-access',
               }),
@@ -1300,8 +1306,8 @@
             renewals: { course: '\u00A339/mo*', signature: '\u00A379/mo*' },
           },
           founding: {
-            course: { price: '\u00A3697', old: '\u00A3997', badge: 'FOUNDING 30% OFF', installments: 'or 3 \u00D7 \u00A3347 \u00A0\u00B7\u00A0 ~\u00A358/mo effective', renewal: '30-day money-back guarantee \u00A0\u00B7\u00A0 Founding renewal: \u00A339/mo (locked for life)' },
-            signature: { price: '\u00A31,747', old: '\u00A32,497', badge: 'FOUNDING 30% OFF', installments: 'or 6 \u00D7 \u00A3447 \u00A0\u00B7\u00A0 ~\u00A3146/mo effective', renewal: '30-day money-back guarantee \u00A0\u00B7\u00A0 Founding renewal: \u00A379/mo (locked for life)' },
+            course: { price: '\u00A3697', old: '\u00A3997', badge: 'FOUNDING 30% OFF', installments: 'or 3 \u00D7 \u00A3233 \u00A0\u00B7\u00A0 ~\u00A358/mo effective', renewal: '30-day money-back guarantee \u00A0\u00B7\u00A0 Founding renewal: \u00A339/mo (locked for life)' },
+            signature: { price: '\u00A31,747', old: '\u00A32,497', badge: 'FOUNDING 30% OFF', installments: 'or 6 \u00D7 \u00A3292 \u00A0\u00B7\u00A0 ~\u00A3146/mo effective', renewal: '30-day money-back guarantee \u00A0\u00B7\u00A0 Founding renewal: \u00A379/mo (locked for life)' },
             effective: { course: '~\u00A358*', signature: '~\u00A3146*' },
             renewals: { course: '\u00A339/mo*', signature: '\u00A379/mo*' },
           },

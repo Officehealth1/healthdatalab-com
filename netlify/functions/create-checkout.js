@@ -6,7 +6,7 @@ exports.handler = async (event) => {
     }
 
     try {
-        const { priceId, mode, successUrl, cancelUrl, trialDays } = JSON.parse(event.body);
+        const { priceId, mode, successUrl, cancelUrl, trialDays, installments, tierName } = JSON.parse(event.body);
 
         if (!priceId) {
             return { statusCode: 400, body: 'Missing priceId' };
@@ -28,6 +28,20 @@ exports.handler = async (event) => {
                 trial_period_days: trialDays,
                 trial_settings: {
                     end_behavior: { missing_payment_method: 'cancel' },
+                },
+            };
+        }
+
+        // Installment plans: add description and metadata so Stripe checkout
+        // shows "3 monthly payments for Pro Practitioner Course" instead of
+        // a generic recurring subscription
+        if (installments > 0 && mode === 'subscription') {
+            sessionParams.subscription_data = {
+                ...sessionParams.subscription_data,
+                description: `${installments} monthly payments for ${tierName}`,
+                metadata: {
+                    installments: installments.toString(),
+                    tier: tierName,
                 },
             };
         }
