@@ -1253,18 +1253,25 @@
         let currentPricingMode = 'super_early';
         const stripe = Stripe('pk_live_51T0LeuAARZOPki7nuJiOtjwC48eWIrW05xzKMr666n52jjArjOOBG2NjnNOb3l6Yzay0TpOkIVFhT4EhA7ezGbwj00Nh2fcC4r');
 
+        const INSTALLMENT_AMOUNTS = {
+          course: { super_early: 199, founding: 233, standard: 347 },
+          signature: { super_early: 250, founding: 292, standard: 447 },
+        };
+
         async function checkout(tier) {
-          let priceId, mode, trialDays = 0, installments = 0, tierName = '';
+          let priceId, mode, trialDays = 0, installments = 0, tierName = '', installmentAmount = 0;
           if (tier === 'course_installment') {
             priceId = PRICE_IDS.course['installment_' + currentPricingMode];
             mode = 'subscription';
             installments = 3;
             tierName = 'Pro Practitioner Course';
+            installmentAmount = INSTALLMENT_AMOUNTS.course[currentPricingMode];
           } else if (tier === 'signature_installment') {
             priceId = PRICE_IDS.signature['installment_' + currentPricingMode];
             mode = 'subscription';
             installments = 6;
             tierName = 'HealthDataLab Signature';
+            installmentAmount = INSTALLMENT_AMOUNTS.signature[currentPricingMode];
           } else if (tier === 'launchpad') {
             priceId = PRICE_IDS.launchpad; mode = 'subscription'; trialDays = 90;
           } else if (tier === 'minimum') {
@@ -1285,7 +1292,7 @@
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
-                priceId, mode, trialDays, installments, tierName,
+                priceId, mode, trialDays, installments, tierName, installmentAmount,
                 successUrl: window.location.origin + '/?success=true',
                 cancelUrl:  window.location.origin + '/#founder-access',
               }),

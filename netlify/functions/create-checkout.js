@@ -6,7 +6,7 @@ exports.handler = async (event) => {
     }
 
     try {
-        const { priceId, mode, successUrl, cancelUrl, trialDays, installments, tierName } = JSON.parse(event.body);
+        const { priceId, mode, successUrl, cancelUrl, trialDays, installments, tierName, installmentAmount } = JSON.parse(event.body);
 
         if (!priceId) {
             return { statusCode: 400, body: 'Missing priceId' };
@@ -32,9 +32,8 @@ exports.handler = async (event) => {
             };
         }
 
-        // Installment plans: add description and metadata so Stripe checkout
-        // shows "3 monthly payments for Pro Practitioner Course" instead of
-        // a generic recurring subscription
+        // Installment plans: add visible message on checkout page and
+        // metadata on the subscription for auto-cancellation webhook
         if (installments > 0 && mode === 'subscription') {
             sessionParams.subscription_data = {
                 ...sessionParams.subscription_data,
@@ -42,6 +41,12 @@ exports.handler = async (event) => {
                 metadata: {
                     installments: installments.toString(),
                     tier: tierName,
+                },
+            };
+            const total = installmentAmount ? `£${installmentAmount * installments}` : `${installments} payments`;
+            sessionParams.custom_text = {
+                submit: {
+                    message: `Payment plan: ${installments} monthly payments of £${installmentAmount || '—'}. Your subscription will automatically end after ${installments} months (total ${total}).`,
                 },
             };
         }
