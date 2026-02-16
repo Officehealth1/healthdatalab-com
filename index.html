@@ -633,35 +633,41 @@
         <div class="flex flex-col items-start gap-2 max-w-sm w-full">
           <!-- Super Early (active by default) -->
           <button id="btn-super-early" onclick="togglePricing('super_early')"
-            class="pricing-phase-btn w-full flex items-center gap-3 rounded-2xl bg-surface border-2 border-primary p-4 cursor-pointer transition-all duration-300 shadow-sm hover:shadow-md">
+            class="pricing-phase-btn w-full flex items-center gap-3 rounded-2xl bg-surface border-2 border-primary py-3 pl-4 pr-4 cursor-pointer transition-all duration-300 shadow-sm hover:shadow-md">
             <svg class="phase-arrow w-4 h-4 text-primary shrink-0" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" /></svg>
             <span class="phase-label font-heading text-base font-semibold text-dark">Super Early Founder</span>
-            <span class="phase-badge ml-auto rounded-full bg-primary/10 text-primary text-[10px] font-bold px-2.5 py-0.5">ACTIVE</span>
-            <span class="relative group/tip">
-              <svg class="w-4 h-4 text-muted hover:text-primary cursor-help transition-colors" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m11.25 11.25.041-.02a.75.75 0 0 1 1.063.852l-.708 2.836a.75.75 0 0 0 1.063.853l.041-.021M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9-3.75h.008v.008H12V8.25Z" /></svg>
-              <span class="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 w-56 rounded-xl bg-dark text-white text-xs p-3 leading-relaxed opacity-0 pointer-events-none group-hover/tip:opacity-100 transition-opacity duration-200 z-20 shadow-lg">The first 25 practitioners. Deepest discount, locked for life. Once these seats are gone, pricing moves to Founding.</span>
+            <span class="ml-auto flex items-center gap-2">
+              <span class="phase-badge rounded-full bg-primary/10 text-primary text-[10px] font-bold px-2.5 py-0.5">ACTIVE</span>
+              <span class="relative group/tip">
+                <svg class="w-4 h-4 text-muted hover:text-primary cursor-help transition-colors" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m11.25 11.25.041-.02a.75.75 0 0 1 1.063.852l-.708 2.836a.75.75 0 0 0 1.063.853l.041-.021M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9-3.75h.008v.008H12V8.25Z" /></svg>
+                <span class="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 w-56 rounded-xl bg-dark text-white text-xs p-3 leading-relaxed opacity-0 pointer-events-none group-hover/tip:opacity-100 transition-opacity duration-200 z-20 shadow-lg">The first 25 practitioners. Deepest discount, locked for life. Once these seats are gone, pricing moves to Founding.</span>
+              </span>
             </span>
           </button>
           <!-- Founding -->
           <button id="btn-founding" onclick="togglePricing('founding')"
-            class="pricing-phase-btn w-full flex items-center gap-3 rounded-2xl bg-surface border border-stroke p-3 pl-11 cursor-pointer transition-all duration-300 hover:border-primary/30">
+            class="pricing-phase-btn w-full flex items-center gap-3 rounded-2xl bg-surface border border-stroke py-3 pl-11 pr-4 cursor-pointer transition-all duration-300 hover:border-primary/30">
             <svg class="phase-arrow w-4 h-4 text-primary shrink-0" style="display:none" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" /></svg>
             <span class="phase-label font-heading text-sm font-medium text-muted">Founding Member</span>
-            <span class="phase-badge ml-auto rounded-full bg-primary/10 text-primary text-[10px] font-bold px-2.5 py-0.5" style="display:none">ACTIVE</span>
-            <span class="relative group/tip ml-auto">
-              <svg class="w-4 h-4 text-muted hover:text-primary cursor-help transition-colors" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m11.25 11.25.041-.02a.75.75 0 0 1 1.063.852l-.708 2.836a.75.75 0 0 0 1.063.853l.041-.021M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9-3.75h.008v.008H12V8.25Z" /></svg>
-              <span class="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 w-56 rounded-xl bg-dark text-white text-xs p-3 leading-relaxed opacity-0 pointer-events-none group-hover/tip:opacity-100 transition-opacity duration-200 z-20 shadow-lg">The first 150 practitioners. 30% off, locked for life. Available after Super Early sells out.</span>
+            <span class="ml-auto flex items-center gap-2">
+              <span class="phase-badge rounded-full bg-primary/10 text-primary text-[10px] font-bold px-2.5 py-0.5" style="display:none">ACTIVE</span>
+              <span class="relative group/tip">
+                <svg class="w-4 h-4 text-muted hover:text-primary cursor-help transition-colors" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m11.25 11.25.041-.02a.75.75 0 0 1 1.063.852l-.708 2.836a.75.75 0 0 0 1.063.853l.041-.021M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9-3.75h.008v.008H12V8.25Z" /></svg>
+                <span class="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 w-56 rounded-xl bg-dark text-white text-xs p-3 leading-relaxed opacity-0 pointer-events-none group-hover/tip:opacity-100 transition-opacity duration-200 z-20 shadow-lg">The first 150 practitioners. 30% off, locked for life. Available after Super Early sells out.</span>
+              </span>
             </span>
           </button>
           <!-- Standard -->
           <button id="btn-standard" onclick="togglePricing('standard')"
-            class="pricing-phase-btn w-full flex items-center gap-3 rounded-2xl bg-surface border border-stroke p-3 pl-11 cursor-pointer transition-all duration-300 hover:border-primary/30">
+            class="pricing-phase-btn w-full flex items-center gap-3 rounded-2xl bg-surface border border-stroke py-3 pl-11 pr-4 cursor-pointer transition-all duration-300 hover:border-primary/30">
             <svg class="phase-arrow w-4 h-4 text-primary shrink-0" style="display:none" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" /></svg>
             <span class="phase-label font-heading text-sm font-medium text-muted">Standard</span>
-            <span class="phase-badge ml-auto rounded-full bg-primary/10 text-primary text-[10px] font-bold px-2.5 py-0.5" style="display:none">ACTIVE</span>
-            <span class="relative group/tip ml-auto">
-              <svg class="w-4 h-4 text-muted hover:text-primary cursor-help transition-colors" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m11.25 11.25.041-.02a.75.75 0 0 1 1.063.852l-.708 2.836a.75.75 0 0 0 1.063.853l.041-.021M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9-3.75h.008v.008H12V8.25Z" /></svg>
-              <span class="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 w-56 rounded-xl bg-dark text-white text-xs p-3 leading-relaxed opacity-0 pointer-events-none group-hover/tip:opacity-100 transition-opacity duration-200 z-20 shadow-lg">Full pricing for all future members.</span>
+            <span class="ml-auto flex items-center gap-2">
+              <span class="phase-badge rounded-full bg-primary/10 text-primary text-[10px] font-bold px-2.5 py-0.5" style="display:none">ACTIVE</span>
+              <span class="relative group/tip">
+                <svg class="w-4 h-4 text-muted hover:text-primary cursor-help transition-colors" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m11.25 11.25.041-.02a.75.75 0 0 1 1.063.852l-.708 2.836a.75.75 0 0 0 1.063.853l.041-.021M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9-3.75h.008v.008H12V8.25Z" /></svg>
+                <span class="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 w-56 rounded-xl bg-dark text-white text-xs p-3 leading-relaxed opacity-0 pointer-events-none group-hover/tip:opacity-100 transition-opacity duration-200 z-20 shadow-lg">Full pricing for all future members.</span>
+              </span>
             </span>
           </button>
         </div>
@@ -1084,12 +1090,12 @@
             const badge = btn.querySelector('.phase-badge');
 
             if (isActive) {
-              btn.className = 'pricing-phase-btn w-full flex items-center gap-3 rounded-2xl bg-surface border-2 border-primary p-4 cursor-pointer transition-all duration-300 shadow-sm hover:shadow-md';
+              btn.className = 'pricing-phase-btn w-full flex items-center gap-3 rounded-2xl bg-surface border-2 border-primary py-3 pl-4 pr-4 cursor-pointer transition-all duration-300 shadow-sm hover:shadow-md';
               if (arrow) arrow.style.display = '';
               if (label) { label.className = 'phase-label font-heading text-base font-semibold text-dark'; }
               if (badge) badge.style.display = '';
             } else {
-              btn.className = 'pricing-phase-btn w-full flex items-center gap-3 rounded-2xl bg-surface border border-stroke p-3 pl-11 cursor-pointer transition-all duration-300 hover:border-primary/30';
+              btn.className = 'pricing-phase-btn w-full flex items-center gap-3 rounded-2xl bg-surface border border-stroke py-3 pl-11 pr-4 cursor-pointer transition-all duration-300 hover:border-primary/30';
               if (arrow) arrow.style.display = 'none';
               if (label) { label.className = 'phase-label font-heading text-sm font-medium text-muted'; }
               if (badge) badge.style.display = 'none';
