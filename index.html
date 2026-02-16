@@ -667,6 +667,17 @@
         </div>
       </div>
 
+      <!-- Seat Counter -->
+      <div id="seat-counter" class="reveal text-center mb-10" style="display:none">
+        <p class="inline-flex items-center gap-2 text-sm font-medium text-primary">
+          <span class="relative flex h-2 w-2">
+            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
+            <span class="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
+          </span>
+          <span id="seat-remaining">25</span> of 25 Super Early seats remaining
+        </p>
+      </div>
+
       <!-- PRIMARY TIERS: Course + Signature -->
       <div class="grid gap-5 md:grid-cols-2 max-w-4xl mx-auto">
 
@@ -1113,7 +1124,26 @@
 
           // Founding note
           document.getElementById('founding-note').style.opacity = mode === 'standard' ? '0' : '1';
+
+          // Show/hide seat counter based on mode
+          const seatCounter = document.getElementById('seat-counter');
+          if (seatCounter) {
+            seatCounter.style.display = mode === 'super_early' ? '' : 'none';
+          }
         }
+
+        // Fetch live seat count
+        fetch('/.netlify/functions/seat-count')
+          .then(res => res.json())
+          .then(data => {
+            const el = document.getElementById('seat-remaining');
+            const container = document.getElementById('seat-counter');
+            if (el && data.remaining !== undefined) {
+              el.textContent = data.remaining;
+              container.style.display = '';
+            }
+          })
+          .catch(() => {});
       </script>
     </div>
   </section>
