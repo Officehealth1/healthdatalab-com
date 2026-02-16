@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Personal Health Reports — HealthDataLab</title>
+  <meta name="description"
+    content="Get your own longevity report. No practitioner needed. Order a personal health assessment and track your longevity journey over time.">
+  <meta property="og:title" content="Personal Health Reports — HealthDataLab">
+  <meta property="og:description"
+    content="Get your own longevity report. No practitioner needed. Order a personal health assessment and track your longevity journey over time.">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://healthdatalab.com/personal-report">
+  <meta name="twitter:card" content="summary">
+  <link rel="icon" type="image/png" sizes="32x32" href="assets/images/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="assets/images/favicon-16x16.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="assets/images/apple-touch-icon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Poppins:wght@400;500;600;700&display=swap"
+    rel="stylesheet">
+  <script src="https://js.stripe.com/v3/"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+  <style type="text/tailwindcss">
+    @theme {
+      --font-heading: 'Poppins', system-ui, sans-serif;
+      --font-sans: 'Inter', system-ui, sans-serif;
+      --color-primary: #3d8da0;
+      --color-primary-dark: #2e7a8d;
+      --color-dark: #111111;
+      --color-dark-2: #131313;
+      --color-body: #595959;
+      --color-muted: #a0a0a0;
+      --color-light: #edeef1;
+      --color-surface: #ffffff;
+      --color-stroke: #e5e7eb;
+    }
+  </style>
+  <link rel="stylesheet" href="assets/css/styles.css">
+</head>
+
+<body class="bg-surface text-body font-sans">
+
+  <!-- NAV -->
+  <nav id="nav" class="fixed top-0 left-0 right-0 z-50 transition-all duration-300">
+    <div class="max-w-[1280px] mx-auto px-5 md:px-[52px]">
+      <div id="nav-inner"
+        class="flex items-center justify-between rounded-[48px] px-5 py-3 mt-3 transition-all duration-300">
+        <a href="/" class="select-none"><img src="assets/images/hdl-logo-full.png" alt="HealthDataLab" class="h-9"></a>
+        <div class="hidden md:flex items-center gap-6">
+          <a href="/" class="text-sm text-body hover:text-dark transition-colors">For Practitioners</a>
+          <a href="/#how-it-works" class="text-sm text-body hover:text-dark transition-colors">How It Works</a>
+          <a href="/personal-report.html" class="text-sm text-dark font-medium transition-colors">For Individuals</a>
+          <a href="/#founder-access" class="text-sm text-body hover:text-dark transition-colors">Early Access</a>
+          <a href="/#founder-access"
+            class="inline-flex items-center rounded-[48px] bg-dark text-white text-sm font-medium px-5 py-2.5 hover:bg-dark-2 transition-colors">
+            Get Early Access
+          </a>
+        </div>
+        <button id="menu-toggle" class="md:hidden text-dark p-1" aria-label="Menu">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path id="menu-line-1" stroke-linecap="round" d="M4 7h16"
+              class="origin-center transition-transform duration-200" />
+            <path id="menu-line-2" stroke-linecap="round" d="M4 12h16" class="transition-opacity duration-200" />
+            <path id="menu-line-3" stroke-linecap="round" d="M4 17h16"
+              class="origin-center transition-transform duration-200" />
+          </svg>
+        </button>
+      </div>
+    </div>
+    <!-- Mobile menu -->
+    <div id="mobile-menu" class="hidden md:hidden">
+      <div class="mx-5 md:mx-[52px] mt-2 rounded-[32px] bg-surface border border-stroke/50 shadow-lg">
+        <div class="flex flex-col gap-1 px-6 py-5">
+          <a href="/" class="nav-link block py-2.5 text-body hover:text-dark text-sm transition-colors">For
+            Practitioners</a>
+          <a href="/#how-it-works" class="nav-link block py-2.5 text-body hover:text-dark text-sm transition-colors">How
+            It Works</a>
+          <a href="/personal-report.html" class="nav-link block py-2.5 text-dark font-medium text-sm transition-colors">For
+            Individuals</a>
+          <a href="/#founder-access"
+            class="nav-link block py-2.5 text-body hover:text-dark text-sm transition-colors">Early Access</a>
+          <a href="/#founder-access"
+            class="nav-link mt-2 flex items-center justify-center rounded-[48px] bg-dark text-white text-sm font-medium px-5 py-3 hover:bg-dark-2 transition-colors">Get
+            Early Access</a>
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <!-- HERO -->
+  <section class="bg-gradient-to-b from-surface to-light overflow-hidden">
+    <div class="max-w-[1280px] mx-auto px-5 md:px-[52px] pt-36 pb-24 md:pt-44 md:pb-36 text-center">
+      <div class="max-w-3xl mx-auto">
+        <p class="hero-enter hero-enter-1 text-sm text-primary font-medium mb-6">
+          For individuals
+        </p>
+        <h1 class="hero-enter hero-enter-2 font-heading text-[clamp(2rem,5vw,3rem)] font-medium text-dark leading-[1.16] tracking-[-0.03em]">
+          Get your own longevity report
+        </h1>
+        <p class="hero-enter hero-enter-3 mt-6 text-lg text-body max-w-xl mx-auto leading-relaxed">
+          No practitioner needed. Order a personal health assessment and track your longevity journey over time.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- PRICING -->
+  <section class="bg-light">
+    <div class="max-w-[1280px] mx-auto px-5 md:px-[52px] py-24 md:py-32">
+      <div class="grid gap-6 md:grid-cols-2 max-w-2xl mx-auto">
+
+        <!-- Single Report -->
+        <div class="reveal-scale bg-surface rounded-[32px] p-8 border border-stroke/50 hover:border-primary/30 transition-colors">
+          <div class="flex flex-col h-full">
+            <div>
+              <h3 class="font-heading text-xl font-semibold text-dark">Single Report</h3>
+              <p class="mt-2 text-sm text-muted">One-time health assessment</p>
+            </div>
+            <div class="mt-6">
+              <div class="flex items-baseline gap-1">
+                <span class="font-heading text-4xl font-bold text-dark">£9.99</span>
+              </div>
+              <p class="mt-2 text-xs text-muted">One-time payment</p>
+            </div>
+            <div class="mt-8 flex-1 flex flex-col justify-end">
+              <button onclick="checkout('consumer_single')"
+                class="w-full inline-flex items-center justify-center gap-2 rounded-[48px] border-2 border-primary text-primary text-base font-medium px-8 py-3.5 hover:bg-primary hover:text-white transition-colors">
+                Order Report
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Annual Pass (Best Value) -->
+        <div class="reveal-scale reveal-delay-1 bg-surface rounded-[32px] p-8 ring-2 ring-primary border border-primary/20 relative">
+          <div class="absolute -top-3 left-1/2 -translate-x-1/2">
+            <span class="inline-block bg-primary text-white text-xs font-semibold px-3 py-1 rounded-full">Best Value</span>
+          </div>
+          <div class="flex flex-col h-full">
+            <div>
+              <h3 class="font-heading text-xl font-semibold text-dark">Annual Pass</h3>
+              <p class="mt-2 text-sm text-muted">Up to 4 reports per year. Track your progress over time.</p>
+            </div>
+            <div class="mt-6">
+              <div class="flex items-baseline gap-1">
+                <span class="font-heading text-4xl font-bold text-dark">£19.99</span>
+                <span class="text-muted">/year</span>
+              </div>
+              <p class="mt-2 text-xs text-primary font-medium">Just £5.00 per report</p>
+            </div>
+            <div class="mt-8 flex-1 flex flex-col justify-end">
+              <button onclick="checkout('consumer_annual')"
+                class="w-full inline-flex items-center justify-center gap-2 rounded-[48px] bg-primary text-white text-base font-medium px-8 py-3.5 hover:bg-primary-dark transition-colors shadow-[0_4px_20px_rgba(61,141,160,.25)]">
+                Get Annual Pass
+              </button>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <p class="mt-10 text-center text-sm text-body">
+        Are you a practitioner? <a href="/" class="text-primary font-medium hover:text-primary-dark transition-colors">See our professional plans &rarr;</a>
+      </p>
+
+      <!-- Success message -->
+      <div id="success-message" class="hidden mt-8 max-w-2xl mx-auto">
+        <div class="bg-primary/10 border border-primary/30 rounded-[32px] p-6 text-center">
+          <p class="text-primary font-medium">Thank you for your purchase! Check your email for next steps.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FOOTER -->
+  <footer class="bg-dark text-white">
+    <div class="max-w-[1280px] mx-auto px-5 md:px-[52px] py-16 md:py-20">
+      <div class="reveal grid gap-10 md:grid-cols-3">
+        <div>
+          <p class="font-heading text-lg font-semibold tracking-tight">HealthDataLab</p>
+          <p class="mt-3 text-sm text-white/40 leading-relaxed">Built for holistic health practitioners.</p>
+          <p class="mt-2 text-xs text-white/25">From the makers of IRISLAB.com</p>
+          <a href="mailto:hello@healthdatalab.com"
+            class="mt-4 inline-flex items-center gap-2 text-sm text-white/50 hover:text-white transition-colors">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round"
+                d="M21.75 6.75v10.5a2.25 2.25 0 0 1-2.25 2.25h-15a2.25 2.25 0 0 1-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25m19.5 0v.243a2.25 2.25 0 0 1-1.07 1.916l-7.5 4.615a2.25 2.25 0 0 1-2.36 0L3.32 8.91a2.25 2.25 0 0 1-1.07-1.916V6.75" />
+            </svg>
+            hello@healthdatalab.com
+          </a>
+        </div>
+        <div>
+          <p class="text-xs font-medium tracking-wide text-white/30 uppercase mb-4">Quick links</p>
+          <div class="flex flex-col gap-2.5">
+            <a href="/" class="text-sm text-white/50 hover:text-white transition-colors">For Practitioners</a>
+            <a href="/#how-it-works" class="text-sm text-white/50 hover:text-white transition-colors">How It Works</a>
+            <a href="/#founder-access" class="text-sm text-white/50 hover:text-white transition-colors">Founder
+              Access</a>
+          </div>
+        </div>
+        <div>
+          <p class="text-xs font-medium tracking-wide text-white/30 uppercase mb-4">Legal</p>
+          <div class="flex flex-col gap-2.5">
+            <a href="/privacy.html"
+              class="text-sm text-white/50 hover:text-white transition-colors">Privacy Policy</a>
+            <a href="/terms.html"
+              class="text-sm text-white/50 hover:text-white transition-colors">Terms of Service</a>
+            <p class="text-xs text-white/30 mt-3 leading-relaxed">Refund Policy: 30-day money-back guarantee on Course and Signature tiers. Minimum: cancel anytime. Launchpad: free tier, cancel anytime.</p>
+          </div>
+        </div>
+      </div>
+      <div class="mt-14 border-t border-white/10 pt-8 flex flex-col md:flex-row items-center justify-between gap-4">
+        <p class="text-xs text-white/30">&copy; 2026 HealthDataLab. All rights reserved.</p>
+        <p class="text-xs text-white/20">This is not a medical service.</p>
+      </div>
+    </div>
+  </footer>
+
+  <script src="assets/js/main.js"></script>
+  <script>
+    // Check for success parameter
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('success') === 'true') {
+      document.getElementById('success-message').classList.remove('hidden');
+      // Scroll to success message
+      setTimeout(() => {
+        document.getElementById('success-message').scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }, 300);
+    }
+
+    // Stripe checkout
+    const stripe = Stripe('pk_live_51T0LeuAARZOPki7nuJiOtjwC48eWIrW05xzKMr666n52jjArjOOBG2NjnNOb3l6Yzay0TpOkIVFhT4EhA7ezGbwj00Nh2fcC4r');
+
+    const PRICE_IDS = {
+      consumer_single: 'price_1T0RzbAARZOPki7nJ3aPqt6C',
+      consumer_annual: 'price_1T0RzbAARZOPki7n2LT6SZBm',
+    };
+
+    async function checkout(tier) {
+      const priceId = PRICE_IDS[tier];
+      const mode = tier === 'consumer_single' ? 'payment' : 'subscription';
+      try {
+        const res = await fetch('/.netlify/functions/create-checkout', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            priceId, mode,
+            successUrl: window.location.origin + '/personal-report?success=true',
+            cancelUrl: window.location.origin + '/personal-report',
+          }),
+        });
+        const { sessionId, error } = await res.json();
+        if (error) throw new Error(error);
+        await stripe.redirectToCheckout({ sessionId });
+      } catch (err) {
+        alert('Something went wrong. Please try again or email hello@healthdatalab.com');
+      }
+    }
+  </script>
+
+</body>
+
+</html>

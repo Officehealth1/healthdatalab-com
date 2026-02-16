@@ -4,12 +4,12 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>HealthDataLab — Visual health insights for holistic practitioners</title>
+  <title>HealthDataLab — Know your client before they walk through the door</title>
   <meta name="description"
-    content="Invite clients to complete a quick health form. Instantly receive a visual PDF report packed with insights — so you can prepare with confidence. Limited to 20 founding practitioners.">
-  <meta property="og:title" content="HealthDataLab — Visual health insights for holistic practitioners">
+    content="Invite your client to complete a quick health form before their appointment. Receive a visual longevity report so you can prepare with confidence and deepen the consultation from minute one.">
+  <meta property="og:title" content="HealthDataLab — Know your client before they walk through the door">
   <meta property="og:description"
-    content="Visual health insights — before your client walks through the door. Quick health forms, instant PDF reports, client tracking.">
+    content="Invite your client to complete a quick health form. Receive a visual longevity report with key areas to explore — prepare with confidence, deepen the consultation from minute one.">
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://healthdatalab.com">
   <meta name="twitter:card" content="summary">
@@ -38,152 +38,7 @@
       --color-stroke: #e5e7eb;
     }
   </style>
-  <style>
-    html {
-      scroll-behavior: smooth;
-    }
-
-    body {
-      -webkit-font-smoothing: antialiased;
-      -moz-osx-font-smoothing: grayscale;
-    }
-
-    .nav-blur {
-      backdrop-filter: blur(16px);
-      -webkit-backdrop-filter: blur(16px);
-    }
-
-    /* Shared reveal easing */
-    :root {
-      --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
-    }
-
-    /* Scroll-triggered reveal animations — shared base */
-    .reveal,
-    .reveal-scale,
-    .reveal-left,
-    .reveal-right {
-      opacity: 0;
-      transition: opacity 0.7s var(--ease-out-expo),
-        transform 0.7s var(--ease-out-expo);
-    }
-
-    .reveal {
-      transform: translateY(32px);
-    }
-
-    .reveal-scale {
-      transform: translateY(24px) scale(0.97);
-      transition-duration: 0.6s;
-    }
-
-    .reveal-left {
-      transform: translateX(-32px);
-    }
-
-    .reveal-right {
-      transform: translateX(32px);
-    }
-
-    .reveal.visible,
-    .reveal-scale.visible,
-    .reveal-left.visible,
-    .reveal-right.visible {
-      opacity: 1;
-      transform: none;
-    }
-
-    /* Stagger delays for children */
-    .reveal-delay-1 {
-      transition-delay: 0.1s;
-    }
-
-    .reveal-delay-2 {
-      transition-delay: 0.2s;
-    }
-
-    .reveal-delay-3 {
-      transition-delay: 0.3s;
-    }
-
-    .reveal-delay-4 {
-      transition-delay: 0.4s;
-    }
-
-    /* Hero entrance — plays on load */
-    .hero-enter {
-      opacity: 0;
-      transform: translateY(24px);
-      animation: heroFadeUp 0.8s var(--ease-out-expo) forwards;
-    }
-
-    .hero-enter-1 {
-      animation-delay: 0.1s;
-    }
-
-    .hero-enter-2 {
-      animation-delay: 0.25s;
-    }
-
-    .hero-enter-3 {
-      animation-delay: 0.4s;
-    }
-
-    .hero-enter-4 {
-      animation-delay: 0.55s;
-    }
-
-    @keyframes heroFadeUp {
-      to {
-        opacity: 1;
-        transform: translateY(0);
-      }
-    }
-
-    /* Counter animation */
-    .counter {
-      font-variant-numeric: tabular-nums;
-    }
-
-    /* 3D report mockup */
-    .report-3d {
-      perspective: 1200px;
-    }
-
-    .report-3d-page {
-      transform: rotateY(-4deg) rotateX(2deg);
-      transform-origin: left center;
-      transition: transform 0.6s var(--ease-out-expo);
-    }
-
-    .report-3d-page:hover {
-      transform: rotateY(0) rotateX(0);
-    }
-
-    /* 3-position pricing toggle */
-    .toggle-pos-0 { transform: translateX(0); }
-    .toggle-pos-1 { transform: translateX(100%); }
-    .toggle-pos-2 { transform: translateX(200%); }
-
-    /* Respect reduced motion */
-    @media (prefers-reduced-motion: reduce) {
-
-      .reveal,
-      .reveal-scale,
-      .reveal-left,
-      .reveal-right {
-        transition: none;
-        opacity: 1;
-        transform: none;
-      }
-
-      .hero-enter {
-        animation: none;
-        opacity: 1;
-        transform: none;
-      }
-    }
-  </style>
+  <link rel="stylesheet" href="assets/css/styles.css">
 </head>
 
 <body class="bg-surface text-body font-sans">
@@ -197,6 +52,7 @@
         <div class="hidden md:flex items-center gap-6">
           <a href="#platform" class="text-sm text-body hover:text-dark transition-colors">For Practitioners</a>
           <a href="#how-it-works" class="text-sm text-body hover:text-dark transition-colors">How It Works</a>
+          <a href="/personal-report.html" class="text-sm text-body hover:text-dark transition-colors">For Individuals</a>
           <a href="#founder-access" class="text-sm text-body hover:text-dark transition-colors">Early Access</a>
           <a href="#founder-access"
             class="inline-flex items-center rounded-[48px] bg-dark text-white text-sm font-medium px-5 py-2.5 hover:bg-dark-2 transition-colors">
@@ -222,6 +78,8 @@
             Practitioners</a>
           <a href="#how-it-works" class="nav-link block py-2.5 text-body hover:text-dark text-sm transition-colors">How
             It Works</a>
+          <a href="/personal-report.html" class="nav-link block py-2.5 text-body hover:text-dark text-sm transition-colors">For
+            Individuals</a>
           <a href="#founder-access"
             class="nav-link block py-2.5 text-body hover:text-dark text-sm transition-colors">Early Access</a>
           <a href="#founder-access"
@@ -236,71 +94,58 @@
   <section class="bg-gradient-to-b from-surface to-light overflow-hidden">
     <div class="max-w-[1280px] mx-auto px-5 md:px-[52px] pt-36 pb-24 md:pt-44 md:pb-36 text-center">
       <div class="max-w-3xl mx-auto">
-        <p
-          class="hero-enter hero-enter-1 inline-flex items-center gap-2 rounded-[48px] bg-primary/8 text-primary text-xs font-medium px-4 py-1.5 mb-8">
-          <span class="relative flex h-1.5 w-1.5"><span
-              class="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary/60"></span><span
-              class="relative inline-flex h-1.5 w-1.5 rounded-full bg-primary"></span></span>
-          Launching 2026 — 20 Founder Seats Available
+        <p class="hero-enter hero-enter-1 text-sm text-primary font-medium mb-6">
+          For naturopaths, herbalists, nutritionists &amp; holistic practitioners
         </p>
-        <h1
-          class="hero-enter hero-enter-2 font-heading text-[clamp(2rem,5vw,3rem)] font-medium text-dark leading-[1.16] tracking-[-0.03em]">
-          Visual health insights&nbsp;&mdash; before your client walks through the door
+        <h1 class="hero-enter hero-enter-2 font-heading text-[clamp(2rem,5vw,3rem)] font-medium text-dark leading-[1.16] tracking-[-0.03em]">
+          Know your client before they walk through the door
         </h1>
         <p class="hero-enter hero-enter-3 mt-6 text-lg text-body max-w-xl mx-auto leading-relaxed">
-          Build capability so you can thrive well into old age. Invite clients to complete a quick health form. Instantly receive a visual PDF report packed with
-          insights&nbsp;&mdash; so you can prepare with confidence, deliver personalised care, and generate new revenue.
+          Invite your client to complete a quick health form before their appointment. Receive a visual longevity report with key areas to explore&nbsp;&mdash; so you can research their specific imbalances, prepare with confidence, and deepen the consultation from minute one.
         </p>
         <div class="hero-enter hero-enter-4 mt-10 flex flex-col sm:flex-row items-center justify-center gap-3">
-          <a href="#founder-access"
+          <a href="#sample-report"
             class="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-[48px] bg-primary text-white text-base font-medium px-8 py-3.5 hover:bg-primary-dark transition-colors shadow-[0_4px_20px_rgba(61,141,160,.25)]">
-            Get Early Access
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" />
-            </svg>
+            See the Sample Report
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" /></svg>
           </a>
-          <a href="#how-it-works"
+          <a href="#founder-access"
             class="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-[48px] bg-dark text-white text-base font-medium px-8 py-3.5 hover:bg-dark-2 transition-colors">
-            See How It Works
+            View Pricing
           </a>
         </div>
       </div>
     </div>
   </section>
 
-  <!-- SPECIALTIES BAR -->
-  <section class="bg-light overflow-hidden">
-    <div class="max-w-[1280px] mx-auto px-5 md:px-[52px] py-6">
-      <div class="reveal flex items-center justify-center gap-8 md:gap-16 text-sm text-muted flex-wrap">
-        <span class="flex items-center gap-2">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round"
-              d="M9 12.75 11.25 15 15 9.75m-3-7.036A11.959 11.959 0 0 1 3.598 6 11.99 11.99 0 0 0 3 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285Z" />
-          </svg>
-          Naturopathy
-        </span>
-        <span class="flex items-center gap-2">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round"
-              d="M9.75 3.104v5.714a2.25 2.25 0 0 1-.659 1.591L5 14.5M9.75 3.104c-.251.023-.501.05-.75.082m.75-.082a24.301 24.301 0 0 1 4.5 0m0 0v5.714c0 .597.237 1.17.659 1.591L19.8 15.3M14.25 3.104c.251.023.501.05.75.082M19.8 15.3l-1.57.393A9.065 9.065 0 0 1 12 15a9.065 9.065 0 0 0-6.23.693L5 14.5m14.8.8 1.402 1.402c1.232 1.232.65 3.318-1.067 3.611A48.309 48.309 0 0 1 12 21c-2.773 0-5.491-.235-8.135-.687-1.718-.293-2.3-2.379-1.067-3.61L5 14.5" />
-          </svg>
-          Functional Testing
-        </span>
-        <span class="flex items-center gap-2">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round"
-              d="M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733-.715-1.607-2.377-2.733-4.313-2.733C5.1 3.75 3 5.765 3 8.25c0 7.22 9 12 9 12s9-4.78 9-12Z" />
-          </svg>
-          Integrative Health
-        </span>
-        <span class="flex items-center gap-2">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round"
-              d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" />
-            <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
-          </svg>
-          Iridology
-        </span>
+  <!-- WHO THIS IS FOR -->
+  <section class="bg-light">
+    <div class="max-w-[1280px] mx-auto px-5 md:px-[52px] py-24 md:py-32">
+      <div class="reveal text-center max-w-2xl mx-auto mb-14">
+        <h2 class="font-heading text-[clamp(1.75rem,3.5vw,2.5rem)] font-medium text-dark leading-[1.2] tracking-[-0.03em]">
+          Is this for you?</h2>
+      </div>
+      <div class="grid gap-5 md:grid-cols-2 max-w-4xl mx-auto">
+        <!-- This is for you -->
+        <div class="reveal-left rounded-[32px] bg-surface p-8 md:p-10">
+          <h3 class="font-heading text-lg text-dark font-medium mb-6">This is for you if&hellip;</h3>
+          <div class="space-y-4">
+            <p class="text-sm text-body flex gap-2.5"><svg class="w-4 h-4 text-primary shrink-0 mt-0.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg> You're a naturopath, herbalist, nutritionist, iridologist, or holistic practitioner</p>
+            <p class="text-sm text-body flex gap-2.5"><svg class="w-4 h-4 text-primary shrink-0 mt-0.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg> You want to offer longevity assessments as part of your client consultations</p>
+            <p class="text-sm text-body flex gap-2.5"><svg class="w-4 h-4 text-primary shrink-0 mt-0.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg> You're tired of spending the first half of every session just gathering information</p>
+            <p class="text-sm text-body flex gap-2.5"><svg class="w-4 h-4 text-primary shrink-0 mt-0.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg> You want professional reports that make your practice look and feel world-class</p>
+            <p class="text-sm text-body flex gap-2.5"><svg class="w-4 h-4 text-primary shrink-0 mt-0.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg> You're ready to invest in your professional development, not just another subscription</p>
+          </div>
+        </div>
+        <!-- This is NOT for you -->
+        <div class="reveal-right rounded-[32px] bg-surface p-8 md:p-10">
+          <h3 class="font-heading text-lg text-dark font-medium mb-6">This is not for you if&hellip;</h3>
+          <div class="space-y-4">
+            <p class="text-sm text-body flex gap-2.5"><svg class="w-4 h-4 text-muted shrink-0 mt-0.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" /></svg> You're looking for a diagnostic tool (this is assessment and tracking, not diagnosis)</p>
+            <p class="text-sm text-body flex gap-2.5"><svg class="w-4 h-4 text-muted shrink-0 mt-0.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" /></svg> You don't work with individual clients</p>
+            <p class="text-sm text-body flex gap-2.5"><svg class="w-4 h-4 text-muted shrink-0 mt-0.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" /></svg> You want a passive tool with no learning curve (the course exists for a reason)</p>
+          </div>
+        </div>
       </div>
     </div>
   </section>
@@ -464,7 +309,7 @@
   </section>
 
   <!-- SAMPLE REPORT -->
-  <section class="bg-light">
+  <section id="sample-report" class="scroll-mt-20 bg-light">
     <div class="max-w-[1280px] mx-auto px-5 md:px-[52px] py-24 md:py-32">
       <div class="reveal text-center max-w-2xl mx-auto">
         <p class="text-primary text-sm font-medium">Sample Report</p>
@@ -484,7 +329,7 @@
       </div>
       <div class="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4">
         <a href="assets/docs/sample-health-report.pdf" download
-          class="inline-flex items-center gap-2 rounded-[48px] bg-dark text-white text-sm font-medium px-7 py-3 hover:bg-dark-2 transition-colors">
+          class="inline-flex items-center gap-2 rounded-[48px] bg-primary text-white text-base font-medium px-8 py-3.5 hover:bg-primary-dark transition-colors shadow-[0_4px_20px_rgba(61,141,160,.25)]">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round"
               d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
@@ -629,81 +474,13 @@
     </div>
   </section>
 
-  <!-- VIDEO -->
-  <section class="bg-surface">
-    <div class="max-w-[1280px] mx-auto px-5 md:px-[52px] py-24 md:py-32">
-      <div class="reveal text-center max-w-2xl mx-auto">
-        <p class="text-primary text-sm font-medium">See It In Action</p>
-        <h2
-          class="mt-3 font-heading text-[clamp(1.75rem,3.5vw,2.5rem)] font-medium text-dark leading-[1.2] tracking-[-0.03em]">
-          Watch HealthDataLab in practice</h2>
-        <p class="mt-4 text-body leading-relaxed">A walkthrough of the platform — from sending the health form to
-          reviewing your client's visual report.</p>
-      </div>
-      <div class="mt-12 max-w-3xl mx-auto">
-        <div class="reveal-scale rounded-[32px] overflow-hidden">
-          <iframe id="yt-player" class="w-full aspect-video"
-            src="https://www.youtube.com/embed/K2rQSjwvTws?start=0&autoplay=1&mute=1&enablejsapi=1&rel=0"
-            title="HealthDataLab — See It In Action" frameborder="0"
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-            allowfullscreen loading="lazy"></iframe>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- TESTIMONIALS -->
+  <!-- CREDIBILITY BANNER -->
   <section class="bg-light">
-    <div class="max-w-[1280px] mx-auto px-5 md:px-[52px] py-24 md:py-32">
-      <div class="reveal text-center max-w-2xl mx-auto mb-14">
-        <p class="text-primary text-sm font-medium">What Practitioners Say</p>
-        <h2
-          class="mt-3 font-heading text-[clamp(1.75rem,3.5vw,2.5rem)] font-medium text-dark leading-[1.2] tracking-[-0.03em]">
-          Built with practitioners, for practitioners</h2>
-      </div>
-      <div class="grid gap-5 md:grid-cols-3">
-        <!-- Testimonial 1 -->
-        <div class="reveal-scale reveal-delay-1 rounded-[32px] bg-surface p-8">
-          <svg class="w-8 h-8 text-primary/20 mb-4" fill="currentColor" viewBox="0 0 24 24">
-            <path d="M14.017 21v-7.391c0-5.704 3.731-9.57 8.983-10.609l.995 2.151c-2.432.917-3.995 3.638-3.995 5.849h4v10H14.017zM0 21v-7.391c0-5.704 3.731-9.57 8.983-10.609l.995 2.151C7.546 6.068 5.983 8.789 5.983 11H10v10H0z" />
-          </svg>
-          <p class="text-sm text-body leading-relaxed">I used to spend half my evening cross-referencing herb interactions in three different textbooks. Now I just ask the Herbal Advisor and get the contraindications, the alternatives, and the dosing all in one go. It&rsquo;s given me back my evenings &mdash; and honestly, my confidence with complex cases.</p>
-          <div class="mt-6 flex items-center gap-3">
-            <img src="assets/images/testimonial-herbalist.png" alt="Sarah Lindgren" class="w-10 h-10 rounded-full object-cover">
-            <div>
-              <p class="text-sm font-medium text-dark">Sarah Lindgren</p>
-              <p class="text-xs text-muted">Medical Herbalist, Byron Bay</p>
-            </div>
-          </div>
-        </div>
-        <!-- Testimonial 2 -->
-        <div class="reveal-scale reveal-delay-2 rounded-[32px] bg-surface p-8">
-          <svg class="w-8 h-8 text-primary/20 mb-4" fill="currentColor" viewBox="0 0 24 24">
-            <path d="M14.017 21v-7.391c0-5.704 3.731-9.57 8.983-10.609l.995 2.151c-2.432.917-3.995 3.638-3.995 5.849h4v10H14.017zM0 21v-7.391c0-5.704 3.731-9.57 8.983-10.609l.995 2.151C7.546 6.068 5.983 8.789 5.983 11H10v10H0z" />
-          </svg>
-          <p class="text-sm text-body leading-relaxed">The longevity reports completely changed how I run initial consults. Clients walk in and I already have a data-backed starting point instead of spending the first 45 minutes on intake. One client told me it was the first time a practitioner actually showed her what was going on, not just told her.</p>
-          <div class="mt-6 flex items-center gap-3">
-            <img src="assets/images/testimonial-naturopath.png" alt="James Kowalski" class="w-10 h-10 rounded-full object-cover">
-            <div>
-              <p class="text-sm font-medium text-dark">James Kowalski</p>
-              <p class="text-xs text-muted">Naturopath &amp; Nutritionist, Melbourne</p>
-            </div>
-          </div>
-        </div>
-        <!-- Testimonial 3 -->
-        <div class="reveal-scale reveal-delay-3 rounded-[32px] bg-surface p-8">
-          <svg class="w-8 h-8 text-primary/20 mb-4" fill="currentColor" viewBox="0 0 24 24">
-            <path d="M14.017 21v-7.391c0-5.704 3.731-9.57 8.983-10.609l.995 2.151c-2.432.917-3.995 3.638-3.995 5.849h4v10H14.017zM0 21v-7.391c0-5.704 3.731-9.57 8.983-10.609l.995 2.151C7.546 6.068 5.983 8.789 5.983 11H10v10H0z" />
-          </svg>
-          <p class="text-sm text-body leading-relaxed">I&rsquo;ve been practising for over 20 years and I was skeptical about another tech platform. But the supplement advisor genuinely surprised me &mdash; it flagged an interaction I&rsquo;d missed between a client&rsquo;s thyroid medication and a zinc protocol I was about to recommend. That alone justified the subscription.</p>
-          <div class="mt-6 flex items-center gap-3">
-            <img src="assets/images/testimonial-nutritionist.png" alt="Diane Hargreaves" class="w-10 h-10 rounded-full object-cover">
-            <div>
-              <p class="text-sm font-medium text-dark">Diane Hargreaves</p>
-              <p class="text-xs text-muted">Clinical Nutritionist, Bristol</p>
-            </div>
-          </div>
-        </div>
+    <div class="max-w-[1280px] mx-auto px-5 md:px-[52px] py-16">
+      <div class="reveal text-center">
+        <p class="font-heading text-[clamp(1.25rem,2.5vw,1.5rem)] font-medium text-dark leading-[1.3] tracking-[-0.02em]">
+          From the makers of <a href="https://irislab.com" target="_blank" rel="noopener" class="text-primary hover:text-primary-dark transition-colors">IRISLAB.com</a>, trusted by 2,000+ practitioners worldwide.
+        </p>
       </div>
     </div>
   </section>
@@ -851,86 +628,51 @@
           with the Course.</p>
       </div>
 
-      <!-- Pricing Toggle -->
+      <!-- Pricing Phase Selector -->
       <div class="reveal flex justify-center mb-16">
-        <div class="relative flex items-center bg-white rounded-full p-1 border border-stroke shadow-sm">
-          <div
-            class="absolute left-1 w-[calc(33.333%-3px)] h-[calc(100%-8px)] bg-dark rounded-full transition-transform duration-300 ease-in-out toggle-pos-0"
-            id="toggle-bg"></div>
-          <button
-            class="relative z-10 px-4 py-2.5 text-sm font-medium text-white transition-colors duration-300 w-28 sm:w-36 lg:w-40 text-center cursor-pointer"
-            id="btn-super-early" onclick="togglePricing('super_early')">Super Early</button>
-          <button
-            class="relative z-10 px-4 py-2.5 text-sm font-medium text-body transition-colors duration-300 w-28 sm:w-36 lg:w-40 text-center cursor-pointer"
-            id="btn-founding" onclick="togglePricing('founding')">Founding</button>
-          <button
-            class="relative z-10 px-4 py-2.5 text-sm font-medium text-body transition-colors duration-300 w-28 sm:w-36 lg:w-40 text-center cursor-pointer"
-            id="btn-standard" onclick="togglePricing('standard')">Standard</button>
+        <div class="flex flex-col items-start gap-2 max-w-sm w-full">
+          <!-- Super Early (active by default) -->
+          <button id="btn-super-early" onclick="togglePricing('super_early')"
+            class="pricing-phase-btn w-full flex items-center gap-3 rounded-2xl bg-surface border-2 border-primary p-4 cursor-pointer transition-all duration-300 shadow-sm hover:shadow-md">
+            <svg class="phase-arrow w-4 h-4 text-primary shrink-0" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" /></svg>
+            <span class="phase-label font-heading text-base font-semibold text-dark">Super Early Founder</span>
+            <span class="phase-badge ml-auto rounded-full bg-primary/10 text-primary text-[10px] font-bold px-2.5 py-0.5">ACTIVE</span>
+            <span class="relative group/tip">
+              <svg class="w-4 h-4 text-muted hover:text-primary cursor-help transition-colors" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m11.25 11.25.041-.02a.75.75 0 0 1 1.063.852l-.708 2.836a.75.75 0 0 0 1.063.853l.041-.021M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9-3.75h.008v.008H12V8.25Z" /></svg>
+              <span class="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 w-56 rounded-xl bg-dark text-white text-xs p-3 leading-relaxed opacity-0 pointer-events-none group-hover/tip:opacity-100 transition-opacity duration-200 z-20 shadow-lg">The first 25 practitioners. Deepest discount, locked for life. Once these seats are gone, pricing moves to Founding.</span>
+            </span>
+          </button>
+          <!-- Founding -->
+          <button id="btn-founding" onclick="togglePricing('founding')"
+            class="pricing-phase-btn w-full flex items-center gap-3 rounded-2xl bg-surface border border-stroke p-3 pl-11 cursor-pointer transition-all duration-300 hover:border-primary/30">
+            <svg class="phase-arrow w-4 h-4 text-primary shrink-0" style="display:none" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" /></svg>
+            <span class="phase-label font-heading text-sm font-medium text-muted">Founding Member</span>
+            <span class="phase-badge ml-auto rounded-full bg-primary/10 text-primary text-[10px] font-bold px-2.5 py-0.5" style="display:none">ACTIVE</span>
+            <span class="relative group/tip ml-auto">
+              <svg class="w-4 h-4 text-muted hover:text-primary cursor-help transition-colors" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m11.25 11.25.041-.02a.75.75 0 0 1 1.063.852l-.708 2.836a.75.75 0 0 0 1.063.853l.041-.021M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9-3.75h.008v.008H12V8.25Z" /></svg>
+              <span class="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 w-56 rounded-xl bg-dark text-white text-xs p-3 leading-relaxed opacity-0 pointer-events-none group-hover/tip:opacity-100 transition-opacity duration-200 z-20 shadow-lg">The first 150 practitioners. 30% off, locked for life. Available after Super Early sells out.</span>
+            </span>
+          </button>
+          <!-- Standard -->
+          <button id="btn-standard" onclick="togglePricing('standard')"
+            class="pricing-phase-btn w-full flex items-center gap-3 rounded-2xl bg-surface border border-stroke p-3 pl-11 cursor-pointer transition-all duration-300 hover:border-primary/30">
+            <svg class="phase-arrow w-4 h-4 text-primary shrink-0" style="display:none" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" /></svg>
+            <span class="phase-label font-heading text-sm font-medium text-muted">Standard</span>
+            <span class="phase-badge ml-auto rounded-full bg-primary/10 text-primary text-[10px] font-bold px-2.5 py-0.5" style="display:none">ACTIVE</span>
+            <span class="relative group/tip ml-auto">
+              <svg class="w-4 h-4 text-muted hover:text-primary cursor-help transition-colors" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m11.25 11.25.041-.02a.75.75 0 0 1 1.063.852l-.708 2.836a.75.75 0 0 0 1.063.853l.041-.021M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9-3.75h.008v.008H12V8.25Z" /></svg>
+              <span class="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 w-56 rounded-xl bg-dark text-white text-xs p-3 leading-relaxed opacity-0 pointer-events-none group-hover/tip:opacity-100 transition-opacity duration-200 z-20 shadow-lg">Full pricing for all future members.</span>
+            </span>
+          </button>
         </div>
       </div>
 
-      <!-- ALL 4 TIERS -->
-      <div class="grid gap-5 md:grid-cols-2 lg:grid-cols-4 max-w-7xl mx-auto">
-
-        <!-- Launchpad (Entry Level) -->
-        <div class="reveal-scale rounded-[32px] bg-surface p-6 lg:p-8 flex flex-col">
-          <span class="inline-flex items-center rounded-full bg-primary/8 text-primary text-xs font-medium px-3 py-1 w-fit mb-6">Entry Level</span>
-          <h3 class="font-heading text-2xl font-medium text-dark">Launchpad</h3>
-          <p class="mt-2 text-sm text-body leading-relaxed">Just starting out? We built this for you.</p>
-
-          <div class="mt-6 flex items-baseline gap-2">
-            <span class="font-heading text-4xl font-semibold text-dark">Free</span>
-          </div>
-          <p class="text-xs text-muted mt-1">then £19/mo after 3 months</p>
-
-          <button onclick="checkout('launchpad')"
-            class="mt-8 w-full inline-flex items-center justify-center gap-2 rounded-[48px] border-2 border-primary text-primary text-sm font-medium px-5 py-3 hover:bg-primary/5 transition-colors cursor-pointer">
-            Start free
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" /></svg>
-          </button>
-
-          <div class="mt-8 space-y-3 border-t border-stroke pt-6 flex-1">
-            <p class="text-xs text-body flex gap-2.5"><svg class="w-4 h-4 text-primary shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg> 3 report credits/mo</p>
-            <p class="text-xs text-body flex gap-2.5"><svg class="w-4 h-4 text-primary shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg> Mini course: "Your First 10 Longevity Clients"</p>
-            <p class="text-xs text-body flex gap-2.5"><svg class="w-4 h-4 text-primary shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg> AI Practice Growth Advisor</p>
-            <p class="text-xs text-body flex gap-2.5"><svg class="w-4 h-4 text-primary shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg> Basic AI Health Advisor</p>
-            <p class="text-xs text-body flex gap-2.5"><svg class="w-4 h-4 text-primary shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg> Community (view only)</p>
-          </div>
-
-          <p class="mt-6 text-[10px] text-muted leading-relaxed">No risk, no pressure, no judgement. Use the tools, learn the basics, build your confidence.</p>
-        </div>
-
-        <!-- Minimum -->
-        <div class="reveal-scale reveal-delay-1 rounded-[32px] bg-surface p-6 lg:p-8 flex flex-col">
-          <span class="inline-flex items-center rounded-full bg-primary/8 text-primary text-xs font-medium px-3 py-1 w-fit mb-6">Platform Only</span>
-          <h3 class="font-heading text-2xl font-medium text-dark">Minimum</h3>
-          <p class="mt-2 text-sm text-body leading-relaxed">Platform tools only. No course, no certificate, no community.</p>
-
-          <div class="mt-6 flex items-baseline gap-2">
-            <span class="font-heading text-4xl font-semibold text-dark">£99</span>
-            <span class="text-sm text-muted">/mo</span>
-          </div>
-          <p class="text-xs text-muted mt-1">Cancel anytime</p>
-
-          <button onclick="checkout('minimum')"
-            class="mt-8 w-full inline-flex items-center justify-center gap-2 rounded-[48px] border-2 border-primary text-primary text-sm font-medium px-5 py-3 hover:bg-primary/5 transition-colors cursor-pointer">
-            Subscribe
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" /></svg>
-          </button>
-
-          <div class="mt-8 space-y-3 border-t border-stroke pt-6 flex-1">
-            <p class="text-xs text-body flex gap-2.5"><svg class="w-4 h-4 text-primary shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg> 15 report credits/mo</p>
-            <p class="text-xs text-body flex gap-2.5"><svg class="w-4 h-4 text-primary shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg> Client management &amp; progress tracking</p>
-            <p class="text-xs text-body flex gap-2.5"><svg class="w-4 h-4 text-primary shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg> Async client chat</p>
-            <p class="text-xs text-body flex gap-2.5"><svg class="w-4 h-4 text-primary shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg> Full AI health chatbot suite</p>
-          </div>
-
-          <p class="mt-6 text-[10px] text-muted leading-relaxed">Everything you need to run your practice with AI — no extras.</p>
-        </div>
+      <!-- PRIMARY TIERS: Course + Signature -->
+      <div class="grid gap-5 md:grid-cols-2 max-w-4xl mx-auto">
 
         <!-- Course (Recommended) -->
         <div
-          class="reveal-scale reveal-delay-2 rounded-[32px] bg-surface p-6 lg:p-8 flex flex-col relative ring-2 ring-primary lg:scale-[1.02] group hover:shadow-[0_20px_50px_-12px_rgba(0,0,0,0.12)] transition-shadow duration-300">
+          class="reveal-scale rounded-[32px] bg-surface p-6 lg:p-8 flex flex-col relative ring-2 ring-primary group hover:shadow-[0_20px_50px_-12px_rgba(0,0,0,0.12)] transition-shadow duration-300">
           <span
             class="inline-flex items-center gap-1.5 rounded-full bg-primary/8 text-primary text-xs font-medium px-3 py-1 w-fit mb-6">
             <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
@@ -960,10 +702,8 @@
             Join the Course
             <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" /></svg>
           </button>
-          <button onclick="checkout('course_installment')"
-            class="mt-2 w-full text-center text-xs text-primary/70 hover:text-primary transition-colors cursor-pointer">
-            or pay in 3 monthly instalments
-          </button>
+          <p class="mt-2 text-center text-xs text-primary/60 hover:text-primary cursor-pointer transition-colors" onclick="checkout('course_installment')">
+            or pay in 3 monthly instalments →</p>
 
           <div class="mt-8 space-y-3 border-t border-stroke pt-6 flex-1">
             <p class="text-xs text-body flex gap-2.5"><svg class="w-4 h-4 text-primary shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg> <strong>12-week course</strong> (recorded + live sessions)</p>
@@ -974,22 +714,19 @@
             <p class="text-xs text-body flex gap-2.5"><svg class="w-4 h-4 text-primary shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg> Client management, tracking &amp; async chat</p>
             <p class="text-xs text-body flex gap-2.5"><svg class="w-4 h-4 text-primary shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg> Full course community access</p>
           </div>
-          <!-- Certificate placeholder -->
-          <div class="mt-4 flex items-center gap-3 bg-primary/5 border border-dashed border-primary/20 rounded-xl p-3">
-            <svg class="w-5 h-5 text-primary/40 shrink-0" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M4.26 10.147a60.438 60.438 0 0 0-.491 6.347A48.62 48.62 0 0 1 12 20.904a48.62 48.62 0 0 1 8.232-4.41 60.46 60.46 0 0 0-.491-6.347m-15.482 0a50.636 50.636 0 0 0-2.658-.813A59.906 59.906 0 0 1 12 3.493a59.903 59.903 0 0 1 10.399 5.84c-.896.248-1.783.52-2.658.814m-15.482 0A50.717 50.717 0 0 1 12 13.489a50.702 50.702 0 0 1 7.74-3.342M6.75 15a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5Zm0 0v-3.675A55.378 55.378 0 0 1 12 8.443m-7.007 11.55A5.981 5.981 0 0 0 6.75 15.75v-1.5" />
-            </svg>
-            <div>
-              <p class="text-xs text-primary/60 font-medium">Certificate preview — Sample image coming soon</p>
-            </div>
-          </div>
+          <p class="mt-4 text-xs text-body leading-relaxed">The 12-week course covers longevity science, client assessment, supplement and herbal protocols, AI tools, practice growth, and certification. Full curriculum released to enrolled members before Week 1.</p>
+          <p class="mt-1 text-xs text-primary font-medium">Live sessions begin [TBC].</p>
+          <p class="mt-2 text-xs text-body leading-relaxed">Recorded modules release weekly. Your founding cohort is small enough that Matthew personally reviews your progress.</p>
+          <p class="mt-2 text-[10px] text-muted leading-relaxed">
+            Taught by Matthew, founder of <a href="https://irislab.com" target="_blank" rel="noopener" class="text-primary hover:text-primary-dark transition-colors">IRISLAB.com</a> and practising naturopath/iridologist for 15+ years.
+          </p>
           <p class="mt-4 text-[10px] text-muted leading-relaxed transition-colors duration-300" id="course-renewal">
             30-day money-back guarantee &nbsp;&middot;&nbsp; <strong class="text-primary">Super Early
               renewal: £39/mo (locked for life)</strong></p>
         </div>
 
         <!-- Signature (Premium) -->
-        <div class="reveal-scale reveal-delay-3 rounded-[32px] bg-dark text-white p-6 lg:p-8 flex flex-col relative">
+        <div class="reveal-scale reveal-delay-1 rounded-[32px] bg-dark text-white p-6 lg:p-8 flex flex-col relative">
           <span
             class="inline-flex items-center gap-1.5 rounded-full bg-white/10 text-white/80 text-xs font-medium px-3 py-1 w-fit mb-6">
             <span class="block h-1.5 w-1.5 rounded-full bg-primary animate-pulse"></span>
@@ -1015,10 +752,8 @@
             Apply for Signature
             <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" /></svg>
           </button>
-          <button onclick="checkout('signature_installment')"
-            class="mt-2 w-full text-center text-xs text-white/50 hover:text-white/80 transition-colors cursor-pointer">
-            or pay in 6 monthly instalments
-          </button>
+          <p class="mt-2 text-center text-xs text-white/40 hover:text-white/70 cursor-pointer transition-colors" onclick="checkout('signature_installment')">
+            or pay in 6 monthly instalments →</p>
 
           <div class="mt-8 space-y-3 border-t border-white/10 pt-6 flex-1">
             <p class="text-xs text-white/70 flex gap-2.5"><svg class="w-4 h-4 text-primary shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg> <strong class="text-white">Everything in the Course tier</strong></p>
@@ -1031,6 +766,65 @@
           <p class="mt-6 text-[10px] text-white/30 leading-relaxed transition-colors duration-300" id="sig-renewal">
             30-day money-back guarantee &nbsp;&middot;&nbsp; <strong class="text-white">Super Early
               renewal: £79/mo (locked for life)</strong></p>
+        </div>
+      </div>
+
+      <!-- Secondary label -->
+      <p class="reveal mt-12 mb-6 text-center text-sm text-muted font-medium">Not ready for the full course?</p>
+
+      <!-- SECONDARY TIERS: Launchpad + Minimum -->
+      <div class="grid gap-5 md:grid-cols-2 max-w-4xl mx-auto">
+
+        <!-- Launchpad (Entry Level) -->
+        <div class="reveal-scale rounded-[32px] bg-surface p-5 lg:p-6 flex flex-col">
+          <span class="inline-flex items-center rounded-full bg-primary/8 text-primary text-xs font-medium px-3 py-1 w-fit mb-4">Entry Level</span>
+          <h3 class="font-heading text-xl font-medium text-dark">Launchpad</h3>
+          <p class="mt-2 text-xs text-body leading-relaxed">Just starting out? We built this for you.</p>
+
+          <div class="mt-4 flex items-baseline gap-2">
+            <span class="font-heading text-3xl font-semibold text-dark">Free</span>
+          </div>
+          <p class="text-xs text-muted mt-1">then £19/mo after 3 months</p>
+
+          <button onclick="checkout('launchpad')"
+            class="mt-6 w-full inline-flex items-center justify-center gap-2 rounded-[48px] border-2 border-primary text-primary text-sm font-medium px-5 py-2.5 hover:bg-primary/5 transition-colors cursor-pointer">
+            Start free
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" /></svg>
+          </button>
+
+          <div class="mt-6 space-y-2 border-t border-stroke pt-4 flex-1">
+            <p class="text-xs text-body flex gap-2.5"><svg class="w-4 h-4 text-primary shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg> 3 report credits/mo</p>
+            <p class="text-xs text-body flex gap-2.5"><svg class="w-4 h-4 text-primary shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg> Mini course: "Your First 10 Longevity Clients"</p>
+            <p class="text-xs text-body flex gap-2.5"><svg class="w-4 h-4 text-primary shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg> AI Practice Growth Advisor</p>
+            <p class="text-xs text-body flex gap-2.5"><svg class="w-4 h-4 text-primary shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg> Basic AI Health Advisor</p>
+            <p class="text-xs text-body flex gap-2.5"><svg class="w-4 h-4 text-primary shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg> Community (view only)</p>
+          </div>
+        </div>
+
+        <!-- Minimum -->
+        <div class="reveal-scale reveal-delay-1 rounded-[32px] bg-surface p-5 lg:p-6 flex flex-col">
+          <span class="inline-flex items-center rounded-full bg-primary/8 text-primary text-xs font-medium px-3 py-1 w-fit mb-4">Platform Only</span>
+          <h3 class="font-heading text-xl font-medium text-dark">Minimum</h3>
+          <p class="mt-2 text-xs text-body leading-relaxed">Platform tools only. No course, no certificate, no community.</p>
+
+          <div class="mt-4 flex items-baseline gap-2">
+            <span class="font-heading text-3xl font-semibold text-dark">£99</span>
+            <span class="text-sm text-muted">/mo</span>
+          </div>
+          <p class="text-xs text-muted mt-1">Cancel anytime</p>
+
+          <button onclick="checkout('minimum')"
+            class="mt-6 w-full inline-flex items-center justify-center gap-2 rounded-[48px] border-2 border-primary text-primary text-sm font-medium px-5 py-2.5 hover:bg-primary/5 transition-colors cursor-pointer">
+            Get Started
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" /></svg>
+          </button>
+
+          <div class="mt-6 space-y-2 border-t border-stroke pt-4 flex-1">
+            <p class="text-xs text-body flex gap-2.5"><svg class="w-4 h-4 text-primary shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg> 15 report credits/mo</p>
+            <p class="text-xs text-body flex gap-2.5"><svg class="w-4 h-4 text-primary shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg> Client management &amp; progress tracking</p>
+            <p class="text-xs text-body flex gap-2.5"><svg class="w-4 h-4 text-primary shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg> Async client chat</p>
+            <p class="text-xs text-body flex gap-2.5"><svg class="w-4 h-4 text-primary shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg> Full AI health chatbot suite</p>
+          </div>
         </div>
       </div>
 
@@ -1165,66 +959,6 @@
         </div>
       </div>
 
-      <!-- Course Curriculum -->
-      <div class="reveal mt-10 max-w-7xl mx-auto">
-        <button onclick="const t=document.getElementById('curriculum-list');t.classList.toggle('hidden');this.querySelector('svg').classList.toggle('rotate-180')"
-          class="mx-auto flex items-center gap-2 text-sm font-medium text-primary hover:text-primary-dark transition-colors cursor-pointer">
-          View Course Curriculum
-          <svg class="w-4 h-4 transition-transform duration-300" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
-          </svg>
-        </button>
-        <div id="curriculum-list" class="hidden mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          <div class="rounded-2xl bg-surface border border-stroke p-5 flex gap-4 items-start">
-            <span class="flex-shrink-0 inline-flex items-center justify-center h-8 w-8 rounded-full bg-primary/8 text-primary text-xs font-bold">1</span>
-            <div><p class="text-sm font-medium text-dark">Introduction &amp; Foundations</p><p class="text-xs text-muted mt-1">Topic details TBC</p></div>
-          </div>
-          <div class="rounded-2xl bg-surface border border-stroke p-5 flex gap-4 items-start">
-            <span class="flex-shrink-0 inline-flex items-center justify-center h-8 w-8 rounded-full bg-primary/8 text-primary text-xs font-bold">2</span>
-            <div><p class="text-sm font-medium text-dark">Understanding Longevity Markers</p><p class="text-xs text-muted mt-1">Topic details TBC</p></div>
-          </div>
-          <div class="rounded-2xl bg-surface border border-stroke p-5 flex gap-4 items-start">
-            <span class="flex-shrink-0 inline-flex items-center justify-center h-8 w-8 rounded-full bg-primary/8 text-primary text-xs font-bold">3</span>
-            <div><p class="text-sm font-medium text-dark">Health Data Interpretation</p><p class="text-xs text-muted mt-1">Topic details TBC</p></div>
-          </div>
-          <div class="rounded-2xl bg-surface border border-stroke p-5 flex gap-4 items-start">
-            <span class="flex-shrink-0 inline-flex items-center justify-center h-8 w-8 rounded-full bg-primary/8 text-primary text-xs font-bold">4</span>
-            <div><p class="text-sm font-medium text-dark">Client Assessment Frameworks</p><p class="text-xs text-muted mt-1">Topic details TBC</p></div>
-          </div>
-          <div class="rounded-2xl bg-surface border border-stroke p-5 flex gap-4 items-start">
-            <span class="flex-shrink-0 inline-flex items-center justify-center h-8 w-8 rounded-full bg-primary/8 text-primary text-xs font-bold">5</span>
-            <div><p class="text-sm font-medium text-dark">Nutrition &amp; Dietary Planning</p><p class="text-xs text-muted mt-1">Topic details TBC</p></div>
-          </div>
-          <div class="rounded-2xl bg-surface border border-stroke p-5 flex gap-4 items-start">
-            <span class="flex-shrink-0 inline-flex items-center justify-center h-8 w-8 rounded-full bg-primary/8 text-primary text-xs font-bold">6</span>
-            <div><p class="text-sm font-medium text-dark">Supplement Protocols</p><p class="text-xs text-muted mt-1">Topic details TBC</p></div>
-          </div>
-          <div class="rounded-2xl bg-surface border border-stroke p-5 flex gap-4 items-start">
-            <span class="flex-shrink-0 inline-flex items-center justify-center h-8 w-8 rounded-full bg-primary/8 text-primary text-xs font-bold">7</span>
-            <div><p class="text-sm font-medium text-dark">Herbal Medicine Integration</p><p class="text-xs text-muted mt-1">Topic details TBC</p></div>
-          </div>
-          <div class="rounded-2xl bg-surface border border-stroke p-5 flex gap-4 items-start">
-            <span class="flex-shrink-0 inline-flex items-center justify-center h-8 w-8 rounded-full bg-primary/8 text-primary text-xs font-bold">8</span>
-            <div><p class="text-sm font-medium text-dark">AI Tools &amp; Technology</p><p class="text-xs text-muted mt-1">Topic details TBC</p></div>
-          </div>
-          <div class="rounded-2xl bg-surface border border-stroke p-5 flex gap-4 items-start">
-            <span class="flex-shrink-0 inline-flex items-center justify-center h-8 w-8 rounded-full bg-primary/8 text-primary text-xs font-bold">9</span>
-            <div><p class="text-sm font-medium text-dark">Client Communication</p><p class="text-xs text-muted mt-1">Topic details TBC</p></div>
-          </div>
-          <div class="rounded-2xl bg-surface border border-stroke p-5 flex gap-4 items-start">
-            <span class="flex-shrink-0 inline-flex items-center justify-center h-8 w-8 rounded-full bg-primary/8 text-primary text-xs font-bold">10</span>
-            <div><p class="text-sm font-medium text-dark">Practice Growth Strategies</p><p class="text-xs text-muted mt-1">Topic details TBC</p></div>
-          </div>
-          <div class="rounded-2xl bg-surface border border-stroke p-5 flex gap-4 items-start">
-            <span class="flex-shrink-0 inline-flex items-center justify-center h-8 w-8 rounded-full bg-primary/8 text-primary text-xs font-bold">11</span>
-            <div><p class="text-sm font-medium text-dark">Case Studies &amp; Application</p><p class="text-xs text-muted mt-1">Topic details TBC</p></div>
-          </div>
-          <div class="rounded-2xl bg-surface border border-stroke p-5 flex gap-4 items-start">
-            <span class="flex-shrink-0 inline-flex items-center justify-center h-8 w-8 rounded-full bg-primary/8 text-primary text-xs font-bold">12</span>
-            <div><p class="text-sm font-medium text-dark">Certification &amp; Next Steps</p><p class="text-xs text-muted mt-1">Topic details TBC</p></div>
-          </div>
-        </div>
-      </div>
 
       <script>
         const PRICE_IDS = {
@@ -1329,23 +1063,27 @@
         function togglePricing(mode) {
           currentPricingMode = mode;
           const data = PRICING_DATA[mode];
-          const bg = document.getElementById('toggle-bg');
-          const positions = { super_early: 'toggle-pos-0', founding: 'toggle-pos-1', standard: 'toggle-pos-2' };
-
-          // Toggle buttons
-          ['btn-super-early', 'btn-founding', 'btn-standard'].forEach(id => {
-            const btn = document.getElementById(id);
-            btn.classList.remove('text-white');
-            btn.classList.add('text-body');
-          });
           const activeId = mode === 'super_early' ? 'btn-super-early' : mode === 'founding' ? 'btn-founding' : 'btn-standard';
-          const activeBtn = document.getElementById(activeId);
-          activeBtn.classList.remove('text-body');
-          activeBtn.classList.add('text-white');
 
-          // Move pill
-          bg.classList.remove('toggle-pos-0', 'toggle-pos-1', 'toggle-pos-2');
-          bg.classList.add(positions[mode]);
+          // Update stacked pricing phase buttons
+          document.querySelectorAll('.pricing-phase-btn').forEach(btn => {
+            const isActive = btn.id === activeId;
+            const arrow = btn.querySelector('.phase-arrow');
+            const label = btn.querySelector('.phase-label');
+            const badge = btn.querySelector('.phase-badge');
+
+            if (isActive) {
+              btn.className = 'pricing-phase-btn w-full flex items-center gap-3 rounded-2xl bg-surface border-2 border-primary p-4 cursor-pointer transition-all duration-300 shadow-sm hover:shadow-md';
+              if (arrow) arrow.style.display = '';
+              if (label) { label.className = 'phase-label font-heading text-base font-semibold text-dark'; }
+              if (badge) badge.style.display = '';
+            } else {
+              btn.className = 'pricing-phase-btn w-full flex items-center gap-3 rounded-2xl bg-surface border border-stroke p-3 pl-11 cursor-pointer transition-all duration-300 hover:border-primary/30';
+              if (arrow) arrow.style.display = 'none';
+              if (label) { label.className = 'phase-label font-heading text-sm font-medium text-muted'; }
+              if (badge) badge.style.display = 'none';
+            }
+          });
 
           // Course prices
           document.getElementById('course-price').textContent = data.course.price;
@@ -1380,48 +1118,13 @@
     </div>
   </section>
 
-  <!-- CONSUMER B2C PRICING -->
+  <!-- B2C LINK -->
   <section class="bg-surface">
-    <div class="max-w-[1280px] mx-auto px-5 md:px-[52px] py-24 md:py-32">
-      <div class="reveal text-center max-w-2xl mx-auto mb-12">
-        <p class="text-primary text-sm font-medium">For Individuals</p>
-        <h2
-          class="mt-3 font-heading text-[clamp(1.75rem,3.5vw,2.5rem)] font-medium text-dark leading-[1.2] tracking-[-0.03em]">
-          Get your own longevity report</h2>
-        <p class="mt-4 text-body leading-relaxed">No practitioner needed. Order a personal health assessment and track your longevity journey over time.</p>
-      </div>
-      <div class="grid gap-5 md:grid-cols-2 max-w-2xl mx-auto">
-        <!-- Single Report -->
-        <div class="reveal-scale rounded-[32px] bg-light p-8 flex flex-col">
-          <h3 class="font-heading text-xl font-medium text-dark">Single Report</h3>
-          <p class="mt-2 text-sm text-body leading-relaxed">One comprehensive longevity health assessment.</p>
-          <div class="mt-6 flex items-baseline gap-2">
-            <span class="font-heading text-4xl font-semibold text-dark">£9.99</span>
-            <span class="text-sm text-muted">one-time</span>
-          </div>
-          <button onclick="checkout('consumer_single')"
-            class="mt-8 w-full inline-flex items-center justify-center gap-2 rounded-[48px] border-2 border-primary text-primary text-sm font-medium px-5 py-3 hover:bg-primary/5 transition-colors cursor-pointer">
-            Order Report
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" /></svg>
-          </button>
-        </div>
-        <!-- Annual Pass -->
-        <div class="reveal-scale reveal-delay-1 rounded-[32px] bg-light p-8 flex flex-col ring-2 ring-primary relative">
-          <span class="inline-flex items-center rounded-full bg-primary/8 text-primary text-xs font-medium px-3 py-1 w-fit mb-4">Best Value</span>
-          <h3 class="font-heading text-xl font-medium text-dark">Annual Pass</h3>
-          <p class="mt-2 text-sm text-body leading-relaxed">Up to 4 reports per year. Track your progress over time.</p>
-          <div class="mt-6 flex items-baseline gap-2">
-            <span class="font-heading text-4xl font-semibold text-dark">£19.99</span>
-            <span class="text-sm text-muted">/year</span>
-          </div>
-          <p class="text-xs text-primary font-medium mt-1">Just £5.00 per report</p>
-          <button onclick="checkout('consumer_annual')"
-            class="mt-8 w-full inline-flex items-center justify-center gap-2 rounded-[48px] bg-primary text-white text-sm font-medium px-5 py-3 hover:bg-primary-dark transition-colors shadow-[0_4px_20px_rgba(61,141,160,.25)] cursor-pointer">
-            Get Annual Pass
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" /></svg>
-          </button>
-        </div>
-      </div>
+    <div class="max-w-[1280px] mx-auto px-5 md:px-[52px] py-12 text-center">
+      <a href="/personal-report.html" class="reveal inline-flex items-center gap-2 text-sm text-primary font-medium hover:text-primary-dark transition-colors">
+        Not a practitioner? Get your own personal report
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" /></svg>
+      </a>
     </div>
   </section>
 
@@ -1454,9 +1157,9 @@
         <div>
           <p class="text-xs font-medium tracking-wide text-white/30 uppercase mb-4">Legal</p>
           <div class="flex flex-col gap-2.5">
-            <a href="mailto:hello@healthdatalab.com?subject=Privacy%20Policy%20Request"
+            <a href="/privacy.html"
               class="text-sm text-white/50 hover:text-white transition-colors">Privacy Policy</a>
-            <a href="mailto:hello@healthdatalab.com?subject=Terms%20of%20Service%20Request"
+            <a href="/terms.html"
               class="text-sm text-white/50 hover:text-white transition-colors">Terms of Service</a>
             <p class="text-xs text-white/30 mt-3 leading-relaxed">Refund Policy: 30-day money-back guarantee on Course and Signature tiers. Minimum: cancel anytime. Launchpad: free tier, cancel anytime.</p>
           </div>
@@ -1469,100 +1172,7 @@
     </div>
   </footer>
 
-  <!-- JS -->
-  <script>
-    // Mobile menu toggle
-    const toggle = document.getElementById('menu-toggle');
-    const menu = document.getElementById('mobile-menu');
-    const lines = [document.getElementById('menu-line-1'), document.getElementById('menu-line-2'), document.getElementById('menu-line-3')];
-    let menuOpen = false;
-
-    function closeMenu() {
-      menuOpen = false;
-      menu.classList.add('hidden');
-      lines[0].setAttribute('d', 'M4 7h16');
-      lines[1].style.opacity = '1';
-      lines[2].setAttribute('d', 'M4 17h16');
-    }
-
-    toggle.addEventListener('click', () => {
-      if (menuOpen) {
-        closeMenu();
-      } else {
-        menuOpen = true;
-        menu.classList.remove('hidden');
-        lines[0].setAttribute('d', 'M6 6l12 12');
-        lines[1].style.opacity = '0';
-        lines[2].setAttribute('d', 'M6 18L18 6');
-      }
-    });
-
-    menu.querySelectorAll('.nav-link').forEach(link => {
-      link.addEventListener('click', closeMenu);
-    });
-
-    // Nav background on scroll
-    const navInner = document.getElementById('nav-inner');
-    const scrollClasses = ['bg-surface/90', 'nav-blur', 'shadow-[0_2px_20px_rgba(0,0,0,.06)]'];
-
-    window.addEventListener('scroll', () => {
-      if (window.scrollY > 40) {
-        navInner.classList.add(...scrollClasses);
-      } else {
-        navInner.classList.remove(...scrollClasses);
-      }
-    }, { passive: true });
-
-    // Scroll-triggered reveal animations
-    const revealObserver = new IntersectionObserver((entries) => {
-      entries.forEach(entry => {
-        if (entry.isIntersecting) {
-          entry.target.classList.add('visible');
-          revealObserver.unobserve(entry.target);
-        }
-      });
-    }, { threshold: 0.15, rootMargin: '0px 0px -40px 0px' });
-
-    document.querySelectorAll('.reveal, .reveal-scale, .reveal-left, .reveal-right').forEach(el => {
-      revealObserver.observe(el);
-    });
-
-    // Counter animation
-    const counterObserver = new IntersectionObserver((entries) => {
-      entries.forEach(entry => {
-        if (entry.isIntersecting) {
-          const el = entry.target;
-          const target = parseInt(el.dataset.target);
-          const duration = 1200;
-          const start = performance.now();
-          const animate = (now) => {
-            const progress = Math.min((now - start) / duration, 1);
-            const eased = 1 - Math.pow(1 - progress, 3);
-            el.textContent = Math.round(eased * target);
-            if (progress < 1) requestAnimationFrame(animate);
-          };
-          requestAnimationFrame(animate);
-          counterObserver.unobserve(el);
-        }
-      });
-    }, { threshold: 0.5 });
-
-    document.querySelectorAll('.counter[data-target]').forEach(el => {
-      counterObserver.observe(el);
-    });
-
-    // YouTube player — autoplay with 15% volume
-    var tag = document.createElement('script');
-    tag.src = 'https://www.youtube.com/iframe_api';
-    document.head.appendChild(tag);
-    function onYouTubeIframeAPIReady() {
-      new YT.Player('yt-player', {
-        events: {
-          onReady: function (e) { e.target.unMute(); e.target.setVolume(15); }
-        }
-      });
-    }
-  </script>
+  <script src="assets/js/main.js"></script>
 </body>
 
 </html>

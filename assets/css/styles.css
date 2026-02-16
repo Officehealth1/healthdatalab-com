@@ -1,0 +1,131 @@
+/* ================================================
+   HealthDataLab — Shared Styles
+   ================================================ */
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Nav blur on scroll */
+.nav-blur {
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+/* Shared easing */
+:root {
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* ------------------------------------------------
+   Scroll-triggered reveal animations
+   ------------------------------------------------ */
+.reveal,
+.reveal-scale,
+.reveal-left,
+.reveal-right {
+  opacity: 0;
+  transition: opacity 0.7s var(--ease-out-expo),
+    transform 0.7s var(--ease-out-expo);
+}
+
+.reveal {
+  transform: translateY(32px);
+}
+
+.reveal-scale {
+  transform: translateY(24px) scale(0.97);
+  transition-duration: 0.6s;
+}
+
+.reveal-left {
+  transform: translateX(-32px);
+}
+
+.reveal-right {
+  transform: translateX(32px);
+}
+
+.reveal.visible,
+.reveal-scale.visible,
+.reveal-left.visible,
+.reveal-right.visible {
+  opacity: 1;
+  transform: none;
+}
+
+/* Stagger delays */
+.reveal-delay-1 { transition-delay: 0.1s; }
+.reveal-delay-2 { transition-delay: 0.2s; }
+.reveal-delay-3 { transition-delay: 0.3s; }
+.reveal-delay-4 { transition-delay: 0.4s; }
+
+/* ------------------------------------------------
+   Hero entrance — plays on load
+   ------------------------------------------------ */
+.hero-enter {
+  opacity: 0;
+  transform: translateY(24px);
+  animation: heroFadeUp 0.8s var(--ease-out-expo) forwards;
+}
+
+.hero-enter-1 { animation-delay: 0.1s; }
+.hero-enter-2 { animation-delay: 0.25s; }
+.hero-enter-3 { animation-delay: 0.4s; }
+.hero-enter-4 { animation-delay: 0.55s; }
+
+@keyframes heroFadeUp {
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ------------------------------------------------
+   Counter animation (index.html)
+   ------------------------------------------------ */
+.counter {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ------------------------------------------------
+   3D report mockup (index.html)
+   ------------------------------------------------ */
+.report-3d {
+  perspective: 1200px;
+}
+
+.report-3d-page {
+  transform: rotateY(-4deg) rotateX(2deg);
+  transform-origin: left center;
+  transition: transform 0.6s var(--ease-out-expo);
+}
+
+.report-3d-page:hover {
+  transform: rotateY(0) rotateX(0);
+}
+
+/* ------------------------------------------------
+   Reduced motion
+   ------------------------------------------------ */
+@media (prefers-reduced-motion: reduce) {
+  .reveal,
+  .reveal-scale,
+  .reveal-left,
+  .reveal-right {
+    transition: none;
+    opacity: 1;
+    transform: none;
+  }
+
+  .hero-enter {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
+}
