@@ -933,7 +933,7 @@
             priceId = PRICE_IDS[tier][currentPricingMode]; mode = 'payment';
           }
           if (!priceId || priceId.startsWith('price_TODO')) {
-            alert('This option is not yet available. Please email hello@healthdatalab.com for early access.');
+            showToast('not-available');
             return;
           }
           try {
@@ -950,7 +950,7 @@
             if (error) throw new Error(error);
             await stripe.redirectToCheckout({ sessionId });
           } catch (err) {
-            alert('Something went wrong. Please try again or email hello@healthdatalab.com');
+            showToast('error');
           }
         }
 
@@ -1126,13 +1126,13 @@
           <p class="font-heading text-lg font-semibold tracking-tight">HealthDataLab</p>
           <p class="mt-3 text-sm text-white/40 leading-relaxed">Built for holistic health practitioners.</p>
           <p class="mt-2 text-xs text-white/25">From the makers of IRISLAB.com</p>
-          <a href="mailto:hello@healthdatalab.com"
+          <a href="mailto:office@healthdatalab.com"
             class="mt-4 inline-flex items-center gap-2 text-sm text-white/50 hover:text-white transition-colors">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round"
                 d="M21.75 6.75v10.5a2.25 2.25 0 0 1-2.25 2.25h-15a2.25 2.25 0 0 1-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25m19.5 0v.243a2.25 2.25 0 0 1-1.07 1.916l-7.5 4.615a2.25 2.25 0 0 1-2.36 0L3.32 8.91a2.25 2.25 0 0 1-1.07-1.916V6.75" />
             </svg>
-            hello@healthdatalab.com
+            office@healthdatalab.com
           </a>
         </div>
         <div>
@@ -1194,6 +1194,80 @@
       document.body.style.overflow = '';
     }
     document.addEventListener('keydown', function(e) { if (e.key === 'Escape') closeLightbox(); });
+  </script>
+
+  <!-- Toast Notifications -->
+  <div id="toast-container" class="fixed top-6 right-6 z-[200] flex flex-col gap-3 pointer-events-none"></div>
+  <script>
+    function showToast(key) {
+      var messages = {
+        'not-available': { type: 'info', text: 'This option is not yet available. Please email ', suffix: ' for early access.' },
+        'error': { type: 'error', text: 'Something went wrong. Please try again or email ', suffix: '' }
+      };
+      var msg = messages[key] || messages['error'];
+      var isError = msg.type === 'error';
+      var toast = document.createElement('div');
+      toast.className = 'pointer-events-auto flex items-start gap-3 max-w-sm px-4 py-3.5 rounded-2xl shadow-lg transition-all duration-300 translate-x-[120%] opacity-0 '
+        + (isError ? 'bg-dark text-white border border-white/10' : 'bg-surface text-dark border border-stroke');
+      var iconSvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      iconSvg.setAttribute('fill', 'none');
+      iconSvg.setAttribute('stroke', 'currentColor');
+      iconSvg.setAttribute('stroke-width', '1.5');
+      iconSvg.setAttribute('viewBox', '0 0 24 24');
+      var iconPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      iconPath.setAttribute('stroke-linecap', 'round');
+      iconPath.setAttribute('stroke-linejoin', 'round');
+      if (isError) {
+        iconSvg.setAttribute('class', 'w-5 h-5 flex-shrink-0 mt-0.5 text-red-400');
+        iconPath.setAttribute('d', 'M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z');
+      } else {
+        iconSvg.setAttribute('class', 'w-5 h-5 flex-shrink-0 mt-0.5 text-primary');
+        iconPath.setAttribute('d', 'm11.25 11.25.041-.02a.75.75 0 0 1 1.063.852l-.708 2.836a.75.75 0 0 0 1.063.853l.041-.021M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9-3.75h.008v.008H12V8.25Z');
+      }
+      iconSvg.appendChild(iconPath);
+      toast.appendChild(iconSvg);
+      var msgSpan = document.createElement('span');
+      msgSpan.className = 'text-sm leading-relaxed flex-1';
+      msgSpan.appendChild(document.createTextNode(msg.text));
+      var emailLink = document.createElement('a');
+      emailLink.href = 'mailto:office@healthdatalab.com';
+      emailLink.className = 'text-primary hover:underline';
+      emailLink.textContent = 'office@healthdatalab.com';
+      msgSpan.appendChild(emailLink);
+      if (msg.suffix) msgSpan.appendChild(document.createTextNode(msg.suffix));
+      toast.appendChild(msgSpan);
+      var closeBtn = document.createElement('button');
+      closeBtn.className = 'flex-shrink-0 mt-0.5 opacity-50 hover:opacity-100 transition-opacity cursor-pointer';
+      var closeSvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      closeSvg.setAttribute('class', 'w-4 h-4');
+      closeSvg.setAttribute('fill', 'none');
+      closeSvg.setAttribute('stroke', 'currentColor');
+      closeSvg.setAttribute('stroke-width', '2');
+      closeSvg.setAttribute('viewBox', '0 0 24 24');
+      var closePath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      closePath.setAttribute('stroke-linecap', 'round');
+      closePath.setAttribute('stroke-linejoin', 'round');
+      closePath.setAttribute('d', 'M6 18 18 6M6 6l12 12');
+      closeSvg.appendChild(closePath);
+      closeBtn.appendChild(closeSvg);
+      closeBtn.onclick = function() { dismissToast(toast); };
+      toast.appendChild(closeBtn);
+      document.getElementById('toast-container').appendChild(toast);
+      requestAnimationFrame(function() {
+        requestAnimationFrame(function() {
+          toast.style.transform = 'translateX(0)';
+          toast.style.opacity = '1';
+        });
+      });
+      setTimeout(function() { dismissToast(toast); }, 6000);
+    }
+    function dismissToast(toast) {
+      if (toast.dataset.dismissed) return;
+      toast.dataset.dismissed = '1';
+      toast.style.opacity = '0';
+      toast.style.transform = 'translateX(120%)';
+      setTimeout(function() { toast.remove(); }, 300);
+    }
   </script>
 
   <script src="assets/js/main.js"></script>
