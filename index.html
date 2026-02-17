@@ -12,7 +12,10 @@
     content="Invite your client to complete a quick health form. Receive a visual longevity report with key areas to explore — prepare with confidence, deepen the consultation from minute one.">
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://healthdatalab.com">
-  <meta name="twitter:card" content="summary">
+  <link rel="canonical" href="https://healthdatalab.com">
+  <meta property="og:image" content="https://healthdatalab.com/assets/images/health-metrics-dashboard.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:image" content="https://healthdatalab.com/assets/images/health-metrics-dashboard.png">
   <link rel="icon" type="image/png" sizes="32x32" href="assets/images/favicon-32x32.png">
   <link rel="icon" type="image/png" sizes="16x16" href="assets/images/favicon-16x16.png">
   <link rel="apple-touch-icon" sizes="180x180" href="assets/images/apple-touch-icon.png">
@@ -39,6 +42,50 @@
     }
   </style>
   <link rel="stylesheet" href="assets/css/styles.css">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "Organization",
+        "name": "HealthDataLab",
+        "url": "https://healthdatalab.com",
+        "logo": "https://healthdatalab.com/assets/images/favicon-512x512.png",
+        "description": "Health data platform for natural health practitioners. Invite your client to complete a quick health form and receive a visual longevity report.",
+        "founder": {
+          "@type": "Person",
+          "name": "Matthew"
+        }
+      },
+      {
+        "@type": "Course",
+        "name": "HealthDataLab Practitioner Course",
+        "description": "12-week course covering longevity science, client assessment, supplement and herbal protocols, AI tools, practice growth, and certification.",
+        "provider": {
+          "@type": "Organization",
+          "name": "HealthDataLab",
+          "url": "https://healthdatalab.com"
+        },
+        "offers": [
+          {
+            "@type": "Offer",
+            "name": "Super Early — Course Only",
+            "price": "597",
+            "priceCurrency": "GBP",
+            "availability": "https://schema.org/LimitedAvailability"
+          },
+          {
+            "@type": "Offer",
+            "name": "Super Early — Signature",
+            "price": "1497",
+            "priceCurrency": "GBP",
+            "availability": "https://schema.org/LimitedAvailability"
+          }
+        ]
+      }
+    ]
+  }
+  </script>
 </head>
 
 <body class="bg-surface text-body font-sans">
@@ -53,7 +100,7 @@
           <a href="#platform" class="text-sm text-body hover:text-dark transition-colors">For Practitioners</a>
           <a href="#how-it-works" class="text-sm text-body hover:text-dark transition-colors">How It Works</a>
           <a href="/personal-report.html" class="text-sm text-body hover:text-dark transition-colors">For Individuals</a>
-          <a href="#founder-access" class="text-sm text-body hover:text-dark transition-colors">Early Access</a>
+          <a href="#founder-access" class="text-sm text-body hover:text-dark transition-colors">Pricing</a>
           <a href="#founder-access"
             class="inline-flex items-center rounded-[48px] bg-dark text-white text-sm font-medium px-5 py-2.5 hover:bg-dark-2 transition-colors">
             Get Early Access
@@ -81,7 +128,7 @@
           <a href="/personal-report.html" class="nav-link block py-2.5 text-body hover:text-dark text-sm transition-colors">For
             Individuals</a>
           <a href="#founder-access"
-            class="nav-link block py-2.5 text-body hover:text-dark text-sm transition-colors">Early Access</a>
+            class="nav-link block py-2.5 text-body hover:text-dark text-sm transition-colors">Pricing</a>
           <a href="#founder-access"
             class="nav-link mt-2 flex items-center justify-center rounded-[48px] bg-dark text-white text-sm font-medium px-5 py-3 hover:bg-dark-2 transition-colors">Get
             Early Access</a>
@@ -90,159 +137,72 @@
     </div>
   </nav>
 
-  <!-- HERO -->
+  <!-- ============================================================
+       SECTION 1: HERO — Split layout: text left, product image right
+       ============================================================ -->
   <section class="bg-gradient-to-b from-surface to-light overflow-hidden">
-    <div class="max-w-[1280px] mx-auto px-5 md:px-[52px] pt-36 pb-24 md:pt-44 md:pb-36 text-center">
-      <div class="max-w-3xl mx-auto">
-        <p class="hero-enter hero-enter-1 text-sm text-primary font-medium mb-6">
-          For naturopaths, herbalists, nutritionists &amp; holistic practitioners
-        </p>
-        <h1 class="hero-enter hero-enter-2 font-heading text-[clamp(2rem,5vw,3rem)] font-medium text-dark leading-[1.16] tracking-[-0.03em]">
-          Know your client before they walk through the door
-        </h1>
-        <p class="hero-enter hero-enter-3 mt-6 text-lg text-body max-w-xl mx-auto leading-relaxed">
-          Invite your client to complete a quick health form before their appointment. Receive a visual longevity report with key areas to explore&nbsp;&mdash; so you can research their specific imbalances, prepare with confidence, and deepen the consultation from minute one.
-        </p>
-        <div class="hero-enter hero-enter-4 mt-10 flex flex-col sm:flex-row items-center justify-center gap-3">
-          <a href="#sample-report"
-            class="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-[48px] bg-primary text-white text-base font-medium px-8 py-3.5 hover:bg-primary-dark transition-colors shadow-[0_4px_20px_rgba(61,141,160,.25)]">
-            See the Sample Report
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" /></svg>
-          </a>
-          <a href="#founder-access"
-            class="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-[48px] bg-dark text-white text-base font-medium px-8 py-3.5 hover:bg-dark-2 transition-colors">
-            View Pricing
-          </a>
+    <div class="max-w-[1280px] mx-auto px-5 md:px-[52px] pt-36 pb-24 md:pt-44 md:pb-36">
+      <div class="grid md:grid-cols-2 gap-12 items-center">
+        <!-- Left: Text -->
+        <div>
+          <p class="hero-enter hero-enter-1 text-sm text-primary font-medium mb-6">
+            For naturopaths, herbalists, nutritionists &amp; holistic practitioners
+          </p>
+          <h1 class="hero-enter hero-enter-2 font-heading text-[clamp(2rem,5vw,3rem)] font-medium text-dark leading-[1.16] tracking-[-0.03em]">
+            Know your client before they walk through the door
+          </h1>
+          <p class="hero-enter hero-enter-3 mt-6 text-lg text-body max-w-xl leading-relaxed">
+            Invite your client to complete a quick health form before their appointment. Receive a visual longevity report with key areas to explore&nbsp;&mdash; so you can research their specific imbalances, prepare with confidence, and deepen the consultation from minute one.
+          </p>
+          <div class="hero-enter hero-enter-4 mt-10 flex flex-col sm:flex-row items-start gap-3">
+            <a href="#sample-report"
+              class="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-[48px] bg-primary text-white text-base font-medium px-8 py-3.5 hover:bg-primary-dark transition-colors shadow-[0_4px_20px_rgba(61,141,160,.25)]">
+              See the Sample Report
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" /></svg>
+            </a>
+            <a href="#founder-access"
+              class="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-[48px] bg-dark text-white text-base font-medium px-8 py-3.5 hover:bg-dark-2 transition-colors">
+              View Pricing
+            </a>
+          </div>
+        </div>
+        <!-- Right: Product Image -->
+        <div class="hero-enter hero-enter-3 flex justify-center">
+          <img src="assets/images/health-metrics-dashboard.png"
+            alt="Health Metrics Dashboard showing client biological age and key health indicators"
+            class="w-full max-w-lg rounded-2xl shadow-[0_20px_50px_-12px_rgba(0,0,0,0.12)]">
         </div>
       </div>
     </div>
   </section>
 
-  <!-- WHO THIS IS FOR -->
+  <!-- ============================================================
+       SECTION 2: WHY LONGEVITY — The 80/20 stat
+       ============================================================ -->
   <section class="bg-light">
+    <!-- Optional background image: wrap content in a div with
+         style="background-image: url('assets/images/longevity-bg.jpg'); background-size: cover; background-position: center;"
+         and add: filter: saturate(0.7) brightness(1.05) to the image
+         with a bg-white/30 overlay div for the washed-out editorial look -->
     <div class="max-w-[1280px] mx-auto px-5 md:px-[52px] py-24 md:py-32">
-      <div class="reveal text-center max-w-2xl mx-auto mb-14">
+      <div class="reveal text-center max-w-3xl mx-auto">
         <h2 class="font-heading text-[clamp(1.75rem,3.5vw,2.5rem)] font-medium text-dark leading-[1.2] tracking-[-0.03em]">
-          Is this for you?</h2>
-      </div>
-      <div class="grid gap-5 md:grid-cols-2 max-w-4xl mx-auto">
-        <!-- This is for you -->
-        <div class="reveal-left rounded-[32px] bg-surface p-8 md:p-10">
-          <h3 class="font-heading text-lg text-dark font-medium mb-6">This is for you if&hellip;</h3>
-          <div class="space-y-4">
-            <p class="text-sm text-body flex gap-2.5"><svg class="w-4 h-4 text-primary shrink-0 mt-0.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg> You're a naturopath, herbalist, nutritionist, iridologist, or holistic practitioner</p>
-            <p class="text-sm text-body flex gap-2.5"><svg class="w-4 h-4 text-primary shrink-0 mt-0.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg> You want to offer longevity assessments as part of your client consultations</p>
-            <p class="text-sm text-body flex gap-2.5"><svg class="w-4 h-4 text-primary shrink-0 mt-0.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg> You're tired of spending the first half of every session just gathering information</p>
-            <p class="text-sm text-body flex gap-2.5"><svg class="w-4 h-4 text-primary shrink-0 mt-0.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg> You want professional reports that make your practice look and feel world-class</p>
-            <p class="text-sm text-body flex gap-2.5"><svg class="w-4 h-4 text-primary shrink-0 mt-0.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg> You're ready to invest in your professional development, not just another subscription</p>
-          </div>
-        </div>
-        <!-- This is NOT for you -->
-        <div class="reveal-right rounded-[32px] bg-surface p-8 md:p-10">
-          <h3 class="font-heading text-lg text-dark font-medium mb-6">This is not for you if&hellip;</h3>
-          <div class="space-y-4">
-            <p class="text-sm text-body flex gap-2.5"><svg class="w-4 h-4 text-muted shrink-0 mt-0.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" /></svg> You're looking for a diagnostic tool (this is assessment and tracking, not diagnosis)</p>
-            <p class="text-sm text-body flex gap-2.5"><svg class="w-4 h-4 text-muted shrink-0 mt-0.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" /></svg> You don't work with individual clients</p>
-            <p class="text-sm text-body flex gap-2.5"><svg class="w-4 h-4 text-muted shrink-0 mt-0.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" /></svg> You want a passive tool with no learning curve (the course exists for a reason)</p>
-          </div>
-        </div>
+          80% of longevity is lifestyle. Only 20% is genetics.</h2>
+        <p class="mt-6 text-lg text-body leading-relaxed max-w-2xl mx-auto">
+          That means most of your client's health trajectory is in their hands&nbsp;&mdash; and yours. HealthDataLab shifts the conversation from what's wrong to what's possible. Less weeds, more flowers.</p>
       </div>
     </div>
   </section>
 
-  <!-- VISUAL PROOF — Health Trajectory -->
-  <section class="bg-surface">
+  <!-- ============================================================
+       SECTION 3: HOW IT WORKS — 3 steps + report visuals + Download CTA
+       ============================================================ -->
+  <section id="how-it-works" class="scroll-mt-20 bg-surface">
     <div class="max-w-[1280px] mx-auto px-5 md:px-[52px] py-24 md:py-32">
+
+      <!-- Part A: 3 Steps -->
       <div class="reveal text-center max-w-2xl mx-auto">
-        <p class="text-primary text-sm font-medium">Health Trajectory</p>
-        <h2
-          class="mt-3 font-heading text-[clamp(1.75rem,3.5vw,2.5rem)] font-medium text-dark leading-[1.2] tracking-[-0.03em]">
-          See exactly where your client stands</h2>
-        <p class="mt-4 text-body leading-relaxed">Show your clients where they are now — and where they could be. The
-          trajectory chart maps their health history against future scenarios, making the case for change clear and
-          personal.</p>
-      </div>
-      <div class="mt-12 max-w-4xl mx-auto">
-        <img src="assets/images/health-trajectory.png"
-          alt="Health Trajectory chart showing future health scenarios — current status, pessimistic and optimistic projections"
-          class="reveal-scale w-full rounded-2xl shadow-[0_20px_50px_-12px_rgba(0,0,0,0.12)]" loading="lazy">
-      </div>
-    </div>
-  </section>
-
-  <!-- THE PLATFORM -->
-  <section id="platform" class="scroll-mt-20 bg-surface">
-    <div class="max-w-[1280px] mx-auto px-5 md:px-[52px] py-24 md:py-32">
-      <div class="reveal max-w-2xl">
-        <p class="text-primary text-sm font-medium">HealthDataLab</p>
-        <h2
-          class="mt-3 font-heading text-[clamp(1.75rem,3.5vw,2.5rem)] font-medium text-dark leading-[1.2] tracking-[-0.03em]">
-          Everything your practice needs, in one place</h2>
-        <p class="mt-4 text-body leading-relaxed">A professional investment, not a subscription. Our platform gives
-          practitioners structured tools to manage client
-          health data, generate professional reports, and track outcomes over time.</p>
-      </div>
-      <div class="mt-14 grid gap-5 md:grid-cols-3">
-        <!-- Card 1 -->
-        <div
-          class="reveal-scale reveal-delay-1 rounded-[32px] bg-light p-8 md:p-10 group hover:bg-dark transition-colors duration-300">
-          <div
-            class="flex h-12 w-12 items-center justify-center rounded-2xl bg-surface text-dark group-hover:bg-white/10 group-hover:text-white transition-colors duration-300">
-            <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round"
-                d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
-            </svg>
-          </div>
-          <h3
-            class="mt-6 font-heading text-xl text-dark font-medium group-hover:text-white transition-colors duration-300">
-            Health Forms &amp; Reports</h3>
-          <p class="mt-3 text-sm text-body leading-relaxed group-hover:text-white/70 transition-colors duration-300">
-            Clients complete a 4-minute health form. You instantly receive a detailed visual PDF report&nbsp;&mdash;
-            ready before the first consultation.</p>
-        </div>
-        <!-- Card 2 -->
-        <div
-          class="reveal-scale reveal-delay-2 rounded-[32px] bg-light p-8 md:p-10 group hover:bg-dark transition-colors duration-300">
-          <div
-            class="flex h-12 w-12 items-center justify-center rounded-2xl bg-surface text-dark group-hover:bg-white/10 group-hover:text-white transition-colors duration-300">
-            <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round"
-                d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 0 1 3 19.875v-6.75ZM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V8.625ZM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V4.125Z" />
-            </svg>
-          </div>
-          <h3
-            class="mt-6 font-heading text-xl text-dark font-medium group-hover:text-white transition-colors duration-300">
-            Client Tracker</h3>
-          <p class="mt-3 text-sm text-body leading-relaxed group-hover:text-white/70 transition-colors duration-300">
-            Track your clients' health journeys over time. From dietary habits to energy levels, see clear visual
-            snapshots of their progress.</p>
-        </div>
-        <!-- Card 3 -->
-        <div
-          class="reveal-scale reveal-delay-3 rounded-[32px] bg-light p-8 md:p-10 group hover:bg-dark transition-colors duration-300">
-          <div
-            class="flex h-12 w-12 items-center justify-center rounded-2xl bg-surface text-dark group-hover:bg-white/10 group-hover:text-white transition-colors duration-300">
-            <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round"
-                d="M11.42 15.17 17.25 21A2.652 2.652 0 0 0 21 17.25l-5.877-5.877M11.42 15.17l2.496-3.03c.317-.384.74-.626 1.208-.766M11.42 15.17l-4.655 5.653a2.548 2.548 0 1 1-3.586-3.586l6.837-5.63m5.108-.233c.55-.164 1.163-.188 1.743-.14a4.5 4.5 0 0 0 4.486-6.336l-3.276 3.277a3.004 3.004 0 0 1-2.25-2.25l3.276-3.276a4.5 4.5 0 0 0-6.336 4.486c.049.58.025 1.193-.14 1.743" />
-            </svg>
-          </div>
-          <h3
-            class="mt-6 font-heading text-xl text-dark font-medium group-hover:text-white transition-colors duration-300">
-            AI Health Suite</h3>
-          <p class="mt-3 text-sm text-body leading-relaxed group-hover:text-white/70 transition-colors duration-300">
-            Like having a team of specialist consultants available 24/7. Includes Herbal Medicine Advisor, Supplement
-            Advisor, Diet &amp; Nutrition Planner, and Clinical Diagnostics Support.</p>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- HOW IT WORKS -->
-  <section id="how-it-works" class="scroll-mt-20 bg-light">
-    <div class="max-w-[1280px] mx-auto px-5 md:px-[52px] py-24 md:py-32">
-      <div class="reveal text-center max-w-2xl mx-auto">
-        <p class="text-primary text-sm font-medium">HealthDataLab</p>
+        <p class="text-primary text-sm font-medium">How It Works</p>
         <h2
           class="mt-3 font-heading text-[clamp(1.75rem,3.5vw,2.5rem)] font-medium text-dark leading-[1.2] tracking-[-0.03em]">
           Three steps to better outcomes</h2>
@@ -250,7 +210,7 @@
       </div>
       <div class="mt-16 grid gap-5 md:grid-cols-3">
         <!-- Step 1 -->
-        <div class="reveal-scale reveal-delay-1 rounded-[32px] bg-surface p-8 md:p-10">
+        <div class="reveal-scale reveal-delay-1 rounded-[32px] bg-light p-8 md:p-10">
           <span
             class="inline-flex items-center justify-center h-10 w-10 rounded-full bg-primary text-white text-sm font-semibold">1</span>
           <h3 class="mt-6 font-heading text-xl text-dark font-medium">Client Completes Health Form</h3>
@@ -258,7 +218,7 @@
             questionnaire covering their health history, lifestyle, and well-being.</p>
         </div>
         <!-- Step 2 -->
-        <div class="reveal-scale reveal-delay-2 rounded-[32px] bg-surface p-8 md:p-10">
+        <div class="reveal-scale reveal-delay-2 rounded-[32px] bg-light p-8 md:p-10">
           <span
             class="inline-flex items-center justify-center h-10 w-10 rounded-full bg-primary text-white text-sm font-semibold">2</span>
           <h3 class="mt-6 font-heading text-xl text-dark font-medium">Receive Visual Report</h3>
@@ -266,7 +226,7 @@
             data. Review it before the consultation to prepare with confidence.</p>
         </div>
         <!-- Step 3 -->
-        <div class="reveal-scale reveal-delay-3 rounded-[32px] bg-surface p-8 md:p-10">
+        <div class="reveal-scale reveal-delay-3 rounded-[32px] bg-light p-8 md:p-10">
           <span
             class="inline-flex items-center justify-center h-10 w-10 rounded-full bg-primary text-white text-sm font-semibold">3</span>
           <h3 class="mt-6 font-heading text-xl text-dark font-medium">Track &amp; Guide</h3>
@@ -274,31 +234,113 @@
             time. Guide their journey with data-driven insights.</p>
         </div>
       </div>
+
+      <!-- Part B: Report Visuals -->
+      <div id="sample-report" class="scroll-mt-20 mt-24">
+        <div class="reveal text-center max-w-2xl mx-auto mb-14">
+          <h3 class="font-heading text-[clamp(1.5rem,3vw,2rem)] font-medium text-dark leading-[1.2] tracking-[-0.03em]">
+            See what your clients receive</h3>
+        </div>
+        <div class="grid gap-8 md:grid-cols-3 items-start">
+          <!-- Bio Age Gauge -->
+          <div class="reveal-scale reveal-delay-1 text-center flex flex-col">
+            <div class="aspect-square rounded-2xl bg-light shadow-[0_20px_50px_-12px_rgba(0,0,0,0.12)] p-4 flex items-center justify-center relative cursor-pointer hover:scale-[1.02] transition-transform duration-300 group"
+              onclick="openLightbox('assets/images/health-metrics-dashboard.png','Biological age gauge showing client\'s health metrics')">
+              <img src="assets/images/health-metrics-dashboard.png"
+                alt="Biological age gauge showing client's health metrics"
+                class="w-full h-full object-contain" loading="lazy">
+              <span class="absolute top-3 right-3 bg-black/50 text-white/80 rounded-full p-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16zM11 8v6M8 11h6"/></svg>
+              </span>
+            </div>
+            <p class="mt-4 text-sm text-body font-medium">The number that makes your client lean in.</p>
+          </div>
+          <!-- Radar Chart -->
+          <div class="reveal-scale reveal-delay-2 text-center flex flex-col">
+            <div class="aspect-square rounded-2xl bg-light shadow-[0_20px_50px_-12px_rgba(0,0,0,0.12)] p-4 flex items-center justify-center relative cursor-pointer hover:scale-[1.02] transition-transform duration-300 group"
+              onclick="openLightbox('assets/images/health-radar-chart.png','Health radar chart with 20+ health markers at a glance')">
+              <img src="assets/images/health-radar-chart.png"
+                alt="Health radar chart with 20+ health markers at a glance"
+                class="w-full h-full object-contain" loading="lazy">
+              <span class="absolute top-3 right-3 bg-black/50 text-white/80 rounded-full p-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16zM11 8v6M8 11h6"/></svg>
+              </span>
+            </div>
+            <p class="mt-4 text-sm text-body font-medium">20+ health markers at a glance&nbsp;&mdash; strengths and gaps, instantly visible.</p>
+          </div>
+          <!-- Trajectory -->
+          <div class="reveal-scale reveal-delay-3 text-center flex flex-col">
+            <div class="aspect-square rounded-2xl bg-light shadow-[0_20px_50px_-12px_rgba(0,0,0,0.12)] p-4 flex items-center justify-center relative cursor-pointer hover:scale-[1.02] transition-transform duration-300 group"
+              onclick="openLightbox('assets/images/health-trajectory.png','Health trajectory showing current and projected health outcomes')">
+              <img src="assets/images/health-trajectory.png"
+                alt="Health trajectory showing current and projected health outcomes"
+                class="w-full h-full object-contain" loading="lazy">
+              <span class="absolute top-3 right-3 bg-black/50 text-white/80 rounded-full p-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16zM11 8v6M8 11h6"/></svg>
+              </span>
+            </div>
+            <p class="mt-4 text-sm text-body font-medium">Where they are now. Where they're heading. Where they could be.</p>
+          </div>
+        </div>
+        <!-- Download CTA -->
+        <div class="mt-12 flex justify-center">
+          <a href="assets/docs/sample-health-report.pdf" download
+            class="inline-flex items-center gap-2 rounded-[48px] bg-primary text-white text-base font-medium px-8 py-3.5 hover:bg-primary-dark transition-colors shadow-[0_4px_20px_rgba(61,141,160,.25)]">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round"
+                d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
+            </svg>
+            Download a Sample Report
+          </a>
+        </div>
+      </div>
+
     </div>
   </section>
 
-  <!-- HEALTH METRICS DASHBOARD -->
-  <section class="bg-surface">
+  <!-- ============================================================
+       SECTION 4: WHY COURSE + TOOL — Bundling rationale
+       ============================================================ -->
+  <section class="bg-light">
     <div class="max-w-[1280px] mx-auto px-5 md:px-[52px] py-24 md:py-32">
       <div class="grid gap-12 md:grid-cols-2 items-center">
-        <div class="reveal-scale flex justify-center">
-          <img src="assets/images/health-metrics-dashboard.png"
-            alt="Health Metrics and Aging Rate Dashboard showing biological vs chronological age gauge, BMI, WHR, and WHtR indicators"
-            class="w-full max-w-md rounded-2xl shadow-[0_20px_50px_-12px_rgba(0,0,0,0.12)]" loading="lazy">
+        <!-- Left: Image/Video Placeholder -->
+        <div class="reveal-scale">
+          <div class="rounded-[32px] bg-surface aspect-video flex items-center justify-center">
+            <div class="text-center text-muted">
+              <svg class="w-16 h-16 mx-auto mb-3 opacity-40" fill="none" stroke="currentColor" stroke-width="1" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="m15.75 10.5 4.72-4.72a.75.75 0 0 1 1.28.53v11.38a.75.75 0 0 1-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 0 0 2.25-2.25v-9a2.25 2.25 0 0 0-2.25-2.25h-9A2.25 2.25 0 0 0 2.25 7.5v9a2.25 2.25 0 0 0 2.25 2.25Z" />
+              </svg>
+              <p class="text-sm">Video or image coming soon</p>
+            </div>
+          </div>
         </div>
+        <!-- Right: Text -->
         <div class="reveal-right">
-          <p class="text-primary text-sm font-medium">Health Metrics Dashboard</p>
-          <h2
-            class="mt-3 font-heading text-[clamp(1.75rem,3.5vw,2.25rem)] font-medium text-dark leading-[1.2] tracking-[-0.03em]">
-            The number that changes everything</h2>
-          <p class="mt-4 text-body leading-relaxed">Your client's biological age versus their real age — in one glance.
-            When they see that gauge, something clicks. It's no longer abstract advice. It's personal, visual, and
-            impossible to ignore.</p>
-          <p class="mt-4 text-body leading-relaxed">BMI, waist-to-hip ratio, aging rate — all calculated automatically
-            from the health form. You don't crunch the numbers. You deliver the insight.</p>
+          <h2 class="font-heading text-[clamp(1.75rem,3.5vw,2.25rem)] font-medium text-dark leading-[1.2] tracking-[-0.03em]">
+            The tool is powerful. The training makes it transformative.</h2>
+          <p class="mt-6 text-body leading-relaxed">
+            We bundle the 12-week course with the platform because the practitioners who get the best results aren't just the ones with the best tools&nbsp;&mdash; they're the ones who know how to use them.</p>
+          <p class="mt-4 text-sm text-body font-medium">The course teaches you to:</p>
+          <div class="mt-4 space-y-3">
+            <p class="text-sm text-body flex gap-2.5">
+              <svg class="w-4 h-4 text-primary shrink-0 mt-0.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg>
+              <span><strong class="text-dark">Interpret longevity data with confidence</strong>&nbsp;&mdash; so you're not just handing over a report, you're guiding the conversation</span>
+            </p>
+            <p class="text-sm text-body flex gap-2.5">
+              <svg class="w-4 h-4 text-primary shrink-0 mt-0.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg>
+              <span><strong class="text-dark">Integrate assessments into your existing practice</strong>&nbsp;&mdash; whether you're a herbalist, nutritionist, or naturopath</span>
+            </p>
+            <p class="text-sm text-body flex gap-2.5">
+              <svg class="w-4 h-4 text-primary shrink-0 mt-0.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg>
+              <span><strong class="text-dark">Position longevity as a core service</strong>&nbsp;&mdash; not a bolt-on, but a reason clients come to you in the first place</span>
+            </p>
+          </div>
+          <p class="mt-6 text-body leading-relaxed">
+            And here's the maths: the platform alone (our Minimum tier) costs &pound;99/month. The course&nbsp;&mdash; which includes 12 months of full platform access&nbsp;&mdash; works out to ~&pound;50/month. You get more for less. The course isn't an upsell. It's the better deal.</p>
           <a href="#founder-access"
             class="mt-8 inline-flex items-center gap-2 rounded-[48px] bg-primary text-white text-sm font-medium px-6 py-2.5 hover:bg-primary-dark transition-colors shadow-[0_4px_20px_rgba(61,141,160,.2)]">
-            Give your clients this
+            See Course Pricing
             <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" />
             </svg>
@@ -308,314 +350,170 @@
     </div>
   </section>
 
-  <!-- SAMPLE REPORT -->
-  <section id="sample-report" class="scroll-mt-20 bg-light">
+  <!-- ============================================================
+       SECTION 5: WHAT YOU GET — Advantages + compact AI suite
+       ============================================================ -->
+  <section id="platform" class="scroll-mt-20 bg-surface">
     <div class="max-w-[1280px] mx-auto px-5 md:px-[52px] py-24 md:py-32">
-      <div class="reveal text-center max-w-2xl mx-auto">
-        <p class="text-primary text-sm font-medium">Sample Report</p>
-        <h2
-          class="mt-3 font-heading text-[clamp(1.75rem,3.5vw,2.5rem)] font-medium text-dark leading-[1.2] tracking-[-0.03em]">
-          See what your clients receive</h2>
-        <p class="mt-4 text-body leading-relaxed">Each report gives you a clear visual snapshot of your client's health
-          — ready before you even meet.</p>
-      </div>
-      <div class="mt-14 max-w-2xl mx-auto">
-        <div class="reveal-scale report-3d">
-          <img src="assets/images/health-radar-chart.png"
-            alt="Health Assessment Radar Chart showing 20+ client health metrics"
-            class="report-3d-page w-full rounded-2xl shadow-[0_30px_60px_-15px_rgba(0,0,0,0.18),0_0_40px_-10px_rgba(61,141,160,0.08)]"
-            loading="lazy">
-        </div>
-      </div>
-      <div class="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4">
-        <a href="assets/docs/sample-health-report.pdf" download
-          class="inline-flex items-center gap-2 rounded-[48px] bg-primary text-white text-base font-medium px-8 py-3.5 hover:bg-primary-dark transition-colors shadow-[0_4px_20px_rgba(61,141,160,.25)]">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round"
-              d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
-          </svg>
-          Download Sample Report
-        </a>
-        <a href="#founder-access"
-          class="inline-flex items-center gap-2 text-sm text-primary font-medium hover:text-primary-dark transition-colors">
-          Get Early Access
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" />
-          </svg>
-        </a>
-      </div>
-    </div>
-  </section>
-
-  <!-- AI CHATBOT SUITE -->
-  <section id="ai-suite" class="bg-surface relative overflow-hidden">
-    <!-- Sub-hero decorative blob -->
-    <div
-      class="absolute -top-40 -right-40 w-[600px] h-[600px] bg-primary/5 rounded-full blur-3xl opacity-60 pointer-events-none">
-    </div>
-
-    <div class="max-w-[1280px] mx-auto px-5 md:px-[52px] py-24 md:py-32 relative z-10">
-      <div class="reveal text-center max-w-3xl mx-auto mb-16">
-        <p class="text-primary text-sm font-medium">AI Health Suite</p>
-        <h2
-          class="mt-3 font-heading text-[clamp(1.75rem,3.5vw,2.5rem)] font-medium text-dark leading-[1.2] tracking-[-0.03em]">
-          Like having a team of specialist consultants available 24/7</h2>
-        <p class="mt-4 text-body leading-relaxed">Included in your membership. Instant second opinions, protocol
-          generation, and business strategy.</p>
+      <div class="reveal text-center max-w-2xl mx-auto mb-16">
+        <p class="text-primary text-sm font-medium">HealthDataLab</p>
+        <h2 class="mt-3 font-heading text-[clamp(1.75rem,3.5vw,2.5rem)] font-medium text-dark leading-[1.2] tracking-[-0.03em]">
+          Everything you need to run a world-class practice</h2>
       </div>
 
-      <div class="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-        <!-- 1. Herbal -->
-        <div
-          class="reveal-scale rounded-[32px] bg-white p-8 group hover:shadow-[0_20px_40px_-12px_rgba(0,0,0,0.08)] transition-all duration-300 border border-transparent hover:border-primary/10">
-          <div
-            class="w-12 h-12 rounded-2xl bg-primary/10 text-primary flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300">
+      <!-- Part A: Practitioner Advantages -->
+      <div class="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
+        <!-- Reduce Workload -->
+        <div class="reveal-scale reveal-delay-1 rounded-[32px] bg-light p-8">
+          <div class="w-12 h-12 rounded-2xl bg-primary/10 text-primary flex items-center justify-center mb-5">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+            </svg>
+          </div>
+          <h3 class="font-heading text-lg text-dark font-medium">Reduce your workload</h3>
+          <p class="mt-2 text-sm text-body leading-relaxed">Clients complete their health profile before the session. You walk in prepared, not scrambling.</p>
+        </div>
+        <!-- Deeper Insights -->
+        <div class="reveal-scale reveal-delay-2 rounded-[32px] bg-light p-8">
+          <div class="w-12 h-12 rounded-2xl bg-primary/10 text-primary flex items-center justify-center mb-5">
             <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round"
-                d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" />
+                d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 0 1 3 19.875v-6.75ZM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V8.625ZM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V4.125Z" />
             </svg>
           </div>
-          <h3 class="font-heading text-lg font-medium text-dark">Herbal Medicine Advisor</h3>
-          <p class="mt-3 text-sm text-body leading-relaxed">Herb interactions, contraindications, and protocol
-            suggestions. Like a herbal pharmacopoeia that talks back.</p>
-          <img src="assets/images/herbal-advisor-demo.png" alt="Herbal Medicine Advisor demo — herb interaction check with dosage recommendations" class="mt-4 rounded-2xl w-full">
+          <h3 class="font-heading text-lg text-dark font-medium">Deeper client insights</h3>
+          <p class="mt-2 text-sm text-body leading-relaxed">Biological age, lifestyle scores, and 20+ health markers&nbsp;&mdash; visual, trackable, and shareable.</p>
         </div>
-
-        <!-- 2. Supplement -->
-        <div
-          class="reveal-scale reveal-delay-1 rounded-[32px] bg-white p-8 group hover:shadow-[0_20px_40px_-12px_rgba(0,0,0,0.08)] transition-all duration-300 border border-transparent hover:border-primary/10">
-          <div
-            class="w-12 h-12 rounded-2xl bg-primary/10 text-primary flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300">
+        <!-- More Valuable Services -->
+        <div class="reveal-scale reveal-delay-3 rounded-[32px] bg-light p-8">
+          <div class="w-12 h-12 rounded-2xl bg-primary/10 text-primary flex items-center justify-center mb-5">
             <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round"
-                d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
+                d="M11.48 3.499a.562.562 0 0 1 1.04 0l2.125 5.111a.563.563 0 0 0 .475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 0 0-.182.557l1.285 5.385a.562.562 0 0 1-.84.61l-4.725-2.885a.562.562 0 0 0-.586 0L6.982 20.54a.562.562 0 0 1-.84-.61l1.285-5.386a.562.562 0 0 0-.182-.557l-4.204-3.602a.562.562 0 0 1 .321-.988l5.518-.442a.563.563 0 0 0 .475-.345L11.48 3.5Z" />
             </svg>
           </div>
-          <h3 class="font-heading text-lg font-medium text-dark">Supplement Advisor</h3>
-          <p class="mt-3 text-sm text-body leading-relaxed">Evidence-based supplement protocols, dosing guidance, and
-            brand-agnostic recommendations.</p>
-          <img src="assets/images/supplement-advisor-demo.png" alt="Supplement Advisor demo — evidence-based protocol with phased dosing" class="mt-4 rounded-2xl w-full">
+          <h3 class="font-heading text-lg text-dark font-medium">More valuable services</h3>
+          <p class="mt-2 text-sm text-body leading-relaxed">A professional longevity report elevates your offering beyond a standard consultation.</p>
         </div>
-
-        <!-- 3. Diet -->
-        <div
-          class="reveal-scale reveal-delay-2 rounded-[32px] bg-white p-8 group hover:shadow-[0_20px_40px_-12px_rgba(0,0,0,0.08)] transition-all duration-300 border border-transparent hover:border-primary/10">
-          <div
-            class="w-12 h-12 rounded-2xl bg-primary/10 text-primary flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300">
+        <!-- Grow Your Market -->
+        <div class="reveal-scale reveal-delay-1 rounded-[32px] bg-light p-8">
+          <div class="w-12 h-12 rounded-2xl bg-primary/10 text-primary flex items-center justify-center mb-5">
             <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round"
-                d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75Z" />
+                d="M18 18.72a9.094 9.094 0 0 0 3.741-.479 3 3 0 0 0-4.682-2.72m.94 3.198.001.031c0 .225-.012.447-.037.666A11.944 11.944 0 0 1 12 21c-2.17 0-4.207-.576-5.963-1.584A6.062 6.062 0 0 1 6 18.719m12 0a5.971 5.971 0 0 0-.941-3.197m0 0A5.995 5.995 0 0 0 12 12.75a5.995 5.995 0 0 0-5.058 2.772m0 0a3 3 0 0 0-4.681 2.72 8.986 8.986 0 0 0 3.74.477m.94-3.197a5.971 5.971 0 0 0-.94 3.197M15 6.75a3 3 0 1 1-6 0 3 3 0 0 1 6 0Zm6 3a2.25 2.25 0 1 1-4.5 0 2.25 2.25 0 0 1 4.5 0Zm-13.5 0a2.25 2.25 0 1 1-4.5 0 2.25 2.25 0 0 1 4.5 0Z" />
             </svg>
           </div>
-          <h3 class="font-heading text-lg font-medium text-dark">Diet &amp; Nutrition Planner</h3>
-          <p class="mt-3 text-sm text-body leading-relaxed">Personalised dietary frameworks for clients based on their
-            longevity report results.</p>
-          <img src="assets/images/diet-planner-demo.png" alt="Diet & Nutrition Planner demo — personalised dietary framework from longevity reports" class="mt-4 rounded-2xl w-full">
+          <h3 class="font-heading text-lg text-dark font-medium">Grow your market</h3>
+          <p class="mt-2 text-sm text-body leading-relaxed">Longevity appeals to everyone&nbsp;&mdash; not just the unwell. Attract clients who want to thrive, not just recover.</p>
         </div>
-
-        <!-- 4. Clinical Diagnostics -->
-        <div
-          class="reveal-scale rounded-[32px] bg-white p-8 group hover:shadow-[0_20px_40px_-12px_rgba(0,0,0,0.08)] transition-all duration-300 border border-transparent hover:border-primary/10">
-          <div
-            class="w-12 h-12 rounded-2xl bg-primary/10 text-primary flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300">
+        <!-- Track Real Progress -->
+        <div class="reveal-scale reveal-delay-2 rounded-[32px] bg-light p-8">
+          <div class="w-12 h-12 rounded-2xl bg-primary/10 text-primary flex items-center justify-center mb-5">
             <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round"
-                d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 0 0 2.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 0 0-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 0 0 .75-.75 2.25 2.25 0 0 0-.1-.664m-5.8 0A2.251 2.251 0 0 1 13.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25ZM6.75 12h.008v.008H6.75V12Zm0 3h.008v.008H6.75V15Zm0 3h.008v.008H6.75V18Z" />
+              <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 18 9 11.25l4.306 4.306a11.95 11.95 0 0 1 5.814-5.518l2.74-1.22m0 0-5.94-2.281m5.94 2.28-2.28 5.941" />
             </svg>
           </div>
-          <h3 class="font-heading text-lg font-medium text-dark">Clinical Diagnostics</h3>
-          <p class="mt-3 text-sm text-body leading-relaxed">Differential assessments, symptom pattern exploration, and
-            second opinions before consultations.</p>
-          <img src="assets/images/clinical-diagnostics-demo.png" alt="Clinical Diagnostics demo — differential assessment with confidence percentages" class="mt-4 rounded-2xl w-full">
+          <h3 class="font-heading text-lg text-dark font-medium">Track real progress</h3>
+          <p class="mt-2 text-sm text-body leading-relaxed">Quarterly reassessments show measurable change. Clients stay longer because they can see it working.</p>
         </div>
-
-        <!-- 5. Practice Growth -->
-        <div
-          class="reveal-scale reveal-delay-1 rounded-[32px] bg-white p-8 group hover:shadow-[0_20px_40px_-12px_rgba(0,0,0,0.08)] transition-all duration-300 border border-transparent hover:border-primary/10">
-          <div
-            class="w-12 h-12 rounded-2xl bg-primary/10 text-primary flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300">
+        <!-- Professional Credibility -->
+        <div class="reveal-scale reveal-delay-3 rounded-[32px] bg-light p-8">
+          <div class="w-12 h-12 rounded-2xl bg-primary/10 text-primary flex items-center justify-center mb-5">
             <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round"
-                d="M15.59 14.37a6 6 0 0 1-5.84 7.38v-4.8m5.84-2.58a14.98 14.98 0 0 0 6.16-12.12A14.98 14.98 0 0 0 9.631 8.41m5.96 5.96a14.926 14.926 0 0 1-5.841 2.58m-.119-8.54a6 6 0 0 0-7.381 5.84h4.8m2.581-5.84a14.927 14.927 0 0 0-2.58 5.84m2.699 2.7c-.103.021-.207.041-.311.06a15.09 15.09 0 0 1-2.448-2.448 14.9 14.9 0 0 1 .06-.312m-2.24 2.39a4.493 4.493 0 0 0-1.757 4.306 4.493 4.493 0 0 0 4.306-1.758M16.5 9a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0Z" />
+              <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75m-3-7.036A11.959 11.959 0 0 1 3.598 6 11.99 11.99 0 0 0 3 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285Z" />
             </svg>
           </div>
-          <h3 class="font-heading text-lg font-medium text-dark">Practice Growth Advisor</h3>
-          <p class="mt-3 text-sm text-body leading-relaxed">Marketing on a shoestring, pricing consultations, and
-            overcoming the fear of visibility.</p>
-          <img src="assets/images/practice-growth-demo.png" alt="Practice Growth Advisor demo — structured growth plan with projected client chart" class="mt-4 rounded-2xl w-full">
+          <h3 class="font-heading text-lg text-dark font-medium">Professional credibility</h3>
+          <p class="mt-2 text-sm text-body leading-relaxed">A branded report your client can hold, share with their GP, and come back to. You look world-class.</p>
         </div>
-
-        <!-- 6. Business Advisor -->
-        <div
-          class="reveal-scale reveal-delay-2 rounded-[32px] bg-dark text-white p-8 group hover:shadow-[0_20px_40px_-12px_rgba(0,0,0,0.25)] transition-all duration-300 relative overflow-hidden">
-          <div class="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-            <svg class="w-24 h-24" fill="currentColor" viewBox="0 0 24 24">
-              <path
-                d="M12 2L2 7l10 5 10-5-10-5zm0 9l2.5-1.25L12 8.5 9.5 9.75 12 11zm0 2.5l-5-2.5-5 2.5L12 22l10-8.5-5-2.5-5 2.5z" />
-            </svg>
-          </div>
-          <div
-            class="w-12 h-12 rounded-2xl bg-white/10 text-white flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300">
-            <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round"
-                d="M13.5 16.875h3.375m0 0h3.375m-3.375 0V13.5m0 3.375v3.375M6 10.5h2.25a2.25 2.25 0 0 0 2.25-2.25V6a2.25 2.25 0 0 0-2.25-2.25H6A2.25 2.25 0 0 0 3.75 6v2.25A2.25 2.25 0 0 0 6 10.5Zm0 9.75h2.25A2.25 2.25 0 0 0 10.5 18v-2.25a2.25 2.25 0 0 0-2.25-2.25H6a2.25 2.25 0 0 0-2.25 2.25V18A2.25 2.25 0 0 0 6 20.25Zm9.75-9.75H18a2.25 2.25 0 0 0 2.25-2.25V6A2.25 2.25 0 0 0 18 3.75h-2.25A2.25 2.25 0 0 0 13.5 6v2.25a2.25 2.25 0 0 0 2.25 2.25Z" />
-            </svg>
-          </div>
-          <div class="flex items-center gap-2 mb-2">
-            <h3 class="font-heading text-lg font-medium">Business Advisor</h3>
-            <span class="text-[10px] font-bold bg-primary text-white px-2 py-0.5 rounded-full">SIGNATURE</span>
-          </div>
-          <p class="mt-3 text-sm text-white/70 leading-relaxed">Strategic business planning, revenue optimisation, and
-            scaling beyond solo practice.</p>
-          <img src="assets/images/business-advisor-demo.png" alt="Business Advisor demo — revenue model comparison and transition roadmap" class="mt-4 rounded-2xl w-full">
-        </div>
-
       </div>
-    </div>
-  </section>
 
-  <!-- CREDIBILITY BANNER -->
-  <section class="bg-light">
-    <div class="max-w-[1280px] mx-auto px-5 md:px-[52px] py-16">
-      <div class="reveal text-center">
-        <p class="font-heading text-[clamp(1.25rem,2.5vw,1.5rem)] font-medium text-dark leading-[1.3] tracking-[-0.02em]">
-          From the makers of <a href="https://irislab.com" target="_blank" rel="noopener" class="text-primary hover:text-primary-dark transition-colors">IRISLAB.com</a>, trusted by 2,000+ practitioners worldwide.
-        </p>
-      </div>
-    </div>
-  </section>
-
-  <!-- CREDIBILITY -->
-  <section class="bg-light">
-    <div class="max-w-[1280px] mx-auto px-5 md:px-[52px] py-24 md:py-32">
-      <div class="grid gap-5 md:grid-cols-2">
-        <!-- Left: Info -->
-        <div class="reveal-left rounded-[32px] bg-light p-8 md:p-12 flex flex-col justify-between">
-          <div>
-            <div class="flex items-center gap-5 mb-6">
-              <img src="assets/images/matthew-portrait.jpg" alt="Matthew — Founder of HealthDataLab" class="w-20 h-20 rounded-full object-cover shrink-0">
-            </div>
-            <p class="text-primary text-sm font-medium">Who's Behind This</p>
-            <h2
-              class="mt-3 font-heading text-[clamp(1.75rem,3.5vw,2.25rem)] font-medium text-dark leading-[1.2] tracking-[-0.03em]">
-              Built from 15 years of holistic health experience</h2>
-            <p class="mt-4 text-body leading-relaxed">Matthew &mdash; Naturopath, iridologist, and founder of IRISLAB.com. 15+ years building tools for holistic health practitioners.</p>
-            <p class="mt-3 text-body leading-relaxed">From IRISLAB.com to HealthDataLab&nbsp;&mdash; two decades of
-              building tools for natural health practitioners. We understand that every client is a unique tapestry of
-              genetics, lifestyle, and health history.</p>
-          </div>
-          <div class="mt-10 flex items-end gap-6">
-            <div>
-              <p class="counter font-heading text-4xl font-semibold text-dark" data-target="20">0</p>
-              <p class="text-sm text-muted mt-1">Founder seats</p>
-            </div>
-            <div class="h-12 w-px bg-stroke"></div>
-            <div>
-              <p class="counter font-heading text-4xl font-semibold text-dark" data-target="2026">0</p>
-              <p class="text-sm text-muted mt-1">Launch year</p>
-            </div>
-          </div>
+      <!-- Part B: AI Suite (Compact) -->
+      <div class="mt-20">
+        <div class="reveal text-center max-w-2xl mx-auto mb-12">
+          <p class="text-primary text-sm font-medium">AI Health Suite</p>
+          <h3 class="mt-3 font-heading text-[clamp(1.5rem,3vw,2rem)] font-medium text-dark leading-[1.2] tracking-[-0.03em]">
+            Like having a team of specialist consultants available 24/7</h3>
         </div>
-        <!-- Right: feature list -->
-        <div class="reveal-right flex flex-col gap-5">
-          <div class="rounded-[32px] bg-light p-8 group hover:bg-primary transition-colors duration-300">
-            <h3
-              class="font-heading text-lg text-dark font-medium group-hover:text-white transition-colors duration-300">
-              Consultation Management</h3>
-            <p class="mt-2 text-sm text-body leading-relaxed group-hover:text-white/70 transition-colors duration-300">
-              Secure, efficient, and organised client consultations at your fingertips.</p>
-            <a href="#founder-access"
-              class="mt-4 inline-flex items-center gap-1 text-sm text-primary font-medium group-hover:text-white transition-colors duration-300">
-              Learn more
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" />
+        <div class="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
+          <!-- Herbal -->
+          <div class="reveal-scale rounded-[32px] bg-light p-8 group hover:shadow-[0_20px_40px_-12px_rgba(0,0,0,0.08)] transition-all duration-300 border border-transparent hover:border-primary/10">
+            <div class="w-12 h-12 rounded-2xl bg-primary/10 text-primary flex items-center justify-center mb-5 group-hover:scale-110 transition-transform duration-300">
+              <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round"
+                  d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" />
               </svg>
-            </a>
+            </div>
+            <h3 class="font-heading text-lg font-medium text-dark">Herbal Medicine Advisor</h3>
+            <p class="mt-2 text-sm text-body leading-relaxed">Interactions, contraindications, and protocol suggestions.</p>
           </div>
-          <div class="rounded-[32px] bg-light p-8 group hover:bg-primary transition-colors duration-300">
-            <h3
-              class="font-heading text-lg text-dark font-medium group-hover:text-white transition-colors duration-300">
-              Practitioner Assistants</h3>
-            <p class="mt-2 text-sm text-body leading-relaxed group-hover:text-white/70 transition-colors duration-300">
-              Your holistic expertise augmented with a virtual assistant designed to streamline communication and client
-              care.</p>
-            <a href="#founder-access"
-              class="mt-4 inline-flex items-center gap-1 text-sm text-primary font-medium group-hover:text-white transition-colors duration-300">
-              Learn more
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" />
+          <!-- Supplement -->
+          <div class="reveal-scale reveal-delay-1 rounded-[32px] bg-light p-8 group hover:shadow-[0_20px_40px_-12px_rgba(0,0,0,0.08)] transition-all duration-300 border border-transparent hover:border-primary/10">
+            <div class="w-12 h-12 rounded-2xl bg-primary/10 text-primary flex items-center justify-center mb-5 group-hover:scale-110 transition-transform duration-300">
+              <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round"
+                  d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
               </svg>
-            </a>
+            </div>
+            <h3 class="font-heading text-lg font-medium text-dark">Supplement Advisor</h3>
+            <p class="mt-2 text-sm text-body leading-relaxed">Evidence-based dosing and recommendations.</p>
           </div>
-          <div class="rounded-[32px] bg-light p-8 group hover:bg-primary transition-colors duration-300">
-            <h3
-              class="font-heading text-lg text-dark font-medium group-hover:text-white transition-colors duration-300">
-              IrisMapper Integration</h3>
-            <p class="mt-2 text-sm text-body leading-relaxed group-hover:text-white/70 transition-colors duration-300">
-              Seamlessly connect your iridology practice with HealthDataLab's visual health mapping tools.</p>
-            <a href="#founder-access"
-              class="mt-4 inline-flex items-center gap-1 text-sm text-primary font-medium group-hover:text-white transition-colors duration-300">
-              Learn more
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" />
+          <!-- Diet -->
+          <div class="reveal-scale reveal-delay-2 rounded-[32px] bg-light p-8 group hover:shadow-[0_20px_40px_-12px_rgba(0,0,0,0.08)] transition-all duration-300 border border-transparent hover:border-primary/10">
+            <div class="w-12 h-12 rounded-2xl bg-primary/10 text-primary flex items-center justify-center mb-5 group-hover:scale-110 transition-transform duration-300">
+              <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round"
+                  d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75Z" />
               </svg>
-            </a>
+            </div>
+            <h3 class="font-heading text-lg font-medium text-dark">Diet &amp; Nutrition Planner</h3>
+            <p class="mt-2 text-sm text-body leading-relaxed">Personalised dietary frameworks for clients.</p>
+          </div>
+          <!-- Clinical Diagnostics -->
+          <div class="reveal-scale rounded-[32px] bg-light p-8 group hover:shadow-[0_20px_40px_-12px_rgba(0,0,0,0.08)] transition-all duration-300 border border-transparent hover:border-primary/10">
+            <div class="w-12 h-12 rounded-2xl bg-primary/10 text-primary flex items-center justify-center mb-5 group-hover:scale-110 transition-transform duration-300">
+              <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round"
+                  d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 0 0 2.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 0 0-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 0 0 .75-.75 2.25 2.25 0 0 0-.1-.664m-5.8 0A2.251 2.251 0 0 1 13.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25ZM6.75 12h.008v.008H6.75V12Zm0 3h.008v.008H6.75V15Zm0 3h.008v.008H6.75V18Z" />
+              </svg>
+            </div>
+            <h3 class="font-heading text-lg font-medium text-dark">Clinical Diagnostics</h3>
+            <p class="mt-2 text-sm text-body leading-relaxed">Differential assessments and second opinions.</p>
+          </div>
+          <!-- Practice Growth -->
+          <div class="reveal-scale reveal-delay-1 rounded-[32px] bg-light p-8 group hover:shadow-[0_20px_40px_-12px_rgba(0,0,0,0.08)] transition-all duration-300 border border-transparent hover:border-primary/10">
+            <div class="w-12 h-12 rounded-2xl bg-primary/10 text-primary flex items-center justify-center mb-5 group-hover:scale-110 transition-transform duration-300">
+              <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round"
+                  d="M15.59 14.37a6 6 0 0 1-5.84 7.38v-4.8m5.84-2.58a14.98 14.98 0 0 0 6.16-12.12A14.98 14.98 0 0 0 9.631 8.41m5.96 5.96a14.926 14.926 0 0 1-5.841 2.58m-.119-8.54a6 6 0 0 0-7.381 5.84h4.8m2.581-5.84a14.927 14.927 0 0 0-2.58 5.84m2.699 2.7c-.103.021-.207.041-.311.06a15.09 15.09 0 0 1-2.448-2.448 14.9 14.9 0 0 1 .06-.312m-2.24 2.39a4.493 4.493 0 0 0-1.757 4.306 4.493 4.493 0 0 0 4.306-1.758M16.5 9a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0Z" />
+              </svg>
+            </div>
+            <h3 class="font-heading text-lg font-medium text-dark">Practice Growth Advisor</h3>
+            <p class="mt-2 text-sm text-body leading-relaxed">Marketing, pricing, and visibility for small practices.</p>
+          </div>
+          <!-- Business Advisor (dark, SIGNATURE) -->
+          <div class="reveal-scale reveal-delay-2 rounded-[32px] bg-dark text-white p-8 group hover:shadow-[0_20px_40px_-12px_rgba(0,0,0,0.25)] transition-all duration-300">
+            <div class="w-12 h-12 rounded-2xl bg-white/10 text-white flex items-center justify-center mb-5 group-hover:scale-110 transition-transform duration-300">
+              <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round"
+                  d="M13.5 16.875h3.375m0 0h3.375m-3.375 0V13.5m0 3.375v3.375M6 10.5h2.25a2.25 2.25 0 0 0 2.25-2.25V6a2.25 2.25 0 0 0-2.25-2.25H6A2.25 2.25 0 0 0 3.75 6v2.25A2.25 2.25 0 0 0 6 10.5Zm0 9.75h2.25A2.25 2.25 0 0 0 10.5 18v-2.25a2.25 2.25 0 0 0-2.25-2.25H6a2.25 2.25 0 0 0-2.25 2.25V18A2.25 2.25 0 0 0 6 20.25Zm9.75-9.75H18a2.25 2.25 0 0 0 2.25-2.25V6A2.25 2.25 0 0 0 18 3.75h-2.25A2.25 2.25 0 0 0 13.5 6v2.25a2.25 2.25 0 0 0 2.25 2.25Z" />
+              </svg>
+            </div>
+            <div class="flex items-center gap-2">
+              <h3 class="font-heading text-lg font-medium">Business Advisor</h3>
+              <span class="text-[10px] font-bold bg-primary text-white px-2 py-0.5 rounded-full">SIGNATURE</span>
+            </div>
+            <p class="mt-2 text-sm text-white/70 leading-relaxed">Strategic planning and scaling beyond solo practice.</p>
           </div>
         </div>
       </div>
+
     </div>
   </section>
 
-  <!-- FOUNDING MEMBERS -->
-  <section class="bg-surface">
-    <div class="max-w-[1280px] mx-auto px-5 md:px-[52px] py-24 md:py-32">
-      <div class="reveal text-center max-w-2xl mx-auto">
-        <p class="text-primary text-sm font-medium">Founding Cohort</p>
-        <h2
-          class="mt-3 font-heading text-[clamp(1.75rem,3.5vw,2.5rem)] font-medium text-dark leading-[1.2] tracking-[-0.03em]">
-          What founding members get</h2>
-        <p class="mt-4 text-body leading-relaxed">We're onboarding our first 20 practitioners with hands-on support and
-          pricing that won't change.</p>
-      </div>
-      <div class="mt-14 grid gap-5 md:grid-cols-3">
-        <div class="reveal-scale reveal-delay-1 rounded-[32px] bg-light p-8 md:p-10">
-          <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/8 text-primary">
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round"
-                d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" />
-            </svg>
-          </div>
-          <h3 class="mt-5 font-heading text-lg text-dark font-medium">Personal onboarding</h3>
-          <p class="mt-2 text-sm text-body leading-relaxed">No generic sign-up flow. We'll set things up together and
-            make sure you're comfortable before your first client uses it.</p>
-        </div>
-        <div class="reveal-scale reveal-delay-2 rounded-[32px] bg-light p-8 md:p-10">
-          <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/8 text-primary">
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round"
-                d="M7.5 8.25h9m-9 3H12m-9.75 1.51c0 1.6 1.123 2.994 2.707 3.227 1.087.16 2.185.283 3.293.369V21l4.076-4.076a1.526 1.526 0 0 1 1.037-.443 48.282 48.282 0 0 0 5.68-.494c1.584-.233 2.707-1.626 2.707-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0 0 12 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018Z" />
-            </svg>
-          </div>
-          <h3 class="mt-5 font-heading text-lg text-dark font-medium">Shape the product</h3>
-          <p class="mt-2 text-sm text-body leading-relaxed">Your feedback goes directly to the people building this.
-            You'll help us get the details right for practitioners like you.</p>
-        </div>
-        <div class="reveal-scale reveal-delay-3 rounded-[32px] bg-light p-8 md:p-10">
-          <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/8 text-primary">
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round"
-                d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z" />
-            </svg>
-          </div>
-          <h3 class="mt-5 font-heading text-lg text-dark font-medium">Locked-in pricing</h3>
-          <p class="mt-2 text-sm text-body leading-relaxed">Your founding rate stays with you, even as prices change.
-            Plus an extra year free while we're still in beta.</p>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- FOUNDER ACCESS & PRICING -->
+  <!-- ============================================================
+       SECTION 6: PRICING — Unchanged (complex JS preserved)
+       ============================================================ -->
   <section id="founder-access" class="scroll-mt-20 bg-light">
     <div class="max-w-[1280px] mx-auto px-5 md:px-[52px] py-24 md:py-32">
       <!-- Header -->
@@ -738,7 +636,7 @@
             Taught by Matthew, founder of <a href="https://irislab.com" target="_blank" rel="noopener" class="text-primary hover:text-primary-dark transition-colors">IRISLAB.com</a> and practising naturopath/iridologist for 15+ years.
           </p>
           <p class="mt-4 text-[10px] text-muted leading-relaxed transition-colors duration-300" id="course-renewal">
-            30-day money-back guarantee &nbsp;&middot;&nbsp; <strong class="text-primary">Super Early
+            30-day money-back guarantee &nbsp;&middot;&nbsp; <strong class="text-primary">Founding
               renewal: £39/mo (locked for life)</strong></p>
         </div>
 
@@ -781,7 +679,7 @@
             <p class="text-xs text-white/70 flex gap-2.5"><svg class="w-4 h-4 text-primary shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg> Priority support + early access to new features</p>
           </div>
           <p class="mt-6 text-[10px] text-white/30 leading-relaxed transition-colors duration-300" id="sig-renewal">
-            30-day money-back guarantee &nbsp;&middot;&nbsp; <strong class="text-white">Super Early
+            30-day money-back guarantee &nbsp;&middot;&nbsp; <strong class="text-white">Founding
               renewal: £79/mo (locked for life)</strong></p>
         </div>
       </div>
@@ -1154,13 +1052,69 @@
     </div>
   </section>
 
+  <!-- CREDIBILITY BANNER (after pricing) -->
+  <div class="bg-light border-t border-stroke/30">
+    <div class="max-w-[1280px] mx-auto px-5 md:px-[52px] py-16">
+      <div class="reveal text-center">
+        <p class="font-heading text-[clamp(1.25rem,2.5vw,1.5rem)] font-medium text-dark leading-[1.3] tracking-[-0.02em]">
+          From the makers of <a href="https://irislab.com" target="_blank" rel="noopener" class="text-primary hover:text-primary-dark transition-colors">IRISLAB.com</a>, trusted by 2,000+ practitioners worldwide.
+        </p>
+      </div>
+    </div>
+  </div>
+
   <!-- B2C LINK -->
-  <section class="bg-surface">
+  <section class="bg-light">
     <div class="max-w-[1280px] mx-auto px-5 md:px-[52px] py-12 text-center">
       <a href="/personal-report.html" class="reveal inline-flex items-center gap-2 text-sm text-primary font-medium hover:text-primary-dark transition-colors">
         Not a practitioner? Get your own personal report
         <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" /></svg>
       </a>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       SECTION 7: WHO'S BEHIND THIS — Photo + brief bio
+       ============================================================ -->
+  <section class="bg-dark overflow-hidden relative">
+    <!-- Subtle radial glow behind portrait area -->
+    <div class="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[600px] bg-primary/[0.06] rounded-full blur-[120px] pointer-events-none"></div>
+
+    <div class="max-w-[1280px] mx-auto px-5 md:px-[52px] py-28 md:py-40 relative">
+      <div class="text-center max-w-2xl mx-auto">
+
+        <!-- Portrait — larger, with ring + shadow -->
+        <div class="reveal reveal-scale inline-block mb-10">
+          <div class="relative inline-block">
+            <div class="absolute -inset-1.5 rounded-full bg-gradient-to-b from-primary/40 to-primary/10 blur-sm"></div>
+            <img src="assets/images/matthew-portrait.jpg" alt="Matthew — Founder of HealthDataLab"
+              class="relative w-32 h-32 md:w-40 md:h-40 rounded-full object-cover ring-2 ring-primary/30 shadow-[0_0_60px_rgba(61,141,160,0.2)]">
+          </div>
+        </div>
+
+        <!-- Label -->
+        <p class="reveal reveal-delay-1 text-primary text-sm font-medium tracking-wide uppercase">Who's Behind This</p>
+
+        <!-- Heading — large, high-contrast -->
+        <h2 class="reveal reveal-delay-2 mt-5 font-heading text-[clamp(2rem,4.5vw,2.75rem)] font-medium text-white leading-[1.15] tracking-[-0.03em]">
+          Built by a practitioner,<br class="hidden sm:inline"> for practitioners</h2>
+
+        <!-- Bio — muted white, breathable -->
+        <p class="reveal reveal-delay-3 mt-8 text-white/50 text-lg leading-relaxed">
+          Matthew&nbsp;&mdash; Naturopath, iridologist, and founder of
+          <a href="https://irislab.com" target="_blank" rel="noopener" class="text-primary hover:text-white transition-colors">IRISLAB.com</a>.
+          15+ years building tools for holistic health practitioners.</p>
+
+        <!-- Divider accent -->
+        <div class="reveal reveal-delay-3 mx-auto mt-8 w-12 h-px bg-primary/40"></div>
+
+        <!-- Punchline — isolated, larger, brighter -->
+        <p class="reveal reveal-delay-4 mt-8 text-white/80 text-xl md:text-[1.35rem] font-heading font-medium leading-snug tracking-[-0.01em]">
+          He built HealthDataLab because the tools he needed<br class="hidden md:inline">
+          for his own practice didn't exist.
+          <span class="text-primary">Now they do.</span></p>
+
+      </div>
     </div>
   </section>
 
@@ -1207,6 +1161,40 @@
       </div>
     </div>
   </footer>
+
+  <!-- Lightbox Modal -->
+  <div id="lightbox" class="fixed inset-0 z-[100] bg-black/80 backdrop-blur-sm hidden items-center justify-center cursor-zoom-out opacity-0 transition-opacity duration-300" onclick="closeLightbox()" style="display:none">
+    <button onclick="closeLightbox()" class="absolute top-6 right-6 text-white/70 hover:text-white transition-colors cursor-pointer">
+      <svg class="w-8 h-8" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/>
+      </svg>
+    </button>
+    <img id="lightbox-img" src="" alt="" class="max-w-[90vw] max-h-[85vh] object-contain rounded-lg shadow-2xl" onclick="event.stopPropagation()">
+  </div>
+  <script>
+    function openLightbox(src, alt) {
+      var lb = document.getElementById('lightbox');
+      var img = document.getElementById('lightbox-img');
+      img.src = src;
+      img.alt = alt;
+      lb.style.display = 'flex';
+      lb.classList.remove('hidden');
+      requestAnimationFrame(function() {
+        requestAnimationFrame(function() { lb.style.opacity = '1'; });
+      });
+      document.body.style.overflow = 'hidden';
+    }
+    function closeLightbox() {
+      var lb = document.getElementById('lightbox');
+      lb.style.opacity = '0';
+      setTimeout(function() {
+        lb.style.display = 'none';
+        lb.classList.add('hidden');
+      }, 300);
+      document.body.style.overflow = '';
+    }
+    document.addEventListener('keydown', function(e) { if (e.key === 'Escape') closeLightbox(); });
+  </script>
 
   <script src="assets/js/main.js"></script>
 </body>
