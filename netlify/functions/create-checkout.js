@@ -6,7 +6,7 @@ exports.handler = async (event) => {
     }
 
     try {
-        const { priceId, mode, successUrl, cancelUrl, trialDays, installments, tierName, installmentAmount, tier } = JSON.parse(event.body);
+        const { priceId, mode, successUrl, cancelUrl, trialDays, installments, tierName, installmentAmount } = JSON.parse(event.body);
 
         if (!priceId) {
             return { statusCode: 400, body: 'Missing priceId' };
@@ -19,7 +19,7 @@ exports.handler = async (event) => {
             success_url: successUrl,
             cancel_url: cancelUrl,
             automatic_tax: { enabled: true },
-            allow_promotion_codes: tier === 'consumer_single',
+            allow_promotion_codes: true,
         };
 
         // Free trial for Launchpad (collect card but don't charge during trial)
