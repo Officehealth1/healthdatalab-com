@@ -101,6 +101,7 @@
           <a href="#how-it-works" class="text-sm text-body hover:text-dark transition-colors">How It Works</a>
           <a href="/personal-report.html" class="text-sm text-body hover:text-dark transition-colors">For Individuals</a>
           <a href="#founder-access" class="text-sm text-body hover:text-dark transition-colors">Pricing</a>
+          <button onclick="openContactModal()" class="text-sm text-body hover:text-dark transition-colors cursor-pointer">Contact</button>
           <a href="#founder-access"
             class="inline-flex items-center rounded-[48px] bg-dark text-white text-sm font-medium px-5 py-2.5 hover:bg-dark-2 transition-colors">
             Get Early Access
@@ -129,6 +130,7 @@
             Individuals</a>
           <a href="#founder-access"
             class="nav-link block py-2.5 text-body hover:text-dark text-sm transition-colors">Pricing</a>
+          <button onclick="openContactModal()" class="nav-link block py-2.5 text-body hover:text-dark text-sm transition-colors text-left cursor-pointer">Contact</button>
           <a href="#founder-access"
             class="nav-link mt-2 flex items-center justify-center rounded-[48px] bg-dark text-white text-sm font-medium px-5 py-3 hover:bg-dark-2 transition-colors">Get
             Early Access</a>
@@ -1126,14 +1128,14 @@
           <p class="font-heading text-lg font-semibold tracking-tight">HealthDataLab</p>
           <p class="mt-3 text-sm text-white/40 leading-relaxed">Built for holistic health practitioners.</p>
           <p class="mt-2 text-xs text-white/25">From the makers of IRISLAB.com</p>
-          <a href="mailto:office@healthdatalab.com"
-            class="mt-4 inline-flex items-center gap-2 text-sm text-white/50 hover:text-white transition-colors">
+          <button onclick="openContactModal()"
+            class="mt-4 inline-flex items-center gap-2 text-sm text-white/50 hover:text-white transition-colors cursor-pointer">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round"
                 d="M21.75 6.75v10.5a2.25 2.25 0 0 1-2.25 2.25h-15a2.25 2.25 0 0 1-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25m19.5 0v.243a2.25 2.25 0 0 1-1.07 1.916l-7.5 4.615a2.25 2.25 0 0 1-2.36 0L3.32 8.91a2.25 2.25 0 0 1-1.07-1.916V6.75" />
             </svg>
-            office@healthdatalab.com
-          </a>
+            Contact us
+          </button>
         </div>
         <div>
           <p class="text-xs font-medium tracking-wide text-white/30 uppercase mb-4">Quick links</p>
@@ -1161,6 +1163,174 @@
       </div>
     </div>
   </footer>
+
+  <!-- Contact Modal -->
+  <div id="contact-modal" class="fixed inset-0 z-[100] bg-black/80 backdrop-blur-sm items-center justify-center opacity-0 transition-opacity duration-300" onclick="closeContactModal()" style="display:none">
+    <div class="relative w-[calc(100%-2.5rem)] max-w-lg max-h-[90vh] overflow-y-auto bg-surface rounded-[32px] p-8 md:p-10 shadow-2xl" onclick="event.stopPropagation()">
+      <button onclick="closeContactModal()" class="absolute top-5 right-5 text-body hover:text-dark transition-colors cursor-pointer">
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/>
+        </svg>
+      </button>
+
+      <!-- Form state -->
+      <div id="contact-form-wrapper">
+        <h2 class="font-heading text-xl font-medium text-dark">Get in touch</h2>
+        <p class="mt-2 text-sm text-body">We'll get back to you within 24 hours.</p>
+
+        <form id="contact-form" name="contact" class="mt-6 flex flex-col gap-4" onsubmit="handleContactSubmit(event)">
+          <p class="hidden"><label>Don't fill this out: <input name="bot-field"></label></p>
+
+          <div>
+            <label for="contact-name" class="block text-sm font-medium text-dark mb-1.5">Name</label>
+            <input type="text" id="contact-name" name="name" required autocomplete="name"
+              class="w-full rounded-2xl border border-stroke bg-light px-4 py-3 text-sm text-dark placeholder:text-muted outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-colors"
+              placeholder="Your name">
+          </div>
+
+          <div>
+            <label for="contact-email" class="block text-sm font-medium text-dark mb-1.5">Email</label>
+            <input type="email" id="contact-email" name="email" required autocomplete="email"
+              class="w-full rounded-2xl border border-stroke bg-light px-4 py-3 text-sm text-dark placeholder:text-muted outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-colors"
+              placeholder="you@example.com">
+          </div>
+
+          <div>
+            <label for="contact-subject" class="block text-sm font-medium text-dark mb-1.5">Subject</label>
+            <div class="relative">
+              <select id="contact-subject" name="subject" required
+                class="w-full appearance-none rounded-2xl border border-stroke bg-light px-4 py-3 text-sm text-dark outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-colors cursor-pointer"
+                style="background-image: url('data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 fill=%27none%27 viewBox=%270 0 20 20%27%3E%3Cpath stroke=%27%23a0a0a0%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27 stroke-width=%271.5%27 d=%27m6 8 4 4 4-4%27/%3E%3C/svg%3E'); background-repeat: no-repeat; background-position: right 0.75rem center; background-size: 1.25rem;">
+                <option value="" disabled selected>Choose a topic</option>
+                <option value="General inquiry">General inquiry</option>
+                <option value="Practitioner access">Practitioner access</option>
+                <option value="Personal report">Personal report</option>
+                <option value="Technical issue">Technical issue</option>
+                <option value="Partnership">Partnership</option>
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label for="contact-message" class="block text-sm font-medium text-dark mb-1.5">Message</label>
+            <textarea id="contact-message" name="message" required rows="4"
+              class="w-full rounded-2xl border border-stroke bg-light px-4 py-3 text-sm text-dark placeholder:text-muted outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-colors resize-none"
+              placeholder="How can we help?"></textarea>
+          </div>
+
+          <button type="submit" id="contact-submit"
+            class="mt-2 w-full rounded-[48px] bg-dark text-white text-sm font-medium px-6 py-3.5 hover:bg-dark-2 transition-colors cursor-pointer flex items-center justify-center gap-2">
+            <span id="contact-submit-text">Send message</span>
+            <svg id="contact-spinner" class="hidden w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+            </svg>
+          </button>
+          <p id="contact-error" class="hidden text-sm text-red-500 text-center mt-2"></p>
+        </form>
+      </div>
+
+      <!-- Success state -->
+      <div id="contact-success" class="hidden text-center py-8">
+        <div class="mx-auto w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center mb-4">
+          <svg class="w-7 h-7 text-primary" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5"/>
+          </svg>
+        </div>
+        <h3 class="font-heading text-lg font-medium text-dark">Message sent!</h3>
+        <p class="mt-2 text-sm text-body">We'll get back to you soon.</p>
+        <button onclick="closeContactModal()" class="mt-6 rounded-[48px] bg-dark text-white text-sm font-medium px-8 py-3 hover:bg-dark-2 transition-colors cursor-pointer">Close</button>
+      </div>
+    </div>
+  </div>
+  <script>
+    var _contactCooldown = false;
+
+    function openContactModal() {
+      var modal = document.getElementById('contact-modal');
+      document.getElementById('contact-form-wrapper').classList.remove('hidden');
+      document.getElementById('contact-success').classList.add('hidden');
+      var errorDiv = document.getElementById('contact-error');
+      if (errorDiv) errorDiv.classList.add('hidden');
+      modal.style.display = 'flex';
+      requestAnimationFrame(function() {
+        requestAnimationFrame(function() { modal.style.opacity = '1'; });
+      });
+      document.body.style.overflow = 'hidden';
+    }
+
+    function closeContactModal() {
+      var modal = document.getElementById('contact-modal');
+      modal.style.opacity = '0';
+      setTimeout(function() {
+        modal.style.display = 'none';
+      }, 300);
+      var lightbox = document.getElementById('lightbox');
+      if (!lightbox || lightbox.style.display === 'none') {
+        document.body.style.overflow = '';
+      }
+    }
+
+    function handleContactSubmit(e) {
+      e.preventDefault();
+      if (_contactCooldown) return;
+
+      var emailInput = document.getElementById('contact-email');
+      var emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailPattern.test(emailInput.value)) {
+        emailInput.setCustomValidity('Please enter a valid email address');
+        emailInput.reportValidity();
+        return;
+      }
+      emailInput.setCustomValidity('');
+
+      var btn = document.getElementById('contact-submit');
+      var btnText = document.getElementById('contact-submit-text');
+      var spinner = document.getElementById('contact-spinner');
+      btn.disabled = true;
+      btnText.textContent = 'Sending...';
+      spinner.classList.remove('hidden');
+
+      var payload = JSON.stringify({
+        name: document.getElementById('contact-name').value,
+        email: document.getElementById('contact-email').value,
+        subject: document.getElementById('contact-subject').value,
+        message: document.getElementById('contact-message').value,
+        botField: document.querySelector('[name="bot-field"]').value
+      });
+
+      fetch('/.netlify/functions/send-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: payload
+      }).then(function(res) {
+        if (!res.ok) throw new Error('Server returned ' + res.status);
+        document.getElementById('contact-form-wrapper').classList.add('hidden');
+        document.getElementById('contact-success').classList.remove('hidden');
+        _contactCooldown = true;
+        setTimeout(function() { _contactCooldown = false; }, 60000);
+      }).catch(function(err) {
+        btn.disabled = false;
+        btnText.textContent = 'Send message';
+        spinner.classList.add('hidden');
+        var errorDiv = document.getElementById('contact-error');
+        if (errorDiv) {
+          errorDiv.textContent = 'Something went wrong. Please try again or email office@healthdatalab.com';
+          errorDiv.classList.remove('hidden');
+        }
+      });
+    }
+
+    document.getElementById('contact-email').addEventListener('input', function() {
+      this.setCustomValidity('');
+    });
+
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape' && document.getElementById('contact-modal').style.display === 'flex') {
+        closeContactModal();
+      }
+    });
+  </script>
 
   <!-- Lightbox Modal -->
   <div id="lightbox" class="fixed inset-0 z-[100] bg-black/80 backdrop-blur-sm hidden items-center justify-center cursor-zoom-out opacity-0 transition-opacity duration-300" onclick="closeLightbox()" style="display:none">
@@ -1201,8 +1371,8 @@
   <script>
     function showToast(key) {
       var messages = {
-        'not-available': { type: 'info', text: 'This option is not yet available. Please email ', suffix: ' for early access.' },
-        'error': { type: 'error', text: 'Something went wrong. Please try again or email ', suffix: '' }
+        'not-available': { type: 'info', text: 'This option is not yet available. ', suffix: ' for early access.' },
+        'error': { type: 'error', text: 'Something went wrong. Please try again or ', suffix: '' }
       };
       var msg = messages[key] || messages['error'];
       var isError = msg.type === 'error';
@@ -1229,11 +1399,11 @@
       var msgSpan = document.createElement('span');
       msgSpan.className = 'text-sm leading-relaxed flex-1';
       msgSpan.appendChild(document.createTextNode(msg.text));
-      var emailLink = document.createElement('a');
-      emailLink.href = 'mailto:office@healthdatalab.com';
-      emailLink.className = 'text-primary hover:underline';
-      emailLink.textContent = 'office@healthdatalab.com';
-      msgSpan.appendChild(emailLink);
+      var contactBtn = document.createElement('button');
+      contactBtn.className = 'text-primary hover:underline cursor-pointer';
+      contactBtn.textContent = 'contact us';
+      contactBtn.onclick = function() { dismissToast(toast); openContactModal(); };
+      msgSpan.appendChild(contactBtn);
       if (msg.suffix) msgSpan.appendChild(document.createTextNode(msg.suffix));
       toast.appendChild(msgSpan);
       var closeBtn = document.createElement('button');
