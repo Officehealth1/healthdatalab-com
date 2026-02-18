@@ -943,7 +943,7 @@
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
-                priceId, mode, trialDays, installments, tierName, installmentAmount,
+                priceId, mode, trialDays, installments, tierName, installmentAmount, tier,
                 successUrl: window.location.origin + '/?success=true',
                 cancelUrl:  window.location.origin + '/#founder-access',
               }),
