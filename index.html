@@ -95,7 +95,7 @@
     <div class="max-w-[1280px] mx-auto px-5 md:px-[52px]">
       <div id="nav-inner"
         class="flex items-center justify-between rounded-[48px] px-5 py-3 mt-3 transition-all duration-300">
-        <a href="#" class="select-none"><img src="assets/images/hdl-logo-full.png" alt="HealthDataLab" class="h-9"></a>
+        <a href="/" class="select-none"><img src="assets/images/hdl-logo-full.png" alt="HealthDataLab" class="h-9"></a>
         <div class="hidden md:flex items-center gap-6">
           <a href="#platform" class="text-sm text-body hover:text-dark transition-colors">For Practitioners</a>
           <a href="#how-it-works" class="text-sm text-body hover:text-dark transition-colors">How It Works</a>
@@ -142,6 +142,15 @@
   <!-- ============================================================
        SECTION 1: HERO — Split layout: text left, product image right
        ============================================================ -->
+  <!-- Success message (shown after Stripe checkout redirect) -->
+  <div id="success-message" class="hidden">
+    <div class="max-w-2xl mx-auto px-5 pt-28 pb-0">
+      <div class="bg-primary/10 border border-primary/30 rounded-[32px] p-6 text-center">
+        <p class="text-primary font-medium">Thank you for your purchase! Check your email for next steps.</p>
+      </div>
+    </div>
+  </div>
+
   <section class="bg-gradient-to-b from-surface to-light overflow-hidden">
     <div class="max-w-[1280px] mx-auto px-5 md:px-[52px] pt-36 pb-24 md:pt-44 md:pb-36">
       <div class="grid md:grid-cols-2 gap-12 items-center">
@@ -1437,6 +1446,15 @@
       toast.style.opacity = '0';
       toast.style.transform = 'translateX(120%)';
       setTimeout(function() { toast.remove(); }, 300);
+    }
+
+    // Show success message after Stripe checkout
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('success') === 'true') {
+      document.getElementById('success-message').classList.remove('hidden');
+      setTimeout(() => {
+        document.getElementById('success-message').scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }, 300);
     }
   </script>
 
