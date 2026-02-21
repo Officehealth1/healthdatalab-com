@@ -47,26 +47,49 @@ exports.handler = async (event) => {
             const priceObj = await stripe.prices.retrieve(priceId);
             const productId = priceObj.product;
 
-            const priceData = {
-                currency: curr.toLowerCase(),
-                product: productId,
-                unit_amount: convertedAmount,
-            };
+            if (allowPromos) {
+                // Promo codes don't work with inline price_data, so create an
+                // actual price object that Stripe can validate coupons against.
+                const newPriceParams = {
+                    product: productId,
+                    unit_amount: convertedAmount,
+                    currency: curr.toLowerCase(),
+                };
+                if (mode === 'subscription') {
+                    newPriceParams.recurring = { interval: recurringInterval || 'month' };
+                }
+                const realPrice = await stripe.prices.create(newPriceParams);
 
-            // Add recurring interval for subscriptions
-            if (mode === 'subscription') {
-                priceData.recurring = { interval: recurringInterval || 'month' };
+                sessionParams = {
+                    payment_method_types: ['card'],
+                    line_items: [{ price: realPrice.id, quantity: 1 }],
+                    mode: mode || 'payment',
+                    success_url: successUrl,
+                    cancel_url: cancelUrl,
+                    automatic_tax: { enabled: true },
+                    allow_promotion_codes: true,
+                };
+            } else {
+                const priceData = {
+                    currency: curr.toLowerCase(),
+                    product: productId,
+                    unit_amount: convertedAmount,
+                };
+
+                // Add recurring interval for subscriptions
+                if (mode === 'subscription') {
+                    priceData.recurring = { interval: recurringInterval || 'month' };
+                }
+
+                sessionParams = {
+                    payment_method_types: ['card'],
+                    line_items: [{ price_data: priceData, quantity: 1 }],
+                    mode: mode || 'payment',
+                    success_url: successUrl,
+                    cancel_url: cancelUrl,
+                    automatic_tax: { enabled: true },
+                };
             }
-
-            sessionParams = {
-                payment_method_types: ['card'],
-                line_items: [{ price_data: priceData, quantity: 1 }],
-                mode: mode || 'payment',
-                success_url: successUrl,
-                cancel_url: cancelUrl,
-                automatic_tax: { enabled: true },
-                allow_promotion_codes: allowPromos,
-            };
         } else {
             // Default GBP flow — use existing price IDs
             sessionParams = {
