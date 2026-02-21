@@ -1,3 +1,15 @@
+const nodemailer = require('nodemailer');
+
+const transporter = nodemailer.createTransport({
+  host: 'smtp-relay.brevo.com',
+  port: 587,
+  secure: false,
+  auth: {
+    user: process.env.BREVO_SMTP_LOGIN,
+    pass: process.env.BREVO_SMTP_KEY,
+  },
+});
+
 exports.handler = async (event) => {
   if (event.httpMethod !== 'POST') {
     return { statusCode: 405, body: 'Method Not Allowed' };
@@ -20,32 +32,18 @@ exports.handler = async (event) => {
       return { statusCode: 400, body: JSON.stringify({ error: 'Invalid email' }) };
     }
 
-    const res = await fetch('https://api.brevo.com/v3/smtp/email', {
-      method: 'POST',
-      headers: {
-        'accept': 'application/json',
-        'api-key': process.env.BREVO_API_KEY,
-        'content-type': 'application/json',
-      },
-      body: JSON.stringify({
-        sender: { name: 'HealthDataLab', email: 'office@healthdatalab.com' },
-        to: [{ email: 'office@healthdatalab.com', name: 'HealthDataLab' }],
-        replyTo: { email: email, name: name },
-        subject: '[HDL Contact] ' + (subject || 'General inquiry'),
-        htmlContent: '<h3>New contact form submission</h3>'
-          + '<p><strong>Name:</strong> ' + name + '</p>'
-          + '<p><strong>Email:</strong> ' + email + '</p>'
-          + '<p><strong>Subject:</strong> ' + (subject || 'General inquiry') + '</p>'
-          + '<hr>'
-          + '<p>' + message.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>') + '</p>',
-      }),
+    await transporter.sendMail({
+      from: '"HealthDataLab" <office@healthdatalab.com>',
+      to: 'office@healthdatalab.com',
+      replyTo: { name: name, address: email },
+      subject: '[HDL Contact] ' + (subject || 'General inquiry'),
+      html: '<h3>New contact form submission</h3>'
+        + '<p><strong>Name:</strong> ' + name + '</p>'
+        + '<p><strong>Email:</strong> ' + email + '</p>'
+        + '<p><strong>Subject:</strong> ' + (subject || 'General inquiry') + '</p>'
+        + '<hr>'
+        + '<p>' + message.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>') + '</p>',
     });
-
-    if (!res.ok) {
-      const errBody = await res.text();
-      console.error('Brevo API error:', res.status, errBody);
-      return { statusCode: 500, body: JSON.stringify({ error: 'Failed to send email' }) };
-    }
 
     return {
       statusCode: 200,
@@ -55,7 +53,7 @@ exports.handler = async (event) => {
     console.error('Send email error:', error);
     return {
       statusCode: 500,
-      body: JSON.stringify({ error: error.message }),
+      body: JSON.stringify({ error: 'Failed to send email' }),
     };
   }
 };

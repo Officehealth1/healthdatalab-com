@@ -593,6 +593,24 @@
         </p>
       </div>
 
+      <!-- Currency Selector -->
+      <div id="currency-selector" class="reveal text-center mb-8">
+        <label class="inline-flex items-center gap-2 bg-primary text-white text-sm font-medium rounded-full px-4 py-2 cursor-pointer">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 21a9.004 9.004 0 0 0 8.716-6.747M12 21a9.004 9.004 0 0 1-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3m0 0a8.997 8.997 0 0 1 7.843 4.582M12 3a8.997 8.997 0 0 0-7.843 4.582m15.686 0A11.953 11.953 0 0 1 12 10.5c-2.998 0-5.74-1.1-7.843-2.918m15.686 0A8.959 8.959 0 0 1 21 12c0 .778-.099 1.533-.284 2.253m0 0A17.919 17.919 0 0 1 12 16.5a17.92 17.92 0 0 1-8.716-2.247m0 0A8.966 8.966 0 0 1 3 12c0-1.528.38-2.968 1.05-4.228" /></svg>
+          <select id="currency-select" class="bg-transparent text-white border-none outline-none cursor-pointer text-sm font-medium appearance-none pr-1" onchange="updateCurrencyDisplay(this.value)">
+            <option value="GBP" class="text-dark">£ GBP</option>
+            <option value="USD" class="text-dark">$ USD</option>
+            <option value="EUR" class="text-dark">€ EUR</option>
+            <option value="CHF" class="text-dark">CHF</option>
+            <option value="CAD" class="text-dark">C$ CAD</option>
+            <option value="AUD" class="text-dark">A$ AUD</option>
+          </select>
+        </label>
+      </div>
+
+      <!-- Currency disclaimer (hidden for GBP) -->
+      <p id="currency-disclaimer" class="hidden text-center text-xs text-muted mb-6">Prices shown in <span id="currency-label">GBP</span>. Final amount may vary slightly due to exchange rate fluctuations.</p>
+
       <!-- PRIMARY TIERS: Course + Signature -->
       <div class="grid gap-5 md:grid-cols-2 max-w-4xl mx-auto">
 
@@ -710,7 +728,7 @@
           <div class="mt-4 flex items-baseline gap-2">
             <span class="font-heading text-3xl font-semibold text-dark">Free</span>
           </div>
-          <p class="text-xs text-muted mt-1">then £19/mo after 3 months</p>
+          <p class="text-xs text-muted mt-1" id="launchpad-after-trial">then £19/mo after 3 months</p>
 
           <button onclick="checkout('launchpad')"
             class="mt-6 w-full inline-flex items-center justify-center gap-2 rounded-[48px] border-2 border-primary text-primary text-sm font-medium px-5 py-2.5 hover:bg-primary/5 transition-colors cursor-pointer">
@@ -734,7 +752,7 @@
           <p class="mt-2 text-xs text-body leading-relaxed">Platform tools only. No course, no certificate, no community.</p>
 
           <div class="mt-4 flex items-baseline gap-2">
-            <span class="font-heading text-3xl font-semibold text-dark">£99</span>
+            <span class="font-heading text-3xl font-semibold text-dark" id="minimum-price">£99</span>
             <span class="text-sm text-muted">/mo</span>
           </div>
           <p class="text-xs text-muted mt-1">Cancel anytime</p>
@@ -867,15 +885,15 @@
               </tr>
               <tr class="bg-light/50">
                 <td class="p-4 font-medium">Eff. monthly cost</td>
-                <td class="p-4 text-center">Free &rarr; £19</td>
-                <td class="p-4 text-center">£99</td>
+                <td class="p-4 text-center" id="eff-launchpad">Free &rarr; £19</td>
+                <td class="p-4 text-center" id="eff-minimum">£99</td>
                 <td class="p-4 text-center" id="eff-course">~£50*</td>
                 <td class="p-4 text-center" id="eff-sig">~£125*</td>
               </tr>
               <tr class="bg-light/50">
                 <td class="p-4 font-medium">Year 2+ renewal</td>
-                <td class="p-4 text-center">£19/mo</td>
-                <td class="p-4 text-center">£99/mo</td>
+                <td class="p-4 text-center" id="renew-launchpad">£19/mo</td>
+                <td class="p-4 text-center" id="renew-minimum">£99/mo</td>
                 <td class="p-4 text-center" id="renew-course">£39/mo*</td>
                 <td class="p-4 text-center" id="renew-sig">£79/mo*</td>
               </tr>
@@ -919,40 +937,52 @@
         };
 
         async function checkout(tier) {
-          let priceId, mode, trialDays = 0, installments = 0, tierName = '', installmentAmount = 0;
+          let priceId, mode, trialDays = 0, installments = 0, tierName = '', installmentAmount = 0, baseAmountGBP = 0, recurringInterval = 'month';
           if (tier === 'course_installment') {
             priceId = PRICE_IDS.course['installment_' + currentPricingMode];
             mode = 'subscription';
             installments = 3;
             tierName = 'Pro Practitioner Course';
             installmentAmount = INSTALLMENT_AMOUNTS.course[currentPricingMode];
+            baseAmountGBP = PRICE_AMOUNTS_GBP.course_installment[currentPricingMode];
           } else if (tier === 'signature_installment') {
             priceId = PRICE_IDS.signature['installment_' + currentPricingMode];
             mode = 'subscription';
             installments = 6;
             tierName = 'HealthDataLab Signature';
             installmentAmount = INSTALLMENT_AMOUNTS.signature[currentPricingMode];
+            baseAmountGBP = PRICE_AMOUNTS_GBP.signature_installment[currentPricingMode];
           } else if (tier === 'launchpad') {
             priceId = PRICE_IDS.launchpad; mode = 'subscription'; trialDays = 90;
+            baseAmountGBP = PRICE_AMOUNTS_GBP.launchpad;
           } else if (tier === 'minimum') {
             priceId = PRICE_IDS.minimum; mode = 'subscription';
+            baseAmountGBP = PRICE_AMOUNTS_GBP.minimum;
           } else if (tier === 'consumer_single') {
             priceId = PRICE_IDS.consumer_single; mode = 'payment';
+            baseAmountGBP = PRICE_AMOUNTS_GBP.consumer_single;
           } else if (tier === 'consumer_annual') {
             priceId = PRICE_IDS.consumer_annual; mode = 'subscription';
+            baseAmountGBP = PRICE_AMOUNTS_GBP.consumer_annual;
+            recurringInterval = 'year';
           } else {
             priceId = PRICE_IDS[tier][currentPricingMode]; mode = 'payment';
+            baseAmountGBP = PRICE_AMOUNTS_GBP[tier] ? (PRICE_AMOUNTS_GBP[tier][currentPricingMode] || 0) : 0;
           }
           if (!priceId || priceId.startsWith('price_TODO')) {
             showToast('not-available');
             return;
           }
+          const selectedCurrency = document.getElementById('currency-select').value;
           try {
             const res = await fetch('/.netlify/functions/create-checkout', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
                 priceId, mode, trialDays, installments, tierName, installmentAmount,
+                currency: selectedCurrency,
+                baseAmountGBP: baseAmountGBP,
+                recurringInterval: recurringInterval,
                 successUrl: window.location.origin + '/?success=true',
                 cancelUrl:  window.location.origin + '/#founder-access',
               }),
@@ -1046,6 +1076,179 @@
             seatCounter.style.display = mode === 'super_early' ? '' : 'none';
           }
         }
+
+        // ---- Currency Conversion System ----
+        const CURRENCY_SYMBOLS = { GBP: '£', USD: '$', EUR: '€', CHF: 'CHF ', CAD: 'C$', AUD: 'A$' };
+
+        const PRICE_AMOUNTS_GBP = {
+          course:    { super_early: 59700, founding: 69700, standard: 99700 },
+          signature: { super_early: 149700, founding: 174700, standard: 249700 },
+          course_installment:    { super_early: 19900, founding: 23300, standard: 34700 },
+          signature_installment: { super_early: 25000, founding: 29200, standard: 44700 },
+          launchpad: 1900,
+          minimum: 9900,
+          consumer_single: 999,
+          consumer_annual: 1999,
+          // Renewal rates (monthly)
+          renewal_course:    { super_early: 3900, founding: 3900, standard: 4900 },
+          renewal_signature: { super_early: 7900, founding: 7900, standard: 9900 },
+        };
+
+        window.__exchangeRates = null;
+        window.__selectedCurrency = 'GBP';
+
+        function formatPrice(amountPence, currency) {
+          const sym = CURRENCY_SYMBOLS[currency] || currency + ' ';
+          const val = amountPence / 100;
+          // No decimals if whole number, else 2 decimals
+          const formatted = val % 1 === 0 ? val.toLocaleString('en') : val.toLocaleString('en', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+          return sym + formatted;
+        }
+
+        function convertAmount(gbpPence, currency) {
+          if (currency === 'GBP' || !window.__exchangeRates) return gbpPence;
+          const rate = window.__exchangeRates[currency];
+          if (!rate) return gbpPence;
+          return Math.round(gbpPence * rate);
+        }
+
+        async function fetchExchangeRates() {
+          try {
+            const res = await fetch('https://api.frankfurter.app/latest?from=GBP&to=USD,EUR,CHF,CAD,AUD');
+            if (!res.ok) throw new Error('Rate fetch failed');
+            const data = await res.json();
+            window.__exchangeRates = data.rates;
+            const required = ['USD', 'EUR', 'CHF', 'CAD', 'AUD'];
+            if (!required.every(c => window.__exchangeRates[c])) {
+              throw new Error('Incomplete exchange rates');
+            }
+            // Restore saved currency
+            const saved = localStorage.getItem('hdl_currency');
+            if (saved && CURRENCY_SYMBOLS[saved] && saved !== 'GBP') {
+              document.getElementById('currency-select').value = saved;
+              updateCurrencyDisplay(saved);
+            }
+          } catch (e) {
+            // Disable non-GBP options on failure
+            const sel = document.getElementById('currency-select');
+            Array.from(sel.options).forEach(opt => {
+              if (opt.value !== 'GBP') opt.disabled = true;
+            });
+          }
+        }
+
+        function updateCurrencyDisplay(currency) {
+          window.__selectedCurrency = currency;
+          localStorage.setItem('hdl_currency', currency);
+
+          const disclaimer = document.getElementById('currency-disclaimer');
+          if (currency === 'GBP') {
+            disclaimer.classList.add('hidden');
+          } else {
+            document.getElementById('currency-label').textContent = currency;
+            disclaimer.classList.remove('hidden');
+          }
+
+          // Re-render current pricing mode with new currency
+          const mode = currentPricingMode;
+          const data = PRICING_DATA[mode];
+
+          // Course prices
+          const cp = PRICE_AMOUNTS_GBP.course[mode];
+          const cpConverted = convertAmount(cp, currency);
+          document.getElementById('course-price').textContent = formatPrice(cpConverted, currency);
+
+          // Course old price
+          const oldCourseEl = document.getElementById('course-old-price');
+          if (data.course.old && mode !== 'standard') {
+            const oldGBP = mode === 'super_early' || mode === 'founding' ? 99700 : 0;
+            oldCourseEl.textContent = formatPrice(convertAmount(oldGBP, currency), currency);
+            oldCourseEl.style.opacity = '1';
+          } else {
+            oldCourseEl.style.opacity = '0';
+          }
+
+          // Signature prices
+          const sp = PRICE_AMOUNTS_GBP.signature[mode];
+          const spConverted = convertAmount(sp, currency);
+          document.getElementById('sig-price').textContent = formatPrice(spConverted, currency);
+
+          // Sig old price
+          const oldSigEl = document.getElementById('sig-old-price');
+          if (data.signature.old && mode !== 'standard') {
+            const oldSigGBP = mode === 'super_early' || mode === 'founding' ? 249700 : 0;
+            oldSigEl.textContent = formatPrice(convertAmount(oldSigGBP, currency), currency);
+            oldSigEl.style.opacity = '1';
+          } else {
+            oldSigEl.style.opacity = '0';
+          }
+
+          // Installment text
+          const ciAmt = PRICE_AMOUNTS_GBP.course_installment[mode];
+          const ciConverted = convertAmount(ciAmt, currency);
+          const cEff = Math.round(cpConverted / 12);
+          document.getElementById('course-installments').textContent =
+            'or 3 \u00D7 ' + formatPrice(ciConverted, currency) + ' \u00A0\u00B7\u00A0 ~' + formatPrice(cEff, currency) + '/mo effective';
+
+          const siAmt = PRICE_AMOUNTS_GBP.signature_installment[mode];
+          const siConverted = convertAmount(siAmt, currency);
+          const sEff = Math.round(spConverted / 12);
+          document.getElementById('sig-installments').textContent =
+            'or 6 \u00D7 ' + formatPrice(siConverted, currency) + ' \u00A0\u00B7\u00A0 ~' + formatPrice(sEff, currency) + '/mo effective';
+
+          // Renewal text
+          const rcAmt = PRICE_AMOUNTS_GBP.renewal_course[mode];
+          const rsAmt = PRICE_AMOUNTS_GBP.renewal_signature[mode];
+          const rcConverted = convertAmount(rcAmt, currency);
+          const rsConverted = convertAmount(rsAmt, currency);
+          const renewLabel = mode === 'standard' ? 'Renew at' : 'Founding renewal:';
+          document.getElementById('course-renewal').textContent =
+            '30-day money-back guarantee \u00A0\u00B7\u00A0 ' + renewLabel + ' ' + formatPrice(rcConverted, currency) + '/mo' + (mode !== 'standard' ? ' (locked for life)' : ' after Year 1');
+          document.getElementById('sig-renewal').textContent =
+            '30-day money-back guarantee \u00A0\u00B7\u00A0 ' + renewLabel + ' ' + formatPrice(rsConverted, currency) + '/mo' + (mode !== 'standard' ? ' (locked for life)' : ' after Year 1');
+
+          // Comparison table
+          const effCourse = document.getElementById('eff-course');
+          const effSig = document.getElementById('eff-sig');
+          const renewCourse = document.getElementById('renew-course');
+          const renewSig = document.getElementById('renew-sig');
+          if (effCourse) effCourse.textContent = '~' + formatPrice(cEff, currency) + '*';
+          if (effSig) effSig.textContent = '~' + formatPrice(sEff, currency) + '*';
+          if (renewCourse) renewCourse.textContent = formatPrice(rcConverted, currency) + '/mo*';
+          if (renewSig) renewSig.textContent = formatPrice(rsConverted, currency) + '/mo*';
+
+          // Launchpad & Minimum display prices
+          const lpConverted = convertAmount(PRICE_AMOUNTS_GBP.launchpad, currency);
+          const mnConverted = convertAmount(PRICE_AMOUNTS_GBP.minimum, currency);
+
+          const lpAfterTrial = document.getElementById('launchpad-after-trial');
+          if (lpAfterTrial) lpAfterTrial.textContent = 'then ' + formatPrice(lpConverted, currency) + '/mo after 3 months';
+
+          const minPrice = document.getElementById('minimum-price');
+          if (minPrice) minPrice.textContent = formatPrice(mnConverted, currency);
+
+          // Comparison table — Launchpad & Minimum
+          const effLp = document.getElementById('eff-launchpad');
+          const effMn = document.getElementById('eff-minimum');
+          const renewLp = document.getElementById('renew-launchpad');
+          const renewMn = document.getElementById('renew-minimum');
+          if (effLp) effLp.textContent = 'Free \u2192 ' + formatPrice(lpConverted, currency);
+          if (effMn) effMn.textContent = formatPrice(mnConverted, currency);
+          if (renewLp) renewLp.textContent = formatPrice(lpConverted, currency) + '/mo';
+          if (renewMn) renewMn.textContent = formatPrice(mnConverted, currency) + '/mo';
+        }
+
+        // Hook into togglePricing to also apply currency
+        const _origTogglePricing = togglePricing;
+        togglePricing = function(mode) {
+          _origTogglePricing(mode);
+          if (window.__selectedCurrency !== 'GBP') {
+            updateCurrencyDisplay(window.__selectedCurrency);
+          }
+        };
+
+        // Fetch rates on load
+        fetchExchangeRates();
 
         // Fetch live seat count
         fetch('/.netlify/functions/seat-count')
