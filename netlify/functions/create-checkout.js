@@ -22,7 +22,10 @@ exports.handler = async (event) => {
     }
 
     try {
-        const { priceId, mode, successUrl, cancelUrl, trialDays, installments, tierName, installmentAmount, currency, baseAmountGBP, recurringInterval } = JSON.parse(event.body);
+        const { priceId, mode, successUrl, cancelUrl, trialDays, installments, tierName, installmentAmount, currency, baseAmountGBP, recurringInterval, tier } = JSON.parse(event.body);
+
+        // Only show promo code field for Single Report checkout
+        const allowPromos = (tier === 'consumer_single');
 
         if (!priceId) {
             return { statusCode: 400, body: 'Missing priceId' };
@@ -62,7 +65,7 @@ exports.handler = async (event) => {
                 success_url: successUrl,
                 cancel_url: cancelUrl,
                 automatic_tax: { enabled: true },
-                allow_promotion_codes: true,
+                allow_promotion_codes: allowPromos,
             };
         } else {
             // Default GBP flow — use existing price IDs
@@ -73,7 +76,7 @@ exports.handler = async (event) => {
                 success_url: successUrl,
                 cancel_url: cancelUrl,
                 automatic_tax: { enabled: true },
-                allow_promotion_codes: true,
+                allow_promotion_codes: allowPromos,
             };
         }
 

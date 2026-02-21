@@ -412,7 +412,7 @@
 
     const PRICE_IDS = {
       consumer_single: 'price_1T2KlHAARZOPki7nx77wtLhj',
-      consumer_annual: 'price_1T0RzbAARZOPki7n2LT6SZBm',
+      consumer_annual: 'price_1T3944AARZOPki7nWYs5ZCeK',
     };
 
     const CURRENCY_SYMBOLS = { GBP: '£', USD: '$', EUR: '€', CHF: 'CHF ', CAD: 'C$', AUD: 'A$' };
@@ -483,6 +483,7 @@
             currency: selectedCurrency,
             baseAmountGBP: baseAmountGBP,
             recurringInterval: recurringInterval,
+            tier: tier,
             successUrl: window.location.origin + '/personal-report?success=true',
             cancelUrl: window.location.origin + '/personal-report',
           }),
