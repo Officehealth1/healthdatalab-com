@@ -24,9 +24,6 @@ exports.handler = async (event) => {
     try {
         const { priceId, mode, successUrl, cancelUrl, trialDays, installments, tierName, installmentAmount, currency, baseAmountGBP, recurringInterval, tier } = JSON.parse(event.body);
 
-        // Only show promo code field for Single Report checkout
-        const allowPromos = (tier === 'consumer_single');
-
         if (!priceId) {
             return { statusCode: 400, body: 'Missing priceId' };
         }
@@ -47,49 +44,26 @@ exports.handler = async (event) => {
             const priceObj = await stripe.prices.retrieve(priceId);
             const productId = priceObj.product;
 
-            if (allowPromos) {
-                // Promo codes don't work with inline price_data, so create an
-                // actual price object that Stripe can validate coupons against.
-                const newPriceParams = {
-                    product: productId,
-                    unit_amount: convertedAmount,
-                    currency: curr.toLowerCase(),
-                };
-                if (mode === 'subscription') {
-                    newPriceParams.recurring = { interval: recurringInterval || 'month' };
-                }
-                const realPrice = await stripe.prices.create(newPriceParams);
+            const priceData = {
+                currency: curr.toLowerCase(),
+                product: productId,
+                unit_amount: convertedAmount,
+            };
 
-                sessionParams = {
-                    payment_method_types: ['card'],
-                    line_items: [{ price: realPrice.id, quantity: 1 }],
-                    mode: mode || 'payment',
-                    success_url: successUrl,
-                    cancel_url: cancelUrl,
-                    automatic_tax: { enabled: true },
-                    allow_promotion_codes: true,
-                };
-            } else {
-                const priceData = {
-                    currency: curr.toLowerCase(),
-                    product: productId,
-                    unit_amount: convertedAmount,
-                };
-
-                // Add recurring interval for subscriptions
-                if (mode === 'subscription') {
-                    priceData.recurring = { interval: recurringInterval || 'month' };
-                }
-
-                sessionParams = {
-                    payment_method_types: ['card'],
-                    line_items: [{ price_data: priceData, quantity: 1 }],
-                    mode: mode || 'payment',
-                    success_url: successUrl,
-                    cancel_url: cancelUrl,
-                    automatic_tax: { enabled: true },
-                };
+            // Add recurring interval for subscriptions
+            if (mode === 'subscription') {
+                priceData.recurring = { interval: recurringInterval || 'month' };
             }
+
+            sessionParams = {
+                payment_method_types: ['card'],
+                line_items: [{ price_data: priceData, quantity: 1 }],
+                mode: mode || 'payment',
+                success_url: successUrl,
+                cancel_url: cancelUrl,
+                automatic_tax: { enabled: true },
+                allow_promotion_codes: true,
+            };
         } else {
             // Default GBP flow — use existing price IDs
             sessionParams = {
@@ -99,7 +73,7 @@ exports.handler = async (event) => {
                 success_url: successUrl,
                 cancel_url: cancelUrl,
                 automatic_tax: { enabled: true },
-                allow_promotion_codes: allowPromos,
+                allow_promotion_codes: true,
             };
         }
 
