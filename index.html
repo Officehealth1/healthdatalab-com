@@ -537,51 +537,6 @@
           with the Course.</p>
       </div>
 
-      <!-- Pricing Phase Selector -->
-      <div class="reveal flex justify-center mb-16">
-        <div class="flex flex-col items-start gap-2 max-w-sm w-full">
-          <!-- Super Early (active by default) -->
-          <button id="btn-super-early" onclick="togglePricing('super_early')"
-            class="pricing-phase-btn w-full flex items-center gap-3 rounded-2xl bg-surface border-2 border-primary py-3 pl-4 pr-4 cursor-pointer transition-all duration-300 shadow-sm hover:shadow-md">
-            <svg class="phase-arrow w-4 h-4 text-primary shrink-0" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" /></svg>
-            <span class="phase-label font-heading text-base font-semibold text-dark">Super Early Founder</span>
-            <span class="ml-auto flex items-center gap-2">
-              <span class="phase-badge rounded-full bg-primary/10 text-primary text-[10px] font-bold px-2.5 py-0.5">ACTIVE</span>
-              <span class="relative group/tip">
-                <svg class="w-4 h-4 text-muted hover:text-primary cursor-help transition-colors" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m11.25 11.25.041-.02a.75.75 0 0 1 1.063.852l-.708 2.836a.75.75 0 0 0 1.063.853l.041-.021M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9-3.75h.008v.008H12V8.25Z" /></svg>
-                <span class="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 w-56 rounded-xl bg-dark text-white text-xs p-3 leading-relaxed opacity-0 pointer-events-none group-hover/tip:opacity-100 transition-opacity duration-200 z-20 shadow-lg">The first 25 practitioners. Deepest discount, locked for life. Once these seats are gone, pricing moves to Founding.</span>
-              </span>
-            </span>
-          </button>
-          <!-- Founding -->
-          <button id="btn-founding" onclick="togglePricing('founding')"
-            class="pricing-phase-btn w-full flex items-center gap-3 rounded-2xl bg-surface border border-stroke py-3 pl-11 pr-4 cursor-pointer transition-all duration-300 hover:border-primary/30">
-            <svg class="phase-arrow w-4 h-4 text-primary shrink-0" style="display:none" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" /></svg>
-            <span class="phase-label font-heading text-sm font-medium text-muted">Founding Member</span>
-            <span class="ml-auto flex items-center gap-2">
-              <span class="phase-badge rounded-full bg-primary/10 text-primary text-[10px] font-bold px-2.5 py-0.5" style="display:none">ACTIVE</span>
-              <span class="relative group/tip">
-                <svg class="w-4 h-4 text-muted hover:text-primary cursor-help transition-colors" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m11.25 11.25.041-.02a.75.75 0 0 1 1.063.852l-.708 2.836a.75.75 0 0 0 1.063.853l.041-.021M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9-3.75h.008v.008H12V8.25Z" /></svg>
-                <span class="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 w-56 rounded-xl bg-dark text-white text-xs p-3 leading-relaxed opacity-0 pointer-events-none group-hover/tip:opacity-100 transition-opacity duration-200 z-20 shadow-lg">The first 150 practitioners. 30% off, locked for life. Available after Super Early sells out.</span>
-              </span>
-            </span>
-          </button>
-          <!-- Standard -->
-          <button id="btn-standard" onclick="togglePricing('standard')"
-            class="pricing-phase-btn w-full flex items-center gap-3 rounded-2xl bg-surface border border-stroke py-3 pl-11 pr-4 cursor-pointer transition-all duration-300 hover:border-primary/30">
-            <svg class="phase-arrow w-4 h-4 text-primary shrink-0" style="display:none" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" /></svg>
-            <span class="phase-label font-heading text-sm font-medium text-muted">Standard</span>
-            <span class="ml-auto flex items-center gap-2">
-              <span class="phase-badge rounded-full bg-primary/10 text-primary text-[10px] font-bold px-2.5 py-0.5" style="display:none">ACTIVE</span>
-              <span class="relative group/tip">
-                <svg class="w-4 h-4 text-muted hover:text-primary cursor-help transition-colors" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m11.25 11.25.041-.02a.75.75 0 0 1 1.063.852l-.708 2.836a.75.75 0 0 0 1.063.853l.041-.021M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9-3.75h.008v.008H12V8.25Z" /></svg>
-                <span class="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 w-56 rounded-xl bg-dark text-white text-xs p-3 leading-relaxed opacity-0 pointer-events-none group-hover/tip:opacity-100 transition-opacity duration-200 z-20 shadow-lg">Full pricing for all future members.</span>
-              </span>
-            </span>
-          </button>
-        </div>
-      </div>
-
       <!-- Seat Counter -->
       <div id="seat-counter" class="reveal text-center mb-10" style="display:none">
         <p class="inline-flex items-center gap-2 text-sm font-medium text-primary">
@@ -629,44 +584,52 @@
           <p class="mt-2 text-sm text-body leading-relaxed">Full 12-week longevity practitioner training with platform
             access, certificate, and AI tools.</p>
 
-          <div class="mt-6 flex items-baseline gap-3">
-            <span class="font-heading text-4xl font-semibold text-dark transition-all duration-500"
-              id="course-price">£597</span>
-            <span class="text-sm text-muted line-through transition-opacity duration-500"
-              id="course-old-price">£997</span>
-            <span
-              class="inline-flex items-center rounded-full bg-primary/8 text-primary text-[10px] font-bold px-2 py-0.5 transition-opacity duration-500"
-              id="course-badge">SUPER EARLY 40% OFF</span>
-          </div>
-          <p class="text-xs text-muted mt-1 transition-all duration-300" id="course-installments">or 3 &times; £199
-            &nbsp;&middot;&nbsp; ~£50/mo effective</p>
-
-          <button onclick="checkout('course')"
-            class="mt-8 w-full inline-flex items-center justify-center gap-2 rounded-[48px] bg-primary text-white text-sm font-medium px-5 py-3 hover:bg-primary-dark transition-colors shadow-[0_4px_20px_rgba(61,141,160,.25)] cursor-pointer">
-            Join the Course
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" /></svg>
-          </button>
-          <p class="mt-2 text-center text-xs text-primary/60 hover:text-primary cursor-pointer transition-colors" onclick="checkout('course_installment')">
-            or pay in 3 monthly instalments →</p>
-
-          <div class="mt-8 space-y-3 border-t border-stroke pt-6 flex-1">
+          <!-- Feature comparison -->
+          <div class="mt-6 space-y-2.5 flex-1">
+            <!-- Course features (included) -->
             <p class="text-xs text-body flex gap-2.5"><svg class="w-4 h-4 text-primary shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg> <strong>12-week course</strong> (recorded + live sessions)</p>
             <p class="text-xs text-body flex gap-2.5"><svg class="w-4 h-4 text-primary shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg> <strong>Holistic Longevity Practitioner Certificate</strong></p>
-            <p class="text-xs text-body flex gap-2.5"><svg class="w-4 h-4 text-primary shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg> 30 report credits/mo for 12 months</p>
+            <p class="text-xs text-body flex gap-2.5"><svg class="w-4 h-4 text-primary shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg> 30 report credits/mo for 12 months (360 Reports)</p>
             <p class="text-xs text-body flex gap-2.5"><svg class="w-4 h-4 text-primary shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg> Full AI suite: Health, Herbal, Supplement, Diet, Diagnostics</p>
             <p class="text-xs text-body flex gap-2.5"><svg class="w-4 h-4 text-primary shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg> AI Practice Growth Advisor</p>
             <p class="text-xs text-body flex gap-2.5"><svg class="w-4 h-4 text-primary shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg> Client management, tracking &amp; async chat</p>
             <p class="text-xs text-body flex gap-2.5"><svg class="w-4 h-4 text-primary shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg> Full course community access</p>
           </div>
+
+          <!-- Descriptive paragraphs -->
           <p class="mt-4 text-xs text-body leading-relaxed">The 12-week course covers longevity science, client assessment, supplement and herbal protocols, AI tools, practice growth, and certification. Full curriculum released to enrolled members before Week 1.</p>
           <p class="mt-1 text-xs text-primary font-medium">Live sessions begin [TBC].</p>
           <p class="mt-2 text-xs text-body leading-relaxed">Recorded modules release weekly. Your founding cohort is small enough that Matthew personally reviews your progress.</p>
           <p class="mt-2 text-[10px] text-muted leading-relaxed">
             Taught by Matthew, founder of <a href="https://irislab.com" target="_blank" rel="noopener" class="text-primary hover:text-primary-dark transition-colors">IRISLAB.com</a> and practising naturopath/iridologist for 15+ years.
           </p>
-          <p class="mt-4 text-[10px] text-muted leading-relaxed transition-colors duration-300" id="course-renewal">
-            30-day money-back guarantee &nbsp;&middot;&nbsp; <strong class="text-primary">Founding
-              renewal: £39/mo (locked for life)</strong></p>
+          <p class="mt-3 border-t border-stroke pt-3 text-[10px] text-muted leading-relaxed">
+            <strong class="font-medium">Value:</strong><br>
+            1st Cohort member → Course + £1.68 per Report<br>
+            Standard member → Course + £2.79 per Report</p>
+
+          <!-- Sticky footer strip -->
+          <div class="mt-6 border-t border-stroke pt-6">
+            <button onclick="checkout('course')"
+              class="w-full inline-flex items-center justify-center gap-2 rounded-[48px] bg-primary text-white text-sm font-semibold px-5 py-3 hover:bg-primary-dark transition-colors shadow-[0_4px_20px_rgba(61,141,160,.25)] cursor-pointer">
+              1st Cohort Member <span id="course-price">£597</span>
+              <span class="font-normal text-xs opacity-70 ml-1">(seats limited)</span>
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" /></svg>
+            </button>
+            <p class="mt-3 text-xs text-muted/60 flex items-center justify-center gap-2">
+              <span class="line-through" id="course-price-founding">£697</span>
+              <span>Founding Member</span>
+            </p>
+            <p class="mt-1 text-xs text-muted/60 flex items-center justify-center gap-2">
+              <span class="line-through" id="course-price-standard">£997</span>
+              <span>Standard</span>
+            </p>
+            <p class="mt-3 text-center text-xs text-primary/60 hover:text-primary cursor-pointer transition-colors"
+              onclick="checkout('course_installment')">
+              or pay in 3 monthly instalments →</p>
+            <p class="mt-4 text-[10px] text-muted leading-relaxed transition-colors duration-300" id="course-renewal">
+              30-day money-back guarantee &nbsp;&middot;&nbsp; Founding renewal: £39/mo (locked for life)</p>
+          </div>
         </div>
 
         <!-- Signature (Premium) -->
@@ -680,36 +643,59 @@
           <p class="mt-2 text-sm text-white/60 leading-relaxed">Everything in the Course, plus direct access to Matthew.
             Start on the right trajectory — reach altitude faster.</p>
 
-          <div class="mt-6 flex items-baseline gap-3">
-            <span class="font-heading text-4xl font-semibold transition-all duration-500" id="sig-price">£1,497</span>
-            <span class="text-sm text-white/30 line-through transition-opacity duration-500"
-              id="sig-old-price">£2,497</span>
-            <span
-              class="inline-flex items-center rounded-full bg-white/10 text-white/70 text-[10px] font-bold px-2 py-0.5 transition-opacity duration-500"
-              id="sig-badge">SUPER EARLY 40% OFF</span>
+          <!-- Feature comparison -->
+          <div class="mt-6 space-y-2.5 flex-1">
+            <!-- Course features (included) -->
+            <p class="text-xs text-white/70 flex gap-2.5"><svg class="w-4 h-4 text-primary shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg> <strong class="text-white">12-week course</strong> (recorded + live sessions)</p>
+            <p class="text-xs text-white/70 flex gap-2.5"><svg class="w-4 h-4 text-primary shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg> <strong class="text-white">Holistic Longevity Practitioner Certificate</strong></p>
+            <p class="text-xs text-white/70 flex gap-2.5"><svg class="w-4 h-4 text-primary shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg> 30 report credits/mo for 12 months (360 Reports)</p>
+            <p class="text-xs text-white/70 flex gap-2.5"><svg class="w-4 h-4 text-primary shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg> Full AI suite: Health, Herbal, Supplement, Diet, Diagnostics</p>
+            <p class="text-xs text-white/70 flex gap-2.5"><svg class="w-4 h-4 text-primary shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg> AI Practice Growth Advisor</p>
+            <p class="text-xs text-white/70 flex gap-2.5"><svg class="w-4 h-4 text-primary shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg> Client management, tracking &amp; async chat</p>
+            <p class="text-xs text-white/70 flex gap-2.5"><svg class="w-4 h-4 text-primary shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg> Full course community access</p>
+            <!-- Signature-exclusive features -->
+            <p class="text-[10px] font-medium tracking-widest uppercase text-white/30 mt-4 mb-1">Signature Tier</p>
+            <p class="text-xs text-white/70 flex gap-2.5"><svg class="w-4 h-4 text-primary shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg> <strong class="text-white">1-on-1 calls with Matthew (monthly)</strong></p>
+            <p class="text-xs text-white/70 flex gap-2.5"><svg class="w-4 h-4 text-primary shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg> <strong class="text-white">Weekly group case review sessions</strong></p>
+            <p class="text-xs text-white/70 flex gap-2.5"><svg class="w-4 h-4 text-primary shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg> <strong class="text-white">Enhanced AI Business Advisor</strong></p>
+            <p class="text-xs text-white/70 flex gap-2.5"><svg class="w-4 h-4 text-primary shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg> <strong class="text-white">Unlimited report credits</strong></p>
+            <p class="text-xs text-white/70 flex gap-2.5"><svg class="w-4 h-4 text-primary shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg> <strong class="text-white">Priority support + early access</strong></p>
           </div>
-          <p class="text-xs text-white/40 mt-1 transition-all duration-300" id="sig-installments">or 6 &times; £250
-            &nbsp;&middot;&nbsp; ~£125/mo effective</p>
+          <p class="mt-4 text-xs text-white/60 leading-relaxed">
+            Most Course graduates take weeks to find their rhythm. Signature members arrive with a personalised practice roadmap from day one — Matthew maps your niche, your first clients, and your growth milestones before the course begins.</p>
+          <p class="mt-2 text-xs text-white/60 leading-relaxed">
+            Every case you take on gets real feedback. Bring client files to your 1-on-1 or the weekly group review and walk away with refined protocols, not guesswork.</p>
+          <p class="mt-2 text-xs text-white/60 leading-relaxed">
+            No report caps means no awkward "sorry, I've hit my limit" conversations. Scale your client base as fast as your confidence grows.</p>
+          <p class="mt-2 text-[10px] text-white/40 leading-relaxed">
+            Founding Signature members lock in this rate for life — renewals stay at the same price even as the programme grows.</p>
+          <p class="mt-3 border-t border-white/10 pt-3 text-[10px] text-white/30 leading-relaxed">
+            <strong class="font-medium text-white/40">Value:</strong><br>
+            1st Cohort member → Signature + £4.16 per Report<br>
+            Standard member → Signature + £6.94 per Report</p>
 
-          <button onclick="checkout('signature')"
-            class="mt-8 w-full inline-flex items-center justify-center gap-2 rounded-[48px] bg-white text-dark text-sm font-medium px-5 py-3 hover:bg-white/90 transition-colors cursor-pointer">
-            Apply for Signature
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" /></svg>
-          </button>
-          <p class="mt-2 text-center text-xs text-white/40 hover:text-white/70 cursor-pointer transition-colors" onclick="checkout('signature_installment')">
-            or pay in 6 monthly instalments →</p>
-
-          <div class="mt-8 space-y-3 border-t border-white/10 pt-6 flex-1">
-            <p class="text-xs text-white/70 flex gap-2.5"><svg class="w-4 h-4 text-primary shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg> <strong class="text-white">Everything in the Course tier</strong></p>
-            <p class="text-xs text-white/70 flex gap-2.5"><svg class="w-4 h-4 text-primary shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg> 1 &times; 30-min 1-on-1 call with Matthew per month</p>
-            <p class="text-xs text-white/70 flex gap-2.5"><svg class="w-4 h-4 text-primary shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg> Weekly group case review sessions</p>
-            <p class="text-xs text-white/70 flex gap-2.5"><svg class="w-4 h-4 text-primary shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg> Enhanced AI Business Advisor</p>
-            <p class="text-xs text-white/70 flex gap-2.5"><svg class="w-4 h-4 text-primary shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg> Unlimited report credits</p>
-            <p class="text-xs text-white/70 flex gap-2.5"><svg class="w-4 h-4 text-primary shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg> Priority support + early access to new features</p>
+          <!-- Sticky footer strip -->
+          <div class="mt-auto border-t border-white/10 pt-6">
+            <button onclick="checkout('signature')"
+              class="w-full inline-flex items-center justify-center gap-2 rounded-[48px] bg-white text-dark text-sm font-semibold px-5 py-3 hover:bg-white/90 transition-colors cursor-pointer">
+              1st Cohort Member <span id="sig-price">£1,497</span>
+              <span class="font-normal text-xs opacity-70 ml-1">(seats limited)</span>
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" /></svg>
+            </button>
+            <p class="mt-3 text-xs text-white/30 flex items-center justify-center gap-2">
+              <span class="line-through" id="sig-price-founding">£1,747</span>
+              <span>Founding Member</span>
+            </p>
+            <p class="mt-1 text-xs text-white/30 flex items-center justify-center gap-2">
+              <span class="line-through" id="sig-price-standard">£2,497</span>
+              <span>Standard</span>
+            </p>
+            <p class="mt-3 text-center text-xs text-white/40 hover:text-white/70 cursor-pointer transition-colors"
+              onclick="checkout('signature_installment')">
+              or pay in 6 monthly instalments →</p>
+            <p class="mt-4 text-[10px] text-white/30 leading-relaxed transition-colors duration-300" id="sig-renewal">
+              30-day money-back guarantee &nbsp;&middot;&nbsp; Founding renewal: £79/mo (locked for life)</p>
           </div>
-          <p class="mt-6 text-[10px] text-white/30 leading-relaxed transition-colors duration-300" id="sig-renewal">
-            30-day money-back guarantee &nbsp;&middot;&nbsp; <strong class="text-white">Founding
-              renewal: £79/mo (locked for life)</strong></p>
         </div>
       </div>
 
@@ -725,7 +711,15 @@
           <h3 class="font-heading text-xl font-medium text-dark">Launchpad</h3>
           <p class="mt-2 text-xs text-body leading-relaxed">Just starting out? We built this for you.</p>
 
-          <div class="mt-4 flex items-baseline gap-2">
+          <div class="mt-4 space-y-2 flex-1">
+            <p class="text-xs text-body flex gap-2.5"><svg class="w-4 h-4 text-primary shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg> 3 report credits/mo</p>
+            <p class="text-xs text-body flex gap-2.5"><svg class="w-4 h-4 text-primary shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg> Mini course: "Your First 10 Longevity Clients"</p>
+            <p class="text-xs text-body flex gap-2.5"><svg class="w-4 h-4 text-primary shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg> AI Practice Growth Advisor</p>
+            <p class="text-xs text-body flex gap-2.5"><svg class="w-4 h-4 text-primary shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg> Basic AI Health Advisor</p>
+            <p class="text-xs text-body flex gap-2.5"><svg class="w-4 h-4 text-primary shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg> Community (view only)</p>
+          </div>
+
+          <div class="mt-4 border-t border-stroke pt-4 flex items-baseline gap-2">
             <span class="font-heading text-3xl font-semibold text-dark">Free</span>
           </div>
           <p class="text-xs text-muted mt-1" id="launchpad-after-trial">then £19/mo after 3 months</p>
@@ -735,14 +729,6 @@
             Start free
             <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" /></svg>
           </button>
-
-          <div class="mt-6 space-y-2 border-t border-stroke pt-4 flex-1">
-            <p class="text-xs text-body flex gap-2.5"><svg class="w-4 h-4 text-primary shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg> 3 report credits/mo</p>
-            <p class="text-xs text-body flex gap-2.5"><svg class="w-4 h-4 text-primary shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg> Mini course: "Your First 10 Longevity Clients"</p>
-            <p class="text-xs text-body flex gap-2.5"><svg class="w-4 h-4 text-primary shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg> AI Practice Growth Advisor</p>
-            <p class="text-xs text-body flex gap-2.5"><svg class="w-4 h-4 text-primary shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg> Basic AI Health Advisor</p>
-            <p class="text-xs text-body flex gap-2.5"><svg class="w-4 h-4 text-primary shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg> Community (view only)</p>
-          </div>
         </div>
 
         <!-- Minimum -->
@@ -751,7 +737,14 @@
           <h3 class="font-heading text-xl font-medium text-dark">Minimum</h3>
           <p class="mt-2 text-xs text-body leading-relaxed">Platform tools only. No course, no certificate, no community.</p>
 
-          <div class="mt-4 flex items-baseline gap-2">
+          <div class="mt-4 space-y-2 flex-1">
+            <p class="text-xs text-body flex gap-2.5"><svg class="w-4 h-4 text-primary shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg> 15 report credits/mo</p>
+            <p class="text-xs text-body flex gap-2.5"><svg class="w-4 h-4 text-primary shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg> Client management &amp; progress tracking</p>
+            <p class="text-xs text-body flex gap-2.5"><svg class="w-4 h-4 text-primary shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg> Async client chat</p>
+            <p class="text-xs text-body flex gap-2.5"><svg class="w-4 h-4 text-primary shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg> Full AI health chatbot suite</p>
+          </div>
+
+          <div class="mt-4 border-t border-stroke pt-4 flex items-baseline gap-2">
             <span class="font-heading text-3xl font-semibold text-dark" id="minimum-price">£99</span>
             <span class="text-sm text-muted">/mo</span>
           </div>
@@ -762,19 +755,12 @@
             Get Started
             <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" /></svg>
           </button>
-
-          <div class="mt-6 space-y-2 border-t border-stroke pt-4 flex-1">
-            <p class="text-xs text-body flex gap-2.5"><svg class="w-4 h-4 text-primary shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg> 15 report credits/mo</p>
-            <p class="text-xs text-body flex gap-2.5"><svg class="w-4 h-4 text-primary shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg> Client management &amp; progress tracking</p>
-            <p class="text-xs text-body flex gap-2.5"><svg class="w-4 h-4 text-primary shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg> Async client chat</p>
-            <p class="text-xs text-body flex gap-2.5"><svg class="w-4 h-4 text-primary shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg> Full AI health chatbot suite</p>
-          </div>
         </div>
       </div>
 
       <!-- Founding note -->
       <p class="reveal mt-10 text-center text-xs text-muted max-w-lg mx-auto leading-relaxed" id="founding-note">
-        Super Early and Founding Member pricing is
+        1st Cohort Member and Founding Member pricing is
         locked permanently — your rate never increases, even if you change tiers. Free iridology add-on included when it
         launches.</p>
 
@@ -899,7 +885,7 @@
               </tr>
             </tbody>
           </table>
-          <p class="px-4 py-3 text-[10px] text-muted">* Super Early / Founding member rates shown. Standard rates may differ.</p>
+          <p class="px-4 py-3 text-[10px] text-muted">* Standard rates shown.</p>
         </div>
       </div>
 
@@ -928,7 +914,9 @@
           consumer_annual: 'price_1T3944AARZOPki7nWYs5ZCeK',
         };
 
-        let currentPricingMode = 'super_early';
+        let currentPricingMode = 'standard';
+        const coursePricingMode = 'super_early';
+        const sigPricingMode = 'super_early';
         const stripe = Stripe('pk_live_51T0LeuAARZOPki7nuJiOtjwC48eWIrW05xzKMr666n52jjArjOOBG2NjnNOb3l6Yzay0TpOkIVFhT4EhA7ezGbwj00Nh2fcC4r');
 
         const INSTALLMENT_AMOUNTS = {
@@ -936,22 +924,22 @@
           signature: { super_early: 250, founding: 292, standard: 447 },
         };
 
-        async function checkout(tier) {
+        async function checkout(tier, overrideMode) {
           let priceId, mode, trialDays = 0, installments = 0, tierName = '', installmentAmount = 0, baseAmountGBP = 0, recurringInterval = 'month';
           if (tier === 'course_installment') {
-            priceId = PRICE_IDS.course['installment_' + currentPricingMode];
+            priceId = PRICE_IDS.course['installment_' + coursePricingMode];
             mode = 'subscription';
             installments = 3;
             tierName = 'Pro Practitioner Course';
-            installmentAmount = INSTALLMENT_AMOUNTS.course[currentPricingMode];
-            baseAmountGBP = PRICE_AMOUNTS_GBP.course_installment[currentPricingMode];
+            installmentAmount = INSTALLMENT_AMOUNTS.course[coursePricingMode];
+            baseAmountGBP = PRICE_AMOUNTS_GBP.course_installment[coursePricingMode];
           } else if (tier === 'signature_installment') {
-            priceId = PRICE_IDS.signature['installment_' + currentPricingMode];
+            priceId = PRICE_IDS.signature['installment_' + sigPricingMode];
             mode = 'subscription';
             installments = 6;
             tierName = 'HealthDataLab Signature';
-            installmentAmount = INSTALLMENT_AMOUNTS.signature[currentPricingMode];
-            baseAmountGBP = PRICE_AMOUNTS_GBP.signature_installment[currentPricingMode];
+            installmentAmount = INSTALLMENT_AMOUNTS.signature[sigPricingMode];
+            baseAmountGBP = PRICE_AMOUNTS_GBP.signature_installment[sigPricingMode];
           } else if (tier === 'launchpad') {
             priceId = PRICE_IDS.launchpad; mode = 'subscription'; trialDays = 90;
             baseAmountGBP = PRICE_AMOUNTS_GBP.launchpad;
@@ -966,8 +954,9 @@
             baseAmountGBP = PRICE_AMOUNTS_GBP.consumer_annual;
             recurringInterval = 'year';
           } else {
-            priceId = PRICE_IDS[tier][currentPricingMode]; mode = 'payment';
-            baseAmountGBP = PRICE_AMOUNTS_GBP[tier] ? (PRICE_AMOUNTS_GBP[tier][currentPricingMode] || 0) : 0;
+            const tierMode = overrideMode || (tier === 'course' ? coursePricingMode : (tier === 'signature' ? sigPricingMode : currentPricingMode));
+            priceId = PRICE_IDS[tier][tierMode]; mode = 'payment';
+            baseAmountGBP = PRICE_AMOUNTS_GBP[tier] ? (PRICE_AMOUNTS_GBP[tier][tierMode] || 0) : 0;
           }
           if (!priceId || priceId.startsWith('price_TODO')) {
             showToast('not-available');
@@ -1017,66 +1006,6 @@
           },
         };
 
-        function togglePricing(mode) {
-          currentPricingMode = mode;
-          const data = PRICING_DATA[mode];
-          const activeId = mode === 'super_early' ? 'btn-super-early' : mode === 'founding' ? 'btn-founding' : 'btn-standard';
-
-          // Update stacked pricing phase buttons
-          document.querySelectorAll('.pricing-phase-btn').forEach(btn => {
-            const isActive = btn.id === activeId;
-            const arrow = btn.querySelector('.phase-arrow');
-            const label = btn.querySelector('.phase-label');
-            const badge = btn.querySelector('.phase-badge');
-
-            if (isActive) {
-              btn.className = 'pricing-phase-btn w-full flex items-center gap-3 rounded-2xl bg-surface border-2 border-primary py-3 pl-4 pr-4 cursor-pointer transition-all duration-300 shadow-sm hover:shadow-md';
-              if (arrow) arrow.style.display = '';
-              if (label) { label.className = 'phase-label font-heading text-base font-semibold text-dark'; }
-              if (badge) badge.style.display = '';
-            } else {
-              btn.className = 'pricing-phase-btn w-full flex items-center gap-3 rounded-2xl bg-surface border border-stroke py-3 pl-11 pr-4 cursor-pointer transition-all duration-300 hover:border-primary/30';
-              if (arrow) arrow.style.display = 'none';
-              if (label) { label.className = 'phase-label font-heading text-sm font-medium text-muted'; }
-              if (badge) badge.style.display = 'none';
-            }
-          });
-
-          // Course prices
-          document.getElementById('course-price').textContent = data.course.price;
-          document.getElementById('course-old-price').style.opacity = data.course.old ? '1' : '0';
-          document.getElementById('course-badge').style.opacity = data.course.badge ? '1' : '0';
-          if (data.course.badge) document.getElementById('course-badge').textContent = data.course.badge;
-          document.getElementById('course-installments').textContent = data.course.installments;
-          document.getElementById('course-renewal').textContent = data.course.renewal;
-
-          // Signature prices
-          document.getElementById('sig-price').textContent = data.signature.price;
-          document.getElementById('sig-old-price').style.opacity = data.signature.old ? '1' : '0';
-          document.getElementById('sig-badge').style.opacity = data.signature.badge ? '1' : '0';
-          if (data.signature.badge) document.getElementById('sig-badge').textContent = data.signature.badge;
-          document.getElementById('sig-installments').textContent = data.signature.installments;
-          document.getElementById('sig-renewal').textContent = data.signature.renewal;
-
-          // Comparison table dynamic cells
-          const effCourse = document.getElementById('eff-course');
-          const effSig = document.getElementById('eff-sig');
-          const renewCourse = document.getElementById('renew-course');
-          const renewSig = document.getElementById('renew-sig');
-          if (effCourse) effCourse.textContent = data.effective.course;
-          if (effSig) effSig.textContent = data.effective.signature;
-          if (renewCourse) renewCourse.textContent = data.renewals.course;
-          if (renewSig) renewSig.textContent = data.renewals.signature;
-
-          // Founding note
-          document.getElementById('founding-note').style.opacity = mode === 'standard' ? '0' : '1';
-
-          // Show/hide seat counter based on mode
-          const seatCounter = document.getElementById('seat-counter');
-          if (seatCounter) {
-            seatCounter.style.display = mode === 'super_early' ? '' : 'none';
-          }
-        }
 
         // ---- Currency Conversion System ----
         const CURRENCY_SYMBOLS = { GBP: '£', USD: '$', EUR: '€', CHF: 'CHF ', CAD: 'C$', AUD: 'A$' };
@@ -1152,61 +1081,44 @@
 
           // Re-render current pricing mode with new currency
           const mode = currentPricingMode;
-          const data = PRICING_DATA[mode];
 
           // Course prices
-          const cp = PRICE_AMOUNTS_GBP.course[mode];
+          const cp = PRICE_AMOUNTS_GBP.course[coursePricingMode];
           const cpConverted = convertAmount(cp, currency);
           document.getElementById('course-price').textContent = formatPrice(cpConverted, currency);
 
-          // Course old price
-          const oldCourseEl = document.getElementById('course-old-price');
-          if (data.course.old && mode !== 'standard') {
-            const oldGBP = mode === 'super_early' || mode === 'founding' ? 99700 : 0;
-            oldCourseEl.textContent = formatPrice(convertAmount(oldGBP, currency), currency);
-            oldCourseEl.style.opacity = '1';
-          } else {
-            oldCourseEl.style.opacity = '0';
-          }
-
           // Signature prices
-          const sp = PRICE_AMOUNTS_GBP.signature[mode];
+          const sp = PRICE_AMOUNTS_GBP.signature[sigPricingMode];
           const spConverted = convertAmount(sp, currency);
           document.getElementById('sig-price').textContent = formatPrice(spConverted, currency);
 
-          // Sig old price
-          const oldSigEl = document.getElementById('sig-old-price');
-          if (data.signature.old && mode !== 'standard') {
-            const oldSigGBP = mode === 'super_early' || mode === 'founding' ? 249700 : 0;
-            oldSigEl.textContent = formatPrice(convertAmount(oldSigGBP, currency), currency);
-            oldSigEl.style.opacity = '1';
-          } else {
-            oldSigEl.style.opacity = '0';
-          }
+          // Founding & Standard display prices (Course)
+          const cfEl = document.getElementById('course-price-founding');
+          if (cfEl) cfEl.textContent = formatPrice(convertAmount(PRICE_AMOUNTS_GBP.course.founding, currency), currency);
+          const csEl = document.getElementById('course-price-standard');
+          if (csEl) csEl.textContent = formatPrice(convertAmount(PRICE_AMOUNTS_GBP.course.standard, currency), currency);
 
-          // Installment text
-          const ciAmt = PRICE_AMOUNTS_GBP.course_installment[mode];
-          const ciConverted = convertAmount(ciAmt, currency);
+          // Founding & Super Early display prices (Signature)
+          const sfEl = document.getElementById('sig-price-founding');
+          if (sfEl) sfEl.textContent = formatPrice(convertAmount(PRICE_AMOUNTS_GBP.signature.founding, currency), currency);
+
+          const sstEl = document.getElementById('sig-price-standard');
+          if (sstEl) sstEl.textContent = formatPrice(convertAmount(PRICE_AMOUNTS_GBP.signature.standard, currency), currency);
+
           const cEff = Math.round(cpConverted / 12);
-          document.getElementById('course-installments').textContent =
-            'or 3 \u00D7 ' + formatPrice(ciConverted, currency) + ' \u00A0\u00B7\u00A0 ~' + formatPrice(cEff, currency) + '/mo effective';
-
-          const siAmt = PRICE_AMOUNTS_GBP.signature_installment[mode];
-          const siConverted = convertAmount(siAmt, currency);
           const sEff = Math.round(spConverted / 12);
-          document.getElementById('sig-installments').textContent =
-            'or 6 \u00D7 ' + formatPrice(siConverted, currency) + ' \u00A0\u00B7\u00A0 ~' + formatPrice(sEff, currency) + '/mo effective';
 
           // Renewal text
-          const rcAmt = PRICE_AMOUNTS_GBP.renewal_course[mode];
-          const rsAmt = PRICE_AMOUNTS_GBP.renewal_signature[mode];
+          const rcAmt = PRICE_AMOUNTS_GBP.renewal_course[coursePricingMode];
+          const rsAmt = PRICE_AMOUNTS_GBP.renewal_signature[sigPricingMode];
           const rcConverted = convertAmount(rcAmt, currency);
           const rsConverted = convertAmount(rsAmt, currency);
-          const renewLabel = mode === 'standard' ? 'Renew at' : 'Founding renewal:';
+          const courseRenewLabel = coursePricingMode === 'standard' ? 'Renew at' : 'Founding renewal:';
           document.getElementById('course-renewal').textContent =
-            '30-day money-back guarantee \u00A0\u00B7\u00A0 ' + renewLabel + ' ' + formatPrice(rcConverted, currency) + '/mo' + (mode !== 'standard' ? ' (locked for life)' : ' after Year 1');
+            '30-day money-back guarantee \u00A0\u00B7\u00A0 ' + courseRenewLabel + ' ' + formatPrice(rcConverted, currency) + '/mo' + (coursePricingMode !== 'standard' ? ' (locked for life)' : ' after Year 1');
+          const sigRenewLabel = sigPricingMode === 'standard' ? 'Renew at' : 'Founding renewal:';
           document.getElementById('sig-renewal').textContent =
-            '30-day money-back guarantee \u00A0\u00B7\u00A0 ' + renewLabel + ' ' + formatPrice(rsConverted, currency) + '/mo' + (mode !== 'standard' ? ' (locked for life)' : ' after Year 1');
+            '30-day money-back guarantee \u00A0\u00B7\u00A0 ' + sigRenewLabel + ' ' + formatPrice(rsConverted, currency) + '/mo' + (sigPricingMode !== 'standard' ? ' (locked for life)' : ' after Year 1');
 
           // Comparison table
           const effCourse = document.getElementById('eff-course');
@@ -1239,14 +1151,6 @@
           if (renewMn) renewMn.textContent = formatPrice(mnConverted, currency) + '/mo';
         }
 
-        // Hook into togglePricing to also apply currency
-        const _origTogglePricing = togglePricing;
-        togglePricing = function(mode) {
-          _origTogglePricing(mode);
-          if (window.__selectedCurrency !== 'GBP') {
-            updateCurrencyDisplay(window.__selectedCurrency);
-          }
-        };
 
         // Fetch rates on load
         fetchExchangeRates();
