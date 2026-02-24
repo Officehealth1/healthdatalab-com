@@ -22,7 +22,7 @@ exports.handler = async (event) => {
     }
 
     try {
-        const { priceId, mode, successUrl, cancelUrl, trialDays, installments, tierName, installmentAmount, currency, baseAmountGBP, recurringInterval, tier } = JSON.parse(event.body);
+        const { priceId, mode, successUrl, cancelUrl, trialDays, installments, tierName, installmentAmount, currency, baseAmountGBP, recurringInterval, tier, practitionerPreference } = JSON.parse(event.body);
 
         if (!priceId) {
             return { statusCode: 400, body: 'Missing priceId' };
@@ -74,6 +74,14 @@ exports.handler = async (event) => {
                 cancel_url: cancelUrl,
                 automatic_tax: { enabled: true },
                 allow_promotion_codes: true,
+            };
+        }
+
+        // Session-level metadata for consumer provisioning
+        if (tier) {
+            sessionParams.metadata = {
+                tier: tier,
+                practitioner_preference: practitionerPreference || 'no',
             };
         }
 

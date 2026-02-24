@@ -112,6 +112,38 @@ exports.handler = async (event) => {
             } catch (err) {
                 console.error('Error sending office notification:', err.message);
             }
+
+            // WordPress user provisioning for consumer tiers
+            if (session.metadata) {
+                const tier = session.metadata.tier || '';
+                const practPref = session.metadata.practitioner_preference || 'no';
+
+                if (tier === 'consumer_single' || tier === 'consumer_annual') {
+                    try {
+                        const wpRes = await fetch(`${process.env.WP_SITE_URL}/wp-json/hdl/v1/consumer-provision`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'X-HDL-Provision-Key': process.env.WP_CONSUMER_PROVISION_KEY,
+                            },
+                            body: JSON.stringify({
+                                email: customerEmail,
+                                name: session.customer_details?.name || '',
+                                tier,
+                                practitioner_preference: practPref,
+                                stripe_session_id: session.id,
+                                amount_total: amountTotal,
+                                currency,
+                            }),
+                        });
+                        const wpData = await wpRes.json();
+                        console.log(`WordPress provisioning: ${wpRes.status}`, wpData);
+                    } catch (err) {
+                        console.error('WordPress provisioning error:', err.message);
+                        // Non-fatal: emails already sent, can provision manually
+                    }
+                }
+            }
         }
     }
 
