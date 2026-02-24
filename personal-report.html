@@ -187,8 +187,45 @@
 
       <!-- Success message -->
       <div id="success-message" class="hidden mt-8 max-w-2xl mx-auto">
-        <div class="bg-primary/10 border border-primary/30 rounded-[32px] p-6 text-center">
-          <p class="text-primary font-medium">Thank you for your purchase! Check your email for next steps.</p>
+        <div class="bg-surface border border-stroke/50 rounded-[32px] p-8 md:p-10">
+          <div class="text-center mb-8">
+            <div class="mx-auto w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center mb-4">
+              <svg class="w-7 h-7 text-primary" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5"/>
+              </svg>
+            </div>
+            <h3 class="font-heading text-xl font-semibold text-dark">Purchase complete</h3>
+          </div>
+          <div class="flex flex-col gap-5">
+            <div class="flex items-start gap-4">
+              <div class="flex-shrink-0 w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
+                <span class="text-sm font-semibold text-primary">1</span>
+              </div>
+              <div>
+                <p class="text-sm font-medium text-dark">Check your email</p>
+                <p class="text-sm text-body mt-0.5">We've sent a welcome email with your login link.</p>
+              </div>
+            </div>
+            <div class="flex items-start gap-4">
+              <div class="flex-shrink-0 w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
+                <span class="text-sm font-semibold text-primary">2</span>
+              </div>
+              <div>
+                <p class="text-sm font-medium text-dark">Log in with one click</p>
+                <p class="text-sm text-body mt-0.5">Click the button in the email to access your account instantly.</p>
+              </div>
+            </div>
+            <div class="flex items-start gap-4">
+              <div class="flex-shrink-0 w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
+                <span class="text-sm font-semibold text-primary">3</span>
+              </div>
+              <div>
+                <p class="text-sm font-medium text-dark">Complete your assessment</p>
+                <p class="text-sm text-body mt-0.5">Fill in the longevity questionnaire and get your personalised report.</p>
+              </div>
+            </div>
+          </div>
+          <p class="mt-6 text-center text-xs text-muted">Didn't receive the email? Check your spam folder or <button onclick="openContactModal()" class="text-primary hover:text-primary-dark transition-colors cursor-pointer">contact us</button>.</p>
         </div>
       </div>
     </div>
@@ -413,7 +450,6 @@
     // Check for success parameter
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('success') === 'true') {
-      // Remove ?success=true from URL so banner won't reappear on refresh
       const cleanUrl = window.location.origin + window.location.pathname;
       window.history.replaceState({}, '', cleanUrl);
 
@@ -422,22 +458,6 @@
       setTimeout(() => {
         successMsg.scrollIntoView({ behavior: 'smooth', block: 'center' });
       }, 300);
-
-      // Auto-hide after 10 seconds
-      const hideSuccess = () => {
-        successMsg.style.transition = 'opacity 0.5s ease';
-        successMsg.style.opacity = '0';
-        setTimeout(() => { successMsg.classList.add('hidden'); successMsg.style.opacity = ''; }, 500);
-        window.removeEventListener('scroll', onScrollHide);
-      };
-      const autoHideTimer = setTimeout(hideSuccess, 10000);
-
-      // Hide on scroll
-      const onScrollHide = () => {
-        clearTimeout(autoHideTimer);
-        hideSuccess();
-      };
-      window.addEventListener('scroll', onScrollHide, { once: true });
     }
 
     // Stripe checkout
