@@ -144,6 +144,7 @@ exports.handler = async (event) => {
                                     'Content-Type': 'application/json',
                                     'X-HDL-Provision-Key': process.env.WP_CONSUMER_PROVISION_KEY,
                                     'Content-Length': Buffer.byteLength(postData),
+                                    'User-Agent': 'HealthDataLab-Webhook/1.0',
                                 },
                             }, (res) => {
                                 let body = '';
