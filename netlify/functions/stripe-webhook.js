@@ -188,41 +188,177 @@ exports.handler = async (event) => {
         }
     }
 
-    // Handle invoice.paid events for installment auto-cancellation
+    // Handle invoice.paid — installment auto-cancellation + annual renewal
     if (stripeEvent.type === 'invoice.paid') {
         const invoice = stripeEvent.data.object;
         const subscriptionId = invoice.subscription;
 
-        if (!subscriptionId) {
-            return { statusCode: 200, body: 'No subscription on invoice' };
+        if (subscriptionId) {
+            try {
+                const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+
+                // --- Installment auto-cancellation (existing logic) ---
+                const maxInstallments = parseInt(subscription.metadata.installments, 10);
+                if (maxInstallments && !isNaN(maxInstallments)) {
+                    const invoices = await stripe.invoices.list({
+                        subscription: subscriptionId, status: 'paid', limit: 100,
+                    });
+                    const paidCount = invoices.data.filter(inv => inv.amount_paid > 0).length;
+                    console.log(`Subscription ${subscriptionId}: ${paidCount}/${maxInstallments} payments made`);
+                    if (paidCount >= maxInstallments) {
+                        console.log(`Cancelling subscription ${subscriptionId} after ${paidCount} payments`);
+                        await stripe.subscriptions.cancel(subscriptionId);
+                    }
+                }
+
+                // --- Annual Pass renewal ---
+                const tier = subscription.metadata.tier || '';
+                if (tier === 'consumer_annual' && invoice.billing_reason === 'subscription_cycle') {
+                    const customer = await stripe.customers.retrieve(subscription.customer);
+                    const customerEmail = customer.email;
+                    const customerName = customer.name || '';
+                    const practPref = subscription.metadata.practitioner_preference || 'no';
+
+                    console.log(`Annual renewal for ${customerEmail} (tier: ${tier}, practitioner: ${practPref})`);
+
+                    // POST to WordPress renewal endpoint
+                    const postData = JSON.stringify({
+                        email: customerEmail,
+                        name: customerName,
+                        tier: tier,
+                        practitioner_preference: practPref,
+                        stripe_invoice_id: invoice.id,
+                        stripe_subscription_id: subscriptionId,
+                    });
+
+                    try {
+                        const wpResult = await new Promise((resolve, reject) => {
+                            const wpUrl = new URL(`${process.env.WP_SITE_URL}/wp-json/hdl/v1/annual-renewal`);
+                            const req = https.request({
+                                hostname: wpUrl.hostname,
+                                path: wpUrl.pathname,
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                    'X-HDL-Provision-Key': process.env.WP_CONSUMER_PROVISION_KEY,
+                                    'Content-Length': Buffer.byteLength(postData),
+                                    'User-Agent': 'HealthDataLab-Webhook/1.0',
+                                },
+                            }, (res) => {
+                                let body = '';
+                                res.on('data', (chunk) => { body += chunk; });
+                                res.on('end', () => {
+                                    resolve({ status: res.statusCode, body });
+                                });
+                            });
+                            req.on('error', reject);
+                            req.setTimeout(15000, () => {
+                                req.destroy(new Error('Request timed out after 15s'));
+                            });
+                            req.write(postData);
+                            req.end();
+                        });
+                        console.log(`WordPress annual renewal: ${wpResult.status}`, wpResult.body);
+                    } catch (err) {
+                        console.error('WordPress annual renewal error:', err.message);
+                        // Alert office for manual processing
+                        try {
+                            await transporter.sendMail({
+                                from: '"HealthDataLab" <office@healthdatalab.com>',
+                                to: 'office@healthdatalab.com',
+                                subject: `[ALERT] Annual renewal failed — ${customerEmail}`,
+                                html: `<p>Annual renewal credit grant failed for <strong>${customerEmail}</strong></p>
+<p>Error: ${err.message}</p>
+<p>Invoice: ${invoice.id}</p>
+<p>Subscription: ${subscriptionId}</p>
+<p>Please grant renewal credits manually.</p>`,
+                            });
+                        } catch (mailErr) {
+                            console.error('Failed to send renewal alert:', mailErr.message);
+                        }
+                    }
+
+                    // Send renewal confirmation email to customer
+                    if (customerEmail) {
+                        try {
+                            const amountFormatted = invoice.amount_paid
+                                ? `${(invoice.currency || 'gbp').toUpperCase() === 'GBP' ? '£' : (invoice.currency || 'gbp').toUpperCase() + ' '}${(invoice.amount_paid / 100).toFixed(2)}`
+                                : '';
+                            await transporter.sendMail({
+                                from: '"HealthDataLab" <office@healthdatalab.com>',
+                                to: customerEmail,
+                                subject: 'Your Annual Pass has renewed — new credits added',
+                                html: `
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"></head>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; color: #1a1a2e; max-width: 600px; margin: 0 auto; padding: 20px;">
+  <div style="text-align: center; margin-bottom: 32px;">
+    <h1 style="font-size: 24px; font-weight: 700; color: #1a1a2e; margin: 0;">HealthDataLab</h1>
+  </div>
+  <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 16px; padding: 24px; text-align: center; margin-bottom: 24px;">
+    <p style="font-size: 18px; font-weight: 600; color: #166534; margin: 0;">Your Annual Pass Has Renewed</p>
+  </div>
+  <p style="color: #374151; line-height: 1.6;">Your annual subscription has been renewed${amountFormatted ? ' (' + amountFormatted + ')' : ''} and fresh credits have been added to your account.</p>
+  <p style="color: #374151; line-height: 1.6;">If you have any questions, reply to this email or contact us at <a href="mailto:office@healthdatalab.com" style="color: #10b981;">office@healthdatalab.com</a>.</p>
+  <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 32px 0;">
+  <p style="font-size: 12px; color: #9ca3af; text-align: center;">HealthDataLab &mdash; Data-driven health insights for practitioners and individuals.</p>
+</body>
+</html>`,
+                            });
+                            console.log(`Renewal confirmation email sent to ${customerEmail}`);
+                        } catch (err) {
+                            console.error('Error sending renewal confirmation email:', err.message);
+                        }
+                    }
+
+                    // Notify office of renewal
+                    try {
+                        await transporter.sendMail({
+                            from: '"HealthDataLab" <office@healthdatalab.com>',
+                            to: 'office@healthdatalab.com',
+                            subject: `[Renewal] Annual Pass — ${customerEmail}`,
+                            html: `<h3>Annual Pass Renewed</h3>
+<p><strong>Customer:</strong> ${customerEmail}</p>
+<p><strong>Name:</strong> ${customerName}</p>
+<p><strong>Invoice:</strong> ${invoice.id}</p>
+<p><strong>Subscription:</strong> ${subscriptionId}</p>`,
+                        });
+                    } catch (err) {
+                        console.error('Error sending office renewal notification:', err.message);
+                    }
+                }
+            } catch (err) {
+                console.error('Error processing invoice.paid:', err.message);
+            }
         }
+    }
 
-        try {
-            const subscription = await stripe.subscriptions.retrieve(subscriptionId);
-            const maxInstallments = parseInt(subscription.metadata.installments, 10);
+    // Handle subscription cancellation
+    if (stripeEvent.type === 'customer.subscription.deleted') {
+        const subscription = stripeEvent.data.object;
+        const tier = subscription.metadata.tier || '';
 
-            // Only process subscriptions that have an installments limit
-            if (!maxInstallments || isNaN(maxInstallments)) {
-                return { statusCode: 200, body: 'Not an installment subscription' };
+        if (tier === 'consumer_annual') {
+            try {
+                const customer = await stripe.customers.retrieve(subscription.customer);
+                const customerEmail = customer.email || 'unknown';
+                console.log(`Annual subscription cancelled for ${customerEmail} (${subscription.id})`);
+
+                // Notify office — credits NOT revoked per policy
+                await transporter.sendMail({
+                    from: '"HealthDataLab" <office@healthdatalab.com>',
+                    to: 'office@healthdatalab.com',
+                    subject: `[Cancellation] Annual Pass — ${customerEmail}`,
+                    html: `<h3>Annual Pass Cancelled</h3>
+<p><strong>Customer:</strong> ${customerEmail}</p>
+<p><strong>Subscription:</strong> ${subscription.id}</p>
+<p><strong>Status:</strong> Cancelled (credits retained until billing period ends)</p>`,
+                });
+                console.log('Office cancellation notification sent');
+            } catch (err) {
+                console.error('Error handling subscription cancellation:', err.message);
             }
-
-            // Count paid invoices for this subscription (excluding $0 trial invoices)
-            const invoices = await stripe.invoices.list({
-                subscription: subscriptionId,
-                status: 'paid',
-                limit: 100,
-            });
-            const paidCount = invoices.data.filter(inv => inv.amount_paid > 0).length;
-
-            console.log(`Subscription ${subscriptionId}: ${paidCount}/${maxInstallments} payments made`);
-
-            if (paidCount >= maxInstallments) {
-                console.log(`Cancelling subscription ${subscriptionId} after ${paidCount} payments`);
-                await stripe.subscriptions.cancel(subscriptionId);
-            }
-        } catch (err) {
-            console.error('Error processing installment check:', err.message);
-            return { statusCode: 500, body: `Error: ${err.message}` };
         }
     }
 

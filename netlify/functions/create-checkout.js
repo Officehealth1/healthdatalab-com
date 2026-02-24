@@ -125,6 +125,18 @@ exports.handler = async (event) => {
             };
         }
 
+        // Ensure subscription metadata carries tier info for renewal webhooks
+        if (tier && mode === 'subscription') {
+            sessionParams.subscription_data = {
+                ...(sessionParams.subscription_data || {}),
+                metadata: {
+                    ...(sessionParams.subscription_data?.metadata || {}),
+                    tier: tier,
+                    practitioner_preference: practitionerPreference || 'no',
+                },
+            };
+        }
+
         const session = await stripe.checkout.sessions.create(sessionParams);
 
         return {
