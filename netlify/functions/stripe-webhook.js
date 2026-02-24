@@ -1,5 +1,6 @@
 const stripe = require('stripe')(process.env.STRIPE_SK);
 const nodemailer = require('nodemailer');
+const https = require('https');
 
 const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET;
 
@@ -114,35 +115,74 @@ exports.handler = async (event) => {
             }
 
             // WordPress user provisioning for consumer tiers
+            console.log('Checking session metadata for provisioning:', JSON.stringify(session.metadata));
+
             if (session.metadata) {
                 const tier = session.metadata.tier || '';
                 const practPref = session.metadata.practitioner_preference || 'no';
+                console.log(`Tier: "${tier}", Practitioner preference: "${practPref}"`);
 
                 if (tier === 'consumer_single' || tier === 'consumer_annual') {
+                    const postData = JSON.stringify({
+                        email: customerEmail,
+                        name: session.customer_details?.name || '',
+                        tier,
+                        practitioner_preference: practPref,
+                        stripe_session_id: session.id,
+                        amount_total: amountTotal,
+                        currency,
+                    });
+
                     try {
-                        const wpRes = await fetch(`${process.env.WP_SITE_URL}/wp-json/hdl/v1/consumer-provision`, {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json',
-                                'X-HDL-Provision-Key': process.env.WP_CONSUMER_PROVISION_KEY,
-                            },
-                            body: JSON.stringify({
-                                email: customerEmail,
-                                name: session.customer_details?.name || '',
-                                tier,
-                                practitioner_preference: practPref,
-                                stripe_session_id: session.id,
-                                amount_total: amountTotal,
-                                currency,
-                            }),
+                        const wpResult = await new Promise((resolve, reject) => {
+                            const wpUrl = new URL(`${process.env.WP_SITE_URL}/wp-json/hdl/v1/consumer-provision`);
+                            const req = https.request({
+                                hostname: wpUrl.hostname,
+                                path: wpUrl.pathname,
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                    'X-HDL-Provision-Key': process.env.WP_CONSUMER_PROVISION_KEY,
+                                    'Content-Length': Buffer.byteLength(postData),
+                                },
+                            }, (res) => {
+                                let body = '';
+                                res.on('data', (chunk) => { body += chunk; });
+                                res.on('end', () => {
+                                    resolve({ status: res.statusCode, body });
+                                });
+                            });
+                            req.on('error', reject);
+                            req.setTimeout(15000, () => {
+                                req.destroy(new Error('Request timed out after 15s'));
+                            });
+                            req.write(postData);
+                            req.end();
                         });
-                        const wpData = await wpRes.json();
-                        console.log(`WordPress provisioning: ${wpRes.status}`, wpData);
+                        console.log(`WordPress provisioning: ${wpResult.status}`, wpResult.body);
                     } catch (err) {
                         console.error('WordPress provisioning error:', err.message);
-                        // Non-fatal: emails already sent, can provision manually
+                        // Send failure notification to office
+                        try {
+                            await transporter.sendMail({
+                                from: '"HealthDataLab" <office@healthdatalab.com>',
+                                to: 'office@healthdatalab.com',
+                                subject: `[ALERT] Consumer provisioning failed — ${customerEmail}`,
+                                html: `<p>Provisioning failed for <strong>${customerEmail}</strong></p>
+<p>Error: ${err.message}</p>
+<p>Session: ${session.id}</p>
+<p>Tier: ${tier}</p>
+<p>Please provision this user manually.</p>`,
+                            });
+                        } catch (mailErr) {
+                            console.error('Failed to send provisioning alert:', mailErr.message);
+                        }
                     }
+                } else {
+                    console.log(`Skipping provisioning — tier "${tier}" is not a consumer tier`);
                 }
+            } else {
+                console.log('No metadata on session — skipping provisioning');
             }
         }
     }
