@@ -24,6 +24,21 @@
     rel="stylesheet">
   <script src="https://js.stripe.com/v3/"></script>
   <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+  <style id="currency-cloak">
+    [data-price], #currency-selector, #currency-disclaimer {
+      visibility: hidden;
+    }
+  </style>
+  <script>
+  (function(){
+    var S={GBP:1,USD:1,EUR:1,CHF:1,CAD:1,AUD:1};
+    var m; try{m=localStorage.getItem('hdl_currency')}catch(e){}
+    if(m&&S[m]){window.__targetCurrency=m;window.__currencySource='manual';return}
+    var c=(document.cookie.match(/hdl_geo_currency=([A-Z]{3})/)||[])[1];
+    if(c&&S[c]){window.__targetCurrency=c;window.__currencySource='geo';return}
+    window.__targetCurrency='GBP';window.__currencySource='default';
+  })();
+  </script>
   <style type="text/tailwindcss">
     @theme {
       --font-heading: 'Poppins', system-ui, sans-serif;
@@ -54,7 +69,7 @@
           <a href="/" class="text-sm text-body hover:text-dark transition-colors">For Practitioners</a>
           <a href="/#how-it-works" class="text-sm text-body hover:text-dark transition-colors">How It Works</a>
           <a href="/personal-report.html" class="text-sm text-dark font-medium transition-colors">For Individuals</a>
-          <a href="/#founder-access" class="text-sm text-body hover:text-dark transition-colors">Early Access</a>
+          <a href="/#founder-access" class="text-sm text-body hover:text-dark transition-colors">Pricing</a>
           <button onclick="openContactModal()" class="text-sm text-body hover:text-dark transition-colors cursor-pointer">Contact</button>
           <a href="/#founder-access"
             class="inline-flex items-center rounded-[48px] bg-dark text-white text-sm font-medium px-5 py-2.5 hover:bg-dark-2 transition-colors">
@@ -83,7 +98,7 @@
           <a href="/personal-report.html" class="nav-link block py-2.5 text-dark font-medium text-sm transition-colors">For
             Individuals</a>
           <a href="/#founder-access"
-            class="nav-link block py-2.5 text-body hover:text-dark text-sm transition-colors">Early Access</a>
+            class="nav-link block py-2.5 text-body hover:text-dark text-sm transition-colors">Pricing</a>
           <button onclick="openContactModal()" class="nav-link block py-2.5 text-body hover:text-dark text-sm transition-colors text-left cursor-pointer">Contact</button>
           <a href="/#founder-access"
             class="nav-link mt-2 flex items-center justify-center rounded-[48px] bg-dark text-white text-sm font-medium px-5 py-3 hover:bg-dark-2 transition-colors">Get
@@ -140,7 +155,7 @@
             </div>
             <div class="mt-6">
               <div class="flex items-baseline gap-1">
-                <span id="single-price" class="font-heading text-4xl font-bold text-dark">£9.99</span>
+                <span id="single-price" class="font-heading text-4xl font-bold text-dark" data-price>£9.99</span>
               </div>
               <p class="mt-2 text-xs text-muted">One-time payment</p>
             </div>
@@ -165,10 +180,10 @@
             </div>
             <div class="mt-6">
               <div class="flex items-baseline gap-1">
-                <span id="annual-price" class="font-heading text-4xl font-bold text-dark">£19.99</span>
+                <span id="annual-price" class="font-heading text-4xl font-bold text-dark" data-price>£19.99</span>
                 <span class="text-muted">/year</span>
               </div>
-              <p id="annual-per-report" class="mt-2 text-xs text-primary font-medium">Just £5.00 per report</p>
+              <p id="annual-per-report" class="mt-2 text-xs text-primary font-medium" data-price>Just £5.00 per report</p>
             </div>
             <div class="mt-8 flex-1 flex flex-col justify-end">
               <button onclick="checkout('consumer_annual')"
@@ -485,9 +500,9 @@
       return Math.round(gbpPence * window.__exchangeRates[currency]);
     }
 
-    function updateCurrencyDisplay(currency) {
+    function updateCurrencyDisplay(currency, persist) {
       window.__selectedCurrency = currency;
-      localStorage.setItem('hdl_currency', currency);
+      if (persist !== false) localStorage.setItem('hdl_currency', currency);
       const disclaimer = document.getElementById('currency-disclaimer');
       if (currency === 'GBP') {
         disclaimer.classList.add('hidden');
@@ -503,23 +518,33 @@
       document.getElementById('annual-per-report').textContent = 'Just ' + formatPrice(perReport, currency) + ' per report';
     }
 
+    function revealPrices() {
+      var el = document.getElementById('currency-cloak');
+      if (el) el.remove();
+    }
+
     (async function() {
       try {
         const res = await fetch('https://api.frankfurter.app/latest?from=GBP&to=USD,EUR,CHF,CAD,AUD');
         if (!res.ok) throw new Error();
         const data = await res.json();
         window.__exchangeRates = data.rates;
-        const saved = localStorage.getItem('hdl_currency');
-        if (saved && CURRENCY_SYMBOLS[saved] && saved !== 'GBP') {
-          document.getElementById('currency-select').value = saved;
-          updateCurrencyDisplay(saved);
+        if (!['USD','EUR','CHF','CAD','AUD'].every(c => data.rates[c])) throw new Error('Incomplete');
+
+        var target = window.__targetCurrency || 'GBP';
+        document.getElementById('currency-select').value = target;
+        if (target !== 'GBP') {
+          updateCurrencyDisplay(target, window.__currencySource !== 'geo');
         }
       } catch (e) {
         Array.from(document.getElementById('currency-select').options).forEach(opt => {
           if (opt.value !== 'GBP') opt.disabled = true;
         });
+      } finally {
+        revealPrices();
       }
     })();
+    setTimeout(revealPrices, 3000);
 
     let _pendingCheckoutTier = null;
 
