@@ -30,3 +30,19 @@
   from = "/terms"
   to = "/terms.html"
   status = 200
+
+[[edge_functions]]
+  function = "geo-currency"
+  path = "/"
+
+[[edge_functions]]
+  function = "geo-currency"
+  path = "/index.html"
+
+[[edge_functions]]
+  function = "geo-currency"
+  path = "/personal-report"
+
+[[edge_functions]]
+  function = "geo-currency"
+  path = "/personal-report.html"

@@ -87,6 +87,31 @@ body {
 }
 
 /* ------------------------------------------------
+   Hero gradient orb (GSAP-managed)
+   ------------------------------------------------ */
+.hero-orb {
+  position: absolute;
+  top: -20%;
+  right: -10%;
+  width: 60vw;
+  height: 60vw;
+  max-width: 800px;
+  max-height: 800px;
+  background: radial-gradient(circle, rgba(61,141,160,0.12) 0%, rgba(61,141,160,0.04) 40%, transparent 70%);
+  border-radius: 50%;
+  filter: blur(60px);
+  pointer-events: none;
+  z-index: 0;
+  will-change: transform;
+}
+
+/* ------------------------------------------------
+   How It Works connector line
+   ------------------------------------------------ */
+.hiw-connector { z-index: 0; }
+[data-hiw-step] { position: relative; z-index: 1; }
+
+/* ------------------------------------------------
    Counter animation (index.html)
    ------------------------------------------------ */
 .counter {
@@ -128,4 +153,17 @@ body {
     opacity: 1;
     transform: none;
   }
+
+  /* GSAP-managed elements — show immediately */
+  [data-hero-el],
+  [data-stat-section],
+  [data-counter],
+  [data-stat-body],
+  [data-hiw-step],
+  [data-hiw-report] {
+    opacity: 1 !important;
+    transform: none !important;
+  }
+
+  .hero-orb { display: none; }
 }

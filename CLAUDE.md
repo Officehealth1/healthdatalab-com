@@ -71,10 +71,12 @@ Automated flow: altituding.com/report form → Netlify brevo-submit → WordPres
 | `6c4f2cff09d0b93b0395ea6cea70795c` | `class-health-tracker-practitioner.php` |
 | `8410d9d43252ac8a66d2b25480a80025` | `class-user-management.php` |
 | `3958fea30c77faa40f071e7162a8eaa2` | `class-client-linker.php` |
+| `d8dc28ca026e4e5de3a4574d13be5e2c` | `health-form-raw.php` |
 
 ## Change Log
 | Date | Change | Files |
 |------|--------|-------|
+| 2026-02-26 | Fix invited-client form UX: hide Skip button and "(optional)" label on locked practitioner email field; fix "Nov 30, -0001" date bug with defensive `strtotime() > 0` guard | `health-form-raw.php`, `class-health-tracker-practitioner.php` |
 | 2026-02-26 | Soft-delete relationship fixes: `validate_client_access()` security gap, re-invite/auto-link restoration of soft-deleted rows, stale `hdl_invited_by_practitioner` meta cleanup on removal, backfill filter | `class-health-tracker-practitioner.php`, `class-client-linker.php` |
 | 2026-02-25 | Admin "Signup Source" column: tracks `hdl_source` on all creation paths, color-coded labels, inference fallback for existing users | `class-consumer-provisioner.php`, `class-health-tracker-practitioner.php`, `class-user-management.php` |
 | 2026-02-25 | Magic link security: one-time use enforcement, rate limiting, session cookies, expired status check | `class-health-tracker-practitioner.php`, `class-consumer-provisioner.php` |

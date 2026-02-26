@@ -2,6 +2,14 @@
 <html lang="en">
 
 <head>
+  <!-- Google tag (gtag.js) -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-G3ENNWVVWY"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    gtag('config', 'G-G3ENNWVVWY');
+  </script>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>HealthDataLab — Know your client before they walk through the door</title>
@@ -26,6 +34,22 @@
     rel="stylesheet">
   <script src="https://js.stripe.com/v3/"></script>
   <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+  <style id="currency-cloak">
+    [data-price], #currency-selector, #currency-disclaimer,
+    #course-renewal, #sig-renewal, #launchpad-after-trial, #founding-note {
+      visibility: hidden;
+    }
+  </style>
+  <script>
+  (function(){
+    var S={GBP:1,USD:1,EUR:1,CHF:1,CAD:1,AUD:1};
+    var m; try{m=localStorage.getItem('hdl_currency')}catch(e){}
+    if(m&&S[m]){window.__targetCurrency=m;window.__currencySource='manual';return}
+    var c=(document.cookie.match(/hdl_geo_currency=([A-Z]{3})/)||[])[1];
+    if(c&&S[c]){window.__targetCurrency=c;window.__currencySource='geo';return}
+    window.__targetCurrency='GBP';window.__currencySource='default';
+  })();
+  </script>
   <style type="text/tailwindcss">
     @theme {
       --font-heading: 'Poppins', system-ui, sans-serif;
@@ -151,21 +175,22 @@
     </div>
   </div>
 
-  <section class="bg-gradient-to-b from-surface to-light overflow-hidden">
-    <div class="max-w-[1280px] mx-auto px-5 md:px-[52px] pt-36 pb-24 md:pt-44 md:pb-36">
+  <section class="relative bg-gradient-to-b from-surface to-light overflow-hidden" data-hero>
+    <div class="hero-orb" aria-hidden="true"></div>
+    <div class="relative z-10 max-w-[1280px] mx-auto px-5 md:px-[52px] pt-36 pb-24 md:pt-44 md:pb-36">
       <div class="grid md:grid-cols-2 gap-12 items-center">
         <!-- Left: Text -->
         <div>
-          <p class="hero-enter hero-enter-1 text-sm text-primary font-medium mb-6">
+          <p class="hero-enter hero-enter-1 text-sm text-primary font-medium mb-6" data-hero-el="subtitle">
             For naturopaths, herbalists, nutritionists &amp; holistic practitioners
           </p>
-          <h1 class="hero-enter hero-enter-2 font-heading text-[clamp(2rem,5vw,3rem)] font-medium text-dark leading-[1.16] tracking-[-0.03em]">
+          <h1 class="hero-enter hero-enter-2 font-heading text-[clamp(2rem,5vw,3rem)] font-medium text-dark leading-[1.16] tracking-[-0.03em]" data-hero-el="heading">
             Know your client before they walk through the door
           </h1>
-          <p class="hero-enter hero-enter-3 mt-6 text-lg text-body max-w-xl leading-relaxed">
+          <p class="hero-enter hero-enter-3 mt-6 text-lg text-body max-w-xl leading-relaxed" data-hero-el="body">
             Invite your client to complete a quick health form before their appointment. Receive a visual longevity report with key areas to explore&nbsp;&mdash; so you can research their specific imbalances, prepare with confidence, and deepen the consultation from minute one.
           </p>
-          <div class="hero-enter hero-enter-4 mt-10 flex flex-col sm:flex-row items-start gap-3">
+          <div class="hero-enter hero-enter-4 mt-10 flex flex-col sm:flex-row items-start gap-3" data-hero-el="cta">
             <a href="#sample-report"
               class="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-[48px] bg-primary text-white text-base font-medium px-8 py-3.5 hover:bg-primary-dark transition-colors shadow-[0_4px_20px_rgba(61,141,160,.25)]">
               See the Sample Report
@@ -181,7 +206,7 @@
         <div class="hero-enter hero-enter-3 flex justify-center">
           <img src="assets/images/health-metrics-dashboard.png"
             alt="Aging rate gauge showing 0.89 biological-to-chronological age ratio with BMI and WHR health indicators"
-            class="w-full max-w-xl rounded-2xl shadow-[0_20px_50px_-12px_rgba(0,0,0,0.12)] transition-all duration-300 ease-out hover:-translate-y-2 hover:shadow-[0_30px_60px_-15px_rgba(0,0,0,0.2)]">
+            class="w-full max-w-xl rounded-2xl shadow-[0_24px_60px_-12px_rgba(0,0,0,0.16)] transition-all duration-300 ease-out hover:-translate-y-2 hover:shadow-[0_30px_60px_-15px_rgba(0,0,0,0.2)]">
         </div>
       </div>
     </div>
@@ -196,10 +221,11 @@
          and add: filter: saturate(0.7) brightness(1.05) to the image
          with a bg-white/30 overlay div for the washed-out editorial look -->
     <div class="max-w-[1280px] mx-auto px-5 md:px-[52px] py-24 md:py-32">
-      <div class="reveal text-center max-w-3xl mx-auto">
+      <div class="reveal text-center max-w-3xl mx-auto" data-stat-section>
         <h2 class="font-heading text-[clamp(1.75rem,3.5vw,2.5rem)] font-medium text-dark leading-[1.2] tracking-[-0.03em]">
-          80% of longevity is lifestyle. Only 20% is genetics.</h2>
-        <p class="mt-6 text-lg text-body leading-relaxed max-w-2xl mx-auto">
+          <span data-counter="80" class="inline-block tabular-nums">0</span>% of longevity is lifestyle.
+          Only <span data-counter="20" class="inline-block tabular-nums">0</span>% is genetics.</h2>
+        <p class="mt-6 text-lg text-body leading-relaxed max-w-2xl mx-auto" data-stat-body>
           That means most of your client's health trajectory is in their hands&nbsp;&mdash; and yours. HealthDataLab shifts the conversation from what's wrong to what's possible. Less weeds, more flowers.</p>
       </div>
     </div>
@@ -208,20 +234,24 @@
   <!-- ============================================================
        SECTION 3: HOW IT WORKS — 3 steps + report visuals + Download CTA
        ============================================================ -->
-  <section id="how-it-works" class="scroll-mt-20 bg-surface">
+  <section id="how-it-works" class="scroll-mt-20 bg-surface" data-hiw-section>
     <div class="max-w-[1280px] mx-auto px-5 md:px-[52px] py-24 md:py-32">
 
       <!-- Part A: 3 Steps -->
-      <div class="reveal text-center max-w-2xl mx-auto">
+      <div class="reveal text-center max-w-2xl mx-auto" data-hiw-header>
         <p class="text-primary text-sm font-medium">How It Works</p>
         <h2
           class="mt-3 font-heading text-[clamp(1.75rem,3.5vw,2.5rem)] font-medium text-dark leading-[1.2] tracking-[-0.03em]">
           Three steps to better outcomes</h2>
         <p class="mt-4 text-body leading-relaxed">Simple onboarding. Clear reports. Continuous progress tracking.</p>
       </div>
-      <div class="mt-16 grid gap-5 md:grid-cols-3">
+      <div class="relative mt-16 grid gap-5 md:grid-cols-3" data-hiw-steps>
+        <svg class="hiw-connector absolute pointer-events-none hidden md:block" aria-hidden="true" data-hiw-connector>
+          <line stroke="#3d8da0" stroke-width="2" stroke-linecap="round" opacity="0.3"
+                stroke-dasharray="1000" stroke-dashoffset="1000"/>
+        </svg>
         <!-- Step 1 -->
-        <div class="reveal-scale reveal-delay-1 rounded-[32px] bg-light p-8 md:p-10">
+        <div class="reveal-scale reveal-delay-1 rounded-[32px] bg-light p-8 md:p-10" data-hiw-step="1">
           <span
             class="inline-flex items-center justify-center h-10 w-10 rounded-full bg-primary text-white text-sm font-semibold">1</span>
           <h3 class="mt-6 font-heading text-xl text-dark font-medium">Client Completes Health Form</h3>
@@ -229,7 +259,7 @@
             questionnaire covering their health history, lifestyle, and well-being.</p>
         </div>
         <!-- Step 2 -->
-        <div class="reveal-scale reveal-delay-2 rounded-[32px] bg-light p-8 md:p-10">
+        <div class="reveal-scale reveal-delay-2 rounded-[32px] bg-light p-8 md:p-10" data-hiw-step="2">
           <span
             class="inline-flex items-center justify-center h-10 w-10 rounded-full bg-primary text-white text-sm font-semibold">2</span>
           <h3 class="mt-6 font-heading text-xl text-dark font-medium">Receive Visual Report</h3>
@@ -237,7 +267,7 @@
             data. Review it before the consultation to prepare with confidence.</p>
         </div>
         <!-- Step 3 -->
-        <div class="reveal-scale reveal-delay-3 rounded-[32px] bg-light p-8 md:p-10">
+        <div class="reveal-scale reveal-delay-3 rounded-[32px] bg-light p-8 md:p-10" data-hiw-step="3">
           <span
             class="inline-flex items-center justify-center h-10 w-10 rounded-full bg-primary text-white text-sm font-semibold">3</span>
           <h3 class="mt-6 font-heading text-xl text-dark font-medium">Track &amp; Guide</h3>
@@ -254,7 +284,7 @@
         </div>
         <div class="grid gap-8 md:grid-cols-3 items-start">
           <!-- Bio Age Gauge -->
-          <div class="reveal-scale reveal-delay-1 text-center flex flex-col">
+          <div class="reveal-scale reveal-delay-1 text-center flex flex-col" data-hiw-report="1">
             <div class="aspect-square rounded-2xl bg-light shadow-[0_20px_50px_-12px_rgba(0,0,0,0.12)] p-4 flex items-center justify-center relative cursor-pointer hover:scale-[1.02] transition-transform duration-300 group"
               onclick="openLightbox('assets/images/health-metrics-dashboard.png','Biological age gauge showing client\'s health metrics')">
               <img src="assets/images/health-metrics-dashboard.png"
@@ -267,7 +297,7 @@
             <p class="mt-4 text-sm text-body font-medium">The number that makes your client lean in.</p>
           </div>
           <!-- Radar Chart -->
-          <div class="reveal-scale reveal-delay-2 text-center flex flex-col">
+          <div class="reveal-scale reveal-delay-2 text-center flex flex-col" data-hiw-report="2">
             <div class="aspect-square rounded-2xl bg-light shadow-[0_20px_50px_-12px_rgba(0,0,0,0.12)] p-4 flex items-center justify-center relative cursor-pointer hover:scale-[1.02] transition-transform duration-300 group"
               onclick="openLightbox('assets/images/health-radar-chart.png','Health radar chart with 20+ health markers at a glance')">
               <img src="assets/images/health-radar-chart.png"
@@ -280,7 +310,7 @@
             <p class="mt-4 text-sm text-body font-medium">20+ health markers at a glance&nbsp;&mdash; strengths and gaps, instantly visible.</p>
           </div>
           <!-- Trajectory -->
-          <div class="reveal-scale reveal-delay-3 text-center flex flex-col">
+          <div class="reveal-scale reveal-delay-3 text-center flex flex-col" data-hiw-report="3">
             <div class="aspect-square rounded-2xl bg-light shadow-[0_20px_50px_-12px_rgba(0,0,0,0.12)] p-4 flex items-center justify-center relative cursor-pointer hover:scale-[1.02] transition-transform duration-300 group"
               onclick="openLightbox('assets/images/health-trajectory.png','Health trajectory showing current and projected health outcomes')">
               <img src="assets/images/health-trajectory.png"
@@ -612,16 +642,16 @@
           <div class="mt-6 border-t border-stroke pt-6">
             <button onclick="checkout('course')"
               class="w-full inline-flex items-center justify-center gap-2 rounded-[48px] bg-primary text-white text-sm font-semibold px-5 py-3 hover:bg-primary-dark transition-colors shadow-[0_4px_20px_rgba(61,141,160,.25)] cursor-pointer">
-              1st Cohort Member <span id="course-price">£597</span>
+              1st Cohort Member <span id="course-price" data-price>£597</span>
               <span class="font-normal text-xs opacity-70 ml-1">(seats limited)</span>
               <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" /></svg>
             </button>
             <p class="mt-3 text-xs text-muted/60 flex items-center justify-center gap-2">
-              <span class="line-through" id="course-price-founding">£697</span>
+              <span class="line-through" id="course-price-founding" data-price>£697</span>
               <span>Founding Member</span>
             </p>
             <p class="mt-1 text-xs text-muted/60 flex items-center justify-center gap-2">
-              <span class="line-through" id="course-price-standard">£997</span>
+              <span class="line-through" id="course-price-standard" data-price>£997</span>
               <span>Standard</span>
             </p>
             <p class="mt-3 text-center text-xs text-primary/60 hover:text-primary cursor-pointer transition-colors"
@@ -678,16 +708,16 @@
           <div class="mt-auto border-t border-white/10 pt-6">
             <button onclick="checkout('signature')"
               class="w-full inline-flex items-center justify-center gap-2 rounded-[48px] bg-white text-dark text-sm font-semibold px-5 py-3 hover:bg-white/90 transition-colors cursor-pointer">
-              1st Cohort Member <span id="sig-price">£1,497</span>
+              1st Cohort Member <span id="sig-price" data-price>£1,497</span>
               <span class="font-normal text-xs opacity-70 ml-1">(seats limited)</span>
               <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" /></svg>
             </button>
             <p class="mt-3 text-xs text-white/30 flex items-center justify-center gap-2">
-              <span class="line-through" id="sig-price-founding">£1,747</span>
+              <span class="line-through" id="sig-price-founding" data-price>£1,747</span>
               <span>Founding Member</span>
             </p>
             <p class="mt-1 text-xs text-white/30 flex items-center justify-center gap-2">
-              <span class="line-through" id="sig-price-standard">£2,497</span>
+              <span class="line-through" id="sig-price-standard" data-price>£2,497</span>
               <span>Standard</span>
             </p>
             <p class="mt-3 text-center text-xs text-white/40 hover:text-white/70 cursor-pointer transition-colors"
@@ -722,7 +752,7 @@
           <div class="mt-4 border-t border-stroke pt-4 flex items-baseline gap-2">
             <span class="font-heading text-3xl font-semibold text-dark">Free</span>
           </div>
-          <p class="text-xs text-muted mt-1" id="launchpad-after-trial">then £19/mo after 3 months</p>
+          <p class="text-xs text-muted mt-1" id="launchpad-after-trial" data-price>then £19/mo after 3 months</p>
 
           <button onclick="checkout('launchpad')"
             class="mt-6 w-full inline-flex items-center justify-center gap-2 rounded-[48px] border-2 border-primary text-primary text-sm font-medium px-5 py-2.5 hover:bg-primary/5 transition-colors cursor-pointer">
@@ -745,7 +775,7 @@
           </div>
 
           <div class="mt-4 border-t border-stroke pt-4 flex items-baseline gap-2">
-            <span class="font-heading text-3xl font-semibold text-dark" id="minimum-price">£99</span>
+            <span class="font-heading text-3xl font-semibold text-dark" id="minimum-price" data-price>£99</span>
             <span class="text-sm text-muted">/mo</span>
           </div>
           <p class="text-xs text-muted mt-1">Cancel anytime</p>
@@ -871,17 +901,17 @@
               </tr>
               <tr class="bg-light/50">
                 <td class="p-4 font-medium">Eff. monthly cost</td>
-                <td class="p-4 text-center" id="eff-launchpad">Free &rarr; £19</td>
-                <td class="p-4 text-center" id="eff-minimum">£99</td>
-                <td class="p-4 text-center" id="eff-course">~£50*</td>
-                <td class="p-4 text-center" id="eff-sig">~£125*</td>
+                <td class="p-4 text-center" id="eff-launchpad" data-price>Free &rarr; £19</td>
+                <td class="p-4 text-center" id="eff-minimum" data-price>£99</td>
+                <td class="p-4 text-center" id="eff-course" data-price>~£50*</td>
+                <td class="p-4 text-center" id="eff-sig" data-price>~£125*</td>
               </tr>
               <tr class="bg-light/50">
                 <td class="p-4 font-medium">Year 2+ renewal</td>
-                <td class="p-4 text-center" id="renew-launchpad">£19/mo</td>
-                <td class="p-4 text-center" id="renew-minimum">£99/mo</td>
-                <td class="p-4 text-center" id="renew-course">£39/mo*</td>
-                <td class="p-4 text-center" id="renew-sig">£79/mo*</td>
+                <td class="p-4 text-center" id="renew-launchpad" data-price>£19/mo</td>
+                <td class="p-4 text-center" id="renew-minimum" data-price>£99/mo</td>
+                <td class="p-4 text-center" id="renew-course" data-price>£39/mo*</td>
+                <td class="p-4 text-center" id="renew-sig" data-price>£79/mo*</td>
               </tr>
             </tbody>
           </table>
@@ -1052,11 +1082,10 @@
             if (!required.every(c => window.__exchangeRates[c])) {
               throw new Error('Incomplete exchange rates');
             }
-            // Restore saved currency
-            const saved = localStorage.getItem('hdl_currency');
-            if (saved && CURRENCY_SYMBOLS[saved] && saved !== 'GBP') {
-              document.getElementById('currency-select').value = saved;
-              updateCurrencyDisplay(saved);
+            var target = window.__targetCurrency || 'GBP';
+            document.getElementById('currency-select').value = target;
+            if (target !== 'GBP') {
+              updateCurrencyDisplay(target, window.__currencySource !== 'geo');
             }
           } catch (e) {
             // Disable non-GBP options on failure
@@ -1064,12 +1093,19 @@
             Array.from(sel.options).forEach(opt => {
               if (opt.value !== 'GBP') opt.disabled = true;
             });
+          } finally {
+            revealPrices();
           }
         }
 
-        function updateCurrencyDisplay(currency) {
+        function revealPrices() {
+          var el = document.getElementById('currency-cloak');
+          if (el) el.remove();
+        }
+
+        function updateCurrencyDisplay(currency, persist) {
           window.__selectedCurrency = currency;
-          localStorage.setItem('hdl_currency', currency);
+          if (persist !== false) localStorage.setItem('hdl_currency', currency);
 
           const disclaimer = document.getElementById('currency-disclaimer');
           if (currency === 'GBP') {
@@ -1154,6 +1190,7 @@
 
         // Fetch rates on load
         fetchExchangeRates();
+        setTimeout(revealPrices, 3000);
 
         // Fetch live seat count
         fetch('/.netlify/functions/seat-count')
@@ -1587,6 +1624,8 @@
     }
   </script>
 
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
   <script src="assets/js/main.js"></script>
 </body>
 
