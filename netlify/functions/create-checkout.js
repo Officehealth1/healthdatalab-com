@@ -77,6 +77,10 @@ exports.handler = async (event) => {
             };
         }
 
+        // Collect phone number and billing address at checkout
+        sessionParams.phone_number_collection = { enabled: true };
+        sessionParams.billing_address_collection = 'required';
+
         // Session-level metadata for consumer provisioning
         if (tier) {
             sessionParams.metadata = {

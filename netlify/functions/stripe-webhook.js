@@ -38,6 +38,8 @@ exports.handler = async (event) => {
     if (stripeEvent.type === 'checkout.session.completed') {
         const session = stripeEvent.data.object;
         const customerEmail = session.customer_details?.email;
+        const customerPhone = session.customer_details?.phone || '';
+        const customerAddress = session.customer_details?.address || {};
         const amountTotal = session.amount_total; // in pence
         const currency = (session.currency || 'gbp').toUpperCase();
 
@@ -131,6 +133,13 @@ exports.handler = async (event) => {
                         stripe_session_id: session.id,
                         amount_total: amountTotal,
                         currency,
+                        phone: customerPhone,
+                        address_line1: customerAddress.line1 || '',
+                        address_line2: customerAddress.line2 || '',
+                        address_city: customerAddress.city || '',
+                        address_state: customerAddress.state || '',
+                        address_postal_code: customerAddress.postal_code || '',
+                        address_country: customerAddress.country || '',
                     });
 
                     try {
