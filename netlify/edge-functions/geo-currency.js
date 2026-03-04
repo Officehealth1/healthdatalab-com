@@ -16,7 +16,7 @@ export default async (request, context) => {
     const country = context.geo?.country?.code || '';
     const currency = COUNTRY_TO_CURRENCY[country] || 'GBP';
     response.headers.append('set-cookie',
-      `hdl_geo_currency=${currency}; path=/; max-age=86400; SameSite=Lax`);
+      `hdl_geo_currency=${currency}; path=/; max-age=86400; SameSite=Lax; Secure`);
   }
   return response;
 };

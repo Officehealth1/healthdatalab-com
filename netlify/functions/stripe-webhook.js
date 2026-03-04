@@ -4,6 +4,10 @@ const https = require('https');
 
 const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET;
 
+// Idempotency: track processed event IDs within warm Lambda to prevent duplicate processing on retries
+const processedEvents = new Set();
+const MAX_PROCESSED_EVENTS = 1000;
+
 const transporter = nodemailer.createTransport({
   host: 'smtp-relay.brevo.com',
   port: 587,
@@ -33,6 +37,12 @@ exports.handler = async (event) => {
     } catch (err) {
         console.error('Webhook signature verification failed:', err.message);
         return { statusCode: 400, body: 'Webhook signature verification failed' };
+    }
+
+    // Idempotency check — skip already-processed events (within warm Lambda)
+    if (processedEvents.has(stripeEvent.id)) {
+        console.log(`Skipping already-processed event: ${stripeEvent.id}`);
+        return { statusCode: 200, body: 'Already processed' };
     }
 
     // Handle checkout.session.completed — send confirmation email
@@ -95,7 +105,7 @@ exports.handler = async (event) => {
                     subject: `Your HealthDataLab purchase: ${productName}`,
                     html: customerHtml,
                 });
-                console.log(`Confirmation email sent to ${customerEmail}`);
+                console.log('Confirmation email sent');
             } catch (err) {
                 console.error('Error sending customer email:', err.message);
             }
@@ -118,7 +128,7 @@ exports.handler = async (event) => {
             }
 
             // WordPress user provisioning for consumer tiers
-            console.log('Checking session metadata for provisioning:', JSON.stringify(session.metadata));
+            console.log('Checking session metadata for provisioning');
 
             if (session.metadata) {
                 const tier = session.metadata.tier || '';
@@ -170,7 +180,7 @@ exports.handler = async (event) => {
                             req.write(postData);
                             req.end();
                         });
-                        console.log(`WordPress provisioning: ${wpResult.status}`, wpResult.body);
+                        console.log(`WordPress provisioning: ${wpResult.status}`);
                         if (wpResult.status < 200 || wpResult.status >= 300) {
                             console.error(`WordPress provisioning returned non-2xx: ${wpResult.status}`);
                             provisioningFailed = true;
@@ -234,7 +244,7 @@ exports.handler = async (event) => {
                     const customerName = customer.name || '';
                     const practPref = subscription.metadata.practitioner_preference || 'no';
 
-                    console.log(`Annual renewal for ${customerEmail} (tier: ${tier}, practitioner: ${practPref})`);
+                    console.log(`Annual renewal processing (tier: ${tier})`);
 
                     // POST to WordPress renewal endpoint
                     const postData = JSON.stringify({
@@ -273,7 +283,7 @@ exports.handler = async (event) => {
                             req.write(postData);
                             req.end();
                         });
-                        console.log(`WordPress annual renewal: ${wpResult.status}`, wpResult.body);
+                        console.log(`WordPress annual renewal: ${wpResult.status}`);
                     } catch (err) {
                         console.error('WordPress annual renewal error:', err.message);
                         // Alert office for manual processing
@@ -321,7 +331,7 @@ exports.handler = async (event) => {
 </body>
 </html>`,
                             });
-                            console.log(`Renewal confirmation email sent to ${customerEmail}`);
+                            console.log('Renewal confirmation email sent');
                         } catch (err) {
                             console.error('Error sending renewal confirmation email:', err.message);
                         }
@@ -358,7 +368,7 @@ exports.handler = async (event) => {
             try {
                 const customer = await stripe.customers.retrieve(subscription.customer);
                 const customerEmail = customer.email || 'unknown';
-                console.log(`Annual subscription cancelled for ${customerEmail} (${subscription.id})`);
+                console.log(`Annual subscription cancelled (${subscription.id})`);
 
                 // Notify office — credits NOT revoked per policy
                 await transporter.sendMail({
@@ -381,6 +391,13 @@ exports.handler = async (event) => {
     if (provisioningFailed) {
         return { statusCode: 500, body: 'Provisioning failed' };
     }
+
+    // Mark event as processed (evict oldest if at capacity)
+    if (processedEvents.size >= MAX_PROCESSED_EVENTS) {
+        const oldest = processedEvents.values().next().value;
+        processedEvents.delete(oldest);
+    }
+    processedEvents.add(stripeEvent.id);
 
     return { statusCode: 200, body: 'OK' };
 };
