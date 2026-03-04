@@ -21,17 +21,17 @@ exports.handler = async (event) => {
 
     let stripeEvent;
 
-    // Verify webhook signature if secret is configured
-    if (endpointSecret) {
-        const sig = event.headers['stripe-signature'];
-        try {
-            stripeEvent = stripe.webhooks.constructEvent(event.body, sig, endpointSecret);
-        } catch (err) {
-            console.error('Webhook signature verification failed:', err.message);
-            return { statusCode: 400, body: `Webhook Error: ${err.message}` };
-        }
-    } else {
-        stripeEvent = JSON.parse(event.body);
+    // Verify webhook signature — fail-closed if secret is not configured
+    if (!endpointSecret) {
+        console.error('STRIPE_WEBHOOK_SECRET is not configured');
+        return { statusCode: 500, body: 'Server misconfiguration' };
+    }
+    const sig = event.headers['stripe-signature'];
+    try {
+        stripeEvent = stripe.webhooks.constructEvent(event.body, sig, endpointSecret);
+    } catch (err) {
+        console.error('Webhook signature verification failed:', err.message);
+        return { statusCode: 400, body: 'Webhook signature verification failed' };
     }
 
     // Handle checkout.session.completed — send confirmation email

@@ -28,6 +28,15 @@ exports.handler = async (event) => {
             return { statusCode: 400, body: 'Missing priceId' };
         }
 
+        // Validate redirect URLs against allowed origins
+        const ALLOWED_ORIGINS = ['https://healthdatalab.com', 'https://www.healthdatalab.com'];
+        if (successUrl && !ALLOWED_ORIGINS.some(o => successUrl.startsWith(o))) {
+            return { statusCode: 400, body: 'Invalid successUrl' };
+        }
+        if (cancelUrl && !ALLOWED_ORIGINS.some(o => cancelUrl.startsWith(o))) {
+            return { statusCode: 400, body: 'Invalid cancelUrl' };
+        }
+
         const curr = (currency || 'GBP').toUpperCase();
         const isNonGBP = curr !== 'GBP' && baseAmountGBP;
 
@@ -38,11 +47,10 @@ exports.handler = async (event) => {
             const rate = await getExchangeRate(curr);
             if (!rate) throw new Error(`Unsupported currency: ${curr}`);
 
-            const convertedAmount = Math.round(baseAmountGBP * rate);
-
-            // Get product ID from the original price
+            // Get the REAL price from Stripe (server-side source of truth)
             const priceObj = await stripe.prices.retrieve(priceId);
             const productId = priceObj.product;
+            const convertedAmount = Math.round(priceObj.unit_amount * rate);
 
             const priceData = {
                 currency: curr.toLowerCase(),
@@ -103,16 +111,15 @@ exports.handler = async (event) => {
         // metadata on the subscription for auto-cancellation webhook
         if (installments > 0 && mode === 'subscription') {
             const sym = curr === 'GBP' ? '£' : curr + ' ';
-            let displayAmount = installmentAmount;
-            let displayTotal;
-
-            if (isNonGBP) {
-                const rate = await getExchangeRate(curr);
-                displayAmount = Math.round(installmentAmount * rate * 100) / 100;
-                displayTotal = `${sym}${(displayAmount * installments).toFixed(2)}`;
-            } else {
-                displayTotal = installmentAmount ? `£${installmentAmount * installments}` : `${installments} payments`;
-            }
+            // Use Stripe price as source of truth for display amounts
+            const pObj = sessionParams.line_items[0].price_data
+                ? null
+                : await stripe.prices.retrieve(priceId);
+            const unitAmountPence = sessionParams.line_items[0].price_data
+                ? sessionParams.line_items[0].price_data.unit_amount
+                : pObj.unit_amount;
+            let displayAmount = (unitAmountPence / 100).toFixed(2);
+            let displayTotal = `${sym}${((unitAmountPence / 100) * installments).toFixed(2)}`;
 
             sessionParams.subscription_data = {
                 ...sessionParams.subscription_data,
@@ -151,7 +158,7 @@ exports.handler = async (event) => {
         console.error('Stripe Error:', error);
         return {
             statusCode: 500,
-            body: JSON.stringify({ error: error.message }),
+            body: JSON.stringify({ error: 'An error occurred processing your request.' }),
         };
     }
 };

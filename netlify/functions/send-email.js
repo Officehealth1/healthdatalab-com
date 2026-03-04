@@ -32,17 +32,22 @@ exports.handler = async (event) => {
       return { statusCode: 400, body: JSON.stringify({ error: 'Invalid email' }) };
     }
 
+    const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    const safeName = esc(name).replace(/[\r\n]/g, '');
+    const safeEmail = esc(email);
+    const safeSubject = esc(subject || 'General inquiry');
+
     await transporter.sendMail({
       from: '"HealthDataLab" <office@healthdatalab.com>',
       to: 'office@healthdatalab.com',
-      replyTo: { name: name, address: email },
-      subject: '[HDL Contact] ' + (subject || 'General inquiry'),
+      replyTo: { name: safeName, address: email },
+      subject: '[HDL Contact] ' + safeSubject,
       html: '<h3>New contact form submission</h3>'
-        + '<p><strong>Name:</strong> ' + name + '</p>'
-        + '<p><strong>Email:</strong> ' + email + '</p>'
-        + '<p><strong>Subject:</strong> ' + (subject || 'General inquiry') + '</p>'
+        + '<p><strong>Name:</strong> ' + safeName + '</p>'
+        + '<p><strong>Email:</strong> ' + safeEmail + '</p>'
+        + '<p><strong>Subject:</strong> ' + safeSubject + '</p>'
         + '<hr>'
-        + '<p>' + message.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>') + '</p>',
+        + '<p>' + esc(message).replace(/\n/g, '<br>') + '</p>',
     });
 
     return {
