@@ -14,16 +14,21 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>HealthDataLab — Know your client before they walk through the door</title>
   <meta name="description"
-    content="Invite your client to complete a quick health form before their appointment. Receive a visual longevity report so you can prepare with confidence and deepen the consultation from minute one.">
+    content="Invite your client to complete a quick health form before their appointment. Receive a visual longevity report to prepare with confidence.">
   <meta property="og:title" content="HealthDataLab — Know your client before they walk through the door">
   <meta property="og:description"
     content="Invite your client to complete a quick health form. Receive a visual longevity report with key areas to explore — prepare with confidence, deepen the consultation from minute one.">
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://healthdatalab.com">
   <link rel="canonical" href="https://healthdatalab.com">
-  <meta property="og:image" content="https://healthdatalab.com/assets/images/health-metrics-dashboard.png">
+  <meta property="og:image" content="https://healthdatalab.com/assets/images/health-metrics-dashboard.webp">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:site_name" content="HealthDataLab">
   <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:image" content="https://healthdatalab.com/assets/images/health-metrics-dashboard.png">
+  <meta name="twitter:title" content="HealthDataLab — Know your client before they walk through the door">
+  <meta name="twitter:description" content="Invite your client to complete a quick health form before their appointment. Receive a visual longevity report to prepare with confidence.">
+  <meta name="twitter:image" content="https://healthdatalab.com/assets/images/health-metrics-dashboard.webp">
   <link rel="icon" type="image/png" sizes="32x32" href="assets/images/favicon-32x32.png">
   <link rel="icon" type="image/png" sizes="16x16" href="assets/images/favicon-16x16.png">
   <link rel="apple-touch-icon" sizes="180x180" href="assets/images/apple-touch-icon.png">
@@ -74,7 +79,7 @@
         "@type": "Organization",
         "name": "HealthDataLab",
         "url": "https://healthdatalab.com",
-        "logo": "https://healthdatalab.com/assets/images/favicon-512x512.png",
+        "logo": "https://healthdatalab.com/assets/images/android-chrome-512x512.png",
         "description": "Health data platform for natural health practitioners. Invite your client to complete a quick health form and receive a visual longevity report.",
         "founder": {
           "@type": "Person",
@@ -123,7 +128,7 @@
         <div class="hidden md:flex items-center gap-6">
           <a href="#platform" class="text-sm text-body hover:text-dark transition-colors">For Practitioners</a>
           <a href="#how-it-works" class="text-sm text-body hover:text-dark transition-colors">How It Works</a>
-          <a href="/personal-report.html" class="text-sm text-body hover:text-dark transition-colors">For Individuals</a>
+          <a href="/personal-report" class="text-sm text-body hover:text-dark transition-colors">For Individuals</a>
           <a href="#founder-access" class="text-sm text-body hover:text-dark transition-colors">Pricing</a>
           <button onclick="openContactModal()" class="text-sm text-body hover:text-dark transition-colors cursor-pointer">Contact</button>
           <a href="#founder-access"
@@ -150,7 +155,7 @@
             Practitioners</a>
           <a href="#how-it-works" class="nav-link block py-2.5 text-body hover:text-dark text-sm transition-colors">How
             It Works</a>
-          <a href="/personal-report.html" class="nav-link block py-2.5 text-body hover:text-dark text-sm transition-colors">For
+          <a href="/personal-report" class="nav-link block py-2.5 text-body hover:text-dark text-sm transition-colors">For
             Individuals</a>
           <a href="#founder-access"
             class="nav-link block py-2.5 text-body hover:text-dark text-sm transition-colors">Pricing</a>
@@ -204,7 +209,7 @@
         </div>
         <!-- Right: Product Image -->
         <div class="hero-enter hero-enter-3 flex justify-center">
-          <img src="assets/images/health-metrics-dashboard.png"
+          <img src="assets/images/health-metrics-dashboard.webp"
             alt="Aging rate gauge showing 0.89 biological-to-chronological age ratio with BMI and WHR health indicators"
             class="w-full max-w-xl rounded-2xl shadow-[0_24px_60px_-12px_rgba(0,0,0,0.16)] transition-all duration-300 ease-out hover:-translate-y-2 hover:shadow-[0_30px_60px_-15px_rgba(0,0,0,0.2)]">
         </div>
@@ -279,15 +284,15 @@
       <!-- Part B: Report Visuals -->
       <div id="sample-report" class="scroll-mt-20 mt-24">
         <div class="reveal text-center max-w-2xl mx-auto mb-14">
-          <h3 class="font-heading text-[clamp(1.5rem,3vw,2rem)] font-medium text-dark leading-[1.2] tracking-[-0.03em]">
-            See what your clients receive</h3>
+          <h2 class="font-heading text-[clamp(1.5rem,3vw,2rem)] font-medium text-dark leading-[1.2] tracking-[-0.03em]">
+            See what your clients receive</h2>
         </div>
         <div class="grid gap-8 md:grid-cols-3 items-start">
           <!-- Bio Age Gauge -->
           <div class="reveal-scale reveal-delay-1 text-center flex flex-col" data-hiw-report="1">
             <div class="aspect-square rounded-2xl bg-light shadow-[0_20px_50px_-12px_rgba(0,0,0,0.12)] p-4 flex items-center justify-center relative cursor-pointer hover:scale-[1.02] transition-transform duration-300 group"
-              onclick="openLightbox('assets/images/health-metrics-dashboard.png','Biological age gauge showing client\'s health metrics')">
-              <img src="assets/images/health-metrics-dashboard.png"
+              onclick="openLightbox('assets/images/health-metrics-dashboard.webp','Biological age gauge showing client\'s health metrics')">
+              <img src="assets/images/health-metrics-dashboard.webp"
                 alt="Biological age gauge showing client's health metrics"
                 class="w-full h-full object-contain" loading="lazy">
               <span class="absolute top-3 right-3 bg-black/50 text-white/80 rounded-full p-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -299,8 +304,8 @@
           <!-- Radar Chart -->
           <div class="reveal-scale reveal-delay-2 text-center flex flex-col" data-hiw-report="2">
             <div class="aspect-square rounded-2xl bg-light shadow-[0_20px_50px_-12px_rgba(0,0,0,0.12)] p-4 flex items-center justify-center relative cursor-pointer hover:scale-[1.02] transition-transform duration-300 group"
-              onclick="openLightbox('assets/images/health-radar-chart.png','Health radar chart with 20+ health markers at a glance')">
-              <img src="assets/images/health-radar-chart.png"
+              onclick="openLightbox('assets/images/health-radar-chart.webp','Health radar chart with 20+ health markers at a glance')">
+              <img src="assets/images/health-radar-chart.webp"
                 alt="Health radar chart with 20+ health markers at a glance"
                 class="w-full h-full object-contain" loading="lazy">
               <span class="absolute top-3 right-3 bg-black/50 text-white/80 rounded-full p-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -312,8 +317,8 @@
           <!-- Trajectory -->
           <div class="reveal-scale reveal-delay-3 text-center flex flex-col" data-hiw-report="3">
             <div class="aspect-square rounded-2xl bg-light shadow-[0_20px_50px_-12px_rgba(0,0,0,0.12)] p-4 flex items-center justify-center relative cursor-pointer hover:scale-[1.02] transition-transform duration-300 group"
-              onclick="openLightbox('assets/images/health-trajectory.png','Health trajectory showing current and projected health outcomes')">
-              <img src="assets/images/health-trajectory.png"
+              onclick="openLightbox('assets/images/health-trajectory.webp','Health trajectory showing current and projected health outcomes')">
+              <img src="assets/images/health-trajectory.webp"
                 alt="Health trajectory showing current and projected health outcomes"
                 class="w-full h-full object-contain" loading="lazy">
               <span class="absolute top-3 right-3 bg-black/50 text-white/80 rounded-full p-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -619,7 +624,7 @@
             <!-- Course features (included) -->
             <p class="text-xs text-body flex gap-2.5"><svg class="w-4 h-4 text-primary shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg> <strong>12-week course</strong> (recorded + live sessions)</p>
             <p class="text-xs text-body flex gap-2.5"><svg class="w-4 h-4 text-primary shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg> <strong>Holistic Longevity Practitioner Certificate</strong></p>
-            <p class="text-xs text-body flex gap-2.5"><svg class="w-4 h-4 text-primary shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg> 30 report credits/mo for 12 months (360 Reports)</p>
+            <p class="text-xs text-body flex gap-2.5"><svg class="w-4 h-4 text-primary shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg> 100 startup credits + 30 follow-up credits per month</p>
             <p class="text-xs text-body flex gap-2.5"><svg class="w-4 h-4 text-primary shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg> Full AI suite: Health, Herbal, Supplement, Diet, Diagnostics</p>
             <p class="text-xs text-body flex gap-2.5"><svg class="w-4 h-4 text-primary shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg> AI Practice Growth Advisor</p>
             <p class="text-xs text-body flex gap-2.5"><svg class="w-4 h-4 text-primary shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg> Client management, tracking &amp; async chat</p>
@@ -635,8 +640,8 @@
           </p>
           <p class="mt-3 border-t border-stroke pt-3 text-[10px] text-muted leading-relaxed">
             <strong class="font-medium">Value:</strong><br>
-            1st Cohort member → Course + £1.68 per Report<br>
-            Standard member → Course + £2.79 per Report</p>
+            1st Cohort member → Course + £1.30 per Report<br>
+            Standard member → Course + £2.17 per Report</p>
 
           <!-- Sticky footer strip -->
           <div class="mt-6 border-t border-stroke pt-6">
@@ -678,7 +683,7 @@
             <!-- Course features (included) -->
             <p class="text-xs text-white/70 flex gap-2.5"><svg class="w-4 h-4 text-primary shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg> <strong class="text-white">12-week course</strong> (recorded + live sessions)</p>
             <p class="text-xs text-white/70 flex gap-2.5"><svg class="w-4 h-4 text-primary shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg> <strong class="text-white">Holistic Longevity Practitioner Certificate</strong></p>
-            <p class="text-xs text-white/70 flex gap-2.5"><svg class="w-4 h-4 text-primary shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg> 30 report credits/mo for 12 months (360 Reports)</p>
+            <p class="text-xs text-white/70 flex gap-2.5"><svg class="w-4 h-4 text-primary shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg> 100 startup credits + 30 follow-up credits per month</p>
             <p class="text-xs text-white/70 flex gap-2.5"><svg class="w-4 h-4 text-primary shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg> Full AI suite: Health, Herbal, Supplement, Diet, Diagnostics</p>
             <p class="text-xs text-white/70 flex gap-2.5"><svg class="w-4 h-4 text-primary shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg> AI Practice Growth Advisor</p>
             <p class="text-xs text-white/70 flex gap-2.5"><svg class="w-4 h-4 text-primary shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg> Client management, tracking &amp; async chat</p>
@@ -701,8 +706,8 @@
             Founding Signature members lock in this rate for life — renewals stay at the same price even as the programme grows.</p>
           <p class="mt-3 border-t border-white/10 pt-3 text-[10px] text-white/30 leading-relaxed">
             <strong class="font-medium text-white/40">Value:</strong><br>
-            1st Cohort member → Signature + £4.16 per Report<br>
-            Standard member → Signature + £6.94 per Report</p>
+            1st Cohort member → Signature + £3.25 per Report<br>
+            Standard member → Signature + £5.43 per Report</p>
 
           <!-- Sticky footer strip -->
           <div class="mt-auto border-t border-white/10 pt-6">
@@ -819,7 +824,7 @@
                 <td class="p-4 font-medium">Report credits</td>
                 <td class="p-4 text-center">3/mo</td>
                 <td class="p-4 text-center">15/mo</td>
-                <td class="p-4 text-center">30/mo</td>
+                <td class="p-4 text-center">100 + 30/mo</td>
                 <td class="p-4 text-center">Unlimited</td>
               </tr>
               <tr>
@@ -1222,7 +1227,7 @@
   <!-- B2C LINK -->
   <section class="bg-light">
     <div class="max-w-[1280px] mx-auto px-5 md:px-[52px] py-12 text-center">
-      <a href="/personal-report.html" class="reveal inline-flex items-center gap-2 text-sm text-primary font-medium hover:text-primary-dark transition-colors">
+      <a href="/personal-report" class="reveal inline-flex items-center gap-2 text-sm text-primary font-medium hover:text-primary-dark transition-colors">
         Not a practitioner? Get your own personal report
         <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" /></svg>
       </a>
@@ -1303,9 +1308,9 @@
         <div>
           <p class="text-xs font-medium tracking-wide text-white/30 uppercase mb-4">Legal</p>
           <div class="flex flex-col gap-2.5">
-            <a href="/privacy.html"
+            <a href="/privacy"
               class="text-sm text-white/50 hover:text-white transition-colors">Privacy Policy</a>
-            <a href="/terms.html"
+            <a href="/terms"
               class="text-sm text-white/50 hover:text-white transition-colors">Terms of Service</a>
             <p class="text-xs text-white/30 mt-3 leading-relaxed">Refund Policy: 30-day money-back guarantee on Course and Signature tiers. Minimum: cancel anytime. Launchpad: free tier, cancel anytime.</p>
           </div>
