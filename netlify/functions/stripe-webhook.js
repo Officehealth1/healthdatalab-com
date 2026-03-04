@@ -20,6 +20,7 @@ exports.handler = async (event) => {
     }
 
     let stripeEvent;
+    let provisioningFailed = false;
 
     // Verify webhook signature — fail-closed if secret is not configured
     if (!endpointSecret) {
@@ -170,8 +171,13 @@ exports.handler = async (event) => {
                             req.end();
                         });
                         console.log(`WordPress provisioning: ${wpResult.status}`, wpResult.body);
+                        if (wpResult.status < 200 || wpResult.status >= 300) {
+                            console.error(`WordPress provisioning returned non-2xx: ${wpResult.status}`);
+                            provisioningFailed = true;
+                        }
                     } catch (err) {
                         console.error('WordPress provisioning error:', err.message);
+                        provisioningFailed = true;
                         // Send failure notification to office
                         try {
                             await transporter.sendMail({
@@ -369,6 +375,11 @@ exports.handler = async (event) => {
                 console.error('Error handling subscription cancellation:', err.message);
             }
         }
+    }
+
+    // Return 500 on provisioning failure so Stripe retries the webhook
+    if (provisioningFailed) {
+        return { statusCode: 500, body: 'Provisioning failed' };
     }
 
     return { statusCode: 200, body: 'OK' };

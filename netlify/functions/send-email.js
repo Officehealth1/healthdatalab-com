@@ -10,9 +10,31 @@ const transporter = nodemailer.createTransport({
   },
 });
 
+// H-6: In-memory rate limiter (effective within warm Lambda instances)
+const rateMap = new Map();
+const RATE_WINDOW = 60 * 1000; // 1 minute
+const RATE_LIMIT = 3; // max 3 emails per IP per minute
+
+function checkRateLimit(ip) {
+  const now = Date.now();
+  const entry = rateMap.get(ip);
+  if (!entry || now - entry.start > RATE_WINDOW) {
+    rateMap.set(ip, { start: now, count: 1 });
+    return true;
+  }
+  entry.count++;
+  return entry.count <= RATE_LIMIT;
+}
+
 exports.handler = async (event) => {
   if (event.httpMethod !== 'POST') {
     return { statusCode: 405, body: 'Method Not Allowed' };
+  }
+
+  // H-6: Rate limiting by client IP
+  const clientIp = event.headers['x-nw-client-ip'] || event.headers['client-ip'] || 'unknown';
+  if (!checkRateLimit(clientIp)) {
+    return { statusCode: 429, body: JSON.stringify({ error: 'Too many requests. Please try again later.' }) };
   }
 
   try {
@@ -25,6 +47,11 @@ exports.handler = async (event) => {
 
     if (!name || !email || !message) {
       return { statusCode: 400, body: JSON.stringify({ error: 'Missing required fields' }) };
+    }
+
+    // M-9: Input length validation
+    if (name.length > 100 || email.length > 254 || (subject && subject.length > 200) || message.length > 5000) {
+      return { statusCode: 400, body: JSON.stringify({ error: 'Input exceeds maximum length' }) };
     }
 
     // Basic email format check
