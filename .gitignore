@@ -4,3 +4,38 @@
 node_modules/
 .netlify/
 .worktrees/
+
+# IDE / editor
+.vscode/
+.serena/
+
+# Tool configs
+.playwright-mcp/
+package-lock.json
+
+# Local documents & screenshots
+*.pdf
+docs/
+logo-after-fix.png
+stripe-checkout-verification.png
+
+# Local backups & archives
+backups/
+*.zip
+
+# WordPress plugin (local copies — deployed via Gist)
+health-data-lab-plugin/
+health-data-lab-plugin-updated/
+wp-config.php
+
+# Local utility files
+scripts/
+pdkmoney.json
+healformpdfmonkeytemplate.html
+
+# AI context files (per-directory)
+assets/CLAUDE.md
+assets/css/CLAUDE.md
+assets/images/CLAUDE.md
+assets/js/CLAUDE.md
+scripts/CLAUDE.md
