@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
+        xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">
+  <url>
+    <loc>https://healthdatalab.com/</loc>
+    <priority>1.0</priority>
+    <image:image>
+      <image:loc>https://healthdatalab.com/assets/images/health-metrics-dashboard.webp</image:loc>
+      <image:title>Health metrics dashboard showing biological age and longevity indicators</image:title>
+    </image:image>
+    <image:image>
+      <image:loc>https://healthdatalab.com/assets/images/health-radar-chart.webp</image:loc>
+      <image:title>Health radar chart with 20+ health markers</image:title>
+    </image:image>
+    <image:image>
+      <image:loc>https://healthdatalab.com/assets/images/health-trajectory.webp</image:loc>
+      <image:title>Health trajectory showing projected outcomes</image:title>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://healthdatalab.com/personal-report</loc>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://healthdatalab.com/privacy</loc>
+    <priority>0.3</priority>
+  </url>
+  <url>
+    <loc>https://healthdatalab.com/terms</loc>
+    <priority>0.3</priority>
+  </url>
+</urlset>

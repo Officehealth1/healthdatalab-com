@@ -21,7 +21,14 @@
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://healthdatalab.com/personal-report">
   <link rel="canonical" href="https://healthdatalab.com/personal-report">
-  <meta name="twitter:card" content="summary">
+  <meta property="og:image" content="https://healthdatalab.com/assets/images/health-metrics-dashboard.webp">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:site_name" content="HealthDataLab">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Personal Health Reports — HealthDataLab">
+  <meta name="twitter:description" content="Get your own longevity report. No practitioner needed. Order a personal health assessment and track your longevity journey over time.">
+  <meta name="twitter:image" content="https://healthdatalab.com/assets/images/health-metrics-dashboard.webp">
   <link rel="icon" type="image/png" sizes="32x32" href="assets/images/favicon-32x32.png">
   <link rel="icon" type="image/png" sizes="16x16" href="assets/images/favicon-16x16.png">
   <link rel="apple-touch-icon" sizes="180x180" href="assets/images/apple-touch-icon.png">
@@ -63,6 +70,36 @@
     }
   </style>
   <link rel="stylesheet" href="assets/css/styles.css">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "Service",
+    "name": "Personal Longevity Report",
+    "description": "Personal health and longevity assessment report with biological age estimation, health radar chart, and trajectory projections.",
+    "provider": {
+      "@type": "Organization",
+      "name": "HealthDataLab",
+      "url": "https://healthdatalab.com"
+    },
+    "offers": [
+      {
+        "@type": "Offer",
+        "name": "Single Report",
+        "price": "9.99",
+        "priceCurrency": "GBP",
+        "availability": "https://schema.org/InStock"
+      },
+      {
+        "@type": "Offer",
+        "name": "Annual Pass",
+        "description": "Up to 4 reports per year",
+        "price": "19.99",
+        "priceCurrency": "GBP",
+        "availability": "https://schema.org/InStock"
+      }
+    ]
+  }
+  </script>
 </head>
 
 <body class="bg-surface text-body font-sans">
@@ -76,9 +113,9 @@
         <div class="hidden md:flex items-center gap-6">
           <a href="/" class="text-sm text-body hover:text-dark transition-colors">For Practitioners</a>
           <a href="/#how-it-works" class="text-sm text-body hover:text-dark transition-colors">How It Works</a>
-          <a href="/personal-report.html" class="text-sm text-dark font-medium transition-colors">For Individuals</a>
+          <a href="/personal-report" class="text-sm text-dark font-medium transition-colors">For Individuals</a>
           <a href="/#founder-access" class="text-sm text-body hover:text-dark transition-colors">Pricing</a>
-          <button onclick="openContactModal()" class="text-sm text-body hover:text-dark transition-colors cursor-pointer">Contact</button>
+          <a href="/help-centre" class="text-sm text-body hover:text-dark transition-colors">Help Centre</a>
           <a href="/#founder-access"
             class="inline-flex items-center rounded-[48px] bg-dark text-white text-sm font-medium px-5 py-2.5 hover:bg-dark-2 transition-colors">
             Get Early Access
@@ -103,11 +140,11 @@
             Practitioners</a>
           <a href="/#how-it-works" class="nav-link block py-2.5 text-body hover:text-dark text-sm transition-colors">How
             It Works</a>
-          <a href="/personal-report.html" class="nav-link block py-2.5 text-dark font-medium text-sm transition-colors">For
+          <a href="/personal-report" class="nav-link block py-2.5 text-dark font-medium text-sm transition-colors">For
             Individuals</a>
           <a href="/#founder-access"
             class="nav-link block py-2.5 text-body hover:text-dark text-sm transition-colors">Pricing</a>
-          <button onclick="openContactModal()" class="nav-link block py-2.5 text-body hover:text-dark text-sm transition-colors text-left cursor-pointer">Contact</button>
+          <a href="/help-centre" class="nav-link block py-2.5 text-body hover:text-dark text-sm transition-colors">Help Centre</a>
           <a href="/#founder-access"
             class="nav-link mt-2 flex items-center justify-center rounded-[48px] bg-dark text-white text-sm font-medium px-5 py-3 hover:bg-dark-2 transition-colors">Get
             Early Access</a>
@@ -152,6 +189,7 @@
       </div>
       <p id="currency-disclaimer" class="hidden text-center text-xs text-muted mb-6">Prices shown in <span id="currency-label">GBP</span>. Final amount may vary slightly due to exchange rate fluctuations.</p>
 
+      <h2 class="font-heading text-[clamp(1.5rem,3vw,2rem)] font-medium text-dark leading-[1.2] tracking-[-0.03em] text-center mb-10">Choose Your Plan</h2>
       <div class="grid gap-6 md:grid-cols-2 max-w-2xl mx-auto">
 
         <!-- Single Report -->
@@ -278,14 +316,15 @@
             <a href="/#how-it-works" class="text-sm text-white/50 hover:text-white transition-colors">How It Works</a>
             <a href="/#founder-access" class="text-sm text-white/50 hover:text-white transition-colors">Founder
               Access</a>
+            <a href="/help-centre" class="text-sm text-white/50 hover:text-white transition-colors">Help Centre</a>
           </div>
         </div>
         <div>
           <p class="text-xs font-medium tracking-wide text-white/30 uppercase mb-4">Legal</p>
           <div class="flex flex-col gap-2.5">
-            <a href="/privacy.html"
+            <a href="/privacy"
               class="text-sm text-white/50 hover:text-white transition-colors">Privacy Policy</a>
-            <a href="/terms.html"
+            <a href="/terms"
               class="text-sm text-white/50 hover:text-white transition-colors">Terms of Service</a>
             <p class="text-xs text-white/30 mt-3 leading-relaxed">Refund Policy: 30-day money-back guarantee on Course and Signature tiers. Minimum: cancel anytime. Launchpad: free tier, cancel anytime.</p>
           </div>

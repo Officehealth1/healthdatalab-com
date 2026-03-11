@@ -1,0 +1,5 @@
+User-agent: *
+Allow: /
+Disallow: /backups/
+
+Sitemap: https://healthdatalab.com/sitemap.xml

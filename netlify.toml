@@ -9,6 +9,18 @@
     X-Frame-Options = "DENY"
     X-Content-Type-Options = "nosniff"
     Referrer-Policy = "strict-origin-when-cross-origin"
+    Content-Security-Policy = "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.googletagmanager.com https://js.stripe.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://*.google-analytics.com https://*.analytics.google.com https://*.stripe.com https://api.frankfurter.app; frame-src https://js.stripe.com https://hooks.stripe.com; object-src 'none'; base-uri 'self'"
+    Permissions-Policy = "camera=(), microphone=(), geolocation=(), usb=(), magnetometer=(), gyroscope=(), accelerometer=(), interest-cohort=()"
+
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[redirects]]
+  from = "/backups/*"
+  to = "/404.html"
+  status = 404
 
 [[redirects]]
   from = "https://healthdatalab.netlify.app/*"
@@ -29,6 +41,11 @@
 [[redirects]]
   from = "/terms"
   to = "/terms.html"
+  status = 200
+
+[[redirects]]
+  from = "/help-centre"
+  to = "/help-centre.html"
   status = 200
 
 [[edge_functions]]
