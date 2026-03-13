@@ -707,10 +707,10 @@
         <div class="mt-8 text-body leading-relaxed">
           <h3 class="font-heading text-lg text-dark font-medium mb-3">What you're actually getting</h3>
           <p>You receive 100% of everything the course will contain in future cohorts&nbsp;&mdash; same content, same tools, same certification. But in this first run, you'll likely get <em>more</em>:</p>
-          <ul class="mt-3 space-y-2">
-            <li class="flex items-start gap-2"><span class="text-primary font-bold">&bull;</span> <strong class="text-dark">More personal involvement.</strong> With a small group, I'll be far more hands-on with each person's situation than I will be at scale.</li>
-            <li class="flex items-start gap-2"><span class="text-primary font-bold">&bull;</span> <strong class="text-dark">More depth.</strong> We'll cover additional topics and go deeper into areas that the final version won't have room for.</li>
-            <li class="flex items-start gap-2"><span class="text-primary font-bold">&bull;</span> <strong class="text-dark">Signature-tier elements included.</strong> Features that will later sit behind the Signature price point (&pound;2,497) will be rolled into this first cohort as I develop and fine-tune them. You get them at no extra cost.</li>
+          <ul class="mt-3 space-y-2 list-disc pl-5">
+            <li class="text-body leading-relaxed"><strong class="text-dark">More personal involvement.</strong> With a small group, I'll be far more hands-on with each person's situation than I will be at scale.</li>
+            <li class="text-body leading-relaxed"><strong class="text-dark">More depth.</strong> We'll cover additional topics and go deeper into areas that the final version won't have room for.</li>
+            <li class="text-body leading-relaxed"><strong class="text-dark">Signature-tier elements included.</strong> Features that will later sit behind the Signature price point (&pound;2,497) will be rolled into this first cohort as I develop and fine-tune them. You get them at no extra cost.</li>
           </ul>
         </div>
 
@@ -722,7 +722,7 @@
 
         <div class="mt-8 text-body leading-relaxed">
           <h3 class="font-heading text-lg text-dark font-medium mb-3">Cut-off dates</h3>
-          <ul class="space-y-1">
+          <ul class="space-y-1 list-disc pl-5">
             <li><strong class="text-dark">Beta 10:</strong> Applications close soon or when 10 places are filled, whichever comes first.</li>
             <li><strong class="text-dark">Founding 1st Cohort:</strong> Applications close when all seats are taken. After this, sign-ups close entirely.</li>
             <li><strong class="text-dark">After close:</strong> Waiting list opens for the next cohort at full price.</li>
@@ -772,41 +772,53 @@
 
         <div class="grid gap-8 lg:grid-cols-2 max-w-4xl mx-auto">
           <!-- COURSE CARD — Dominant -->
-          <div class="reveal rounded-[32px] bg-surface ring-2 ring-primary p-8 md:p-10 relative">
+          <div class="reveal rounded-[32px] bg-surface ring-2 ring-primary p-8 md:p-10 relative flex flex-col">
             <span class="absolute -top-3 left-8 bg-primary text-white text-xs font-semibold px-4 py-1 rounded-full">Recommended</span>
             <h3 class="font-heading text-2xl text-dark font-medium">The Course</h3>
-            <p class="mt-1 text-sm text-body">The Holistic Longevity Practitioner Certificate. 3-week intensive training + 9-week supported implementation. Everything listed above.</p>
+            <p class="mt-1 text-sm text-body">The Holistic Longevity Practitioner Certificate. 3&#8209;week intensive training + 9&#8209;week supported implementation. Everything listed above.</p>
             <p class="mt-6 font-heading text-4xl text-dark font-semibold">&pound;997</p>
             <p class="text-sm text-muted mt-1">or 3 &times; &pound;349</p>
-            <p class="mt-4 text-xs text-body leading-relaxed">Includes: full platform access, Protocol framework and materials, live sessions, peer community, 100 startup credits + 30/month ongoing, full AI health suite, and the Holistic Longevity Practitioner Certificate on completion.</p>
-            <button onclick="openApplyModal()"
-              class="mt-6 w-full rounded-[48px] bg-primary text-white text-base font-medium px-6 py-3.5 hover:bg-primary-dark transition-colors cursor-pointer shadow-[0_4px_20px_rgba(61,141,160,.25)]">
-              Apply for the Course
-            </button>
-            <p class="mt-3 text-xs text-muted text-center">Applications reviewed personally. Expect a response within 48 hours.</p>
+            <ul class="mt-4 space-y-1.5 text-sm text-body list-disc pl-5">
+              <li>Full platform access</li>
+              <li>Protocol framework and materials</li>
+              <li>Live sessions</li>
+              <li>Peer community</li>
+              <li>100 startup credits + 30/mo ongoing</li>
+              <li>Full AI health suite</li>
+              <li>Holistic Longevity Practitioner Certificate on completion</li>
+            </ul>
+            <div class="mt-auto pt-6">
+              <button onclick="openApplyModal()"
+                class="w-full rounded-[48px] bg-primary text-white text-base font-medium px-6 py-3.5 hover:bg-primary-dark transition-colors cursor-pointer shadow-[0_4px_20px_rgba(61,141,160,.25)]">
+                Apply for the Course
+              </button>
+              <p class="mt-3 text-xs text-muted text-center">Applications reviewed personally. Expect a response within 48 hours.</p>
+            </div>
           </div>
 
           <!-- SIGNATURE CARD — Coming Soon -->
-          <div class="reveal rounded-[32px] bg-surface border border-stroke p-8 md:p-10 opacity-60 relative coming-soon-card">
+          <div class="reveal rounded-[32px] bg-surface border border-stroke p-8 md:p-10 opacity-60 relative coming-soon-card flex flex-col">
             <span class="absolute -top-3 left-8 bg-muted text-white text-xs font-semibold px-4 py-1 rounded-full">Coming Soon</span>
             <h3 class="font-heading text-2xl text-dark font-medium">Signature</h3>
             <p class="mt-1 text-sm text-body">Everything in the Course, plus:</p>
-            <ul class="mt-3 space-y-1.5 text-sm text-body">
-              <li>&bull; <strong>1-to-1 coaching sessions</strong> with Matthew &mdash; personalised practice strategy</li>
-              <li>&bull; <strong>Priority support</strong> &mdash; direct access, faster response times</li>
-              <li>&bull; <strong>Business growth deep-dive</strong> &mdash; pricing, positioning, marketing, and client acquisition strategy tailored to your practice</li>
-              <li>&bull; <strong>Advanced AI advisory access</strong> &mdash; extended platform capabilities</li>
-              <li>&bull; <strong>Environment design</strong> &mdash; practical changes to how you run your practice day-to-day</li>
-              <li>&bull; <strong>Unlimited report credits</strong></li>
+            <ul class="mt-3 space-y-1.5 text-sm text-body list-disc pl-5">
+              <li><strong>1-to-1 coaching sessions</strong> with Matthew &mdash; personalised practice strategy</li>
+              <li><strong>Priority support</strong> &mdash; direct access, faster response times</li>
+              <li><strong>Business growth deep-dive</strong> &mdash; pricing, positioning, marketing, and client acquisition strategy tailored to your practice</li>
+              <li><strong>Advanced AI advisory access</strong> &mdash; extended platform capabilities</li>
+              <li><strong>Environment design</strong> &mdash; practical changes to how you run your practice day-to-day</li>
+              <li><strong>Unlimited report credits</strong></li>
             </ul>
             <p class="mt-4 text-sm text-body">For practitioners building longevity into their core offering, not just adding it as a side service.</p>
             <p class="mt-6 font-heading text-4xl text-dark font-semibold">&pound;2,497</p>
             <p class="text-sm text-muted mt-1">or 6 &times; &pound;449</p>
             <p class="mt-2 text-xs text-primary font-medium">Coming soon</p>
-            <button onclick="openContactModal({heading:'Join the Signature Waiting List',subject:'Signature Waiting List',subtext:'We\'ll notify you as soon as the Signature tier is available.'})"
-              class="mt-6 w-full rounded-[48px] border border-stroke text-body text-sm font-medium px-6 py-3 hover:border-primary hover:text-primary transition-colors cursor-pointer">
-              Join the waiting list &rarr;
-            </button>
+            <div class="mt-auto pt-6">
+              <button onclick="openContactModal({heading:'Join the Signature Waiting List',subject:'Signature Waiting List',subtext:'We\'ll notify you as soon as the Signature tier is available.'})"
+                class="w-full rounded-[48px] border border-stroke text-body text-sm font-medium px-6 py-3 hover:border-primary hover:text-primary transition-colors cursor-pointer">
+                Join the waiting list &rarr;
+              </button>
+            </div>
           </div>
         </div>
 
@@ -815,39 +827,43 @@
           <h3 class="text-center font-heading text-lg text-dark font-medium mb-8">Not ready for the full course?</h3>
           <div class="grid gap-6 md:grid-cols-2">
             <!-- Launchpad -->
-            <div class="rounded-[32px] bg-light p-8">
+            <div class="rounded-[32px] bg-light p-8 flex flex-col">
               <h4 class="font-heading text-lg text-dark font-medium">Launchpad &mdash; Free</h4>
               <p class="text-xs text-muted mt-1" id="launchpad-after-trial" data-price>then &pound;19/mo after 3 months</p>
-              <ul class="mt-4 space-y-2 text-sm text-body">
-                <li>&bull; Entry Level</li>
-                <li>&bull; 3 report credits/mo</li>
-                <li>&bull; Mini course: "Your First 10 Longevity Clients"</li>
-                <li>&bull; AI Practice Growth Advisor</li>
-                <li>&bull; Basic AI Health Advisor</li>
-                <li>&bull; Community (view only)</li>
+              <ul class="mt-4 space-y-2 text-sm text-body list-disc pl-5">
+                <li>Entry Level</li>
+                <li>3 report credits/mo</li>
+                <li>Mini course: "Your First 10 Longevity Clients"</li>
+                <li>AI Practice Growth Advisor</li>
+                <li>Basic AI Health Advisor</li>
+                <li>Community (view only)</li>
               </ul>
-              <button onclick="checkout('launchpad')"
-                class="mt-6 w-full rounded-[48px] bg-dark text-white text-sm font-medium px-6 py-3 hover:bg-dark-2 transition-colors cursor-pointer">
-                Start free &rarr;
-              </button>
+              <div class="mt-auto pt-6">
+                <button onclick="checkout('launchpad')"
+                  class="w-full rounded-[48px] bg-dark text-white text-sm font-medium px-6 py-3 hover:bg-dark-2 transition-colors cursor-pointer">
+                  Start free &rarr;
+                </button>
+              </div>
             </div>
 
             <!-- Minimum -->
-            <div class="rounded-[32px] bg-light p-8">
+            <div class="rounded-[32px] bg-light p-8 flex flex-col">
               <h4 class="font-heading text-lg text-dark font-medium">Minimum</h4>
               <p class="text-sm text-dark font-medium mt-1" id="minimum-price" data-price>&pound;99/mo</p>
               <p class="text-xs text-muted mt-1">cancel anytime</p>
-              <ul class="mt-4 space-y-2 text-sm text-body">
-                <li>&bull; Platform Only</li>
-                <li>&bull; 15 report credits/mo</li>
-                <li>&bull; Client management &amp; progress tracking</li>
-                <li>&bull; Async client chat</li>
-                <li>&bull; Full AI health chatbot suite</li>
+              <ul class="mt-4 space-y-2 text-sm text-body list-disc pl-5">
+                <li>Platform Only</li>
+                <li>15 report credits/mo</li>
+                <li>Client management &amp; progress tracking</li>
+                <li>Async client chat</li>
+                <li>Full AI health chatbot suite</li>
               </ul>
-              <button onclick="checkout('minimum')"
-                class="mt-6 w-full rounded-[48px] bg-dark text-white text-sm font-medium px-6 py-3 hover:bg-dark-2 transition-colors cursor-pointer">
-                Get started &rarr;
-              </button>
+              <div class="mt-auto pt-6">
+                <button onclick="checkout('minimum')"
+                  class="w-full rounded-[48px] bg-dark text-white text-sm font-medium px-6 py-3 hover:bg-dark-2 transition-colors cursor-pointer">
+                  Get started &rarr;
+                </button>
+              </div>
             </div>
           </div>
         </div>
