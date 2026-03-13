@@ -1,5 +1,5 @@
 /* ================================================
-   HealthDataLab — Shared Styles
+   HealthDataLab — Shared Styles (v3)
    ================================================ */
 
 html {
@@ -106,33 +106,95 @@ body {
 }
 
 /* ------------------------------------------------
-   How It Works connector line
+   Protocol connector line
    ------------------------------------------------ */
-.hiw-connector { z-index: 0; }
-[data-hiw-step] { position: relative; z-index: 1; }
+.protocol-connector { z-index: 0; }
+[data-protocol-step] { position: relative; z-index: 1; }
 
 /* ------------------------------------------------
-   Counter animation (index.html)
+   Tooltip (CSS-only, hover + focus for mobile tap)
    ------------------------------------------------ */
-.counter {
-  font-variant-numeric: tabular-nums;
+.tooltip-trigger {
+  position: relative;
+  cursor: help;
+  color: #3d8da0;
+  font-weight: 600;
+  font-size: 0.85em;
+}
+
+.tooltip-content {
+  visibility: hidden;
+  opacity: 0;
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  width: 280px;
+  max-width: 90vw;
+  padding: 12px 16px;
+  background: #111111;
+  color: #ffffff;
+  font-size: 0.75rem;
+  font-weight: 400;
+  line-height: 1.5;
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+  z-index: 50;
+  pointer-events: none;
+  transition: opacity 0.2s ease, visibility 0.2s ease;
+}
+
+.tooltip-content::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 6px solid transparent;
+  border-top-color: #111111;
+}
+
+.tooltip-trigger:hover .tooltip-content,
+.tooltip-trigger:focus .tooltip-content {
+  visibility: visible;
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* Prevent tooltip overflow on narrow viewports */
+@media (max-width: 640px) {
+  .tooltip-content {
+    left: auto;
+    right: -1rem;
+    transform: none;
+  }
+  .tooltip-content::after {
+    left: auto;
+    right: 1.5rem;
+  }
 }
 
 /* ------------------------------------------------
-   3D report mockup (index.html)
+   Video embed wrapper
    ------------------------------------------------ */
-.report-3d {
-  perspective: 1200px;
+.video-embed-wrapper {
+  background: linear-gradient(135deg, rgba(17,17,17,0.03) 0%, rgba(17,17,17,0.08) 100%);
 }
 
-.report-3d-page {
-  transform: rotateY(-4deg) rotateX(2deg);
-  transform-origin: left center;
-  transition: transform 0.6s var(--ease-out-expo);
+.video-embed-wrapper iframe[src=""] {
+  display: none;
 }
 
-.report-3d-page:hover {
-  transform: rotateY(0) rotateX(0);
+/* Show dark placeholder when iframe has no src */
+.video-embed-wrapper:has(iframe[src=""]) {
+  min-height: 200px;
+}
+
+/* ------------------------------------------------
+   Coming soon card treatment
+   ------------------------------------------------ */
+.coming-soon-card {
+  position: relative;
 }
 
 /* ------------------------------------------------
@@ -156,11 +218,7 @@ body {
 
   /* GSAP-managed elements — show immediately */
   [data-hero-el],
-  [data-stat-section],
-  [data-counter],
-  [data-stat-body],
-  [data-hiw-step],
-  [data-hiw-report] {
+  [data-protocol-step] {
     opacity: 1 !important;
     transform: none !important;
   }

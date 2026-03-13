@@ -4,6 +4,7 @@
 node_modules/
 .netlify/
 .worktrees/
+.superpowers/
 
 # IDE / editor
 .vscode/

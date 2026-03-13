@@ -72,10 +72,25 @@ Automated flow: altituding.com/report form → Netlify brevo-submit → WordPres
 | `8410d9d43252ac8a66d2b25480a80025` | `class-user-management.php` |
 | `3958fea30c77faa40f071e7162a8eaa2` | `class-client-linker.php` |
 | `d8dc28ca026e4e5de3a4574d13be5e2c` | `health-form-raw.php` |
+| `5f1e5e5d07a13aed7d197f2992dbfd46` | `longevity-form-raw.php` |
+| `4a5916a0b89c76250963e537be713b54` | `class-health-form.php` |
+| `5062a652f3bd58ab295978ffe695c682` | `class-longevity-form.php` |
+| `6ec9205d676814a05d56d15b462c847c` | `class-health-tracker.php` |
+| `35a469f7551a4f7f7a7f7ddf3963514c` | `class-credit-manager.php` |
+| `32bdcce4afcbd929be2131247977ce2b` | `class-health-form-credit-integration.php` |
+| `38434d15b567efe284cf3c32b9dc57f2` | `class-longevity-form-credit-integration.php` |
+| `2936cc3b962704c4863e44dc1c1abe72` | `class-longevity-webhook-handler.php` |
+| `aae7ed481850c0be97ab1e9b873ac1c9` | `class-email-template-components.php` |
 
 ## Change Log
 | Date | Change | Files |
 |------|--------|-------|
+| 2026-03-08 | Email template improvements: resolve_user_display_name() helper for real names instead of usernames, "Your practitioner" wording, conditional pre-loaded note, CTA text change, footer terms link, contact/unsubscribe line, magic link second-click fix redirects logged-in users to form | `class-health-tracker-practitioner.php`, `class-email-template-components.php` |
+| 2026-03-05 | Consumer health credits for all: removed `$has_practitioner` gate so all Stripe consumers get health + longevity credits. Practitioner email validation on forms: AJAX blur check against DB, blocks submission on invalid email, skips readonly/locked fields. Backfilled 4 existing consumers with 2 health credits each. | `class-consumer-provisioner.php`, `class-health-tracker.php`, `class-health-tracker-practitioner.php`, `class-longevity-form.php`, `longevity-form-raw.php`, `class-health-form.php`, `health-form-raw.php` |
+| 2026-03-05 | Fix Make.com webhook for invited clients: webhook handler now uses `resolve_credit_owner()` to deduct from practitioner pool instead of client directly. Added "Report Credit: 1 will be used" to completion screen. | `class-longevity-webhook-handler.php`, `longevity-form-raw.php` |
+| 2026-03-05 | Credit system overhaul: practitioner bucket model. Clients draw from practitioner's 1000-credit pool via `resolve_credit_owner()`. Credits invisible — no counts, no emails. Daily limit (2/day) stays per-client. Consumers (Stripe) unchanged. SQL backfill normalized all practitioners to 1000. | `class-credit-manager.php`, `class-health-form-credit-integration.php`, `class-longevity-form-credit-integration.php`, `class-health-tracker-practitioner.php` |
+| 2026-03-04 | Fix assessment magic link prefill: moved prefill DB query to `class-longevity-form.php` (active shortcode handler), added `prefill` to `longevity_form_data` JS object, replaced inline-PHP prefill block in `longevity-form-raw.php` with pure JS, removed dead PHP prefill code | `class-longevity-form.php`, `longevity-form-raw.php` |
+| 2026-02-27 | Practitioner switch: notify new practitioner on link/switch, JS confirmation dialog before switching | `class-health-tracker-practitioner.php`, `class-health-tracker.php` |
 | 2026-02-26 | Fix invited-client form UX: hide Skip button and "(optional)" label on locked practitioner email field; fix "Nov 30, -0001" date bug with defensive `strtotime() > 0` guard | `health-form-raw.php`, `class-health-tracker-practitioner.php` |
 | 2026-02-26 | Soft-delete relationship fixes: `validate_client_access()` security gap, re-invite/auto-link restoration of soft-deleted rows, stale `hdl_invited_by_practitioner` meta cleanup on removal, backfill filter | `class-health-tracker-practitioner.php`, `class-client-linker.php` |
 | 2026-02-25 | Admin "Signup Source" column: tracks `hdl_source` on all creation paths, color-coded labels, inference fallback for existing users | `class-consumer-provisioner.php`, `class-health-tracker-practitioner.php`, `class-user-management.php` |
