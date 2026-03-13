@@ -776,8 +776,8 @@
             <span class="absolute -top-3 left-8 bg-primary text-white text-xs font-semibold px-4 py-1 rounded-full">Recommended</span>
             <h3 class="font-heading text-2xl text-dark font-medium">The Course</h3>
             <p class="mt-1 text-sm text-body">The Holistic Longevity Practitioner Certificate. 3&#8209;week intensive training + 9&#8209;week supported implementation. Everything listed above.</p>
-            <p class="mt-6 font-heading text-4xl text-dark font-semibold">&pound;997</p>
-            <p class="text-sm text-muted mt-1">or 3 &times; &pound;349</p>
+            <p class="mt-6 font-heading text-4xl text-dark font-semibold" id="course-price" data-price>&pound;997</p>
+            <p class="text-sm text-muted mt-1" id="course-installment" data-price>or 3 &times; &pound;349</p>
             <ul class="mt-4 space-y-1.5 text-sm text-body list-disc pl-5">
               <li>Full platform access</li>
               <li>Protocol framework and materials</li>
@@ -810,8 +810,8 @@
               <li><strong>Unlimited report credits</strong></li>
             </ul>
             <p class="mt-4 text-sm text-body">For practitioners building longevity into their core offering, not just adding it as a side service.</p>
-            <p class="mt-6 font-heading text-4xl text-dark font-semibold">&pound;2,497</p>
-            <p class="text-sm text-muted mt-1">or 6 &times; &pound;449</p>
+            <p class="mt-6 font-heading text-4xl text-dark font-semibold" id="signature-price" data-price>&pound;2,497</p>
+            <p class="text-sm text-muted mt-1" id="signature-installment" data-price>or 6 &times; &pound;449</p>
             <p class="mt-2 text-xs text-primary font-medium">Coming soon</p>
             <div class="mt-auto pt-6">
               <button onclick="openContactModal({heading:'Join the Signature Waiting List',subject:'Signature Waiting List',subtext:'We\'ll notify you as soon as the Signature tier is available.'})"
@@ -1000,6 +1000,10 @@
         const PRICE_AMOUNTS_GBP = {
           launchpad: 1900,
           minimum: 9900,
+          course: 99700,
+          course_installment: 34900,
+          signature: 249700,
+          signature_installment: 44900,
         };
 
         async function checkout(tier) {
@@ -1092,6 +1096,19 @@
             document.getElementById('currency-label').textContent = currency;
             disclaimer.classList.remove('hidden');
           }
+
+          // Course & Signature display prices
+          var courseEl = document.getElementById('course-price');
+          if (courseEl) courseEl.textContent = formatPrice(convertAmount(PRICE_AMOUNTS_GBP.course, currency), currency);
+
+          var courseInst = document.getElementById('course-installment');
+          if (courseInst) courseInst.textContent = 'or 3 \u00D7 ' + formatPrice(convertAmount(PRICE_AMOUNTS_GBP.course_installment, currency), currency);
+
+          var sigEl = document.getElementById('signature-price');
+          if (sigEl) sigEl.textContent = formatPrice(convertAmount(PRICE_AMOUNTS_GBP.signature, currency), currency);
+
+          var sigInst = document.getElementById('signature-installment');
+          if (sigInst) sigInst.textContent = 'or 6 \u00D7 ' + formatPrice(convertAmount(PRICE_AMOUNTS_GBP.signature_installment, currency), currency);
 
           // Launchpad & Minimum display prices
           var lpConverted = convertAmount(PRICE_AMOUNTS_GBP.launchpad, currency);
