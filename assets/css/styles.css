@@ -191,6 +191,22 @@ body {
 }
 
 /* ------------------------------------------------
+   FAQ accordion
+   ------------------------------------------------ */
+.faq-answer {
+  max-height: 0;
+  overflow: hidden;
+  opacity: 0;
+  transition: max-height 0.35s var(--ease-out-expo),
+    opacity 0.25s var(--ease-out-expo);
+}
+
+.faq-answer.open {
+  max-height: 500px;
+  opacity: 1;
+}
+
+/* ------------------------------------------------
    Coming soon card treatment
    ------------------------------------------------ */
 .coming-soon-card {

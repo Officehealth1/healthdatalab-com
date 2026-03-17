@@ -70,7 +70,7 @@
       --color-stroke: #e5e7eb;
     }
   </style>
-  <link rel="stylesheet" href="assets/css/styles.css?v=2">
+  <link rel="stylesheet" href="assets/css/styles.css?v=3">
   <script type="application/ld+json">
   {
     "@context": "https://schema.org",
@@ -162,7 +162,7 @@
   </div>
 
   <!-- ============================================================
-       WHICH PRICE HERO
+       SECTION 1: HERO — VIDEO + TWO-CARD REFRAME
        ============================================================ -->
   <section class="bg-gradient-to-b from-surface to-light">
     <div class="max-w-[1280px] mx-auto px-5 md:px-[52px] pt-36 pb-12 md:pt-44 md:pb-16">
@@ -172,174 +172,188 @@
         </h1>
       </div>
 
-      <div class="hero-enter hero-enter-2 max-w-4xl mx-auto mt-10 grid md:grid-cols-2 gap-6">
-        <!-- Left card — Action -->
-        <button onclick="revealPriceCard(this)" class="group text-left rounded-[24px] border-2 border-primary/40 bg-surface p-8 cursor-pointer hover:border-primary transition-colors">
+      <!-- Video embed (placeholder until Matthew records) -->
+      <div class="hero-enter hero-enter-2 max-w-[720px] mx-auto mt-10">
+        <div class="video-embed-wrapper rounded-2xl overflow-hidden aspect-video">
+          <iframe src="" class="w-full h-full" allow="autoplay; fullscreen; picture-in-picture" allowfullscreen></iframe>
+        </div>
+      </div>
+
+      <!-- Two reframe cards -->
+      <div class="hero-enter hero-enter-3 max-w-4xl mx-auto mt-10 grid md:grid-cols-2 gap-6">
+
+        <!-- Left card — Action (teal background) -->
+        <button onclick="revealPriceCard(this)" class="group text-left rounded-[24px] bg-primary/[0.06] border-2 border-primary/30 p-8 cursor-pointer hover:border-primary transition-colors">
           <div class="flex items-center gap-3 mb-4">
             <svg class="w-6 h-6 text-primary" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 18 9 11.25l4.306 4.306a11.95 11.95 0 0 1 5.814-5.518l2.74-1.22m0 0-5.94-2.281m5.94 2.28-2.28 5.941"/>
             </svg>
-            <p class="font-heading text-lg font-medium text-dark">The price if you take action</p>
+            <p class="font-heading text-lg font-medium text-dark">The price if you take action on this?</p>
           </div>
           <div class="price-card-reveal hidden">
-            <p class="text-body leading-relaxed mb-4">
-              <span class="text-2xl font-heading font-semibold text-dark">&pound;997.</span> And if you&rsquo;re early, it might cost you nothing.
+            <p class="text-body leading-relaxed mb-3">
+              <span class="text-2xl font-heading font-semibold text-dark">&pound;997.</span>
             </p>
-            <a href="#launch-pricing" class="inline-flex items-center text-sm text-primary font-medium hover:text-primary-dark transition-colors"
-              onclick="event.stopPropagation()">
-              See how &rarr;
-            </a>
+            <p class="text-body leading-relaxed mb-3">
+              That&rsquo;s the full price of the Holistic Longevity Practitioner course &mdash; 12 weeks of training, platform access, certificate, AI tools, and community.
+            </p>
+            <p class="text-body leading-relaxed mb-4">
+              We&rsquo;re launching with a refund model for early practitioners who commit fully. Depending on when you join, you could get up to 100% back.
+              <a href="#launch-offer" class="inline-flex items-center text-sm text-primary font-medium hover:text-primary-dark transition-colors"
+                onclick="event.stopPropagation()">
+                Here&rsquo;s how that works &rarr;
+              </a>
+            </p>
+            <p class="text-sm text-body">Or explore all the tiers below. &darr;</p>
           </div>
           <p class="price-card-hint text-sm text-muted mt-2">Click to reveal</p>
         </button>
 
-        <!-- Right card — Inaction -->
-        <button onclick="revealPriceCard(this)" class="group text-left rounded-[24px] border-2 border-stroke/50 bg-surface p-8 cursor-pointer hover:border-muted transition-colors">
+        <!-- Right card — Inaction (grey background) -->
+        <button onclick="revealPriceCard(this)" class="group text-left rounded-[24px] bg-light border-2 border-stroke/50 p-8 cursor-pointer hover:border-muted transition-colors">
           <div class="flex items-center gap-3 mb-4">
             <svg class="w-6 h-6 text-muted" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 6 9 12.75l4.286-4.286a11.948 11.948 0 0 1 4.306 6.43l.776 2.898m0 0 3.182-5.511m-3.182 5.51-5.511-3.181"/>
             </svg>
-            <p class="font-heading text-lg font-medium text-dark">The price if you don&rsquo;t</p>
+            <p class="font-heading text-lg font-medium text-dark">The price if you don&rsquo;t take action?</p>
           </div>
           <div class="price-card-reveal hidden">
+            <p class="text-body leading-relaxed mb-3">
+              <span class="text-2xl font-heading font-semibold text-dark">&pound;0.</span>
+            </p>
+            <p class="text-body leading-relaxed mb-3">
+              And honestly? You&rsquo;re probably doing good work already. Your clients trust you. Your practice runs. Nothing&rsquo;s broken.
+            </p>
+            <p class="text-body leading-relaxed mb-3">
+              The cost isn&rsquo;t that something goes wrong. It&rsquo;s that nothing changes. You stay on your current trajectory &mdash; which is fine, but it&rsquo;s the same trajectory you&rsquo;re already on. Same services. Same ceiling. Same answer when a client asks about longevity and you have to improvise.
+            </p>
+            <p class="text-body leading-relaxed mb-3">
+              If you wanted to add longevity yourself &mdash; research the biomarkers, design the intake forms, build the tracking system, figure out how to frame it for clients &mdash; you could. It would take months if you&rsquo;ve got spare time. Longer if you don&rsquo;t.
+            </p>
             <p class="text-body leading-relaxed">
-              &pound;0 upfront. But you stay on your current path &mdash; watching longevity clinics multiply while your clients quietly drift to whoever looks like they&rsquo;re keeping up. The cost of inaction compounds.
+              Or you carry on as you are. That works too. It&rsquo;s just more of what you&rsquo;re already getting.
             </p>
           </div>
           <p class="price-card-hint text-sm text-muted mt-2">Click to reveal</p>
         </button>
+
       </div>
 
-      <div class="hero-enter hero-enter-3 max-w-3xl mx-auto mt-8 text-center">
-        <a href="#launch-pricing" class="text-sm text-body hover:text-dark transition-colors">
-          See the full pricing breakdown below &darr;
+      <div class="hero-enter hero-enter-4 max-w-3xl mx-auto mt-8 text-center">
+        <a href="#permanent-pricing" class="text-sm text-body hover:text-dark transition-colors">
+          Full pricing breakdown &darr;
         </a>
       </div>
     </div>
   </section>
 
   <!-- ============================================================
-       LAUNCH OVERLAY
+       SECTION 2: LAUNCH OVERLAY (TEMPORARY — DELETE WHEN LAUNCH ENDS)
+       No launch-specific content outside this section.
        ============================================================ -->
-  <section id="launch-pricing" class="bg-light">
-    <div class="max-w-[1280px] mx-auto px-5 md:px-[52px] pt-8 pb-8 md:pt-12 md:pb-12">
-      <div class="max-w-3xl mx-auto">
-        <div class="reveal rounded-[24px] border-l-4 border-primary bg-primary/[0.03] p-6 md:p-10">
+  <section id="launch-offer" class="bg-gradient-to-br from-[#fdf8f3] to-[#f7f0e8]">
+    <div class="max-w-[1280px] mx-auto px-5 md:px-[52px] py-16 md:py-24">
 
-          <p class="text-xs font-semibold text-primary tracking-widest uppercase mb-4">Limited Launch</p>
-
-          <h2 class="font-heading text-[clamp(1.5rem,3.5vw,2rem)] font-medium text-dark leading-tight tracking-[-0.02em]">
-            First cohort &mdash; limited places, limited time
-          </h2>
-
-          <p class="mt-5 text-body leading-relaxed">
-            We&rsquo;re opening applications for the very first run of the Holistic Longevity Practitioner Certificate. This is a one-time opportunity that won&rsquo;t be repeated once places are filled.
-          </p>
-
-          <p class="mt-4 text-body leading-relaxed">
-            You apply for the Course at the full price of &pound;997. Once your application is reviewed, one of three things happens:
-          </p>
-
-          <div class="mt-6 space-y-4">
-            <div class="rounded-[16px] bg-surface border border-stroke/50 p-5">
-              <p class="text-dark font-medium">1. Beta Cohort &mdash; 10 places</p>
-              <p class="mt-2 text-body leading-relaxed">
-                Selected for the pre-launch beta. You get the full course experience before anyone else, help shape the final version, and receive a full refund of &pound;997 after engagement.
-                <span class="tooltip-trigger" tabindex="0">&oplus;<span class="tooltip-content">Refunds are issued in full wherever possible. In some cases, international credit/debit card processing fees are non-recoverable and cannot be included in the refund. We&rsquo;ll do our best to minimise this&nbsp;&mdash; and in cases where fees are significant, we&rsquo;re happy to discuss sharing the cost. Bank transfers avoid these fees entirely if you&rsquo;d prefer that option. The aim is always a fair, win-win outcome.</span></span>
-              </p>
-            </div>
-
-            <div class="rounded-[16px] bg-surface border border-stroke/50 p-5">
-              <p class="text-dark font-medium">2. Founding 1st Cohort</p>
-              <p class="mt-2 text-body leading-relaxed">
-                50% refund (&pound;498.50) on the same engagement basis.
-                <span class="tooltip-trigger" tabindex="0">&oplus;<span class="tooltip-content">Refunds are issued in full wherever possible. In some cases, international credit/debit card processing fees are non-recoverable and cannot be included in the refund. We&rsquo;ll do our best to minimise this&nbsp;&mdash; and in cases where fees are significant, we&rsquo;re happy to discuss sharing the cost. Bank transfers avoid these fees entirely if you&rsquo;d prefer that option. The aim is always a fair, win-win outcome.</span></span>
-              </p>
-            </div>
-
-            <div class="rounded-[16px] bg-surface border border-stroke/50 p-5">
-              <p class="text-dark font-medium">3. Waiting List</p>
-              <p class="mt-2 text-body leading-relaxed">
-                Added to the next cohort at full price.
-              </p>
-            </div>
-          </div>
-
-          <div class="mt-8">
-            <p class="text-dark font-medium">Why refunds instead of discounts?</p>
-            <p class="mt-3 text-body leading-relaxed">
-              Because discounts attract people looking for a deal. Refunds attract people willing to commit first and be rewarded for showing up.
-            </p>
-            <p class="mt-3 text-body leading-relaxed">
-              The beta and founding cohorts need practitioners who will engage deeply &mdash; do the work, give honest feedback, and help us build the best version of this course. That&rsquo;s worth more than a discount.
-            </p>
-            <p class="mt-3 text-body leading-relaxed">
-              The engagement bar isn&rsquo;t high. Complete the modules, participate in sessions, use the Protocol with at least one client, and share what worked and what didn&rsquo;t. That&rsquo;s it.
-            </p>
-            <p class="mt-3 text-body leading-relaxed">
-              If you do that, you get the refund. If you ghost, you paid full price for a course that&rsquo;s worth full price. No one loses.
-            </p>
-          </div>
-
-          <div class="mt-8">
-            <p class="text-dark font-medium">What you&rsquo;re actually getting</p>
-            <ul class="mt-3 space-y-2 text-body leading-relaxed list-disc pl-5">
-              <li>More personal involvement &mdash; smaller group, direct access, faster feedback loops</li>
-              <li>More depth &mdash; you&rsquo;re helping shape the curriculum, not just consuming it</li>
-              <li>Signature-tier elements &mdash; beta participants get features normally reserved for the Signature plan</li>
-            </ul>
-          </div>
-
-          <div class="mt-8">
-            <p class="text-dark font-medium">For the IrisLab community</p>
-            <p class="mt-3 text-body leading-relaxed">
-              If you&rsquo;re coming from IrisLab, there&rsquo;s an iridology-specific module built into the course &mdash; connecting iris assessment with the Longevity Trajectory Protocol. You&rsquo;ll also get access to an iridology-specific report that integrates with the platform.
-            </p>
-          </div>
-
-          <div class="mt-8">
-            <p class="text-dark font-medium">Cut-off dates</p>
-            <div class="mt-3 space-y-2 text-body leading-relaxed">
-              <p><strong class="text-dark">Beta 10:</strong> Applications close once 10 places are filled. No date &mdash; it&rsquo;s first come, first accepted.</p>
-              <p><strong class="text-dark">Founding 1st Cohort:</strong> Open until the course launches or places are filled.</p>
-              <p><strong class="text-dark">After close:</strong> Full price, next available cohort, no refund structure.</p>
-            </div>
-          </div>
-
-          <div class="mt-8">
-            <p class="text-body leading-relaxed">
-              <strong class="text-dark">Changed your mind?</strong> Full refund within 2&nbsp;weeks of applying, no questions asked.
-              <span class="tooltip-trigger" tabindex="0">&oplus;<span class="tooltip-content">Refunds are issued in full wherever possible. In some cases, international credit/debit card processing fees are non-recoverable and cannot be included in the refund. We&rsquo;ll do our best to minimise this&nbsp;&mdash; and in cases where fees are significant, we&rsquo;re happy to discuss sharing the cost. Bank transfers avoid these fees entirely if you&rsquo;d prefer that option. The aim is always a fair, win-win outcome.</span></span>
-            </p>
-          </div>
-
-          <div class="mt-8 text-center">
-            <button onclick="openApplyModal()"
-              class="inline-flex items-center gap-2 rounded-[48px] bg-primary text-white text-base font-medium px-10 py-4 hover:bg-primary-dark transition-colors shadow-[0_4px_20px_rgba(61,141,160,.25)] cursor-pointer">
-              Apply for the Course
-            </button>
-            <p class="mt-3 text-sm text-muted">You apply at the full price. Cohort placement and any refund are confirmed after review.</p>
-          </div>
-
-        </div>
+      <div class="reveal max-w-3xl mx-auto text-center">
+        <p class="text-xs font-semibold text-primary tracking-widest uppercase mb-4">Launch offer &mdash; limited places</p>
+        <h2 class="font-heading text-[clamp(1.5rem,3.5vw,2.25rem)] font-medium text-dark leading-tight tracking-[-0.02em]">
+          Two ways to join at a fraction of the price. Neither is a discount.
+        </h2>
+        <p class="mt-4 text-body leading-relaxed max-w-2xl mx-auto">
+          We&rsquo;re launching the Holistic Longevity Practitioner course with a refund model that rewards commitment, not wallets. Here&rsquo;s how it works.
+        </p>
       </div>
+
+      <!-- Sub-blocks A + B -->
+      <div class="max-w-4xl mx-auto mt-12 grid md:grid-cols-2 gap-6">
+
+        <!-- Sub-block A: Beta 10 -->
+        <div class="reveal reveal-delay-1 rounded-[24px] bg-surface border border-stroke/50 p-8 md:p-10 shadow-sm flex flex-col">
+          <h3 class="font-heading text-lg font-medium text-dark leading-snug">
+            Beta 10 &mdash; Apply at full price. Earn a full refund.
+          </h3>
+          <p class="mt-4 text-body leading-relaxed">
+            We&rsquo;re selecting 10 practitioners for the pre-launch beta cohort. You apply and pay the full course price (&pound;997). At the end of Week 3, if you&rsquo;ve completed the modules, used the protocol with real clients, attended the group sessions, and provided honest feedback &mdash; you receive a <strong class="text-dark">full refund</strong>.
+          </p>
+          <p class="mt-3 text-body leading-relaxed">
+            You keep all access. The course. The platform. The certificate. The community. You paid nothing &mdash; because you gave us something more valuable: real-world proof that this works.
+          </p>
+          <ul class="mt-5 space-y-1.5 text-xs text-muted leading-relaxed flex-1">
+            <li>10 places only. Selection based on your application.</li>
+            <li>Full refund issued at end of Week 3 on engagement basis (not satisfaction &mdash; engagement).</li>
+            <li>2-week no-questions cooling-off period applies to everyone, regardless.</li>
+            <li>Start date: <strong class="text-dark">TBD</strong></li>
+            <li>Applications close: <strong class="text-dark">TBD</strong></li>
+          </ul>
+          <button onclick="openContactModal({ heading: 'Apply for Beta 10', subtext: '10 places. Selection based on your application.', subject: 'Beta 10 Application' })"
+            class="mt-6 w-full inline-flex items-center justify-center gap-2 rounded-[48px] bg-primary text-white text-base font-medium px-8 py-4 hover:bg-primary-dark transition-colors shadow-[0_4px_20px_rgba(61,141,160,.25)] cursor-pointer">
+            Apply for Beta 10
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" /></svg>
+          </button>
+        </div>
+
+        <!-- Sub-block B: Founding 1st Cohort -->
+        <div class="reveal reveal-delay-2 rounded-[24px] bg-surface border border-stroke/50 p-8 md:p-10 shadow-sm flex flex-col">
+          <h3 class="font-heading text-lg font-medium text-dark leading-snug">
+            Founding 1st Cohort &mdash; 50% refund for early movers.
+          </h3>
+          <p class="mt-4 text-body leading-relaxed">
+            Strong applicants not selected for the beta join the founding first cohort, starting approximately 3&ndash;4 weeks later. Same deal, half the refund: complete the course with full engagement, and you receive a <strong class="text-dark">50% refund</strong> (&pound;499 back).
+          </p>
+          <p class="mt-3 text-body leading-relaxed">
+            Plus: founding cohort members get significant Signature-tier material included at no extra cost &mdash; including 1-on-1 elements and group case reviews that would normally require the &pound;2,497 tier.
+          </p>
+          <ul class="mt-5 space-y-1.5 text-xs text-muted leading-relaxed flex-1">
+            <li>Places are limited (exact number TBD).</li>
+            <li>Same engagement requirements as Beta 10.</li>
+            <li>2-week no-questions cooling-off period applies.</li>
+            <li>Start date: <strong class="text-dark">TBD</strong></li>
+          </ul>
+          <button onclick="openContactModal({ heading: 'Join the Founding Cohort', subtext: 'Strong applicants join the founding first cohort.', subject: 'Founding Cohort Application' })"
+            class="mt-6 w-full inline-flex items-center justify-center gap-2 rounded-[48px] bg-dark text-white text-base font-medium px-8 py-4 hover:bg-dark-2 transition-colors cursor-pointer">
+            Join the Founding Cohort
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" /></svg>
+          </button>
+        </div>
+
+      </div>
+
+      <!-- Sub-block C: Why refunds, not discounts? -->
+      <div class="reveal max-w-3xl mx-auto mt-12">
+        <h3 class="font-heading text-lg font-medium text-dark">Why refunds instead of discounts?</h3>
+        <p class="mt-4 text-body leading-relaxed">
+          A discount says: &ldquo;We&rsquo;ll charge you less because it&rsquo;s early.&rdquo;
+        </p>
+        <p class="mt-3 text-body leading-relaxed">
+          A refund says: &ldquo;We&rsquo;ll charge you the real price &mdash; and if you show up and do the work, you earn it back.&rdquo;
+        </p>
+        <p class="mt-3 text-body leading-relaxed">
+          The difference matters. Discounts attract bargain-hunters. Refunds attract practitioners who are serious about using this in their practice. We want the second group.
+        </p>
+        <p class="mt-3 text-body leading-relaxed">
+          The refund model creates engagement pressure, not financial pressure. You&rsquo;re not risking money &mdash; you&rsquo;re committing effort. And that commitment is exactly what makes the course work.
+        </p>
+      </div>
+
+      <!-- Sub-block D: After the launch -->
+      <div class="reveal max-w-3xl mx-auto mt-8">
+        <p class="text-sm text-muted leading-relaxed">
+          After the founding cohort fills, the course moves to a waiting list at the full &pound;997 price. No refund offers. No discounts. If you&rsquo;re reading this and the options above are still open &mdash; that&rsquo;s your window.
+        </p>
+      </div>
+
     </div>
   </section>
+  <!-- END LAUNCH OVERLAY -->
 
   <!-- ============================================================
-       PERMANENT PRICING
+       SECTION 3: PERMANENT PRICING TABLE
        ============================================================ -->
   <section id="permanent-pricing" class="bg-surface">
     <div class="max-w-[1280px] mx-auto px-5 md:px-[52px] py-16 md:py-24">
 
-      <div class="reveal text-center max-w-2xl mx-auto">
-        <h2 class="font-heading text-[clamp(1.5rem,3.5vw,2rem)] font-medium text-dark leading-tight tracking-[-0.02em]">
-          A professional investment, not a subscription
-        </h2>
-      </div>
-
       <!-- Currency Selector -->
-      <div id="currency-selector" class="reveal mt-8 flex justify-center">
+      <div id="currency-selector" class="reveal flex justify-center">
         <div class="inline-flex items-center gap-3 rounded-full bg-light border border-stroke/50 px-5 py-2.5">
           <label for="currency-select" class="text-sm text-body">Currency:</label>
           <select id="currency-select" onchange="updateCurrencyDisplay(this.value)"
@@ -360,112 +374,107 @@
         Prices shown in <span id="currency-label">USD</span>. Final amount may vary slightly due to exchange rate fluctuations.
       </p>
 
-      <!-- ============================================================
-           COURSE + SIGNATURE CARDS
-           ============================================================ -->
-      <div class="mt-12 grid lg:grid-cols-2 gap-6 max-w-4xl mx-auto">
+      <!-- 4-column pricing grid -->
+      <div class="mt-12 grid md:grid-cols-2 lg:grid-cols-4 gap-6 max-w-6xl mx-auto">
 
-        <!-- Course Card -->
-        <div class="reveal reveal-delay-1 relative rounded-[24px] ring-2 ring-primary bg-surface p-8 md:p-10 flex flex-col">
-          <span class="absolute -top-3 left-8 bg-primary text-white text-xs font-semibold tracking-wide uppercase px-4 py-1 rounded-full">Recommended</span>
-          <p class="text-sm text-primary font-medium">The Course</p>
-          <p id="course-price" data-price class="mt-2 font-heading text-[clamp(2rem,4vw,2.75rem)] font-semibold text-dark leading-none tracking-[-0.02em]">&pound;997</p>
-          <p id="course-installment" data-price class="mt-1 text-sm text-muted">or 3 &times; &pound;349</p>
-          <p class="mt-1 text-xs text-muted">one-time</p>
-
-          <ul class="mt-6 space-y-3 text-sm text-body leading-relaxed list-disc pl-5 flex-1">
-            <li>Full platform access</li>
-            <li>Protocol framework and materials</li>
-            <li>Live sessions</li>
-            <li>Peer community</li>
-            <li>100 startup credits + 30/mo ongoing</li>
-            <li>Full AI health suite</li>
-            <li>Holistic Longevity Practitioner Certificate on completion</li>
-          </ul>
-
-          <button onclick="openApplyModal()"
-            class="mt-8 w-full inline-flex items-center justify-center gap-2 rounded-[48px] bg-primary text-white text-base font-medium px-8 py-4 hover:bg-primary-dark transition-colors shadow-[0_4px_20px_rgba(61,141,160,.25)] cursor-pointer">
-            Apply for the Course
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" /></svg>
-          </button>
-        </div>
-
-        <!-- Signature Card -->
-        <div class="reveal reveal-delay-2 relative rounded-[24px] opacity-60 border border-stroke bg-surface p-8 md:p-10 flex flex-col">
-          <span class="absolute -top-3 left-8 bg-dark text-white text-xs font-semibold tracking-wide uppercase px-4 py-1 rounded-full">Coming Soon</span>
-          <p class="text-sm text-dark font-medium">Signature</p>
-          <p id="signature-price" data-price class="mt-2 font-heading text-[clamp(2rem,4vw,2.75rem)] font-semibold text-dark leading-none tracking-[-0.02em]">&pound;2,497</p>
-          <p id="signature-installment" data-price class="mt-1 text-sm text-muted">or 6 &times; &pound;449</p>
-          <p class="mt-1 text-xs text-muted">one-time</p>
-
-          <p class="mt-6 text-sm text-body leading-relaxed">Everything in Course, plus:</p>
-          <ul class="mt-3 space-y-3 text-sm text-body leading-relaxed list-disc pl-5 flex-1">
-            <li>1-to-1 coaching</li>
-            <li>Priority support</li>
-            <li>Business growth deep-dive</li>
-            <li>Advanced AI advisory</li>
-            <li>Environment design</li>
-            <li>Unlimited report credits</li>
-          </ul>
-
-          <button onclick="openContactModal({ heading: 'Signature Waiting List', subtext: 'Be the first to know when Signature launches.', subject: 'Signature Waiting List' })"
-            class="mt-8 w-full inline-flex items-center justify-center gap-2 rounded-[48px] bg-dark text-white text-base font-medium px-8 py-4 hover:bg-dark-2 transition-colors cursor-pointer">
-            Join the waiting list
-          </button>
-        </div>
-
-      </div>
-
-      <!-- ============================================================
-           NOT READY? — LAUNCHPAD + MINIMUM
-           ============================================================ -->
-      <div class="reveal mt-20 text-center max-w-2xl mx-auto">
-        <h3 class="font-heading text-[clamp(1.25rem,3vw,1.75rem)] font-medium text-dark leading-tight tracking-[-0.02em]">
-          Not ready for the Course?
-        </h3>
-        <p class="mt-3 text-body leading-relaxed">Start with platform access and upgrade when you&rsquo;re ready.</p>
-      </div>
-
-      <div class="mt-10 grid lg:grid-cols-2 gap-6 max-w-4xl mx-auto">
-
-        <!-- Launchpad Card -->
-        <div class="reveal reveal-delay-1 rounded-[24px] border border-stroke bg-surface p-8 md:p-10 flex flex-col">
+        <!-- Launchpad -->
+        <div class="reveal reveal-delay-1 lg:order-1 rounded-[24px] border border-stroke bg-surface p-7 md:p-8 flex flex-col">
+          <span class="inline-block self-start bg-light text-body text-xs font-semibold tracking-wide uppercase px-3 py-1 rounded-full mb-4">Entry Level</span>
           <p class="text-sm text-primary font-medium">Launchpad</p>
-          <p class="mt-2 font-heading text-[clamp(2rem,4vw,2.75rem)] font-semibold text-dark leading-none tracking-[-0.02em]">Free</p>
+          <p class="mt-1 text-sm text-body leading-relaxed">Just starting out? We built this for you.</p>
+          <p class="mt-4 font-heading text-[clamp(1.75rem,3.5vw,2.25rem)] font-semibold text-dark leading-none tracking-[-0.02em]">Free</p>
           <p id="launchpad-after-trial" data-price class="mt-1 text-sm text-muted">then &pound;19/mo after 3 months</p>
 
-          <ul class="mt-6 space-y-3 text-sm text-body leading-relaxed list-disc pl-5 flex-1">
-            <li>Entry Level</li>
-            <li>3 report credits/mo</li>
-            <li>Mini course</li>
+          <ul class="mt-5 space-y-2.5 text-sm text-body leading-relaxed list-disc pl-5 flex-1">
+            <li>3 report credits/month</li>
+            <li>Mini course: &ldquo;Your First 10 Longevity Clients&rdquo;</li>
             <li>AI Practice Growth Advisor</li>
             <li>Basic AI Health Advisor</li>
             <li>Community (view only)</li>
           </ul>
 
           <button onclick="checkout('launchpad')"
-            class="mt-8 w-full inline-flex items-center justify-center gap-2 rounded-[48px] bg-dark text-white text-base font-medium px-8 py-4 hover:bg-dark-2 transition-colors cursor-pointer">
-            Start free &rarr;
+            class="mt-6 w-full inline-flex items-center justify-center gap-2 rounded-[48px] bg-dark text-white text-sm font-medium px-6 py-3.5 hover:bg-dark-2 transition-colors cursor-pointer">
+            Start Free &rarr;
           </button>
+          <p class="mt-3 text-xs text-muted text-center">No card required for 3-month trial.</p>
         </div>
 
-        <!-- Minimum Card -->
-        <div class="reveal reveal-delay-2 rounded-[24px] border border-stroke bg-surface p-8 md:p-10 flex flex-col">
+        <!-- Minimum -->
+        <div class="reveal reveal-delay-2 lg:order-2 rounded-[24px] border border-stroke bg-surface p-7 md:p-8 flex flex-col">
+          <span class="inline-block self-start bg-light text-body text-xs font-semibold tracking-wide uppercase px-3 py-1 rounded-full mb-4">Platform Only</span>
           <p class="text-sm text-dark font-medium">Minimum</p>
-          <p id="minimum-price" data-price class="mt-2 font-heading text-[clamp(2rem,4vw,2.75rem)] font-semibold text-dark leading-none tracking-[-0.02em]">&pound;99/mo</p>
+          <p class="mt-1 text-sm text-body leading-relaxed">Platform tools, no course, no certificate, no community.</p>
+          <p id="minimum-price" data-price class="mt-4 font-heading text-[clamp(1.75rem,3.5vw,2.25rem)] font-semibold text-dark leading-none tracking-[-0.02em]">&pound;99<span class="text-lg font-normal text-muted">/mo</span></p>
+          <p class="mt-1 text-sm text-muted">cancel anytime</p>
 
-          <ul class="mt-6 space-y-3 text-sm text-body leading-relaxed list-disc pl-5 flex-1">
-            <li>Platform Only</li>
-            <li>15 report credits/mo</li>
+          <ul class="mt-5 space-y-2.5 text-sm text-body leading-relaxed list-disc pl-5 flex-1">
+            <li>15 report credits/month</li>
             <li>Client management &amp; progress tracking</li>
             <li>Async client chat</li>
             <li>Full AI health chatbot suite</li>
           </ul>
 
           <button onclick="checkout('minimum')"
-            class="mt-8 w-full inline-flex items-center justify-center gap-2 rounded-[48px] bg-dark text-white text-base font-medium px-8 py-4 hover:bg-dark-2 transition-colors cursor-pointer">
-            Get started &rarr;
+            class="mt-6 w-full inline-flex items-center justify-center gap-2 rounded-[48px] bg-dark text-white text-sm font-medium px-6 py-3.5 hover:bg-dark-2 transition-colors cursor-pointer">
+            Get Started &rarr;
           </button>
+          <p class="mt-3 text-xs text-muted text-center">Cancel anytime. No lock-in.</p>
+        </div>
+
+        <!-- Course (highlighted / recommended) -->
+        <div class="reveal reveal-delay-1 order-first lg:order-3 relative rounded-[24px] ring-2 ring-primary bg-surface p-7 md:p-8 flex flex-col">
+          <span class="absolute -top-3 left-7 bg-primary text-white text-xs font-semibold tracking-wide uppercase px-4 py-1 rounded-full">Recommended</span>
+          <p class="text-sm text-primary font-medium mt-1">Course</p>
+          <p class="mt-1 text-sm text-body leading-relaxed">Full 12-week longevity practitioner training with platform access, certificate, and AI tools.</p>
+          <p id="course-price" data-price class="mt-4 font-heading text-[clamp(1.75rem,3.5vw,2.25rem)] font-semibold text-dark leading-none tracking-[-0.02em]">&pound;997</p>
+          <p id="course-installment" data-price class="mt-1 text-sm text-muted">or 3 &times; &pound;349/mo</p>
+
+          <ul class="mt-5 space-y-2.5 text-sm text-body leading-relaxed list-disc pl-5 flex-1">
+            <li>12-week course (recorded + live sessions)</li>
+            <li>Holistic Longevity Practitioner Certificate</li>
+            <li>100 startup credits + 30/month ongoing</li>
+            <li>Full AI suite: Health, Herbal, Supplement, Diet, Diagnostics</li>
+            <li>AI Practice Growth Advisor</li>
+            <li>Client management, tracking &amp; async chat</li>
+            <li>Full course community access</li>
+          </ul>
+
+          <button onclick="openContactModal({ heading: 'Enrol Now', subtext: 'Applications reviewed personally. Expect a response within 48 hours.', subject: 'Course Application' })"
+            class="mt-6 w-full inline-flex items-center justify-center gap-2 rounded-[48px] bg-primary text-white text-sm font-medium px-6 py-3.5 hover:bg-primary-dark transition-colors shadow-[0_4px_20px_rgba(61,141,160,.25)] cursor-pointer">
+            Enrol Now
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" /></svg>
+          </button>
+          <p class="mt-3 text-xs text-muted text-center leading-relaxed">
+            Founding members: <span id="course-renewal" data-price>&pound;39</span>/mo renewal (locked for life). 2-week no-questions cooling-off period.
+          </p>
+        </div>
+
+        <!-- Signature (Coming Soon) -->
+        <div class="reveal reveal-delay-2 lg:order-4 relative rounded-[24px] border border-stroke bg-surface p-7 md:p-8 flex flex-col opacity-70">
+          <span class="absolute -top-3 left-7 bg-dark text-white text-xs font-semibold tracking-wide uppercase px-4 py-1 rounded-full">Coming Soon</span>
+          <p class="text-sm text-dark font-medium mt-1">Signature</p>
+          <p class="mt-1 text-sm text-body leading-relaxed">Everything in the Course, plus direct access to Matthew. For practitioners who want to move fastest.</p>
+          <p id="signature-price" data-price class="mt-4 font-heading text-[clamp(1.75rem,3.5vw,2.25rem)] font-semibold text-dark leading-none tracking-[-0.02em]">&pound;2,497</p>
+          <p id="signature-installment" data-price class="mt-1 text-sm text-muted">or 6 &times; &pound;449/mo</p>
+
+          <p class="mt-5 text-sm text-body leading-relaxed">Everything in Course, plus:</p>
+          <ul class="mt-2 space-y-2.5 text-sm text-body leading-relaxed list-disc pl-5 flex-1">
+            <li>1-on-1 calls with Matthew (monthly)</li>
+            <li>Weekly group case review sessions</li>
+            <li>Enhanced AI Business Advisor</li>
+            <li>Unlimited report credits</li>
+            <li>Priority support + early access</li>
+          </ul>
+
+          <button onclick="openContactModal({ heading: 'Signature Waiting List', subtext: 'Be the first to know when Signature launches.', subject: 'Signature Waiting List' })"
+            class="mt-6 w-full inline-flex items-center justify-center gap-2 rounded-[48px] bg-dark text-white text-sm font-medium px-6 py-3.5 hover:bg-dark-2 transition-colors cursor-pointer">
+            Join Waiting List
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" /></svg>
+          </button>
+          <p class="mt-3 text-xs text-muted text-center leading-relaxed">
+            Founding members: <span id="signature-renewal" data-price>&pound;79</span>/mo renewal (locked for life). Availability date TBD.
+          </p>
         </div>
 
       </div>
@@ -473,227 +482,402 @@
       <!-- Founding Note -->
       <div class="reveal mt-12 max-w-3xl mx-auto">
         <p class="text-sm text-muted text-center leading-relaxed">
-          Founding Member pricing is locked permanently &mdash; your rate never increases, even if you change tiers. Free iridology add-on included when it launches.
+          Founding Member pricing is locked permanently &mdash; your rate never increases, even as standard pricing rises.
         </p>
       </div>
 
-      <!-- ============================================================
-           COMPARE PLAN FEATURES
-           ============================================================ -->
-      <div class="reveal mt-16 max-w-4xl mx-auto">
-        <div class="text-center">
-          <button onclick="var t=document.getElementById('compare-table');t.classList.toggle('hidden');this.querySelector('svg').classList.toggle('rotate-180')"
-            class="inline-flex items-center gap-2 text-dark font-medium hover:text-primary transition-colors cursor-pointer">
-            Compare Plan Features
-            <svg class="w-5 h-5 transition-transform duration-200" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5"/>
-            </svg>
-          </button>
-        </div>
+    </div>
+  </section>
 
-        <div id="compare-table" class="hidden mt-6 overflow-x-auto rounded-2xl bg-surface border border-stroke">
-          <table class="w-full text-sm">
-            <thead>
-              <tr class="border-b border-stroke">
-                <th class="text-left font-medium text-dark px-4 py-3 min-w-[160px]">Feature</th>
-                <th class="text-center font-medium text-dark px-4 py-3">Launchpad</th>
-                <th class="text-center font-medium text-dark px-4 py-3">Minimum</th>
-                <th class="text-center font-medium text-primary px-4 py-3">Course</th>
-                <th class="text-center font-medium text-dark px-4 py-3">Signature</th>
-              </tr>
-            </thead>
-            <tbody class="text-body">
-              <tr class="border-b border-stroke/50">
-                <td class="px-4 py-3 font-medium text-dark">Report credits</td>
-                <td class="px-4 py-3 text-center">3/mo</td>
-                <td class="px-4 py-3 text-center">15/mo</td>
-                <td class="px-4 py-3 text-center">100 + 30/mo</td>
-                <td class="px-4 py-3 text-center">Unlimited</td>
-              </tr>
-              <tr class="border-b border-stroke/50">
-                <td class="px-4 py-3 font-medium text-dark">Client management</td>
-                <td class="px-4 py-3 text-center text-muted">&mdash;</td>
-                <td class="px-4 py-3 text-center text-primary">&check;</td>
-                <td class="px-4 py-3 text-center text-primary">&check;</td>
-                <td class="px-4 py-3 text-center text-primary">&check;</td>
-              </tr>
-              <tr class="border-b border-stroke/50">
-                <td class="px-4 py-3 font-medium text-dark">Progress tracking</td>
-                <td class="px-4 py-3 text-center text-muted">&mdash;</td>
-                <td class="px-4 py-3 text-center text-primary">&check;</td>
-                <td class="px-4 py-3 text-center text-primary">&check;</td>
-                <td class="px-4 py-3 text-center text-primary">&check;</td>
-              </tr>
-              <tr class="border-b border-stroke/50">
-                <td class="px-4 py-3 font-medium text-dark">Async client chat</td>
-                <td class="px-4 py-3 text-center text-muted">&mdash;</td>
-                <td class="px-4 py-3 text-center text-primary">&check;</td>
-                <td class="px-4 py-3 text-center text-primary">&check;</td>
-                <td class="px-4 py-3 text-center text-primary">&check;</td>
-              </tr>
-              <tr class="border-b border-stroke/50">
-                <td class="px-4 py-3 font-medium text-dark">AI Health Advisors</td>
-                <td class="px-4 py-3 text-center">Basic</td>
-                <td class="px-4 py-3 text-center">Full suite</td>
-                <td class="px-4 py-3 text-center">Full suite</td>
-                <td class="px-4 py-3 text-center">Advanced</td>
-              </tr>
-              <tr class="border-b border-stroke/50">
-                <td class="px-4 py-3 font-medium text-dark">AI Practice Growth</td>
-                <td class="px-4 py-3 text-center text-primary">&check;</td>
-                <td class="px-4 py-3 text-center text-muted">&mdash;</td>
-                <td class="px-4 py-3 text-center text-primary">&check;</td>
-                <td class="px-4 py-3 text-center text-primary">&check;</td>
-              </tr>
-              <tr class="border-b border-stroke/50">
-                <td class="px-4 py-3 font-medium text-dark">12-week training</td>
-                <td class="px-4 py-3 text-center text-muted">&mdash;</td>
-                <td class="px-4 py-3 text-center text-muted">&mdash;</td>
-                <td class="px-4 py-3 text-center text-primary">&check;</td>
-                <td class="px-4 py-3 text-center text-primary">&check;</td>
-              </tr>
-              <tr class="border-b border-stroke/50">
-                <td class="px-4 py-3 font-medium text-dark">Mini course</td>
-                <td class="px-4 py-3 text-center text-primary">&check;</td>
-                <td class="px-4 py-3 text-center text-muted">&mdash;</td>
-                <td class="px-4 py-3 text-center text-muted">&mdash;</td>
-                <td class="px-4 py-3 text-center text-muted">&mdash;</td>
-              </tr>
-              <tr class="border-b border-stroke/50">
-                <td class="px-4 py-3 font-medium text-dark">Certificate</td>
-                <td class="px-4 py-3 text-center text-muted">&mdash;</td>
-                <td class="px-4 py-3 text-center text-muted">&mdash;</td>
-                <td class="px-4 py-3 text-center text-primary">&check;</td>
-                <td class="px-4 py-3 text-center text-primary">&check;</td>
-              </tr>
-              <tr class="border-b border-stroke/50">
-                <td class="px-4 py-3 font-medium text-dark">Community access</td>
-                <td class="px-4 py-3 text-center">View only</td>
-                <td class="px-4 py-3 text-center text-muted">&mdash;</td>
-                <td class="px-4 py-3 text-center">Full access</td>
-                <td class="px-4 py-3 text-center">Full access</td>
-              </tr>
-              <tr class="border-b border-stroke/50">
-                <td class="px-4 py-3 font-medium text-dark">1-on-1 coaching</td>
-                <td class="px-4 py-3 text-center text-muted">&mdash;</td>
-                <td class="px-4 py-3 text-center text-muted">&mdash;</td>
-                <td class="px-4 py-3 text-center text-muted">&mdash;</td>
-                <td class="px-4 py-3 text-center text-primary">&check;</td>
-              </tr>
-              <tr class="border-b border-stroke/50">
-                <td class="px-4 py-3 font-medium text-dark">Priority support</td>
-                <td class="px-4 py-3 text-center text-muted">&mdash;</td>
-                <td class="px-4 py-3 text-center text-muted">&mdash;</td>
-                <td class="px-4 py-3 text-center text-muted">&mdash;</td>
-                <td class="px-4 py-3 text-center text-primary">&check;</td>
-              </tr>
-              <tr>
-                <td class="px-4 py-3 font-medium text-dark">Business deep-dive</td>
-                <td class="px-4 py-3 text-center text-muted">&mdash;</td>
-                <td class="px-4 py-3 text-center text-muted">&mdash;</td>
-                <td class="px-4 py-3 text-center text-muted">&mdash;</td>
-                <td class="px-4 py-3 text-center text-primary">&check;</td>
-              </tr>
-            </tbody>
-          </table>
+  <!-- ============================================================
+       SECTION 4: FEATURE COMPARISON TABLE
+       ============================================================ -->
+  <section class="bg-light">
+    <div class="max-w-5xl mx-auto px-5 md:px-[52px] py-12 md:py-16">
+
+      <div class="reveal text-center">
+        <button onclick="var t=document.getElementById('compare-table');t.classList.toggle('hidden');this.querySelector('svg').classList.toggle('rotate-180')"
+          class="inline-flex items-center gap-2 text-dark font-medium hover:text-primary transition-colors cursor-pointer">
+          Compare all features
+          <svg class="w-5 h-5 transition-transform duration-200" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5"/>
+          </svg>
+        </button>
+      </div>
+
+      <div id="compare-table" class="hidden mt-6 overflow-x-auto rounded-2xl bg-surface border border-stroke">
+        <table class="w-full text-sm min-w-[640px]">
+          <thead>
+            <tr class="border-b border-stroke">
+              <th class="text-left font-medium text-dark px-4 py-3 min-w-[160px] sticky left-0 bg-surface z-10">Feature</th>
+              <th class="text-center font-medium text-dark px-4 py-3">Launchpad</th>
+              <th class="text-center font-medium text-dark px-4 py-3">Minimum</th>
+              <th class="text-center font-medium text-primary px-4 py-3">Course</th>
+              <th class="text-center font-medium text-dark px-4 py-3">Signature</th>
+            </tr>
+          </thead>
+          <tbody class="text-body">
+            <tr class="border-b border-stroke/50">
+              <td class="px-4 py-3 font-medium text-dark sticky left-0 bg-surface z-10">Report credits</td>
+              <td class="px-4 py-3 text-center">3/mo</td>
+              <td class="px-4 py-3 text-center">15/mo</td>
+              <td class="px-4 py-3 text-center">100 + 30/mo</td>
+              <td class="px-4 py-3 text-center">Unlimited</td>
+            </tr>
+            <tr class="border-b border-stroke/50">
+              <td class="px-4 py-3 font-medium text-dark sticky left-0 bg-surface z-10">Client management</td>
+              <td class="px-4 py-3 text-center text-muted">&mdash;</td>
+              <td class="px-4 py-3 text-center text-primary">&check;</td>
+              <td class="px-4 py-3 text-center text-primary">&check;</td>
+              <td class="px-4 py-3 text-center text-primary">&check;</td>
+            </tr>
+            <tr class="border-b border-stroke/50">
+              <td class="px-4 py-3 font-medium text-dark sticky left-0 bg-surface z-10">Progress tracking</td>
+              <td class="px-4 py-3 text-center text-muted">&mdash;</td>
+              <td class="px-4 py-3 text-center text-primary">&check;</td>
+              <td class="px-4 py-3 text-center text-primary">&check;</td>
+              <td class="px-4 py-3 text-center text-primary">&check;</td>
+            </tr>
+            <tr class="border-b border-stroke/50">
+              <td class="px-4 py-3 font-medium text-dark sticky left-0 bg-surface z-10">Async client chat</td>
+              <td class="px-4 py-3 text-center text-muted">&mdash;</td>
+              <td class="px-4 py-3 text-center text-primary">&check;</td>
+              <td class="px-4 py-3 text-center text-primary">&check;</td>
+              <td class="px-4 py-3 text-center text-primary">&check;</td>
+            </tr>
+            <tr class="border-b border-stroke/50">
+              <td class="px-4 py-3 font-medium text-dark sticky left-0 bg-surface z-10">AI Health Advisors</td>
+              <td class="px-4 py-3 text-center">Basic</td>
+              <td class="px-4 py-3 text-center">Full suite</td>
+              <td class="px-4 py-3 text-center">Full suite</td>
+              <td class="px-4 py-3 text-center">Full suite</td>
+            </tr>
+            <tr class="border-b border-stroke/50">
+              <td class="px-4 py-3 font-medium text-dark sticky left-0 bg-surface z-10">AI Practice Growth</td>
+              <td class="px-4 py-3 text-center text-primary">&check;</td>
+              <td class="px-4 py-3 text-center text-muted">&mdash;</td>
+              <td class="px-4 py-3 text-center text-primary">&check;</td>
+              <td class="px-4 py-3 text-center text-primary">&check;</td>
+            </tr>
+            <tr class="border-b border-stroke/50">
+              <td class="px-4 py-3 font-medium text-dark sticky left-0 bg-surface z-10">AI Business Advisor</td>
+              <td class="px-4 py-3 text-center text-muted">&mdash;</td>
+              <td class="px-4 py-3 text-center text-muted">&mdash;</td>
+              <td class="px-4 py-3 text-center text-muted">&mdash;</td>
+              <td class="px-4 py-3 text-center">Enhanced</td>
+            </tr>
+            <tr class="border-b border-stroke/50">
+              <td class="px-4 py-3 font-medium text-dark sticky left-0 bg-surface z-10">Course access</td>
+              <td class="px-4 py-3 text-center">Mini course</td>
+              <td class="px-4 py-3 text-center text-muted">&mdash;</td>
+              <td class="px-4 py-3 text-center">Full 12-week</td>
+              <td class="px-4 py-3 text-center">Full 12-week</td>
+            </tr>
+            <tr class="border-b border-stroke/50">
+              <td class="px-4 py-3 font-medium text-dark sticky left-0 bg-surface z-10">Certificate</td>
+              <td class="px-4 py-3 text-center text-muted">&mdash;</td>
+              <td class="px-4 py-3 text-center text-muted">&mdash;</td>
+              <td class="px-4 py-3 text-center text-primary">&check;</td>
+              <td class="px-4 py-3 text-center text-primary">&check;</td>
+            </tr>
+            <tr class="border-b border-stroke/50">
+              <td class="px-4 py-3 font-medium text-dark sticky left-0 bg-surface z-10">Community access</td>
+              <td class="px-4 py-3 text-center">View only</td>
+              <td class="px-4 py-3 text-center text-muted">&mdash;</td>
+              <td class="px-4 py-3 text-center">Full access</td>
+              <td class="px-4 py-3 text-center">Full access</td>
+            </tr>
+            <tr class="border-b border-stroke/50">
+              <td class="px-4 py-3 font-medium text-dark sticky left-0 bg-surface z-10">1-on-1 calls with Matthew</td>
+              <td class="px-4 py-3 text-center text-muted">&mdash;</td>
+              <td class="px-4 py-3 text-center text-muted">&mdash;</td>
+              <td class="px-4 py-3 text-center text-muted">&mdash;</td>
+              <td class="px-4 py-3 text-center">1/month</td>
+            </tr>
+            <tr class="border-b border-stroke/50">
+              <td class="px-4 py-3 font-medium text-dark sticky left-0 bg-surface z-10">Weekly group sessions</td>
+              <td class="px-4 py-3 text-center text-muted">&mdash;</td>
+              <td class="px-4 py-3 text-center text-muted">&mdash;</td>
+              <td class="px-4 py-3 text-center text-muted">&mdash;</td>
+              <td class="px-4 py-3 text-center text-primary">&check;</td>
+            </tr>
+            <tr class="border-b border-stroke/50">
+              <td class="px-4 py-3 font-medium text-dark sticky left-0 bg-surface z-10">Effective monthly cost</td>
+              <td class="px-4 py-3 text-center">Free &rarr; &pound;19</td>
+              <td class="px-4 py-3 text-center">&pound;99</td>
+              <td class="px-4 py-3 text-center">~&pound;83*</td>
+              <td class="px-4 py-3 text-center">~&pound;208*</td>
+            </tr>
+            <tr>
+              <td class="px-4 py-3 font-medium text-dark sticky left-0 bg-surface z-10">Year 2+ renewal</td>
+              <td class="px-4 py-3 text-center"><span id="compare-lp-renewal" data-price>&pound;19</span>/mo</td>
+              <td class="px-4 py-3 text-center"><span id="compare-min-renewal" data-price>&pound;99</span>/mo</td>
+              <td class="px-4 py-3 text-center"><span id="compare-course-renewal" data-price>&pound;39</span>/mo**</td>
+              <td class="px-4 py-3 text-center"><span id="compare-sig-renewal" data-price>&pound;79</span>/mo**</td>
+            </tr>
+          </tbody>
+        </table>
+        <div class="px-4 py-3 border-t border-stroke/50">
+          <p class="text-xs text-muted leading-relaxed">* Based on 12-month effective cost at full price.</p>
+          <p class="text-xs text-muted leading-relaxed">** Founding member rate, locked for life.</p>
         </div>
       </div>
 
-      <!-- Inline Pricing Script -->
-      <script>
-        var PRICE_IDS = {
-          launchpad: 'price_1T0MrIAARZOPki7nIC4fsZ8h',
-          minimum:   'price_1T0MrJAARZOPki7nT8Lwbckc',
-        };
-        var stripe = Stripe('pk_live_51T0LeuAARZOPki7nuJiOtjwC48eWIrW05xzKMr666n52jjArjOOBG2NjnNOb3l6Yzay0TpOkIVFhT4EhA7ezGbwj00Nh2fcC4r');
-        var PRICE_AMOUNTS_GBP = {
-          launchpad: 1900, minimum: 9900, course: 99700,
-          course_installment: 34900, signature: 249700, signature_installment: 44900,
-        };
-        async function checkout(tier) {
-          var priceId = PRICE_IDS[tier];
-          if (!priceId) { showToast('not-available'); return; }
-          var mode = 'subscription';
-          var trialDays = tier === 'launchpad' ? 90 : 0;
-          var baseAmountGBP = PRICE_AMOUNTS_GBP[tier];
-          var selectedCurrency = document.getElementById('currency-select').value;
-          try {
-            var res = await fetch('/.netlify/functions/create-checkout', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                priceId: priceId, mode: mode, trialDays: trialDays,
-                currency: selectedCurrency, baseAmountGBP: baseAmountGBP,
-                recurringInterval: 'month', tier: tier,
-                successUrl: window.location.origin + '/pricing?success=true',
-                cancelUrl:  window.location.origin + '/pricing',
-              }),
-            });
-            var data = await res.json();
-            if (data.error) throw new Error(data.error);
-            await stripe.redirectToCheckout({ sessionId: data.sessionId });
-          } catch (err) { showToast('error'); }
-        }
-        var CURRENCY_SYMBOLS = { GBP: '\u00A3', USD: '$', EUR: '\u20AC', CHF: 'CHF ', CAD: 'C$', AUD: 'A$' };
-        window.__exchangeRates = null;
-        window.__selectedCurrency = 'GBP';
-        function formatPrice(amountPence, currency) {
-          var sym = CURRENCY_SYMBOLS[currency] || currency + ' ';
-          var val = amountPence / 100;
-          var formatted = val % 1 === 0 ? val.toLocaleString('en') : val.toLocaleString('en', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-          return sym + formatted;
-        }
-        function convertAmount(gbpPence, currency) {
-          if (currency === 'GBP' || !window.__exchangeRates) return gbpPence;
-          var rate = window.__exchangeRates[currency];
-          if (!rate) return gbpPence;
-          return Math.round(gbpPence * rate);
-        }
-        async function fetchExchangeRates() {
-          try {
-            var res = await fetch('https://api.frankfurter.app/latest?from=GBP&to=USD,EUR,CHF,CAD,AUD');
-            if (!res.ok) throw new Error('Rate fetch failed');
-            var data = await res.json();
-            window.__exchangeRates = data.rates;
-            var target = window.__targetCurrency || 'GBP';
-            document.getElementById('currency-select').value = target;
-            if (target !== 'GBP') updateCurrencyDisplay(target, window.__currencySource !== 'geo');
-          } catch (e) {
-            var sel = document.getElementById('currency-select');
-            Array.from(sel.options).forEach(function(opt) { if (opt.value !== 'GBP') opt.disabled = true; });
-          } finally { revealPrices(); }
-        }
-        function revealPrices() {
-          var el = document.getElementById('currency-cloak');
-          if (el) el.remove();
-        }
-        function updateCurrencyDisplay(currency, persist) {
-          window.__selectedCurrency = currency;
-          if (persist !== false) localStorage.setItem('hdl_currency', currency);
-          var disclaimer = document.getElementById('currency-disclaimer');
-          if (currency === 'GBP') { disclaimer.classList.add('hidden'); }
-          else { document.getElementById('currency-label').textContent = currency; disclaimer.classList.remove('hidden'); }
-          var courseEl = document.getElementById('course-price');
-          if (courseEl) courseEl.textContent = formatPrice(convertAmount(PRICE_AMOUNTS_GBP.course, currency), currency);
-          var courseInst = document.getElementById('course-installment');
-          if (courseInst) courseInst.textContent = 'or 3 \u00D7 ' + formatPrice(convertAmount(PRICE_AMOUNTS_GBP.course_installment, currency), currency);
-          var sigEl = document.getElementById('signature-price');
-          if (sigEl) sigEl.textContent = formatPrice(convertAmount(PRICE_AMOUNTS_GBP.signature, currency), currency);
-          var sigInst = document.getElementById('signature-installment');
-          if (sigInst) sigInst.textContent = 'or 6 \u00D7 ' + formatPrice(convertAmount(PRICE_AMOUNTS_GBP.signature_installment, currency), currency);
-          var lpConverted = convertAmount(PRICE_AMOUNTS_GBP.launchpad, currency);
-          var mnConverted = convertAmount(PRICE_AMOUNTS_GBP.minimum, currency);
-          var lpAfterTrial = document.getElementById('launchpad-after-trial');
-          if (lpAfterTrial) lpAfterTrial.textContent = 'then ' + formatPrice(lpConverted, currency) + '/mo after 3 months';
-          var minPrice = document.getElementById('minimum-price');
-          if (minPrice) minPrice.textContent = formatPrice(mnConverted, currency) + '/mo';
-        }
-        fetchExchangeRates();
-        setTimeout(revealPrices, 3000);
-      </script>
-
     </div>
   </section>
+
+  <!-- ============================================================
+       SECTION 5: FOR THE IRISLAB COMMUNITY
+       ============================================================ -->
+  <section class="bg-surface">
+    <div class="max-w-3xl mx-auto px-5 md:px-[52px] py-14 md:py-18">
+      <div class="reveal text-center">
+        <h2 class="font-heading text-[clamp(1.25rem,3vw,1.75rem)] font-medium text-dark leading-tight tracking-[-0.02em]">
+          For the IrisLab community
+        </h2>
+        <p class="mt-4 text-body leading-relaxed">
+          If you&rsquo;re here from IrisLab &mdash; this is where it started. HealthDataLab grew out of the same platform and the same mission: giving practitioners real tools, not just theory.
+        </p>
+        <p class="mt-3 text-body leading-relaxed">
+          The course includes an iridology-specific module showing how iris analysis maps onto the longevity assessment. And the platform will generate iridology-specific reports that complement the standard longevity report.
+        </p>
+        <p class="mt-3 text-body leading-relaxed">
+          You already know the tools. This is the next layer.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       SECTION 6: FAQ ACCORDION
+       ============================================================ -->
+  <section class="bg-light">
+    <div class="max-w-3xl mx-auto px-5 md:px-[52px] py-16 md:py-20">
+      <div class="reveal">
+        <h2 class="font-heading text-[clamp(1.25rem,3vw,1.75rem)] font-medium text-dark leading-tight tracking-[-0.02em] text-center">
+          Frequently asked questions
+        </h2>
+
+        <div class="mt-10 space-y-3">
+
+          <!-- Q1 -->
+          <div class="rounded-2xl bg-surface border border-stroke/50">
+            <button onclick="toggleFaq(this)" class="w-full flex items-center justify-between px-6 py-5 text-left cursor-pointer">
+              <span class="font-heading text-[0.95rem] font-medium text-dark pr-4">What&rsquo;s included in the course price?</span>
+              <svg class="w-5 h-5 text-muted flex-shrink-0 transition-transform duration-200" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5"/>
+              </svg>
+            </button>
+            <div class="faq-answer">
+              <div class="px-6 pb-5">
+                <p class="text-body leading-relaxed">The full 12-week training programme (recorded modules + live sessions), Holistic Longevity Practitioner Certificate, platform access with 100 startup credits + 30/month ongoing, the complete AI suite, and full community access. Everything you need to start running longevity consultations.</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Q2 -->
+          <div class="rounded-2xl bg-surface border border-stroke/50">
+            <button onclick="toggleFaq(this)" class="w-full flex items-center justify-between px-6 py-5 text-left cursor-pointer">
+              <span class="font-heading text-[0.95rem] font-medium text-dark pr-4">What happens after the 12 weeks?</span>
+              <svg class="w-5 h-5 text-muted flex-shrink-0 transition-transform duration-200" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5"/>
+              </svg>
+            </button>
+            <div class="faq-answer">
+              <div class="px-6 pb-5">
+                <p class="text-body leading-relaxed">You keep full platform access at your founding renewal rate (&pound;39/mo for Course, &pound;79/mo for Signature &mdash; locked for life). The community stays open. You continue running longevity consultations with your clients using the platform.</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Q3 -->
+          <div class="rounded-2xl bg-surface border border-stroke/50">
+            <button onclick="toggleFaq(this)" class="w-full flex items-center justify-between px-6 py-5 text-left cursor-pointer">
+              <span class="font-heading text-[0.95rem] font-medium text-dark pr-4">Can I switch tiers later?</span>
+              <svg class="w-5 h-5 text-muted flex-shrink-0 transition-transform duration-200" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5"/>
+              </svg>
+            </button>
+            <div class="faq-answer">
+              <div class="px-6 pb-5">
+                <p class="text-body leading-relaxed">Yes. You can upgrade from any tier at any time. Founding pricing on your current tier stays locked.</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Q4 -->
+          <div class="rounded-2xl bg-surface border border-stroke/50">
+            <button onclick="toggleFaq(this)" class="w-full flex items-center justify-between px-6 py-5 text-left cursor-pointer">
+              <span class="font-heading text-[0.95rem] font-medium text-dark pr-4">What&rsquo;s the cooling-off period?</span>
+              <svg class="w-5 h-5 text-muted flex-shrink-0 transition-transform duration-200" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5"/>
+              </svg>
+            </button>
+            <div class="faq-answer">
+              <div class="px-6 pb-5">
+                <p class="text-body leading-relaxed">You have 2 weeks from purchase to request a full refund, no questions asked.</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Q5 -->
+          <div class="rounded-2xl bg-surface border border-stroke/50">
+            <button onclick="toggleFaq(this)" class="w-full flex items-center justify-between px-6 py-5 text-left cursor-pointer">
+              <span class="font-heading text-[0.95rem] font-medium text-dark pr-4">Do I need to be a qualified practitioner?</span>
+              <svg class="w-5 h-5 text-muted flex-shrink-0 transition-transform duration-200" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5"/>
+              </svg>
+            </button>
+            <div class="faq-answer">
+              <div class="px-6 pb-5">
+                <p class="text-body leading-relaxed">The course is designed for naturopaths, herbalists, nutritionists, and holistic health practitioners. You don&rsquo;t need a specific qualification, but you should be working with (or planning to work with) clients in a health context.</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Q6 -->
+          <div class="rounded-2xl bg-surface border border-stroke/50">
+            <button onclick="toggleFaq(this)" class="w-full flex items-center justify-between px-6 py-5 text-left cursor-pointer">
+              <span class="font-heading text-[0.95rem] font-medium text-dark pr-4">What if I&rsquo;m not sure which tier to choose?</span>
+              <svg class="w-5 h-5 text-muted flex-shrink-0 transition-transform duration-200" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5"/>
+              </svg>
+            </button>
+            <div class="faq-answer">
+              <div class="px-6 pb-5">
+                <p class="text-body leading-relaxed">Most practitioners start with the Course. It includes everything &mdash; training, platform, certificate, community. The Minimum tier is for practitioners who already have longevity training and just want the platform tools. Launchpad is for exploring whether this fits your practice.</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Q7 -->
+          <div class="rounded-2xl bg-surface border border-stroke/50">
+            <button onclick="toggleFaq(this)" class="w-full flex items-center justify-between px-6 py-5 text-left cursor-pointer">
+              <span class="font-heading text-[0.95rem] font-medium text-dark pr-4">When does the Signature tier become available?</span>
+              <svg class="w-5 h-5 text-muted flex-shrink-0 transition-transform duration-200" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5"/>
+              </svg>
+            </button>
+            <div class="faq-answer">
+              <div class="px-6 pb-5">
+                <p class="text-body leading-relaxed">Date TBD. Join the waiting list and you&rsquo;ll be first to know. Founding Signature members lock in the current price permanently.</p>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Pricing & Currency Script -->
+  <script>
+    var PRICE_IDS = {
+      launchpad: 'price_1T0MrIAARZOPki7nIC4fsZ8h',
+      minimum:   'price_1T0MrJAARZOPki7nT8Lwbckc',
+    };
+    var stripe = Stripe('pk_live_51T0LeuAARZOPki7nuJiOtjwC48eWIrW05xzKMr666n52jjArjOOBG2NjnNOb3l6Yzay0TpOkIVFhT4EhA7ezGbwj00Nh2fcC4r');
+    var PRICE_AMOUNTS_GBP = {
+      launchpad: 1900, minimum: 9900, course: 99700,
+      course_installment: 34900, signature: 249700, signature_installment: 44900,
+      course_renewal: 3900, signature_renewal: 7900,
+    };
+    async function checkout(tier) {
+      var priceId = PRICE_IDS[tier];
+      if (!priceId) { showToast('not-available'); return; }
+      var mode = 'subscription';
+      var trialDays = tier === 'launchpad' ? 90 : 0;
+      var baseAmountGBP = PRICE_AMOUNTS_GBP[tier];
+      var selectedCurrency = document.getElementById('currency-select').value;
+      try {
+        var res = await fetch('/.netlify/functions/create-checkout', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            priceId: priceId, mode: mode, trialDays: trialDays,
+            currency: selectedCurrency, baseAmountGBP: baseAmountGBP,
+            recurringInterval: 'month', tier: tier,
+            successUrl: window.location.origin + '/pricing?success=true',
+            cancelUrl:  window.location.origin + '/pricing',
+          }),
+        });
+        var data = await res.json();
+        if (data.error) throw new Error(data.error);
+        await stripe.redirectToCheckout({ sessionId: data.sessionId });
+      } catch (err) { showToast('error'); }
+    }
+    var CURRENCY_SYMBOLS = { GBP: '\u00A3', USD: '$', EUR: '\u20AC', CHF: 'CHF ', CAD: 'C$', AUD: 'A$' };
+    window.__exchangeRates = null;
+    window.__selectedCurrency = 'GBP';
+    function formatPrice(amountPence, currency) {
+      var sym = CURRENCY_SYMBOLS[currency] || currency + ' ';
+      var val = amountPence / 100;
+      var formatted = val % 1 === 0 ? val.toLocaleString('en') : val.toLocaleString('en', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      return sym + formatted;
+    }
+    function convertAmount(gbpPence, currency) {
+      if (currency === 'GBP' || !window.__exchangeRates) return gbpPence;
+      var rate = window.__exchangeRates[currency];
+      if (!rate) return gbpPence;
+      return Math.round(gbpPence * rate);
+    }
+    async function fetchExchangeRates() {
+      try {
+        var res = await fetch('https://api.frankfurter.app/latest?from=GBP&to=USD,EUR,CHF,CAD,AUD');
+        if (!res.ok) throw new Error('Rate fetch failed');
+        var data = await res.json();
+        window.__exchangeRates = data.rates;
+        var target = window.__targetCurrency || 'GBP';
+        document.getElementById('currency-select').value = target;
+        if (target !== 'GBP') updateCurrencyDisplay(target, window.__currencySource !== 'geo');
+      } catch (e) {
+        var sel = document.getElementById('currency-select');
+        Array.from(sel.options).forEach(function(opt) { if (opt.value !== 'GBP') opt.disabled = true; });
+      } finally { revealPrices(); }
+    }
+    function revealPrices() {
+      var el = document.getElementById('currency-cloak');
+      if (el) el.remove();
+    }
+    function updateCurrencyDisplay(currency, persist) {
+      window.__selectedCurrency = currency;
+      if (persist !== false) localStorage.setItem('hdl_currency', currency);
+      var disclaimer = document.getElementById('currency-disclaimer');
+      if (currency === 'GBP') { disclaimer.classList.add('hidden'); }
+      else { document.getElementById('currency-label').textContent = currency; disclaimer.classList.remove('hidden'); }
+      // Main pricing cards
+      var courseEl = document.getElementById('course-price');
+      if (courseEl) courseEl.textContent = formatPrice(convertAmount(PRICE_AMOUNTS_GBP.course, currency), currency);
+      var courseInst = document.getElementById('course-installment');
+      if (courseInst) courseInst.textContent = 'or 3 \u00D7 ' + formatPrice(convertAmount(PRICE_AMOUNTS_GBP.course_installment, currency), currency) + '/mo';
+      var sigEl = document.getElementById('signature-price');
+      if (sigEl) sigEl.textContent = formatPrice(convertAmount(PRICE_AMOUNTS_GBP.signature, currency), currency);
+      var sigInst = document.getElementById('signature-installment');
+      if (sigInst) sigInst.textContent = 'or 6 \u00D7 ' + formatPrice(convertAmount(PRICE_AMOUNTS_GBP.signature_installment, currency), currency) + '/mo';
+      var lpConverted = convertAmount(PRICE_AMOUNTS_GBP.launchpad, currency);
+      var mnConverted = convertAmount(PRICE_AMOUNTS_GBP.minimum, currency);
+      var lpAfterTrial = document.getElementById('launchpad-after-trial');
+      if (lpAfterTrial) lpAfterTrial.textContent = 'then ' + formatPrice(lpConverted, currency) + '/mo after 3 months';
+      var minPrice = document.getElementById('minimum-price');
+      if (minPrice) minPrice.innerHTML = formatPrice(mnConverted, currency) + '<span class="text-lg font-normal text-muted">/mo</span>';
+      // Renewal rates in card fine print
+      var courseRenewal = document.getElementById('course-renewal');
+      if (courseRenewal) courseRenewal.textContent = formatPrice(convertAmount(PRICE_AMOUNTS_GBP.course_renewal, currency), currency);
+      var sigRenewal = document.getElementById('signature-renewal');
+      if (sigRenewal) sigRenewal.textContent = formatPrice(convertAmount(PRICE_AMOUNTS_GBP.signature_renewal, currency), currency);
+      // Comparison table renewal row
+      var compareLpRenewal = document.getElementById('compare-lp-renewal');
+      if (compareLpRenewal) compareLpRenewal.textContent = formatPrice(lpConverted, currency);
+      var compareMinRenewal = document.getElementById('compare-min-renewal');
+      if (compareMinRenewal) compareMinRenewal.textContent = formatPrice(mnConverted, currency);
+      var compareCourseRenewal = document.getElementById('compare-course-renewal');
+      if (compareCourseRenewal) compareCourseRenewal.textContent = formatPrice(convertAmount(PRICE_AMOUNTS_GBP.course_renewal, currency), currency);
+      var compareSigRenewal = document.getElementById('compare-sig-renewal');
+      if (compareSigRenewal) compareSigRenewal.textContent = formatPrice(convertAmount(PRICE_AMOUNTS_GBP.signature_renewal, currency), currency);
+    }
+    fetchExchangeRates();
+    setTimeout(revealPrices, 3000);
+  </script>
 
   <!-- WORKSHOP CTA -->
   <section class="bg-surface">
@@ -861,6 +1045,8 @@
                 style="background-image: url('data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 fill=%27none%27 viewBox=%270 0 20 20%27%3E%3Cpath stroke=%27%23a0a0a0%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27 stroke-width=%271.5%27 d=%27m6 8 4 4 4-4%27/%3E%3C/svg%3E'); background-repeat: no-repeat; background-position: right 0.75rem center; background-size: 1.25rem;">
                 <option value="" disabled selected>Choose a topic</option>
                 <option value="Course Application">Course Application</option>
+                <option value="Beta 10 Application">Beta 10 Application</option>
+                <option value="Founding Cohort Application">Founding Cohort Application</option>
                 <option value="General inquiry">General inquiry</option>
                 <option value="Practitioner access">Practitioner access</option>
                 <option value="Personal report">Personal report</option>
@@ -1050,6 +1236,13 @@
         reveal.classList.remove('hidden');
         hint.classList.add('hidden');
       }
+    }
+
+    function toggleFaq(btn) {
+      var answer = btn.nextElementSibling;
+      var chevron = btn.querySelector('svg');
+      answer.classList.toggle('open');
+      chevron.classList.toggle('rotate-180');
     }
   </script>
 
