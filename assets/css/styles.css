@@ -235,4 +235,8 @@ body {
   [data-hdl="anchor-pulse"] {
     display: none !important;
   }
+  [data-hdl="green-traveler"],
+  [data-hdl="red-traveler"] {
+    display: none !important;
+  }
 }

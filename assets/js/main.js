@@ -178,6 +178,10 @@
           var optimisticPeak = q('optimistic-peak');
           var badge = q('badge');
           var legend = q('legend');
+          var greenCallout = q('green-callout');
+          var redCallout = q('red-callout');
+          var greenTraveler = q('green-traveler');
+          var redTraveler = q('red-traveler');
 
           // Gather everything and hide initially
           var allChartEls = chartSvg.querySelectorAll('[data-hdl]');
@@ -251,6 +255,12 @@
           heroTl.to(badge, { opacity: 1, x: 0, duration: 0.4, ease: 'power3.out' });
           heroTl.to(legend, { opacity: 1, duration: 0.4, ease: 'power2.out' }, '<');
 
+          // Phase 8 (0.5s): Projection callouts fade in
+          heroTl.to(greenCallout, { opacity: 1, duration: 0.5, ease: 'power2.out' });
+          heroTl.to(redCallout, { opacity: 1, duration: 0.5, ease: 'power2.out' }, '<+0.1');
+          if (greenTraveler.length > 0) heroTl.to(greenTraveler, { opacity: 1, duration: 0.4, ease: 'power2.out' }, '<');
+          if (redTraveler.length > 0) heroTl.to(redTraveler, { opacity: 1, duration: 0.4, ease: 'power2.out' }, '<');
+
           // Continuous anchor pulse — "you are here" radar ping
           if (anchorPulse.length > 0) {
             gsap.set(anchorPulse, { transformOrigin: 'center center' });
@@ -262,6 +272,68 @@
               ease: 'power2.out',
               stagger: { each: 1 },
               delay: heroTl.duration()
+            });
+          }
+
+          // Green line breathing glow — alive vs static contrast
+          if (optimisticLine.length > 0) {
+            gsap.to(optimisticLine, {
+              opacity: 0.5,
+              duration: 1.5,
+              ease: 'sine.inOut',
+              repeat: -1,
+              yoyo: true,
+              delay: heroTl.duration()
+            });
+          }
+          if (optimisticFill.length > 0) {
+            gsap.to(optimisticFill, {
+              opacity: 0.02,
+              duration: 1.5,
+              ease: 'sine.inOut',
+              repeat: -1,
+              yoyo: true,
+              delay: heroTl.duration()
+            });
+          }
+
+          // Green traveler — 5s journey along optimistic line
+          if (greenTraveler.length > 0 && optimisticLine.length > 0) {
+            var greenPath = optimisticLine[0];
+            var greenDot = greenTraveler[0];
+            var greenLen = greenPath.getTotalLength();
+            gsap.to({ progress: 0 }, {
+              progress: 1, duration: 5, ease: 'none', repeat: -1,
+              delay: heroTl.duration(),
+              onUpdate: function () {
+                var pt = greenPath.getPointAtLength(this.targets()[0].progress * greenLen);
+                greenDot.setAttribute('cx', pt.x);
+                greenDot.setAttribute('cy', pt.y);
+              }
+            });
+            gsap.fromTo(greenDot, { attr: { r: 3 } }, {
+              attr: { r: 5 }, duration: 1.2, ease: 'sine.inOut',
+              repeat: -1, yoyo: true, delay: heroTl.duration()
+            });
+          }
+
+          // Red traveler — 3.5s journey along pessimistic line
+          if (redTraveler.length > 0 && pessimisticLine.length > 0) {
+            var redPath = pessimisticLine[0];
+            var redDot = redTraveler[0];
+            var redLen = redPath.getTotalLength();
+            gsap.to({ progress: 0 }, {
+              progress: 1, duration: 3.5, ease: 'none', repeat: -1,
+              delay: heroTl.duration(),
+              onUpdate: function () {
+                var pt = redPath.getPointAtLength(this.targets()[0].progress * redLen);
+                redDot.setAttribute('cx', pt.x);
+                redDot.setAttribute('cy', pt.y);
+              }
+            });
+            gsap.fromTo(redDot, { attr: { r: 2.5 } }, {
+              attr: { r: 4 }, duration: 1, ease: 'sine.inOut',
+              repeat: -1, yoyo: true, delay: heroTl.duration()
             });
           }
         }

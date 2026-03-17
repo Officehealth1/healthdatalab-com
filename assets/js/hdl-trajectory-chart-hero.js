@@ -277,6 +277,14 @@ var HDLTrajectoryChart = (function () {
     redGlow.appendChild(rMerge);
     defs.appendChild(redGlow);
 
+    var travelerGlow = svgEl('filter', { id: 'hdl-hero-travelerGlow' });
+    travelerGlow.appendChild(svgEl('feGaussianBlur', { stdDeviation: '3', result: 'blur' }));
+    var tMerge = svgEl('feMerge');
+    tMerge.appendChild(svgEl('feMergeNode', { 'in': 'blur' }));
+    tMerge.appendChild(svgEl('feMergeNode', { 'in': 'SourceGraphic' }));
+    travelerGlow.appendChild(tMerge);
+    defs.appendChild(travelerGlow);
+
     svg.appendChild(defs);
 
     // ── Grid lines ───────────────────────────────────────────
@@ -451,6 +459,11 @@ var HDLTrajectoryChart = (function () {
         filter: 'url(#hdl-hero-redGlow)',
         'data-hdl': 'pessimistic-line'
       }));
+      svg.appendChild(svgEl('circle', {
+        cx: sx(pessimistic.points[0].age), cy: sy(pessimistic.points[0].health),
+        r: 2.5, fill: '#d94f4f', opacity: '0',
+        'data-hdl': 'red-traveler'
+      }));
     }
 
     // ── OPTIMISTIC PROJECTION ────────────────────────────────
@@ -491,6 +504,62 @@ var HDLTrajectoryChart = (function () {
         'font-size': '11', fill: '#27ae60', 'font-weight': '600'
       }, 'Peak ' + peakPt.health.toFixed(0) + '%'));
       svg.appendChild(peakG);
+      svg.appendChild(svgEl('circle', {
+        cx: sx(optimistic.points[0].age), cy: sy(optimistic.points[0].health),
+        r: 3, fill: '#0d7377', opacity: '0',
+        filter: 'url(#hdl-hero-travelerGlow)',
+        'data-hdl': 'green-traveler'
+      }));
+    }
+
+    // ── PROJECTION CALLOUTS ────────────────────────────
+    if (showProjections && optimistic.points.length > 4) {
+      var greenMidIdx = Math.floor(optimistic.points.length / 2);
+      var greenMid = optimistic.points[greenMidIdx];
+      var pctSlower = Math.round((1 - currentRate) * 100);
+      var greenText = 'Aging ' + pctSlower + '% slower than average';
+
+      var greenCx = sx(greenMid.age);
+      var greenCy = sy(greenMid.health) - 25;
+      var greenCalloutG = svgEl('g', { 'data-hdl': 'green-callout', opacity: '0' });
+      greenCalloutG.appendChild(svgEl('line', {
+        x1: greenCx, y1: greenCy + 12,
+        x2: greenCx, y2: sy(greenMid.health),
+        stroke: '#0d7377', 'stroke-width': 0.8, 'stroke-dasharray': '3,2', opacity: '0.4'
+      }));
+      greenCalloutG.appendChild(svgEl('rect', {
+        x: greenCx - 100, y: greenCy - 12,
+        width: 200, height: 24, rx: 4,
+        fill: '#0d7377', opacity: '0.9'
+      }));
+      greenCalloutG.appendChild(svgEl('text', {
+        x: greenCx, y: greenCy + 4,
+        'text-anchor': 'middle', 'font-size': '11', fill: 'white', 'font-weight': '500'
+      }, greenText));
+      svg.appendChild(greenCalloutG);
+
+      if (pessimistic.points.length > 4) {
+        var redMidIdx = Math.floor(pessimistic.points.length / 2);
+        var redMid = pessimistic.points[redMidIdx];
+        var redCx = sx(redMid.age);
+        var redCy = sy(redMid.health) + 22;
+        var redCalloutG = svgEl('g', { 'data-hdl': 'red-callout', opacity: '0' });
+        redCalloutG.appendChild(svgEl('line', {
+          x1: redCx, y1: redCy - 12,
+          x2: redCx, y2: sy(redMid.health),
+          stroke: '#d94f4f', 'stroke-width': 0.8, 'stroke-dasharray': '3,2', opacity: '0.35'
+        }));
+        redCalloutG.appendChild(svgEl('rect', {
+          x: redCx - 60, y: redCy - 12,
+          width: 120, height: 24, rx: 4,
+          fill: '#d94f4f', opacity: '0.8'
+        }));
+        redCalloutG.appendChild(svgEl('text', {
+          x: redCx, y: redCy + 4,
+          'text-anchor': 'middle', 'font-size': '11', fill: 'white', 'font-weight': '500'
+        }, 'Average decline'));
+        svg.appendChild(redCalloutG);
+      }
     }
 
     // ── USER HISTORY LINE ────────────────────────────────────
