@@ -224,4 +224,15 @@ body {
   }
 
   .hero-orb { display: none; }
+
+  /* Show chart elements immediately when motion is reduced */
+  [data-hdl] {
+    opacity: 1 !important;
+    transform: none !important;
+    stroke-dashoffset: 0 !important;
+  }
+  /* Pulse rings are purely decorative — hide in reduced motion */
+  [data-hdl="anchor-pulse"] {
+    display: none !important;
+  }
 }

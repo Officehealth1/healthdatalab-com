@@ -48,6 +48,21 @@
   to = "/help-centre.html"
   status = 200
 
+[[redirects]]
+  from = "/pricing"
+  to = "/pricing.html"
+  status = 200
+
+[[redirects]]
+  from = "/about"
+  to = "/about.html"
+  status = 200
+
+[[redirects]]
+  from = "/course"
+  to = "/course.html"
+  status = 200
+
 [[edge_functions]]
   function = "geo-currency"
   path = "/"
@@ -63,3 +78,11 @@
 [[edge_functions]]
   function = "geo-currency"
   path = "/personal-report.html"
+
+[[edge_functions]]
+  function = "geo-currency"
+  path = "/pricing"
+
+[[edge_functions]]
+  function = "geo-currency"
+  path = "/pricing.html"

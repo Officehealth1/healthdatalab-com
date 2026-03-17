@@ -8,8 +8,8 @@
   // ------------------------------------------------
   // Sticky CTA bar label — update in one place
   // ------------------------------------------------
-  var STICKY_CTA_LABEL = "Apply for the Course";
-  var NAV_APPLY_LABEL = "Apply \u2014 Limited Places"; // Change to "Apply" post-launch
+  var STICKY_CTA_LABEL = "Watch the Free Workshop";
+  var NAV_APPLY_LABEL = "Watch Workshop";
 
   // Apply labels from single config
   var stickyCta = document.getElementById('sticky-cta-btn');
@@ -126,45 +126,171 @@
       subtitle: document.querySelector('[data-hero-el="subtitle"]'),
       heading: document.querySelector('[data-hero-el="heading"]'),
       body: document.querySelectorAll('[data-hero-el="body"]'),
-      cta: document.querySelector('[data-hero-el="cta"]')
+      cta: document.querySelector('[data-hero-el="cta"]'),
+      visual: document.querySelector('[data-hero-el="visual"]')
     };
 
-    // Set initial states
-    var allHeroTargets = [heroEls.subtitle, heroEls.heading, heroEls.cta];
+    // Set initial states (guard: only run hero animations on pages with data-hero-el elements)
+    var allHeroTargets = [heroEls.subtitle, heroEls.heading, heroEls.cta].filter(Boolean);
+    if (heroEls.visual) allHeroTargets.push(heroEls.visual);
     heroEls.body.forEach(function (el) { allHeroTargets.push(el); });
-    gsap.set(allHeroTargets, { opacity: 0, y: 24 });
-    gsap.set(heroEls.heading, { scale: 0.98 });
 
-    var heroTl = gsap.timeline({ delay: 0.15 });
-    heroTl
-      .to(heroEls.subtitle, { opacity: 1, y: 0, duration: 0.7, ease: 'power3.out' })
-      .to(heroEls.heading, { opacity: 1, y: 0, scale: 1, duration: 0.8, ease: 'power3.out' }, '-=0.5')
-      .to(Array.from(heroEls.body), { opacity: 1, y: 0, duration: 0.7, ease: 'power3.out', stagger: 0.15 }, '-=0.5')
-      .to(heroEls.cta, { opacity: 1, y: 0, duration: 0.7, ease: 'power3.out' }, '-=0.4');
+    if (allHeroTargets.length > 0) {
+      gsap.set(allHeroTargets, { opacity: 0, y: 24 });
+      if (heroEls.heading) gsap.set(heroEls.heading, { scale: 0.98 });
 
-    // HERO — Gradient orb drift
-    gsap.to('.hero-orb', {
-      x: 30, y: -20,
-      duration: 8,
-      ease: 'sine.inOut',
-      repeat: -1,
-      yoyo: true
-    });
+      var heroTl = gsap.timeline({ delay: 0.15 });
+      if (heroEls.subtitle) heroTl.to(heroEls.subtitle, { opacity: 1, y: 0, duration: 0.7, ease: 'power3.out' });
+      if (heroEls.heading) heroTl.to(heroEls.heading, { opacity: 1, y: 0, scale: 1, duration: 0.8, ease: 'power3.out' }, '-=0.5');
+      if (heroEls.body.length > 0) heroTl.to(Array.from(heroEls.body), { opacity: 1, y: 0, duration: 0.7, ease: 'power3.out', stagger: 0.15 }, '-=0.5');
+      if (heroEls.cta) heroTl.to(heroEls.cta, { opacity: 1, y: 0, duration: 0.7, ease: 'power3.out' }, '-=0.4');
 
-    // HERO — Parallax on scroll (desktop only)
-    if (window.innerWidth >= 768) {
-      var heroSectionEl = document.querySelector('[data-hero]');
-      if (heroSectionEl) {
-        gsap.to(heroEls.heading, {
-          y: -60,
-          ease: 'none',
-          scrollTrigger: {
-            trigger: heroSectionEl,
-            start: 'top top',
-            end: 'bottom top',
-            scrub: true
-          }
+      // HERO — Trajectory chart progressive reveal
+      var chartContainer = document.getElementById('hero-trajectory-chart');
+      if (chartContainer && typeof HDLTrajectoryChart !== 'undefined') {
+        HDLTrajectoryChart.render('#hero-trajectory-chart', {
+          chronoAge: 50, agingRate: 0.84, showBands: true, showProjections: true
         });
+
+        var chartSvg = chartContainer.querySelector('svg');
+        if (chartSvg) {
+          // Collect all animatable elements by data-hdl attribute
+          var q = function (v) { return chartSvg.querySelectorAll('[data-hdl="' + v + '"]'); };
+
+          var gridEls = q('grid');
+          var gridLabels = q('grid-label');
+          var axisLabels = q('axis-label');
+          var zones = q('zone');
+          var zoneLabels = q('zone-label');
+          var bandPast = q('band-past');
+          var bandFuture = q('band-future');
+          var bandLabels = q('band-label');
+          var nowLine = q('now-line');
+          var nowLabel = q('now-label');
+          var regionLabels = q('region-label');
+          var userLine = q('user-line');
+          var anchorDots = q('anchor-dot');
+          var anchorPulse = q('anchor-pulse');
+          var pessimisticFill = q('pessimistic-fill');
+          var pessimisticLine = q('pessimistic-line');
+          var optimisticFill = q('optimistic-fill');
+          var optimisticLine = q('optimistic-line');
+          var optimisticPeak = q('optimistic-peak');
+          var badge = q('badge');
+          var legend = q('legend');
+
+          // Gather everything and hide initially
+          var allChartEls = chartSvg.querySelectorAll('[data-hdl]');
+          gsap.set(allChartEls, { opacity: 0 });
+
+          // Prepare stroke-draw paths
+          var strokeDrawSetup = function (els) {
+            for (var i = 0; i < els.length; i++) {
+              var el = els[i];
+              if (el.tagName === 'path' && el.getTotalLength) {
+                var len = el.getTotalLength();
+                gsap.set(el, { strokeDasharray: len, strokeDashoffset: len });
+              } else if (el.tagName === 'line') {
+                var x1 = parseFloat(el.getAttribute('x1')) || 0;
+                var y1 = parseFloat(el.getAttribute('y1')) || 0;
+                var x2 = parseFloat(el.getAttribute('x2')) || 0;
+                var y2 = parseFloat(el.getAttribute('y2')) || 0;
+                var len2 = Math.sqrt((x2 - x1) * (x2 - x1) + (y2 - y1) * (y2 - y1));
+                gsap.set(el, { strokeDasharray: len2, strokeDashoffset: len2 });
+              }
+            }
+          };
+
+          strokeDrawSetup(userLine);
+          strokeDrawSetup(pessimisticLine);
+          strokeDrawSetup(optimisticLine);
+          strokeDrawSetup(nowLine);
+
+          // Anchor dots: scale from 0
+          gsap.set(anchorDots, { scale: 0, transformOrigin: 'center center' });
+
+          // Badge: slide in from left
+          gsap.set(badge, { x: -30 });
+
+          // Reveal the visual container first
+          if (heroEls.visual) {
+            heroTl.to(heroEls.visual, { opacity: 1, y: 0, duration: 0.5, ease: 'power3.out' }, '-=0.6');
+          }
+
+          // Phase 1 (0.4s): Grid lines + labels fade in
+          heroTl.to(gridEls, { opacity: 1, duration: 0.4, ease: 'power2.out' }, '-=0.3');
+          heroTl.to(gridLabels, { opacity: 1, duration: 0.4, ease: 'power2.out' }, '<');
+          heroTl.to(axisLabels, { opacity: 1, duration: 0.4, ease: 'power2.out' }, '<');
+
+          // Phase 2 (0.5s): Zones + band curves appear
+          heroTl.to(zones, { opacity: 1, duration: 0.5, ease: 'power2.out' }, '-=0.1');
+          heroTl.to(zoneLabels, { opacity: 0.6, duration: 0.5, ease: 'power2.out' }, '<');
+          heroTl.to(bandPast, { opacity: 1, duration: 0.5, ease: 'power2.out' }, '<');
+          heroTl.to(bandFuture, { opacity: 1, duration: 0.5, ease: 'power2.out' }, '<+0.15');
+          heroTl.to(bandLabels, { opacity: 0.4, duration: 0.5, ease: 'power2.out' }, '<');
+
+          // Phase 3 (0.4s): "Now" divider draws down, region labels appear
+          heroTl.to(nowLine, { opacity: 0.35, strokeDashoffset: 0, duration: 0.4, ease: 'power2.out' });
+          heroTl.to(nowLabel, { opacity: 0.65, duration: 0.3, ease: 'power2.out' }, '<+0.1');
+          heroTl.to(regionLabels, { opacity: 0.5, duration: 0.3, ease: 'power2.out' }, '<');
+
+          // Phase 4 (1.2s): USER HISTORY LINE — the hero moment
+          heroTl.to(userLine, { opacity: 1, strokeDashoffset: 0, duration: 1.2, ease: 'power2.out' });
+
+          // Phase 5 (0.3s): Anchor dot scales up with bounce
+          heroTl.to(anchorDots, { opacity: 1, scale: 1, duration: 0.3, ease: 'back.out(1.7)', stagger: 0.05 }, '-=0.1');
+
+          // Phase 6 (0.8s): Projections draw outward, fills fade in
+          heroTl.to(pessimisticFill, { opacity: 1, duration: 0.5, ease: 'power2.out' }, '-=0.1');
+          heroTl.to(pessimisticLine, { opacity: 0.75, strokeDashoffset: 0, duration: 0.8, ease: 'power2.out' }, '<');
+          heroTl.to(optimisticFill, { opacity: 1, duration: 0.5, ease: 'power2.out' }, '<+0.1');
+          heroTl.to(optimisticLine, { opacity: 0.8, strokeDashoffset: 0, duration: 0.8, ease: 'power2.out' }, '<');
+          heroTl.to(optimisticPeak, { opacity: 0.65, duration: 0.4, ease: 'power2.out' }, '-=0.3');
+
+          // Phase 7 (0.4s): Rate badge slides in, legend fades in
+          heroTl.to(badge, { opacity: 1, x: 0, duration: 0.4, ease: 'power3.out' });
+          heroTl.to(legend, { opacity: 1, duration: 0.4, ease: 'power2.out' }, '<');
+
+          // Continuous anchor pulse — "you are here" radar ping
+          if (anchorPulse.length > 0) {
+            gsap.set(anchorPulse, { transformOrigin: 'center center' });
+            gsap.fromTo(anchorPulse, {
+              scale: 1, opacity: 0.6
+            }, {
+              scale: 3.5, opacity: 0,
+              duration: 2, repeat: -1,
+              ease: 'power2.out',
+              stagger: { each: 1 },
+              delay: heroTl.duration()
+            });
+          }
+        }
+      }
+
+      // HERO — Gradient orb drift
+      gsap.to('.hero-orb', {
+        x: 30, y: -20,
+        duration: 8,
+        ease: 'sine.inOut',
+        repeat: -1,
+        yoyo: true
+      });
+
+      // HERO — Parallax on scroll (desktop only)
+      if (window.innerWidth >= 768) {
+        var heroSectionEl = document.querySelector('[data-hero]');
+        if (heroSectionEl && heroEls.heading) {
+          gsap.to(heroEls.heading, {
+            y: -60,
+            ease: 'none',
+            scrollTrigger: {
+              trigger: heroSectionEl,
+              start: 'top top',
+              end: 'bottom top',
+              scrub: true
+            }
+          });
+        }
       }
     }
 
@@ -240,6 +366,53 @@
         }
       });
     }
+
+    // ========================================
+    // PAIN POINTS — Scroll-triggered animations
+    // ========================================
+    document.querySelectorAll('[data-pain]').forEach(function(block) {
+      var num = block.getAttribute('data-pain');
+      ScrollTrigger.create({
+        trigger: block,
+        start: 'top 80%',
+        once: true,
+        onEnter: function() {
+          if (num === '1') {
+            // Pulse the "now" dot
+            var dot = block.querySelector('circle:first-of-type');
+            if (dot) gsap.to(dot, { scale: 1.3, transformOrigin: 'center', repeat: -1, yoyo: true, duration: 1.2, ease: 'sine.inOut' });
+            // Draw paths
+            var paths = block.querySelectorAll('path[d]');
+            paths.forEach(function(p, i) {
+              if (!p.getTotalLength) return;
+              var len = p.getTotalLength();
+              gsap.set(p, { strokeDasharray: len, strokeDashoffset: len, opacity: 1 });
+              gsap.to(p, { strokeDashoffset: 0, duration: 1, delay: i * 0.3, ease: 'power2.out' });
+            });
+            // Fade in labels and end dots
+            gsap.from(block.querySelectorAll('text, circle:not(:first-of-type)'), {
+              opacity: 0, duration: 0.5, delay: 0.6, stagger: 0.1
+            });
+          }
+          if (num === '2') {
+            // Stagger icons
+            var icons = block.querySelectorAll('.flex.flex-col');
+            gsap.from(icons, { opacity: 0, scale: 0.85, duration: 0.3, stagger: 0.12, ease: 'back.out(1.5)' });
+          }
+          if (num === '3') {
+            // Top row: appear then second dot fades
+            var topDots = block.querySelectorAll('circle[fill="#c0c0c0"]');
+            var bottomDots = block.querySelectorAll('circle[fill="#3D8DA0"], circle[fill="#48A085"], circle[fill="#D4A853"]');
+            // Top row appears fast
+            gsap.from(topDots, { opacity: 0, duration: 0.3, stagger: 0.15 });
+            // Second top dot fades after appearing
+            if (topDots[1]) gsap.to(topDots[1], { opacity: 0.15, delay: 0.8, duration: 0.6 });
+            // Bottom row: dots stagger in with bounce
+            gsap.from(bottomDots, { opacity: 0, scale: 0.5, transformOrigin: 'center', duration: 0.4, stagger: 0.25, delay: 0.4, ease: 'back.out(1.7)' });
+          }
+        }
+      });
+    });
 
   } // end hasGSAP
 

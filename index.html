@@ -12,12 +12,12 @@
   </script>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>HealthDataLab — You already see the whole person. Now you can prove it.</title>
+  <title>HealthDataLab — From Healing to Thriving</title>
   <meta name="description"
-    content="The Longevity Trajectory Protocol adds a data layer to your holistic practice — making client progress visible, measurable, and impossible to ignore. 12-week practitioner certificate for naturopaths, herbalists, and holistic practitioners.">
-  <meta property="og:title" content="HealthDataLab — You already see the whole person. Now you can prove it.">
+    content="Add a longevity layer to your holistic practice. The Longevity Trajectory Protocol makes client progress visible, measurable, and impossible to ignore. Free 30-minute workshop for naturopaths, herbalists, and holistic practitioners.">
+  <meta property="og:title" content="HealthDataLab — From Healing to Thriving">
   <meta property="og:description"
-    content="The Longevity Trajectory Protocol adds a data layer to your holistic practice — making client progress visible, measurable, and impossible to ignore.">
+    content="Add a longevity layer to your holistic practice. The Longevity Trajectory Protocol makes client progress visible, measurable, and impossible to ignore.">
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://healthdatalab.com">
   <link rel="canonical" href="https://healthdatalab.com">
@@ -26,8 +26,8 @@
   <meta property="og:image:height" content="630">
   <meta property="og:site_name" content="HealthDataLab">
   <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="HealthDataLab — You already see the whole person. Now you can prove it.">
-  <meta name="twitter:description" content="The Longevity Trajectory Protocol adds a data layer to your holistic practice — making client progress visible, measurable, and impossible to ignore.">
+  <meta name="twitter:title" content="HealthDataLab — From Healing to Thriving">
+  <meta name="twitter:description" content="Add a longevity layer to your holistic practice. The Longevity Trajectory Protocol makes client progress visible, measurable, and impossible to ignore.">
   <meta name="twitter:image" content="https://healthdatalab.com/assets/images/health-metrics-dashboard.webp">
   <link rel="icon" type="image/png" sizes="32x32" href="assets/images/favicon-32x32.png">
   <link rel="icon" type="image/png" sizes="16x16" href="assets/images/favicon-16x16.png">
@@ -37,23 +37,7 @@
   <link
     href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Poppins:wght@400;500;600;700&display=swap"
     rel="stylesheet">
-  <script src="https://js.stripe.com/v3/"></script>
   <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
-  <style id="currency-cloak">
-    [data-price], #currency-selector, #currency-disclaimer {
-      visibility: hidden;
-    }
-  </style>
-  <script>
-  (function(){
-    var S={GBP:1,USD:1,EUR:1,CHF:1,CAD:1,AUD:1};
-    var m; try{m=localStorage.getItem('hdl_currency')}catch(e){}
-    if(m&&S[m]){window.__targetCurrency=m;window.__currencySource='manual';return}
-    var c=(document.cookie.match(/hdl_geo_currency=([A-Z]{3})/)||[])[1];
-    if(c&&S[c]){window.__targetCurrency=c;window.__currencySource='geo';return}
-    window.__targetCurrency='GBP';window.__currencySource='default';
-  })();
-  </script>
   <style type="text/tailwindcss">
     @theme {
       --font-heading: 'Poppins', system-ui, sans-serif;
@@ -84,32 +68,6 @@
           "@type": "Person",
           "name": "Matthew D'haemer"
         }
-      },
-      {
-        "@type": "Course",
-        "name": "The Holistic Longevity Practitioner Certificate",
-        "description": "12-week course: 3-week intensive training plus 9-week supported implementation. Learn the Longevity Trajectory Protocol, work with real assessments, and earn your practitioner certificate.",
-        "provider": {
-          "@type": "Organization",
-          "name": "HealthDataLab",
-          "url": "https://healthdatalab.com"
-        },
-        "offers": [
-          {
-            "@type": "Offer",
-            "name": "The Course",
-            "price": "997",
-            "priceCurrency": "GBP",
-            "availability": "https://schema.org/InStock"
-          },
-          {
-            "@type": "Offer",
-            "name": "Signature",
-            "price": "2497",
-            "priceCurrency": "GBP",
-            "availability": "https://schema.org/PreOrder"
-          }
-        ]
       }
     ]
   }
@@ -126,13 +84,13 @@
         <a href="/" class="select-none"><img src="assets/images/hdl-logo-full.png" alt="HealthDataLab" class="h-9"></a>
         <div class="hidden md:flex items-center gap-6">
           <a href="#protocol" class="text-sm text-body hover:text-dark transition-colors">The Protocol</a>
-          <a href="#course" class="text-sm text-body hover:text-dark transition-colors">The Course</a>
-          <a href="#workshop" class="text-sm text-body hover:text-dark transition-colors">Workshop</a>
-          <a href="#about" class="text-sm text-body hover:text-dark transition-colors">About</a>
-          <a href="#apply"
-            class="inline-flex items-center rounded-[48px] bg-dark text-white text-sm font-medium px-5 py-2.5 hover:bg-dark-2 transition-colors"
+          <a href="/course" class="text-sm text-body hover:text-dark transition-colors">Course</a>
+          <a href="/pricing" class="text-sm text-body hover:text-dark transition-colors">Pricing</a>
+          <a href="/about" class="text-sm text-body hover:text-dark transition-colors">About</a>
+          <a href="#workshop"
+            class="inline-flex items-center rounded-[48px] bg-primary text-white text-sm font-medium px-5 py-2.5 hover:bg-primary-dark transition-colors"
             id="nav-apply-btn">
-            Apply &mdash; Limited Places
+            Watch Workshop
           </a>
         </div>
         <button id="menu-toggle" class="md:hidden text-dark p-1" aria-label="Menu">
@@ -151,25 +109,16 @@
       <div class="mx-5 md:mx-[52px] mt-2 rounded-[32px] bg-surface border border-stroke/50 shadow-lg">
         <div class="flex flex-col gap-1 px-6 py-5">
           <a href="#protocol" class="nav-link block py-2.5 text-body hover:text-dark text-sm transition-colors">The Protocol</a>
-          <a href="#course" class="nav-link block py-2.5 text-body hover:text-dark text-sm transition-colors">The Course</a>
-          <a href="#workshop" class="nav-link block py-2.5 text-body hover:text-dark text-sm transition-colors">Workshop</a>
-          <a href="#about" class="nav-link block py-2.5 text-body hover:text-dark text-sm transition-colors">About</a>
-          <a href="#apply"
-            class="nav-link mt-2 flex items-center justify-center rounded-[48px] bg-dark text-white text-sm font-medium px-5 py-3 hover:bg-dark-2 transition-colors"
-            id="nav-apply-btn-mobile">Apply &mdash; Limited Places</a>
+          <a href="/course" class="nav-link block py-2.5 text-body hover:text-dark text-sm transition-colors">Course</a>
+          <a href="/pricing" class="nav-link block py-2.5 text-body hover:text-dark text-sm transition-colors">Pricing</a>
+          <a href="/about" class="nav-link block py-2.5 text-body hover:text-dark text-sm transition-colors">About</a>
+          <a href="#workshop"
+            class="nav-link mt-2 flex items-center justify-center rounded-[48px] bg-primary text-white text-sm font-medium px-5 py-3 hover:bg-primary-dark transition-colors"
+            id="nav-apply-btn-mobile">Watch Workshop</a>
         </div>
       </div>
     </div>
   </nav>
-
-  <!-- Success message (shown after Stripe checkout redirect) -->
-  <div id="success-message" class="hidden">
-    <div class="max-w-2xl mx-auto px-5 pt-28 pb-0">
-      <div class="bg-primary/10 border border-primary/30 rounded-[32px] p-6 text-center">
-        <p class="text-primary font-medium">Thank you for your purchase! Check your email for next steps.</p>
-      </div>
-    </div>
-  </div>
 
   <!-- ============================================================
        SECTION 1: HERO
@@ -177,114 +126,164 @@
   <section class="relative bg-gradient-to-b from-surface to-light overflow-hidden" data-hero>
     <div class="hero-orb" aria-hidden="true"></div>
     <div class="relative z-10 max-w-[1280px] mx-auto px-5 md:px-[52px] pt-36 pb-24 md:pt-44 md:pb-36">
-      <div class="grid md:grid-cols-2 gap-12 items-center">
+      <div class="grid md:grid-cols-[5fr_7fr] gap-12 items-center">
         <!-- Left: Text -->
         <div>
           <p class="hero-enter hero-enter-1 text-sm text-primary font-medium mb-6" data-hero-el="subtitle">
             For naturopaths, herbalists, nutritionists &amp; holistic practitioners
           </p>
           <h1 class="hero-enter hero-enter-2 font-heading text-[clamp(2.5rem,6vw,3.75rem)] font-medium text-dark leading-[1.1] tracking-[-0.03em]" data-hero-el="heading">
-            You already see the whole person. Now you can prove it.
+            From Healing to Thriving
           </h1>
-          <p class="hero-enter hero-enter-3 mt-6 text-lg text-body max-w-xl leading-relaxed" data-hero-el="body">
-            Get insights about new clients before the consultation. Your clinical skills, augmented with data that deepens every conversation from minute one.
-          </p>
-          <p class="hero-enter hero-enter-3 mt-4 text-base text-body/80 max-w-xl leading-relaxed" data-hero-el="body">
-            The Longevity Trajectory Protocol adds a data layer to your existing practice&nbsp;&mdash; making client progress visible, measurable, and impossible to ignore. You don't change how you work. You add a dimension that makes your impact undeniable.
+          <h3 class="hero-enter hero-enter-3 mt-6 font-heading text-[clamp(1.25rem,2.5vw,1.5rem)] font-medium text-dark/80 leading-snug" data-hero-el="body">
+            The trajectory you're perfectly situated to lead.
+          </h3>
+          <p class="hero-enter hero-enter-3 mt-4 text-lg text-body max-w-xl leading-relaxed" data-hero-el="body">
+            Add a longevity layer to the work you already do. This free 30-minute workshop shows you how.
           </p>
           <div class="hero-enter hero-enter-4 mt-10 flex flex-col sm:flex-row items-start gap-4" data-hero-el="cta">
             <a href="#workshop"
               class="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-[48px] bg-primary text-white text-base font-medium px-8 py-3.5 hover:bg-primary-dark transition-colors shadow-[0_4px_20px_rgba(61,141,160,.25)]">
-              Watch the Free Workshop (30 min)
+              Watch the Free Workshop
               <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" /></svg>
             </a>
-            <a href="#pricing"
+            <a href="/pricing"
               class="w-full sm:w-auto inline-flex items-center justify-center text-sm text-primary font-medium hover:text-primary-dark transition-colors py-3.5">
-              Or skip ahead to the course and pricing &rarr;
+              Already convinced? See course &amp; pricing &rarr;
             </a>
           </div>
-          <p class="hero-enter hero-enter-4 mt-4 text-xs text-muted">
-            No sign-up required. See exactly how this works in your practice.
-          </p>
         </div>
-        <!-- Right: Dashboard screenshot -->
-        <div class="hero-enter hero-enter-3 flex justify-center">
-          <img src="assets/images/health-metrics-dashboard.webp"
-            alt="Longevity trajectory dashboard showing biological age metrics and health indicators"
-            class="w-full max-w-md rounded-2xl shadow-[0_24px_60px_-12px_rgba(0,0,0,0.16)]">
+        <!-- Right: HDL Trajectory Chart -->
+        <div class="hero-enter hero-enter-3 flex justify-center" data-hero-el="visual">
+          <div id="hero-trajectory-chart" class="w-full" role="img"
+               aria-label="Health trajectory chart showing longevity trajectory at age 50"></div>
         </div>
       </div>
     </div>
   </section>
 
   <!-- ============================================================
-       SECTION 2: WHY LONGEVITY MATTERS
+       SECTION 2: PAIN POINTS
        ============================================================ -->
   <section class="bg-light">
     <div class="max-w-[1280px] mx-auto px-5 md:px-[52px] py-24 md:py-32">
-      <div class="reveal text-center max-w-3xl mx-auto mb-16">
-        <h2 class="font-heading text-[clamp(1.75rem,3.5vw,2.5rem)] font-medium text-dark leading-[1.2] tracking-[-0.03em]">
-          Why adding longevity to your practice isn't optional anymore</h2>
+      <div class="space-y-12 max-w-3xl mx-auto">
+
+        <!-- Block 1: THE LONGEVITY ANGLE -->
+        <div class="reveal bg-surface rounded-[32px] p-8 md:p-10" data-pain="1">
+          <div class="mb-8">
+            <svg viewBox="0 0 400 120" class="w-full max-w-sm mx-auto" role="img" aria-label="Two contrasting health trajectories: decline versus maintained capability">
+              <defs>
+                <linearGradient id="pain1-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                  <stop offset="0%" stop-color="#3D8DA0" />
+                  <stop offset="100%" stop-color="#D4A853" />
+                </linearGradient>
+              </defs>
+              <text x="22" y="78" fill="#9ca3af" font-size="9" font-family="inherit" opacity="0.7">50</text>
+              <circle cx="30" cy="40" r="5" fill="#3D8DA0" />
+              <text x="3" y="60" fill="#3D8DA0" font-size="9" font-family="inherit">Your client today</text>
+              <path d="M 36,40 C 120,45 220,70 370,100" fill="none" stroke="#c0c0c0" stroke-width="2" stroke-linecap="round" stroke-dasharray="6 4" opacity="0.5" />
+              <circle cx="370" cy="100" r="4" fill="#c0c0c0" opacity="0.4" />
+              <text x="335" y="115" fill="#c0c0c0" font-size="10" font-family="inherit" opacity="0.6">decline</text>
+              <path d="M 36,40 C 120,35 220,22 370,18" fill="none" stroke="url(#pain1-gradient)" stroke-width="2.5" stroke-linecap="round" />
+              <circle cx="370" cy="18" r="4" fill="#D4A853" />
+              <text x="330" y="12" fill="#D4A853" font-size="10" font-family="inherit">thriving</text>
+              <text x="362" y="78" fill="#9ca3af" font-size="9" font-family="inherit" opacity="0.7">80</text>
+            </svg>
+          </div>
+          <h3 class="font-heading text-xl md:text-[1.35rem] text-dark font-medium leading-snug">
+            Nobody wants to suffer in old age. Your clients are no different.</h3>
+          <p class="mt-4 text-body leading-relaxed">
+            Losing independence. Becoming a burden. Watching capability slip away year by year. This is what your clients quietly fear&nbsp;&mdash; even if they never say it. Practitioners who can address this aren't just offering another service. They're the expert people trust with what matters most.</p>
+          <p class="mt-4 text-primary font-medium italic leading-relaxed">
+            The longevity wave is here. Being the practitioner who leads it is a position worth having.</p>
+        </div>
+
+        <!-- Block 2: PROOF -->
+        <div class="reveal bg-surface rounded-[32px] p-8 md:p-10" data-pain="2">
+          <div class="mb-8 flex justify-center gap-6 md:gap-10">
+            <div class="flex flex-col items-center gap-2">
+              <div class="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center">
+                <svg class="w-6 h-6 text-primary" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 0 1 3 19.875v-6.75ZM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V8.625ZM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V4.125Z"/>
+                </svg>
+              </div>
+              <span class="text-xs text-muted">Marketing</span>
+            </div>
+            <div class="flex flex-col items-center gap-2">
+              <div class="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center">
+                <svg class="w-6 h-6 text-primary" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 0 0 2.625.372 9.337 9.337 0 0 0 4.121-.952 4.125 4.125 0 0 0-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 0 1 8.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0 1 11.964-3.07M12 6.375a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0Zm8.25 2.25a2.625 2.625 0 1 1-5.25 0 2.625 2.625 0 0 1 5.25 0Z"/>
+                </svg>
+              </div>
+              <span class="text-xs text-muted">GPs</span>
+            </div>
+            <div class="flex flex-col items-center gap-2">
+              <div class="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center">
+                <svg class="w-6 h-6 text-primary" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z"/>
+                </svg>
+              </div>
+              <span class="text-xs text-muted">What works</span>
+            </div>
+            <div class="flex flex-col items-center gap-2">
+              <div class="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center">
+                <svg class="w-6 h-6 text-primary" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 18 9 11.25l4.306 4.306a11.95 11.95 0 0 1 5.814-5.518l2.74-1.22m0 0-5.94-2.281m5.94 2.28-2.28 5.941"/>
+                </svg>
+              </div>
+              <span class="text-xs text-muted">Motivation</span>
+            </div>
+          </div>
+          <h3 class="font-heading text-xl md:text-[1.35rem] text-dark font-medium leading-snug">
+            What if you could show&nbsp;&mdash; not just tell&nbsp;&mdash; that your work makes a difference?</h3>
+          <p class="mt-4 text-body leading-relaxed">
+            Measurable client data changes everything. Use it in your marketing to show real results. Share it with GPs and other health professionals who need evidence, not anecdotes. See which of your recommendations are actually moving the needle. And most powerfully&nbsp;&mdash; show your clients that their effort is working, so they stay motivated through the hard lifestyle changes.</p>
+          <p class="mt-4 text-primary font-medium italic leading-relaxed">
+            Proof isn't just credibility. It's the tool that makes everything else you do land harder.</p>
+        </div>
+
+        <!-- Block 3: RETENTION -->
+        <div class="reveal bg-surface rounded-[32px] p-8 md:p-10" data-pain="3">
+          <div class="mb-8">
+            <svg viewBox="0 0 400 100" class="w-full max-w-sm mx-auto" role="img" aria-label="Two client journeys: one-and-done versus ongoing engagement">
+              <text x="5" y="12" fill="#c0c0c0" font-size="9" font-family="inherit" opacity="0.6">one visit</text>
+              <circle cx="40" cy="25" r="5" fill="#c0c0c0" opacity="0.5" />
+              <line x1="50" y1="25" x2="100" y2="25" stroke="#c0c0c0" stroke-width="1.5" stroke-dasharray="4 4" opacity="0.3" />
+              <circle cx="110" cy="25" r="4" fill="#c0c0c0" opacity="0.3" />
+              <text x="125" y="29" fill="#c0c0c0" font-size="9" font-family="inherit" opacity="0.5">silence</text>
+              <text x="5" y="60" fill="#3D8DA0" font-size="9" font-family="inherit">ongoing</text>
+              <circle cx="40" cy="72" r="5" fill="#3D8DA0" />
+              <line x1="50" y1="72" x2="108" y2="72" stroke="#3D8DA0" stroke-width="1.5" opacity="0.4" />
+              <circle cx="120" cy="72" r="5" fill="#3D8DA0" />
+              <line x1="130" y1="72" x2="188" y2="72" stroke="#3D8DA0" stroke-width="1.5" opacity="0.4" />
+              <circle cx="200" cy="72" r="5" fill="#3D8DA0" />
+              <line x1="210" y1="72" x2="268" y2="72" stroke="#48A085" stroke-width="1.5" opacity="0.4" />
+              <circle cx="280" cy="72" r="5" fill="#48A085" />
+              <line x1="290" y1="72" x2="348" y2="72" stroke="#D4A853" stroke-width="1.5" opacity="0.4" />
+              <circle cx="360" cy="72" r="5" fill="#D4A853" />
+              <text x="108" y="90" fill="#3D8DA0" font-size="8" font-family="inherit">Q1</text>
+              <text x="188" y="90" fill="#3D8DA0" font-size="8" font-family="inherit">Q2</text>
+              <text x="268" y="90" fill="#48A085" font-size="8" font-family="inherit">Q3</text>
+              <text x="348" y="90" fill="#D4A853" font-size="8" font-family="inherit">Q4</text>
+            </svg>
+          </div>
+          <h3 class="font-heading text-xl md:text-[1.35rem] text-dark font-medium leading-snug">
+            They come once, maybe twice, then disappear.</h3>
+          <p class="mt-4 text-body leading-relaxed">
+            You help them, they feel better, and then&nbsp;&mdash; silence. No follow-up. No rebooking. Healing has an endpoint. Once the problem is resolved, there's no reason to come back.</p>
+          <p class="mt-4 text-primary font-medium italic leading-relaxed">
+            Longevity changes that. When clients can see their trajectory shifting over time, they come back&nbsp;&mdash; not because something's wrong, but because they want to see what's next.</p>
+        </div>
       </div>
 
-      <div class="space-y-8 max-w-3xl mx-auto">
-        <!-- Block 1 -->
-        <div class="reveal bg-surface rounded-[32px] p-8 md:p-10">
-          <h3 class="font-heading text-xl md:text-[1.35rem] text-dark font-medium leading-snug">
-            Your clients are already Googling longevity clinics. They just haven't told you yet.</h3>
-          <p class="mt-4 text-body leading-relaxed">
-            The wellness conversation has shifted. Clients who used to come to you for specific health concerns are now reading about biological age, healthspan, and longevity protocols. They're seeing slick longevity clinics with data dashboards and personalised biomarker tracking. Some of them are wondering whether their naturopath can offer anything in that space&nbsp;&mdash; and most won't ask. They'll just quietly look elsewhere.</p>
-          <p class="mt-4 text-body leading-relaxed">
-            This isn't about competing with medical clinics. It's about being present in a conversation your clients are already having without you. The practitioners who add a credible longevity dimension to their practice now will be the ones clients stay with. The ones who don't will find their client base slowly, quietly eroding&nbsp;&mdash; not with a bang, but with a gradual drift towards whoever looks like they're keeping up.</p>
-        </div>
-
-        <!-- Block 2 -->
-        <div class="reveal bg-surface rounded-[32px] p-8 md:p-10">
-          <h3 class="font-heading text-xl md:text-[1.35rem] text-dark font-medium leading-snug">
-            You've given good advice to someone who nodded, walked out, and changed nothing. Again.</h3>
-          <p class="mt-4 text-body leading-relaxed">
-            Every practitioner knows this feeling. You do the assessment. You give thoughtful, personalised guidance. The client agrees it makes sense. And then&nbsp;&mdash; nothing. They don't come back. Or they come back six months later having done none of it.</p>
-          <p class="mt-4 text-body leading-relaxed">
-            The problem isn't your advice. It's that people don't change because they're told to. They change when they can see their own trajectory&nbsp;&mdash; when the data makes it personal, concrete, and impossible to ignore. Longevity assessment does something most clinical conversations can't: it shows someone where they are right now, where they're heading, and what's possible if they change course. That's pull motivation&nbsp;&mdash; the kind that comes from within. It's the difference between pushing someone uphill and watching them climb because they can see the summit.</p>
-          <p class="mt-4 text-body leading-relaxed">
-            This is why longevity isn't just another service to offer. It's the thing that makes everything else you do actually land.</p>
-        </div>
-
-        <!-- Block 3 -->
-        <div class="reveal bg-surface rounded-[32px] p-8 md:p-10">
-          <h3 class="font-heading text-xl md:text-[1.35rem] text-dark font-medium leading-snug">
-            When a client's GP asks what you actually do, can you show them?</h3>
-          <p class="mt-4 text-body leading-relaxed">
-            Most holistic practitioners carry a quiet frustration: you know your work makes a difference, but you can't prove it in a way the wider health system recognises. No measurable outcomes. No tracked data. No before-and-after that stands up to scrutiny. Just "I think they're doing better."</p>
-          <p class="mt-4 text-body leading-relaxed">
-            This isn't a minor inconvenience. It's the gap between being seen as a trusted health professional and being seen as someone on the margins. It affects referrals. It affects how clients talk about you to their doctors. It affects how you feel about the value of your own work.</p>
-          <p class="mt-4 text-body leading-relaxed">
-            Longevity data closes that gap. When you can show a client's GP&nbsp;&mdash; or the client themselves&nbsp;&mdash; a measurable trajectory of improvement over time, the conversation changes completely. You're no longer asking people to trust your intuition. You're showing them evidence that what you do works. That's not just credibility. That's professional standing.</p>
-        </div>
-      </div>
-
-      <!-- Resolution -->
-      <div class="reveal max-w-3xl mx-auto mt-20">
-        <h2 class="font-heading text-[clamp(1.5rem,3vw,2rem)] font-medium text-dark leading-[1.2] tracking-[-0.03em]">
-          The Longevity Trajectory Protocol gives you three things:</h2>
-
-        <div class="mt-8 space-y-6">
-          <div>
-            <p class="text-body leading-relaxed">
-              <strong class="text-dark">1. A position in a market that's growing, not shrinking.</strong>
-              The global longevity market is heading for <span class="text-primary font-heading font-semibold text-[clamp(1.25rem,2.5vw,1.75rem)]">$46.9 billion by 2031</span>. The CAM market is projected to exceed $1.2 trillion by 2034. Practitioners who establish themselves at the intersection of holistic health and data-driven longevity now aren't following a trend&nbsp;&mdash; they're defining one. You move to where the growth is, on your own terms.</p>
-          </div>
-          <div>
-            <p class="text-body leading-relaxed">
-              <strong class="text-dark">2. A way to create change that sticks.</strong>
-              When clients see their own trajectory&nbsp;&mdash; not your advice, their data&nbsp;&mdash; motivation becomes intrinsic. They come back not because you told them to, but because they want to see what's next. You stop pushing. They start pulling. Your success rate goes up because the mechanism of change shifts from compliance to engagement.</p>
-          </div>
-          <div>
-            <p class="text-body leading-relaxed">
-              <strong class="text-dark">3. A track record of measurable outcomes that speaks for itself.</strong>
-              Visible, trackable client progress replaces "I think they got better" with concrete evidence over time. That changes referrals. It changes how GPs and other health professionals see you. It changes how clients describe you to friends. And it changes how you feel about the impact of your own work.</p>
-          </div>
-        </div>
+      <!-- CTA below all three blocks -->
+      <div class="reveal text-center mt-12">
+        <a href="#workshop"
+          class="inline-flex items-center gap-2 text-primary font-medium hover:text-primary-dark transition-colors">
+          See how to add this to your practice
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" /></svg>
+        </a>
       </div>
     </div>
   </section>
@@ -297,7 +296,7 @@
       <div class="reveal text-center max-w-2xl mx-auto">
         <h2 class="font-heading text-[clamp(1.75rem,3.5vw,2.5rem)] font-medium text-dark leading-[1.2] tracking-[-0.03em]">
           The Longevity Trajectory Protocol</h2>
-        <p class="mt-4 text-body leading-relaxed">A structured, four-step methodology that adds a longevity data layer to your existing practice.</p>
+        <p class="mt-4 text-body leading-relaxed">Four steps that layer onto your existing practice.</p>
       </div>
 
       <div class="relative mt-16 grid gap-6 md:grid-cols-4" data-protocol-steps>
@@ -311,12 +310,13 @@
         <div class="reveal-scale reveal-delay-1 rounded-[32px] bg-light p-8 text-center" data-protocol-step="1">
           <div class="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-primary/10 mb-5">
             <svg class="w-7 h-7 text-primary" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M9 6.75V15m6-6v8.25m.503 3.498 4.875-2.437c.381-.19.622-.58.622-1.006V4.82c0-.836-.88-1.38-1.628-1.006l-3.869 1.934c-.317.159-.69.159-1.006 0L9.503 3.252a1.125 1.125 0 0 0-1.006 0L3.622 5.689C3.24 5.88 3 6.27 3 6.695V19.18c0 .836.88 1.38 1.628 1.006l3.869-1.934c.317-.159.69-.159 1.006 0l4.994 2.497c.317.158.69.158 1.006 0Z"/>
+              <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 3.75h-7.5a2.25 2.25 0 0 0-2.25 2.25v13.5a2.25 2.25 0 0 0 2.25 2.25h7.5a2.25 2.25 0 0 0 2.25-2.25V6a2.25 2.25 0 0 0-2.25-2.25Z"/>
+              <path stroke-linecap="round" stroke-linejoin="round" d="M10 1.5h4M9.75 9h4.5M9.75 12.75h4.5M9.75 16.5h2.5"/>
             </svg>
           </div>
           <p class="text-xs font-semibold text-primary tracking-widest uppercase mb-2">MAP</p>
           <h3 class="font-heading text-lg text-dark font-medium">Establish the baseline.</h3>
-          <p class="mt-3 text-sm text-body leading-relaxed">Your client completes a comprehensive longevity assessment covering biological markers, lifestyle factors, functional capacity, and key risk indicators. This creates a detailed starting picture&nbsp;&mdash; far more than a blood test or intake form.</p>
+          <p class="mt-3 text-sm text-body leading-relaxed">Your client completes a comprehensive longevity assessment. Far more than a blood test.</p>
         </div>
 
         <!-- Step 2: READ -->
@@ -328,20 +328,21 @@
             </svg>
           </div>
           <p class="text-xs font-semibold text-primary tracking-widest uppercase mb-2">READ</p>
-          <h3 class="font-heading text-lg text-dark font-medium">Interpret with clinical intelligence.</h3>
-          <p class="mt-3 text-sm text-body leading-relaxed">The data doesn't stand alone. You read the assessment through your holistic lens&nbsp;&mdash; connecting patterns, identifying priorities, and placing the numbers in the context of the person's whole life. This is where your training becomes indispensable.</p>
+          <h3 class="font-heading text-lg text-dark font-medium">Interpret with your clinical lens.</h3>
+          <p class="mt-3 text-sm text-body leading-relaxed">Connect the data to the whole person. This is where your training becomes indispensable.</p>
         </div>
 
         <!-- Step 3: GUIDE -->
         <div class="reveal-scale reveal-delay-3 rounded-[32px] bg-light p-8 text-center" data-protocol-step="3">
           <div class="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-primary/10 mb-5">
             <svg class="w-7 h-7 text-primary" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M12 3v18M6 7.5h9l3-2.25-3-2.25H6m12 12H9l-3-2.25L9 12.75h9"/>
+              <circle cx="12" cy="12" r="9" stroke-linecap="round" stroke-linejoin="round"/>
+              <path stroke-linecap="round" stroke-linejoin="round" d="m16.24 7.76-2.12 6.36-6.36 2.12 2.12-6.36 6.36-2.12Z"/>
             </svg>
           </div>
           <p class="text-xs font-semibold text-primary tracking-widest uppercase mb-2">GUIDE</p>
           <h3 class="font-heading text-lg text-dark font-medium">Design the intervention.</h3>
-          <p class="mt-3 text-sm text-body leading-relaxed">Based on what you've mapped and read, you create a targeted plan. A standalone longevity consultation, an add-on to existing treatment, or a structured programme. The Protocol supports one-to-one delivery, group work, or a hybrid.</p>
+          <p class="mt-3 text-sm text-body leading-relaxed">A standalone consultation, an add-on, or a structured programme. You choose.</p>
         </div>
 
         <!-- Step 4: TRACK -->
@@ -353,852 +354,130 @@
           </div>
           <p class="text-xs font-semibold text-primary tracking-widest uppercase mb-2">TRACK</p>
           <h3 class="font-heading text-lg text-dark font-medium">Make progress visible.</h3>
-          <p class="mt-3 text-sm text-body leading-relaxed">Reassess at intervals. Show your client, concretely, what's changed. When people see their trajectory improving, motivation becomes intrinsic. They stop following advice on faith. They start watching their own data move.</p>
+          <p class="mt-3 text-sm text-body leading-relaxed">Reassess at intervals. Show clients their trajectory improving. Motivation becomes intrinsic.</p>
         </div>
       </div>
 
-      <!-- Trajectory chart — the strongest visual -->
-      <div class="reveal mt-16 max-w-3xl mx-auto">
-        <img src="assets/images/health-trajectory.webp"
-          alt="Health Trajectory chart showing current status, pessimistic and optimistic future scenarios based on longevity assessment data"
-          class="w-full rounded-2xl shadow-[0_16px_48px_-12px_rgba(0,0,0,0.12)] cursor-pointer"
-          onclick="openLightbox(this.src, this.alt)">
-      </div>
-
-      <!-- Bridging paragraph -->
+      <!-- Bridging line -->
       <div class="reveal max-w-3xl mx-auto mt-16 text-center">
         <p class="text-lg md:text-xl text-body leading-relaxed">
-          The Protocol isn't a product you sell to clients. It's a methodology you use as a practitioner. It layers onto whatever you already do&nbsp;&mdash; nutrition, herbal medicine, iridology, functional testing&nbsp;&mdash; and gives you a structured, evidence-informed framework for tracking long-term client outcomes.</p>
-        <p class="mt-4 text-lg md:text-xl text-dark font-medium leading-relaxed">
-          This is how you add longevity to your practice without replacing what already works.</p>
+          The Protocol layers onto whatever you already do. You don't change your practice&nbsp;&mdash; you add a dimension that makes your impact visible.</p>
       </div>
     </div>
   </section>
 
   <!-- ============================================================
-       SECTION 4: WHAT CHANGES
+       SECTION 4: WORKSHOP SIGNUP
        ============================================================ -->
-  <section class="bg-[#faf8f5]">
-    <div class="max-w-3xl mx-auto px-5 md:px-[52px] py-24 md:py-32">
-      <h2 class="reveal font-heading text-[clamp(1.75rem,3.5vw,2.5rem)] font-medium text-dark leading-[1.2] tracking-[-0.03em]">
-        What changes when you work this way</h2>
-
-      <div class="mt-10 space-y-8">
-        <div class="reveal">
-          <p class="text-body leading-relaxed">
-            <strong class="text-dark">Deeper client relationships, not one-off consultations.</strong>
-            When clients can see their trajectory, they stay. They come back not because you told them to, but because they want to see what's next. You become their long-term health partner&nbsp;&mdash; not someone they visit once when something goes wrong.</p>
-        </div>
-        <div class="reveal">
-          <p class="text-body leading-relaxed">
-            <strong class="text-dark">You're watering flowers, not targeting weeds.</strong>
-            Most clinical work is reactive&nbsp;&mdash; something's wrong, fix it. The Protocol shifts the conversation to building capacity, extending healthspan, and optimising function. It's a fundamentally different way of working. More satisfying for you. More motivating for them.</p>
-        </div>
-        <div class="reveal">
-          <p class="text-body leading-relaxed">
-            <strong class="text-dark">Visible proof that what you do works.</strong>
-            Measurable, trackable progress replaces "I think I feel better" with concrete data. That changes referrals, client confidence, and your own professional satisfaction.</p>
-        </div>
-        <div class="reveal">
-          <p class="text-body leading-relaxed">
-            <strong class="text-dark">Value-based earning.</strong>
-            When you can demonstrate measurable impact on someone's health trajectory, you're not selling time&nbsp;&mdash; you're creating visible value. That changes how you price, how you package your services, and how clients perceive what you offer.</p>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- ============================================================
-       SECTION 5: A WORD TO PRACTITIONERS
-       ============================================================ -->
-  <section class="bg-surface">
+  <section id="workshop" class="scroll-mt-20 bg-[#1e3a42]" data-workshop>
     <div class="max-w-[1280px] mx-auto px-5 md:px-[52px] py-24 md:py-32">
-      <div class="reveal max-w-3xl mx-auto border-2 border-primary/20 rounded-[32px] p-8 md:p-12">
-        <!-- Matthew's photo -->
-        <div class="flex items-center gap-4 mb-8">
-          <img src="assets/images/matthew-portrait.jpg" alt="Matthew D'haemer"
-            class="w-14 h-14 rounded-full object-cover ring-2 ring-primary/20">
-          <div>
-            <p class="text-sm font-medium text-dark">Matthew D'haemer</p>
-            <p class="text-xs text-muted">Naturopath &amp; Founder, HealthDataLab</p>
+      <div class="reveal text-center max-w-3xl mx-auto mb-12">
+        <h2 class="font-heading text-[clamp(1.75rem,3.5vw,2.5rem)] font-medium text-white leading-[1.2] tracking-[-0.03em]">
+          See exactly how this works&nbsp;&mdash; free workshop (30 min)</h2>
+        <p class="mt-4 text-white/70 leading-relaxed max-w-2xl mx-auto">
+          Before you decide anything, watch this. I'll walk you through the Protocol, show you a real assessment, and explain how it fits into your practice workflow.</p>
+      </div>
+
+      <div class="reveal grid md:grid-cols-2 gap-10 max-w-4xl mx-auto items-start">
+        <!-- Left: Video + bullet points -->
+        <div>
+          <div class="video-embed-wrapper aspect-video rounded-2xl overflow-hidden bg-black/30">
+            <iframe class="w-full h-full" src="" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+          </div>
+          <div class="mt-6">
+            <p class="text-sm text-white/80 font-medium mb-3">What you'll see:</p>
+            <ul class="space-y-2 text-sm text-white/60">
+              <li class="flex items-start gap-2">
+                <svg class="w-4 h-4 text-white/40 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5"/></svg>
+                A real longevity assessment&nbsp;&mdash; what your clients would complete
+              </li>
+              <li class="flex items-start gap-2">
+                <svg class="w-4 h-4 text-white/40 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5"/></svg>
+                How to interpret the report and use it in a consultation
+              </li>
+              <li class="flex items-start gap-2">
+                <svg class="w-4 h-4 text-white/40 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5"/></svg>
+                The 4-step Protocol in action with a real-world example
+              </li>
+            </ul>
           </div>
         </div>
 
-        <h2 class="font-heading text-[clamp(1.5rem,3vw,2rem)] font-medium text-dark leading-[1.2] tracking-[-0.03em]">
-          We need to up our game</h2>
-
-        <div class="mt-6 space-y-4 text-body leading-relaxed">
-          <p>Ten years ago, natural health had a clear identity. If someone wanted a naturopath, they found one.</p>
-          <p>That's not the market anymore.</p>
-          <p>Longevity clinics are multiplying. Fitness brands are hiring nutritionists. Corporate wellness programmes offer biometric dashboards. The bigger players aren't targeting naturopaths directly&nbsp;&mdash; they don't need to. They're simply occupying the space, and clients follow the credibility signals.</p>
-          <p>The holistic understanding of health&nbsp;&mdash; the way you see the whole person, not just their numbers&nbsp;&mdash; has deeper, more meaningful impact than a purely clinical or fitness-based approach. But without embracing the longevity movement and becoming fluent in the tools and data that clients increasingly expect, that understanding risks being pushed to the margins.</p>
-          <p>This isn't about abandoning what makes you effective. It's about adding a layer that makes your expertise legible to a market that's moving towards data, outcomes, and measurable results.</p>
-          <p class="text-dark font-medium">The Longevity Trajectory Protocol is how holistic practitioners engage this market on their own terms&nbsp;&mdash; rather than watching it form around them.</p>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- ============================================================
-       SECTION 6: THE FUTURE ANGLE
-       ============================================================ -->
-  <section class="bg-dark text-white border-t-2 border-primary/30">
-    <div class="max-w-3xl mx-auto px-5 md:px-[52px] py-24 md:py-32 text-center">
-      <h2 class="reveal font-heading text-[clamp(1.5rem,3vw,2rem)] font-medium text-white leading-[1.2] tracking-[-0.03em]">
-        AI will change almost everything. Health is one of the few things it won't.</h2>
-
-      <div class="reveal mt-8 space-y-4 text-white/70 leading-relaxed">
-        <p>Artificial intelligence and robotics are about to reshape how we live and work. Most industries will look unrecognisable within a decade.</p>
-        <p>But AI can't make someone healthy. It can't build the relationship that keeps a client committed to real change. It can't replace a practitioner who understands that a blood panel tells you <em>what</em>, but not <em>why</em>.</p>
-        <p>If technology fulfils most material needs, the things that matter most become health, relationships, creativity, and contribution. Being healthy and capable is how you participate in that future&nbsp;&mdash; not spectate from the sidelines.</p>
-        <p>The early internet rewarded those who adapted. AI will do the same, faster. Practitioners who integrate data-driven longevity now are positioning themselves to lead.</p>
-      </div>
-    </div>
-  </section>
-
-  <!-- ============================================================
-       SECTION 7: DEEP ROOTS
-       ============================================================ -->
-  <section class="bg-light">
-    <div class="max-w-3xl mx-auto px-5 md:px-[52px] py-24 md:py-32 text-center">
-      <h2 class="reveal font-heading text-[clamp(1.5rem,3vw,2rem)] font-medium text-dark leading-[1.2] tracking-[-0.03em] mb-8">
-        Deep roots</h2>
-      <div class="reveal space-y-4 text-lg md:text-xl text-body leading-relaxed">
-        <p>Effective, lasting health change doesn't come from knowledge alone.</p>
-        <p>You can hand someone a perfect protocol. If it's not connected to who they are&nbsp;&mdash; their identity, their motivation, the life they actually want&nbsp;&mdash; it won't stick.</p>
-        <p>This is where holistic practitioners have an advantage no longevity clinic can replicate.</p>
-        <p class="text-dark font-medium">Clinical longevity gives people numbers. You give them meaning.</p>
-        <p>The Protocol provides the data. You provide the wisdom to connect that data to the person's life. That combination&nbsp;&mdash; precision and depth&nbsp;&mdash; is what creates change that lasts.</p>
-        <p class="text-dark font-medium">Health isn't just biochemistry. It never was. Less weeds, more flowers.</p>
-      </div>
-    </div>
-  </section>
-
-  <!-- ============================================================
-       SECTION 8: REAL PROBLEMS
-       ============================================================ -->
-  <section class="bg-[#faf8f5]">
-    <div class="max-w-[1280px] mx-auto px-5 md:px-[52px] py-24 md:py-32">
-      <div class="reveal text-center max-w-2xl mx-auto mb-4">
-        <h2 class="font-heading text-[clamp(1.75rem,3.5vw,2.5rem)] font-medium text-dark leading-[1.2] tracking-[-0.03em]">
-          What practitioners actually struggle with</h2>
-        <p class="mt-4 text-body leading-relaxed">These aren't abstract problems. They're the things you think about on the drive home.</p>
-      </div>
-
-      <div class="mt-12 grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-        <!-- Block 1: PROOF -->
-        <div class="reveal bg-surface rounded-[32px] p-8">
-          <h3 class="font-heading text-lg text-dark font-medium leading-snug">"I know my work helps&nbsp;&mdash; but I can't prove it."</h3>
-          <p class="mt-3 text-sm text-body leading-relaxed">You see the change in your clients. They feel better. They look better. But when their GP asks what you actually do, or when a potential referral wants evidence&nbsp;&mdash; you've got nothing concrete. Just your word.</p>
-          <p class="mt-3 text-sm text-primary font-medium">The Protocol gives you before-and-after trajectory data that shows measurable change over time.</p>
-        </div>
-
-        <!-- Block 2: RETENTION -->
-        <div class="reveal bg-surface rounded-[32px] p-8">
-          <h3 class="font-heading text-lg text-dark font-medium leading-snug">"They come once, maybe twice, then disappear."</h3>
-          <p class="mt-3 text-sm text-body leading-relaxed">You help them, they feel better, and then&nbsp;&mdash; silence. No follow-up. No rebooking. You're left wondering what happened, and starting from scratch with the next new client.</p>
-          <p class="mt-3 text-sm text-primary font-medium">Trajectory tracking gives clients a reason to come back&nbsp;&mdash; and a reason to stay.</p>
-        </div>
-
-        <!-- Block 3: INCOME -->
-        <div class="reveal bg-surface rounded-[32px] p-8">
-          <h3 class="font-heading text-lg text-dark font-medium leading-snug">"I'm working harder than ever but earning less."</h3>
-          <p class="mt-3 text-sm text-body leading-relaxed">You're trading hours for money with no leverage. You can't charge more because you can't demonstrate more. The value of what you do is invisible&nbsp;&mdash; so you're stuck competing on price or availability.</p>
-          <p class="mt-3 text-sm text-primary font-medium">When you can show measurable impact, you stop selling time and start creating visible value.</p>
-        </div>
-
-        <!-- Block 4: DIFFERENTIATION -->
-        <div class="reveal bg-surface rounded-[32px] p-8">
-          <h3 class="font-heading text-lg text-dark font-medium leading-snug">"I look the same as every other practitioner."</h3>
-          <p class="mt-3 text-sm text-body leading-relaxed">Everyone says "holistic." Everyone offers wellness consultations. Clients can't tell you apart from the next practitioner on Google. You know your work is different&nbsp;&mdash; but nothing about how you present it shows that.</p>
-          <p class="mt-3 text-sm text-primary font-medium">A data-driven longevity assessment protocol makes you concretely, visibly different&nbsp;&mdash; not through marketing, but through a different kind of service.</p>
-        </div>
-
-        <!-- Block 5: ISOLATION -->
-        <div class="reveal bg-surface rounded-[32px] p-8">
-          <h3 class="font-heading text-lg text-dark font-medium leading-snug">"I'm figuring everything out alone."</h3>
-          <p class="mt-3 text-sm text-body leading-relaxed">No team. No colleagues down the corridor. No one to troubleshoot a tricky case with or ask "am I pricing this right?" The professional development courses don't help with the day-to-day reality of running a solo practice.</p>
-          <p class="mt-3 text-sm text-primary font-medium">The HDL community gives you peers who are doing the same work&nbsp;&mdash; sharing cases, solving problems, raising the bar together.</p>
-        </div>
-
-        <!-- Block 6: FUTURE -->
-        <div class="reveal bg-surface rounded-[32px] p-8">
-          <h3 class="font-heading text-lg text-dark font-medium leading-snug">"The world is changing and I'm not sure where I fit."</h3>
-          <p class="mt-3 text-sm text-body leading-relaxed">Longevity clinics are multiplying. AI is entering health. Clients are increasingly data-literate. You can feel the ground shifting&nbsp;&mdash; but nobody's showing holistic practitioners how to adapt.</p>
-          <p class="mt-3 text-sm text-primary font-medium">It's far easier for you to add longevity than for a doctor or trainer to become holistic. The Protocol is the bridge.</p>
-        </div>
-      </div>
-
-      <div class="reveal mt-12 text-center">
-        <p class="text-body leading-relaxed max-w-2xl mx-auto mb-8">These are the problems the Longevity Trajectory Protocol was built to solve. Not with promises&nbsp;&mdash; with a practical framework you can start using in weeks.</p>
-        <a href="#workshop"
-          class="inline-flex items-center gap-2 rounded-[48px] bg-primary text-white text-base font-medium px-8 py-3.5 hover:bg-primary-dark transition-colors shadow-[0_4px_20px_rgba(61,141,160,.25)]">
-          See how it works &rarr; Watch the Workshop
-        </a>
-      </div>
-    </div>
-  </section>
-
-  <!-- ============================================================
-       SECTION 9: WORKSHOP
-       ============================================================ -->
-  <section id="workshop" class="scroll-mt-20 bg-surface" data-workshop>
-    <div class="max-w-[1280px] mx-auto px-5 md:px-[52px] py-24 md:py-32">
-      <div class="reveal text-center max-w-3xl mx-auto">
-        <h2 class="font-heading text-[clamp(1.75rem,3.5vw,2.5rem)] font-medium text-dark leading-[1.2] tracking-[-0.03em]">
-          See the Protocol in action</h2>
-        <p class="mt-4 text-body leading-relaxed max-w-2xl mx-auto">
-          Before you decide anything, watch this. In 30 minutes, I'll walk you through exactly how the Longevity Trajectory Protocol works&nbsp;&mdash; what the assessment looks like, how you interpret it, and how it fits into a real practice workflow.</p>
-      </div>
-
-      <div class="reveal mt-12 max-w-4xl mx-auto">
-        <div class="video-embed-wrapper aspect-video rounded-2xl overflow-hidden bg-dark/5">
-          <!-- Video iframe — drop URL in when ready -->
-          <iframe class="w-full h-full" src="" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
-        </div>
-      </div>
-
-      <div class="reveal mt-10 text-center">
-        <p class="text-lg text-dark font-medium mb-6">Ready to add this to your practice?</p>
-        <a href="#course"
-          class="inline-flex items-center gap-2 rounded-[48px] bg-dark text-white text-base font-medium px-8 py-3.5 hover:bg-dark-2 transition-colors">
-          See the Course &amp; Apply
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" /></svg>
-        </a>
-      </div>
-    </div>
-  </section>
-
-  <!-- ============================================================
-       SECTION 10: THE COURSE
-       ============================================================ -->
-  <section id="course" class="scroll-mt-20 bg-light">
-    <div class="max-w-[1280px] mx-auto px-5 md:px-[52px] py-24 md:py-32">
-      <div class="max-w-3xl mx-auto">
-        <div class="reveal text-center">
-          <h2 class="font-heading text-[clamp(1.75rem,3.5vw,2.5rem)] font-medium text-dark leading-[1.2] tracking-[-0.03em]">
-            The Holistic Longevity Practitioner Certificate</h2>
-          <p class="mt-4 font-heading text-[clamp(1.25rem,2.5vw,1.75rem)] font-medium text-primary leading-snug">
-            Fully trained in 3 weeks. Supported for 12.</p>
-        </div>
-
-        <!-- Timeline bar -->
-        <div class="reveal mt-10">
-          <div class="flex rounded-full h-3 overflow-hidden">
-            <div class="w-1/4 bg-primary"></div>
-            <div class="w-3/4 bg-primary/30"></div>
+        <!-- Right: Signup form -->
+        <div class="bg-white/[0.08] backdrop-blur-sm rounded-[32px] p-8">
+          <div id="workshop-form-wrapper">
+            <h3 class="font-heading text-lg text-white font-medium mb-6">Register to watch</h3>
+            <form id="workshop-form" class="flex flex-col gap-4" onsubmit="handleWorkshopSubmit(event)">
+              <div>
+                <label for="workshop-name" class="block text-sm text-white/70 mb-1.5">First name</label>
+                <input type="text" id="workshop-name" name="name" required autocomplete="given-name"
+                  class="w-full rounded-2xl border border-white/20 bg-white/10 px-4 py-3 text-sm text-white placeholder:text-white/40 outline-none focus:border-white/40 focus:ring-1 focus:ring-white/20 transition-colors"
+                  placeholder="Your first name">
+              </div>
+              <div>
+                <label for="workshop-email" class="block text-sm text-white/70 mb-1.5">Email address</label>
+                <input type="email" id="workshop-email" name="email" required autocomplete="email"
+                  class="w-full rounded-2xl border border-white/20 bg-white/10 px-4 py-3 text-sm text-white placeholder:text-white/40 outline-none focus:border-white/40 focus:ring-1 focus:ring-white/20 transition-colors"
+                  placeholder="you@example.com">
+              </div>
+              <button type="submit" id="workshop-submit"
+                class="mt-2 w-full rounded-[48px] bg-white text-[#1e3a42] text-base font-medium px-6 py-3.5 hover:bg-white/90 transition-colors cursor-pointer flex items-center justify-center gap-2">
+                <span id="workshop-submit-text">Send me the workshop</span>
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" /></svg>
+                <svg id="workshop-spinner" class="hidden w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                </svg>
+              </button>
+              <p id="workshop-error" class="hidden text-sm text-red-300 text-center"></p>
+            </form>
           </div>
-          <div class="flex mt-2 text-xs text-muted">
-            <div class="w-1/4">
-              <span class="font-medium text-primary">Phase 1</span><br>Intensive Training
+          <div id="workshop-success" class="hidden text-center py-6">
+            <div class="mx-auto w-12 h-12 rounded-full bg-white/20 flex items-center justify-center mb-3">
+              <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5"/>
+              </svg>
             </div>
-            <div class="w-3/4 text-right">
-              <span class="font-medium text-primary/70">Phase 2</span><br>Implementation &amp; Community
-            </div>
+            <p class="text-white font-medium">Check your email for the workshop link.</p>
           </div>
-        </div>
-
-        <!-- Phase 1 -->
-        <div class="reveal mt-12">
-          <h3 class="font-heading text-xl text-dark font-medium">Phase 1 &mdash; Intensive Training (Weeks 1&ndash;3)</h3>
-          <p class="mt-3 text-body leading-relaxed">Three weeks of focused, practical training. You learn the Protocol, work through real assessments, and practise interpreting and presenting longevity data in the context of your own practice.</p>
-          <ul class="mt-4 space-y-2 text-body text-sm leading-relaxed">
-            <li><strong class="text-dark">Week 1:</strong> The science, the framework, the philosophy. Where holistic practitioners have a genuine advantage.</li>
-            <li><strong class="text-dark">Week 2:</strong> Reading reports, the pre-consultation workflow. Hands-on with real data.</li>
-            <li><strong class="text-dark">Week 3:</strong> From report to conversation&nbsp;&mdash; running your first longevity consultation.</li>
-          </ul>
-          <p class="mt-4 text-body leading-relaxed font-medium text-dark">By the end of Week 3, you're ready to use this with clients. Not theory-ready. Practice-ready.</p>
-        </div>
-
-        <!-- Phase 2 -->
-        <div class="reveal mt-10">
-          <h3 class="font-heading text-xl text-dark font-medium">Phase 2 &mdash; Implementation &amp; Community (Weeks 4&ndash;12)</h3>
-          <p class="mt-3 text-body leading-relaxed">Nine weeks of supported implementation. You apply the Protocol with real clients, bring cases to the group, get feedback, and refine your approach with peer and mentor support.</p>
-          <ul class="mt-4 space-y-2 text-body text-sm leading-relaxed">
-            <li><strong class="text-dark">Weeks 4&ndash;6:</strong> Lifestyle protocols, building client protocols, using AI advisory tools, tracking progress.</li>
-            <li><strong class="text-dark">Weeks 7&ndash;9:</strong> Packaging longevity as a service. Pricing. Client communication and retention. Where your first 10 longevity clients come from.</li>
-            <li><strong class="text-dark">Weeks 10&ndash;12:</strong> Growing your longevity practice. Referrals. Content. Certification. Your 90-day action plan.</li>
-          </ul>
-        </div>
-
-        <!-- What's included -->
-        <div class="reveal mt-10">
-          <h3 class="font-heading text-xl text-dark font-medium">What's included</h3>
-          <ul class="mt-4 space-y-2.5">
-            <li class="flex items-start gap-3 text-body text-sm leading-relaxed">
-              <svg class="w-5 h-5 text-primary flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5"/></svg>
-              Full access to the HealthDataLab platform and assessment tools
-            </li>
-            <li class="flex items-start gap-3 text-body text-sm leading-relaxed">
-              <svg class="w-5 h-5 text-primary flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5"/></svg>
-              The Longevity Trajectory Protocol framework and supporting materials
-            </li>
-            <li class="flex items-start gap-3 text-body text-sm leading-relaxed">
-              <svg class="w-5 h-5 text-primary flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5"/></svg>
-              Weekly live sessions during the intensive phase
-            </li>
-            <li class="flex items-start gap-3 text-body text-sm leading-relaxed">
-              <svg class="w-5 h-5 text-primary flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5"/></svg>
-              Peer community and case discussion during implementation
-            </li>
-            <li class="flex items-start gap-3 text-body text-sm leading-relaxed">
-              <svg class="w-5 h-5 text-primary flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5"/></svg>
-              100 startup credits + 30 follow-up credits per month
-            </li>
-            <li class="flex items-start gap-3 text-body text-sm leading-relaxed">
-              <svg class="w-5 h-5 text-primary flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5"/></svg>
-              Full AI health suite: Herbal Medicine, Supplement, Diet &amp; Nutrition, Clinical Diagnostics, Practice Growth advisors
-            </li>
-          </ul>
-        </div>
-
-        <!-- Certificate -->
-        <div class="reveal mt-10">
-          <h3 class="font-heading text-xl text-dark font-medium">The Holistic Longevity Practitioner Certificate</h3>
-          <p class="mt-3 text-body leading-relaxed">The certificate is awarded at the end of the full 12 weeks&nbsp;&mdash; not automatically, but after you've demonstrated a working understanding of the Protocol and have applied (or genuinely attempted to apply) the recommendations with real clients.</p>
-          <p class="mt-3 text-body leading-relaxed">This isn't a participation trophy. It's a professional credential that signals you can actually do this work. Passing criteria: consistent engagement throughout the course, evidence of using the Protocol in practice, and a level of understanding that shows you're ready to deliver longevity consultations independently.</p>
-          <p class="mt-3 text-body leading-relaxed">The certificate matters because it protects the quality of what it represents&nbsp;&mdash; for you and for every practitioner who holds one.</p>
+          <p class="mt-4 text-xs text-white/40 text-center">Free. No obligation. Unsubscribe any time.</p>
         </div>
       </div>
     </div>
   </section>
 
   <!-- ============================================================
-       SECTION 11: PRICING
+       SECTION 5: TRUST FOOTER
        ============================================================ -->
-  <section id="pricing" class="scroll-mt-20 bg-surface">
-    <div class="max-w-[1280px] mx-auto px-5 md:px-[52px] py-24 md:py-32">
-
-      <!-- LAUNCH OVERLAY START (temporary — delete this entire div post-launch) -->
-      <div id="launch-overlay" class="reveal max-w-3xl mx-auto mb-20 border-l-4 border-primary bg-primary/[0.03] rounded-r-[32px] p-8 md:p-12">
-        <p class="text-xs font-semibold text-primary tracking-widest uppercase mb-4">Limited Launch</p>
-        <h2 class="font-heading text-[clamp(1.5rem,3vw,2rem)] font-medium text-dark leading-[1.2] tracking-[-0.03em]">
-          First cohort &mdash; limited places, limited time</h2>
-        <p class="mt-4 text-body leading-relaxed">We're opening applications for the very first run of the Holistic Longevity Practitioner Certificate. This is a one-time opportunity that won't be repeated once places are filled.</p>
-
-        <div class="mt-8 space-y-6 text-body leading-relaxed">
-          <p>You apply for the Course at the full price of &pound;997. Once your application is reviewed, one of three things happens:</p>
-
-          <div class="space-y-4">
-            <div>
-              <p><strong class="text-dark">1. Beta Cohort &mdash; 10 places</strong></p>
-              <p>You're selected to join the pre-launch beta group. The beta starts first&nbsp;&mdash; you'll help fine-tune the course and the HDL platform through your feedback, real-world use, and honest input. In return, you receive a <strong class="text-dark">full refund of &pound;997</strong> <span class="tooltip-trigger" tabindex="0">&oplus;<span class="tooltip-content">Refunds are issued in full wherever possible. In some cases, international credit/debit card processing fees are non-recoverable and cannot be included in the refund. We'll do our best to minimise this&nbsp;&mdash; and in cases where fees are significant, we're happy to discuss sharing the cost. Bank transfers avoid these fees entirely if you'd prefer that option. The aim is always a fair, win-win outcome.</span></span> at the end of Week 3, once you've shown active engagement with the material and have started following some of the recommendations.</p>
-            </div>
-            <div>
-              <p><strong class="text-dark">2. Founding 1st Cohort</strong></p>
-              <p>If you're not selected for the beta 10 but your application is strong, you join the Founding 1st Cohort, which starts approximately 3&ndash;4 weeks after the beta. You receive a <strong class="text-dark">50% refund (&pound;498.50)</strong> <span class="tooltip-trigger" tabindex="0">&oplus;<span class="tooltip-content">Refunds are issued in full wherever possible. In some cases, international credit/debit card processing fees are non-recoverable and cannot be included in the refund. We'll do our best to minimise this&nbsp;&mdash; and in cases where fees are significant, we're happy to discuss sharing the cost. Bank transfers avoid these fees entirely if you'd prefer that option. The aim is always a fair, win-win outcome.</span></span> on the same engagement basis. Later in the programme, beta and founding groups combine for practical sessions, case sharing, and community.</p>
-            </div>
-            <div>
-              <p><strong class="text-dark">3. Waiting List</strong></p>
-              <p>After all places are filled, sign-ups close entirely. You're added to the waiting list for the next cohort at full price.</p>
-            </div>
-          </div>
-        </div>
-
-        <div class="mt-8 text-body leading-relaxed">
-          <h3 class="font-heading text-lg text-dark font-medium mb-3">Why refunds instead of discounts?</h3>
-          <p>This is deliberate, and it matters.</p>
-          <p class="mt-3">Research consistently shows that the majority of people who buy online courses never finish them. That's bad for them&nbsp;&mdash; they don't get the results&nbsp;&mdash; and bad for the person running the course, who never sees the transformation they built it to create.</p>
-          <p class="mt-3">The refund model solves this. It creates a small amount of external pressure to actually engage&nbsp;&mdash; to show up, do the work, and get the ball rolling. Not pressure to be perfect. Pressure to start. Once you start, the results carry you forward.</p>
-          <p class="mt-3">Your refund is earned through engagement: attending sessions, working with the material, using the Protocol with real clients, and giving constructive feedback. It's my thank-you for your trust in the process, your patience with the fine-tuning, and your contribution to making this course as impactful as possible.</p>
-          <p class="mt-3">Discounted seats don't create that dynamic. Earned refunds do.</p>
-        </div>
-
-        <div class="mt-8 text-body leading-relaxed">
-          <h3 class="font-heading text-lg text-dark font-medium mb-3">What you're actually getting</h3>
-          <p>You receive 100% of everything the course will contain in future cohorts&nbsp;&mdash; same content, same tools, same certification. But in this first run, you'll likely get <em>more</em>:</p>
-          <ul class="mt-3 space-y-2 list-disc pl-5">
-            <li class="text-body leading-relaxed"><strong class="text-dark">More personal involvement.</strong> With a small group, I'll be far more hands-on with each person's situation than I will be at scale.</li>
-            <li class="text-body leading-relaxed"><strong class="text-dark">More depth.</strong> We'll cover additional topics and go deeper into areas that the final version won't have room for.</li>
-            <li class="text-body leading-relaxed"><strong class="text-dark">Signature-tier elements included.</strong> Features that will later sit behind the Signature price point (&pound;2,497) will be rolled into this first cohort as I develop and fine-tune them. You get them at no extra cost.</li>
-          </ul>
-        </div>
-
-        <div class="mt-8 text-body leading-relaxed">
-          <h3 class="font-heading text-lg text-dark font-medium mb-3">For the IrisLab community</h3>
-          <p>As a thank-you for being part of the IrisLab network, this first cohort includes the <strong class="text-dark">iridology longevity module at no extra cost</strong>&nbsp;&mdash; content that will later be a separate paid add-on.</p>
-          <p class="mt-3">There's also an <strong class="text-dark">iridology-specific HDL report currently in development.</strong> Any practitioner with an IrisLab iriscope will get free access for a full year from the day it launches, plus an invitation to beta-test it and help shape it to meet your needs.</p>
-        </div>
-
-        <div class="mt-8 text-body leading-relaxed">
-          <h3 class="font-heading text-lg text-dark font-medium mb-3">Cut-off dates</h3>
-          <ul class="space-y-1 list-disc pl-5">
-            <li><strong class="text-dark">Beta 10:</strong> Applications close soon or when 10 places are filled, whichever comes first.</li>
-            <li><strong class="text-dark">Founding 1st Cohort:</strong> Applications close when all seats are taken. After this, sign-ups close entirely.</li>
-            <li><strong class="text-dark">After close:</strong> Waiting list opens for the next cohort at full price.</li>
-          </ul>
-          <p class="mt-3 text-dark font-medium">This is a one-time launch offer. It will not be repeated.</p>
-        </div>
-
-        <div class="mt-6 text-sm text-body leading-relaxed">
-          <p><strong class="text-dark">Changed your mind?</strong> If you sign up and realise within the first two weeks that the course isn't for you, you can request a full refund&nbsp;&mdash; no questions asked. <span class="tooltip-trigger" tabindex="0">&oplus;<span class="tooltip-content">Refunds are issued in full wherever possible. In some cases, international credit/debit card processing fees are non-recoverable and cannot be included in the refund. We'll do our best to minimise this&nbsp;&mdash; and in cases where fees are significant, we're happy to discuss sharing the cost. Bank transfers avoid these fees entirely if you'd prefer that option. The aim is always a fair, win-win outcome.</span></span></p>
-        </div>
-
-        <div class="mt-10 text-center">
-          <button onclick="openApplyModal()"
-            class="inline-flex items-center gap-2 rounded-[48px] bg-primary text-white text-base font-medium px-10 py-4 hover:bg-primary-dark transition-colors shadow-[0_4px_20px_rgba(61,141,160,.25)] cursor-pointer">
-            Apply for the Course
-          </button>
-          <p class="mt-3 text-xs text-muted max-w-md mx-auto">You're applying at full price (&pound;997). If selected for the beta or founding cohort, your refund is issued on engagement. All applications reviewed personally&nbsp;&mdash; expect a response within 48 hours.</p>
-        </div>
-      </div>
-      <!-- LAUNCH OVERLAY END -->
-
-      <!-- PERMANENT PRICING -->
-      <div id="permanent-pricing">
-        <div class="reveal text-center max-w-2xl mx-auto mb-12">
-          <h2 class="font-heading text-[clamp(1.75rem,3.5vw,2.5rem)] font-medium text-dark leading-[1.2] tracking-[-0.03em]">
-            A professional investment, not a subscription</h2>
-        </div>
-
-        <!-- Currency selector -->
-        <div class="reveal flex justify-center mb-8" id="currency-selector">
-          <div class="inline-flex items-center gap-3 rounded-full bg-light px-4 py-2">
-            <label for="currency-select" class="text-xs text-muted">Currency:</label>
-            <select id="currency-select" onchange="updateCurrencyDisplay(this.value)"
-              class="text-xs font-medium text-dark bg-transparent border-none outline-none cursor-pointer">
-              <option value="GBP">&pound; GBP</option>
-              <option value="USD">$ USD</option>
-              <option value="EUR">&euro; EUR</option>
-              <option value="CHF">CHF</option>
-              <option value="CAD">C$ CAD</option>
-              <option value="AUD">A$ AUD</option>
-            </select>
-          </div>
-        </div>
-        <p id="currency-disclaimer" class="hidden text-center text-xs text-muted mb-6" data-price>
-          Prices shown in <span id="currency-label">USD</span> are approximate. You'll be charged in GBP at checkout; your bank converts at their rate.
+  <section id="about" class="scroll-mt-20 bg-light border-t border-stroke/30">
+    <div class="max-w-[1280px] mx-auto px-5 md:px-[52px] py-20 md:py-28">
+      <div class="reveal max-w-3xl mx-auto text-center">
+        <p class="font-heading text-[clamp(1.25rem,2.5vw,1.5rem)] font-medium text-dark leading-[1.3] tracking-[-0.02em] mb-10">
+          From the makers of <a href="https://irislab.com" target="_blank" rel="noopener" class="text-primary hover:text-primary-dark transition-colors">IRISLAB.com</a>&nbsp;&mdash; trusted by 2,000+ practitioners worldwide.
         </p>
 
-        <div class="grid gap-8 lg:grid-cols-2 max-w-4xl mx-auto">
-          <!-- COURSE CARD — Dominant -->
-          <div class="reveal rounded-[32px] bg-surface ring-2 ring-primary p-8 md:p-10 relative flex flex-col">
-            <span class="absolute -top-3 left-8 bg-primary text-white text-xs font-semibold px-4 py-1 rounded-full">Recommended</span>
-            <h3 class="font-heading text-2xl text-dark font-medium">The Course</h3>
-            <p class="mt-1 text-sm text-body">The Holistic Longevity Practitioner Certificate. 3&#8209;week intensive training + 9&#8209;week supported implementation. Everything listed above.</p>
-            <p class="mt-6 font-heading text-4xl text-dark font-semibold" id="course-price" data-price>&pound;997</p>
-            <p class="text-sm text-muted mt-1" id="course-installment" data-price>or 3 &times; &pound;349</p>
-            <ul class="mt-4 space-y-1.5 text-sm text-body list-disc pl-5">
-              <li>Full platform access</li>
-              <li>Protocol framework and materials</li>
-              <li>Live sessions</li>
-              <li>Peer community</li>
-              <li>100 startup credits + 30/mo ongoing</li>
-              <li>Full AI health suite</li>
-              <li>Holistic Longevity Practitioner Certificate on completion</li>
-            </ul>
-            <div class="mt-auto pt-6">
-              <button onclick="openApplyModal()"
-                class="w-full rounded-[48px] bg-primary text-white text-base font-medium px-6 py-3.5 hover:bg-primary-dark transition-colors cursor-pointer shadow-[0_4px_20px_rgba(61,141,160,.25)]">
-                Apply for the Course
-              </button>
-              <p class="mt-3 text-xs text-muted text-center">Applications reviewed personally. Expect a response within 48 hours.</p>
-            </div>
-          </div>
-
-          <!-- SIGNATURE CARD — Coming Soon -->
-          <div class="reveal rounded-[32px] bg-surface border border-stroke p-8 md:p-10 opacity-60 relative coming-soon-card flex flex-col">
-            <span class="absolute -top-3 left-8 bg-muted text-white text-xs font-semibold px-4 py-1 rounded-full">Coming Soon</span>
-            <h3 class="font-heading text-2xl text-dark font-medium">Signature</h3>
-            <p class="mt-1 text-sm text-body">Everything in the Course, plus:</p>
-            <ul class="mt-3 space-y-1.5 text-sm text-body list-disc pl-5">
-              <li><strong>1-to-1 coaching sessions</strong> with Matthew &mdash; personalised practice strategy</li>
-              <li><strong>Priority support</strong> &mdash; direct access, faster response times</li>
-              <li><strong>Business growth deep-dive</strong> &mdash; pricing, positioning, marketing, and client acquisition strategy tailored to your practice</li>
-              <li><strong>Advanced AI advisory access</strong> &mdash; extended platform capabilities</li>
-              <li><strong>Environment design</strong> &mdash; practical changes to how you run your practice day-to-day</li>
-              <li><strong>Unlimited report credits</strong></li>
-            </ul>
-            <p class="mt-4 text-sm text-body">For practitioners building longevity into their core offering, not just adding it as a side service.</p>
-            <p class="mt-6 font-heading text-4xl text-dark font-semibold" id="signature-price" data-price>&pound;2,497</p>
-            <p class="text-sm text-muted mt-1" id="signature-installment" data-price>or 6 &times; &pound;449</p>
-            <p class="mt-2 text-xs text-primary font-medium">Coming soon</p>
-            <div class="mt-auto pt-6">
-              <button onclick="openContactModal({heading:'Join the Signature Waiting List',subject:'Signature Waiting List',subtext:'We\'ll notify you as soon as the Signature tier is available.'})"
-                class="w-full rounded-[48px] border border-stroke text-body text-sm font-medium px-6 py-3 hover:border-primary hover:text-primary transition-colors cursor-pointer">
-                Join the waiting list &rarr;
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <!-- NOT READY — Launchpad & Minimum -->
-        <div class="reveal mt-16 max-w-4xl mx-auto">
-          <h3 class="text-center font-heading text-lg text-dark font-medium mb-8">Not ready for the full course?</h3>
-          <div class="grid gap-6 md:grid-cols-2">
-            <!-- Launchpad -->
-            <div class="rounded-[32px] bg-light p-8 flex flex-col">
-              <h4 class="font-heading text-lg text-dark font-medium">Launchpad &mdash; Free</h4>
-              <p class="text-xs text-muted mt-1" id="launchpad-after-trial" data-price>then &pound;19/mo after 3 months</p>
-              <ul class="mt-4 space-y-2 text-sm text-body list-disc pl-5">
-                <li>Entry Level</li>
-                <li>3 report credits/mo</li>
-                <li>Mini course: "Your First 10 Longevity Clients"</li>
-                <li>AI Practice Growth Advisor</li>
-                <li>Basic AI Health Advisor</li>
-                <li>Community (view only)</li>
-              </ul>
-              <div class="mt-auto pt-6">
-                <button onclick="checkout('launchpad')"
-                  class="w-full rounded-[48px] bg-dark text-white text-sm font-medium px-6 py-3 hover:bg-dark-2 transition-colors cursor-pointer">
-                  Start free &rarr;
-                </button>
-              </div>
-            </div>
-
-            <!-- Minimum -->
-            <div class="rounded-[32px] bg-light p-8 flex flex-col">
-              <h4 class="font-heading text-lg text-dark font-medium">Minimum</h4>
-              <p class="text-sm text-dark font-medium mt-1" id="minimum-price" data-price>&pound;99/mo</p>
-              <p class="text-xs text-muted mt-1">cancel anytime</p>
-              <ul class="mt-4 space-y-2 text-sm text-body list-disc pl-5">
-                <li>Platform Only</li>
-                <li>15 report credits/mo</li>
-                <li>Client management &amp; progress tracking</li>
-                <li>Async client chat</li>
-                <li>Full AI health chatbot suite</li>
-              </ul>
-              <div class="mt-auto pt-6">
-                <button onclick="checkout('minimum')"
-                  class="w-full rounded-[48px] bg-dark text-white text-sm font-medium px-6 py-3 hover:bg-dark-2 transition-colors cursor-pointer">
-                  Get started &rarr;
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Founding note -->
-        <p class="reveal text-center text-sm text-body mt-10 max-w-2xl mx-auto">
-          Founding Member pricing is locked permanently&nbsp;&mdash; your rate never increases, even if you change tiers. Free iridology add-on included when it launches.</p>
-
-        <!-- Compare Plan Features -->
-        <div class="reveal max-w-4xl mx-auto mt-10">
-          <button onclick="var t=document.getElementById('compare-table');t.classList.toggle('hidden');this.querySelector('svg').classList.toggle('rotate-180')"
-            class="flex items-center gap-2 mx-auto text-sm text-primary font-medium hover:text-primary-dark transition-colors cursor-pointer">
-            Compare Plan Features
-            <svg class="w-4 h-4 transition-transform" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5"/></svg>
-          </button>
-          <div id="compare-table" class="hidden mt-6 overflow-x-auto rounded-2xl bg-surface border border-stroke">
-            <table class="w-full text-left min-w-[600px]">
-              <thead>
-                <tr class="border-b border-stroke bg-light/50">
-                  <th class="p-4 text-xs font-medium text-muted uppercase tracking-wide w-[30%]">Feature</th>
-                  <th class="p-4 text-xs font-medium text-muted uppercase tracking-wide text-center">Launchpad</th>
-                  <th class="p-4 text-xs font-medium text-muted uppercase tracking-wide text-center">Minimum</th>
-                  <th class="p-4 text-xs font-medium text-primary uppercase tracking-wide text-center">Course</th>
-                  <th class="p-4 text-xs font-medium text-muted uppercase tracking-wide text-center">Signature</th>
-                </tr>
-              </thead>
-              <tbody class="text-xs text-body divide-y divide-stroke/50">
-                <tr>
-                  <td class="p-4 font-medium">Report credits</td>
-                  <td class="p-4 text-center">3/mo</td>
-                  <td class="p-4 text-center">15/mo</td>
-                  <td class="p-4 text-center">100 + 30/mo</td>
-                  <td class="p-4 text-center">Unlimited</td>
-                </tr>
-                <tr>
-                  <td class="p-4 font-medium">Client management</td>
-                  <td class="p-4 text-center text-muted">&mdash;</td>
-                  <td class="p-4 text-center text-primary">&check;</td>
-                  <td class="p-4 text-center text-primary">&check;</td>
-                  <td class="p-4 text-center text-primary">&check;</td>
-                </tr>
-                <tr>
-                  <td class="p-4 font-medium">Progress tracking</td>
-                  <td class="p-4 text-center text-muted">&mdash;</td>
-                  <td class="p-4 text-center text-primary">&check;</td>
-                  <td class="p-4 text-center text-primary">&check;</td>
-                  <td class="p-4 text-center text-primary">&check;</td>
-                </tr>
-                <tr>
-                  <td class="p-4 font-medium">Async client chat</td>
-                  <td class="p-4 text-center text-muted">&mdash;</td>
-                  <td class="p-4 text-center text-primary">&check;</td>
-                  <td class="p-4 text-center text-primary">&check;</td>
-                  <td class="p-4 text-center text-primary">&check;</td>
-                </tr>
-                <tr>
-                  <td class="p-4 font-medium">AI Health Advisors</td>
-                  <td class="p-4 text-center">Basic</td>
-                  <td class="p-4 text-center text-primary">Full suite</td>
-                  <td class="p-4 text-center text-primary">Full suite</td>
-                  <td class="p-4 text-center text-primary">Advanced</td>
-                </tr>
-                <tr>
-                  <td class="p-4 font-medium">AI Practice Growth</td>
-                  <td class="p-4 text-center text-primary">&check;</td>
-                  <td class="p-4 text-center text-muted">&mdash;</td>
-                  <td class="p-4 text-center text-primary">&check;</td>
-                  <td class="p-4 text-center text-primary">&check;</td>
-                </tr>
-                <tr>
-                  <td class="p-4 font-medium">12-week training</td>
-                  <td class="p-4 text-center text-muted">&mdash;</td>
-                  <td class="p-4 text-center text-muted">&mdash;</td>
-                  <td class="p-4 text-center text-primary">&check;</td>
-                  <td class="p-4 text-center text-primary">&check;</td>
-                </tr>
-                <tr>
-                  <td class="p-4 font-medium">Mini course</td>
-                  <td class="p-4 text-center text-primary">&check;</td>
-                  <td class="p-4 text-center text-muted">&mdash;</td>
-                  <td class="p-4 text-center text-muted">&mdash;</td>
-                  <td class="p-4 text-center text-muted">&mdash;</td>
-                </tr>
-                <tr>
-                  <td class="p-4 font-medium">Certificate</td>
-                  <td class="p-4 text-center text-muted">&mdash;</td>
-                  <td class="p-4 text-center text-muted">&mdash;</td>
-                  <td class="p-4 text-center text-primary">&check;</td>
-                  <td class="p-4 text-center text-primary">&check;</td>
-                </tr>
-                <tr>
-                  <td class="p-4 font-medium">Community access</td>
-                  <td class="p-4 text-center">View only</td>
-                  <td class="p-4 text-center text-muted">&mdash;</td>
-                  <td class="p-4 text-center text-primary">Full access</td>
-                  <td class="p-4 text-center text-primary">Full access</td>
-                </tr>
-                <tr>
-                  <td class="p-4 font-medium">1-on-1 coaching</td>
-                  <td class="p-4 text-center text-muted">&mdash;</td>
-                  <td class="p-4 text-center text-muted">&mdash;</td>
-                  <td class="p-4 text-center text-muted">&mdash;</td>
-                  <td class="p-4 text-center text-primary">&check;</td>
-                </tr>
-                <tr>
-                  <td class="p-4 font-medium">Priority support</td>
-                  <td class="p-4 text-center text-muted">&mdash;</td>
-                  <td class="p-4 text-center text-muted">&mdash;</td>
-                  <td class="p-4 text-center text-muted">&mdash;</td>
-                  <td class="p-4 text-center text-primary">&check;</td>
-                </tr>
-                <tr>
-                  <td class="p-4 font-medium">Business deep-dive</td>
-                  <td class="p-4 text-center text-muted">&mdash;</td>
-                  <td class="p-4 text-center text-muted">&mdash;</td>
-                  <td class="p-4 text-center text-muted">&mdash;</td>
-                  <td class="p-4 text-center text-primary">&check;</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-
-      <!-- Pricing JS -->
-      <script>
-        const PRICE_IDS = {
-          launchpad: 'price_1T0MrIAARZOPki7nIC4fsZ8h',
-          minimum:   'price_1T0MrJAARZOPki7nT8Lwbckc',
-        };
-
-        const stripe = Stripe('pk_live_51T0LeuAARZOPki7nuJiOtjwC48eWIrW05xzKMr666n52jjArjOOBG2NjnNOb3l6Yzay0TpOkIVFhT4EhA7ezGbwj00Nh2fcC4r');
-
-        const PRICE_AMOUNTS_GBP = {
-          launchpad: 1900,
-          minimum: 9900,
-          course: 99700,
-          course_installment: 34900,
-          signature: 249700,
-          signature_installment: 44900,
-        };
-
-        async function checkout(tier) {
-          var priceId = PRICE_IDS[tier];
-          if (!priceId) { showToast('not-available'); return; }
-
-          var mode = 'subscription';
-          var trialDays = tier === 'launchpad' ? 90 : 0;
-          var baseAmountGBP = PRICE_AMOUNTS_GBP[tier];
-
-          var selectedCurrency = document.getElementById('currency-select').value;
-          try {
-            var res = await fetch('/.netlify/functions/create-checkout', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                priceId: priceId,
-                mode: mode,
-                trialDays: trialDays,
-                currency: selectedCurrency,
-                baseAmountGBP: baseAmountGBP,
-                recurringInterval: 'month',
-                tier: tier,
-                successUrl: window.location.origin + '/?success=true',
-                cancelUrl:  window.location.origin + '/#pricing',
-              }),
-            });
-            var data = await res.json();
-            if (data.error) throw new Error(data.error);
-            await stripe.redirectToCheckout({ sessionId: data.sessionId });
-          } catch (err) {
-            showToast('error');
-          }
-        }
-
-        // ---- Currency Conversion System ----
-        const CURRENCY_SYMBOLS = { GBP: '\u00A3', USD: '$', EUR: '\u20AC', CHF: 'CHF ', CAD: 'C$', AUD: 'A$' };
-
-        window.__exchangeRates = null;
-        window.__selectedCurrency = 'GBP';
-
-        function formatPrice(amountPence, currency) {
-          var sym = CURRENCY_SYMBOLS[currency] || currency + ' ';
-          var val = amountPence / 100;
-          var formatted = val % 1 === 0 ? val.toLocaleString('en') : val.toLocaleString('en', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-          return sym + formatted;
-        }
-
-        function convertAmount(gbpPence, currency) {
-          if (currency === 'GBP' || !window.__exchangeRates) return gbpPence;
-          var rate = window.__exchangeRates[currency];
-          if (!rate) return gbpPence;
-          return Math.round(gbpPence * rate);
-        }
-
-        async function fetchExchangeRates() {
-          try {
-            var res = await fetch('https://api.frankfurter.app/latest?from=GBP&to=USD,EUR,CHF,CAD,AUD');
-            if (!res.ok) throw new Error('Rate fetch failed');
-            var data = await res.json();
-            window.__exchangeRates = data.rates;
-            var target = window.__targetCurrency || 'GBP';
-            document.getElementById('currency-select').value = target;
-            if (target !== 'GBP') {
-              updateCurrencyDisplay(target, window.__currencySource !== 'geo');
-            }
-          } catch (e) {
-            var sel = document.getElementById('currency-select');
-            Array.from(sel.options).forEach(function(opt) {
-              if (opt.value !== 'GBP') opt.disabled = true;
-            });
-          } finally {
-            revealPrices();
-          }
-        }
-
-        function revealPrices() {
-          var el = document.getElementById('currency-cloak');
-          if (el) el.remove();
-        }
-
-        function updateCurrencyDisplay(currency, persist) {
-          window.__selectedCurrency = currency;
-          if (persist !== false) localStorage.setItem('hdl_currency', currency);
-
-          var disclaimer = document.getElementById('currency-disclaimer');
-          if (currency === 'GBP') {
-            disclaimer.classList.add('hidden');
-          } else {
-            document.getElementById('currency-label').textContent = currency;
-            disclaimer.classList.remove('hidden');
-          }
-
-          // Course & Signature display prices
-          var courseEl = document.getElementById('course-price');
-          if (courseEl) courseEl.textContent = formatPrice(convertAmount(PRICE_AMOUNTS_GBP.course, currency), currency);
-
-          var courseInst = document.getElementById('course-installment');
-          if (courseInst) courseInst.textContent = 'or 3 \u00D7 ' + formatPrice(convertAmount(PRICE_AMOUNTS_GBP.course_installment, currency), currency);
-
-          var sigEl = document.getElementById('signature-price');
-          if (sigEl) sigEl.textContent = formatPrice(convertAmount(PRICE_AMOUNTS_GBP.signature, currency), currency);
-
-          var sigInst = document.getElementById('signature-installment');
-          if (sigInst) sigInst.textContent = 'or 6 \u00D7 ' + formatPrice(convertAmount(PRICE_AMOUNTS_GBP.signature_installment, currency), currency);
-
-          // Launchpad & Minimum display prices
-          var lpConverted = convertAmount(PRICE_AMOUNTS_GBP.launchpad, currency);
-          var mnConverted = convertAmount(PRICE_AMOUNTS_GBP.minimum, currency);
-
-          var lpAfterTrial = document.getElementById('launchpad-after-trial');
-          if (lpAfterTrial) lpAfterTrial.textContent = 'then ' + formatPrice(lpConverted, currency) + '/mo after 3 months';
-
-          var minPrice = document.getElementById('minimum-price');
-          if (minPrice) minPrice.textContent = formatPrice(mnConverted, currency) + '/mo';
-        }
-
-        fetchExchangeRates();
-        setTimeout(revealPrices, 3000);
-      </script>
-    </div>
-  </section>
-
-  <!-- ============================================================
-       SECTION 12: ABOUT / TRUST
-       ============================================================ -->
-  <!-- Trust line -->
-  <div id="about" class="scroll-mt-20 bg-light border-t border-stroke/30">
-    <div class="max-w-[1280px] mx-auto px-5 md:px-[52px] py-16">
-      <div class="reveal text-center">
-        <p class="font-heading text-[clamp(1.25rem,2.5vw,1.5rem)] font-medium text-dark leading-[1.3] tracking-[-0.02em]">
-          From the makers of <a href="https://irislab.com" target="_blank" rel="noopener" class="text-primary hover:text-primary-dark transition-colors">IRISLAB.com</a>, trusted by 2,000+ practitioners worldwide.
-        </p>
-      </div>
-    </div>
-  </div>
-
-  <!-- About dark section -->
-  <section class="bg-dark overflow-hidden relative">
-    <div class="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[600px] bg-primary/[0.06] rounded-full blur-[120px] pointer-events-none"></div>
-    <div class="max-w-[1280px] mx-auto px-5 md:px-[52px] py-28 md:py-40 relative">
-      <div class="text-center max-w-2xl mx-auto">
-        <div class="reveal reveal-scale inline-block mb-10">
+        <div class="flex flex-col sm:flex-row items-center gap-6 justify-center mb-8">
           <div class="relative inline-block">
-            <div class="absolute -inset-1.5 rounded-full bg-gradient-to-b from-primary/40 to-primary/10 blur-sm"></div>
+            <div class="absolute -inset-1 rounded-full bg-gradient-to-b from-primary/30 to-primary/10 blur-sm"></div>
             <img src="assets/images/matthew-portrait.jpg" alt="Matthew D'haemer — Founder of HealthDataLab"
-              class="relative w-32 h-32 md:w-40 md:h-40 rounded-full object-cover ring-2 ring-primary/30 shadow-[0_0_60px_rgba(61,141,160,0.2)]">
+              class="relative w-20 h-20 rounded-full object-cover ring-2 ring-primary/20">
           </div>
+          <p class="text-body leading-relaxed text-left max-w-xl">
+            Matthew D'haemer&nbsp;&mdash; naturopath, iridologist, and the person behind <a href="https://irislab.com" target="_blank" rel="noopener" class="text-primary hover:text-primary-dark transition-colors">IRISLAB.com</a> and Iris Mapper. 25+ years in holistic health. A decade building the platform behind HealthDataLab. This isn't a business play&nbsp;&mdash; it's a 25-year obsession that finally has the right tools to match.</p>
         </div>
 
-        <h2 class="reveal reveal-delay-1 mt-5 font-heading text-[clamp(2rem,4.5vw,2.75rem)] font-medium text-white leading-[1.15] tracking-[-0.03em]">
-          Built by a practitioner,<br class="hidden sm:inline"> for practitioners</h2>
-
-        <p class="reveal reveal-delay-2 mt-8 text-white/50 text-lg leading-relaxed">
-          Matthew D'haemer&nbsp;&mdash; naturopath, iridologist, and founder of
-          <a href="https://irislab.com" target="_blank" rel="noopener" class="text-primary hover:text-white transition-colors">IRISLAB.com</a>.
-          25+ years in holistic health practice, a decade researching longevity applications, and a background in engineering that shows up in everything he builds.</p>
-
-        <p class="reveal reveal-delay-3 mt-6 text-white/50 text-lg leading-relaxed">
-          He built HealthDataLab because the tools he needed for his own practice didn't exist. <span class="text-primary">Now they do.</span></p>
-
-        <div class="reveal reveal-delay-3 mx-auto mt-8 w-12 h-px bg-primary/40"></div>
-
-        <p class="reveal reveal-delay-4 mt-8 text-white/40 text-sm italic leading-relaxed">
-          Practitioner testimonials will follow as the first cohort progresses. Real experiences, published with permission.</p>
-
-        <a href="/personal-report" class="reveal reveal-delay-4 mt-6 inline-flex items-center gap-2 text-sm text-primary font-medium hover:text-white transition-colors">
-          Not a practitioner? Get your own personal report &rarr;
-        </a>
-      </div>
-    </div>
-  </section>
-
-  <!-- ============================================================
-       SECTION 13: FINAL CTA
-       ============================================================ -->
-  <section id="apply" class="scroll-mt-20 bg-surface">
-    <div class="max-w-3xl mx-auto px-5 md:px-[52px] py-24 md:py-32 text-center">
-      <h2 class="reveal font-heading text-[clamp(1.75rem,3.5vw,2.5rem)] font-medium text-dark leading-[1.2] tracking-[-0.03em]">
-        The longevity wave is here. Lead it.</h2>
-      <p class="reveal mt-6 text-body text-lg leading-relaxed">
-        The practitioners who add this layer now&nbsp;&mdash; before the market gets crowded&nbsp;&mdash; will be the ones who define what longevity means in holistic health.</p>
-
-      <!-- REMOVABLE — launch period only -->
-      <p id="launch-cta-line" class="reveal mt-4 text-sm text-primary font-medium">
-        First cohort places are limited. Apply now before all seats are taken.</p>
-
-      <div class="reveal mt-8 flex flex-col sm:flex-row items-center justify-center gap-4">
-        <button onclick="openApplyModal()"
-          class="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-[48px] bg-primary text-white text-base font-medium px-10 py-4 hover:bg-primary-dark transition-colors shadow-[0_4px_20px_rgba(61,141,160,.25)] cursor-pointer">
-          Apply for the Course
-        </button>
-        <a href="#workshop" class="text-sm text-primary font-medium hover:text-primary-dark transition-colors">
-          Not ready yet? Watch the free workshop first.
-        </a>
+        <div class="flex flex-col items-center justify-center gap-4 mt-2">
+          <a href="/about"
+            class="inline-flex items-center gap-1.5 text-sm text-primary font-medium hover:text-primary-dark transition-colors">
+            <span>Read more about Matthew and the philosophy behind HDL</span>
+            <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" /></svg>
+          </a>
+          <a href="/personal-report"
+            class="inline-flex items-center gap-1.5 text-sm text-primary font-medium hover:text-primary-dark transition-colors">
+            <span>Not a practitioner? Get your own personal longevity report</span>
+            <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" /></svg>
+          </a>
+        </div>
       </div>
     </div>
   </section>
@@ -1210,10 +489,10 @@
     <div class="bg-surface/95 backdrop-blur-md border-t border-stroke/50 shadow-[0_-4px_20px_rgba(0,0,0,.06)]">
       <div class="max-w-[1280px] mx-auto px-5 md:px-[52px] py-3 flex items-center justify-between">
         <p class="text-sm text-dark font-medium hidden sm:block">Ready to add longevity to your practice?</p>
-        <button onclick="openApplyModal()" id="sticky-cta-btn"
-          class="pointer-events-auto w-full sm:w-auto rounded-[48px] bg-primary text-white text-sm font-medium px-8 py-2.5 hover:bg-primary-dark transition-colors cursor-pointer shadow-[0_4px_20px_rgba(61,141,160,.25)]">
-          Apply for the Course
-        </button>
+        <a href="#workshop" id="sticky-cta-btn"
+          class="pointer-events-auto w-full sm:w-auto text-center rounded-[48px] bg-primary text-white text-sm font-medium px-8 py-2.5 hover:bg-primary-dark transition-colors shadow-[0_4px_20px_rgba(61,141,160,.25)]">
+          Watch the Free Workshop
+        </a>
       </div>
     </div>
   </div>
@@ -1225,7 +504,7 @@
         <div>
           <p class="font-heading text-lg font-semibold tracking-tight">HealthDataLab</p>
           <p class="mt-3 text-sm text-white/40 leading-relaxed">Built for practitioners who see the whole person.</p>
-          <p class="mt-2 text-xs text-white/25">From the makers of IRISLAB.com</p>
+          <p class="mt-2 text-xs text-white/25">From the makers of <a href="https://irislab.com" target="_blank" rel="noopener" class="hover:text-white/40 transition-colors">IRISLAB.com</a></p>
           <button onclick="openContactModal()"
             class="mt-4 inline-flex items-center gap-2 text-sm text-white/50 hover:text-white transition-colors cursor-pointer">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
@@ -1239,10 +518,11 @@
           <p class="text-xs font-medium tracking-wide text-white/30 uppercase mb-4">Quick links</p>
           <div class="flex flex-col gap-2.5">
             <a href="#protocol" class="text-sm text-white/50 hover:text-white transition-colors">The Protocol</a>
-            <a href="#course" class="text-sm text-white/50 hover:text-white transition-colors">The Course</a>
-            <a href="#pricing" class="text-sm text-white/50 hover:text-white transition-colors">Pricing</a>
+            <a href="/course" class="text-sm text-white/50 hover:text-white transition-colors">Course</a>
+            <a href="/pricing" class="text-sm text-white/50 hover:text-white transition-colors">Pricing</a>
+            <a href="/about" class="text-sm text-white/50 hover:text-white transition-colors">About</a>
             <a href="/help-centre" class="text-sm text-white/50 hover:text-white transition-colors">Help Centre</a>
-            <a href="/personal-report" class="text-sm text-white/50 hover:text-white transition-colors">Not a practitioner?</a>
+            <a href="/personal-report" class="text-sm text-white/50 hover:text-white transition-colors">Personal Report</a>
           </div>
         </div>
         <div>
@@ -1463,6 +743,72 @@
     });
   </script>
 
+  <!-- Workshop form handler -->
+  <script>
+    var _workshopCooldown = false;
+
+    function handleWorkshopSubmit(e) {
+      e.preventDefault();
+      if (_workshopCooldown) return;
+
+      var nameInput = document.getElementById('workshop-name');
+      var emailInput = document.getElementById('workshop-email');
+      var emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailPattern.test(emailInput.value)) {
+        emailInput.setCustomValidity('Please enter a valid email address');
+        emailInput.reportValidity();
+        return;
+      }
+      emailInput.setCustomValidity('');
+
+      var btn = document.getElementById('workshop-submit');
+      var btnText = document.getElementById('workshop-submit-text');
+      var spinner = document.getElementById('workshop-spinner');
+      var arrow = btn.querySelector('svg:not(#workshop-spinner)');
+      btn.disabled = true;
+      btnText.textContent = 'Sending...';
+      if (arrow) arrow.classList.add('hidden');
+      spinner.classList.remove('hidden');
+
+      var payload = JSON.stringify({
+        name: nameInput.value,
+        email: emailInput.value,
+        subject: 'Workshop Signup',
+        message: nameInput.value + ' (' + emailInput.value + ') registered for the free workshop.',
+        botField: ''
+      });
+
+      fetch('/.netlify/functions/send-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: payload
+      }).then(function(res) {
+        if (!res.ok) throw new Error('Server returned ' + res.status);
+        document.getElementById('workshop-form-wrapper').classList.add('hidden');
+        document.getElementById('workshop-success').classList.remove('hidden');
+        _workshopCooldown = true;
+        setTimeout(function() { _workshopCooldown = false; }, 60000);
+      }).catch(function(err) {
+        btn.disabled = false;
+        btnText.textContent = 'Send me the workshop';
+        if (arrow) arrow.classList.remove('hidden');
+        spinner.classList.add('hidden');
+        var errorDiv = document.getElementById('workshop-error');
+        if (errorDiv) {
+          errorDiv.textContent = 'Something went wrong. Please try again.';
+          errorDiv.classList.remove('hidden');
+        }
+      });
+    }
+
+    var workshopEmailInput = document.getElementById('workshop-email');
+    if (workshopEmailInput) {
+      workshopEmailInput.addEventListener('input', function() {
+        this.setCustomValidity('');
+      });
+    }
+  </script>
+
   <!-- Lightbox Modal -->
   <div id="lightbox" class="fixed inset-0 z-[100] bg-black/80 backdrop-blur-sm hidden items-center justify-center cursor-zoom-out opacity-0 transition-opacity duration-300" onclick="closeLightbox()" style="display:none">
     <button onclick="closeLightbox()" aria-label="Close" class="absolute top-6 right-6 text-white/70 hover:text-white transition-colors cursor-pointer">
@@ -1570,33 +916,9 @@
       setTimeout(function() { toast.remove(); }, 300);
     }
 
-    // Show success message after Stripe checkout
-    var urlParams = new URLSearchParams(window.location.search);
-    if (urlParams.get('success') === 'true') {
-      var cleanUrl = window.location.origin + window.location.pathname;
-      window.history.replaceState({}, '', cleanUrl);
-
-      var successMsg = document.getElementById('success-message');
-      successMsg.classList.remove('hidden');
-      setTimeout(function() {
-        successMsg.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      }, 300);
-
-      var hideSuccess = function() {
-        successMsg.style.transition = 'opacity 0.5s ease';
-        successMsg.style.opacity = '0';
-        setTimeout(function() { successMsg.classList.add('hidden'); successMsg.style.opacity = ''; }, 500);
-        window.removeEventListener('scroll', onScrollHide);
-      };
-      var autoHideTimer = setTimeout(hideSuccess, 10000);
-      var onScrollHide = function() {
-        clearTimeout(autoHideTimer);
-        hideSuccess();
-      };
-      window.addEventListener('scroll', onScrollHide, { once: true });
-    }
   </script>
 
+  <script src="assets/js/hdl-trajectory-chart-hero.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
   <script src="assets/js/main.js"></script>
