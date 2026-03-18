@@ -152,6 +152,7 @@
           chronoAge: 50, agingRate: 0.84, showBands: true, showProjections: true
         });
 
+        var heroChartLoops = [];
         var chartSvg = chartContainer.querySelector('svg');
         if (chartSvg) {
           // Collect all animatable elements by data-hdl attribute
@@ -264,7 +265,7 @@
           // Continuous anchor pulse — "you are here" radar ping
           if (anchorPulse.length > 0) {
             gsap.set(anchorPulse, { transformOrigin: 'center center' });
-            gsap.fromTo(anchorPulse, {
+            heroChartLoops.push(gsap.fromTo(anchorPulse, {
               scale: 1, opacity: 0.6
             }, {
               scale: 3.5, opacity: 0,
@@ -272,29 +273,29 @@
               ease: 'power2.out',
               stagger: { each: 1 },
               delay: heroTl.duration()
-            });
+            }));
           }
 
           // Green line breathing glow — alive vs static contrast
           if (optimisticLine.length > 0) {
-            gsap.to(optimisticLine, {
+            heroChartLoops.push(gsap.to(optimisticLine, {
               opacity: 0.5,
               duration: 1.5,
               ease: 'sine.inOut',
               repeat: -1,
               yoyo: true,
               delay: heroTl.duration()
-            });
+            }));
           }
           if (optimisticFill.length > 0) {
-            gsap.to(optimisticFill, {
+            heroChartLoops.push(gsap.to(optimisticFill, {
               opacity: 0.02,
               duration: 1.5,
               ease: 'sine.inOut',
               repeat: -1,
               yoyo: true,
               delay: heroTl.duration()
-            });
+            }));
           }
 
           // Green traveler — 5s journey along optimistic line
@@ -302,7 +303,7 @@
             var greenPath = optimisticLine[0];
             var greenDot = greenTraveler[0];
             var greenLen = greenPath.getTotalLength();
-            gsap.to({ progress: 0 }, {
+            heroChartLoops.push(gsap.to({ progress: 0 }, {
               progress: 1, duration: 5, ease: 'none', repeat: -1,
               delay: heroTl.duration(),
               onUpdate: function () {
@@ -310,11 +311,11 @@
                 greenDot.setAttribute('cx', pt.x);
                 greenDot.setAttribute('cy', pt.y);
               }
-            });
-            gsap.fromTo(greenDot, { attr: { r: 3 } }, {
+            }));
+            heroChartLoops.push(gsap.fromTo(greenDot, { attr: { r: 3 } }, {
               attr: { r: 5 }, duration: 1.2, ease: 'sine.inOut',
               repeat: -1, yoyo: true, delay: heroTl.duration()
-            });
+            }));
           }
 
           // Red traveler — 3.5s journey along pessimistic line
@@ -322,7 +323,7 @@
             var redPath = pessimisticLine[0];
             var redDot = redTraveler[0];
             var redLen = redPath.getTotalLength();
-            gsap.to({ progress: 0 }, {
+            heroChartLoops.push(gsap.to({ progress: 0 }, {
               progress: 1, duration: 3.5, ease: 'none', repeat: -1,
               delay: heroTl.duration(),
               onUpdate: function () {
@@ -330,13 +331,146 @@
                 redDot.setAttribute('cx', pt.x);
                 redDot.setAttribute('cy', pt.y);
               }
-            });
-            gsap.fromTo(redDot, { attr: { r: 2.5 } }, {
+            }));
+            heroChartLoops.push(gsap.fromTo(redDot, { attr: { r: 2.5 } }, {
               attr: { r: 4 }, duration: 1, ease: 'sine.inOut',
               repeat: -1, yoyo: true, delay: heroTl.duration()
-            });
+            }));
           }
         }
+
+        // ── HERO CHART CYCLING ──────────────────────────────────
+        var HERO_SAMPLES = [
+          { chronoAge: 50, agingRate: 0.84 },
+          { chronoAge: 38, agingRate: 1.18 },
+          { chronoAge: 62, agingRate: 0.76 },
+          { chronoAge: 45, agingRate: 1.02 },
+          { chronoAge: 55, agingRate: 0.91 }
+        ];
+
+        var startChartLoops = function (svg) {
+          var loops = [];
+          var q = function (v) { return svg.querySelectorAll('[data-hdl="' + v + '"]'); };
+
+          var anchorP = q('anchor-pulse');
+          var optLine = q('optimistic-line');
+          var optFill = q('optimistic-fill');
+          var greenTrav = q('green-traveler');
+          var redTrav = q('red-traveler');
+          var pessLine = q('pessimistic-line');
+
+          if (anchorP.length > 0) {
+            gsap.set(anchorP, { transformOrigin: 'center center' });
+            loops.push(gsap.fromTo(anchorP,
+              { scale: 1, opacity: 0.6 },
+              { scale: 3.5, opacity: 0, duration: 2, repeat: -1, ease: 'power2.out', stagger: { each: 1 } }
+            ));
+          }
+
+          if (optLine.length > 0) {
+            loops.push(gsap.to(optLine, {
+              opacity: 0.5, duration: 1.5, ease: 'sine.inOut', repeat: -1, yoyo: true
+            }));
+          }
+          if (optFill.length > 0) {
+            loops.push(gsap.to(optFill, {
+              opacity: 0.02, duration: 1.5, ease: 'sine.inOut', repeat: -1, yoyo: true
+            }));
+          }
+
+          if (greenTrav.length > 0 && optLine.length > 0) {
+            var gPath = optLine[0];
+            var gDot = greenTrav[0];
+            var gLen = gPath.getTotalLength();
+            loops.push(gsap.to({ progress: 0 }, {
+              progress: 1, duration: 5, ease: 'none', repeat: -1,
+              onUpdate: function () {
+                var pt = gPath.getPointAtLength(this.targets()[0].progress * gLen);
+                gDot.setAttribute('cx', pt.x);
+                gDot.setAttribute('cy', pt.y);
+              }
+            }));
+            loops.push(gsap.fromTo(gDot, { attr: { r: 3 } }, {
+              attr: { r: 5 }, duration: 1.2, ease: 'sine.inOut', repeat: -1, yoyo: true
+            }));
+          }
+
+          if (redTrav.length > 0 && pessLine.length > 0) {
+            var rPath = pessLine[0];
+            var rDot = redTrav[0];
+            var rLen = rPath.getTotalLength();
+            loops.push(gsap.to({ progress: 0 }, {
+              progress: 1, duration: 3.5, ease: 'none', repeat: -1,
+              onUpdate: function () {
+                var pt = rPath.getPointAtLength(this.targets()[0].progress * rLen);
+                rDot.setAttribute('cx', pt.x);
+                rDot.setAttribute('cy', pt.y);
+              }
+            }));
+            loops.push(gsap.fromTo(rDot, { attr: { r: 2.5 } }, {
+              attr: { r: 4 }, duration: 1, ease: 'sine.inOut', repeat: -1, yoyo: true
+            }));
+          }
+
+          return loops;
+        };
+
+        var startHeroChartCycling = function () {
+          if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+          var container = document.getElementById('hero-trajectory-chart');
+          if (!container) return;
+
+          var currentIdx = 0;
+          var activeLoops = heroChartLoops.slice();
+
+          function cycleNext() {
+            var fromSample = HERO_SAMPLES[currentIdx];
+            currentIdx = (currentIdx + 1) % HERO_SAMPLES.length;
+            var toSample = HERO_SAMPLES[currentIdx];
+
+            // Kill continuous loops (they target elements that get destroyed on re-render)
+            activeLoops.forEach(function (t) { t.kill(); });
+            activeLoops = [];
+
+            // Tween data values — chart re-renders every frame with intermediate values
+            gsap.to(
+              { age: fromSample.chronoAge, rate: fromSample.agingRate },
+              {
+                age: toSample.chronoAge,
+                rate: toSample.agingRate,
+                duration: 1.5,
+                ease: 'power2.inOut',
+                onUpdate: function () {
+                  var d = this.targets()[0];
+                  HDLTrajectoryChart.render(container, {
+                    chronoAge: d.age, agingRate: d.rate,
+                    showBands: true, showProjections: true
+                  });
+                  var svg = container.querySelector('svg');
+                  if (svg) {
+                    var allEls = svg.querySelectorAll('[data-hdl]');
+                    gsap.set(allEls, { opacity: 1 });
+                    allEls.forEach(function (el) {
+                      if ((el.tagName === 'path' || el.tagName === 'line') && el.getTotalLength) {
+                        gsap.set(el, { strokeDashoffset: 0 });
+                      }
+                    });
+                  }
+                },
+                onComplete: function () {
+                  var svg = container.querySelector('svg');
+                  if (svg) activeLoops = startChartLoops(svg);
+                  setTimeout(cycleNext, 5000); // 5s viewing, then next morph
+                }
+              }
+            );
+          }
+
+          setTimeout(cycleNext, 5000); // first morph after 5s of viewing
+        };
+
+        setTimeout(startHeroChartCycling, (heroTl.duration() + 5) * 1000);
       }
 
       // HERO — Gradient orb drift
