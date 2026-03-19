@@ -127,7 +127,10 @@
     <div class="hero-orb" aria-hidden="true"></div>
     <div class="relative z-10 max-w-[1440px] mx-auto px-5 md:px-[52px] pt-28 pb-16 md:pt-36 md:pb-24">
       <div class="flex flex-col">
-        <h1 class="hero-enter hero-enter-2 font-heading text-[clamp(3.25rem,8vw,5.25rem)] font-semibold text-dark leading-[1.08] tracking-[-0.035em]" data-hero-el="heading">
+        <p class="hero-enter hero-enter-1 text-sm text-muted tracking-wide uppercase font-medium" data-hero-el="subtitle">
+          For naturopaths, herbalists, nutritionists &amp; holistic practitioners
+        </p>
+        <h1 class="hero-enter hero-enter-2 mt-3 font-heading text-[clamp(3.25rem,8vw,5.25rem)] font-semibold text-dark leading-[1.08] tracking-[-0.035em]" data-hero-el="heading">
           Healing to Thriving
         </h1>
         <h3 class="hero-enter hero-enter-3 mt-6 font-heading text-[clamp(1.25rem,2.5vw,1.5rem)] font-medium text-dark/80 leading-snug" data-hero-el="body">
@@ -153,6 +156,29 @@
             class="w-full sm:w-auto inline-flex items-center justify-center text-sm text-primary font-medium hover:text-primary-dark transition-colors py-3.5">
             Already convinced? See course &amp; pricing &rarr;
           </a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       HERO SUPPORTING TEXT + POLAR CHART
+       ============================================================ -->
+  <section class="bg-light">
+    <div class="max-w-[1440px] mx-auto px-5 md:px-[52px] py-16 md:py-24">
+      <div class="reveal grid md:grid-cols-[2fr_3fr] gap-12 items-center max-w-6xl mx-auto">
+        <div>
+          <p class="text-body leading-relaxed mb-4">
+            The trajectory chart shows a client&rsquo;s ageing trajectory&nbsp;&mdash; where they are, where they&rsquo;re heading on their current path, and where they could be with the right guidance.</p>
+          <p class="text-body leading-relaxed mb-4">
+            The polar chart shows 20+ health dimensions at a glance&nbsp;&mdash; strengths, gaps, and areas of concern&nbsp;&mdash; giving you a complete picture before the client walks in.</p>
+          <p class="text-body leading-relaxed">
+            Together, these tools give practitioners something they&rsquo;ve never had: a visual, data-driven way to show clients the full picture and track real progress over time.</p>
+        </div>
+        <div>
+          <div id="hero-radar-chart" class="w-full" role="img"
+               aria-label="Health assessment radar chart showing 20+ health factors"></div>
+          <p class="mt-3 text-sm text-muted text-center italic">20+ health factors assessed at a glance&nbsp;&mdash; your client&rsquo;s complete picture.</p>
         </div>
       </div>
     </div>
@@ -837,10 +863,11 @@
   </script>
 
   <script src="assets/js/hdl-trajectory-chart-hero.js?v=3"></script>
+  <script src="assets/js/hdl-radar-chart-hero.js?v=1"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
-  <script src="assets/js/practice-assessment.js?v=2"></script>
-  <script src="assets/js/main.js?v=5"></script>
+  <script src="assets/js/practice-assessment.js?v=3"></script>
+  <script src="assets/js/main.js?v=6"></script>
 </body>
 
 </html>

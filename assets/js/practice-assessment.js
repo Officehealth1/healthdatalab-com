@@ -325,13 +325,14 @@ var HDLAssessment = (function () {
     var heading, body;
     if (needsHelp) {
       heading = 'Here\u2019s what would shift.';
-      body = 'You\u2019re skilled at what you do \u2014 but without structured data, your impact stays invisible. ' +
-        'The Longevity Trajectory Protocol gives your clients a reason to stay, a way to see progress, ' +
-        'and you a practice that grows through results, not just referrals.';
+      body = 'The areas you\u2019ve flagged are exactly where adding a longevity dimension has the most impact. ' +
+        'The tools, training, and framework to transform these areas already exist \u2014 and the free ' +
+        '30-minute workshop shows you exactly how it works with a real assessment and a real consultation example.';
     } else {
       heading = 'You\u2019re already running a strong practice.';
-      body = 'Most practitioners score far lower on these dimensions. You\u2019ve built something solid \u2014 ' +
-        'the Protocol would sharpen what\u2019s already working and give you data to prove it.';
+      body = 'The longevity dimension would amplify what\u2019s already working \u2014 giving you measurable ' +
+        'long-term data, a named protocol, and a premium service line that deepens client relationships ' +
+        'even further. The free workshop shows how practitioners at your level are using this to go further.';
     }
 
     resultEl.innerHTML =
@@ -344,10 +345,10 @@ var HDLAssessment = (function () {
             '<svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" /></svg>' +
           '</a>' +
           '<a href="/pricing" class="w-full sm:w-auto inline-flex items-center justify-center text-sm text-primary font-medium hover:text-primary-dark transition-colors py-3.5">' +
-            'Already convinced? See course &amp; pricing &rarr;' +
+            'Ready to go further? See the Course &amp; Apply &rarr;' +
           '</a>' +
         '</div>' +
-        '<p class="mt-6 text-xs text-muted text-center">This is a self-reflection tool, not a clinical assessment.</p>' +
+        '<p class="mt-6 text-xs text-muted text-center">This is a quick snapshot highlighting common patterns \u2014 not a precise diagnosis of your practice. The workshop goes into each of these dynamics in detail with real examples.</p>' +
       '</div>';
 
     resultEl.classList.remove('hidden');

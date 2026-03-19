@@ -595,6 +595,32 @@
     }
   }
 
+  // ========================================
+  // RADAR CHART — Initialize + Cycling
+  // ========================================
+  var radarContainer = document.getElementById('hero-radar-chart');
+  if (radarContainer && typeof HDLRadarChart !== 'undefined') {
+    var radarProfiles = HDLRadarChart.PROFILES;
+    HDLRadarChart.render('#hero-radar-chart', {
+      healthy: radarProfiles[0].healthy,
+      unhealthy: radarProfiles[0].unhealthy
+    });
+
+    if (hasGSAP && !prefersReducedMotion) {
+      var radarIdx = 0;
+      function cycleRadar() {
+        radarIdx = (radarIdx + 1) % radarProfiles.length;
+        HDLRadarChart.update(
+          radarProfiles[radarIdx].healthy,
+          radarProfiles[radarIdx].unhealthy,
+          1.5,
+          function () { setTimeout(cycleRadar, 5000); }
+        );
+      }
+      setTimeout(cycleRadar, 6000);
+    }
+  }
+
   // ------------------------------------------------
   // Scroll-triggered reveal animations (general)
   // ------------------------------------------------
