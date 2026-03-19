@@ -1,6 +1,6 @@
 /* ================================================
    HDLAssessment — Practice Assessment Module
-   5-card interactive quiz with branching results
+   5-card interactive quiz with horizontal carousel
    ================================================ */
 var HDLAssessment = (function () {
   'use strict';
@@ -74,42 +74,147 @@ var HDLAssessment = (function () {
   };
 
   var containerEl = null;
+  var viewportEl = null;
   var resultEl = null;
 
+  /* Measured dimensions */
+  var viewportWidth = 0;
+  var cardWidth = 0;
+  var gap = 20;
+
+  /* Touch tracking */
+  var touchState = { startX: 0, startY: 0, startTime: 0, tracking: false };
+
+  /* Auto-advance timer (cancel on manual navigation) */
+  var autoAdvanceTimer = null;
+
+  /* Resize debounce */
+  var resizeTimer = null;
+
+  /* ---------- helpers ---------- */
+  var isDesktop = function () { return window.innerWidth >= 768; };
+  var hasGSAP = function () { return typeof gsap !== 'undefined'; };
+
+  /* ---------- measureDimensions ---------- */
+  function measureDimensions() {
+    if (!viewportEl) return;
+    viewportWidth = viewportEl.offsetWidth;
+    var firstCard = containerEl.querySelector('.assessment-card');
+    if (firstCard) {
+      cardWidth = firstCard.offsetWidth;
+    }
+    var computed = window.getComputedStyle(containerEl);
+    gap = parseFloat(computed.gap) || (isDesktop() ? 20 : 12);
+  }
+
+  /* ---------- getTranslateXForCard ---------- */
+  function getTranslateXForCard(index) {
+    return (viewportWidth - cardWidth) / 2 - index * (cardWidth + gap);
+  }
+
+  /* ---------- panToCard ---------- */
+  function panToCard(index, animate) {
+    var tx = getTranslateXForCard(index);
+
+    if (animate && hasGSAP()) {
+      gsap.to(containerEl, { x: tx, duration: 0.6, ease: 'power3.inOut' });
+    } else if (animate) {
+      containerEl.style.transition = 'transform 0.6s cubic-bezier(0.33,1,0.68,1)';
+      containerEl.style.transform = 'translateX(' + tx + 'px)';
+      setTimeout(function () { containerEl.style.transition = ''; }, 650);
+    } else {
+      /* Instant — no animation */
+      if (hasGSAP()) {
+        gsap.set(containerEl, { x: tx });
+      } else {
+        containerEl.style.transform = 'translateX(' + tx + 'px)';
+      }
+    }
+  }
+
+  /* ---------- updateCardClasses ---------- */
+  function updateCardClasses() {
+    var cards = containerEl.querySelectorAll('.assessment-card');
+    cards.forEach(function (card, i) {
+      card.classList.remove('carousel-active', 'carousel-future', 'carousel-answered');
+      if (i === state.activeCard) {
+        card.classList.add('carousel-active');
+      } else if (state.answers[i] !== null) {
+        card.classList.add('carousel-answered');
+      } else {
+        card.classList.add('carousel-future');
+      }
+    });
+  }
+
+  /* ---------- createCard ---------- */
   function createCard(index) {
     var q = QUESTIONS[index];
     var card = document.createElement('div');
-    var cls = 'assessment-card rounded-[32px] bg-surface p-6 md:p-8 md:col-span-2';
-    if (index === 3) cls += ' md:col-start-2';
-    if (index === 4) cls += ' md:col-start-4';
-    cls += index === 0 ? ' active' : ' inactive';
-    card.className = cls;
+
+    card.className = 'assessment-card rounded-[32px] bg-surface overflow-hidden';
     card.setAttribute('data-card', index);
 
     card.innerHTML =
-      '<p class="text-xs font-semibold text-primary tracking-widest uppercase mb-2">' + (index + 1) + ' OF 5</p>' +
-      '<h3 class="font-heading text-lg text-dark font-medium mb-1">' + q.title + '</h3>' +
-      '<p class="text-sm text-body italic mb-3">' + q.subtitle + '</p>' +
-      '<p class="text-sm text-body mb-4">' + q.question + '</p>' +
-      '<div class="flex flex-col gap-2">' +
-      q.options.map(function (opt, i) {
-        return '<button class="assessment-option rounded-2xl border border-stroke px-4 py-3 text-left text-sm text-body ' +
-          'hover:border-primary hover:bg-primary/5 transition-colors cursor-pointer" data-option="' + i + '">' +
-          opt.text + '</button>';
-      }).join('') +
+      '<div class="card-header p-4 md:p-5">' +
+        '<p class="text-xs font-semibold text-primary tracking-widest uppercase mb-1 flex items-center gap-1.5">' + (index + 1) + ' OF 5' +
+          '<svg class="card-check w-4 h-4 text-primary" viewBox="0 0 24 24" fill="currentColor"><path fill-rule="evenodd" d="M8.603 3.799A4.49 4.49 0 0 1 12 2.25c1.357 0 2.573.6 3.397 1.549a4.49 4.49 0 0 1 3.498 1.307 4.491 4.491 0 0 1 1.307 3.497A4.49 4.49 0 0 1 21.75 12a4.49 4.49 0 0 1-1.549 3.397 4.491 4.491 0 0 1-1.307 3.497 4.491 4.491 0 0 1-3.497 1.307A4.49 4.49 0 0 1 12 21.75a4.49 4.49 0 0 1-3.397-1.549 4.49 4.49 0 0 1-3.498-1.306 4.491 4.491 0 0 1-1.307-3.498A4.49 4.49 0 0 1 2.25 12c0-1.357.6-2.573 1.549-3.397a4.49 4.49 0 0 1 1.306-3.497 4.49 4.49 0 0 1 3.498-1.307Zm7.007 6.387a.75.75 0 1 0-1.22-.872l-3.236 4.53L9.53 12.22a.75.75 0 0 0-1.06 1.06l2.25 2.25a.75.75 0 0 0 1.14-.094l3.75-5.25Z" clip-rule="evenodd"/></svg>' +
+        '</p>' +
+        '<h3 class="font-heading text-base md:text-lg text-dark font-medium leading-tight">' + q.title + '</h3>' +
       '</div>' +
-      '<div class="assessment-result-text hidden mt-4 pt-4 border-t border-stroke/50 text-sm text-primary/90 italic leading-relaxed"></div>';
+      '<div class="card-body px-4 pb-4 md:px-5 md:pb-5">' +
+        '<p class="text-sm text-body italic mb-3">' + q.subtitle + '</p>' +
+        '<p class="text-sm text-body mb-4">' + q.question + '</p>' +
+        '<div class="flex flex-col gap-2">' +
+        q.options.map(function (opt, i) {
+          return '<button class="assessment-option rounded-2xl border border-stroke px-4 py-3 text-left text-sm text-body ' +
+            'hover:border-primary hover:bg-primary/5 transition-colors cursor-pointer" data-option="' + i + '">' +
+            opt.text + '</button>';
+        }).join('') +
+        '</div>' +
+        '<div class="assessment-result-text hidden mt-4 pt-4 border-t border-stroke/50 text-sm text-primary/90 italic leading-relaxed"></div>' +
+      '</div>';
 
+    /* Option click handlers */
     card.querySelectorAll('.assessment-option').forEach(function (btn) {
       btn.addEventListener('click', function () {
+        if (index !== state.activeCard) return;
         handleAnswer(index, parseInt(btn.getAttribute('data-option'), 10));
       });
+    });
+
+    /* Click-to-navigate */
+    card.addEventListener('click', function (e) {
+      if (e.target.closest('.assessment-option')) return;
+      handleCardClick(index);
     });
 
     return card;
   }
 
+  /* ---------- handleCardClick ---------- */
+  function handleCardClick(index) {
+    if (index === state.activeCard) return;
+    /* Answered card — pan to it for read-only view */
+    if (state.answers[index] !== null) {
+      activateCard(index);
+      return;
+    }
+    /* Next sequential unanswered — activate */
+    var nextUnanswered = -1;
+    for (var i = 0; i < 5; i++) {
+      if (state.answers[i] === null) { nextUnanswered = i; break; }
+    }
+    if (index === nextUnanswered) {
+      activateCard(index);
+    }
+    /* Out-of-order unanswered — blocked */
+  }
+
+  /* ---------- handleAnswer ---------- */
   function handleAnswer(cardIndex, optionIndex) {
+    var wasAlreadyAnswered = state.answers[cardIndex] !== null;
+
     var q = QUESTIONS[cardIndex];
     var grade = q.options[optionIndex].grade;
     state.answers[cardIndex] = grade;
@@ -117,54 +222,100 @@ var HDLAssessment = (function () {
     var card = containerEl.querySelector('[data-card="' + cardIndex + '"]');
     if (!card) return;
 
-    // Highlight selected, deselect others
+    /* Highlight selected, dim others via CSS classes (toggleable on re-answer) */
     card.querySelectorAll('.assessment-option').forEach(function (btn, i) {
       btn.classList.toggle('selected', i === optionIndex);
+      btn.classList.toggle('not-selected', i !== optionIndex);
     });
 
-    // Show result text
+    /* Show/update result text */
     var resultDiv = card.querySelector('.assessment-result-text');
     resultDiv.textContent = grade === 'c' ? q.resultC : q.resultAB;
     resultDiv.classList.remove('hidden');
-
-    // Activate next card (only if next is unanswered)
-    if (cardIndex < 4 && state.answers[cardIndex + 1] === null) {
-      setTimeout(function () { activateCard(cardIndex + 1); }, 800);
+    if (!wasAlreadyAnswered && hasGSAP()) {
+      gsap.from(resultDiv, { opacity: 0, y: 8, duration: 0.4, ease: 'power2.out' });
     }
 
-    // Show/update recommendation if all answered
-    if (state.answers.every(function (a) { return a !== null; })) {
-      showRecommendation();
+    /* Auto-advance to next card (first answer or re-answer) */
+    if (cardIndex < 4) {
+      autoAdvanceTimer = setTimeout(function () {
+        autoAdvanceTimer = null;
+        activateCard(cardIndex + 1);
+      }, 1800);
+    } else {
+      var allAnswered = state.answers.every(function (a) { return a !== null; });
+      if (allAnswered) {
+        autoAdvanceTimer = setTimeout(function () {
+          autoAdvanceTimer = null;
+          showAllAnswered();
+        }, 1800);
+      }
     }
   }
 
+  /* ---------- activateCard ---------- */
   function activateCard(index) {
-    state.activeCard = index;
-    containerEl.querySelectorAll('.assessment-card').forEach(function (card, i) {
-      if (i === index) {
-        card.classList.remove('inactive');
-        card.classList.add('active');
-      } else if (state.answers[i] !== null) {
-        // Answered — visible, no glow
-        card.classList.remove('active', 'inactive');
-      } else {
-        // Future unanswered — dimmed
-        card.classList.add('inactive');
-        card.classList.remove('active');
-      }
-    });
-
-    // Scroll into view on mobile
-    if (window.innerWidth < 768) {
-      var card = containerEl.querySelector('[data-card="' + index + '"]');
-      if (card) {
-        setTimeout(function () {
-          card.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        }, 100);
-      }
+    if (autoAdvanceTimer) {
+      clearTimeout(autoAdvanceTimer);
+      autoAdvanceTimer = null;
     }
+    state.activeCard = index;
+    updateCardClasses();
+    panToCard(index, true);
   }
 
+  /* ---------- showAllAnswered ---------- */
+  function showAllAnswered() {
+    state.activeCard = -1;
+    var cards = containerEl.querySelectorAll('.assessment-card');
+
+    /* Calculate shrunk width: fit all 5 in viewport */
+    var shrunkWidth = Math.min(230, (viewportWidth - 40 - 4 * gap) / 5);
+
+    if (hasGSAP()) {
+      /* Collapse card bodies */
+      cards.forEach(function (card) {
+        card.classList.remove('carousel-active', 'carousel-future');
+        card.classList.add('carousel-answered');
+
+        gsap.to(card.querySelector('.card-body'), {
+          opacity: 0,
+          maxHeight: 0,
+          overflow: 'hidden',
+          duration: 0.5,
+          ease: 'power3.in'
+        });
+
+        gsap.to(card, {
+          width: shrunkWidth,
+          flexBasis: shrunkWidth,
+          duration: 0.7,
+          ease: 'power3.inOut'
+        });
+      });
+
+      /* Re-center the row after shrink */
+      var totalWidth = 5 * shrunkWidth + 4 * gap;
+      var centeredX = (viewportWidth - totalWidth) / 2;
+      gsap.to(containerEl, { x: centeredX, duration: 0.7, ease: 'power3.inOut' });
+    } else {
+      /* No-GSAP fallback */
+      cards.forEach(function (card) {
+        card.classList.remove('carousel-active', 'carousel-future');
+        card.classList.add('carousel-answered');
+        card.querySelector('.card-body').style.display = 'none';
+        card.style.width = shrunkWidth + 'px';
+        card.style.flex = '0 0 ' + shrunkWidth + 'px';
+      });
+      var totalWidth = 5 * shrunkWidth + 4 * gap;
+      var centeredX = (viewportWidth - totalWidth) / 2;
+      containerEl.style.transform = 'translateX(' + centeredX + 'px)';
+    }
+
+    showRecommendation();
+  }
+
+  /* ---------- showRecommendation ---------- */
   function showRecommendation() {
     if (!resultEl) return;
 
@@ -201,19 +352,76 @@ var HDLAssessment = (function () {
 
     resultEl.classList.remove('hidden');
 
-    // Smooth reveal with GSAP if available
-    if (typeof gsap !== 'undefined') {
+    if (hasGSAP()) {
       gsap.from(resultEl.firstChild, { opacity: 0, y: 20, duration: 0.6, ease: 'power3.out' });
     }
 
-    // Scroll into view
     setTimeout(function () {
       resultEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }, 100);
   }
 
+  /* ---------- setupTouchHandlers ---------- */
+  function setupTouchHandlers() {
+    if (!viewportEl) return;
+
+    viewportEl.addEventListener('touchstart', function (e) {
+      var touch = e.touches[0];
+      touchState.startX = touch.clientX;
+      touchState.startY = touch.clientY;
+      touchState.startTime = Date.now();
+      touchState.tracking = true;
+    }, { passive: true });
+
+    viewportEl.addEventListener('touchmove', function (e) {
+      if (!touchState.tracking) return;
+      var touch = e.touches[0];
+      var dx = Math.abs(touch.clientX - touchState.startX);
+      var dy = Math.abs(touch.clientY - touchState.startY);
+      /* If horizontal-dominant, prevent vertical scroll */
+      if (dx > dy && dx > 10) {
+        e.preventDefault();
+      }
+    }, { passive: false });
+
+    viewportEl.addEventListener('touchend', function (e) {
+      if (!touchState.tracking) return;
+      touchState.tracking = false;
+
+      var touch = e.changedTouches[0];
+      var dx = touch.clientX - touchState.startX;
+      var elapsed = Date.now() - touchState.startTime;
+
+      /* Swipe threshold: 50px within 400ms */
+      if (Math.abs(dx) < 50 || elapsed > 400) return;
+
+      if (dx < 0) {
+        /* Swipe left → next card */
+        var nextIdx = state.activeCard + 1;
+        if (nextIdx < 5) handleCardClick(nextIdx);
+      } else {
+        /* Swipe right → previous card */
+        var prevIdx = state.activeCard - 1;
+        if (prevIdx >= 0) handleCardClick(prevIdx);
+      }
+    }, { passive: true });
+  }
+
+  /* ---------- handleResize ---------- */
+  function handleResize() {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(function () {
+      measureDimensions();
+      if (state.activeCard >= 0) {
+        panToCard(state.activeCard, false);
+      }
+    }, 150);
+  }
+
+  /* ---------- init ---------- */
   function init(container) {
     containerEl = container;
+    viewportEl = document.getElementById('assessment-viewport');
     resultEl = document.getElementById('assessment-result');
 
     containerEl.innerHTML = '';
@@ -223,6 +431,13 @@ var HDLAssessment = (function () {
     for (var i = 0; i < QUESTIONS.length; i++) {
       containerEl.appendChild(createCard(i));
     }
+
+    measureDimensions();
+    updateCardClasses();
+    panToCard(0, false);
+    setupTouchHandlers();
+
+    window.addEventListener('resize', handleResize);
   }
 
   return { init: init };

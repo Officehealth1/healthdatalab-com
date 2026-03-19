@@ -258,31 +258,71 @@ body {
 }
 
 /* ------------------------------------------------
-   Assessment card states
+   Assessment carousel
    ------------------------------------------------ */
-.assessment-card {
-  transition: opacity 0.5s var(--ease-out-expo),
-              transform 0.5s var(--ease-out-expo),
-              box-shadow 0.3s ease;
-}
-.assessment-card.inactive {
-  opacity: 0.4;
-  pointer-events: none;
-  transform: scale(0.98);
-}
-.assessment-card.active {
-  box-shadow: 0 0 0 2px rgba(61,141,160,0.3),
-              0 4px 20px rgba(61,141,160,0.1);
-}
-.assessment-option.selected {
-  border-color: #3d8da0 !important;
-  background: rgba(61,141,160,0.08) !important;
+
+/* Viewport: clips overflow, allows peek */
+#assessment-viewport {
+  overflow: hidden;
+  position: relative;
 }
 
+/* Track: horizontal strip, GSAP controls translateX */
+#assessment-cards {
+  display: flex;
+  gap: 20px;
+  will-change: transform;
+}
+
+/* Card: fixed width, always shows full content */
+.assessment-card {
+  flex: 0 0 min(400px, 85vw);
+  transition: opacity 0.5s var(--ease-out-expo),
+              filter 0.5s var(--ease-out-expo),
+              box-shadow 0.3s ease;
+}
+@media (max-width: 767px) {
+  .assessment-card { flex: 0 0 85vw; }
+  #assessment-cards { gap: 12px; }
+}
+
+/* Card body: always visible */
+.assessment-card .card-body {
+  opacity: 1; max-height: none; overflow: visible; pointer-events: auto;
+}
+.assessment-card .card-header { text-align: left; }
+
+/* Active card glow */
+.assessment-card.carousel-active {
+  box-shadow: 0 0 0 2px rgba(61,141,160,0.3), 0 4px 20px rgba(61,141,160,0.1);
+}
+
+/* Future cards: dimmed, non-interactive */
+.assessment-card.carousel-future {
+  opacity: 0.4; pointer-events: none; filter: saturate(0.5);
+}
+
+/* Answered cards: greyed out */
+.assessment-card.carousel-answered {
+  opacity: 0.55; filter: saturate(0.3) brightness(0.95);
+}
+
+/* Answered checkmark */
+.card-check { opacity: 0; transition: opacity 0.3s ease; }
+.assessment-card.carousel-answered .card-check { opacity: 1; }
+
+/* Selected option highlight */
+.assessment-option.selected {
+  border-color: #3d8da0 !important; background: rgba(61,141,160,0.08) !important;
+}
+
+/* Dimmed non-selected options (toggleable for re-answering) */
+.assessment-option.not-selected {
+  opacity: 0.5;
+}
+
+/* Reduced motion */
 @media (prefers-reduced-motion: reduce) {
-  .assessment-card {
-    transition: none;
-    opacity: 1 !important;
-    transform: none !important;
-  }
+  .assessment-card { transition: none !important; opacity: 1 !important; filter: none !important; }
+  #assessment-cards { transition: none !important; will-change: auto; }
 }

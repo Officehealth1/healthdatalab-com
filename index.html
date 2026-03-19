@@ -170,9 +170,11 @@
           Most practitioners are operating at a fraction of their effectiveness&nbsp;&mdash; not because they lack skill, but because they lack the right framework. Five quick checks. Instant results.</p>
       </div>
 
-      <!-- Cards: 3 top + 2 centred below on desktop, stacked on mobile -->
-      <div id="assessment-cards" class="grid grid-cols-1 md:grid-cols-6 gap-4 max-w-5xl mx-auto">
-        <!-- 5 cards rendered by JS -->
+      <!-- Cards: horizontal carousel — active card centered, neighbors peek -->
+      <div id="assessment-viewport" class="relative overflow-hidden max-w-[1280px] mx-auto">
+        <div id="assessment-cards" class="flex">
+          <!-- 5 cards rendered by JS -->
+        </div>
       </div>
 
       <!-- Recommendation block (hidden until all 5 answered) -->
