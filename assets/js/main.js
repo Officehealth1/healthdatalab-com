@@ -573,54 +573,27 @@
       });
     }
 
-    // ========================================
-    // PAIN POINTS — Scroll-triggered animations
-    // ========================================
-    document.querySelectorAll('[data-pain]').forEach(function(block) {
-      var num = block.getAttribute('data-pain');
+  } // end hasGSAP
+
+  // ========================================
+  // ASSESSMENT — Initialize
+  // ========================================
+  var assessmentSection = document.querySelector('[data-assessment]');
+  var assessmentCards = document.getElementById('assessment-cards');
+  if (assessmentSection && assessmentCards && typeof HDLAssessment !== 'undefined') {
+    if (hasGSAP && !prefersReducedMotion && window.innerWidth >= 768) {
       ScrollTrigger.create({
-        trigger: block,
-        start: 'top 80%',
+        trigger: assessmentSection,
+        start: 'top 70%',
         once: true,
-        onEnter: function() {
-          if (num === '1') {
-            // Pulse the "now" dot
-            var dot = block.querySelector('circle:first-of-type');
-            if (dot) gsap.to(dot, { scale: 1.3, transformOrigin: 'center', repeat: -1, yoyo: true, duration: 1.2, ease: 'sine.inOut' });
-            // Draw paths
-            var paths = block.querySelectorAll('path[d]');
-            paths.forEach(function(p, i) {
-              if (!p.getTotalLength) return;
-              var len = p.getTotalLength();
-              gsap.set(p, { strokeDasharray: len, strokeDashoffset: len, opacity: 1 });
-              gsap.to(p, { strokeDashoffset: 0, duration: 1, delay: i * 0.3, ease: 'power2.out' });
-            });
-            // Fade in labels and end dots
-            gsap.from(block.querySelectorAll('text, circle:not(:first-of-type)'), {
-              opacity: 0, duration: 0.5, delay: 0.6, stagger: 0.1
-            });
-          }
-          if (num === '2') {
-            // Stagger icons
-            var icons = block.querySelectorAll('.flex.flex-col');
-            gsap.from(icons, { opacity: 0, scale: 0.85, duration: 0.3, stagger: 0.12, ease: 'back.out(1.5)' });
-          }
-          if (num === '3') {
-            // Top row: appear then second dot fades
-            var topDots = block.querySelectorAll('circle[fill="#c0c0c0"]');
-            var bottomDots = block.querySelectorAll('circle[fill="#3D8DA0"], circle[fill="#48A085"], circle[fill="#D4A853"]');
-            // Top row appears fast
-            gsap.from(topDots, { opacity: 0, duration: 0.3, stagger: 0.15 });
-            // Second top dot fades after appearing
-            if (topDots[1]) gsap.to(topDots[1], { opacity: 0.15, delay: 0.8, duration: 0.6 });
-            // Bottom row: dots stagger in with bounce
-            gsap.from(bottomDots, { opacity: 0, scale: 0.5, transformOrigin: 'center', duration: 0.4, stagger: 0.25, delay: 0.4, ease: 'back.out(1.7)' });
-          }
+        onEnter: function () {
+          HDLAssessment.init(assessmentCards);
         }
       });
-    });
-
-  } // end hasGSAP
+    } else {
+      HDLAssessment.init(assessmentCards);
+    }
+  }
 
   // ------------------------------------------------
   // Scroll-triggered reveal animations (general)
