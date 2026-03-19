@@ -276,13 +276,15 @@ body {
 
 /* Card: fixed width, always shows full content */
 .assessment-card {
-  flex: 0 0 min(400px, 85vw);
+  flex: 0 0 min(400px, 85vw) !important;
+  width: min(400px, 85vw);
+  min-width: min(400px, 85vw);
   transition: opacity 0.5s var(--ease-out-expo),
               filter 0.5s var(--ease-out-expo),
               box-shadow 0.3s ease;
 }
 @media (max-width: 767px) {
-  .assessment-card { flex: 0 0 85vw; }
+  .assessment-card { flex: 0 0 85vw !important; width: 85vw; min-width: 85vw; }
   #assessment-cards { gap: 12px; }
 }
 
