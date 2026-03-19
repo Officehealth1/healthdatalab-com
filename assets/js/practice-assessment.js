@@ -236,20 +236,26 @@ var HDLAssessment = (function () {
       gsap.from(resultDiv, { opacity: 0, y: 8, duration: 0.4, ease: 'power2.out' });
     }
 
-    /* Auto-advance to next card (first answer or re-answer) */
-    if (cardIndex < 4) {
-      autoAdvanceTimer = setTimeout(function () {
-        autoAdvanceTimer = null;
-        activateCard(cardIndex + 1);
-      }, 1800);
-    } else {
-      var allAnswered = state.answers.every(function (a) { return a !== null; });
-      if (allAnswered) {
-        autoAdvanceTimer = setTimeout(function () {
-          autoAdvanceTimer = null;
-          showAllAnswered();
-        }, 1800);
+    /* Add "Next" button for manual advancement (skip if already present) */
+    var cardBody = card.querySelector('.card-body');
+    if (!cardBody.querySelector('.assessment-next-btn')) {
+      var isLast = cardIndex === 4 && state.answers.every(function (a) { return a !== null; });
+      var nextBtn = document.createElement('button');
+      nextBtn.className = 'assessment-next-btn rounded-[48px] bg-primary text-white text-sm font-medium px-6 py-2.5 hover:bg-primary-dark transition-colors cursor-pointer mt-4';
+      nextBtn.textContent = isLast ? 'See your results →' : 'Next →';
+      nextBtn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        if (isLast) { showAllAnswered(); } else { activateCard(cardIndex + 1); }
+      });
+      cardBody.appendChild(nextBtn);
+      if (hasGSAP()) {
+        gsap.from(nextBtn, { opacity: 0, y: 8, duration: 0.4, ease: 'power2.out', delay: 0.1 });
       }
+    } else if (cardIndex === 4) {
+      /* Update last card button text if all now answered */
+      var existingBtn = cardBody.querySelector('.assessment-next-btn');
+      var nowAllAnswered = state.answers.every(function (a) { return a !== null; });
+      existingBtn.textContent = nowAllAnswered ? 'See your results →' : 'Next →';
     }
   }
 
@@ -260,6 +266,16 @@ var HDLAssessment = (function () {
       autoAdvanceTimer = null;
     }
     state.activeCard = index;
+    /* Hide "Next" buttons on all non-active cards */
+    containerEl.querySelectorAll('.assessment-next-btn').forEach(function (btn) {
+      btn.style.display = 'none';
+    });
+    /* Show button on newly active card if it exists (revisiting answered card) */
+    var activeCard = containerEl.querySelector('[data-card="' + index + '"]');
+    if (activeCard) {
+      var activeBtn = activeCard.querySelector('.assessment-next-btn');
+      if (activeBtn) activeBtn.style.display = '';
+    }
     updateCardClasses();
     panToCard(index, true);
   }
