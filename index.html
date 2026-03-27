@@ -53,7 +53,7 @@
       --color-stroke: #e5e7eb;
     }
   </style>
-  <link rel="stylesheet" href="assets/css/styles.css?v=5">
+  <link rel="stylesheet" href="assets/css/styles.css?v=6">
   <script type="application/ld+json">
   {
     "@context": "https://schema.org",
@@ -220,14 +220,24 @@
       </div>
 
       <div class="relative mt-16 grid gap-6 md:grid-cols-4" data-protocol-steps>
-        <!-- Connector line (desktop only) -->
+        <!-- Staircase connector (desktop only) -->
         <svg class="protocol-connector absolute pointer-events-none hidden md:block" aria-hidden="true" data-protocol-connector>
-          <line stroke="#3d8da0" stroke-width="2" stroke-linecap="round" opacity="0.3"
-                stroke-dasharray="1000" stroke-dashoffset="1000"/>
+          <defs>
+            <radialGradient id="pulse-glow">
+              <stop offset="0%" stop-color="#3d8da0" stop-opacity="0.9"/>
+              <stop offset="60%" stop-color="#3d8da0" stop-opacity="0.3"/>
+              <stop offset="100%" stop-color="#3d8da0" stop-opacity="0"/>
+            </radialGradient>
+          </defs>
+          <path fill="none" stroke="#3d8da0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" opacity="0.3"
+                stroke-dasharray="1000" stroke-dashoffset="1000" data-protocol-path/>
+          <circle r="8" fill="url(#pulse-glow)" opacity="0" data-protocol-pulse/>
+          <circle r="3" fill="#3d8da0" opacity="0" data-protocol-pulse-core/>
         </svg>
 
         <!-- Step 1: MAP -->
         <div class="reveal-scale reveal-delay-1 rounded-[32px] bg-light p-8 text-center" data-protocol-step="1">
+
           <div class="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-primary/10 mb-5">
             <img src="assets/images/icon-map.png?v=1" alt="Map" class="w-7 h-7 object-contain">
           </div>
@@ -238,6 +248,7 @@
 
         <!-- Step 2: READ -->
         <div class="reveal-scale reveal-delay-2 rounded-[32px] bg-light p-8 text-center" data-protocol-step="2">
+
           <div class="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-primary/10 mb-5">
             <svg class="w-7 h-7 text-primary" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z"/>
@@ -251,6 +262,7 @@
 
         <!-- Step 3: GUIDE -->
         <div class="reveal-scale reveal-delay-3 rounded-[32px] bg-light p-8 text-center" data-protocol-step="3">
+
           <div class="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-primary/10 mb-5">
             <img src="assets/images/icon-guide.png?v=1" alt="Guide" class="w-7 h-7 object-contain">
           </div>
@@ -261,6 +273,7 @@
 
         <!-- Step 4: TRACK -->
         <div class="reveal-scale reveal-delay-4 rounded-[32px] bg-light p-8 text-center" data-protocol-step="4">
+
           <div class="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-primary/10 mb-5">
             <svg class="w-7 h-7 text-primary" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 18 9 11.25l4.306 4.306a11.95 11.95 0 0 1 5.814-5.518l2.74-1.22m0 0-5.94-2.281m5.94 2.28-2.28 5.941"/>
@@ -867,7 +880,7 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
   <script src="assets/js/practice-assessment.js?v=4"></script>
-  <script src="assets/js/main.js?v=6"></script>
+  <script src="assets/js/main.js?v=7"></script>
 </body>
 
 </html>

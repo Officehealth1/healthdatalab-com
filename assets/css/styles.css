@@ -111,6 +111,22 @@ body {
 .protocol-connector { z-index: 0; }
 [data-protocol-step] { position: relative; z-index: 1; }
 
+/* Desktop staircase: card 1 highest, descending to card 4 */
+@media (min-width: 768px) {
+  [data-protocol-step="1"] { --step-y: 0px; }
+  [data-protocol-step="2"] { --step-y: 48px; }
+  [data-protocol-step="3"] { --step-y: 96px; }
+  [data-protocol-step="4"] { --step-y: 144px; }
+  [data-protocol-steps] { padding-bottom: 144px; }
+}
+
+/* Mobile: rightward indent per step */
+@media (max-width: 767px) {
+  [data-protocol-step="2"] { margin-left: 16px; }
+  [data-protocol-step="3"] { margin-left: 32px; }
+  [data-protocol-step="4"] { margin-left: 48px; }
+}
+
 /* ------------------------------------------------
    Tooltip (CSS-only, hover + focus for mobile tap)
    ------------------------------------------------ */
@@ -233,10 +249,13 @@ body {
   }
 
   /* GSAP-managed elements — show immediately */
-  [data-hero-el],
-  [data-protocol-step] {
+  [data-hero-el] {
     opacity: 1 !important;
     transform: none !important;
+  }
+  [data-protocol-step] {
+    opacity: 1 !important;
+    transform: translateY(var(--step-y, 0)) !important;
   }
 
   .hero-orb { display: none; }

@@ -508,11 +508,18 @@
     var protocolConnector = document.querySelector('[data-protocol-connector]');
 
     if (protocolSteps.length > 0) {
-      // Remove CSS reveal classes for GSAP management
+      // Read staircase offsets from CSS custom properties
+      var stepOffsets = [];
       protocolSteps.forEach(function (el) {
+        var yVal = parseInt(getComputedStyle(el).getPropertyValue('--step-y')) || 0;
+        stepOffsets.push(yVal);
+      });
+
+      // Remove CSS reveal classes for GSAP management
+      protocolSteps.forEach(function (el, i) {
         el.classList.remove('reveal-scale', 'reveal-delay-1', 'reveal-delay-2', 'reveal-delay-3', 'reveal-delay-4');
         el.style.opacity = '0';
-        el.style.transform = 'translateY(24px) scale(0.97)';
+        el.style.transform = 'translateY(' + (stepOffsets[i] + 24) + 'px) scale(0.97)';
       });
 
       ScrollTrigger.create({
@@ -520,55 +527,102 @@
         start: 'top 70%',
         once: true,
         onEnter: function () {
-          var connectorLine = null;
+          var connectorPath = null;
 
-          // Position connector line (desktop, 4 steps)
+          // Position staircase connector (desktop, 4 steps)
           if (protocolConnector && window.innerWidth >= 768 && protocolSteps.length >= 4) {
             var containerRect = protocolContainer.getBoundingClientRect();
-            var first = protocolSteps[0];
-            var last = protocolSteps[protocolSteps.length - 1];
-            var firstRect = first.getBoundingClientRect();
-            var lastRect = last.getBoundingClientRect();
 
-            var cy = (firstRect.top - containerRect.top) + 30;
-            var x1 = (firstRect.left - containerRect.left) + firstRect.width / 2;
-            var x2 = (lastRect.left - containerRect.left) + lastRect.width / 2;
+            // Build staircase path through each card's center-top
+            var points = [];
+            protocolSteps.forEach(function (step, i) {
+              var rect = step.getBoundingClientRect();
+              var cx = (rect.left - containerRect.left) + rect.width / 2;
+              var cy = stepOffsets[i] + 20; // near top of card at its offset
+              points.push({ x: cx, y: cy });
+            });
 
+            // Size the SVG to cover the full container
+            var maxOffset = Math.max.apply(null, stepOffsets);
+            var svgH = maxOffset + 80;
             protocolConnector.setAttribute('width', containerRect.width);
-            protocolConnector.setAttribute('height', '80');
-            protocolConnector.style.top = cy + 'px';
+            protocolConnector.setAttribute('height', svgH);
+            protocolConnector.style.top = '0';
             protocolConnector.style.left = '0';
 
-            connectorLine = protocolConnector.querySelector('line');
-            connectorLine.setAttribute('x1', x1);
-            connectorLine.setAttribute('y1', '30');
-            connectorLine.setAttribute('x2', x2);
-            connectorLine.setAttribute('y2', '30');
+            // Draw staircase: horizontal to midpoint, then vertical step up, repeat
+            var d = 'M ' + points[0].x + ' ' + points[0].y;
+            for (var p = 1; p < points.length; p++) {
+              var midX = (points[p - 1].x + points[p].x) / 2;
+              d += ' L ' + midX + ' ' + points[p - 1].y;
+              d += ' L ' + midX + ' ' + points[p].y;
+              d += ' L ' + points[p].x + ' ' + points[p].y;
+            }
 
-            var lineLength = Math.abs(x2 - x1);
-            connectorLine.setAttribute('stroke-dasharray', lineLength);
-            connectorLine.setAttribute('stroke-dashoffset', lineLength);
+            connectorPath = protocolConnector.querySelector('[data-protocol-path]');
+            connectorPath.setAttribute('d', d);
+            var pathLength = connectorPath.getTotalLength();
+            connectorPath.setAttribute('stroke-dasharray', pathLength);
+            connectorPath.setAttribute('stroke-dashoffset', pathLength);
           }
+
+          var pulseOuter = protocolConnector ? protocolConnector.querySelector('[data-protocol-pulse]') : null;
+          var pulseCore = protocolConnector ? protocolConnector.querySelector('[data-protocol-pulse-core]') : null;
 
           var stepsTl = gsap.timeline();
 
           // Reveal each step sequentially with connector segments
           protocolSteps.forEach(function (step, i) {
             stepsTl.to(step, {
-              opacity: 1, y: 0, scale: 1,
+              opacity: 1, y: stepOffsets[i], scale: 1,
               duration: 0.6, ease: 'power3.out'
             }, i === 0 ? 0 : '-=0.2');
 
             // Draw connector segment after each step (except the last)
-            if (connectorLine && i < protocolSteps.length - 1) {
-              var totalLength = parseFloat(connectorLine.getAttribute('stroke-dasharray'));
+            if (connectorPath && i < protocolSteps.length - 1) {
+              var totalLength = connectorPath.getTotalLength();
               var segmentTarget = totalLength - (totalLength * (i + 1) / (protocolSteps.length - 1));
-              stepsTl.to(connectorLine, {
+              stepsTl.to(connectorPath, {
                 attr: { 'stroke-dashoffset': segmentTarget },
                 duration: 0.3, ease: 'power2.inOut'
               }, '-=0.2');
             }
           });
+
+          // After draw-in, start continuous pulse traveling along the path
+          if (connectorPath && pulseOuter && pulseCore) {
+            stepsTl.call(function () {
+              var len = connectorPath.getTotalLength();
+              // Position pulse at start
+              var startPt = connectorPath.getPointAtLength(0);
+              gsap.set([pulseOuter, pulseCore], { attr: { cx: startPt.x, cy: startPt.y } });
+              gsap.set(pulseOuter, { opacity: 0.7 });
+              gsap.set(pulseCore, { opacity: 0.9 });
+
+              // Continuous travel along path
+              gsap.to({ t: 0 }, {
+                t: 1,
+                duration: 4,
+                ease: 'none',
+                repeat: -1,
+                onUpdate: function () {
+                  var progress = this.progress();
+                  var pt = connectorPath.getPointAtLength(progress * len);
+                  gsap.set([pulseOuter, pulseCore], { attr: { cx: pt.x, cy: pt.y } });
+                }
+              });
+
+              // Breathing glow on the outer circle
+              gsap.to(pulseOuter, {
+                attr: { r: 12 },
+                opacity: 0.3,
+                duration: 1.2,
+                ease: 'sine.inOut',
+                repeat: -1,
+                yoyo: true
+              });
+            });
+          }
         }
       });
     }
