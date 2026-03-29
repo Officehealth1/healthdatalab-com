@@ -140,8 +140,8 @@
       if (heroEls.heading) gsap.set(heroEls.heading, { scale: 0.98 });
 
       var heroTl = gsap.timeline({ delay: 0.15 });
-      if (heroEls.subtitle) heroTl.to(heroEls.subtitle, { opacity: 1, y: 0, duration: 0.7, ease: 'power3.out' });
-      if (heroEls.heading) heroTl.to(heroEls.heading, { opacity: 1, y: 0, scale: 1, duration: 0.8, ease: 'power3.out' }, '-=0.5');
+      if (heroEls.heading) heroTl.to(heroEls.heading, { opacity: 1, y: 0, scale: 1, duration: 0.8, ease: 'power3.out' });
+      if (heroEls.subtitle) heroTl.to(heroEls.subtitle, { opacity: 1, y: 0, duration: 0.7, ease: 'power3.out' }, '-=0.5');
       if (heroEls.body.length > 0) heroTl.to(Array.from(heroEls.body), { opacity: 1, y: 0, duration: 0.7, ease: 'power3.out', stagger: 0.15 }, '-=0.5');
       if (heroEls.cta) heroTl.to(heroEls.cta, { opacity: 1, y: 0, duration: 0.7, ease: 'power3.out' }, '-=0.4');
 
