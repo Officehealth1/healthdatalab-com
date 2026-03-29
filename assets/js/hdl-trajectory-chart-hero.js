@@ -391,26 +391,6 @@ var HDLTrajectoryChart = (function () {
       }
       svg.appendChild(futureGroup);
 
-      // Band labels on past side
-      for (var bl = 0; bl < BANDS.length; bl++) {
-        var labelAge = Math.min(effectiveAge - 4, 18);
-        var labelH = getBandHealth(bl, labelAge);
-        if (labelH === null || labelH < 8 || bl === POP_IDX) continue;
-        svg.appendChild(svgEl('text', {
-          x: sx(labelAge), y: sy(labelH) - 3,
-          'font-size': '9', fill: BANDS[bl].color, opacity: '0.4', 'font-weight': '500',
-          'data-hdl': 'band-label'
-        }, BANDS[bl].label));
-      }
-      // Pop avg label
-      var popLabelH = getBandHealth(POP_IDX, 15);
-      if (popLabelH) {
-        svg.appendChild(svgEl('text', {
-          x: sx(15), y: sy(popLabelH) - 4,
-          'font-size': '9.5', fill: '#95a5a6', opacity: '0.5', 'font-weight': '600',
-          'data-hdl': 'band-label'
-        }, '50th (avg)'));
-      }
     }
 
     // ── "NOW" divider ────────────────────────────────────────
@@ -557,7 +537,7 @@ var HDLTrajectoryChart = (function () {
         redCalloutG.appendChild(svgEl('text', {
           x: redCx, y: redCy + 4,
           'text-anchor': 'middle', 'font-size': '11', fill: 'white', 'font-weight': '500'
-        }, 'Average decline'));
+        }, 'Without changes'));
         svg.appendChild(redCalloutG);
       }
     }
@@ -624,33 +604,36 @@ var HDLTrajectoryChart = (function () {
     }, 'Rate: ' + currentRate.toFixed(2) + '\u00d7'));
     svg.appendChild(badgeG);
 
-    // ── LEGEND ───────────────────────────────────────────────
-    var legendG = svgEl('g', {
-      transform: 'translate(' + (MARGIN.left + 6) + ',' + (MARGIN.top + 24) + ')',
-      'data-hdl': 'legend'
-    });
-    var legendH = showProjections ? 76 : 42;
-    legendG.appendChild(svgEl('rect', {
-      x: 0, y: 0, width: 150, height: legendH, rx: 4,
-      fill: 'white', 'fill-opacity': '0.92', stroke: '#e8ecf0', 'stroke-width': 0.5
-    }));
-    legendG.appendChild(svgEl('line', { x1: 8, x2: 26, y1: 14, y2: 14, stroke: '#1565c0', 'stroke-width': 2.5 }));
-    legendG.appendChild(svgEl('text', { x: 32, y: 18, 'font-size': '11', fill: '#334155' }, 'Your Trajectory'));
-    legendG.appendChild(svgEl('line', { x1: 8, x2: 26, y1: 30, y2: 30, stroke: '#95a5a6', 'stroke-width': 1.5 }));
-    legendG.appendChild(svgEl('text', { x: 32, y: 34, 'font-size': '11', fill: '#334155' }, 'Population Avg'));
-
-    if (showProjections) {
-      legendG.appendChild(svgEl('line', { x1: 8, x2: 26, y1: 46, y2: 46, stroke: '#27ae60', 'stroke-width': 1.8, 'stroke-dasharray': '5,2' }));
-      legendG.appendChild(svgEl('text', { x: 32, y: 50, 'font-size': '11', fill: '#334155' }, 'With Changes'));
-      legendG.appendChild(svgEl('line', { x1: 8, x2: 26, y1: 62, y2: 62, stroke: '#d94f4f', 'stroke-width': 1.8, 'stroke-dasharray': '8,4' }));
-      legendG.appendChild(svgEl('text', { x: 32, y: 66, 'font-size': '11', fill: '#334155' }, 'Without Changes'));
-    }
-
-    svg.appendChild(legendG);
 
     // ── INSERT INTO DOM ──────────────────────────────────────
     container.innerHTML = '';
     container.appendChild(svg);
+
+    // ── HTML LEGEND (below chart) ───────────────────────────
+    var legendItems = [
+      { color: '#1565c0', label: 'Your Trajectory', dash: false, width: '2.5px' },
+      { color: '#95a5a6', label: 'Population Avg', dash: false, width: '1.5px' }
+    ];
+    if (showProjections) {
+      legendItems.push({ color: '#27ae60', label: 'With Changes', dash: true, width: '2px' });
+      legendItems.push({ color: '#d94f4f', label: 'Without Changes', dash: true, width: '2px' });
+    }
+    var legendDiv = document.createElement('div');
+    legendDiv.setAttribute('data-hdl', 'legend');
+    legendDiv.style.cssText = 'display:flex;flex-wrap:wrap;justify-content:center;gap:6px 20px;margin-top:6px;font-family:Inter,system-ui,sans-serif;font-size:12px;color:#64748b;';
+    for (var li = 0; li < legendItems.length; li++) {
+      var item = legendItems[li];
+      var itemDiv = document.createElement('div');
+      itemDiv.style.cssText = 'display:flex;align-items:center;gap:6px;';
+      var line = document.createElement('span');
+      line.style.cssText = 'display:inline-block;width:18px;height:0;border-top:' + item.width + ' ' + (item.dash ? 'dashed' : 'solid') + ' ' + item.color + ';';
+      var text = document.createElement('span');
+      text.textContent = item.label;
+      itemDiv.appendChild(line);
+      itemDiv.appendChild(text);
+      legendDiv.appendChild(itemDiv);
+    }
+    container.appendChild(legendDiv);
 
     return {
       currentHealth: currentHealth,
