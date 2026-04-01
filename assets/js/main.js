@@ -517,7 +517,7 @@
 
       // Remove CSS reveal classes for GSAP management
       protocolSteps.forEach(function (el, i) {
-        el.classList.remove('reveal-scale', 'reveal-delay-1', 'reveal-delay-2', 'reveal-delay-3', 'reveal-delay-4');
+        el.classList.remove('reveal-scale', 'reveal-delay-1', 'reveal-delay-2', 'reveal-delay-3');
         el.style.opacity = '0';
         el.style.transform = 'translateY(' + (stepOffsets[i] + 24) + 'px) scale(0.97)';
       });
@@ -529,8 +529,8 @@
         onEnter: function () {
           var connectorPath = null;
 
-          // Position staircase connector (desktop, 4 steps)
-          if (protocolConnector && window.innerWidth >= 768 && protocolSteps.length >= 4) {
+          // Position staircase connector (desktop, 3 steps)
+          if (protocolConnector && window.innerWidth >= 768 && protocolSteps.length >= 3) {
             var containerRect = protocolContainer.getBoundingClientRect();
 
             // Build staircase path through each card's center-top

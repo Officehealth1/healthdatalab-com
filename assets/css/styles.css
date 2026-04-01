@@ -111,20 +111,18 @@ body {
 .protocol-connector { z-index: 0; }
 [data-protocol-step] { position: relative; z-index: 1; }
 
-/* Desktop staircase: card 1 highest, descending to card 4 */
+/* Desktop staircase: card 1 highest, descending to card 3 */
 @media (min-width: 768px) {
   [data-protocol-step="1"] { --step-y: 0px; }
   [data-protocol-step="2"] { --step-y: 48px; }
   [data-protocol-step="3"] { --step-y: 96px; }
-  [data-protocol-step="4"] { --step-y: 144px; }
-  [data-protocol-steps] { padding-bottom: 144px; }
+  [data-protocol-steps] { padding-bottom: 96px; }
 }
 
 /* Mobile: rightward indent per step */
 @media (max-width: 767px) {
   [data-protocol-step="2"] { margin-left: 16px; }
   [data-protocol-step="3"] { margin-left: 32px; }
-  [data-protocol-step="4"] { margin-left: 48px; }
 }
 
 /* ------------------------------------------------
