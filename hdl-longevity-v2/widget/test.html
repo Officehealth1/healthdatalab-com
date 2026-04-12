@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HDL Lead Magnet Widget — Test Page</title>
+    <style>
+        body { font-family: sans-serif; background: #f5f5f5; padding: 40px 20px; margin: 0; }
+        h1 { text-align: center; color: #333; font-size: 22px; margin-bottom: 8px; }
+        p.sub { text-align: center; color: #888; font-size: 14px; margin-bottom: 32px; }
+        .test-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(420px, 1fr)); gap: 32px; max-width: 960px; margin: 0 auto; }
+    </style>
+</head>
+<body>
+    <h1>HDL Lead Magnet Widget — Test Page</h1>
+    <p class="sub">This simulates the widget embedded on a practitioner's website. The API URL is disabled for local testing.</p>
+
+    <div class="test-grid">
+        <!-- Default theme -->
+        <div class="hdl-rate-widget"
+             data-practitioner-id="1"
+             data-practitioner-name="Dr. Sarah Mitchell"
+             data-logo=""
+             data-cta-text="Book a free consultation"
+             data-cta-link="https://example.com/book"
+             data-api=""
+             data-webhook=""
+             data-color="#3d8da0">
+        </div>
+
+        <!-- Custom purple theme -->
+        <div class="hdl-rate-widget"
+             data-practitioner-id="2"
+             data-practitioner-name="Matthew D'Haemer"
+             data-logo=""
+             data-cta-text="Start your longevity journey"
+             data-cta-link="https://healthdatalab.com"
+             data-api=""
+             data-webhook=""
+             data-color="#7d3c98">
+        </div>
+    </div>
+
+    <script src="hdl-lead-magnet.js"></script>
+</body>
+</html>

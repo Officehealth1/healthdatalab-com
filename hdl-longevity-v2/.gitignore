@@ -1,0 +1,9 @@
+.DS_Store
+*.log
+node_modules/
+.claude/
+CLAUDE.md
+*/CLAUDE.md
+**/CLAUDE.md
+.playwright-mcp/
+.planning/

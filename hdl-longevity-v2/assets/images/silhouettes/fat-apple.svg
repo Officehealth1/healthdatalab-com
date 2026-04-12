@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 200" width="80" height="200">
+  <!-- Fat distribution: Apple shape — weight around the middle -->
+  <ellipse cx="40" cy="28" rx="13" ry="16" fill="#94a3b8"/>
+  <rect x="33" y="44" width="14" height="6" rx="2" fill="#94a3b8"/>
+  <path d="M28 50 Q27 55 25 80 L25 118 Q25 120 27 120 L33 120 L33 80 L32 50 Z" fill="#94a3b8"/>
+  <path d="M48 50 Q49 55 55 80 L55 118 Q55 120 53 120 L47 120 L47 80 L48 50 Z" fill="#94a3b8"/>
+  <path d="M33 50 L33 68 Q33 82 30 95 L30 102 L50 102 L50 95 Q47 82 47 68 L47 50 Z" fill="#94a3b8"/>
+  <!-- Amber highlight on waist/belly area -->
+  <ellipse cx="40" cy="85" rx="12" ry="16" fill="#f59e0b" opacity="0.45"/>
+  <ellipse cx="40" cy="85" rx="12" ry="16" fill="none" stroke="#f59e0b" stroke-width="0.5" stroke-dasharray="2,2" opacity="0.7"/>
+  <rect x="30" y="102" width="7" height="58" rx="3" fill="#94a3b8"/>
+  <rect x="43" y="102" width="7" height="58" rx="3" fill="#94a3b8"/>
+  <text x="40" y="185" text-anchor="middle" font-family="Inter,sans-serif" font-size="9" fill="#64748b">Mostly middle</text>
+</svg>

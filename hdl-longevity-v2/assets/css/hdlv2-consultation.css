@@ -1,0 +1,338 @@
+/**
+ * HDL V2 Consultation Interface Styles
+ * Split-screen layout, field editing, recommendations, responsive.
+ */
+
+/* ── LAYOUT ── */
+.hdlv2-consultation-root {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 0 16px;
+}
+
+.hdlv2-consult-layout {
+  display: flex;
+  gap: 24px;
+  align-items: flex-start;
+}
+
+.hdlv2-consult-left {
+  flex: 0 0 58%;
+  max-height: 90vh;
+  overflow-y: auto;
+  padding-right: 12px;
+}
+
+.hdlv2-consult-right {
+  flex: 0 0 38%;
+  position: sticky;
+  top: 32px;
+  max-height: 90vh;
+  overflow-y: auto;
+  background: #fff;
+  border: 1px solid #e4e6ea;
+  border-radius: 14px;
+  padding: 24px;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.06);
+}
+
+@media (max-width: 1024px) {
+  .hdlv2-consult-layout {
+    flex-direction: column;
+  }
+  .hdlv2-consult-left,
+  .hdlv2-consult-right {
+    flex: none;
+    width: 100%;
+    max-height: none;
+    position: static;
+  }
+}
+
+/* ── HEADER ── */
+.hdlv2-consult-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0 0 20px;
+}
+
+.hdlv2-consult-header h2 {
+  font-family: 'Poppins', sans-serif;
+  font-size: 22px;
+  font-weight: 700;
+  color: #111;
+  margin: 0;
+}
+
+/* ── METRICS BAR ── */
+.hdlv2-consult-metrics {
+  display: flex;
+  gap: 24px;
+  justify-content: center;
+  padding: 12px 0;
+  margin: 0 0 20px;
+  border-top: 1px solid #f0f1f3;
+  border-bottom: 1px solid #f0f1f3;
+  font-size: 14px;
+  color: #444;
+}
+
+.hdlv2-consult-metrics strong {
+  color: #3d8da0;
+  font-size: 18px;
+}
+
+/* ── RIGHT PANEL SECTIONS ── */
+.hdlv2-consult-right h3 {
+  font-family: 'Poppins', sans-serif;
+  font-size: 18px;
+  font-weight: 700;
+  color: #111;
+  margin: 0 0 16px;
+}
+
+.hdlv2-consult-section {
+  margin-bottom: 20px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid #f0f1f3;
+}
+
+.hdlv2-consult-section:last-child {
+  border-bottom: none;
+}
+
+.hdlv2-consult-section h4 {
+  font-family: 'Poppins', sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  color: #333;
+  margin: 0 0 10px;
+}
+
+.hdlv2-consult-section h4 small {
+  font-weight: 400;
+  color: #aaa;
+  font-size: 11px;
+  margin-left: 6px;
+}
+
+/* ── HEALTH DATA FIELDS ── */
+.hdlv2-consult-field-row {
+  display: flex;
+  align-items: center;
+  padding: 6px 8px;
+  border-radius: 6px;
+  font-size: 13px;
+  gap: 8px;
+  transition: background 0.2s;
+}
+
+.hdlv2-consult-field-row:hover {
+  background: #f8f9fb;
+}
+
+.hdlv2-consult-field-changed {
+  background: #fef3cd !important;
+}
+
+.hdlv2-consult-field-label {
+  flex: 1;
+  color: #444;
+  font-weight: 500;
+}
+
+.hdlv2-consult-field-value {
+  min-width: 50px;
+  text-align: right;
+  font-weight: 600;
+  color: #111;
+}
+
+.hdlv2-consult-edit-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 14px;
+  padding: 2px 4px;
+  opacity: 0.3;
+  transition: opacity 0.2s;
+}
+
+.hdlv2-consult-field-row:hover .hdlv2-consult-edit-btn {
+  opacity: 1;
+}
+
+.hdlv2-consult-change-note {
+  display: block;
+  width: 100%;
+  font-size: 11px;
+  color: #856404;
+  margin-top: 2px;
+}
+
+/* ── NOTES TEXTAREA ── */
+#hdlv2-consult-notes {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #e4e6ea;
+  border-radius: 8px;
+  font-size: 14px;
+  font-family: inherit;
+  background: #f8f9fb;
+  box-sizing: border-box;
+  resize: vertical;
+  min-height: 80px;
+  line-height: 1.5;
+  transition: border-color 0.2s;
+}
+
+#hdlv2-consult-notes:focus {
+  outline: none;
+  border-color: #3d8da0;
+  box-shadow: 0 0 0 3px rgba(61, 141, 160, 0.1);
+}
+
+/* ── RECOMMENDATIONS ── */
+.hdlv2-consult-rec-card {
+  position: relative;
+  padding: 10px 12px;
+  background: #f8f9fb;
+  border: 1px solid #e4e6ea;
+  border-radius: 8px;
+  margin-bottom: 8px;
+  font-size: 13px;
+}
+
+.hdlv2-consult-rec-card p {
+  margin: 6px 0 4px;
+  color: #333;
+  line-height: 1.4;
+}
+
+.hdlv2-consult-rec-card small {
+  color: #aaa;
+}
+
+.hdlv2-consult-rec-badge {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: #3d8da0;
+  color: #fff;
+}
+
+.hdlv2-consult-rec-priority {
+  font-size: 10px;
+  font-weight: 600;
+  margin-left: 6px;
+}
+
+.hdlv2-consult-rec-priority.high { color: #e74c3c; }
+.hdlv2-consult-rec-priority.medium { color: #f59e0b; }
+.hdlv2-consult-rec-priority.low { color: #10b981; }
+
+.hdlv2-consult-rec-remove {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 14px;
+  color: #ccc;
+  transition: color 0.2s;
+}
+
+.hdlv2-consult-rec-remove:hover { color: #e74c3c; }
+
+/* ── REC FORM ── */
+.hdlv2-consult-rec-form {
+  margin-top: 12px;
+}
+
+.hdlv2-consult-rec-form select,
+.hdlv2-consult-rec-form textarea {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid #e4e6ea;
+  border-radius: 6px;
+  font-size: 13px;
+  font-family: inherit;
+  background: #f8f9fb;
+  box-sizing: border-box;
+  margin-bottom: 6px;
+}
+
+/* ── GENERATE BUTTON ── */
+.hdlv2-consult-generate-btn {
+  width: 100%;
+  padding: 14px;
+  background: #3d8da0;
+  color: #fff;
+  border: none;
+  border-radius: 48px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  transition: opacity 0.15s;
+}
+
+.hdlv2-consult-generate-btn:hover { opacity: 0.85; }
+.hdlv2-consult-generate-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* ── REPORT SECTIONS (reuse from form CSS) ── */
+.hdlv2-report-section {
+  text-align: left;
+  padding: 20px 24px;
+  margin: 0 0 12px;
+  border-left: 4px solid #e4e6ea;
+  background: #fafbfc;
+  border-radius: 0 10px 10px 0;
+}
+
+.hdlv2-report-section h3 {
+  font-family: 'Poppins', sans-serif;
+  font-size: 16px;
+  font-weight: 700;
+  margin: 0 0 12px;
+  color: #111;
+}
+
+.hdlv2-report-section div {
+  font-size: 14px;
+  color: #444;
+  line-height: 1.7;
+}
+
+.hdlv2-report-section.awaken { border-left-color: #3d8da0; }
+.hdlv2-report-section.lift { border-left-color: #10b981; }
+.hdlv2-report-section.thrive { border-left-color: #f59e0b; }
+
+/* ── DRAFT LABEL ── */
+.hdlv2-draft-label {
+  display: inline-block;
+  background: #fef3cd;
+  color: #856404;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  padding: 4px 12px;
+  border-radius: 4px;
+}
+
+/* ── SAVE STATUS ── */
+.hdlv2-save-status { font-size: 12px; min-height: 18px; margin-top: 4px; }
+.hdlv2-save-status.saving { color: #f59e0b; }
+.hdlv2-save-status.saved { color: #10b981; }
+.hdlv2-save-status.error { color: #e74c3c; }
+
+/* ── SPINNER ── */
+@keyframes hdlv2spin { to { transform: rotate(360deg); } }
