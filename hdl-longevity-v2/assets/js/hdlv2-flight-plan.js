@@ -1,6 +1,6 @@
 /**
  * HDL V2 Flight Plan — Interactive weekly plan with tappable action rows.
- * Replaces checkboxes with 3-state toggle: default → done → not-done → default.
+ * Tappable action rows with 2-state toggle: default ↔ done.
  * @package HDL_Longevity_V2
  * @since 0.9.3
  */
@@ -200,15 +200,14 @@
     updateAdherence();
   }
 
-  // ── 3-state toggle: default → done → not-done → default ──
+  // ── 2-state toggle: default ↔ done ──
   function cycleActionState(el) {
     var state = el.getAttribute('data-state') || 'default';
     var tickId = parseInt(el.getAttribute('data-tick-id'), 10);
     var next, ticked;
 
-    if (state === 'default')        { next = 'done';     ticked = true; }
-    else if (state === 'done')      { next = 'not-done'; ticked = false; }
-    else                            { next = 'default';  ticked = false; }
+    if (state === 'default') { next = 'done';    ticked = true; }
+    else                     { next = 'default'; ticked = false; }
 
     el.setAttribute('data-state', next);
 

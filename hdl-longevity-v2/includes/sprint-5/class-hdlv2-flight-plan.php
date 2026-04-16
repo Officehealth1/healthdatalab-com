@@ -359,9 +359,37 @@ class HDLV2_Flight_Plan {
         // Create tick rows
         $this->create_tick_rows( $plan_id, $client_id, $plan );
 
-        // Timeline entry
-        if ( class_exists( 'HDLV2_Timeline' ) ) {
-            HDLV2_Timeline::add_entry( $client_id, $practitioner_id, 'flight_plan', "Week $week_num Flight Plan generated", '', null, 'hdlv2_flight_plans', $plan_id );
+        // Timeline entry — direct insert to include date fields
+        $wpdb->insert( $wpdb->prefix . 'hdlv2_timeline', array(
+            'client_id'       => $client_id,
+            'practitioner_id' => $practitioner_id,
+            'entry_type'      => 'flight_plan',
+            'title'           => sprintf( 'Week %d Flight Plan generated', $week_num ),
+            'date'            => $week_start,
+            'end_date'        => date( 'Y-m-d', strtotime( $week_start . ' +6 days' ) ),
+            'temporal_type'   => 'interval',
+            'category'        => 'system',
+            'source'          => 'system',
+            'summary'         => sprintf( 'Weekly Flight Plan for %s – %s', date( 'j M', strtotime( $week_start ) ), date( 'j M Y', strtotime( $week_start . ' +6 days' ) ) ),
+            'source_table'    => 'hdlv2_flight_plans',
+            'source_id'       => $plan_id,
+        ) );
+
+        // Notify client that their flight plan is ready
+        if ( class_exists( 'HDLV2_Email_Templates' ) ) {
+            $fp_progress = $wpdb->get_row( $wpdb->prepare(
+                "SELECT client_name, client_email, token FROM {$wpdb->prefix}hdlv2_form_progress WHERE client_user_id = %d ORDER BY id DESC LIMIT 1",
+                $client_id
+            ) );
+            if ( $fp_progress && $fp_progress->client_email ) {
+                $plan_url = site_url( '/my-flight-plan/?token=' . $fp_progress->token );
+                HDLV2_Email_Templates::flight_plan_ready( array(
+                    'client_name'  => $fp_progress->client_name ?: 'there',
+                    'client_email' => $fp_progress->client_email,
+                    'plan_url'     => $plan_url,
+                    'week_number'  => $week_num,
+                ) );
+            }
         }
 
         // Clear practitioner priority notes after use

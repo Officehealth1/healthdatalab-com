@@ -322,18 +322,12 @@ class HDLV2_Checkin {
 
             $prac = get_userdata( $checkin->practitioner_id );
             if ( $prac && $prac->user_email ) {
-                wp_mail(
-                    $prac->user_email,
-                    sprintf( '%s may need your attention — HealthDataLab', $client_name ),
-                    sprintf(
-                        "Hi %s,\n\n%s's Week %d check-in has flagged items that may need your attention:\n\n• %s\n\nPlease review their profile on your dashboard.\n\n— HealthDataLab",
-                        $prac->display_name ?: 'Practitioner',
-                        $client_name,
-                        $checkin->week_number,
-                        implode( "\n• ", $flag_reasons )
-                    ),
-                    array( 'Content-Type: text/html; charset=UTF-8' )
-                );
+                HDLV2_Email_Templates::client_needs_attention( array(
+                    'practitioner_email' => $prac->user_email,
+                    'client_name'        => $client_name,
+                    'reasons'            => $flag_reasons,
+                    'timeline_url'       => site_url( '/client-tracker/?client_id=' . $checkin->client_id ),
+                ) );
             }
 
             // Update client status
@@ -394,7 +388,7 @@ class HDLV2_Checkin {
         global $wpdb;
         // Get all active clients with completed stages
         $clients = $wpdb->get_results(
-            "SELECT DISTINCT client_user_id, client_email, client_name, practitioner_user_id
+            "SELECT DISTINCT client_user_id, client_email, client_name, practitioner_user_id, token
              FROM {$wpdb->prefix}hdlv2_form_progress
              WHERE stage3_completed_at IS NOT NULL AND client_email != ''"
         );
@@ -408,12 +402,11 @@ class HDLV2_Checkin {
             ) );
             if ( $exists ) continue;
 
-            wp_mail(
-                $c->client_email,
-                'Time for your weekly check-in — HealthDataLab',
-                sprintf( "Hi %s,\n\nHow did this week go? Take a few minutes to reflect on your progress.\n\n— HealthDataLab", $c->client_name ?: 'there' ),
-                array( 'Content-Type: text/html; charset=UTF-8' )
-            );
+            HDLV2_Email_Templates::checkin_reminder( array(
+                'client_name'  => $c->client_name ?: 'there',
+                'client_email' => $c->client_email,
+                'checkin_url'  => site_url( '/weekly-check-in/?token=' . $c->token ),
+            ) );
         }
     }
 
@@ -508,7 +501,7 @@ class HDLV2_Checkin {
 
         // Find clients whose last final report (or form creation) is 3+ months old
         $clients = $wpdb->get_results(
-            "SELECT fp.client_user_id, fp.client_name, fp.client_email, fp.practitioner_user_id, fp.created_at,
+            "SELECT fp.client_user_id, fp.client_name, fp.client_email, fp.practitioner_user_id, fp.token, fp.created_at,
                     COALESCE(
                         (SELECT MAX(r.created_at) FROM {$wpdb->prefix}hdlv2_reports r WHERE r.client_user_id = fp.client_user_id AND r.report_type IN ('final','quarterly')),
                         fp.stage3_completed_at
@@ -532,12 +525,21 @@ class HDLV2_Checkin {
             $prac = get_userdata( $c->practitioner_user_id );
             if ( ! $prac ) continue;
 
-            // Send email
+            // Send email to practitioner
             HDLV2_Email_Templates::quarterly_review_due( array(
                 'practitioner_email' => $prac->user_email,
                 'client_name'        => $c->client_name,
                 'dashboard_url'      => admin_url( 'admin.php?page=hdl-dashboard' ),
             ) );
+
+            // Send email to client
+            if ( $c->client_email ) {
+                HDLV2_Email_Templates::quarterly_review_client( array(
+                    'client_name'  => $c->client_name ?: 'there',
+                    'client_email' => $c->client_email,
+                    'review_url'   => site_url( '/my-flight-plan/?token=' . $c->token ),
+                ) );
+            }
 
             // Timeline entry
             if ( class_exists( 'HDLV2_Timeline' ) ) {

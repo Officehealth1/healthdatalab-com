@@ -187,15 +187,12 @@
       fd.append('nonce', CFG.nonce);
       fd.append('logo', file);
 
-      console.log('Logo upload: posting to', CFG.ajax_url, 'with nonce', CFG.nonce);
       fetch(CFG.ajax_url, { method: 'POST', body: fd })
         .then(function (r) {
-          console.log('Logo upload: response status', r.status);
           if (!r.ok) throw new Error('HTTP ' + r.status);
           return r.text();
         })
         .then(function (text) {
-          console.log('Logo upload: raw response', text);
           var res;
           try { res = JSON.parse(text); } catch (e) { throw new Error('Not JSON: ' + text.substring(0, 100)); }
           return res;
@@ -216,7 +213,6 @@
         .catch(function (err) {
           if (dropzone) dropzone.style.pointerEvents = '';
           if (logoLabel) logoLabel.textContent = 'Upload failed — try again';
-          console.error('Logo upload error:', err);
           fileInput.value = '';
         });
     });

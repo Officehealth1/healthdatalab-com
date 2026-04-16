@@ -133,7 +133,7 @@ add_action( 'plugins_loaded', function () {
     }
 
     // Constants — all prefixed HDLV2_ to avoid collision with V1's HDL_*
-    define( 'HDLV2_VERSION', '0.9.3' );
+    define( 'HDLV2_VERSION', '0.9.4' );
     define( 'HDLV2_DB_VERSION', '2.0' );
     define( 'HDLV2_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
     define( 'HDLV2_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
