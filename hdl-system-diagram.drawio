@@ -1,0 +1,171 @@
+<mxfile host="Electron" agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) draw.io/29.6.6 Chrome/144.0.7559.236 Electron/40.8.4 Safari/537.36" version="29.6.6">
+  <diagram name="HDL System" id="hdl-system-main">
+    <mxGraphModel dx="2593" dy="1404" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1600" pageHeight="2200" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="awaken-bg" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;strokeWidth=2;arcSize=8;verticalAlign=top;fontSize=12;" value="" vertex="1">
+          <mxGeometry height="570" width="1520" x="40" y="40" as="geometry" />
+        </mxCell>
+        <mxCell id="awaken-label" parent="1" style="text;html=1;fontSize=14;fontStyle=1;fillColor=none;strokeColor=none;fontColor=#2980b9;verticalAlign=top;" value="AWAKEN — Intake &amp; Report" vertex="1">
+          <mxGeometry height="30" width="300" x="60" y="50" as="geometry" />
+        </mxCell>
+        <mxCell id="s1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#6c8ebf;strokeWidth=1;arcSize=10;verticalAlign=middle;fontSize=11;spacingTop=4;spacingBottom=4;" value="&lt;font style=&quot;color: rgb(0, 0, 0);&quot;&gt;&lt;b&gt;Stage 1: Quick Insight&lt;/b&gt;&lt;br&gt;&lt;br&gt;Age, height, weight, waist,&lt;br&gt;activity level&lt;br&gt;&lt;br&gt;⏱ 2–3 minutes&lt;br&gt;&lt;br&gt;&lt;i&gt;Auto: Rate of Ageing graphic&lt;/i&gt;&lt;/font&gt;" vertex="1">
+          <mxGeometry height="160" width="220" x="70" y="90" as="geometry" />
+        </mxCell>
+        <mxCell id="a1" edge="1" parent="1" source="s1" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#7f8c8d;strokeWidth=2;endArrow=blockThin;endFill=1;" target="s2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="s2" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#6c8ebf;strokeWidth=1;arcSize=10;verticalAlign=middle;fontSize=11;spacingTop=4;spacingBottom=4;" value="&lt;font style=&quot;color: rgb(0, 0, 0);&quot;&gt;&lt;b&gt;Stage 2: The WHY&lt;/b&gt;&lt;br&gt;&lt;br&gt;Key people, motivations,&lt;br&gt;purpose, long-term vision&lt;br&gt;&lt;br&gt;🎙️ Audio or text input&lt;br&gt;⏱ 5–10 minutes&lt;br&gt;&lt;br&gt;&lt;i&gt;AI: WHY profile extracted&lt;/i&gt;&lt;/font&gt;" vertex="1">
+          <mxGeometry height="160" width="220" x="340" y="90" as="geometry" />
+        </mxCell>
+        <mxCell id="a2" edge="1" parent="1" source="s2" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#7f8c8d;strokeWidth=2;endArrow=blockThin;endFill=1;" target="s3">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="s3" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#6c8ebf;strokeWidth=1;arcSize=10;verticalAlign=middle;fontSize=11;spacingTop=4;spacingBottom=4;" value="&lt;font style=&quot;color: rgb(0, 0, 0);&quot;&gt;&lt;b&gt;Stage 3: The Detail&lt;/b&gt;&lt;br&gt;&lt;br&gt;BP, meds, family hx, fitness&lt;br&gt;tests, sleep, diet (22 factors)&lt;br&gt;&lt;br&gt;⏱ 15–20 minutes&lt;br&gt;&quot;Skip what you don&#39;t know&quot;&lt;br&gt;&lt;br&gt;&lt;i&gt;Practitioner fills gaps&lt;/i&gt;&lt;/font&gt;" vertex="1">
+          <mxGeometry height="160" width="220" x="620" y="90" as="geometry" />
+        </mxCell>
+        <mxCell id="edit-note" parent="1" style="text;html=1;fontSize=10;fontStyle=2;fillColor=none;strokeColor=none;fontColor=#7f8c8d;" value="All 3 stages editable by client &amp; practitioner at any time. Save-as-you-go." vertex="1">
+          <mxGeometry height="20" width="400" x="60" y="260" as="geometry" />
+        </mxCell>
+        <mxCell id="draft" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#6c8ebf;strokeWidth=1;arcSize=10;verticalAlign=middle;fontSize=11;" value="&lt;font style=&quot;color: rgb(0, 0, 0);&quot;&gt;&lt;b&gt;📄 DRAFT Longevity Report&lt;/b&gt;&lt;br&gt;&lt;br&gt;Auto-generated from Stages 1–3&lt;br&gt;Labelled as draft&lt;br&gt;Client can see before consultation&lt;/font&gt;" vertex="1">
+          <mxGeometry height="100" width="340" x="60" y="300" as="geometry" />
+        </mxCell>
+        <mxCell id="a3" edge="1" parent="1" source="s3" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#7f8c8d;strokeWidth=2;endArrow=blockThin;endFill=1;" target="draft">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="consult" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fef9e7;strokeColor=#f39c12;strokeWidth=2;arcSize=10;verticalAlign=middle;fontSize=11;" value="&lt;font style=&quot;color: rgb(0, 0, 0);&quot;&gt;&lt;b&gt;Practitioner Consultation&lt;/b&gt;&lt;br&gt;&lt;br&gt;Reviews draft report&lt;br&gt;Checks &amp;amp; corrects client data&lt;br&gt;Adds consultation notes&lt;br&gt;(typed or 🎙️ audio → AI digest)&lt;br&gt;Sets priorities &amp;amp; milestones&lt;/font&gt;" vertex="1">
+          <mxGeometry height="120" width="280" x="450" y="290" as="geometry" />
+        </mxCell>
+        <mxCell id="a4" edge="1" parent="1" source="draft" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#7f8c8d;strokeWidth=2;endArrow=blockThin;endFill=1;" target="consult">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="final" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;strokeWidth=2;arcSize=10;verticalAlign=middle;fontSize=11;" value="&lt;font style=&quot;color: rgb(0, 0, 0);&quot;&gt;&lt;b&gt;📄 FINAL Longevity Report&lt;/b&gt;&lt;br&gt;&lt;br&gt;ALT-aligned: AWAKEN / LIFT / THRIVE&lt;br&gt;&lt;br&gt;Includes &lt;b&gt;milestone timeline&lt;/b&gt;:&lt;br&gt;6 months / 2 years / 5 years / 10+ years&lt;br&gt;(concrete, WHY-connected goals)&lt;br&gt;&lt;br&gt;Regenerates when source data updated&lt;/font&gt;" vertex="1">
+          <mxGeometry height="120" width="680" x="60" y="440" as="geometry" />
+        </mxCell>
+        <mxCell id="a5" edge="1" parent="1" source="consult" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#7f8c8d;strokeWidth=2;endArrow=blockThin;endFill=1;" target="final">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="widget-bg" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;strokeWidth=2;arcSize=8;dashed=1;" value="" vertex="1">
+          <mxGeometry height="310" width="620" x="920" y="90" as="geometry" />
+        </mxCell>
+        <mxCell id="widget-label" parent="1" style="text;html=1;fontSize=13;fontStyle=1;fillColor=none;strokeColor=none;fontColor=#c0392b;verticalAlign=top;" value="🧲 STANDALONE LEAD MAGNET WIDGET (separate)" vertex="1">
+          <mxGeometry height="25" width="400" x="940" y="100" as="geometry" />
+        </mxCell>
+        <mxCell id="widget" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#b85450;strokeWidth=1;arcSize=10;verticalAlign=middle;fontSize=11;" value="&lt;font style=&quot;color: rgb(0, 0, 0);&quot;&gt;&lt;b&gt;Embeddable HTML Block&lt;/b&gt;&lt;br&gt;&lt;br&gt;Practitioner puts on their website&lt;br&gt;&quot;Curious about your rate of ageing?&quot;&lt;br&gt;&lt;br&gt;Visitor enters basic data →&lt;br&gt;Speedometer on screen →&lt;br&gt;Contact details sent to practitioner&lt;br&gt;&lt;br&gt;&lt;b&gt;NOT connected to HDL pipeline&lt;/b&gt;&lt;br&gt;Self-contained HTML/JS&lt;br&gt;Calculation runs client-side&lt;/font&gt;" vertex="1">
+          <mxGeometry height="250" width="260" x="950" y="135" as="geometry" />
+        </mxCell>
+        <mxCell id="widget-value" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#b85450;strokeWidth=1;arcSize=10;verticalAlign=middle;fontSize=11;" value="&lt;font style=&quot;color: rgb(0, 0, 0);&quot;&gt;&lt;b&gt;Why this matters:&lt;/b&gt;&lt;br&gt;&lt;br&gt;Gives practitioners immediate&lt;br&gt;tangible value from day one.&lt;br&gt;&lt;br&gt;Lead magnet on their website&lt;br&gt;before they&#39;ve done the course.&lt;br&gt;&lt;br&gt;&lt;b&gt;Headline selling point&lt;/b&gt; in workshop.&lt;/font&gt;" vertex="1">
+          <mxGeometry height="250" width="280" x="1240" y="135" as="geometry" />
+        </mxCell>
+        <mxCell id="weekly-bg" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;strokeWidth=2;arcSize=8;" value="" vertex="1">
+          <mxGeometry height="420" width="1520" x="40" y="620" as="geometry" />
+        </mxCell>
+        <mxCell id="weekly-label" parent="1" style="text;html=1;fontSize=14;fontStyle=1;fillColor=none;strokeColor=none;fontColor=#219a52;verticalAlign=top;" value="✈️ LIFT &amp; THRIVE — Weekly Cycle (repeats)" vertex="1">
+          <mxGeometry height="30" width="400" x="60" y="630" as="geometry" />
+        </mxCell>
+        <mxCell id="cycle-icon" parent="1" style="text;html=1;fontSize=60;fillColor=none;strokeColor=none;fontColor=#82b366;opacity=30;" value="↻" vertex="1">
+          <mxGeometry height="60" width="60" x="1460" y="650" as="geometry" />
+        </mxCell>
+        <mxCell id="fp" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;strokeWidth=2;arcSize=10;verticalAlign=middle;fontSize=11;" value="&lt;font style=&quot;color: rgb(0, 0, 0);&quot;&gt;&lt;b&gt;✈️ Weekly Flight Plan (PDF)&lt;/b&gt;&lt;br&gt;&lt;br&gt;Landscape, 1 page/week&lt;br&gt;Time-of-day structure (Morning → Night)&lt;br&gt;☐ Movement / ☐ Nutrition / ☐ Key Actions&lt;br&gt;WHY anchors / Identity framing&lt;br&gt;Reverse side blank for journal&lt;br&gt;&lt;br&gt;&lt;b&gt;+ Weekly overview page(s):&lt;/b&gt;&lt;br&gt;&quot;This week you are someone who...&quot;&lt;br&gt;Targets, shopping list, journey assistance&lt;/font&gt;" vertex="1">
+          <mxGeometry height="200" width="340" x="60" y="670" as="geometry" />
+        </mxCell>
+        <mxCell id="a6" edge="1" parent="1" source="final" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#27ae60;strokeWidth=2;endArrow=blockThin;endFill=1;fontSize=10;fontColor=#27ae60;labelBackgroundColor=#f8f9fa;" target="fp" value="primary data source">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="live" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#82b366;strokeWidth=1;arcSize=10;verticalAlign=middle;fontSize=11;" value="&lt;font style=&quot;color: rgb(0, 0, 0);&quot;&gt;&lt;b&gt;Client Lives the Week&lt;/b&gt;&lt;br&gt;&lt;br&gt;Ticks checkboxes&lt;br&gt;Writes on reverse side&lt;br&gt;Follows the plan (flexibly)&lt;/font&gt;" vertex="1">
+          <mxGeometry height="120" width="220" x="480" y="670" as="geometry" />
+        </mxCell>
+        <mxCell id="a7" edge="1" parent="1" source="fp" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#7f8c8d;strokeWidth=2;endArrow=blockThin;endFill=1;" target="live">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="checkin" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#82b366;strokeWidth=1;arcSize=10;verticalAlign=middle;fontSize=11;" value="&lt;font style=&quot;color: rgb(0, 0, 0);&quot;&gt;&lt;b&gt;Weekly Check-in&lt;/b&gt;&lt;br&gt;&lt;br&gt;🎙️ Audio or text input&lt;br&gt;Bullet-point prompts on screen&lt;br&gt;(incl. &quot;too easy / too hard?&quot;)&lt;br&gt;&lt;br&gt;AI extracts structured summary&lt;br&gt;Client reviews &amp;amp; confirms&lt;br&gt;&lt;br&gt;&lt;b&gt;NOT a chatbot&lt;/b&gt;&lt;/font&gt;" vertex="1">
+          <mxGeometry height="180" width="240" x="780" y="670" as="geometry" />
+        </mxCell>
+        <mxCell id="a8" edge="1" parent="1" source="live" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#7f8c8d;strokeWidth=2;endArrow=blockThin;endFill=1;" target="checkin">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="summary" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#82b366;strokeWidth=1;arcSize=10;verticalAlign=middle;fontSize=11;" value="&lt;font style=&quot;color: rgb(0, 0, 0);&quot;&gt;&lt;b&gt;📋 Weekly Summary Stored&lt;/b&gt;&lt;br&gt;&lt;br&gt;Date-stamped against&lt;br&gt;client profile&lt;br&gt;&lt;br&gt;Builds timeline of&lt;br&gt;client&#39;s evolution&lt;/font&gt;" vertex="1">
+          <mxGeometry height="130" width="200" x="1100" y="670" as="geometry" />
+        </mxCell>
+        <mxCell id="a9" edge="1" parent="1" source="checkin" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#7f8c8d;strokeWidth=2;endArrow=blockThin;endFill=1;" target="summary">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="a10" edge="1" parent="1" source="summary" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#27ae60;strokeWidth=2;endArrow=blockThin;endFill=1;fontSize=10;fontColor=#27ae60;labelBackgroundColor=#d5e8d4;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=1;entryDx=0;entryDy=0;" target="fp" value="feeds into next week">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1200" y="1010" />
+              <mxPoint x="230" y="1010" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="a11" edge="1" parent="1" source="summary" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#e74c3c;strokeWidth=2;endArrow=blockThin;endFill=1;fontSize=10;fontColor=#e74c3c;labelBackgroundColor=#f8f9fa;dashed=1;" target="status" value="flags critical issues">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="prac-bg" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fef9e7;strokeColor=#f39c12;strokeWidth=2;arcSize=8;" value="" vertex="1">
+          <mxGeometry height="220" width="1520" x="40" y="1080" as="geometry" />
+        </mxCell>
+        <mxCell id="prac-label" parent="1" style="text;html=1;fontSize=14;fontStyle=1;fillColor=none;strokeColor=none;fontColor=#d68910;verticalAlign=top;" value="🖥 PRACTITIONER DASHBOARD" vertex="1">
+          <mxGeometry height="30" width="350" x="60" y="1090" as="geometry" />
+        </mxCell>
+        <mxCell id="status" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#f39c12;strokeWidth=1;arcSize=10;verticalAlign=middle;fontSize=11;" value="&lt;font style=&quot;color: rgb(0, 0, 0);&quot;&gt;&lt;b&gt;Client Status&lt;/b&gt;&lt;br&gt;&lt;br&gt;🟢 Progress Normal&lt;br&gt;🟡 Awaiting Consult&lt;br&gt;🔴 Client Needs Attention&lt;br&gt;&lt;br&gt;&lt;i&gt;AI auto-flags from check-in&lt;/i&gt;&lt;/font&gt;" vertex="1">
+          <mxGeometry height="150" width="220" x="60" y="1130" as="geometry" />
+        </mxCell>
+        <mxCell id="prac-actions" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#f39c12;strokeWidth=1;arcSize=10;verticalAlign=middle;fontSize=11;" value="&lt;font style=&quot;color: rgb(0, 0, 0);&quot;&gt;&lt;b&gt;Practitioner Can At Any Time:&lt;/b&gt;&lt;br&gt;&lt;br&gt;• View client timeline (all summaries &amp;amp; plans)&lt;br&gt;• Add notes → triggers Flight Plan update&lt;br&gt;• Edit client form data&lt;br&gt;• Generate new Flight Plan mid-week&lt;/font&gt;" vertex="1">
+          <mxGeometry height="150" width="340" x="340" y="1130" as="geometry" />
+        </mxCell>
+        <mxCell id="priority" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#f39c12;strokeWidth=1;arcSize=10;verticalAlign=middle;fontSize=11;" value="&lt;b&gt;&lt;font style=&quot;color: rgb(0, 0, 0);&quot;&gt;Flight Plan Input Priority&lt;/font&gt;&lt;/b&gt;&lt;br&gt;&lt;br&gt;1. &lt;font color=&quot;#c0392b&quot;&gt;&lt;b&gt;Practitioner Notes — HIGHEST&lt;/b&gt;&lt;/font&gt;&lt;br&gt;2. &lt;font color=&quot;#c0392b&quot;&gt;Consultation Digest — HIGH&lt;/font&gt;&lt;br&gt;3. &lt;font color=&quot;#2980b9&quot;&gt;Longevity Report — BASE DATA&lt;/font&gt;&lt;br&gt;4. &lt;font color=&quot;#d68910&quot;&gt;Client Check-in — MEDIUM&lt;/font&gt;&lt;br&gt;&lt;font style=&quot;color: rgb(0, 0, 0);&quot;&gt;5. Progressive Challenge Logic&lt;br&gt;6. Previous Shopping List&lt;br&gt;7. Week Number / Phase&lt;/font&gt;" vertex="1">
+          <mxGeometry height="150" width="280" x="740" y="1130" as="geometry" />
+        </mxCell>
+        <mxCell id="a12" edge="1" parent="1" source="prac-actions" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#f39c12;strokeWidth=2;endArrow=blockThin;endFill=1;fontSize=10;fontColor=#d68910;labelBackgroundColor=#f8f9fa;exitX=0.5;exitY=0;exitDx=0;exitDy=0;entryX=0.15;entryY=1;entryDx=0;entryDy=0;" target="fp" value="practitioner notes → AI favours">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="510" y="1060" />
+              <mxPoint x="111" y="1060" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="q-bg" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;strokeWidth=2;arcSize=8;" value="" vertex="1">
+          <mxGeometry height="160" width="1520" x="50" y="1350" as="geometry" />
+        </mxCell>
+        <mxCell id="q-label" parent="1" style="text;html=1;fontSize=14;fontStyle=1;fillColor=none;strokeColor=none;fontColor=#7d3c98;verticalAlign=top;" value="📊 QUARTERLY REVIEW (every 3 months)" vertex="1">
+          <mxGeometry height="30" width="400" x="60" y="1350" as="geometry" />
+        </mxCell>
+        <mxCell id="q1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#9673a6;strokeWidth=1;arcSize=10;verticalAlign=middle;fontSize=11;" value="&lt;font style=&quot;color: rgb(0, 0, 0);&quot;&gt;&lt;b&gt;In-depth Consultation&lt;/b&gt;&lt;br&gt;&lt;br&gt;Revisit form data&lt;br&gt;Update measurements&lt;br&gt;Review what&#39;s changed&lt;/font&gt;" vertex="1">
+          <mxGeometry height="90" width="240" x="60" y="1390" as="geometry" />
+        </mxCell>
+        <mxCell id="q2" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#9673a6;strokeWidth=1;arcSize=10;verticalAlign=middle;fontSize=11;" value="&lt;font style=&quot;color: rgb(0, 0, 0);&quot;&gt;&lt;b&gt;Regenerate Report&lt;/b&gt;&lt;br&gt;&lt;br&gt;Updated Longevity Report&lt;br&gt;Compare trajectories:&lt;br&gt;then vs now&lt;/font&gt;" vertex="1">
+          <mxGeometry height="90" width="240" x="380" y="1390" as="geometry" />
+        </mxCell>
+        <mxCell id="q3" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#9673a6;strokeWidth=1;arcSize=10;verticalAlign=middle;fontSize=11;" value="&lt;font style=&quot;color: rgb(0, 0, 0);&quot;&gt;&lt;b&gt;Review Milestones&lt;/b&gt;&lt;br&gt;&lt;br&gt;Hit → celebrated &amp;amp; replaced&lt;br&gt;Missed → recalibrated&lt;br&gt;New targets set → cycle continues&lt;/font&gt;" vertex="1">
+          <mxGeometry height="90" width="260" x="700" y="1385" as="geometry" />
+        </mxCell>
+        <mxCell id="qa1" edge="1" parent="1" source="q1" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#7f8c8d;strokeWidth=2;endArrow=blockThin;endFill=1;" target="q2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="qa2" edge="1" parent="1" source="q2" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#7f8c8d;strokeWidth=2;endArrow=blockThin;endFill=1;" target="q3">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="qa3" edge="1" parent="1" source="q3" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#8e44ad;strokeWidth=2;endArrow=blockThin;endFill=1;fontSize=10;fontColor=#8e44ad;labelBackgroundColor=#f8f9fa;exitX=1;exitY=0.5;exitDx=0;exitDy=0;" target="fp" value="refreshed data → new cycle">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1500" y="1435" />
+              <mxPoint x="1500" y="770" />
+              <mxPoint x="60" y="770" />
+              <mxPoint x="60" y="770" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="audio-bg" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fdfefe;strokeColor=#95a5a6;strokeWidth=2;arcSize=8;dashed=1;" value="" vertex="1">
+          <mxGeometry height="150" width="460" x="1080" y="1130" as="geometry" />
+        </mxCell>
+        <mxCell id="audio-label" parent="1" style="text;html=1;fontSize=12;fontStyle=1;fillColor=none;strokeColor=none;fontColor=#7f8c8d;" value="🎙️ SHARED AUDIO COMPONENT (build once, use 3×)" vertex="1">
+          <mxGeometry height="20" width="400" x="1100" y="1140" as="geometry" />
+        </mxCell>
+        <mxCell id="audio" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#95a5a6;strokeWidth=1;arcSize=10;verticalAlign=middle;fontSize=11;" value="&lt;font style=&quot;color: rgb(0, 0, 0);&quot;&gt;Record in browser / Upload audio / Type&lt;br&gt;→ Transcribe (Whisper/Deepgram)&lt;br&gt;→ AI extract (context-specific prompt)&lt;br&gt;→ Display summary → Confirm → Store&lt;br&gt;&lt;br&gt;&lt;b&gt;Used in:&lt;/b&gt; Stage 2 WHY, Consultation Notes, Weekly Check-in&lt;/font&gt;" vertex="1">
+          <mxGeometry height="100" width="420" x="1110" y="1170" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

@@ -147,8 +147,6 @@ window.HDLAudioComponent = (function () {
 
   AudioComponent.prototype.startRecording = function (btn, keepTranscript) {
     var self = this;
-    console.log('[HDL-DEBUG] startRecording() called');
-
     // Microphone requires HTTPS or localhost — check early with a clear message
     if (window.isSecureContext === false) {
       this.showError('Microphone requires HTTPS or localhost. Try http://localhost:10008 for local testing, or upload a pre-recorded file.');
@@ -156,7 +154,6 @@ window.HDLAudioComponent = (function () {
     }
 
     var SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    console.log('[HDL-DEBUG] SpeechRecognition available:', !!SpeechRecognition);
 
     if (!SpeechRecognition) {
       this.startRecordingFallback(btn);
@@ -190,7 +187,6 @@ window.HDLAudioComponent = (function () {
     };
 
     this.recognition.onerror = function (event) {
-      console.log('[HDL-DEBUG] recognition.onerror fired:', event.error, 'transcriptParts:', self.transcriptParts.length, 'interimTranscript:', self.interimTranscript);
       if (event.error === 'no-speech') {
         // Silence pause — not fatal, recognition will restart via onend
         return;
@@ -205,7 +201,6 @@ window.HDLAudioComponent = (function () {
         self.recognition = null;
         self.removeLiveTranscript();
         self.resetRecordBtn(btn);
-        console.log('[HDL-DEBUG] Falling back to MediaRecorder');
         self.startRecordingFallback(btn);
         return;
       }
@@ -217,12 +212,11 @@ window.HDLAudioComponent = (function () {
         self.resetRecordBtn(btn);
         self.showError('Microphone access denied. Please allow microphone access and try again.');
       } else {
-        console.error('Speech recognition error:', event.error);
+        // Speech recognition error — non-fatal, handled by fallback
       }
     };
 
     this.recognition.onend = function () {
-      console.log('[HDL-DEBUG] recognition.onend fired, isRecording:', self.isRecording, 'recognition:', !!self.recognition);
       // Web Speech API stops on silence; restart if user hasn't clicked stop
       if (self.isRecording && self.recognitionRestarts < 50) {
         self.recognitionRestarts++;
@@ -230,9 +224,7 @@ window.HDLAudioComponent = (function () {
       }
     };
 
-    this.recognition.onstart = function () {
-      console.log('[HDL-DEBUG] recognition.onstart fired');
-    };
+    this.recognition.onstart = function () {};
 
     // In simpleMode, capture existing textarea content before recording
     if (this.simpleMode) {
@@ -268,7 +260,6 @@ window.HDLAudioComponent = (function () {
   // Fallback for browsers without Web Speech API (Firefox, etc.)
   AudioComponent.prototype.startRecordingFallback = function (btn) {
     var self = this;
-    console.log('[HDL-DEBUG] startRecordingFallback() called');
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
       this.showError('Your browser does not support audio recording. Please use Chrome, Edge, or Safari, or upload a file.');
       return;
@@ -276,7 +267,6 @@ window.HDLAudioComponent = (function () {
 
     navigator.mediaDevices.getUserMedia({ audio: true })
       .then(function (stream) {
-        console.log('[HDL-DEBUG] getUserMedia success, MediaRecorder starting');
         self.audioChunks = [];
         self.mediaRecorder = new MediaRecorder(stream);
 
@@ -303,14 +293,12 @@ window.HDLAudioComponent = (function () {
         }, 1000);
       })
       .catch(function (err) {
-        console.log('[HDL-DEBUG] getUserMedia FAILED:', err);
         self.showError('Microphone access denied. Please allow microphone access and try again.');
       });
   };
 
   AudioComponent.prototype.stopRecording = function (btn) {
     var self = this;
-    console.log('[HDL-DEBUG] stopRecording() called, recognition:', !!this.recognition, 'mediaRecorder:', !!this.mediaRecorder);
     this.isRecording = false;
 
     // Web Speech API path

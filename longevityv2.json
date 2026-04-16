@@ -1,0 +1,21 @@
+{
+  "client_name": "{{1.client_name}}",
+  "practitioner_name": "{{1.practitioner_name}}",
+  "practitioner_email": "{{1.practitioner_email}}",
+  "practitioner_logo_url": "{{1.practitioner_logo_url}}",
+  "chronological_age": "{{1.chronological_age}}",
+  "biological_age": "{{1.biological_age}}",
+  "rate_of_ageing": "{{1.rate_of_ageing}}",
+  "gauge_url": "{{1.gauge_url}}",
+  "report_date": "{{1.report_date}}",
+  "awaken_content": "{{replace(replace(toString(1.awaken_content); newline; "\n"); """"; "\""")}}",
+  "lift_content": "{{replace(replace(toString(1.lift_content); newline; "\n"); """"; "\""")}}",
+  "thrive_content": "{{replace(replace(toString(1.thrive_content); newline; "\n"); """"; "\""")}}",
+  "distilled_why": "{{replace(replace(toString(1.why_profile.distilled_why); newline; "\n"); """"; "\""")}}",
+  "milestones_6mo": "{{replace(replace(toString(1.milestones.six_months); newline; "\n"); """"; "\""")}}",
+  "milestones_2yr": "{{replace(replace(toString(1.milestones.two_years); newline; "\n"); """"; "\""")}}",
+  "milestones_5yr": "{{replace(replace(toString(1.milestones.five_years); newline; "\n"); """"; "\""")}}",
+  "milestones_10yr": "{{replace(replace(toString(1.milestones.ten_plus_years); newline; "\n"); """"; "\""")}}",
+  "recommendations": "{{replace(replace(toString(1.recommendations); newline; "\n"); """"; "\""")}}",
+  "all_scores": "{{replace(replace(toString(1.all_scores); newline; "\n"); """"; "\""")}}"
+}

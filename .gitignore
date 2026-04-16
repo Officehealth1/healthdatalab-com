@@ -37,3 +37,17 @@ assets/css/CLAUDE.md
 assets/images/CLAUDE.md
 assets/js/CLAUDE.md
 scripts/CLAUDE.md
+
+# Security audit & vulnerability docs (local-only — do NOT publish)
+SECURITY-AUDIT*.md
+
+# E2E test artifacts (contain local test tokens)
+E2E-TEST-*.md
+E2E-TEST-*.txt
+E2E-WEEK*.txt
+
+# Screenshots at repo root (testing screenshots — not tracked assets)
+/*.png
+
+# The Lab integration (contains production API keys — internal only)
+the-lab-integration/

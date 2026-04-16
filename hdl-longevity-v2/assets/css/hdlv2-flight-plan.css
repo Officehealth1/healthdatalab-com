@@ -208,14 +208,6 @@
   border-left: 3px solid #3d8da0;
 }
 .fp-action[data-state="done"] span { text-decoration: none; }
-
-/* State: Not Done (explicitly marked as missed) */
-.fp-action[data-state="not-done"] {
-  background: #fafafa;
-  color: #aaa;
-  opacity: 0.55;
-  border-left: 3px solid transparent;
-}
 .fp-action[data-state="not-done"] span { text-decoration: line-through; }
 
 /* Hover — subtle feedback */
@@ -442,18 +434,6 @@
     border-left: 3px solid #3d8da0 !important;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
-  }
-
-  .fp-action[data-state="not-done"] {
-    background: #fafafa !important;
-    color: #aaa !important;
-    opacity: 0.55;
-    -webkit-print-color-adjust: exact;
-    print-color-adjust: exact;
-  }
-
-  .fp-action[data-state="not-done"] span {
-    text-decoration: line-through;
   }
 
   .fp-action[data-state="default"] {

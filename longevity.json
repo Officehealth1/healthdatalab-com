@@ -1,0 +1,206 @@
+{
+  "fullName": "{{1.fullName}}",
+  "nickname": "{{1.refNickname}}",
+  "email": "{{1.email}}",
+  "age": "{{1.age}}",
+  "gender": "{{1.gender}}",
+  "height": "{{1.height}}",
+  "weight": "{{1.weight}}",
+  "waist": "{{1.waist}}",
+  "hip": "{{1.hip}}",
+  "bpSystolic": "{{1.bpSystolic}}",
+  "bpDiastolic": "{{1.bpDiastolic}}",
+  "restingHeartRateBpm": "{{1.restingHeartRateBpm}}",
+  "biologicalAge": "{{1.biologicalAge}}",
+  "ageShift": "{{1.ageShift}}",
+  "ageShiftText": "{{1.ageShiftText}}",
+  "ageShiftClass": "{{1.ageShiftClass}}",
+  "bioAgeLowerThanChrono": {{1.bioAgeLowerThanChrono}},
+  "bioAgeHigherThanChrono": {{1.bioAgeHigherThanChrono}},
+  "agingRate": "{{1.agingRate}}",
+  "bmi": "{{1.bmi}}",
+  "bmiCategory": "{{1.bmiCategory}}",
+  "whr": "{{1.whr}}",
+  "whrCategory": "{{1.whrCategory}}",
+  "whtr": "{{1.whtr}}",
+  "whtrCategory": "{{1.whtrCategory}}",
+  "lifestyle_score_value": "{{1.lifestyle_score_value}}",
+  "healthChallenges": "{{1.healthChallenges}}",
+  "healthGoals": "{{1.healthGoals}}",
+
+  "metadata": {
+      "submissionTime": "{{1.entryDate}}",
+      "formVersion": "{{1.metadata.formVersion}}",
+      "language": {
+          "code": "{{1.metadata.language.code}}",
+          "name": "{{1.metadata.language.name}}",
+          "source": "{{1.metadata.language.source}}",
+          "isTranslated": "{{1.metadata.language.isTranslated}}",
+          "translationDirection": "{{1.metadata.language.translationDirection}}"
+      },
+      "timezone": "{{1.metadata.timezone}}",
+      "gtranslateDetected": "{{1.metadata.gtranslateDetected}}"
+  },
+
+  "scores": {
+    "physicalActivity": "{{1.scores.physicalActivity}}",
+    "sitToStand": "{{1.scores.sitToStand}}",
+    "breathHold": "{{1.scores.breathHold}}",
+    "balance": "{{1.scores.balance}}",
+    "sleepDuration": "{{1.scores.sleepDuration}}",
+    "sleepQuality": "{{1.scores.sleepQuality}}",
+    "stressLevels": "{{1.scores.stressLevels}}",
+    "socialConnections": "{{1.scores.socialConnections}}",
+    "dietQuality": "{{1.scores.dietQuality}}",
+    "alcoholConsumption": "{{1.scores.alcoholConsumption}}",
+    "smokingStatus": "{{1.scores.smokingStatus}}",
+    "cognitiveActivity": "{{1.scores.cognitiveActivity}}",
+    "sunlightExposure": "{{1.scores.sunlightExposure}}",
+    "supplementIntake": "{{1.scores.supplementIntake}}",
+    "skinElasticity": "{{1.scores.skinElasticity}}",
+    "bmiScore": "{{1.scores.bmiScore}}",
+    "whrScore": "{{1.scores.whrScore}}",
+    "whtrScore": "{{1.scores.whtrScore}}",
+    "bloodPressureScore": "{{1.scores.bloodPressureScore}}",
+    "heartRateScore": "{{1.scores.heartRateScore}}",
+    "overallHealthScore": "{{1.scores.overallHealthScore}}"
+  },
+
+  "answersText": {
+    "physicalActivity": "{{1.answersText.physicalActivity}}",
+    "sitToStand": "{{1.answersText.sitToStand}}",
+    "breathHold": "{{1.answersText.breathHold}}",
+    "balance": "{{1.answersText.balance}}",
+    "sleepDuration": "{{1.answersText.sleepDuration}}",
+    "sleepQuality": "{{1.answersText.sleepQuality}}",
+    "stressLevels": "{{1.answersText.stressLevels}}",
+    "socialConnections": "{{1.answersText.socialConnections}}",
+    "dietQuality": "{{1.answersText.dietQuality}}",
+    "alcoholConsumption": "{{1.answersText.alcoholConsumption}}",
+    "smokingStatus": "{{1.answersText.smokingStatus}}",
+    "cognitiveActivity": "{{1.answersText.cognitiveActivity}}",
+    "sunlightExposure": "{{1.answersText.sunlightExposure}}",
+    "supplementIntake": "{{1.answersText.supplementIntake}}",
+    "skinElasticity": "{{1.answersText.skinElasticity}}",
+    "overallHealthScore": "{{1.answersText.overallHealthScore}}"
+  },
+
+  "translatedAnswersText": {
+    "physicalActivity": "{{1.translatedAnswersText.physicalActivity}}",
+    "sitToStand": "{{1.translatedAnswersText.sitToStand}}",
+    "breathHold": "{{1.translatedAnswersText.breathHold}}",
+    "balance": "{{1.translatedAnswersText.balance}}",
+    "sleepDuration": "{{1.translatedAnswersText.sleepDuration}}",
+    "sleepQuality": "{{1.translatedAnswersText.sleepQuality}}",
+    "stressLevels": "{{1.translatedAnswersText.stressLevels}}",
+    "socialConnections": "{{1.translatedAnswersText.socialConnections}}",
+    "dietQuality": "{{1.translatedAnswersText.dietQuality}}",
+    "alcoholConsumption": "{{1.translatedAnswersText.alcoholConsumption}}",
+    "smokingStatus": "{{1.translatedAnswersText.smokingStatus}}",
+    "cognitiveActivity": "{{1.translatedAnswersText.cognitiveActivity}}",
+    "sunlightExposure": "{{1.translatedAnswersText.sunlightExposure}}",
+    "supplementIntake": "{{1.translatedAnswersText.supplementIntake}}",
+    "skinElasticity": "{{1.translatedAnswersText.skinElasticity}}",
+    "overallHealthScore": "{{1.translatedAnswersText.overallHealthScore}}"
+  },
+
+  "translatedContent": {},
+
+  "positiveFactors": [
+    {
+      "name": "{{1.positiveFactors[1].name}}",
+      "impact": "{{1.positiveFactors[1].impact}}",
+      "description": "{{1.positiveFactors[1].description}}"
+    },
+    {
+      "name": "{{1.positiveFactors[2].name}}",
+      "impact": "{{1.positiveFactors[2].impact}}",
+      "description": "{{1.positiveFactors[2].description}}"
+    },
+    {
+      "name": "{{1.positiveFactors[3].name}}",
+      "impact": "{{1.positiveFactors[3].impact}}",
+      "description": "{{1.positiveFactors[3].description}}"
+    }
+  ],
+
+  "negativeFactors": [
+    {
+      "name": "{{1.negativeFactors[1].name}}",
+      "impact": "{{1.negativeFactors[1].impact}}",
+      "description": "{{1.negativeFactors[1].description}}"
+    },
+    {
+      "name": "{{1.negativeFactors[2].name}}",
+      "impact": "{{1.negativeFactors[2].impact}}",
+      "description": "{{1.negativeFactors[2].description}}"
+    },
+    {
+      "name": "{{1.negativeFactors[3].name}}",
+      "impact": "{{1.negativeFactors[3].impact}}",
+      "description": "{{1.negativeFactors[3].description}}"
+    }
+  ],
+
+  "ai_results": {
+    "ai_intro_section": "{{76.`AI intro`}}",
+    "keyFindings": "{{76.`Key findings`}}",
+    "closing": "{{76.Closing}}",
+
+    "biologicalAge": "{{76.`Biological Age`}}",
+    "ageImpactAnalysis": "{{76.`Age Impact Analysis`}}",
+    "agingProcesses": "{{76.`Aging Process`}}",
+    "lifespanHealthspan": "{{76.`LifeSpan HealthSpan`}}",
+
+    "bodyComposition": "{{76.`Body Composition`}}",
+    "cardiovascularHealth": "{{76.`Cardio Vascular Health`}}",
+    "lifestyleScoreAnalysis": "{{76.`Lifestyle Score`}}",
+    "longevityInfluencesExplanation": "{{76.`Longevity Influence`}}",
+    "overallHealthAssessment": "{{76.`Overall Health Assessment`}}",
+
+    "personalizedInsights": "{{76.`Personalized Insights`}}",
+    "researchAndWisdom": "{{76.`Research and Wisdom`}}",
+    "strengthsAreas": "{{76.Strenghts}}",
+    "improvementAreas": "{{76.Improvements}}",
+
+    "objectives_why": "{{76.`Objectives Why`}}",
+    "objectives_how": "{{76.`Objectives How`}}",
+    "objectives_who": "{{76.`Objectives Who`}}",
+    "objectives_environment": "{{76.`Objectives Environment`}}",
+    "objectives_when": "{{76.`Objectives When`}}",
+    "recommendations_intro": "{{76.`Recommendations intro`}}",
+    "recommendations_note": "{{76.`Recommendations note`}}",
+    "summary_results_block": "{{76.`Summary Result Block`}}",
+    "summary_closing_narrative": "{{76.`Summary Closing Narrative`}}"
+  },
+
+  "biological_age_chart_url": "{{1.biological_age_chart_url}}",
+  "age_impact_chart_url": "{{1.age_impact_chart_url}}",
+  "detailed_scores_chart_url": "{{1.detailed_scores_chart_url}}",
+  "aging_rate_chart_url": "{{1.aging_rate_chart_url}}",
+  "body_composition_chart_url": "{{1.body_composition_chart_url}}",
+
+  "whr_min": "{{1.whr_min}}",
+  "whr_max": "{{1.whr_max}}",
+  "whr_threshold": "{{1.whr_threshold}}",
+  "whr_range": "{{1.whr_range}}",
+  "whtr_min": "{{1.whtr_min}}",
+  "whtr_max": "{{1.whtr_max}}",
+  "whtr_threshold": "{{1.whtr_threshold}}",
+  "whtr_range": "{{1.whtr_range}}",
+
+  "user_language": "{{1.metadata.language.code}}",
+  "cover_logo_url": "https://i.imgur.com/vP6oY12.png",
+  "scheduling_link": "{{1.scheduling_link}}",
+  "disclaimer_link": "{{1.disclaimer_link}}",
+  "chronologicalAge": "{{1.age}}",
+  "overall_health_percent": "{{1.overall_health_percent}}",
+  "overall_health_score": "{{1.overall_health_score}}",
+  "overallHealthPercentage": "{{1.overallHealthPercentage}}",
+  "independence_chart_url": "{{1.independence_chart_url}}",
+  "has_independence_chart_image": "{{1.has_independence_chart_image}}",
+  "independence_chart_image_base64": "{{1.independence_chart_image_base64}}",
+  "independence_card_current_status": "{{1.independence_card_current_status}}",
+  "independence_card_pessimistic": "{{1.independence_card_pessimistic}}",
+  "independence_card_optimistic": "{{1.independence_card_optimistic}}"
+}

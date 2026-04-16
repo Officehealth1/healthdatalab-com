@@ -327,6 +327,25 @@ HealthDataLab &mdash; Longevity coaching for health practitioners
     }
 
     // ──────────────────────────────────────────────────────────────
+    //  QUARTERLY REVIEW DUE (to client)
+    // ──────────────────────────────────────────────────────────────
+
+    public static function quarterly_review_client( $data ) {
+        $name  = esc_html( $data['client_name'] ?? 'there' );
+        $email = $data['client_email'] ?? '';
+        $url   = $data['review_url'] ?? '#';
+
+        $html = self::wrap(
+            "<h2 style='font-family:Poppins,sans-serif;font-size:20px;font-weight:700;color:" . self::DARK . ";margin:0 0 12px;'>Time for Your Quarterly Review</h2>"
+            . "<p style='font-size:14px;color:#444;line-height:1.7;margin:0 0 16px;'>Hi {$name}, it's been three months since your last assessment. A quarterly review updates your progress, refreshes your milestones, and helps your practitioner fine-tune your plan.</p>"
+            . "<p style='font-size:14px;color:#444;line-height:1.7;margin:0 0 20px;'>Your practitioner will be in touch to arrange your review.</p>"
+            . self::cta_button( $url, 'View Your Progress' )
+        );
+
+        wp_mail( $email, 'Quarterly Review Due — HealthDataLab', $html, array( 'Content-Type: text/html; charset=UTF-8' ) );
+    }
+
+    // ──────────────────────────────────────────────────────────────
     //  CLIENT NEEDS ATTENTION (to practitioner)
     // ──────────────────────────────────────────────────────────────
 
