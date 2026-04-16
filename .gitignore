@@ -38,16 +38,11 @@ assets/images/CLAUDE.md
 assets/js/CLAUDE.md
 scripts/CLAUDE.md
 
-# Security audit & vulnerability docs (local-only — do NOT publish)
-SECURITY-AUDIT*.md
-
-# E2E test artifacts (contain local test tokens)
-E2E-TEST-*.md
-E2E-TEST-*.txt
-E2E-WEEK*.txt
-
-# Screenshots at repo root (testing screenshots — not tracked assets)
-/*.png
-
-# The Lab integration (contains production API keys — internal only)
-the-lab-integration/
+# Local-only workspace — all contents are internal (see _local/README.md for structure):
+#   _local/screenshots/   testing screenshots
+#   _local/security/      vulnerability audits (never publish)
+#   _local/test-data/     E2E test artifacts (contain local tokens)
+#   _local/archives/      zips, PDFs, health reports (PII)
+#   _local/integrations/  the-lab-integration (production API keys)
+#   _local/templates/     PDF/JSON templates for Make.com
+_local/
