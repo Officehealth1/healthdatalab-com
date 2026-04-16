@@ -74,18 +74,22 @@ class HDLV2_Flight_Plan_Renderer {
 
                 if ( is_array( $slot_data ) ) {
                     foreach ( $slot_data as $action ) {
-                        if ( is_array( $action ) && isset( $action['text'] ) ) {
-                            $icon = $cat_icons[ $action['category'] ?? '' ] ?? '☐';
-                            $html .= '<div class="fp-action"><span class="fp-tick"></span>' . $icon . ' ' . esc_html( $action['text'] ) . '</div>';
-                        } elseif ( is_string( $action ) ) {
+                        if ( ! is_array( $action ) && is_string( $action ) ) {
                             $html .= '<div class="fp-action"><span class="fp-tick"></span>' . esc_html( $action ) . '</div>';
+                            continue;
+                        }
+                        if ( ! is_array( $action ) ) continue;
+                        // Support both brief format (type/action) and legacy (category/text)
+                        $type = $action['type'] ?? $action['category'] ?? '';
+                        $text = $action['action'] ?? $action['text'] ?? '';
+                        if ( $type === 'why_anchor' ) {
+                            $anchor_text = $text ?: ( $action['text'] ?? '' );
+                            $html .= '<div class="fp-why">' . esc_html( $anchor_text ) . '</div>';
+                        } else {
+                            $icon = $cat_icons[ $type ] ?? '☐';
+                            $html .= '<div class="fp-action"><span class="fp-tick"></span>' . $icon . ' ' . esc_html( $text ) . '</div>';
                         }
                     }
-                }
-
-                // WHY anchor
-                if ( isset( $day_data['why_anchor'] ) ) {
-                    $html .= '<div class="fp-why">' . esc_html( $day_data['why_anchor'] ) . '</div>';
                 }
 
                 $html .= '</div>';

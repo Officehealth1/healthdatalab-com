@@ -67,6 +67,13 @@ class HDLV2_Staged_Form {
             'callback'            => array( $this, 'rest_release_why' ),
             'permission_callback' => array( $this, 'check_practitioner_permission' ),
         ) );
+
+        // Make.com callback — receives extracted WHY profile after Stage 2 processing
+        register_rest_route( 'hdl-v2/v1', '/form/stage2-callback', array(
+            'methods'             => 'POST',
+            'callback'            => array( $this, 'rest_stage2_callback' ),
+            'permission_callback' => '__return_true',
+        ) );
     }
 
     public function check_practitioner_permission() {
@@ -149,6 +156,29 @@ class HDLV2_Staged_Form {
             array( '%d' )
         );
 
+        // Fire Stage 2 webhook to Make.com — only on explicit Submit, not auto-save
+        // Guard: skip if webhook already fired for identical text (prevents duplicate PDFs/emails)
+        $submitted = ! empty( $params['submitted'] );
+        if ( $stage === 2 && $submitted && ! empty( $merged['vision_text'] ) ) {
+            $text_hash    = md5( $merged['vision_text'] );
+            $prev_hash    = $progress->stage2_text_hash ?? '';
+            $already_fired = ! empty( $progress->stage2_webhook_fired_at );
+
+            if ( ! $already_fired || $text_hash !== $prev_hash ) {
+                $this->fire_stage2_webhook( $progress, $merged );
+                $wpdb->update(
+                    $wpdb->prefix . 'hdlv2_form_progress',
+                    array(
+                        'stage2_webhook_fired_at' => current_time( 'mysql' ),
+                        'stage2_text_hash'        => $text_hash,
+                    ),
+                    array( 'id' => $progress->id ),
+                    array( '%s', '%s' ),
+                    array( '%d' )
+                );
+            }
+        }
+
         return rest_ensure_response( array( 'success' => true, 'saved_fields' => count( $data ) ) );
     }
 
@@ -200,13 +230,27 @@ class HDLV2_Staged_Form {
             $extra_updates[ $data_col ]  = wp_json_encode( $stage_data );
         }
 
-        // Stage 2: save WHY profile + AI extraction
+        // Stage 2: practitioner gate — don't advance current_stage.
+        // Make.com callback handles WHY extraction; the practitioner "Release WHY"
+        // action is the ONLY thing that advances current_stage from 2 → 3.
         if ( $stage === 2 ) {
-            $why_result = HDLV2_AI_Service::extract_why( $stage_data );
-            $stage_data['distilled_why']    = $why_result['distilled_why'];
-            $stage_data['ai_reformulation'] = $why_result['ai_reformulation'];
-            $extra_updates[ $data_col ]     = wp_json_encode( $stage_data );
-            $this->save_why_profile( $progress, $stage_data, $why_result );
+            global $wpdb;
+            $wpdb->update(
+                $wpdb->prefix . 'hdlv2_form_progress',
+                array( $completed_col => current_time( 'mysql' ) ),
+                array( 'id' => $progress->id ),
+                array( '%s' ),
+                array( '%d' )
+            );
+
+            // Save WHY profile if stage_data already has AI extraction (backward compat)
+            if ( ! empty( $stage_data['distilled_why'] ) ) {
+                $this->save_why_profile( $progress, $stage_data, $stage_data );
+            }
+
+            $this->send_stage_email( $stage, $progress, $stage_data, null );
+
+            return rest_ensure_response( array( 'success' => true, 'stage' => 2 ) );
         }
 
         // Stage 3: full rate calculation + draft report row
@@ -545,9 +589,18 @@ class HDLV2_Staged_Form {
             array( 'id' => $why->id )
         );
 
+        // Advance client to Stage 3 — this is the ONLY place current_stage goes from 2 → 3
+        $wpdb->update(
+            $wpdb->prefix . 'hdlv2_form_progress',
+            array( 'current_stage' => 3 ),
+            array( 'id' => $progress->id ),
+            array( '%d' ),
+            array( '%d' )
+        );
+
         // Send Stage 3 invitation email
         if ( ! empty( $progress->client_email ) ) {
-            $form_url = site_url( '/longevity-assessment/?token=' . $progress->token );
+            $form_url = site_url( '/assessment/?token=' . $progress->token );
             HDLV2_Email_Templates::why_gate_released( array(
                 'client_name'  => $progress->client_name,
                 'client_email' => $progress->client_email,
@@ -556,6 +609,84 @@ class HDLV2_Staged_Form {
         }
 
         return rest_ensure_response( array( 'success' => true, 'released' => true ) );
+    }
+
+    // ──────────────────────────────────────────────────────────────
+    //  REST: STAGE 2 CALLBACK (Make.com → WordPress)
+    // ──────────────────────────────────────────────────────────────
+
+    /**
+     * Receive extracted WHY profile from Make.com after Stage 2 processing.
+     * Creates the WHY profile row and marks stage2_completed_at.
+     * Does NOT advance current_stage — that's the practitioner's job via release-why.
+     *
+     * Body: { token, key_people: [], key_motivations: [], key_fears: [],
+     *         distilled_why: string, ai_reformulation: string }
+     * Auth: Authorization: Bearer <HDLV2_MAKE_CALLBACK_SECRET>
+     */
+    public function rest_stage2_callback( $request ) {
+        // Verify shared secret
+        $secret = defined( 'HDLV2_MAKE_CALLBACK_SECRET' ) ? HDLV2_MAKE_CALLBACK_SECRET : '';
+        $auth   = $request->get_header( 'authorization' );
+        if ( empty( $secret ) || $auth !== 'Bearer ' . $secret ) {
+            return new WP_Error( 'unauthorized', 'Invalid or missing authorization.', array( 'status' => 403 ) );
+        }
+
+        $params = $request->get_json_params();
+        $token  = $this->validate_token_from_body( $params );
+        if ( is_wp_error( $token ) ) return $token;
+
+        $progress = $this->get_progress_by_token( $token );
+        if ( ! $progress ) {
+            return new WP_Error( 'invalid_token', 'Assessment not found.', array( 'status' => 404 ) );
+        }
+
+        // Guard: already past Stage 2
+        if ( (int) $progress->current_stage >= 3 ) {
+            return rest_ensure_response( array( 'success' => true, 'already_processed' => true ) );
+        }
+
+        // Pull existing stage2_data for vision_text and raw_input
+        $stage2_data = json_decode( $progress->stage2_data, true ) ?: array();
+
+        // Upsert WHY profile (same pattern as save_why_profile)
+        global $wpdb;
+        $table = $wpdb->prefix . 'hdlv2_why_profiles';
+
+        $existing_id = $wpdb->get_var( $wpdb->prepare(
+            "SELECT id FROM $table WHERE form_progress_id = %d LIMIT 1",
+            $progress->id
+        ) );
+
+        $profile_data = array(
+            'form_progress_id' => $progress->id,
+            'client_user_id'   => $progress->client_user_id ?: null,
+            'key_people'       => wp_json_encode( $params['key_people'] ?? array() ),
+            'motivations'      => wp_json_encode( $params['key_motivations'] ?? array() ),
+            'fears'            => wp_json_encode( $params['key_fears'] ?? array() ),
+            'vision_text'      => sanitize_textarea_field( $stage2_data['vision_text'] ?? '' ),
+            'distilled_why'    => sanitize_textarea_field( $params['distilled_why'] ?? '' ),
+            'ai_reformulation' => sanitize_textarea_field( $params['ai_reformulation'] ?? '' ),
+            'raw_input'        => wp_json_encode( $stage2_data ),
+            'released'         => 0,
+        );
+
+        if ( $existing_id ) {
+            $wpdb->update( $table, $profile_data, array( 'id' => $existing_id ) );
+        } else {
+            $wpdb->insert( $table, $profile_data );
+        }
+
+        // Mark Stage 2 as completed — but do NOT advance current_stage
+        $wpdb->update(
+            $wpdb->prefix . 'hdlv2_form_progress',
+            array( 'stage2_completed_at' => current_time( 'mysql' ) ),
+            array( 'id' => $progress->id ),
+            array( '%s' ),
+            array( '%d' )
+        );
+
+        return rest_ensure_response( array( 'success' => true ) );
     }
 
     // ──────────────────────────────────────────────────────────────
@@ -939,6 +1070,54 @@ class HDLV2_Staged_Form {
         ) );
 
         error_log( sprintf( '[HDLV2] Make.com webhook dispatched for progress_id=%d, rate=%s', $progress->id, $calc_result['rate'] ?? 'N/A' ) );
+    }
+
+    /**
+     * Fire Make.com webhook after Stage 2 WHY data is saved.
+     * Make.com handles AI extraction (distilled WHY, key people, motivations).
+     * Payload matches the pattern used by fire_make_webhook() and Final Report.
+     */
+    private function fire_stage2_webhook( $progress, $stage2_data ) {
+        $webhook_url = defined( 'HDLV2_MAKE_STAGE2_WHY' ) ? HDLV2_MAKE_STAGE2_WHY : '';
+        if ( empty( $webhook_url ) ) {
+            error_log( '[HDLV2] Stage 2 webhook skipped — HDLV2_MAKE_STAGE2_WHY not configured.' );
+            return;
+        }
+
+        $prac_user = $progress->practitioner_user_id ? get_userdata( $progress->practitioner_user_id ) : null;
+
+        // Practitioner logo from widget config — same lookup as Final Report
+        $prac_logo = '';
+        if ( $progress->practitioner_user_id ) {
+            global $wpdb;
+            $prac_logo = $wpdb->get_var( $wpdb->prepare(
+                "SELECT logo_url FROM {$wpdb->prefix}hdlv2_widget_config WHERE practitioner_user_id = %d LIMIT 1",
+                $progress->practitioner_user_id
+            ) ) ?: '';
+        }
+
+        $payload = array(
+            'report_type'           => 'stage2_why',
+            'event'                 => 'stage2_submitted',
+            'token'                 => $progress->token,
+            'vision_text'           => $stage2_data['vision_text'] ?? '',
+            'client_name'           => $progress->client_name ?: '',
+            'client_email'          => $progress->client_email ?: '',
+            'practitioner_name'     => $prac_user ? $prac_user->display_name : '',
+            'practitioner_email'    => $prac_user ? $prac_user->user_email : '',
+            'practitioner_logo_url' => $prac_logo,
+            'report_date'           => current_time( 'j F Y' ),
+            'submitted_at'          => current_time( 'c' ),
+        );
+
+        wp_remote_post( $webhook_url, array(
+            'body'     => wp_json_encode( $payload ),
+            'headers'  => array( 'Content-Type' => 'application/json' ),
+            'timeout'  => 30,
+            'blocking' => false,
+        ) );
+
+        error_log( sprintf( '[HDLV2] Stage 2 WHY webhook dispatched for progress_id=%d', $progress->id ) );
     }
 
     // ──────────────────────────────────────────────────────────────

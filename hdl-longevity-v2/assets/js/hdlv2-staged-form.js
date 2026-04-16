@@ -422,6 +422,10 @@
         apiBase: CFG.api_base.replace('/form', '/audio'),
         nonce: CFG.nonce,
         token: token,
+        simpleMode: true,
+        onChange: function(text) {
+          formData.vision_text = text;
+        },
         onConfirm: function(summary) {
           formData.vision_text = summary;
           formData.audio_summary = summary;
@@ -449,6 +453,12 @@
   }
 
   function completeStage2() {
+    // Read from visible textarea as backup (covers transcript review state)
+    var visibleTa = document.querySelector('.hdlv2-ac-text');
+    if (visibleTa && visibleTa.value.trim()) {
+      formData.vision_text = visibleTa.value.trim();
+    }
+
     if (!formData.vision_text || formData.vision_text.trim().length < 10) {
       setSaveStatus('error', 'Please share your thoughts \u2014 type or use the audio recorder');
       return;
@@ -456,13 +466,26 @@
 
     var btn = document.getElementById('hdlv2-complete-s2');
     btn.disabled = true; btn.textContent = 'Saving...';
-    fetch(CFG.api_base+'/save',{method:'POST',headers:{'Content-Type':'application/json','X-WP-Nonce':CFG.nonce},body:JSON.stringify({token:token,stage:2,data:formData})})
-      .then(function(){return fetch(CFG.api_base+'/complete-stage',{method:'POST',headers:{'Content-Type':'application/json','X-WP-Nonce':CFG.nonce},body:JSON.stringify({token:token,stage:2})});})
+
+    // Save only — do NOT call complete-stage (practitioner triggers AI extraction later)
+    fetch(CFG.api_base+'/save',{method:'POST',headers:{'Content-Type':'application/json','X-WP-Nonce':CFG.nonce},body:JSON.stringify({token:token,stage:2,data:formData,submitted:true})})
       .then(function(r){return r.json();})
       .then(function(res){
-        if(res.success){ renderStage2Result(res.why_data || formData); }
-        else{btn.disabled=false;btn.textContent='Submit Your WHY';setSaveStatus('error',res.message||'Please complete all fields');}
+        if(res.success){ renderStage2Confirmation(); }
+        else{btn.disabled=false;btn.textContent='Submit Your WHY';setSaveStatus('error',res.message||'Could not save. Please try again.');}
       }).catch(function(){btn.disabled=false;btn.textContent='Submit Your WHY';setSaveStatus('error','Connection error');});
+  }
+
+  function renderStage2Confirmation() {
+    root.innerHTML = '<div class="hdlv2-card">'+progressBar(2)
+      +'<div style="text-align:center;padding:48px 24px;">'
+      +'<div style="width:56px;height:56px;margin:0 auto 24px;background:#3d8da0;border-radius:50%;display:flex;align-items:center;justify-content:center;">'
+      +'<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>'
+      +'</div>'
+      +'<h3 style="font-size:20px;font-weight:600;color:#1a1a1a;margin:0 0 12px;">Thank you for sharing your WHY</h3>'
+      +'<p style="font-size:15px;color:#6b7280;line-height:1.6;max-width:400px;margin:0 auto;">Your responses have been saved. Your practitioner will use these to personalise your full Longevity Report.</p>'
+      +'<p style="font-size:14px;color:#9ca3af;margin-top:16px;">You\u2019ll receive an invitation to continue once your practitioner has reviewed your input.</p>'
+      +'</div>'+footer()+'</div>';
   }
 
   function renderStage2Result(stageData) {

@@ -691,39 +691,62 @@
   //  V2 CLIENT PROGRESS + WHY GATE RELEASE
   // ──────────────────────────────────────────────────────────────
 
+  var statusData = {}; // keyed by user_id from REST /dashboard/clients
+
   function loadV2Clients() {
     var list = document.getElementById('hdlv2-client-list');
     if (!list) return;
-    var data = new FormData();
-    data.append('action', 'hdlv2_get_v2_clients');
-    data.append('nonce', CFG.nonce);
 
-    fetch(CFG.ajax_url, { method: 'POST', body: data })
-      .then(function (r) { return r.json(); })
-      .then(function (res) {
-        if (!res.success || !res.data || res.data.length === 0) {
-          list.innerHTML = '<p style="color:#aaa;font-size:12px;">No V2 clients yet.</p>';
-          return;
-        }
-        renderV2Clients(res.data);
-      })
-      .catch(function () { list.innerHTML = '<p style="color:' + S.red + ';font-size:12px;">Failed to load.</p>'; });
+    // Fetch both data sources in parallel
+    var ajaxData = new FormData();
+    ajaxData.append('action', 'hdlv2_get_v2_clients');
+    ajaxData.append('nonce', CFG.nonce);
+
+    var restUrl = (CFG.rest_base || '/wp-json/') + 'hdl-v2/v1/dashboard/clients';
+
+    Promise.all([
+      fetch(CFG.ajax_url, { method: 'POST', body: ajaxData }).then(function (r) { return r.json(); }),
+      fetch(restUrl, { headers: { 'X-WP-Nonce': CFG.nonce } }).then(function (r) { return r.json(); }).catch(function () { return []; })
+    ]).then(function (results) {
+      var ajaxRes = results[0];
+      var statusRes = results[1];
+
+      // Index status data by user_id
+      if (Array.isArray(statusRes)) {
+        statusRes.forEach(function (s) { statusData[s.user_id] = s; });
+      }
+
+      if (!ajaxRes.success || !ajaxRes.data || ajaxRes.data.length === 0) {
+        list.innerHTML = '<p style="color:#aaa;font-size:12px;">No V2 clients yet.</p>';
+        return;
+      }
+      renderV2Clients(ajaxRes.data);
+    }).catch(function () { list.innerHTML = '<p style="color:' + S.red + ';font-size:12px;">Failed to load.</p>'; });
   }
 
   function renderV2Clients(clients) {
     var list = document.getElementById('hdlv2-client-list');
+
+    // 5A: Sort — needs_attention first, then inactive, then rest
+    var sortOrder = { needs_attention: 0, inactive: 1 };
+    clients.sort(function (a, b) {
+      var sa = statusData[a.client_user_id]; var sb = statusData[b.client_user_id];
+      var oa = sa ? (sortOrder[sa.status] !== undefined ? sortOrder[sa.status] : 9) : 9;
+      var ob = sb ? (sortOrder[sb.status] !== undefined ? sortOrder[sb.status] : 9) : 9;
+      return oa - ob;
+    });
+
     var html = '<table style="width:100%;border-collapse:collapse;font-size:12px;">'
       + '<thead><tr style="border-bottom:2px solid #eee;text-align:left;">'
       + '<th style="padding:6px 6px 6px 0;font-weight:600;color:#555;">Client</th>'
-      + '<th style="padding:6px;font-weight:600;color:#555;">Stage</th>'
+      + '<th style="padding:6px;font-weight:600;color:#555;">Status</th>'
       + '<th style="padding:6px;font-weight:600;color:#555;">WHY</th>'
       + '<th style="padding:6px 0 6px 6px;font-weight:600;color:#555;">Action</th>'
       + '</tr></thead><tbody>';
 
     clients.forEach(function (c) {
-      var stage = 'Stage ' + c.current_stage;
-      var stageBg = '#eef4ff'; var stageColor = '#3b82f6';
-      if (c.stage3_completed_at) { stage = 'Complete'; stageBg = '#ecfdf5'; stageColor = '#059669'; }
+      var st = statusData[c.client_user_id] || {};
+      var statusBadge = statusBadgeHtml(st);
 
       var whyStatus = '';
       var action = '';
@@ -737,24 +760,135 @@
           action = '<button data-release-id="' + c.id + '" style="' + S.btnBase + 'background:' + S.teal + ';padding:4px 10px;font-size:11px;">Release WHY</button>';
         }
       } else if (c.current_stage >= 2 && !c.stage2_completed_at) {
-        whyStatus = '<span style="font-size:11px;color:#aaa;">In progress</span>';
+        if (c.stage2_webhook_fired_at) {
+          whyStatus = '<span style="display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:10px;background:#f0f9ff;color:#0369a1;font-size:11px;font-weight:500;">'
+            + '<span style="width:5px;height:5px;border-radius:50%;background:#0ea5e9;"></span>Submitted</span>';
+        } else {
+          whyStatus = '<span style="font-size:11px;color:#aaa;">In progress</span>';
+        }
       } else {
         whyStatus = '<span style="font-size:11px;color:#ccc;">\u2014</span>';
       }
 
-      html += '<tr style="border-bottom:1px solid #f0f0f0;">'
-        + '<td style="padding:8px 6px 8px 0;"><div style="font-weight:500;color:#333;font-size:12px;">' + escAttr(c.client_name || 'No name') + '</div><div style="font-size:11px;color:#999;">' + escAttr(c.client_email) + '</div></td>'
-        + '<td style="padding:8px 6px;"><span style="padding:2px 8px;border-radius:10px;background:' + stageBg + ';color:' + stageColor + ';font-size:11px;font-weight:500;">' + stage + '</span></td>'
+      // 5C: Weekly summary card (inline, for active clients)
+      var summaryLine = '';
+      if (st.status === 'progress_normal' || st.status === 'active' || st.status === 'needs_attention') {
+        summaryLine = '<div style="font-size:10px;color:#888;margin-top:2px;">'
+          + (st.last_checkin_date ? 'Last check-in: ' + formatDate(st.last_checkin_date) : 'No check-ins yet')
+          + '</div>';
+      }
+
+      // Flag reason for needs_attention
+      var flagLine = '';
+      if (st.status === 'needs_attention' && st.reasons && st.reasons.length) {
+        flagLine = '<div style="font-size:10px;color:#dc2626;margin-top:2px;">\u26a0 ' + escAttr(st.reasons[0]) + '</div>';
+      }
+
+      html += '<tr style="border-bottom:1px solid #f0f0f0;cursor:pointer;" data-client-expand="' + (c.client_user_id || '') + '" data-progress-id="' + c.id + '">'
+        + '<td style="padding:8px 6px 8px 0;"><div style="font-weight:500;color:#333;font-size:12px;">' + escAttr(c.client_name || 'No name') + '</div><div style="font-size:11px;color:#999;">' + escAttr(c.client_email) + '</div>' + summaryLine + flagLine + '</td>'
+        + '<td style="padding:8px 6px;">' + statusBadge + '</td>'
         + '<td style="padding:8px 6px;">' + whyStatus + '</td>'
         + '<td style="padding:8px 0 8px 6px;">' + action + '</td></tr>';
+
+      // 5B: Expandable quick actions row (hidden by default)
+      html += '<tr id="hdlv2-expand-' + (c.client_user_id || '') + '" style="display:none;"><td colspan="4" style="padding:8px 0 12px;">'
+        + '<div style="background:#f8f9fb;border:1px solid #e4e6ea;border-radius:8px;padding:12px;">'
+        + '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;">'
+        + '<button data-qa="note" data-cid="' + (c.client_user_id || '') + '" style="' + S.btnBase + 'background:' + S.teal + ';padding:5px 12px;font-size:11px;">Add Note</button>'
+        + '<button data-qa="priorities" data-cid="' + (c.client_user_id || '') + '" style="' + S.btnBase + 'background:#f59e0b;padding:5px 12px;font-size:11px;">Adjust Priorities</button>'
+        + '<button data-qa="regenerate" data-cid="' + (c.client_user_id || '') + '" style="' + S.btnBase + 'background:#10b981;padding:5px 12px;font-size:11px;">Regenerate Flight Plan</button>'
+        + '</div>'
+        + '<div id="hdlv2-qa-area-' + (c.client_user_id || '') + '"></div>'
+        + '</div></td></tr>';
     });
     html += '</tbody></table>';
     list.innerHTML = html;
 
     // Bind release buttons
     list.querySelectorAll('[data-release-id]').forEach(function (btn) {
-      btn.addEventListener('click', function () { releaseWhy(btn, btn.getAttribute('data-release-id')); });
+      btn.addEventListener('click', function (e) { e.stopPropagation(); releaseWhy(btn, btn.getAttribute('data-release-id')); });
     });
+
+    // Bind row expand/collapse
+    list.querySelectorAll('[data-client-expand]').forEach(function (row) {
+      row.addEventListener('click', function () {
+        var cid = row.getAttribute('data-client-expand');
+        if (!cid) return;
+        var expandRow = document.getElementById('hdlv2-expand-' + cid);
+        if (expandRow) expandRow.style.display = expandRow.style.display === 'none' ? '' : 'none';
+      });
+    });
+
+    // Bind quick action buttons
+    list.querySelectorAll('[data-qa]').forEach(function (btn) {
+      btn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        var action = btn.getAttribute('data-qa');
+        var cid = btn.getAttribute('data-cid');
+        handleQuickAction(action, cid, btn);
+      });
+    });
+  }
+
+  // 5A: Status badge renderer
+  function statusBadgeHtml(st) {
+    if (!st || !st.status) return '<span style="font-size:11px;color:#ccc;">\u2014</span>';
+    var color = st.color || '#94a3b8';
+    var label = st.label || st.status;
+    return '<span style="display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:10px;background:' + color + '22;color:' + color + ';font-size:11px;font-weight:500;white-space:nowrap;">'
+      + '<span style="width:5px;height:5px;border-radius:50%;background:' + color + ';"></span>' + escAttr(label) + '</span>';
+  }
+
+  // 5B: Quick action handler
+  function handleQuickAction(action, clientId, btnEl) {
+    var area = document.getElementById('hdlv2-qa-area-' + clientId);
+    if (!area) return;
+    var restBase = (CFG.rest_base || '/wp-json/');
+
+    if (action === 'note') {
+      area.innerHTML = '<textarea id="hdlv2-qa-note-' + clientId + '" placeholder="Add a note about this client..." style="' + S.inputBase + 'min-height:60px;resize:vertical;margin-bottom:6px;max-width:100%;"></textarea>'
+        + '<button id="hdlv2-qa-note-save-' + clientId + '" style="' + S.btnBase + 'background:' + S.teal + ';padding:5px 12px;font-size:11px;">Save Note</button>';
+      document.getElementById('hdlv2-qa-note-save-' + clientId).addEventListener('click', function () {
+        var text = document.getElementById('hdlv2-qa-note-' + clientId).value.trim();
+        if (!text) return;
+        this.disabled = true; this.textContent = 'Saving...';
+        fetch(restBase + 'hdl-v2/v1/timeline/add-note', {
+          method: 'POST', headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': CFG.nonce },
+          body: JSON.stringify({ client_id: parseInt(clientId), summary: text })
+        }).then(function (r) { return r.json(); }).then(function (res) {
+          area.innerHTML = res.success ? '<span style="color:' + S.green + ';font-size:11px;">Note saved.</span>' : '<span style="color:' + S.red + ';font-size:11px;">Error saving.</span>';
+        }).catch(function () { area.innerHTML = '<span style="color:' + S.red + ';font-size:11px;">Network error.</span>'; });
+      });
+    } else if (action === 'priorities') {
+      area.innerHTML = '<textarea id="hdlv2-qa-pri-' + clientId + '" placeholder="e.g. Focus on sleep this week, reduce movement targets..." style="' + S.inputBase + 'min-height:60px;resize:vertical;margin-bottom:6px;max-width:100%;"></textarea>'
+        + '<button id="hdlv2-qa-pri-save-' + clientId + '" style="' + S.btnBase + 'background:#f59e0b;padding:5px 12px;font-size:11px;">Save Priorities</button>'
+        + '<div style="font-size:10px;color:#888;margin-top:4px;">These notes will be the highest priority input in the next Flight Plan.</div>';
+      document.getElementById('hdlv2-qa-pri-save-' + clientId).addEventListener('click', function () {
+        var text = document.getElementById('hdlv2-qa-pri-' + clientId).value.trim();
+        if (!text) return;
+        this.disabled = true; this.textContent = 'Saving...';
+        fetch(restBase + 'hdl-v2/v1/flight-plan/' + clientId + '/priorities', {
+          method: 'POST', headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': CFG.nonce },
+          body: JSON.stringify({ notes: text })
+        }).then(function (r) { return r.json(); }).then(function (res) {
+          area.innerHTML = res.success ? '<span style="color:' + S.green + ';font-size:11px;">Priorities saved \u2014 will shape the next Flight Plan.</span>' : '<span style="color:' + S.red + ';font-size:11px;">Error saving.</span>';
+        }).catch(function () { area.innerHTML = '<span style="color:' + S.red + ';font-size:11px;">Network error.</span>'; });
+      });
+    } else if (action === 'regenerate') {
+      btnEl.disabled = true; btnEl.textContent = 'Generating...';
+      fetch(restBase + 'hdl-v2/v1/flight-plan/' + clientId + '/generate', {
+        method: 'POST', headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': CFG.nonce },
+        body: '{}'
+      }).then(function (r) { return r.json(); }).then(function (res) {
+        if (res.success) {
+          btnEl.textContent = 'Generated!'; btnEl.style.background = S.green;
+          area.innerHTML = '<span style="color:' + S.green + ';font-size:11px;">Flight Plan regenerated (ID: ' + res.plan_id + ').</span>';
+        } else {
+          btnEl.disabled = false; btnEl.textContent = 'Regenerate Flight Plan'; btnEl.style.background = '#10b981';
+          area.innerHTML = '<span style="color:' + S.red + ';font-size:11px;">' + escAttr(res.message || 'Generation failed.') + '</span>';
+        }
+      }).catch(function () { btnEl.disabled = false; btnEl.textContent = 'Regenerate Flight Plan'; });
+    }
   }
 
   function releaseWhy(btnEl, progressId) {

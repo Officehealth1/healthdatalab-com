@@ -13,23 +13,29 @@ class HDLV2_Client_Status {
     const NOT_STARTED     = 'not_started';
     const LOW_DATA        = 'low_data';
     const AWAITING_CONSULT = 'awaiting_consult';
+    const ACTIVE          = 'active';
     const PROGRESS_NORMAL = 'progress_normal';
     const NEEDS_ATTENTION = 'needs_attention';
+    const INACTIVE        = 'inactive';
 
     const LABELS = array(
         'not_started'      => 'Not Started',
         'low_data'         => 'Low Data',
         'awaiting_consult' => 'Awaiting Consult',
+        'active'           => 'Active',
         'progress_normal'  => 'Progress Normal',
         'needs_attention'  => 'Client Needs Attention',
+        'inactive'         => 'Inactive',
     );
 
     const COLORS = array(
         'not_started'      => '#94a3b8',
         'low_data'         => '#f59e0b',
         'awaiting_consult' => '#3b82f6',
+        'active'           => '#10b981',
         'progress_normal'  => '#10b981',
         'needs_attention'  => '#dc2626',
+        'inactive'         => '#6b7280',
     );
 
     private static $instance = null;
@@ -121,6 +127,14 @@ class HDLV2_Client_Status {
 
         if ( ! empty( $reasons ) ) {
             return self::build_result( self::NEEDS_ATTENTION, $reasons );
+        }
+
+        // INACTIVE: no check-in for 4+ weeks
+        if ( $last_confirmed ) {
+            $weeks_since = floor( ( time() - strtotime( $last_confirmed ) ) / ( 7 * DAY_IN_SECONDS ) );
+            if ( $weeks_since >= 4 ) {
+                return self::build_result( self::INACTIVE, array( sprintf( 'No check-in for %d weeks', $weeks_since ) ) );
+            }
         }
 
         return self::build_result( self::PROGRESS_NORMAL );

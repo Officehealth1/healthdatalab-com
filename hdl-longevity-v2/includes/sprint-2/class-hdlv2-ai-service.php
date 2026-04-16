@@ -384,6 +384,10 @@ class HDLV2_AI_Service {
             return new WP_Error( 'claude_empty', 'Empty response from Claude API' );
         }
 
+        // Strip markdown code fences if present (```json ... ```)
+        $content = preg_replace( '/^\s*```(?:json)?\s*/i', '', $content );
+        $content = preg_replace( '/\s*```\s*$/', '', $content );
+
         return $content;
     }
 

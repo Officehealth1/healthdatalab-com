@@ -38,6 +38,11 @@ class HDLV2_Timeline {
             'methods' => 'POST', 'callback' => array( $this, 'rest_add_note' ),
             'permission_callback' => array( $this, 'check_practitioner' ),
         ) );
+        // Export
+        register_rest_route( 'hdl-v2/v1', '/timeline/(?P<client_id>\d+)/export', array(
+            'methods' => 'GET', 'callback' => array( $this, 'rest_export' ),
+            'permission_callback' => '__return_true',
+        ) );
     }
 
     public function check_practitioner() {
@@ -76,11 +81,42 @@ class HDLV2_Timeline {
     // ── REST: Client timeline (no private entries) ──
     public function rest_load_client( $request ) {
         $client_id = absint( $request['client_id'] );
+
+        // Auth: token-based client validation or practitioner override
+        $auth = $this->validate_client_token( $request, $client_id );
+        if ( is_wp_error( $auth ) ) return $auth;
+
         $page      = max( 1, (int) $request->get_param( 'page' ) ?: 1 );
         $per_page  = min( 50, max( 1, (int) $request->get_param( 'per_page' ) ?: 20 ) );
         $type      = sanitize_text_field( $request->get_param( 'type' ) ?: '' );
 
         return $this->query_timeline( $client_id, $page, $per_page, $type, '', true );
+    }
+
+    /**
+     * Validate client access via token or practitioner session.
+     */
+    private function validate_client_token( $request, $client_id ) {
+        // Practitioner override
+        $user_id = get_current_user_id();
+        if ( $user_id && HDLV2_Compatibility::is_practitioner( $user_id ) ) {
+            return true;
+        }
+
+        $token = $request->get_param( 'token' ) ?: '';
+        if ( ! $token || ! preg_match( '/^[a-f0-9]{64}$/', $token ) ) {
+            return new WP_Error( 'unauthorized', 'Authentication required.', array( 'status' => 403 ) );
+        }
+
+        global $wpdb;
+        $progress = $wpdb->get_row( $wpdb->prepare(
+            "SELECT client_user_id FROM {$wpdb->prefix}hdlv2_form_progress WHERE token = %s LIMIT 1", $token
+        ) );
+        if ( ! $progress || (int) $progress->client_user_id !== (int) $client_id ) {
+            return new WP_Error( 'forbidden', 'Access denied.', array( 'status' => 403 ) );
+        }
+
+        return true;
     }
 
     private function query_timeline( $client_id, $page, $per_page, $type, $search, $exclude_private ) {
@@ -99,14 +135,21 @@ class HDLV2_Timeline {
         $items = array();
         foreach ( $rows as $r ) {
             $items[] = array(
-                'id'         => (int) $r->id,
-                'type'       => $r->entry_type,
-                'title'      => $r->title,
-                'summary'    => $r->summary,
-                'detail'     => json_decode( $r->detail, true ),
-                'has_flags'  => (bool) $r->has_flags,
-                'is_private' => (bool) $r->is_private,
-                'created_at' => $r->created_at,
+                'id'            => (int) $r->id,
+                'type'          => $r->entry_type,
+                'title'         => $r->title,
+                'date'          => $r->date ?? $r->created_at,
+                'end_date'      => $r->end_date ?? null,
+                'temporal_type' => $r->temporal_type ?? 'instant',
+                'category'      => $r->category ?? 'system',
+                'source'        => $r->source ?? 'system',
+                'severity'      => $r->severity ? (int) $r->severity : null,
+                'summary'       => $r->summary,
+                'detail'        => json_decode( $r->detail, true ),
+                'has_flags'     => (bool) $r->has_flags,
+                'flags'         => isset( $r->flags ) ? json_decode( $r->flags, true ) : null,
+                'is_private'    => (bool) $r->is_private,
+                'created_at'    => $r->created_at,
             );
         }
 
@@ -132,6 +175,43 @@ class HDLV2_Timeline {
         $entry_id = self::add_entry( $client_id, $prac_id, 'note', $title, $summary, null, '', null, false, $private );
 
         return rest_ensure_response( array( 'success' => true, 'entry_id' => $entry_id ) );
+    }
+
+    // ── REST: Export all timeline entries ──
+    public function rest_export( $request ) {
+        $client_id = absint( $request['client_id'] );
+
+        // Auth: practitioner or client token
+        $auth = $this->validate_client_token( $request, $client_id );
+        if ( is_wp_error( $auth ) ) return $auth;
+
+        global $wpdb;
+        $rows = $wpdb->get_results( $wpdb->prepare(
+            "SELECT * FROM {$wpdb->prefix}hdlv2_timeline WHERE client_id = %d ORDER BY COALESCE(date, created_at) ASC, created_at ASC",
+            $client_id
+        ) );
+
+        $entries = array();
+        foreach ( $rows as $r ) {
+            $entries[] = array(
+                'id'          => (int) $r->id,
+                'entry_type'  => $r->entry_type,
+                'title'       => $r->title,
+                'date'        => $r->date ?? $r->created_at,
+                'end_date'    => $r->end_date ?? null,
+                'temporal_type' => $r->temporal_type ?? 'instant',
+                'category'    => $r->category ?? 'system',
+                'source'      => $r->source ?? 'system',
+                'summary'     => $r->summary,
+                'detail'      => json_decode( $r->detail, true ),
+                'severity'    => $r->severity ? (int) $r->severity : null,
+                'has_flags'   => (bool) $r->has_flags,
+                'flags'       => isset( $r->flags ) ? json_decode( $r->flags, true ) : null,
+                'created_at'  => $r->created_at,
+            );
+        }
+
+        return rest_ensure_response( $entries );
     }
 
     // ── Shortcode ──

@@ -17,6 +17,7 @@ class HDLV2_Activator {
 
     public static function activate() {
         self::create_tables();
+        self::run_migrations();
         self::schedule_crons();
         update_option( 'hdlv2_db_version', HDLV2_DB_VERSION );
         update_option( 'hdlv2_version', HDLV2_VERSION );
@@ -35,6 +36,53 @@ class HDLV2_Activator {
                 wp_schedule_event( time(), $recurrence, $hook );
             }
         }
+    }
+
+    private static function run_migrations() {
+        $current_db_version = get_option( 'hdlv2_db_version', '0' );
+        if ( version_compare( $current_db_version, '2.0', '>=' ) ) {
+            return; // Already migrated
+        }
+
+        global $wpdb;
+        $p = $wpdb->prefix;
+
+        // Phase A: ENUM to VARCHAR for timeline entry_type
+        // dbDelta cannot modify column types, so use ALTER TABLE
+        $col_type = $wpdb->get_var( "SELECT COLUMN_TYPE FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = '{$p}hdlv2_timeline' AND COLUMN_NAME = 'entry_type'" );
+        if ( $col_type && strpos( $col_type, 'enum' ) !== false ) {
+            $wpdb->query( "ALTER TABLE {$p}hdlv2_timeline MODIFY COLUMN entry_type VARCHAR(50) NOT NULL" );
+        }
+
+        // Phase B: Backfill timeline date/temporal_type/category/source from existing rows
+        $has_date_col = $wpdb->get_var( "SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = '{$p}hdlv2_timeline' AND COLUMN_NAME = 'date'" );
+        if ( $has_date_col ) {
+            $wpdb->query( "UPDATE {$p}hdlv2_timeline SET date = created_at, temporal_type = 'instant', category = 'system', source = 'system' WHERE date IS NULL" );
+        }
+
+        // Phase C: Backfill checkins input_method based on raw_transcript presence
+        $has_input_method = $wpdb->get_var( "SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = '{$p}hdlv2_checkins' AND COLUMN_NAME = 'input_method'" );
+        if ( $has_input_method ) {
+            $wpdb->query( "UPDATE {$p}hdlv2_checkins SET input_method = CASE WHEN raw_transcript IS NOT NULL AND raw_transcript != '' THEN 'audio' ELSE 'text' END WHERE input_method = 'text'" );
+        }
+
+        // Phase D: Migrate flight_plan_ticks day_of_week (TINYINT) to day (VARCHAR)
+        $has_day_of_week = $wpdb->get_var( "SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = '{$p}hdlv2_flight_plan_ticks' AND COLUMN_NAME = 'day_of_week'" );
+        $has_day = $wpdb->get_var( "SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = '{$p}hdlv2_flight_plan_ticks' AND COLUMN_NAME = 'day'" );
+
+        if ( $has_day_of_week && $has_day ) {
+            // Migrate integer values to string day names
+            $wpdb->query( "UPDATE {$p}hdlv2_flight_plan_ticks SET day = CASE day_of_week WHEN 1 THEN 'monday' WHEN 2 THEN 'tuesday' WHEN 3 THEN 'wednesday' WHEN 4 THEN 'thursday' WHEN 5 THEN 'friday' WHEN 6 THEN 'saturday' WHEN 7 THEN 'sunday' WHEN 0 THEN 'sunday' ELSE 'monday' END WHERE day IS NULL OR day = ''" );
+            // Drop the old column
+            $wpdb->query( "ALTER TABLE {$p}hdlv2_flight_plan_ticks DROP COLUMN day_of_week" );
+        } elseif ( $has_day_of_week && ! $has_day ) {
+            // Add day column, migrate, drop old
+            $wpdb->query( "ALTER TABLE {$p}hdlv2_flight_plan_ticks ADD COLUMN day VARCHAR(10) NOT NULL DEFAULT 'monday' AFTER client_id" );
+            $wpdb->query( "UPDATE {$p}hdlv2_flight_plan_ticks SET day = CASE day_of_week WHEN 1 THEN 'monday' WHEN 2 THEN 'tuesday' WHEN 3 THEN 'wednesday' WHEN 4 THEN 'thursday' WHEN 5 THEN 'friday' WHEN 6 THEN 'saturday' WHEN 7 THEN 'sunday' WHEN 0 THEN 'sunday' ELSE 'monday' END" );
+            $wpdb->query( "ALTER TABLE {$p}hdlv2_flight_plan_ticks DROP COLUMN day_of_week" );
+        }
+
+        error_log( '[HDLV2] Database migration to v2.0 completed.' );
     }
 
     private static function create_tables() {
@@ -107,6 +155,8 @@ class HDLV2_Activator {
             stage1_completed_at DATETIME DEFAULT NULL,
             stage2_data JSON DEFAULT NULL,
             stage2_completed_at DATETIME DEFAULT NULL,
+            stage2_webhook_fired_at DATETIME DEFAULT NULL,
+            stage2_text_hash VARCHAR(32) DEFAULT NULL,
             stage3_data JSON DEFAULT NULL,
             stage3_completed_at DATETIME DEFAULT NULL,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -193,6 +243,7 @@ class HDLV2_Activator {
             raw_input TEXT DEFAULT NULL,
             raw_transcript TEXT DEFAULT NULL,
             audio_id BIGINT(20) UNSIGNED DEFAULT NULL,
+            input_method VARCHAR(10) DEFAULT 'text',
             summary JSON DEFAULT NULL,
             adherence_scores JSON DEFAULT NULL,
             comfort_zone VARCHAR(20) DEFAULT 'about_right',
@@ -213,20 +264,32 @@ class HDLV2_Activator {
             id BIGINT(20) UNSIGNED NOT NULL AUTO_INCREMENT,
             client_id BIGINT(20) UNSIGNED NOT NULL,
             practitioner_id BIGINT(20) UNSIGNED NOT NULL,
-            entry_type ENUM('milestone','document','note','checkin','flight_plan','chat','metric') NOT NULL,
+            entry_type VARCHAR(50) NOT NULL,
             title VARCHAR(255) NOT NULL,
+            date DATETIME DEFAULT NULL,
+            temporal_type ENUM('instant','interval') DEFAULT 'instant',
+            end_date DATETIME DEFAULT NULL,
             summary TEXT DEFAULT NULL,
+            category VARCHAR(50) DEFAULT 'system',
+            severity TINYINT DEFAULT NULL,
+            source VARCHAR(50) DEFAULT 'system',
             detail JSON DEFAULT NULL,
+            linked_entries JSON DEFAULT NULL,
+            subjective_hypothesis TEXT DEFAULT NULL,
+            attachments JSON DEFAULT NULL,
+            metadata JSON DEFAULT NULL,
             source_table VARCHAR(100) DEFAULT NULL,
             source_id BIGINT(20) UNSIGNED DEFAULT NULL,
             has_flags BOOLEAN DEFAULT FALSE,
+            flags JSON DEFAULT NULL,
             is_private BOOLEAN DEFAULT FALSE,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             PRIMARY KEY (id),
             KEY idx_client_date (client_id, created_at),
             KEY idx_practitioner (practitioner_id),
             KEY idx_type (entry_type),
-            KEY idx_flags (has_flags)
+            KEY idx_flags (has_flags),
+            KEY idx_client_category_date (client_id, category, date)
         ) $charset_collate;";
 
         // Sprint 5: Flight plans
@@ -237,13 +300,19 @@ class HDLV2_Activator {
             practitioner_id BIGINT(20) UNSIGNED NOT NULL,
             week_number INT UNSIGNED NOT NULL,
             week_start DATE NOT NULL,
+            date_range_end DATE DEFAULT NULL,
             plan_data JSON NOT NULL,
             shopping_list JSON DEFAULT NULL,
             identity_statement TEXT DEFAULT NULL,
             weekly_targets JSON DEFAULT NULL,
             journey_assistance TEXT DEFAULT NULL,
             pdf_url VARCHAR(500) DEFAULT NULL,
+            adherence_summary JSON DEFAULT NULL,
             status ENUM('generated','delivered','active','completed') DEFAULT 'generated',
+            generation_trigger VARCHAR(20) DEFAULT 'auto',
+            practitioner_notes TEXT DEFAULT NULL,
+            ai_model VARCHAR(50) DEFAULT NULL,
+            token_usage JSON DEFAULT NULL,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             delivered_at DATETIME DEFAULT NULL,
             PRIMARY KEY (id),
@@ -257,10 +326,11 @@ class HDLV2_Activator {
             id BIGINT(20) UNSIGNED NOT NULL AUTO_INCREMENT,
             flight_plan_id BIGINT(20) UNSIGNED NOT NULL,
             client_id BIGINT(20) UNSIGNED NOT NULL,
-            day_of_week TINYINT UNSIGNED NOT NULL,
+            day VARCHAR(10) NOT NULL,
             time_slot VARCHAR(30) NOT NULL,
             category ENUM('movement','nutrition','key_action') NOT NULL,
             action_text VARCHAR(500) NOT NULL DEFAULT '',
+            action_index INT UNSIGNED DEFAULT 0,
             ticked BOOLEAN DEFAULT FALSE,
             ticked_at DATETIME DEFAULT NULL,
             PRIMARY KEY (id),

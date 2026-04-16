@@ -42,7 +42,7 @@ class HDLV2_Audio_Service {
     const MAX_TOKENS = array(
         'why_collection'     => 1500,
         'consultation_notes' => 1500,
-        'weekly_checkin'     => 1000,
+        'weekly_checkin'     => 2000,
     );
 
     private static $instance = null;
@@ -339,6 +339,10 @@ class HDLV2_Audio_Service {
             return new WP_Error( 'empty_response', 'Claude returned empty response.' );
         }
 
+        // Strip markdown code fences if present (```json ... ```)
+        $content = preg_replace( '/^\s*```(?:json)?\s*/i', '', $content );
+        $content = preg_replace( '/\s*```\s*$/', '', $content );
+
         return $content;
     }
 
@@ -421,20 +425,51 @@ Practitioner input:
             ),
 
             'weekly_checkin' => array(
-                'system' => 'Extract a structured weekly summary from a client check-in. Return valid JSON. Preserve specific details.',
-                'user'   => 'Structure this client check-in:
+                'system' => 'You are extracting a structured weekly summary from a longevity coaching client\'s check-in. Return ONLY valid JSON. Preserve specifics and nuance — if the client mentions a specific person, event, date, or detail, that exact detail MUST survive extraction. Do NOT flatten or generalise.',
+                'user'   => 'Extract and structure this client weekly check-in into the following JSON format. Be thorough and preserve all specific details.
 
-1. FITNESS_ADHERENCE: What movement was done? What was missed? Why?
-2. NUTRITION_ADHERENCE: What dietary changes worked? What was hard?
-3. COMFORT_ZONE: What felt too easy? What was a real stretch?
-4. OBSTACLES: What got in the way this week?
-5. SOCIAL_ENVIRONMENT: People who helped or hindered.
-6. ENERGY_MOOD: Overall state.
-7. WINS: What went well.
-8. NEXT_WEEK: What the client wants to change.
-9. FLAGS: Tag anything concerning with [CRITICAL] — emotional distress, worsening symptoms, very low adherence (3/10 or below), request to speak to practitioner.
+REQUIRED OUTPUT FORMAT:
+{
+  "check_in_summary": "2-3 paragraph natural language summary of the week — conversational, specific, preserving key details",
+  "fitness_adherence": {
+    "summary": "text description of what movement was done, missed, and why",
+    "score": <1-10 integer, 1=didn\'t follow at all, 10=followed perfectly>
+  },
+  "nutrition_adherence": {
+    "summary": "text description of dietary adherence, what worked, what was hard",
+    "score": <1-10 integer>
+  },
+  "obstacles": ["specific obstacle 1", "specific obstacle 2"],
+  "environmental_social": ["specific factor 1 — name people, places, situations"],
+  "energy_mood": "text description of overall energy and mood through the week",
+  "wins": ["specific win 1", "specific win 2"],
+  "client_suggestions": "what the client wants to change or try next week, questions they asked",
+  "comfort_zone": {
+    "too_easy": ["things that felt too easy"],
+    "about_right": ["things that felt about right"],
+    "too_hard": ["things that were hard or a real stretch"]
+  },
+  "flags": [],
+  "extracted_events": []
+}
 
-Return valid JSON with keys: fitness, nutrition, comfort_zone, obstacles, social, energy_mood, wins, next_week, flags, has_flags (boolean)
+FLAGS RULES: Add objects to "flags" array with {trigger, severity, detail} if ANY of these apply:
+- Client reports significant emotional distress → severity: "high"
+- Client mentions worsening health symptom → severity: "high"
+- Client explicitly asks to speak with practitioner → severity: "high"
+- Adherence score ≤ 3/10 → severity: "medium"
+- Reports a conflict affecting their programme → severity: "low"
+
+EXTRACTED EVENTS: For any specific dated events mentioned, add to "extracted_events":
+{
+  "description": "what happened",
+  "category": "symptom|dietary|supplement|metric|emotional|lifestyle|medical|environmental",
+  "date": "YYYY-MM-DD or null if not mentioned",
+  "end_date": null,
+  "impact": "effect it had",
+  "severity": <1-5 or null>,
+  "hypothesis": "client\'s theory if stated, else null"
+}
 
 Client input:
 {client_input}',
@@ -460,6 +495,18 @@ Client input:
         $ext = strtolower( pathinfo( $file['name'], PATHINFO_EXTENSION ) );
         if ( ! isset( self::ALLOWED_MIMES[ $ext ] ) ) {
             return new WP_Error( 'invalid_type', 'Accepted formats: mp3, m4a, wav, ogg, webm.', array( 'status' => 400 ) );
+        }
+
+        // MIME type validation via finfo (not just extension)
+        $finfo = finfo_open( FILEINFO_MIME_TYPE );
+        $mime  = finfo_file( $finfo, $file['tmp_name'] );
+        finfo_close( $finfo );
+        $allowed_mimes = array(
+            'audio/mpeg', 'audio/mp4', 'audio/x-m4a', 'audio/wav', 'audio/x-wav',
+            'audio/ogg', 'audio/webm', 'video/webm',
+        );
+        if ( ! in_array( $mime, $allowed_mimes, true ) ) {
+            return new WP_Error( 'invalid_mime', 'File content does not match an allowed audio format.', array( 'status' => 400 ) );
         }
 
         return true;

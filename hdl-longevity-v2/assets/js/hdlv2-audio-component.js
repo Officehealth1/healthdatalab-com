@@ -77,8 +77,10 @@ window.HDLAudioComponent = (function () {
     this.token = opts.token || '';
     this.contextType = opts.contextType || 'why_collection';
     this.onConfirm = opts.onConfirm || function () {};
+    this.onChange = opts.onChange || null;
     this.onError = opts.onError || function () {};
     this.showConsent = !!opts.showConsent;
+    this.simpleMode = !!opts.simpleMode;
 
     this.mediaRecorder = null;
     this.audioChunks = [];
@@ -93,6 +95,7 @@ window.HDLAudioComponent = (function () {
     this.rawTranscript = '';
     this.isRecording = false;
     this.recognitionRestarts = 0;
+    this.textBeforeRecording = '';
 
     this.render();
   }
@@ -113,9 +116,9 @@ window.HDLAudioComponent = (function () {
       + '</div>'
       + '</div>'
       + '<input type="file" accept="' + ACCEPT + '" style="display:none;" data-role="file-input">'
-      + '<div class="hdlv2-ac-row" style="display:none;" data-role="action-row">'
+      + (this.simpleMode ? '' : '<div class="hdlv2-ac-row" style="display:none;" data-role="action-row">'
       + '<button type="button" class="hdlv2-ac-btn primary" data-action="submit">Process with AI</button>'
-      + '</div>'
+      + '</div>')
       + (this.showConsent ? '<div class="hdlv2-ac-consent">This session may be recorded for your health records. The recording is processed and stored securely.</div>' : '')
       + '<div class="hdlv2-ac-error" style="display:none;" data-role="error"></div>'
       + '</div>';
@@ -126,12 +129,11 @@ window.HDLAudioComponent = (function () {
     var recordBtn = this.el.querySelector('[data-action="record"]');
     var uploadBtn = this.el.querySelector('[data-action="upload"]');
     var fileInput = this.el.querySelector('[data-role="file-input"]');
-    var submitBtn = this.el.querySelector('[data-action="submit"]');
-
     recordBtn.addEventListener('click', function () { self.toggleRecording(recordBtn); });
     uploadBtn.addEventListener('click', function () { fileInput.click(); });
     fileInput.addEventListener('change', function () { if (fileInput.files[0]) self.uploadFile(fileInput.files[0]); });
-    submitBtn.addEventListener('click', function () { self.submitText(); });
+    var submitBtn = this.el.querySelector('[data-action="submit"]');
+    if (submitBtn) submitBtn.addEventListener('click', function () { self.submitText(); });
   };
 
   // ── Recording ──
@@ -145,6 +147,7 @@ window.HDLAudioComponent = (function () {
 
   AudioComponent.prototype.startRecording = function (btn, keepTranscript) {
     var self = this;
+    console.log('[HDL-DEBUG] startRecording() called');
 
     // Microphone requires HTTPS or localhost — check early with a clear message
     if (window.isSecureContext === false) {
@@ -153,6 +156,7 @@ window.HDLAudioComponent = (function () {
     }
 
     var SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    console.log('[HDL-DEBUG] SpeechRecognition available:', !!SpeechRecognition);
 
     if (!SpeechRecognition) {
       this.startRecordingFallback(btn);
@@ -186,25 +190,55 @@ window.HDLAudioComponent = (function () {
     };
 
     this.recognition.onerror = function (event) {
+      console.log('[HDL-DEBUG] recognition.onerror fired:', event.error, 'transcriptParts:', self.transcriptParts.length, 'interimTranscript:', self.interimTranscript);
+      if (event.error === 'no-speech') {
+        // Silence pause — not fatal, recognition will restart via onend
+        return;
+      }
+
+      // If Web Speech API fails before producing any results,
+      // fall back to MediaRecorder + server-side Whisper transcription.
+      // Handles Brave (blocks Google speech service), privacy browsers, network issues.
+      if (self.transcriptParts.length === 0 && !self.interimTranscript) {
+        self.isRecording = false;
+        try { self.recognition.abort(); } catch (e) {}
+        self.recognition = null;
+        self.removeLiveTranscript();
+        self.resetRecordBtn(btn);
+        console.log('[HDL-DEBUG] Falling back to MediaRecorder');
+        self.startRecordingFallback(btn);
+        return;
+      }
+
+      // Mid-recording error after results were already received
       if (event.error === 'not-allowed') {
         self.isRecording = false;
         self.removeLiveTranscript();
         self.resetRecordBtn(btn);
         self.showError('Microphone access denied. Please allow microphone access and try again.');
-      } else if (event.error === 'no-speech') {
-        // Silence pause — not fatal, recognition will restart via onend
       } else {
         console.error('Speech recognition error:', event.error);
       }
     };
 
     this.recognition.onend = function () {
+      console.log('[HDL-DEBUG] recognition.onend fired, isRecording:', self.isRecording, 'recognition:', !!self.recognition);
       // Web Speech API stops on silence; restart if user hasn't clicked stop
       if (self.isRecording && self.recognitionRestarts < 50) {
         self.recognitionRestarts++;
         try { self.recognition.start(); } catch (e) { /* already started */ }
       }
     };
+
+    this.recognition.onstart = function () {
+      console.log('[HDL-DEBUG] recognition.onstart fired');
+    };
+
+    // In simpleMode, capture existing textarea content before recording
+    if (this.simpleMode) {
+      var ta = this.el.querySelector('.hdlv2-ac-text');
+      this.textBeforeRecording = ta ? ta.value.trim() : '';
+    }
 
     this.recognition.start();
     this.isRecording = true;
@@ -214,17 +248,19 @@ window.HDLAudioComponent = (function () {
     btn.innerHTML = '<span class="hdlv2-ac-dot"></span>';
     btn.title = 'Stop recording';
 
-    // Insert live transcript display below the textarea
-    var wrapper = this.el.querySelector('.hdlv2-ac');
-    if (wrapper && !wrapper.querySelector('.hdlv2-ac-live-transcript')) {
-      var div = document.createElement('div');
-      div.className = 'hdlv2-ac-live-transcript';
-      div.textContent = 'Listening...';
-      var textareaContainer = wrapper.firstElementChild;
-      if (textareaContainer && textareaContainer.nextSibling) {
-        wrapper.insertBefore(div, textareaContainer.nextSibling);
-      } else {
-        wrapper.appendChild(div);
+    if (!this.simpleMode) {
+      // Insert live transcript display below the textarea
+      var wrapper = this.el.querySelector('.hdlv2-ac');
+      if (wrapper && !wrapper.querySelector('.hdlv2-ac-live-transcript')) {
+        var div = document.createElement('div');
+        div.className = 'hdlv2-ac-live-transcript';
+        div.textContent = 'Listening...';
+        var textareaContainer = wrapper.firstElementChild;
+        if (textareaContainer && textareaContainer.nextSibling) {
+          wrapper.insertBefore(div, textareaContainer.nextSibling);
+        } else {
+          wrapper.appendChild(div);
+        }
       }
     }
   };
@@ -232,6 +268,7 @@ window.HDLAudioComponent = (function () {
   // Fallback for browsers without Web Speech API (Firefox, etc.)
   AudioComponent.prototype.startRecordingFallback = function (btn) {
     var self = this;
+    console.log('[HDL-DEBUG] startRecordingFallback() called');
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
       this.showError('Your browser does not support audio recording. Please use Chrome, Edge, or Safari, or upload a file.');
       return;
@@ -239,6 +276,7 @@ window.HDLAudioComponent = (function () {
 
     navigator.mediaDevices.getUserMedia({ audio: true })
       .then(function (stream) {
+        console.log('[HDL-DEBUG] getUserMedia success, MediaRecorder starting');
         self.audioChunks = [];
         self.mediaRecorder = new MediaRecorder(stream);
 
@@ -264,13 +302,15 @@ window.HDLAudioComponent = (function () {
           self.recordingSeconds++;
         }, 1000);
       })
-      .catch(function () {
+      .catch(function (err) {
+        console.log('[HDL-DEBUG] getUserMedia FAILED:', err);
         self.showError('Microphone access denied. Please allow microphone access and try again.');
       });
   };
 
   AudioComponent.prototype.stopRecording = function (btn) {
     var self = this;
+    console.log('[HDL-DEBUG] stopRecording() called, recognition:', !!this.recognition, 'mediaRecorder:', !!this.mediaRecorder);
     this.isRecording = false;
 
     // Web Speech API path
@@ -290,7 +330,17 @@ window.HDLAudioComponent = (function () {
           fullTranscript = self.interimTranscript.trim();
         }
 
-        if (fullTranscript) {
+        if (self.simpleMode) {
+          // Finalize in the existing textarea — no state change
+          var ta = self.el.querySelector('.hdlv2-ac-text');
+          if (ta && fullTranscript) {
+            var base = self.textBeforeRecording;
+            ta.value = base + (base ? ' ' : '') + fullTranscript;
+            if (self.onChange) self.onChange(ta.value);
+          } else if (!fullTranscript) {
+            self.showError('We didn\'t catch that. Try recording again \u2014 speak clearly and wait a moment before stopping.');
+          }
+        } else if (fullTranscript) {
           self.renderTranscriptReview(fullTranscript);
         } else {
           self.showError('We didn\'t catch that. Try recording again \u2014 speak clearly and wait a moment before stopping.');
@@ -342,7 +392,19 @@ window.HDLAudioComponent = (function () {
       .then(function (r) { return r.json(); })
       .then(function (data) {
         if (data.success && data.transcript) {
-          self.renderTranscriptReview(data.transcript);
+          if (self.simpleMode) {
+            // Capture existing text BEFORE render() recreates the DOM
+            var prevTa = self.el.querySelector('.hdlv2-ac-text');
+            var savedText = prevTa ? prevTa.value.trim() : '';
+            self.render();
+            var ta = self.el.querySelector('.hdlv2-ac-text');
+            if (ta) {
+              ta.value = savedText + (savedText ? '\n\n' : '') + data.transcript.trim();
+              if (self.onChange) self.onChange(ta.value);
+            }
+          } else {
+            self.renderTranscriptReview(data.transcript);
+          }
         } else {
           self.showError(data.message || 'No speech detected in the recording. Try again or type your response.');
         }
@@ -420,6 +482,8 @@ window.HDLAudioComponent = (function () {
       + '<button type="button" class="hdlv2-ac-btn secondary" data-action="redo">Redo</button>'
       + '</div></div></div>';
 
+    if (self.onChange) self.onChange(self.currentSummary);
+
     this.el.querySelector('[data-action="confirm"]').addEventListener('click', function () {
       self.onConfirm(self.currentSummary);
     });
@@ -438,8 +502,20 @@ window.HDLAudioComponent = (function () {
   AudioComponent.prototype.updateLiveTranscript = function () {
     var combined = this.transcriptParts.join(' ');
     if (this.interimTranscript) combined += ' ' + this.interimTranscript;
-    var el = this.el.querySelector('.hdlv2-ac-live-transcript');
-    if (el) el.textContent = combined || 'Listening...';
+
+    if (this.simpleMode) {
+      // Write directly into the component's textarea
+      var ta = this.el.querySelector('.hdlv2-ac-text');
+      if (ta) {
+        var base = this.textBeforeRecording;
+        ta.value = base + (base ? ' ' : '') + combined;
+        ta.scrollTop = ta.scrollHeight;
+        if (this.onChange) this.onChange(ta.value);
+      }
+    } else {
+      var el = this.el.querySelector('.hdlv2-ac-live-transcript');
+      if (el) el.textContent = combined || 'Listening...';
+    }
   };
 
   // ── State: transcript review ──
@@ -475,6 +551,15 @@ window.HDLAudioComponent = (function () {
       self.rawTranscript = '';
       self.render();
     });
+
+    // Sync transcript to parent form immediately + on edits
+    if (self.onChange) self.onChange(transcript);
+    var reviewTa = this.el.querySelector('.hdlv2-ac-transcript-textarea');
+    if (reviewTa && self.onChange) {
+      reviewTa.addEventListener('input', function () {
+        self.onChange(reviewTa.value);
+      });
+    }
   };
 
   AudioComponent.prototype.continueRecording = function () {

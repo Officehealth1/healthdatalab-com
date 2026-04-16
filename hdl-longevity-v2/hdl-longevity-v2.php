@@ -133,8 +133,8 @@ add_action( 'plugins_loaded', function () {
     }
 
     // Constants — all prefixed HDLV2_ to avoid collision with V1's HDL_*
-    define( 'HDLV2_VERSION', '0.8.0' );
-    define( 'HDLV2_DB_VERSION', '0.7.0' );
+    define( 'HDLV2_VERSION', '0.9.3' );
+    define( 'HDLV2_DB_VERSION', '2.0' );
     define( 'HDLV2_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
     define( 'HDLV2_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
     define( 'HDLV2_PLUGIN_FILE', __FILE__ );
@@ -147,6 +147,17 @@ add_action( 'plugins_loaded', function () {
 
     // Load classes and boot
     HDL_Longevity_V2::get_instance();
+
+    // Cache-Control headers for V2 REST API — prevents LSCache and Cloudflare caching
+    add_filter( 'rest_post_dispatch', function ( $response, $server, $request ) {
+        $route = $request->get_route();
+        if ( strpos( $route, '/hdl-v2/v1/' ) === 0 ) {
+            $response->header( 'Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0' );
+            $response->header( 'X-LiteSpeed-Cache-Control', 'no-cache' );
+            $response->header( 'Pragma', 'no-cache' );
+        }
+        return $response;
+    }, 10, 3 );
 
 }, 20 );
 

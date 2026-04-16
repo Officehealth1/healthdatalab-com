@@ -146,6 +146,7 @@ class HDLV2_Widget_Config {
 
         wp_localize_script( 'hdlv2-dashboard', 'hdlv2_dashboard', array(
             'ajax_url'        => admin_url( 'admin-ajax.php' ),
+            'rest_base'       => rest_url(),
             'nonce'           => wp_create_nonce( 'hdlv2_widget_config' ),
             'v1_nonce'        => wp_create_nonce( 'health_tracker_nonce' ),
             'practitioner_id' => $user_id,
@@ -1268,6 +1269,7 @@ class HDLV2_Widget_Config {
         $clients = $wpdb->get_results( $wpdb->prepare(
             "SELECT fp.id, fp.client_name, fp.client_email, fp.current_stage,
                     fp.stage1_completed_at, fp.stage2_completed_at, fp.stage3_completed_at,
+                    fp.stage2_webhook_fired_at,
                     wp.id AS why_id, wp.released, wp.released_at, LEFT(wp.distilled_why, 120) AS why_preview
              FROM {$wpdb->prefix}hdlv2_form_progress fp
              LEFT JOIN {$wpdb->prefix}hdlv2_why_profiles wp ON wp.form_progress_id = fp.id
@@ -1322,6 +1324,15 @@ class HDLV2_Widget_Config {
             $wpdb->prefix . 'hdlv2_why_profiles',
             array( 'released' => 1, 'released_at' => current_time( 'mysql' ) ),
             array( 'id' => $why->id )
+        );
+
+        // Advance client to Stage 3 — this is the ONLY place current_stage goes from 2 → 3
+        $wpdb->update(
+            $wpdb->prefix . 'hdlv2_form_progress',
+            array( 'current_stage' => 3 ),
+            array( 'id' => $progress->id ),
+            array( '%d' ),
+            array( '%d' )
         );
 
         // Send Stage 3 invitation email

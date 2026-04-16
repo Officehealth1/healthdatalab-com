@@ -1,0 +1,477 @@
+/**
+ * HDL V2 Flight Plan — Styles for interactive weekly plan with tappable action rows.
+ * @package HDL_Longevity_V2
+ * @since 0.9.3
+ */
+
+/* ── Flight Plan Root Override ──
+   The shared .hdlv2-assessment-root caps at 620px which is correct for forms
+   but too narrow for a 7-day grid. Override to full width for flight plans. */
+#hdlv2-flight-plan.hdlv2-assessment-root {
+  max-width: 1200px;
+}
+
+/* ── Identity Statement ── */
+.fp-identity-statement {
+  background: #f8f9fb;
+  border-left: 4px solid #3d8da0;
+  padding: 12px 16px;
+  margin: 0 24px 16px;
+  border-radius: 0 6px 6px 0;
+  font-size: 14px;
+  font-weight: 600;
+  font-style: italic;
+  color: #111;
+  line-height: 1.5;
+}
+
+/* ── Flexibility Note ── */
+.fp-flex-note {
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: 6px;
+  padding: 8px 12px;
+  margin: 0 24px 16px;
+  font-size: 11px;
+  color: #166534;
+  line-height: 1.5;
+}
+
+/* ── Transfer from Paper Box ── */
+.fp-transfer-box {
+  background: #f0f9fb;
+  border: 1px solid #bae6fd;
+  border-radius: 8px;
+  padding: 12px 16px;
+  margin: 0 24px 16px;
+}
+
+.fp-transfer-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #004F59;
+  margin-bottom: 6px;
+}
+
+.fp-transfer-desc {
+  font-size: 12px;
+  color: #444;
+  margin: 0 0 10px;
+  line-height: 1.5;
+}
+
+.fp-transfer-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* ── Buttons ── */
+.fp-btn {
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  border: none;
+  cursor: pointer;
+  transition: background-color 0.2s ease, transform 0.1s ease;
+  line-height: 1;
+}
+
+.fp-btn:active {
+  transform: scale(0.97);
+}
+
+.fp-btn-primary {
+  background: #f0fdf4;
+  color: #166534;
+  border: 1px solid #10b981;
+  font-weight: 600;
+}
+
+.fp-btn-primary:hover {
+  background: #dcfce7;
+}
+
+.fp-btn-secondary {
+  background: #f8f9fb;
+  color: #666;
+  border: 1px solid #e4e6ea;
+}
+
+.fp-btn-secondary:hover {
+  background: #f0f1f3;
+}
+
+.fp-btn-outline {
+  background: #fff;
+  color: #3d8da0;
+  border: 1px solid #3d8da0;
+  font-weight: 500;
+}
+
+.fp-btn-outline:hover {
+  background: #f0f9fb;
+}
+
+.fp-btn-print {
+  margin-left: auto;
+}
+
+/* ── Week Grid ── */
+.fp-grid-wrap {
+  padding: 0 24px 16px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.fp-week-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(120px, 1fr));
+  gap: 6px;
+}
+
+/* ── Day Column ── */
+.fp-day-column {
+  border: 1px solid #e4e6ea;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.fp-day-header {
+  background: #004F59;
+  color: #fff;
+  padding: 8px;
+  text-align: center;
+  font-weight: 600;
+  font-size: 12px;
+}
+
+.fp-day-tickall {
+  display: block;
+  margin: 4px auto 0;
+  padding: 2px 8px;
+  font-size: 9px;
+  background: rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 4px;
+  color: #fff;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.fp-day-tickall:hover {
+  background: rgba(255, 255, 255, 0.35);
+}
+
+.fp-day-empty {
+  padding: 12px 8px;
+  font-size: 11px;
+  color: #aaa;
+  text-align: center;
+}
+
+/* ── Tappable Action Rows (3-state toggle) ── */
+.fp-action {
+  display: flex;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 6px 8px;
+  border-bottom: 1px solid #f0f0f0;
+  cursor: pointer;
+  font-size: 11px;
+  line-height: 1.4;
+  transition: background-color 0.2s ease, color 0.2s ease, opacity 0.2s ease;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.fp-action:last-child {
+  border-bottom: none;
+}
+
+/* State: Default (not interacted) */
+.fp-action[data-state="default"] {
+  background: #fff;
+  color: #333;
+  opacity: 1;
+  border-left: 3px solid transparent;
+}
+.fp-action[data-state="default"] span { text-decoration: none; }
+
+/* State: Done (completed) */
+.fp-action[data-state="done"] {
+  background: #f0f4f8;
+  color: #1a1a1a;
+  opacity: 1;
+  border-left: 3px solid #3d8da0;
+}
+.fp-action[data-state="done"] span { text-decoration: none; }
+
+/* State: Not Done (explicitly marked as missed) */
+.fp-action[data-state="not-done"] {
+  background: #fafafa;
+  color: #aaa;
+  opacity: 0.55;
+  border-left: 3px solid transparent;
+}
+.fp-action[data-state="not-done"] span { text-decoration: line-through; }
+
+/* Hover — subtle feedback */
+.fp-action:hover {
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+/* Touch feedback */
+.fp-action:active {
+  transform: scale(0.98);
+}
+
+/* WHY Anchor (not tappable, inline motivational text) */
+.fp-why-anchor {
+  padding: 6px 8px;
+  border-bottom: 1px solid #f0f0f0;
+  font-size: 10px;
+  font-style: italic;
+  color: #3d8da0;
+  line-height: 1.4;
+}
+
+.fp-why-anchor:last-child {
+  border-bottom: none;
+}
+
+/* ── Adherence Display ── */
+.fp-adherence-card {
+  background: #f8f9fb;
+  border: 1px solid #e4e6ea;
+  border-radius: 10px;
+  padding: 16px;
+}
+
+.fp-adherence-header {
+  text-align: center;
+  margin-bottom: 12px;
+}
+
+.fp-adherence-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  color: #888;
+  font-weight: 600;
+  letter-spacing: 1px;
+}
+
+.fp-adherence-overall {
+  font-size: 36px;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.fp-adherence-message {
+  font-size: 12px;
+  color: #666;
+  margin-top: 4px;
+}
+
+.fp-adherence-breakdown {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.fp-adherence-cat {
+  flex: 1;
+  min-width: 90px;
+  text-align: center;
+}
+
+.fp-adherence-cat-label {
+  font-size: 10px;
+  color: #888;
+  margin-bottom: 4px;
+}
+
+.fp-adherence-bar {
+  background: #e4e6ea;
+  border-radius: 4px;
+  height: 8px;
+  overflow: hidden;
+}
+
+.fp-adherence-bar-fill {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.3s ease;
+}
+
+.fp-adherence-cat-value {
+  font-size: 14px;
+  font-weight: 700;
+  margin-top: 4px;
+}
+
+/* ── Section Headers ── */
+.fp-section {
+  padding: 0 24px 12px;
+}
+
+.fp-section-header {
+  margin: 0 0 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #004F59;
+}
+
+/* ── Weekly Targets ── */
+.fp-targets-list {
+  margin: 0;
+  padding-left: 20px;
+  font-size: 12px;
+  color: #444;
+  line-height: 1.7;
+}
+
+/* ── Shopping List ── */
+.fp-shopping-list {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 4px 24px;
+  margin: 0;
+  padding: 0;
+  list-style: none !important;
+  font-size: 13px;
+}
+
+.fp-shopping-list li.fp-shopping-item {
+  padding: 3px 0;
+  color: #444;
+  line-height: 1.5;
+  list-style: none !important;
+}
+
+.fp-shopping-item::before {
+  content: "\2022";
+  color: #3d8da0;
+  margin-right: 8px;
+  font-weight: 700;
+}
+
+/* ── Journey Assistance ── */
+.fp-journey-assistance {
+  background: #fafafa;
+  border-radius: 8px;
+  padding: 14px 16px;
+  font-size: 12px;
+  color: #444;
+  line-height: 1.6;
+  margin: 0 24px 16px;
+}
+
+/* ── Review Prompts ── */
+.fp-review-prompts {
+  margin: 0;
+  padding-left: 20px;
+  font-size: 12px;
+  color: #666;
+  line-height: 1.7;
+}
+
+/* ── Responsive: Mobile ── */
+@media (max-width: 768px) {
+  .fp-week-grid {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .fp-day-column {
+    border-bottom: 1px solid #e4e6ea;
+  }
+
+  .fp-identity-statement,
+  .fp-flex-note,
+  .fp-transfer-box,
+  .fp-section,
+  .fp-journey-assistance {
+    margin-left: 12px;
+    margin-right: 12px;
+  }
+
+  .fp-grid-wrap {
+    padding: 0 12px 16px;
+  }
+
+  .fp-transfer-actions {
+    flex-direction: column;
+  }
+
+  .fp-btn-print {
+    margin-left: 0;
+  }
+
+  .fp-adherence-breakdown {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .fp-shopping-list {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ── Print Styles ── */
+@media print {
+  .hdlv2-fp-noprint {
+    display: none !important;
+  }
+
+  @page {
+    size: landscape A4;
+    margin: 10mm;
+  }
+
+  .hdlv2-card {
+    box-shadow: none !important;
+    border: none !important;
+  }
+
+  .fp-action[data-state="done"] {
+    background: #f0f4f8 !important;
+    color: #1a1a1a !important;
+    border-left: 3px solid #3d8da0 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .fp-action[data-state="not-done"] {
+    background: #fafafa !important;
+    color: #aaa !important;
+    opacity: 0.55;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .fp-action[data-state="not-done"] span {
+    text-decoration: line-through;
+  }
+
+  .fp-action[data-state="default"] {
+    background: #fff !important;
+    border: 1px solid #e4e6ea !important;
+  }
+
+  .fp-day-column {
+    page-break-inside: avoid;
+  }
+
+  .fp-identity-statement {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .fp-day-header {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}

@@ -196,7 +196,7 @@ class HDLV2_Context_Builder {
 
             // Timeline entry
             if ( class_exists( 'HDLV2_Timeline' ) ) {
-                HDLV2_Timeline::add_entry( $client_id, $prac_id ?: 0, 'document', 'Monthly Summary', $summary );
+                HDLV2_Timeline::add_entry( $client_id, $prac_id ?: 0, 'monthly_summary', 'Monthly Summary', $summary );
             }
 
             $count++;

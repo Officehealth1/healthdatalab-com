@@ -51,6 +51,23 @@ class HDLV2_Checkin {
             $progress->client_user_id, $week_start
         ) );
 
+        // Fetch current week's flight plan context for the check-in page
+        $flight_plan = null;
+        $fp_row = $wpdb->get_row( $wpdb->prepare(
+            "SELECT id, week_number, identity_statement, weekly_targets, adherence_summary, week_start FROM {$wpdb->prefix}hdlv2_flight_plans WHERE client_id = %d ORDER BY week_start DESC LIMIT 1",
+            $progress->client_user_id
+        ) );
+        if ( $fp_row ) {
+            $flight_plan = array(
+                'id'                 => (int) $fp_row->id,
+                'week_number'        => (int) $fp_row->week_number,
+                'week_start'         => $fp_row->week_start,
+                'identity_statement' => $fp_row->identity_statement,
+                'weekly_targets'     => json_decode( $fp_row->weekly_targets, true ),
+                'adherence_summary'  => $fp_row->adherence_summary ? json_decode( $fp_row->adherence_summary, true ) : null,
+            );
+        }
+
         return rest_ensure_response( array(
             'week_start'   => $week_start,
             'week_number'  => $this->get_week_number( $progress ),
@@ -61,6 +78,7 @@ class HDLV2_Checkin {
                 'has_flags' => (bool) $checkin->has_flags,
                 'flags'    => json_decode( $checkin->flags, true ),
             ) : null,
+            'flight_plan'  => $flight_plan,
         ) );
     }
 
@@ -72,18 +90,58 @@ class HDLV2_Checkin {
 
         $text = sanitize_textarea_field( $params['text'] ?? '' );
         $audio_summary = $params['audio_summary'] ?? '';
-        $input = $audio_summary ?: $text;
 
-        if ( ! $input ) {
+        // Determine input method
+        $input_method = 'text';
+        if ( ! empty( $params['audio_id'] ) || ! empty( $params['raw_transcript'] ) ) {
+            $input_method = 'audio';
+        }
+
+        // Check if audio_summary is already structured JSON from the audio component
+        $already_extracted = false;
+        $summary = null;
+        if ( $audio_summary ) {
+            $decoded = is_string( $audio_summary ) ? json_decode( $audio_summary, true ) : $audio_summary;
+            if ( is_array( $decoded ) && isset( $decoded['check_in_summary'] ) ) {
+                // Already extracted by the audio component — use directly, skip second Claude call
+                $summary = is_string( $audio_summary ) ? $audio_summary : wp_json_encode( $audio_summary );
+                $already_extracted = true;
+            }
+        }
+
+        $raw_input = $audio_summary ?: $text;
+        if ( ! $raw_input ) {
             return new WP_Error( 'no_input', 'Please provide text or audio.', array( 'status' => 400 ) );
         }
 
-        // Extract via AI
-        $summary = HDLV2_Audio_Service::get_instance()->process_text( $input, 'weekly_checkin' );
-        if ( is_wp_error( $summary ) ) return $summary;
+        // "Add more" mode — append new input to existing draft and re-extract
+        if ( ! empty( $params['append_mode'] ) ) {
+            global $wpdb;
+            $existing_raw = $wpdb->get_var( $wpdb->prepare(
+                "SELECT raw_input FROM {$wpdb->prefix}hdlv2_checkins WHERE client_id = %d AND week_start = %s AND status = 'draft' LIMIT 1",
+                $progress->client_user_id, $this->get_week_start()
+            ) );
+            if ( $existing_raw ) {
+                $raw_input = $existing_raw . "\n\n--- Additional input ---\n\n" . $raw_input;
+            }
+            $already_extracted = false; // Force re-extraction on combined input
+        }
+
+        // "Not quite right" mode — prepend correction context
+        if ( ! empty( $params['correction_mode'] ) && ! empty( $params['correction'] ) ) {
+            $correction = sanitize_textarea_field( $params['correction'] );
+            $raw_input = "CORRECTION FROM CLIENT: The client reviewed the previous AI summary and says: \"{$correction}\". Please regenerate the summary incorporating this feedback.\n\nORIGINAL INPUT:\n" . $raw_input;
+            $already_extracted = false; // Force re-extraction with correction
+        }
+
+        // Only extract via AI if not already structured
+        if ( ! $already_extracted ) {
+            $summary = HDLV2_Audio_Service::get_instance()->process_text( $raw_input, 'weekly_checkin' );
+            if ( is_wp_error( $summary ) ) return $summary;
+        }
 
         // Parse flags and adherence from summary
-        $parsed    = $this->parse_summary( $summary );
+        $parsed     = $this->parse_summary( $summary );
         $week_start = $this->get_week_start();
         $week_num   = $this->get_week_number( $progress );
 
@@ -101,7 +159,8 @@ class HDLV2_Checkin {
             'practitioner_id'  => $progress->practitioner_user_id,
             'week_number'      => $week_num,
             'week_start'       => $week_start,
-            'raw_input'        => $input,
+            'raw_input'        => $raw_input,
+            'input_method'     => $input_method,
             'summary'          => wp_json_encode( $parsed['summary'] ),
             'adherence_scores' => wp_json_encode( $parsed['adherence'] ),
             'comfort_zone'     => $parsed['comfort_zone'],
@@ -139,22 +198,149 @@ class HDLV2_Checkin {
         }
 
         global $wpdb;
+        $checkin_table = $wpdb->prefix . 'hdlv2_checkins';
+
+        // Set confirmed
         $wpdb->update(
-            $wpdb->prefix . 'hdlv2_checkins',
+            $checkin_table,
             array( 'status' => 'confirmed', 'confirmed_at' => current_time( 'mysql' ) ),
             array( 'id' => $checkin_id, 'client_id' => $progress->client_user_id )
         );
 
-        // Add timeline entry
-        if ( class_exists( 'HDLV2_Timeline' ) ) {
-            HDLV2_Timeline::add_entry(
-                $progress->client_user_id, $progress->practitioner_user_id,
-                'checkin', 'Weekly check-in confirmed', '', null,
-                'hdlv2_checkins', $checkin_id
+        // Reload the confirmed checkin
+        $checkin = $wpdb->get_row( $wpdb->prepare(
+            "SELECT * FROM $checkin_table WHERE id = %d", $checkin_id
+        ) );
+        if ( ! $checkin ) {
+            return new WP_Error( 'not_found', 'Check-in not found.', array( 'status' => 404 ) );
+        }
+
+        $summary_data = json_decode( $checkin->summary, true ) ?: array();
+
+        // 4.1 — Enriched timeline entry
+        $wpdb->insert( $wpdb->prefix . 'hdlv2_timeline', array(
+            'client_id'      => $checkin->client_id,
+            'practitioner_id' => $checkin->practitioner_id,
+            'entry_type'     => 'checkin_summary',
+            'title'          => sprintf( 'Week %d check-in', $checkin->week_number ),
+            'date'           => $checkin->week_start,
+            'end_date'       => date( 'Y-m-d', strtotime( $checkin->week_start . ' +6 days' ) ),
+            'temporal_type'  => 'interval',
+            'category'       => 'system',
+            'source'         => $checkin->input_method ?: 'system',
+            'summary'        => $summary_data['check_in_summary'] ?? '',
+            'detail'         => $checkin->summary,
+            'has_flags'      => $checkin->has_flags ? 1 : 0,
+            'flags'          => $checkin->flags,
+            'source_table'   => 'hdlv2_checkins',
+            'source_id'      => $checkin_id,
+            'created_at'     => current_time( 'mysql' ),
+        ) );
+
+        // 4.2 — Re-evaluate flags on confirmed check-in
+        $this->evaluate_flags( $checkin );
+
+        // 4.3 — Trigger flight plan generation (async, 30s delay)
+        if ( ! wp_next_scheduled( 'hdlv2_generate_single_flight_plan', array( (int) $checkin->client_id ) ) ) {
+            wp_schedule_single_event(
+                time() + 30,
+                'hdlv2_generate_single_flight_plan',
+                array( (int) $checkin->client_id )
             );
         }
 
         return rest_ensure_response( array( 'success' => true ) );
+    }
+
+    /**
+     * Evaluate flags on a confirmed check-in.
+     * Updates the checkin record and notifies practitioner if flags detected.
+     */
+    private function evaluate_flags( $checkin ) {
+        global $wpdb;
+        $summary_data = json_decode( $checkin->summary, true ) ?: array();
+        $flags = json_decode( $checkin->flags, true ) ?: array();
+
+        // Use AI-extracted flags as primary source
+        if ( ! empty( $summary_data['flags'] ) && is_array( $summary_data['flags'] ) ) {
+            $flags = $summary_data['flags'];
+        }
+
+        // Check adherence trend — ≤3/10 for 2+ consecutive weeks
+        $prev_checkin = $wpdb->get_row( $wpdb->prepare(
+            "SELECT adherence_scores FROM {$wpdb->prefix}hdlv2_checkins
+             WHERE client_id = %d AND status = 'confirmed' AND id != %d
+             ORDER BY week_start DESC LIMIT 1",
+            $checkin->client_id, $checkin->id
+        ) );
+
+        if ( $prev_checkin ) {
+            $prev_scores = json_decode( $prev_checkin->adherence_scores, true ) ?: array();
+            $curr_scores = json_decode( $checkin->adherence_scores, true ) ?: array();
+            $prev_overall = ( $prev_scores['overall'] ?? 50 );
+            $curr_overall = ( $curr_scores['overall'] ?? 50 );
+
+            // Both weeks ≤30% (equivalent to ≤3/10 scaled)
+            if ( $prev_overall <= 30 && $curr_overall <= 30 ) {
+                $flags[] = array( 'trigger' => 'Low adherence for 2+ consecutive weeks', 'severity' => 'medium', 'detail' => sprintf( 'Current: %d%%, Previous: %d%%', $curr_overall, $prev_overall ) );
+            }
+        }
+
+        // Check for missed check-ins (2+ weeks gap)
+        $last_confirmed = $wpdb->get_var( $wpdb->prepare(
+            "SELECT MAX(week_start) FROM {$wpdb->prefix}hdlv2_checkins
+             WHERE client_id = %d AND status = 'confirmed' AND id != %d",
+            $checkin->client_id, $checkin->id
+        ) );
+        if ( $last_confirmed ) {
+            $gap_weeks = floor( ( strtotime( $checkin->week_start ) - strtotime( $last_confirmed ) ) / ( 7 * DAY_IN_SECONDS ) );
+            if ( $gap_weeks >= 3 ) {
+                $flags[] = array( 'trigger' => 'Missed check-ins', 'severity' => 'medium', 'detail' => sprintf( '%d weeks since last check-in', $gap_weeks ) );
+            }
+        }
+
+        $has_flags = ! empty( $flags );
+
+        // Update the checkin record
+        $wpdb->update(
+            $wpdb->prefix . 'hdlv2_checkins',
+            array( 'has_flags' => $has_flags ? 1 : 0, 'flags' => wp_json_encode( $flags ) ),
+            array( 'id' => $checkin->id )
+        );
+
+        // 4.4 — Notify practitioner if flags detected
+        if ( $has_flags && $checkin->practitioner_id ) {
+            $client_name = $wpdb->get_var( $wpdb->prepare(
+                "SELECT client_name FROM {$wpdb->prefix}hdlv2_form_progress WHERE client_user_id = %d ORDER BY id DESC LIMIT 1",
+                $checkin->client_id
+            ) ) ?: 'A client';
+
+            $flag_reasons = array();
+            foreach ( $flags as $f ) {
+                $flag_reasons[] = ( is_array( $f ) ? ( $f['trigger'] ?? $f['detail'] ?? '' ) : $f );
+            }
+
+            $prac = get_userdata( $checkin->practitioner_id );
+            if ( $prac && $prac->user_email ) {
+                wp_mail(
+                    $prac->user_email,
+                    sprintf( '%s may need your attention — HealthDataLab', $client_name ),
+                    sprintf(
+                        "Hi %s,\n\n%s's Week %d check-in has flagged items that may need your attention:\n\n• %s\n\nPlease review their profile on your dashboard.\n\n— HealthDataLab",
+                        $prac->display_name ?: 'Practitioner',
+                        $client_name,
+                        $checkin->week_number,
+                        implode( "\n• ", $flag_reasons )
+                    ),
+                    array( 'Content-Type: text/html; charset=UTF-8' )
+                );
+            }
+
+            // Update client status
+            if ( class_exists( 'HDLV2_Client_Status' ) ) {
+                // Status is calculated on-the-fly — the flag data in the DB drives it
+            }
+        }
     }
 
     // ── REST: History ──
@@ -257,28 +443,53 @@ class HDLV2_Checkin {
     }
 
     private function parse_summary( $raw_summary ) {
-        $decoded = json_decode( $raw_summary, true );
+        if ( is_string( $raw_summary ) ) {
+            // Strip markdown code fences if present (```json ... ```)
+            $raw_summary = preg_replace( '/^\s*```(?:json)?\s*/i', '', $raw_summary );
+            $raw_summary = preg_replace( '/\s*```\s*$/', '', $raw_summary );
+        }
+        $decoded = is_array( $raw_summary ) ? $raw_summary : json_decode( $raw_summary, true );
         if ( ! is_array( $decoded ) ) {
             $decoded = array( 'raw' => $raw_summary );
         }
 
-        $has_flags = ! empty( $decoded['has_flags'] ) || ! empty( $decoded['flags'] );
-        $flags     = $decoded['flags'] ?? array();
+        // Extract flags
+        $flags = $decoded['flags'] ?? array();
         if ( is_string( $flags ) ) $flags = array( $flags );
+        $has_flags = ! empty( $flags );
 
-        // Extract comfort zone if present
+        // Extract adherence scores from new format (1-10 scale → percentages)
+        $fitness_score   = $decoded['fitness_adherence']['score'] ?? null;
+        $nutrition_score = $decoded['nutrition_adherence']['score'] ?? null;
+
+        $movement  = $fitness_score !== null ? (int) $fitness_score * 10 : 50;
+        $nutrition = $nutrition_score !== null ? (int) $nutrition_score * 10 : 50;
+        $key_actions = (int) round( ( $movement + $nutrition ) / 2 ); // Average until tick data exists
+        $overall     = (int) round( ( $movement + $nutrition + $key_actions ) / 3 );
+
+        $adherence = array(
+            'overall'     => $overall,
+            'movement'    => $movement,
+            'nutrition'   => $nutrition,
+            'key_actions' => $key_actions,
+        );
+
+        // Extract comfort zone from structured object
         $cz = 'about_right';
         if ( isset( $decoded['comfort_zone'] ) ) {
-            $czv = strtolower( $decoded['comfort_zone'] );
-            if ( strpos( $czv, 'easy' ) !== false ) $cz = 'too_easy';
-            elseif ( strpos( $czv, 'hard' ) !== false ) $cz = 'too_hard';
-        }
-
-        // Extract adherence estimates
-        $adherence = array( 'overall' => 50, 'movement' => 50, 'nutrition' => 50, 'key_actions' => 50 );
-        if ( isset( $decoded['fitness'] ) && is_string( $decoded['fitness'] ) ) {
-            // Simple heuristic — will be refined by practitioner
-            $adherence['movement'] = 50;
+            if ( is_array( $decoded['comfort_zone'] ) ) {
+                // New structured format: determine overall from array lengths
+                $too_easy = count( $decoded['comfort_zone']['too_easy'] ?? array() );
+                $too_hard = count( $decoded['comfort_zone']['too_hard'] ?? array() );
+                $about_right = count( $decoded['comfort_zone']['about_right'] ?? array() );
+                if ( $too_hard > $too_easy && $too_hard > $about_right ) $cz = 'too_hard';
+                elseif ( $too_easy > $too_hard && $too_easy > $about_right ) $cz = 'too_easy';
+            } elseif ( is_string( $decoded['comfort_zone'] ) ) {
+                // Legacy flat format
+                $czv = strtolower( $decoded['comfort_zone'] );
+                if ( strpos( $czv, 'easy' ) !== false ) $cz = 'too_easy';
+                elseif ( strpos( $czv, 'hard' ) !== false ) $cz = 'too_hard';
+            }
         }
 
         return array(
