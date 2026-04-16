@@ -144,10 +144,12 @@ class HDLV2_Flight_Plan {
     }
 
     // ── REST: Generate ──
+    // Manual regenerates (dashboard "Regenerate Flight Plan" button) skip the client
+    // email to prevent spamming when practitioners iterate on priority notes mid-week.
     public function rest_generate( $request ) {
         $client_id = absint( $request['client_id'] );
         $prac_id   = get_current_user_id();
-        $result    = $this->generate( $client_id, $prac_id );
+        $result    = $this->generate( $client_id, $prac_id, 'manual', false );
         if ( is_wp_error( $result ) ) return $result;
         return rest_ensure_response( array( 'success' => true, 'plan_id' => $result ) );
     }
@@ -278,7 +280,7 @@ class HDLV2_Flight_Plan {
     }
 
     // ── Core: Generate flight plan ──
-    public function generate( $client_id, $practitioner_id, $trigger = 'auto' ) {
+    public function generate( $client_id, $practitioner_id, $trigger = 'auto', $send_email = true ) {
         $api_key = defined( 'HDLV2_ANTHROPIC_API_KEY' ) ? HDLV2_ANTHROPIC_API_KEY : '';
         if ( ! $api_key ) return new WP_Error( 'no_key', 'Anthropic API key not configured.' );
 
@@ -375,8 +377,8 @@ class HDLV2_Flight_Plan {
             'source_id'       => $plan_id,
         ) );
 
-        // Notify client that their flight plan is ready
-        if ( class_exists( 'HDLV2_Email_Templates' ) ) {
+        // Notify client that their flight plan is ready (skip on manual regenerate to avoid inbox spam)
+        if ( $send_email && class_exists( 'HDLV2_Email_Templates' ) ) {
             $fp_progress = $wpdb->get_row( $wpdb->prepare(
                 "SELECT client_name, client_email, token FROM {$wpdb->prefix}hdlv2_form_progress WHERE client_user_id = %d ORDER BY id DESC LIMIT 1",
                 $client_id

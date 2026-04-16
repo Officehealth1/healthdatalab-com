@@ -499,19 +499,27 @@ class HDLV2_Checkin {
         global $wpdb;
         $three_months_ago = date( 'Y-m-d H:i:s', strtotime( '-3 months' ) );
 
-        // Find clients whose last final report (or form creation) is 3+ months old
-        $clients = $wpdb->get_results(
+        // Find clients whose last final report (or form creation) is 3+ months old.
+        // A client can have multiple form_progress rows (multi-practitioner case),
+        // so an inner subquery picks the single latest row per client_user_id before
+        // joining — guarantees token and practitioner_user_id come from the same row
+        // (otherwise GROUP BY would return indeterminate values across columns).
+        $clients = $wpdb->get_results( $wpdb->prepare(
             "SELECT fp.client_user_id, fp.client_name, fp.client_email, fp.practitioner_user_id, fp.token, fp.created_at,
                     COALESCE(
                         (SELECT MAX(r.created_at) FROM {$wpdb->prefix}hdlv2_reports r WHERE r.client_user_id = fp.client_user_id AND r.report_type IN ('final','quarterly')),
                         fp.stage3_completed_at
                     ) AS last_assessment
              FROM {$wpdb->prefix}hdlv2_form_progress fp
-             WHERE fp.stage3_completed_at IS NOT NULL
-             AND fp.client_user_id IS NOT NULL
-             GROUP BY fp.client_user_id
-             HAVING last_assessment < '{$three_months_ago}'"
-        );
+             INNER JOIN (
+                 SELECT client_user_id, MAX(id) AS latest_id
+                 FROM {$wpdb->prefix}hdlv2_form_progress
+                 WHERE stage3_completed_at IS NOT NULL AND client_user_id IS NOT NULL
+                 GROUP BY client_user_id
+             ) latest ON latest.client_user_id = fp.client_user_id AND latest.latest_id = fp.id
+             HAVING last_assessment < %s",
+            $three_months_ago
+        ) );
 
         foreach ( $clients as $c ) {
             // Check we haven't already sent a reminder recently

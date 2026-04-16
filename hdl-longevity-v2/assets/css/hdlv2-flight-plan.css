@@ -208,7 +208,6 @@
   border-left: 3px solid #3d8da0;
 }
 .fp-action[data-state="done"] span { text-decoration: none; }
-.fp-action[data-state="not-done"] span { text-decoration: line-through; }
 
 /* Hover — subtle feedback */
 .fp-action:hover {
