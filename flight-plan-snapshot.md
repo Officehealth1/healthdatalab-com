@@ -1,0 +1,227 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e3]:
+    - banner [ref=e4]:
+      - generic [ref=e7]:
+        - link "HDL Logo 2309 4 bb s" [ref=e10] [cursor=pointer]:
+          - /url: http://healthdatalab-local.local/
+          - img "HDL Logo 2309 4 bb s" [ref=e12]
+        - generic [ref=e16]:
+          - navigation [ref=e18]:
+            - list [ref=e19]:
+              - listitem [ref=e20]:
+                - link "Clients" [ref=e21] [cursor=pointer]:
+                  - /url: http://healthdatalab-local.local/clients/
+              - listitem [ref=e22]:
+                - link "Tracker" [ref=e23] [cursor=pointer]:
+                  - /url: http://healthdatalab-local.local/client-tracker/
+              - listitem [ref=e24]:
+                - link "Resources 3" [ref=e25] [cursor=pointer]:
+                  - /url: "#"
+              - listitem [ref=e26]:
+                - link "More 3" [ref=e27] [cursor=pointer]:
+                  - /url: "#"
+          - text: a
+    - generic [ref=e28]:
+      - article [ref=e30]:
+        - generic [ref=e85]:
+          - generic [ref=e86]:
+            - heading "Week 1 Flight Plan" [level=2] [ref=e87]
+            - paragraph [ref=e88]: 2026-04-13 — Week 1
+          - generic [ref=e89]: “This week you are someone who puts her family's future first by taking the first brave steps toward health. You are a mum who chooses movement over the couch, vegetables over convenience, and sleep over scrolling — because Lily and James deserve a mum who will be dancing at their weddings.”
+          - generic [ref=e90]: This plan is your guide, not a rigid rulebook. Life with kids is unpredictable — if morning walks don't happen, try lunchtime or evening. If you miss a day, simply restart the next day. The goal is progress, not perfection. Listen to your body, especially your knees, and adapt as needed.
+          - generic [ref=e91]:
+            - generic [ref=e92]: Transferring from your printed plan?
+            - paragraph [ref=e93]: Tick All, then tap items you didn’t do. Done in seconds.
+            - generic [ref=e94]:
+              - button "✅ Tick All Days" [ref=e95] [cursor=pointer]
+              - button "❌ Untick All" [ref=e96] [cursor=pointer]
+              - button "Calculate My Adherence" [ref=e97] [cursor=pointer]
+              - button "🖨 Print" [ref=e98] [cursor=pointer]
+          - generic [ref=e100]:
+            - generic [ref=e101]:
+              - generic [ref=e102]:
+                - text: Mon
+                - button "Tick all" [ref=e103] [cursor=pointer]
+              - generic [ref=e105] [cursor=pointer]: ⭐ 5 minutes of deep breathing when stress peaks
+              - generic [ref=e107] [cursor=pointer]: "🥗 Mediterranean dinner: fish, vegetables, olive oil"
+              - generic [ref=e109] [cursor=pointer]: ⭐ Lay out tomorrow's walking clothes
+              - generic [ref=e111] [cursor=pointer]: ⭐ Phone to kitchen by 9pm
+              - generic [ref=e113] [cursor=pointer]: 🥗 Vegetable-rich lunch with legumes (lentil soup or chickpea salad)
+              - generic [ref=e115] [cursor=pointer]: 🏃 15-minute gentle walk (mind the knees) — start slow
+              - generic [ref=e117] [cursor=pointer]: ⭐ Take vitamin D and omega-3 supplements
+              - generic [ref=e119] [cursor=pointer]: ⭐ Phone stays in kitchen overnight — check!
+              - generic [ref=e121] [cursor=pointer]: 🥗 2 glasses of water before breakfast
+              - generic [ref=e123] [cursor=pointer]: "🥗 Mediterranean breakfast: Greek yogurt with berries and nuts"
+            - generic [ref=e124]:
+              - generic [ref=e125]:
+                - text: Tue
+                - button "Tick all" [ref=e126] [cursor=pointer]
+              - generic [ref=e128] [cursor=pointer]: ⭐ 5-minute nature break — step outside, breathe deeply
+              - generic [ref=e130] [cursor=pointer]: 🥗 Mediterranean dinner with extra vegetables
+              - generic [ref=e132] [cursor=pointer]: ⭐ Phone to kitchen by 9pm
+              - generic [ref=e134] [cursor=pointer]: 🥗 Bean and vegetable salad with olive oil dressing
+              - generic [ref=e136] [cursor=pointer]: ⭐ Take supplements
+              - generic [ref=e138] [cursor=pointer]: 🏃 15-minute walk or gentle swimming if knees are sore
+              - generic [ref=e140] [cursor=pointer]: 🥗 Vegetable omelet with herbs
+              - generic [ref=e142] [cursor=pointer]: 🥗 2 glasses of water before breakfast
+            - generic [ref=e143]:
+              - generic [ref=e144]:
+                - text: Wed
+                - button "Tick all" [ref=e145] [cursor=pointer]
+              - generic [ref=e147] [cursor=pointer]: "⭐ Breathing exercise: 4 counts in, 4 counts hold, 6 counts out"
+              - generic [ref=e149] [cursor=pointer]: 🥗 Fish or legume-based dinner with colorful vegetables
+              - generic [ref=e151] [cursor=pointer]: ⭐ Phone to kitchen by 9pm
+              - generic [ref=e153] [cursor=pointer]: 🥗 Hummus and vegetable wrap or lentil-based meal
+              - generic [ref=e155] [cursor=pointer]: ⭐ Take supplements
+              - generic [ref=e157] [cursor=pointer]: 🏃 15-minute walk — focus on enjoying the movement
+              - generic [ref=e159] [cursor=pointer]: 🥗 Mediterranean breakfast with whole grains
+              - generic [ref=e161] [cursor=pointer]: 🥗 2 glasses of water before breakfast
+            - generic [ref=e162]:
+              - generic [ref=e163]:
+                - text: Thu
+                - button "Tick all" [ref=e164] [cursor=pointer]
+              - generic [ref=e166] [cursor=pointer]: ⭐ 5 minutes in nature or by a window, focus on breathing
+              - generic [ref=e168] [cursor=pointer]: 🥗 Mediterranean-style dinner, extra olive oil on vegetables
+              - generic [ref=e170] [cursor=pointer]: ⭐ Phone to kitchen by 9pm
+              - generic [ref=e172] [cursor=pointer]: 🥗 Vegetable-packed meal with beans or lentils
+              - generic [ref=e174] [cursor=pointer]: 🏃 15-minute gentle movement — walking or stretching
+              - generic [ref=e176] [cursor=pointer]: ⭐ Take supplements
+              - generic [ref=e178] [cursor=pointer]: 🥗 Greek yogurt with nuts and fresh fruit
+              - generic [ref=e180] [cursor=pointer]: 🥗 2 glasses of water before breakfast
+            - generic [ref=e181]:
+              - generic [ref=e182]:
+                - text: Fri
+                - button "Tick all" [ref=e183] [cursor=pointer]
+              - generic [ref=e185] [cursor=pointer]: ⭐ Deep breathing and reflect on the week's wins
+              - generic [ref=e187] [cursor=pointer]: 🥗 Celebrate with a healthy Mediterranean meal
+              - generic [ref=e189] [cursor=pointer]: ⭐ Phone to kitchen by 9pm
+              - generic [ref=e191] [cursor=pointer]: 🥗 Colorful salad with chickpeas or white beans
+              - generic [ref=e193] [cursor=pointer]: ⭐ Take supplements
+              - generic [ref=e195] [cursor=pointer]: 🏃 15-minute walk — celebrate the week's progress
+              - generic [ref=e197] [cursor=pointer]: 🥗 Vegetable-rich breakfast with protein
+              - generic [ref=e199] [cursor=pointer]: 🥗 2 glasses of water before breakfast
+            - generic [ref=e200]:
+              - generic [ref=e201]:
+                - text: Sat
+                - button "Tick all" [ref=e202] [cursor=pointer]
+              - generic [ref=e204] [cursor=pointer]: ⭐ Nature time — garden, park, or outdoor play with kids
+              - generic [ref=e206] [cursor=pointer]: 🥗 Mediterranean dinner — involve the kids in preparation
+              - generic [ref=e208] [cursor=pointer]: ⭐ Phone to kitchen by 9pm
+              - generic [ref=e210] [cursor=pointer]: 🥗 Family meal with plenty of vegetables and legumes
+              - generic [ref=e212] [cursor=pointer]: ⭐ Take supplements
+              - generic [ref=e214] [cursor=pointer]: 🏃 Family walk with Lily and James — make it fun!
+              - generic [ref=e216] [cursor=pointer]: 🥗 Weekend Mediterranean breakfast treat
+              - generic [ref=e218] [cursor=pointer]: 🥗 2 glasses of water before breakfast
+            - generic [ref=e219]:
+              - generic [ref=e220]:
+                - text: Sun
+                - button "Tick all" [ref=e221] [cursor=pointer]
+              - generic [ref=e223] [cursor=pointer]: ⭐ Plan next week's meals and walking routes
+              - generic [ref=e225] [cursor=pointer]: ⭐ Prepare walking clothes for Monday
+              - generic [ref=e227] [cursor=pointer]: 🥗 Sunday family dinner — Mediterranean style
+              - generic [ref=e229] [cursor=pointer]: ⭐ Phone to kitchen by 9pm
+              - generic [ref=e231] [cursor=pointer]: 🥗 Prep vegetables for the week while having lunch
+              - generic [ref=e233] [cursor=pointer]: 🏃 Gentle 15-minute walk or family bike ride
+              - generic [ref=e235] [cursor=pointer]: ⭐ Take supplements
+              - generic [ref=e237] [cursor=pointer]: 🥗 2 glasses of water before breakfast
+              - generic [ref=e239] [cursor=pointer]: 🥗 Leisurely Mediterranean breakfast
+          - generic [ref=e298]:
+            - generic [ref=e299]:
+              - generic [ref=e300]: Overall Adherence
+              - generic [ref=e301]: 5%
+              - generic [ref=e302]: Tough week — that’s okay. Your next Flight Plan will adjust
+            - generic [ref=e303]:
+              - generic [ref=e304]:
+                - generic [ref=e305]: 🏃 Movement
+                - generic [ref=e307]: 0%
+              - generic [ref=e308]:
+                - generic [ref=e309]: 🥗 Nutrition
+                - generic [ref=e312]: 7%
+              - generic [ref=e313]:
+                - generic [ref=e314]: ⭐ Key Actions
+                - generic [ref=e317]: 4%
+          - generic [ref=e259]:
+            - heading "🎯 Weekly Targets" [level=4] [ref=e260]
+            - list [ref=e261]:
+              - listitem [ref=e262]: Complete 5 out of 7 daily 15-minute walks (or alternative gentle movement)
+              - listitem [ref=e263]: Phone in kitchen by 9pm for 6 out of 7 nights
+              - listitem [ref=e264]: Eat vegetables or legumes at 12 out of 14 lunch/dinner meals
+              - listitem [ref=e265]: Take supplements 7 days this week
+              - listitem [ref=e266]: Drink 2 glasses of water before breakfast 5 out of 7 mornings
+          - generic [ref=e267]:
+            - heading "🛒 Shopping List" [level=4] [ref=e268]
+            - list [ref=e269]:
+              - listitem [ref=e270]: •Greek yogurt (large container)
+              - listitem [ref=e271]: •Mixed berries (fresh or frozen)
+              - listitem [ref=e272]: •Mixed nuts and seeds
+              - listitem [ref=e273]: •Eggs
+              - listitem [ref=e274]: "•Fresh vegetables: spinach, tomatoes, bell peppers, cucumbers, carrots"
+              - listitem [ref=e275]: •Canned or dried lentils
+              - listitem [ref=e276]: •Chickpeas (canned or dried)
+              - listitem [ref=e277]: •White beans
+              - listitem [ref=e278]: •Fresh fish fillets (salmon, sardines, or white fish)
+              - listitem [ref=e279]: •Extra virgin olive oil
+              - listitem [ref=e280]: •Hummus
+              - listitem [ref=e281]: •Whole grain bread or wraps
+              - listitem [ref=e282]: "•Fresh herbs: parsley, basil, dill"
+              - listitem [ref=e283]: •Lemons
+              - listitem [ref=e284]: •Omega-3 supplements
+              - listitem [ref=e285]: •Vitamin D supplements
+          - heading "💡 Journey Assistance" [level=4] [ref=e287]
+          - generic [ref=e288]: "Starting your longevity journey feels overwhelming, but you're taking exactly the right approach: small, sustainable steps that honor your body's current state. Your knee discomfort is your body asking for gentleness, not punishment. These 15-minute walks aren't just about fitness — they're about proving to yourself that you can keep promises to your future self. Each step is literally adding time to your life and energy to your days with Lily and James. Your sleep transformation begins with that simple act of moving your phone to the kitchen. Your brain has been hijacked by blue light and endless scrolling, keeping you from the deep, restorative sleep your cells desperately need to repair and regenerate. When you wake up naturally instead of to notifications, you'll start to remember what real energy feels like. This isn't about perfection — it's about direction. Every small choice this week is steering you away from your father's path and toward the vibrant future your children need you to create."
+          - generic [ref=e289]:
+            - heading "📝 Review Prompts (for your next check-in)" [level=4] [ref=e290]
+            - list [ref=e291]:
+              - listitem [ref=e292]: Which daily walks felt easiest and which felt challenging? What made the difference?
+              - listitem [ref=e293]: How did your energy levels change throughout the week, particularly in the afternoons?
+              - listitem [ref=e294]: What happened on the nights when your phone stayed in the kitchen vs. when it didn't?
+              - listitem [ref=e295]: Which Mediterranean meals did you and the family enjoy most?
+              - listitem [ref=e296]: What obstacles came up this week and how did you navigate them?
+              - listitem [ref=e297]: How did your stress levels feel during the breathing exercises?
+      - contentinfo [ref=e44]:
+        - contentinfo [ref=e49]:
+          - generic [ref=e50]:
+            - generic [ref=e51]:
+              - img "HealthDataLab" [ref=e52]
+              - paragraph [ref=e53]:
+                - text: Health insights for practitioners and their clients.
+                - text: Track, analyse, and improve health outcomes.
+              - link "Feedback | Questions | Bugs" [ref=e55] [cursor=pointer]:
+                - /url: https://docs.google.com/forms/d/e/1FAIpQLSesaTK96urxI_4GZEdcasnYtIJUAVDy25JcyUxUqF_uyXMgzw/viewform
+            - generic [ref=e56]:
+              - generic [ref=e57]:
+                - heading "Platform" [level=4] [ref=e58]
+                - list [ref=e59]:
+                  - listitem [ref=e60]:
+                    - link "Dashboard" [ref=e61] [cursor=pointer]:
+                      - /url: /clients/
+                  - listitem [ref=e62]:
+                    - link "Health Report" [ref=e63] [cursor=pointer]:
+                      - /url: /health-report/
+                  - listitem [ref=e64]:
+                    - link "Longevity Report" [ref=e65] [cursor=pointer]:
+                      - /url: /longevity-form-rate-of-aging/
+                  - listitem [ref=e66]:
+                    - link "Client Tracker" [ref=e67] [cursor=pointer]:
+                      - /url: /client-tracker/
+              - generic [ref=e68]:
+                - heading "Support" [level=4] [ref=e69]
+                - list [ref=e70]:
+                  - listitem [ref=e71]:
+                    - link "Contact Us" [ref=e72] [cursor=pointer]:
+                      - /url: mailto:support@healthdatalab.co.uk
+                  - listitem [ref=e73]:
+                    - link "My Account" [ref=e74] [cursor=pointer]:
+                      - /url: /my-account/
+          - generic [ref=e75]:
+            - paragraph [ref=e76]: © 2026 HealthDataLab. All rights reserved.
+            - generic [ref=e77]:
+              - link "Privacy Policy" [ref=e78] [cursor=pointer]:
+                - /url: /privacy-policy/
+              - link "Terms & Conditions" [ref=e79] [cursor=pointer]:
+                - /url: /terms-conditions-disclaimer/
+  - text: 
+  - link "en English" [ref=e83] [cursor=pointer]:
+    - /url: "#"
+    - img "en" [ref=e84]
+    - text: English
