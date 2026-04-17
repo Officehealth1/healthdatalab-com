@@ -134,6 +134,23 @@ window.HDLAudioComponent = (function () {
     fileInput.addEventListener('change', function () { if (fileInput.files[0]) self.uploadFile(fileInput.files[0]); });
     var submitBtn = this.el.querySelector('[data-action="submit"]');
     if (submitBtn) submitBtn.addEventListener('click', function () { self.submitText(); });
+
+    // Reveal the "Process with AI" button once the textarea has content (typed or transcribed).
+    var textarea = this.el.querySelector('.hdlv2-ac-text');
+    if (textarea) {
+      textarea.addEventListener('input', function () { self.refreshActionRow(); });
+      self.refreshActionRow();
+    }
+  };
+
+  // Show the submit row only when the textarea has non-empty content.
+  // Called from the textarea input event and from every code path that writes
+  // ta.value programmatically (speech recognition, Whisper fallback, file upload).
+  AudioComponent.prototype.refreshActionRow = function () {
+    var row = this.el.querySelector('[data-role="action-row"]');
+    var ta  = this.el.querySelector('.hdlv2-ac-text');
+    if (!row || !ta) return;
+    row.style.display = ta.value.trim().length ? 'flex' : 'none';
   };
 
   // ── Recording ──

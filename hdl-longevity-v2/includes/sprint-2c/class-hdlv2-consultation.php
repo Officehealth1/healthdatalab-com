@@ -368,6 +368,18 @@ class HDLV2_Consultation {
             return '<p>You must be logged in as a practitioner to access the consultation interface.</p>';
         }
 
+        // Speedometer is declared as a dependency below. It is otherwise only
+        // registered inside the staged-form shortcode, which isn't present on
+        // the consultation page — so enqueue it here explicitly or WordPress
+        // silently drops the consultation script (and the page shows blank).
+        wp_enqueue_script(
+            'hdlv2-speedometer',
+            HDLV2_PLUGIN_URL . 'assets/js/hdlv2-speedometer.js',
+            array(),
+            HDLV2_VERSION,
+            true
+        );
+
         wp_enqueue_script(
             'hdlv2-consultation',
             HDLV2_PLUGIN_URL . 'assets/js/hdlv2-consultation.js',

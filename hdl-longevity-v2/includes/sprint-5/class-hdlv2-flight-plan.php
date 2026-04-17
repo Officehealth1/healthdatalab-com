@@ -102,9 +102,12 @@ class HDLV2_Flight_Plan {
         if ( is_wp_error( $auth ) ) return $auth;
 
         global $wpdb;
+        // Skip future-dated plans so a plan scheduled ahead for next week
+        // doesn't pre-empt the current week's plan in the client's view.
         $plan = $wpdb->get_row( $wpdb->prepare(
-            "SELECT * FROM {$wpdb->prefix}hdlv2_flight_plans WHERE client_id = %d ORDER BY week_start DESC LIMIT 1",
-            $client_id
+            "SELECT * FROM {$wpdb->prefix}hdlv2_flight_plans WHERE client_id = %d AND week_start <= %s ORDER BY week_start DESC LIMIT 1",
+            $client_id,
+            current_time( 'Y-m-d' )
         ) );
         if ( ! $plan ) {
             return rest_ensure_response( array( 'plan' => null ) );

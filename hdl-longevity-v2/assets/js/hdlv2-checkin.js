@@ -299,9 +299,12 @@
       }
     }
 
-    // Link to flight plan page if one exists
+    // Link to flight plan page if one exists.
+    // Use the PHP-configured URL (hdlv2_flight_plan_slug filter); fall back to
+    // /my-flight-plan/ so legacy embeds that predate the config still work.
     if (fp) {
-      var fpUrl = window.location.pathname.replace(/\/check-?in\/?/i, '/flight-plan/') + '?token=' + encodeURIComponent(token);
+      var fpBase = (CFG && CFG.flight_plan_url) || (window.location.origin + '/my-flight-plan/');
+      var fpUrl  = fpBase + '?token=' + encodeURIComponent(token);
       html += '<a href="' + fpUrl + '" class="hdlv2-btn-secondary" style="display:inline-block;margin-top:8px;text-decoration:none;">View your Flight Plan</a>';
     }
 

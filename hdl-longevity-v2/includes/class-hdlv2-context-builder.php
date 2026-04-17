@@ -80,9 +80,12 @@ class HDLV2_Context_Builder {
         $context['latest_checkin']  = $latest_ci ? json_decode( $latest_ci->summary, true ) : null;
         $context['latest_adherence'] = $latest_ci ? json_decode( $latest_ci->adherence_scores, true ) : null;
 
-        // Previous shopping list
+        // Previous shopping list — only from plans that have started, so a future-dated
+        // plan generated ahead doesn't get fed back as "previous" input to itself.
         $prev_shop = $wpdb->get_var( $wpdb->prepare(
-            "SELECT shopping_list FROM {$p}hdlv2_flight_plans WHERE client_id = %d ORDER BY week_start DESC LIMIT 1", $client_id
+            "SELECT shopping_list FROM {$p}hdlv2_flight_plans WHERE client_id = %d AND week_start <= %s ORDER BY week_start DESC LIMIT 1",
+            $client_id,
+            current_time( 'Y-m-d' )
         ) );
         $context['previous_shopping'] = $prev_shop ? json_decode( $prev_shop, true ) : array();
 

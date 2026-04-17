@@ -53,9 +53,12 @@ class HDLV2_Checkin {
 
         // Fetch current week's flight plan context for the check-in page
         $flight_plan = null;
+        // Skip future-dated plans so we show the plan covering the current check-in week,
+        // not a plan that's been pre-generated for an upcoming week.
         $fp_row = $wpdb->get_row( $wpdb->prepare(
-            "SELECT id, week_number, identity_statement, weekly_targets, adherence_summary, week_start FROM {$wpdb->prefix}hdlv2_flight_plans WHERE client_id = %d ORDER BY week_start DESC LIMIT 1",
-            $progress->client_user_id
+            "SELECT id, week_number, identity_statement, weekly_targets, adherence_summary, week_start FROM {$wpdb->prefix}hdlv2_flight_plans WHERE client_id = %d AND week_start <= %s ORDER BY week_start DESC LIMIT 1",
+            $progress->client_user_id,
+            current_time( 'Y-m-d' )
         ) );
         if ( $fp_row ) {
             $flight_plan = array(
@@ -376,9 +379,13 @@ class HDLV2_Checkin {
         wp_enqueue_script( 'hdlv2-audio-component', HDLV2_PLUGIN_URL . 'assets/js/hdlv2-audio-component.js', array(), HDLV2_VERSION, true );
         wp_enqueue_script( 'hdlv2-checkin', HDLV2_PLUGIN_URL . 'assets/js/hdlv2-checkin.js', array( 'hdlv2-audio-component' ), HDLV2_VERSION, true );
         wp_enqueue_style( 'hdlv2-form', HDLV2_PLUGIN_URL . 'assets/css/hdlv2-form.css', array(), HDLV2_VERSION );
+        // Flight-plan page slug is configurable via filter so sites that rename
+        // the page still get a working "View your Flight Plan" link post-confirm.
+        $flight_plan_slug = apply_filters( 'hdlv2_flight_plan_slug', 'my-flight-plan' );
         wp_localize_script( 'hdlv2-checkin', 'hdlv2_checkin', array(
-            'api_base'   => rest_url( 'hdl-v2/v1/checkin' ),
-            'nonce'      => wp_create_nonce( 'wp_rest' ),
+            'api_base'        => rest_url( 'hdl-v2/v1/checkin' ),
+            'nonce'           => wp_create_nonce( 'wp_rest' ),
+            'flight_plan_url' => home_url( '/' . trim( $flight_plan_slug, '/' ) . '/' ),
         ) );
         return '<div id="hdlv2-checkin" class="hdlv2-assessment-root"></div>';
     }
