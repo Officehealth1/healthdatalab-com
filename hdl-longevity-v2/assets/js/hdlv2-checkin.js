@@ -68,7 +68,8 @@
           + '<summary style="padding:10px 14px;cursor:pointer;font-weight:600;color:#004F59;font-size:13px;">Your Flight Plan this week (Week ' + fp.week_number + ')</summary>'
           + '<div style="padding:0 14px 12px;">';
         if (fp.identity_statement) {
-          html += '<div style="font-style:italic;color:#3d8da0;margin-bottom:8px;">\u201c' + esc(fp.identity_statement) + '\u201d</div>';
+          var identity = String(fp.identity_statement).replace(/^[\u201c\u201d"\s]+|[\u201c\u201d"\s]+$/g, '');
+          html += '<div style="font-style:italic;color:#3d8da0;margin-bottom:8px;">\u201c' + esc(identity) + '\u201d</div>';
         }
         if (fp.weekly_targets && fp.weekly_targets.length) {
           html += '<div style="font-weight:600;color:#004F59;margin-bottom:4px;">Weekly Targets:</div><ul style="margin:0 0 8px;padding-left:18px;color:#444;line-height:1.6;">';

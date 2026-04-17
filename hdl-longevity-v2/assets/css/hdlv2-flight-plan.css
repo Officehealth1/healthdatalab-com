@@ -176,7 +176,7 @@
   display: flex;
   align-items: flex-start;
   gap: 4px;
-  padding: 6px 8px;
+  padding: 6px 8px 6px 22px;
   border-bottom: 1px solid #f0f0f0;
   cursor: pointer;
   font-size: 11px;
@@ -185,13 +185,14 @@
   user-select: none;
   -webkit-user-select: none;
   -webkit-tap-highlight-color: transparent;
+  position: relative;
 }
 
 .fp-action:last-child {
   border-bottom: none;
 }
 
-/* State: Default (not interacted) */
+/* State: Default — empty circle tick mark on the left */
 .fp-action[data-state="default"] {
   background: #fff;
   color: #333;
@@ -199,15 +200,40 @@
   border-left: 3px solid transparent;
 }
 .fp-action[data-state="default"] span { text-decoration: none; }
+.fp-action[data-state="default"]::before {
+  content: "";
+  position: absolute;
+  left: 8px;
+  top: 8px;
+  width: 10px;
+  height: 10px;
+  border: 1.5px solid #c4c9cf;
+  border-radius: 50%;
+  background: #fff;
+  transition: all 0.15s ease;
+}
+.fp-action[data-state="default"]:hover::before { border-color: #3d8da0; }
 
-/* State: Done (completed) */
+/* State: Done — teal circle with white check. More visible at a glance than
+   the faint background shift we had before, but still calm (no flash, no
+   strikethrough), matching the V2 voice. */
 .fp-action[data-state="done"] {
-  background: #f0f4f8;
+  background: #e8f2f4;
   color: #1a1a1a;
   opacity: 1;
   border-left: 3px solid #3d8da0;
 }
 .fp-action[data-state="done"] span { text-decoration: none; }
+.fp-action[data-state="done"]::before {
+  content: "";
+  position: absolute;
+  left: 8px;
+  top: 8px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #3d8da0 url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='white' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'><polyline points='3.5 8.5 6.5 11.5 12.5 4.5'/></svg>") center / 10px 10px no-repeat;
+}
 
 /* Hover — subtle feedback */
 .fp-action:hover {

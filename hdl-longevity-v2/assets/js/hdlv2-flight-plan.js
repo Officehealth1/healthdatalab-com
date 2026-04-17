@@ -62,10 +62,13 @@
       + '<div class="hdlv2-header"><h2>Week ' + plan.week_number + ' Flight Plan</h2>'
       + '<p>' + dateLabel + '</p></div>';
 
-    // Identity statement
+    // Identity statement — the AI sometimes wraps its own output in smart
+    // quotes, and we add our own; strip any leading/trailing quotes from the
+    // raw value so we never end up with double-wrapped text.
     if (plan.identity_statement) {
+      var identity = String(plan.identity_statement).replace(/^[\u201c\u201d"\s]+|[\u201c\u201d"\s]+$/g, '');
       html += '<div class="fp-identity-statement">'
-        + '\u201c' + esc(plan.identity_statement) + '\u201d</div>';
+        + '\u201c' + esc(identity) + '\u201d</div>';
     }
 
     // Flexibility note

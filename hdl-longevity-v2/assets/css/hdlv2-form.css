@@ -54,6 +54,9 @@
   border-radius: 14px;
   overflow: hidden;
   box-shadow: 0 4px 24px rgba(0, 0, 0, 0.06);
+  /* Lift above theme-level position:fixed widgets (e.g. the language switcher) */
+  position: relative;
+  z-index: 1;
 }
 
 /* ── PROGRESS BAR ── */
