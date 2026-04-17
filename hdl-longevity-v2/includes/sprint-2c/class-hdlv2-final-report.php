@@ -175,11 +175,13 @@ class HDLV2_Final_Report {
         self::send_emails( $progress, $calc_result, $practitioner_id );
 
         // ── Step 8: Auto-generate Week 1 Flight Plan ──
+        // 'current' = this week's Monday. Final report is the client's first
+        // flight plan — it lands on the week they're in right now, not next week.
         if ( $progress->client_user_id ) {
             wp_schedule_single_event(
                 time() + 60,
                 'hdlv2_generate_single_flight_plan',
-                array( (int) $progress->client_user_id )
+                array( (int) $progress->client_user_id, 'current' )
             );
         }
 

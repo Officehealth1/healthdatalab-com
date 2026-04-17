@@ -243,12 +243,17 @@ class HDLV2_Checkin {
         // 4.2 — Re-evaluate flags on confirmed check-in
         $this->evaluate_flags( $checkin );
 
-        // 4.3 — Trigger flight plan generation (async, 30s delay)
-        if ( ! wp_next_scheduled( 'hdlv2_generate_single_flight_plan', array( (int) $checkin->client_id ) ) ) {
+        // 4.3 — Trigger flight plan generation for the UPCOMING week (async, 30s delay).
+        // The client has just finished THIS week and is now checking in to shape
+        // NEXT week's plan — so target 'next'. Without this we would try to write
+        // into a current-week slot that already has a plan and get blocked by
+        // duplicate prevention, and the client would never see a new plan.
+        $args = array( (int) $checkin->client_id, 'next' );
+        if ( ! wp_next_scheduled( 'hdlv2_generate_single_flight_plan', $args ) ) {
             wp_schedule_single_event(
                 time() + 30,
                 'hdlv2_generate_single_flight_plan',
-                array( (int) $checkin->client_id )
+                $args
             );
         }
 

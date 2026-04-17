@@ -20,7 +20,9 @@ class HDLV2_Flight_Plan {
     public function register_hooks() {
         add_action( 'rest_api_init', array( $this, 'register_rest_routes' ) );
         add_action( 'hdlv2_weekly_flight_plan', array( $this, 'cron_generate_all' ) );
-        add_action( 'hdlv2_generate_single_flight_plan', array( $this, 'generate_for_client' ) );
+        // Accept 2 args so callers can distinguish 'current' (final-report → first
+        // flight plan) from 'next' (check-in confirm → following week's plan).
+        add_action( 'hdlv2_generate_single_flight_plan', array( $this, 'generate_for_client' ), 10, 2 );
         add_shortcode( 'hdlv2_flight_plan', array( $this, 'render_shortcode' ) );
     }
 
@@ -283,13 +285,15 @@ class HDLV2_Flight_Plan {
     }
 
     // ── Core: Generate flight plan ──
-    public function generate( $client_id, $practitioner_id, $trigger = 'auto', $send_email = true ) {
+    public function generate( $client_id, $practitioner_id, $trigger = 'auto', $send_email = true, $week_start = null ) {
         $api_key = defined( 'HDLV2_ANTHROPIC_API_KEY' ) ? HDLV2_ANTHROPIC_API_KEY : '';
         if ( ! $api_key ) return new WP_Error( 'no_key', 'Anthropic API key not configured.' );
 
         // 5.1 — Use shared Context Builder (tier 2)
         $context = HDLV2_Context_Builder::build_context( $client_id, 2 );
-        $week_start = date( 'Y-m-d', strtotime( 'monday this week' ) );
+        if ( ! $week_start ) {
+            $week_start = date( 'Y-m-d', strtotime( 'monday this week' ) );
+        }
         $week_num   = $context['week_number'] ?? 1;
 
         // Read practitioner priority notes (set from dashboard, cleared after use)
@@ -404,19 +408,28 @@ class HDLV2_Flight_Plan {
     }
 
     /**
-     * Generate for a single client (called from check-in confirm trigger or first plan trigger).
-     * Includes duplicate prevention.
+     * Generate for a single client (called from check-in confirm trigger, cron,
+     * or first-plan trigger after final report).
+     *
+     * @param int    $client_id    Client WP user ID.
+     * @param string $target_week  'current' (this Monday — first flight plan
+     *                             after final report) or 'next' (next Monday —
+     *                             the plan the client uses next week, after
+     *                             submitting this week's check-in).
      */
-    public function generate_for_client( $client_id ) {
+    public function generate_for_client( $client_id, $target_week = 'current' ) {
         global $wpdb;
 
-        // Duplicate prevention — one plan per client per week
-        $week_start = date( 'Y-m-d', strtotime( 'monday this week' ) );
+        $week_start = ( $target_week === 'next' )
+            ? date( 'Y-m-d', strtotime( 'next monday' ) )
+            : date( 'Y-m-d', strtotime( 'monday this week' ) );
+
+        // Duplicate prevention — one plan per client per target week.
         $existing = $wpdb->get_var( $wpdb->prepare(
             "SELECT id FROM {$wpdb->prefix}hdlv2_flight_plans WHERE client_id = %d AND week_start = %s LIMIT 1",
             $client_id, $week_start
         ) );
-        if ( $existing ) return; // Already has a plan for this week
+        if ( $existing ) return;
 
         // Get practitioner
         $prac_id = $wpdb->get_var( $wpdb->prepare(
@@ -424,7 +437,8 @@ class HDLV2_Flight_Plan {
             $client_id
         ) );
 
-        $this->generate( (int) $client_id, (int) $prac_id, 'checkin' );
+        $trigger = ( $target_week === 'next' ) ? 'checkin' : 'final_report';
+        $this->generate( (int) $client_id, (int) $prac_id, $trigger, true, $week_start );
     }
 
     private function create_tick_rows( $plan_id, $client_id, $plan ) {
@@ -662,15 +676,18 @@ TODAY: " . date( 'Y-m-d' );
             if ( empty( $gen_day ) ) $gen_day = 'saturday';
             if ( $today !== $gen_day ) continue;
 
-            // Duplicate prevention — one plan per client per week
-            $week_start = date( 'Y-m-d', strtotime( 'monday this week' ) );
+            // The weekly cron fires on the client's generation day (default
+            // Saturday) to produce the plan for the UPCOMING week. Never for
+            // the week already in progress — that plan already exists (it was
+            // created after the final report or the previous check-in).
+            $week_start = date( 'Y-m-d', strtotime( 'next monday' ) );
             $existing = $wpdb->get_var( $wpdb->prepare(
                 "SELECT id FROM {$wpdb->prefix}hdlv2_flight_plans WHERE client_id = %d AND week_start = %s LIMIT 1",
                 $c->client_user_id, $week_start
             ) );
             if ( $existing ) continue;
 
-            $result = $this->generate( $c->client_user_id, $c->practitioner_user_id, 'auto' );
+            $result = $this->generate( $c->client_user_id, $c->practitioner_user_id, 'auto', true, $week_start );
             if ( ! is_wp_error( $result ) ) $count++;
         }
 
