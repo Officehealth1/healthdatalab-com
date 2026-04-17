@@ -84,6 +84,7 @@
       + '<button id="hdlv2-fp-untickall" class="fp-btn fp-btn-secondary">\u274c Untick All</button>'
       + '<button id="hdlv2-fp-calc" class="fp-btn fp-btn-outline">Calculate My Adherence</button>'
       + '<button onclick="window.print()" class="fp-btn fp-btn-secondary fp-btn-print">\ud83d\udda8 Print</button>'
+      + (plan.pdf_url ? '<a href="' + esc(plan.pdf_url) + '" target="_blank" rel="noopener" class="fp-btn fp-btn-secondary fp-btn-pdf">Download PDF</a>' : '')
       + '</div></div>';
 
     // Build tick lookup by day

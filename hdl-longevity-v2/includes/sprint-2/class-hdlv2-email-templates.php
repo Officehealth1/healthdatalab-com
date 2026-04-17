@@ -294,15 +294,25 @@ HealthDataLab &mdash; Longevity coaching for health practitioners
     // ──────────────────────────────────────────────────────────────
 
     public static function flight_plan_ready( $data ) {
-        $name  = esc_html( $data['client_name'] ?? 'there' );
-        $email = $data['client_email'] ?? '';
-        $url   = $data['plan_url'] ?? '#';
-        $week  = (int) ( $data['week_number'] ?? 0 );
+        $name    = esc_html( $data['client_name'] ?? 'there' );
+        $email   = $data['client_email'] ?? '';
+        $url     = $data['plan_url'] ?? '#';
+        $pdf_url = $data['pdf_url'] ?? '';
+        $week    = (int) ( $data['week_number'] ?? 0 );
+
+        // Primary CTA is the PDF when we have one (printable fridge copy), with
+        // the online interactive version as a secondary link. If the PDF hasn't
+        // rendered yet — Make.com scenario still running — fall back to the
+        // online plan as the only link.
+        $buttons = $pdf_url
+            ? self::cta_button( $pdf_url, 'Download Your Flight Plan (PDF)' )
+              . "<p style='text-align:center;font-size:13px;color:#666;margin:12px 0 0;'>Or <a href='" . esc_url( $url ) . "' style='color:" . self::TEAL . ";'>view online</a> to tick off items as you go.</p>"
+            : self::cta_button( $url, 'View Your Flight Plan' );
 
         $html = self::wrap(
             "<h2 style='font-family:Poppins,sans-serif;font-size:20px;font-weight:700;color:" . self::DARK . ";margin:0 0 12px;'>Your Week {$week} Flight Plan is Ready</h2>"
             . "<p style='font-size:14px;color:#444;line-height:1.7;margin:0 0 20px;'>Hi {$name}, your new weekly plan is ready. It includes your daily actions, shopping list, and this week's focus areas.</p>"
-            . self::cta_button( $url, 'View Your Flight Plan' )
+            . $buttons
         );
 
         wp_mail( $email, "Your Week {$week} Flight Plan — HealthDataLab", $html, array( 'Content-Type: text/html; charset=UTF-8' ) );

@@ -61,6 +61,12 @@ class HDLV2_Flight_Plan {
             'methods' => 'POST', 'callback' => array( $this, 'rest_priorities' ),
             'permission_callback' => function () { return HDLV2_Compatibility::is_practitioner( get_current_user_id() ); },
         ) );
+        // Callback from Make.com / PDFMonkey — writes the rendered PDF URL
+        // back into the flight plan row. Auth: Bearer HDLV2_MAKE_CALLBACK_SECRET.
+        register_rest_route( 'hdl-v2/v1', '/flight-plan/pdf-callback', array(
+            'methods' => 'POST', 'callback' => array( $this, 'rest_pdf_callback' ),
+            'permission_callback' => '__return_true',
+        ) );
     }
 
     // ── Auth: Validate client access via token or practitioner session ──
@@ -132,6 +138,7 @@ class HDLV2_Flight_Plan {
                 'weekly_targets'      => json_decode( $plan->weekly_targets, true ),
                 'journey_assistance'  => $plan->journey_assistance,
                 'adherence_summary'   => $plan->adherence_summary ? json_decode( $plan->adherence_summary, true ) : null,
+                'pdf_url'             => $plan->pdf_url ?: null,
                 'status'              => $plan->status,
             ),
             'ticks' => array_map( function ( $t ) {
@@ -384,7 +391,16 @@ class HDLV2_Flight_Plan {
             'source_id'       => $plan_id,
         ) );
 
-        // Notify client that their flight plan is ready (skip on manual regenerate to avoid inbox spam)
+        // Fire Make.com webhook (non-blocking) so PDFMonkey can render the
+        // printable landscape A4. The callback at /flight-plan/pdf-callback
+        // will write the rendered pdf_url back into this row when ready.
+        $this->fire_flight_plan_webhook( $plan_id );
+
+        // Notify client that their flight plan is ready (skip on manual regenerate to avoid inbox spam).
+        // PDF URL may already be populated if the Make scenario responded
+        // synchronously — otherwise the email carries only the online link
+        // and the client will see the Download PDF button next time they
+        // visit the plan page.
         if ( $send_email && class_exists( 'HDLV2_Email_Templates' ) ) {
             $fp_progress = $wpdb->get_row( $wpdb->prepare(
                 "SELECT client_name, client_email, token FROM {$wpdb->prefix}hdlv2_form_progress WHERE client_user_id = %d ORDER BY id DESC LIMIT 1",
@@ -392,10 +408,15 @@ class HDLV2_Flight_Plan {
             ) );
             if ( $fp_progress && $fp_progress->client_email ) {
                 $plan_url = site_url( '/my-flight-plan/?token=' . $fp_progress->token );
+                $current_pdf = $wpdb->get_var( $wpdb->prepare(
+                    "SELECT pdf_url FROM {$wpdb->prefix}hdlv2_flight_plans WHERE id = %d",
+                    $plan_id
+                ) );
                 HDLV2_Email_Templates::flight_plan_ready( array(
                     'client_name'  => $fp_progress->client_name ?: 'there',
                     'client_email' => $fp_progress->client_email,
                     'plan_url'     => $plan_url,
+                    'pdf_url'      => $current_pdf ?: '',
                     'week_number'  => $week_num,
                 ) );
             }
@@ -439,6 +460,123 @@ class HDLV2_Flight_Plan {
 
         $trigger = ( $target_week === 'next' ) ? 'checkin' : 'final_report';
         $this->generate( (int) $client_id, (int) $prac_id, $trigger, true, $week_start );
+    }
+
+    /**
+     * Fire Make.com webhook with the full flight plan payload so the
+     * PDFMonkey scenario can render a landscape A4 printable and post the
+     * URL back via rest_pdf_callback. Non-blocking — the initial "flight
+     * plan ready" email goes out whether the PDF is ready or not; the
+     * download button shows up on the plan page once the callback lands.
+     */
+    public function fire_flight_plan_webhook( $plan_id ) {
+        $webhook_url = defined( 'HDLV2_MAKE_FLIGHT_PDF' ) ? HDLV2_MAKE_FLIGHT_PDF : '';
+        if ( empty( $webhook_url ) ) {
+            error_log( '[HDLV2] Flight Plan PDF webhook skipped — HDLV2_MAKE_FLIGHT_PDF not configured.' );
+            return;
+        }
+
+        global $wpdb;
+        $plan = $wpdb->get_row( $wpdb->prepare(
+            "SELECT * FROM {$wpdb->prefix}hdlv2_flight_plans WHERE id = %d",
+            $plan_id
+        ) );
+        if ( ! $plan ) return;
+
+        $client_user   = get_userdata( $plan->client_id );
+        $prac_user     = get_userdata( $plan->practitioner_id );
+
+        // Practitioner logo — same lookup pattern as Final Report and Stage 2.
+        $prac_logo = '';
+        if ( $plan->practitioner_id ) {
+            $prac_logo = $wpdb->get_var( $wpdb->prepare(
+                "SELECT logo_url FROM {$wpdb->prefix}hdlv2_widget_config WHERE practitioner_user_id = %d LIMIT 1",
+                $plan->practitioner_id
+            ) ) ?: '';
+        }
+
+        $fp_token = $wpdb->get_var( $wpdb->prepare(
+            "SELECT token FROM {$wpdb->prefix}hdlv2_form_progress WHERE client_user_id = %d ORDER BY id DESC LIMIT 1",
+            $plan->client_id
+        ) );
+
+        $plan_data = json_decode( $plan->plan_data, true ) ?: array();
+
+        $payload = array(
+            'report_type'           => 'weekly_flight_plan',
+            'plan_id'               => (int) $plan->id,
+            'client_user_id'        => (int) $plan->client_id,
+            'practitioner_id'       => (int) $plan->practitioner_id,
+            'client_name'           => $client_user ? $client_user->display_name : '',
+            'client_email'          => $client_user ? $client_user->user_email : '',
+            'practitioner_name'     => $prac_user ? $prac_user->display_name : '',
+            'practitioner_email'    => $prac_user ? $prac_user->user_email : '',
+            'practitioner_logo_url' => $prac_logo,
+            'week_number'           => (int) $plan->week_number,
+            'week_start'            => $plan->week_start,
+            'week_end'              => $plan->date_range_end ?: date( 'Y-m-d', strtotime( $plan->week_start . ' +6 days' ) ),
+            'week_label'            => date( 'j M', strtotime( $plan->week_start ) ) . ' – ' . date( 'j M Y', strtotime( ( $plan->date_range_end ?: $plan->week_start . ' +6 days' ) ) ),
+            'identity_statement'    => preg_replace( '/^[\x{201c}\x{201d}"\s]+|[\x{201c}\x{201d}"\s]+$/u', '', (string) $plan->identity_statement ),
+            'flexibility_note'      => $plan_data['flexibility_note'] ?? '',
+            'journey_assistance'    => $plan->journey_assistance ?: '',
+            'weekly_targets'        => json_decode( $plan->weekly_targets, true ) ?: array(),
+            'shopping_list'         => json_decode( $plan->shopping_list, true ) ?: array(),
+            'review_prompts'        => $plan_data['review_prompts'] ?? array(),
+            'daily_plan'            => $plan_data['daily_plan'] ?? array(),
+            'callback_url'          => rest_url( 'hdl-v2/v1/flight-plan/pdf-callback' ),
+            'callback_secret'       => defined( 'HDLV2_MAKE_CALLBACK_SECRET' ) ? HDLV2_MAKE_CALLBACK_SECRET : '',
+            'plan_url'              => $fp_token ? site_url( '/my-flight-plan/?token=' . $fp_token ) : site_url( '/my-flight-plan/' ),
+            'generated_at'          => current_time( 'c' ),
+        );
+
+        wp_remote_post( $webhook_url, array(
+            'body'     => wp_json_encode( $payload ),
+            'headers'  => array( 'Content-Type' => 'application/json' ),
+            'timeout'  => 10,
+            'blocking' => false,
+        ) );
+
+        error_log( sprintf( '[HDLV2] Flight Plan PDF webhook dispatched for plan_id=%d, week=%d', $plan->id, $plan->week_number ) );
+    }
+
+    /**
+     * Receive the rendered PDF URL from Make.com and persist it against the
+     * flight plan row. Auth: Authorization: Bearer <HDLV2_MAKE_CALLBACK_SECRET>
+     * (hash_equals so timing differences don't leak the secret).
+     *
+     * Body: { plan_id, pdf_url }
+     */
+    public function rest_pdf_callback( $request ) {
+        $expected = defined( 'HDLV2_MAKE_CALLBACK_SECRET' ) ? HDLV2_MAKE_CALLBACK_SECRET : '';
+        $provided = '';
+        $auth = $request->get_header( 'authorization' );
+        if ( $auth && stripos( $auth, 'Bearer ' ) === 0 ) {
+            $provided = trim( substr( $auth, 7 ) );
+        }
+        if ( empty( $expected ) || ! hash_equals( $expected, $provided ) ) {
+            return new WP_Error( 'forbidden', 'Invalid callback secret.', array( 'status' => 403 ) );
+        }
+
+        $params  = $request->get_json_params();
+        $plan_id = absint( $params['plan_id'] ?? 0 );
+        $pdf_url = esc_url_raw( $params['pdf_url'] ?? '' );
+
+        if ( ! $plan_id || ! $pdf_url ) {
+            return new WP_Error( 'invalid', 'plan_id and pdf_url are required.', array( 'status' => 400 ) );
+        }
+
+        global $wpdb;
+        $updated = $wpdb->update(
+            $wpdb->prefix . 'hdlv2_flight_plans',
+            array( 'pdf_url' => $pdf_url, 'delivered_at' => current_time( 'mysql' ) ),
+            array( 'id' => $plan_id )
+        );
+
+        if ( $updated === false ) {
+            return new WP_Error( 'db_error', 'Failed to persist pdf_url.', array( 'status' => 500 ) );
+        }
+
+        return rest_ensure_response( array( 'success' => true, 'plan_id' => $plan_id, 'pdf_url' => $pdf_url ) );
     }
 
     private function create_tick_rows( $plan_id, $client_id, $plan ) {
