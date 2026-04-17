@@ -3,7 +3,7 @@
  * Plugin Name: HDL Longevity V2 — Staged Workflow
  * Plugin URI: https://healthdatalab.net
  * Description: V2 longevity workflow: staged intake, WHY profiling, practitioner consultations, weekly flight plans, and AI coaching. Runs alongside the existing Health Data Lab plugin.
- * Version: 0.9.9
+ * Version: 0.9.10
  * Author: Health Data Lab
  * Author URI: https://healthdatalab.net
  * License: Proprietary
@@ -38,6 +38,9 @@ add_action( 'init', function () {
     if ( is_admin() || is_user_logged_in() ) return;
 
     // ── ?invite=TOKEN → auto-login for Assessment Links ──
+    // Priority 1 (see add_action below) so we run before any plugin that might
+    // short-circuit via wp_redirect/exit on anonymous access (e.g. UM's
+    // content restriction).
     if ( ! empty( $_GET['invite'] ) ) {
         $token = sanitize_text_field( $_GET['invite'] );
         if ( ! preg_match( '/^[a-f0-9]{64}$/', $token ) ) return;
@@ -101,7 +104,36 @@ add_action( 'init', function () {
             );
         }
 
-        return;
+        // Ensure a form_progress row exists so the assessment page has a token
+        // to load with. If the client already started via the widget we reuse
+        // their existing row; otherwise we create a fresh empty one.
+        $progress = $wpdb->get_row( $wpdb->prepare(
+            "SELECT id, token FROM {$wpdb->prefix}hdlv2_form_progress WHERE client_user_id = %d ORDER BY id DESC LIMIT 1",
+            $user_id
+        ) );
+        if ( ! $progress ) {
+            $form_token = bin2hex( random_bytes( 32 ) );
+            $wpdb->insert(
+                $wpdb->prefix . 'hdlv2_form_progress',
+                array(
+                    'client_user_id'       => $user_id,
+                    'client_email'         => $email,
+                    'client_name'          => $name,
+                    'practitioner_user_id' => (int) $invite->practitioner_id,
+                    'token'                => $form_token,
+                    'current_stage'        => 1,
+                )
+            );
+        } else {
+            $form_token = $progress->token;
+        }
+
+        // Redirect straight to the assessment with the form token so the
+        // client lands on the right stage with their session auth + token
+        // already resolved — no guessing which URL to go to next.
+        $assessment_slug = apply_filters( 'hdlv2_assessment_slug', 'assessment' );
+        wp_safe_redirect( home_url( '/' . trim( $assessment_slug, '/' ) . '/?token=' . $form_token ) );
+        exit;
     }
 
     // ── ?token=TOKEN → auto-login for assessment/checkin pages ──
@@ -120,7 +152,7 @@ add_action( 'init', function () {
         }
     }
 
-} );
+}, 1 );
 
 add_action( 'plugins_loaded', function () {
 
@@ -133,7 +165,7 @@ add_action( 'plugins_loaded', function () {
     }
 
     // Constants — all prefixed HDLV2_ to avoid collision with V1's HDL_*
-    define( 'HDLV2_VERSION', '0.9.9' );
+    define( 'HDLV2_VERSION', '0.9.10' );
     define( 'HDLV2_DB_VERSION', '2.0' );
     define( 'HDLV2_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
     define( 'HDLV2_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
