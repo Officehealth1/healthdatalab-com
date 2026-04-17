@@ -28,6 +28,39 @@ class HDLV2_Practitioner_Dashboard {
 
     public function register_hooks() {
         add_shortcode( 'hdlv2_practitioner_dashboard', array( $this, 'render_shortcode' ) );
+        add_action( 'wp_enqueue_scripts', array( $this, 'maybe_enqueue_list_enhancer' ) );
+    }
+
+    /**
+     * Enqueue the V1 client-list enhancer on any page that renders V1's
+     * [health_tracker_dashboard] shortcode. DOM-injects V2 status badges +
+     * a chevron-expand detail panel (flight plan, check-ins, timeline,
+     * consultation) per row — without touching V1 code.
+     */
+    public function maybe_enqueue_list_enhancer() {
+        if ( is_admin() ) return;
+        if ( ! is_user_logged_in() || ! HDLV2_Compatibility::is_practitioner( get_current_user_id() ) ) return;
+
+        global $post;
+        if ( ! $post || ! has_shortcode( $post->post_content, 'health_tracker_dashboard' ) ) return;
+
+        wp_enqueue_script(
+            'hdlv2-client-list-enhance',
+            HDLV2_PLUGIN_URL . 'assets/js/hdlv2-client-list-enhance.js',
+            array(),
+            HDLV2_VERSION,
+            true
+        );
+
+        $consultation_slug = apply_filters( 'hdlv2_consultation_slug', 'consultation' );
+        $flight_plan_slug  = apply_filters( 'hdlv2_flight_plan_slug', 'my-flight-plan' );
+
+        wp_localize_script( 'hdlv2-client-list-enhance', 'hdlv2_client_enhance', array(
+            'api_base'         => rest_url( 'hdl-v2/v1' ),
+            'nonce'            => wp_create_nonce( 'wp_rest' ),
+            'consultation_url' => home_url( '/' . trim( $consultation_slug, '/' ) . '/' ),
+            'flight_plan_url'  => home_url( '/' . trim( $flight_plan_slug, '/' ) . '/' ),
+        ) );
     }
 
     public function render_shortcode( $atts ) {

@@ -191,11 +191,18 @@ class HDLV2_Client_Status {
                 $client_id
             ) );
 
+            // Email hash matches V1's dashboard row key (data-client-hash)
+            // so the client-list JS enhancement can splice V2 data into
+            // the right row without scanning by email.
+            $email      = $user ? $user->user_email : '';
+            $email_hash = $email ? hash( 'sha256', strtolower( trim( $email ) ) ) : '';
+
             $result[] = array(
                 'user_id'          => (int) $client_id,
                 'progress_id'      => $progress_id,
                 'name'             => $user ? $user->display_name : 'Unknown',
-                'email'            => $user ? $user->user_email : '',
+                'email'            => $email,
+                'email_hash'       => $email_hash,
                 'status'           => $status['status'],
                 'label'            => $status['label'],
                 'color'            => $status['color'],
