@@ -173,19 +173,27 @@ class HDLV2_Client_Status {
         $prac_id = get_current_user_id();
         $clients = HDLV2_Compatibility::get_clients_for_practitioner( $prac_id );
 
+        global $wpdb;
         $result = array();
         foreach ( $clients as $client_id ) {
             $user   = get_userdata( $client_id );
             $status = self::calculate_status( $client_id );
 
-            global $wpdb;
             $last_checkin = $wpdb->get_var( $wpdb->prepare(
                 "SELECT MAX(confirmed_at) FROM {$wpdb->prefix}hdlv2_checkins WHERE client_id = %d AND status = 'confirmed'",
                 $client_id
             ) );
 
+            // Latest form progress row — used by the practitioner dashboard
+            // to deep-link into the consultation UI (/consultation/?progress_id=X).
+            $progress_id = (int) $wpdb->get_var( $wpdb->prepare(
+                "SELECT id FROM {$wpdb->prefix}hdlv2_form_progress WHERE client_user_id = %d ORDER BY id DESC LIMIT 1",
+                $client_id
+            ) );
+
             $result[] = array(
                 'user_id'          => (int) $client_id,
+                'progress_id'      => $progress_id,
                 'name'             => $user ? $user->display_name : 'Unknown',
                 'email'            => $user ? $user->user_email : '',
                 'status'           => $status['status'],

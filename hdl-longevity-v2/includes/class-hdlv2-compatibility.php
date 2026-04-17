@@ -45,16 +45,22 @@ class HDLV2_Compatibility {
      */
     public static function get_clients_for_practitioner( $practitioner_user_id ) {
         global $wpdb;
-        $table = $wpdb->prefix . 'health_tracker_practitioner_clients';
 
+        // V2-first: the authoritative source of a practitioner's V2 clients is
+        // hdlv2_form_progress. The V1 link table doesn't carry a client_user_id
+        // column (it keys on email-hash), so querying it for user IDs returned
+        // nothing — which is what made the practitioner dashboard look empty.
+        $table = $wpdb->prefix . 'hdlv2_form_progress';
         if ( ! self::table_exists( $table ) ) {
             return array();
         }
 
-        return $wpdb->get_col( $wpdb->prepare(
-            "SELECT client_user_id FROM $table WHERE practitioner_user_id = %d AND deleted_at IS NULL",
+        return array_map( 'intval', $wpdb->get_col( $wpdb->prepare(
+            "SELECT DISTINCT client_user_id FROM $table
+             WHERE practitioner_user_id = %d AND client_user_id IS NOT NULL
+             ORDER BY id DESC",
             $practitioner_user_id
-        ) );
+        ) ) );
     }
 
     /**
