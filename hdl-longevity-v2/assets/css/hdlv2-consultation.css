@@ -11,19 +11,30 @@
    class (added via body_class filter in the shortcode), we widen the row
    and let our own .hdlv2-consultation-root cap at 1400px. */
 /* Widen the Divi article + entry-content on pages that embed the consultation
-   shortcode. Default Divi caps at ~745px which is too tight for the 58/38
-   split. Scope is body.hdlv2-wide-page (added only when the shortcode is
-   present) so nothing outside this page is affected. */
-body.hdlv2-wide-page article.page { width: 100% !important; max-width: 100% !important; }
+   shortcode. Default Divi reserves a narrow column plus sidebar gutter which
+   leaves the 58/38 split-screen cramped. Scope is body.hdlv2-wide-page (added
+   via body_class filter only when this shortcode is present) so no other page
+   is affected. */
+body.hdlv2-wide-page #left-area,
+body.hdlv2-wide-page #main-content .container > div:not(.et-l),
+body.hdlv2-wide-page article.page {
+  width: 100% !important;
+  max-width: 100% !important;
+  padding-right: 0 !important;
+}
+body.hdlv2-wide-page #sidebar { display: none !important; }
 body.hdlv2-wide-page .entry-content { width: 100% !important; max-width: 100% !important; }
 body.hdlv2-wide-page .container { width: 100% !important; max-width: 1400px !important; }
 body.hdlv2-wide-page .entry-content .et_pb_row {
-  width: 100%;
-  max-width: 100%;
+  width: 100% !important;
+  max-width: 100% !important;
 }
 body.hdlv2-wide-page .entry-content .et_pb_section {
   padding-left: 0;
   padding-right: 0;
+}
+body.hdlv2-wide-page .hdlv2-consult-layout {
+  width: 100%;
 }
 
 .hdlv2-consultation-root {
