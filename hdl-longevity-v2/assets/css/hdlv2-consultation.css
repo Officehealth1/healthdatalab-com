@@ -4,6 +4,28 @@
  */
 
 /* ── LAYOUT ── */
+
+/* Expand Divi's default content column for consultation. The theme wraps
+   shortcode output in an .et_pb_row capped at 80% (~596px on a 1280 viewport)
+   which squeezes the split-screen layout. With the hdlv2-wide-page body
+   class (added via body_class filter in the shortcode), we widen the row
+   and let our own .hdlv2-consultation-root cap at 1400px. */
+/* Widen the Divi article + entry-content on pages that embed the consultation
+   shortcode. Default Divi caps at ~745px which is too tight for the 58/38
+   split. Scope is body.hdlv2-wide-page (added only when the shortcode is
+   present) so nothing outside this page is affected. */
+body.hdlv2-wide-page article.page { width: 100% !important; max-width: 100% !important; }
+body.hdlv2-wide-page .entry-content { width: 100% !important; max-width: 100% !important; }
+body.hdlv2-wide-page .container { width: 100% !important; max-width: 1400px !important; }
+body.hdlv2-wide-page .entry-content .et_pb_row {
+  width: 100%;
+  max-width: 100%;
+}
+body.hdlv2-wide-page .entry-content .et_pb_section {
+  padding-left: 0;
+  padding-right: 0;
+}
+
 .hdlv2-consultation-root {
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   max-width: 1400px;

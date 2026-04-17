@@ -19,6 +19,19 @@ class HDLV2_Consultation {
     public function register_hooks() {
         add_action( 'rest_api_init', array( $this, 'register_rest_routes' ) );
         add_shortcode( 'hdlv2_consultation', array( $this, 'render_shortcode' ) );
+        add_filter( 'body_class', array( $this, 'maybe_add_wide_body_class' ) );
+    }
+
+    /**
+     * Tag pages containing the consultation shortcode with a body class so
+     * our CSS can override Divi's narrow .et_pb_row width scope-safely.
+     */
+    public function maybe_add_wide_body_class( $classes ) {
+        global $post;
+        if ( $post && has_shortcode( $post->post_content, 'hdlv2_consultation' ) ) {
+            $classes[] = 'hdlv2-wide-page';
+        }
+        return $classes;
     }
 
     // ──────────────────────────────────────────────────────────────
