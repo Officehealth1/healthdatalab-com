@@ -69,6 +69,11 @@ class HDLV2_Idempotency {
 
     /**
      * Helper: replay-or-execute. Wraps the common pattern.
+     *
+     * WP_Error returned by the worker is normalised to a WP_REST_Response so
+     * the X-Idempotent-Replay header can always be attached on replays. The
+     * resulting response shape ({code, message, data}) matches WordPress's
+     * own WP_Error → JSON conversion exactly, so clients see the same body.
      */
     public static function wrap( $request, $scope, callable $worker ) {
         $key = self::key_from_request( $request );
@@ -83,6 +88,21 @@ class HDLV2_Idempotency {
             }
         }
         $resp = $worker();
+
+        if ( is_wp_error( $resp ) ) {
+            $err    = $resp;
+            $data   = $err->get_error_data();
+            $status = ( is_array( $data ) && isset( $data['status'] ) ) ? (int) $data['status'] : 500;
+            $resp   = new WP_REST_Response(
+                array(
+                    'code'    => $err->get_error_code(),
+                    'message' => $err->get_error_message(),
+                    'data'    => $data ?: array( 'status' => $status ),
+                ),
+                $status
+            );
+        }
+
         if ( $key ) {
             self::store( $scope, $key, $resp );
         }
