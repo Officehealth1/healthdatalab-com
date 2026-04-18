@@ -316,22 +316,38 @@
       + '<select id="hdlv2-rec-cat"><option value="">Category...</option>' + CATEGORIES.map(function (c) { return '<option value="' + c + '">' + c + '</option>'; }).join('') + '</select>'
       + '<textarea id="hdlv2-rec-text" rows="2" placeholder="Recommendation..."></textarea>'
       + '<div style="display:flex;gap:8px;margin:6px 0;">'
-      + '<div>' + PRIORITIES.map(function (p, i) { return '<label style="font-size:12px;margin-right:8px;"><input type="radio" name="hdlv2-rec-pri" value="' + p + '"' + (i === 1 ? ' checked' : '') + '> ' + p + '</label>'; }).join('') + '</div>'
-      + '<select id="hdlv2-rec-freq">' + FREQUENCIES.map(function (f) { return '<option value="' + f + '">' + f + '</option>'; }).join('') + '</select>'
+      + '<select id="hdlv2-rec-pri" style="flex:1;">' + PRIORITIES.map(function (p, i) { return '<option value="' + p + '"' + (i === 1 ? ' selected' : '') + '>' + p + ' priority</option>'; }).join('') + '</select>'
+      + '<select id="hdlv2-rec-freq" style="flex:1;">' + FREQUENCIES.map(function (f) { return '<option value="' + f + '">' + f + '</option>'; }).join('') + '</select>'
       + '</div>'
       + '<button type="button" id="hdlv2-add-rec" class="hdlv2-btn-secondary" style="font-size:13px;padding:8px 20px;">Add Recommendation</button>'
       + '</div>';
+  }
+
+  // One-shot visual flash to highlight a field that needs attention.
+  function flashField( el ) {
+    if ( ! el ) return;
+    var prev = el.style.boxShadow;
+    el.style.boxShadow = '0 0 0 2px #d97706';
+    el.focus();
+    setTimeout( function () { el.style.boxShadow = prev; }, 1200 );
   }
 
   function bindRecForm() {
     var addBtn = document.getElementById('hdlv2-add-rec');
     if (!addBtn) return;
     addBtn.addEventListener('click', function () {
-      var cat = document.getElementById('hdlv2-rec-cat').value;
-      var text = document.getElementById('hdlv2-rec-text').value.trim();
-      var pri = (root.querySelector('input[name="hdlv2-rec-pri"]:checked') || {}).value || 'Medium';
-      var freq = document.getElementById('hdlv2-rec-freq').value;
-      if (!text) return;
+      var catEl  = document.getElementById('hdlv2-rec-cat');
+      var textEl = document.getElementById('hdlv2-rec-text');
+      var priEl  = document.getElementById('hdlv2-rec-pri');
+      var freqEl = document.getElementById('hdlv2-rec-freq');
+      var cat    = catEl.value;
+      var text   = textEl.value.trim();
+      var pri    = priEl ? priEl.value : 'Medium';
+      var freq   = freqEl.value;
+
+      // Required-field validation with focus + flash
+      if (!cat)  { flashField(catEl);  return; }
+      if (!text) { flashField(textEl); return; }
 
       fetch(CFG.api_base + '/add-recommendation', {
         method: 'POST',
@@ -346,8 +362,12 @@
           updateGenerateButton();
           document.getElementById('hdlv2-rec-list').innerHTML = renderRecommendations(res.recommendations);
           bindRecRemoveButtons();
-          document.getElementById('hdlv2-rec-text').value = '';
-          document.getElementById('hdlv2-rec-cat').value = '';
+          // Reset form for next entry — leave Frequency on its last value
+          // since practitioners typically add several Daily recs in a row.
+          textEl.value = '';
+          catEl.value  = '';
+          if (priEl) priEl.value = 'Medium';
+          catEl.focus();
         }
       });
     });
