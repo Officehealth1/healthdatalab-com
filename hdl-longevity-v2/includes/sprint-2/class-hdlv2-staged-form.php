@@ -353,7 +353,11 @@ class HDLV2_Staged_Form {
      * Body: { token }
      */
     public function rest_generate_report( $request ) {
-        $params = $request->get_json_params();
+        $params     = $request->get_json_params();
+        $idem_scope = ( is_array( $params ) && ! empty( $params['token'] ) )
+            ? 'tok:' . substr( hash( 'sha256', (string) $params['token'] ), 0, 16 )
+            : 'anon';
+        return HDLV2_Idempotency::wrap( $request, $idem_scope, function () use ( $request, $params ) {
         $token  = $this->validate_token_from_body( $params );
         if ( is_wp_error( $token ) ) return $token;
 
@@ -417,6 +421,7 @@ class HDLV2_Staged_Form {
             'lift_content'    => $report['lift_content'],
             'thrive_content'  => $report['thrive_content'],
         ) );
+        } );
     }
 
     // ──────────────────────────────────────────────────────────────

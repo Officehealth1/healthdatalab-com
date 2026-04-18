@@ -114,6 +114,9 @@ class HDLV2_Audio_Service {
      * Expects multipart form with 'audio' file field and optional 'context_type'.
      */
     public function rest_transcribe( $request ) {
+        $tok        = $request->get_param( 'token' );
+        $idem_scope = $tok ? 'tok:' . substr( hash( 'sha256', (string) $tok ), 0, 16 ) : 'anon-' . get_current_user_id();
+        return HDLV2_Idempotency::wrap( $request, $idem_scope, function () use ( $request ) {
         $files = $request->get_file_params();
         if ( empty( $files['audio'] ) ) {
             return new WP_Error( 'no_audio', 'Audio file is required.', array( 'status' => 400 ) );
@@ -165,6 +168,7 @@ class HDLV2_Audio_Service {
         }
 
         return rest_ensure_response( $response );
+        } );
     }
 
     // ──────────────────────────────────────────────────────────────
@@ -176,7 +180,10 @@ class HDLV2_Audio_Service {
      * Body: { text, context_type, previous_summary? }
      */
     public function rest_extract( $request ) {
-        $params       = $request->get_json_params();
+        $params     = $request->get_json_params();
+        $tok        = is_array( $params ) ? ( $params['token'] ?? '' ) : '';
+        $idem_scope = $tok ? 'tok:' . substr( hash( 'sha256', (string) $tok ), 0, 16 ) : 'anon-' . get_current_user_id();
+        return HDLV2_Idempotency::wrap( $request, $idem_scope, function () use ( $request, $params ) {
         $text         = sanitize_textarea_field( $params['text'] ?? '' );
         $context_type = sanitize_text_field( $params['context_type'] ?? '' );
 
@@ -203,6 +210,7 @@ class HDLV2_Audio_Service {
             'success' => true,
             'summary' => $summary,
         ) );
+        } );
     }
 
     // ──────────────────────────────────────────────────────────────

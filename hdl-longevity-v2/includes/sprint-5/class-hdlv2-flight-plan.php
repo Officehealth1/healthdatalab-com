@@ -159,11 +159,14 @@ class HDLV2_Flight_Plan {
     // Manual regenerates (dashboard "Regenerate Flight Plan" button) skip the client
     // email to prevent spamming when practitioners iterate on priority notes mid-week.
     public function rest_generate( $request ) {
-        $client_id = absint( $request['client_id'] );
-        $prac_id   = get_current_user_id();
-        $result    = $this->generate( $client_id, $prac_id, 'manual', false );
-        if ( is_wp_error( $result ) ) return $result;
-        return rest_ensure_response( array( 'success' => true, 'plan_id' => $result ) );
+        $client_id  = absint( $request['client_id'] );
+        $prac_id    = get_current_user_id();
+        $idem_scope = 'fp:' . $client_id . ':p:' . $prac_id;
+        return HDLV2_Idempotency::wrap( $request, $idem_scope, function () use ( $client_id, $prac_id ) {
+            $result = $this->generate( $client_id, $prac_id, 'manual', false );
+            if ( is_wp_error( $result ) ) return $result;
+            return rest_ensure_response( array( 'success' => true, 'plan_id' => $result ) );
+        } );
     }
 
     // ── REST: Tick ──

@@ -191,7 +191,11 @@ class HDLV2_Checkin {
 
     // ── REST: Confirm check-in ──
     public function rest_confirm( $request ) {
-        $params   = $request->get_json_params();
+        $params     = $request->get_json_params();
+        $tok        = is_array( $params ) ? ( $params['token'] ?? '' ) : '';
+        $cid        = is_array( $params ) ? absint( $params['checkin_id'] ?? 0 ) : 0;
+        $idem_scope = ( $tok ? 'tok:' . substr( hash( 'sha256', (string) $tok ), 0, 16 ) : 'anon' ) . ':ci:' . $cid;
+        return HDLV2_Idempotency::wrap( $request, $idem_scope, function () use ( $request, $params ) {
         $progress = $this->get_progress_from_token( $params['token'] ?? '' );
         if ( is_wp_error( $progress ) ) return $progress;
 
@@ -258,6 +262,7 @@ class HDLV2_Checkin {
         }
 
         return rest_ensure_response( array( 'success' => true ) );
+        } );
     }
 
     /**

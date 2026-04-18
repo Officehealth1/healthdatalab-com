@@ -357,7 +357,8 @@ class HDLV2_Consultation {
         $params      = $request->get_json_params();
         $progress_id = (int) ( $params['progress_id'] ?? 0 );
         $consult_id  = (int) ( $params['consultation_id'] ?? 0 );
-
+        $idem_scope  = 'fin:' . $progress_id . ':' . $consult_id;
+        return HDLV2_Idempotency::wrap( $request, $idem_scope, function () use ( $progress_id, $consult_id ) {
         if ( ! $progress_id || ! $consult_id ) {
             return new WP_Error( 'invalid', 'Progress ID and consultation ID required.', array( 'status' => 400 ) );
         }
@@ -370,6 +371,7 @@ class HDLV2_Consultation {
         }
 
         return rest_ensure_response( $result );
+        } );
     }
 
     // ──────────────────────────────────────────────────────────────
