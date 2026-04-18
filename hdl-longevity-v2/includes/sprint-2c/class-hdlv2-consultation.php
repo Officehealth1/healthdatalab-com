@@ -395,10 +395,21 @@ class HDLV2_Consultation {
             true
         );
 
+        // Audio component — the consultation JS calls HDLAudioComponent.create()
+        // to render the "Record Consultation" section. Without this enqueue the
+        // section appears blank because window.HDLAudioComponent is undefined.
+        wp_enqueue_script(
+            'hdlv2-audio-component',
+            HDLV2_PLUGIN_URL . 'assets/js/hdlv2-audio-component.js',
+            array(),
+            HDLV2_VERSION,
+            true
+        );
+
         wp_enqueue_script(
             'hdlv2-consultation',
             HDLV2_PLUGIN_URL . 'assets/js/hdlv2-consultation.js',
-            array( 'hdlv2-speedometer' ),
+            array( 'hdlv2-speedometer', 'hdlv2-audio-component' ),
             HDLV2_VERSION,
             true
         );
