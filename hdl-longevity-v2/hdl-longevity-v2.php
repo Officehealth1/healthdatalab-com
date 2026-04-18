@@ -165,7 +165,7 @@ add_action( 'plugins_loaded', function () {
     }
 
     // Constants — all prefixed HDLV2_ to avoid collision with V1's HDL_*
-    define( 'HDLV2_VERSION', '0.9.11' );
+    define( 'HDLV2_VERSION', '0.10.0' );
     define( 'HDLV2_DB_VERSION', '2.0' );
     define( 'HDLV2_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
     define( 'HDLV2_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
@@ -190,6 +190,17 @@ add_action( 'plugins_loaded', function () {
         }
         return $response;
     }, 10, 3 );
+
+    // Frontend rate-limit awareness module (loaded globally; tiny, cached)
+    add_action( 'wp_enqueue_scripts', function () {
+        wp_enqueue_script(
+            'hdlv2-rate-limit',
+            HDLV2_PLUGIN_URL . 'assets/js/hdlv2-rate-limit.js',
+            array(),
+            HDLV2_VERSION,
+            true
+        );
+    }, 5 );
 
 }, 20 );
 
@@ -224,6 +235,14 @@ final class HDL_Longevity_V2 {
         // Compatibility bridge (read-only V1 access)
         require_once HDLV2_PLUGIN_DIR . 'includes/class-hdlv2-compatibility.php';
 
+        // Security: rate limiter + idempotency (loaded BEFORE feature classes
+        // so the middleware can wrap every REST route registered downstream).
+        require_once HDLV2_PLUGIN_DIR . 'includes/security/class-hdlv2-rate-limiter.php';
+        require_once HDLV2_PLUGIN_DIR . 'includes/security/class-hdlv2-rate-limit-policy.php';
+        require_once HDLV2_PLUGIN_DIR . 'includes/security/class-hdlv2-rate-limit-middleware.php';
+        require_once HDLV2_PLUGIN_DIR . 'includes/security/class-hdlv2-rate-limit-status.php';
+        require_once HDLV2_PLUGIN_DIR . 'includes/security/class-hdlv2-idempotency.php';
+
         // Sprint 1: Lead Magnet Widget
         require_once HDLV2_PLUGIN_DIR . 'includes/sprint-1/class-hdlv2-widget-config.php';
         require_once HDLV2_PLUGIN_DIR . 'includes/sprint-1/class-hdlv2-widget-renderer.php';
@@ -256,6 +275,10 @@ final class HDL_Longevity_V2 {
     }
 
     private function init() {
+        // Security middleware — must run first so it wraps every V2 REST route
+        HDLV2_Rate_Limit_Middleware::init();
+        ( new HDLV2_Rate_Limit_Status() )->register_hooks();
+
         // Sprint 1: Widget config dashboard + REST API + shortcode
         $widget_config = new HDLV2_Widget_Config();
         $widget_config->register_hooks();
