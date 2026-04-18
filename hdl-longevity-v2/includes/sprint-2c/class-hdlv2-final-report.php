@@ -43,6 +43,43 @@ class HDLV2_Final_Report {
             return new WP_Error( 'not_found', 'Assessment not found.', array( 'status' => 404 ) );
         }
 
+        // ── Duplicate guard ──
+        // If a final report already exists for this assessment, return it
+        // instead of regenerating. Prevents duplicate Claude calls, duplicate
+        // Make.com webhook fires, duplicate client emails, and duplicate
+        // Flight Plan scheduling when the practitioner hits Back/Refresh/etc.
+        $existing_final = $wpdb->get_row( $wpdb->prepare(
+            "SELECT id, report_content, milestones FROM {$wpdb->prefix}hdlv2_reports
+             WHERE form_progress_id = %d AND report_type = 'final'
+             ORDER BY id DESC LIMIT 1",
+            $progress_id
+        ) );
+        if ( $existing_final ) {
+            $content = json_decode( $existing_final->report_content, true ) ?: array();
+            $ms      = json_decode( $existing_final->milestones, true ) ?: array();
+
+            // Recompute calc_result from stored stage data — pure math, no AI burn.
+            $s1 = json_decode( $progress->stage1_data, true ) ?: array();
+            $s3 = json_decode( $progress->stage3_data, true ) ?: array();
+            $calc_data = array_merge( $s1, $s3 );
+            foreach ( $calc_data as $k => $v ) { if ( $v === 'skip' ) $calc_data[ $k ] = null; }
+            $age    = (int) ( $calc_data['q1_age'] ?? $calc_data['age'] ?? 0 );
+            $gender = $calc_data['q1_sex'] ?? $calc_data['gender'] ?? 'other';
+            $calc_result = HDLV2_Rate_Calculator::calculate_full( $age, $calc_data, $gender );
+
+            return array(
+                'success'           => true,
+                'already_generated' => true,
+                'report_id'         => (int) $existing_final->id,
+                'report_type'       => 'final',
+                'awaken_content'    => $content['awaken_content'] ?? '',
+                'lift_content'      => $content['lift_content'] ?? '',
+                'thrive_content'    => $content['thrive_content'] ?? '',
+                'milestones'        => $ms,
+                'calc_result'       => $calc_result,
+            );
+        }
+
         $consult = $wpdb->get_row( $wpdb->prepare(
             "SELECT * FROM {$wpdb->prefix}hdlv2_consultation_notes WHERE id = %d", $consult_id
         ) );

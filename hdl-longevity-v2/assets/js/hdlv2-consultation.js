@@ -57,9 +57,42 @@
       state.data = data;
       state.consultId = data.consultation.id;
       state.hasChanges = (data.consultation.health_data_changes.length > 0) || (data.consultation.typed_notes.length >= 10) || (data.consultation.recommendations.length > 0);
+
+      // If a final report already exists, skip the editing form and show
+      // a read-only view. Prevents duplicate generation on Back/Refresh
+      // (the server-side guard in HDLV2_Final_Report::generate() also
+      // catches this, but the UX layer makes the state obvious).
+      if (data.final_report && data.final_report.id) {
+        renderFinalisedView(data);
+        return;
+      }
+
       renderConsultation(data);
     })
     .catch(function () { root.innerHTML = '<p style="color:#e74c3c;padding:40px;text-align:center;">Connection error. Please try again.</p>'; });
+  }
+
+  // Read-only view shown when a final report already exists for this client.
+  function renderFinalisedView(data) {
+    var fr = data.final_report;
+    var generated = fr.generated_at ? new Date(fr.generated_at.replace(' ', 'T') + 'Z').toLocaleString() : '';
+    root.innerHTML = '<div style="max-width:820px;margin:0 auto;padding:0 16px;">'
+      + '<div style="background:#ecfdf5;border:1px solid #a7f3d0;border-radius:8px;padding:14px 18px;margin:0 0 24px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">'
+      + '<div>'
+      + '<strong style="color:#065f46;display:block;font-size:14px;">Final report already generated</strong>'
+      + '<span style="color:#047857;font-size:12px;">' + (generated ? 'Generated ' + esc(generated) : 'Locked from re-generation') + '</span>'
+      + '</div>'
+      + '<span style="background:#10b981;color:#fff;font-size:11px;font-weight:700;padding:4px 12px;border-radius:4px;text-transform:uppercase;letter-spacing:1px;">FINAL</span>'
+      + '</div>'
+      + '</div>';
+    // Reuse the same final-report renderer so the layout matches generate().
+    renderFinalReport({
+      calc_result:    data.calc_result,
+      awaken_content: fr.awaken_content,
+      lift_content:   fr.lift_content,
+      thrive_content: fr.thrive_content,
+      milestones:     fr.milestones
+    });
   }
 
   // ── MAIN RENDER ──
@@ -431,9 +464,21 @@
       var notes = document.getElementById('hdlv2-consult-notes');
       if (notes) saveNotes(notes.value);
 
+      // Idempotency key: stable for this page-load's "intent to finalise".
+      // A double-click within 30s replays the cached response (no duplicate
+      // Claude burn). The server-side duplicate guard in
+      // HDLV2_Final_Report::generate() catches the cross-page-load case.
+      var idemKey = (window.hdlv2RateLimit && window.hdlv2RateLimit.idempotencyKey)
+        ? window.hdlv2RateLimit.idempotencyKey()
+        : 'fin-' + state.progressId + '-' + Date.now();
+
       fetch(CFG.api_base + '/finalise', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': CFG.nonce },
+        headers: {
+          'Content-Type': 'application/json',
+          'X-WP-Nonce': CFG.nonce,
+          'Idempotency-Key': idemKey
+        },
         body: JSON.stringify({ progress_id: state.progressId, consultation_id: state.consultId })
       })
       .then(function (r) { return r.json(); })

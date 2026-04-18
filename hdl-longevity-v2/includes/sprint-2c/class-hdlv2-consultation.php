@@ -118,14 +118,34 @@ class HDLV2_Consultation {
             $progress_id
         ) );
 
+        // Load final report if one exists — drives the view-only branch in JS.
+        $final = $wpdb->get_row( $wpdb->prepare(
+            "SELECT * FROM {$wpdb->prefix}hdlv2_reports WHERE form_progress_id = %d AND report_type = 'final' ORDER BY id DESC LIMIT 1",
+            $progress_id
+        ) );
+
         // Load WHY profile
         $why = $wpdb->get_row( $wpdb->prepare(
             "SELECT * FROM {$wpdb->prefix}hdlv2_why_profiles WHERE form_progress_id = %d LIMIT 1",
             $progress_id
         ) );
 
-        // Load or create consultation notes
-        $consult = $this->get_or_create_consultation( $progress );
+        // Load consultation notes. If a final report exists, prefer the
+        // 'report_generated' row that produced it — keeps the practitioner's
+        // notes and recommendations visible in the read-only view instead of
+        // silently spawning a fresh empty consultation row.
+        $consult = null;
+        if ( $final ) {
+            $consult = $wpdb->get_row( $wpdb->prepare(
+                "SELECT * FROM {$wpdb->prefix}hdlv2_consultation_notes
+                 WHERE form_progress_id = %d AND practitioner_user_id = %d AND status = 'report_generated'
+                 ORDER BY id DESC LIMIT 1",
+                $progress_id, get_current_user_id()
+            ) );
+        }
+        if ( ! $consult ) {
+            $consult = $this->get_or_create_consultation( $progress );
+        }
 
         $s1_data = json_decode( $progress->stage1_data, true ) ?: array();
         $s3_data = json_decode( $progress->stage3_data, true ) ?: array();
@@ -136,6 +156,20 @@ class HDLV2_Consultation {
                 'awaken_content' => $draft->report_content ?? '',
                 'lift_content'   => '',
                 'thrive_content' => '',
+            );
+        }
+
+        // Build final_report payload if present
+        $final_payload = null;
+        if ( $final ) {
+            $fc = json_decode( $final->report_content, true ) ?: array();
+            $final_payload = array(
+                'id'              => (int) $final->id,
+                'awaken_content'  => $fc['awaken_content'] ?? '',
+                'lift_content'    => $fc['lift_content'] ?? '',
+                'thrive_content'  => $fc['thrive_content'] ?? '',
+                'milestones'      => json_decode( $final->milestones, true ) ?: array(),
+                'generated_at'    => $final->created_at,
             );
         }
 
@@ -155,6 +189,7 @@ class HDLV2_Consultation {
             ) : null,
             'draft_report'       => $draft_content,
             'draft_status'       => $draft ? $draft->status : null,
+            'final_report'       => $final_payload,
             'consultation'       => array(
                 'id'                  => (int) $consult->id,
                 'typed_notes'         => $consult->typed_notes ?: '',
