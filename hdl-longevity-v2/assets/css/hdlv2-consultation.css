@@ -369,3 +369,28 @@ body.hdlv2-wide-page .hdlv2-consult-layout {
 
 /* ── SPINNER ── */
 @keyframes hdlv2spin { to { transform: rotate(360deg); } }
+
+.hdlv2-spinner {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  margin-right: 8px;
+  vertical-align: -2px;
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  border-top-color: #ffffff;
+  border-radius: 50%;
+  animation: hdlv2spin 0.8s linear infinite;
+}
+
+.hdlv2-spinner-label {
+  display: inline-block;
+  vertical-align: middle;
+}
+
+/* When the button is disabled (i.e. mid-request) the inner spinner stays
+   visible and crisp regardless of the dim button background. */
+.hdlv2-consult-generate-btn:disabled .hdlv2-spinner {
+  border-color: rgba(255, 255, 255, 0.5);
+  border-top-color: #ffffff;
+  opacity: 1;
+}

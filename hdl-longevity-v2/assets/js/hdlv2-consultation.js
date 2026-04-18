@@ -405,10 +405,27 @@
   function bindGenerateButton() {
     var btn = document.getElementById('hdlv2-generate-final');
     if (!btn) return;
+
+    // Spinner + label markup. Honest progression: one message change at 8s.
+    var SPINNER = '<span class="hdlv2-spinner" aria-hidden="true"></span>';
+    function showSpinner( labelText ) {
+      btn.innerHTML = SPINNER + '<span class="hdlv2-spinner-label">' + labelText + '</span>';
+    }
+    function restoreButton() {
+      btn.disabled = false;
+      btn.textContent = 'Generate Final Report';
+    }
+
     btn.addEventListener('click', function () {
       if (!confirm('Generate the Final Report for ' + (state.data.client_name || 'this client') + '? This will replace the Draft.')) return;
       btn.disabled = true;
-      btn.textContent = 'Generating...';
+      showSpinner('Generating Final Report…');
+
+      // After 8s, swap to a softer "still working" message so the practitioner
+      // knows the request hasn't hung. Cleared on response.
+      var almostTimer = setTimeout(function () {
+        if (btn.disabled) showSpinner('Almost there…');
+      }, 8000);
 
       // Save notes first
       var notes = document.getElementById('hdlv2-consult-notes');
@@ -421,17 +438,17 @@
       })
       .then(function (r) { return r.json(); })
       .then(function (res) {
+        clearTimeout(almostTimer);
         if (res.success) {
           renderFinalReport(res);
         } else {
-          btn.disabled = false;
-          btn.textContent = 'Generate Final Report';
+          restoreButton();
           alert(res.message || 'Generation failed. Please try again.');
         }
       })
       .catch(function () {
-        btn.disabled = false;
-        btn.textContent = 'Generate Final Report';
+        clearTimeout(almostTimer);
+        restoreButton();
         alert('Connection error. Please try again.');
       });
     });
