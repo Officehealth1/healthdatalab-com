@@ -88,6 +88,11 @@ window.HDLAudioComponent = (function () {
     // A PHP admin filter ('hdlv2_whisper_preload_on_idle' → true/false) can
     // force this on or off everywhere; null = per-consumer value wins.
     this.preloadOnIdle = !!opts.preloadOnIdle;
+    // Per-consumer Whisper tuning — null/undefined means "use CFG defaults".
+    // Lets us A/B (e.g. practitioner consultation on whisper-large-v3-turbo,
+    // client intake on whisper-small) without a PHP round-trip.
+    this.whisperModel = opts.whisperModel || null;
+    this.whisperNumBeams = Number.isFinite(opts.whisperNumBeams) ? opts.whisperNumBeams : null;
 
     this.mediaRecorder = null;
     this.audioChunks = [];
@@ -434,7 +439,7 @@ window.HDLAudioComponent = (function () {
       ? 'Transcribing your recording...'
       : 'Loading transcription model (first time only, ~75 MB)...');
 
-    T.transcribeBlob(blob, {
+    var transcribeOpts = {
       language: 'english',
       onProgress: function (m) {
         if (m.stage === 'model' && !T.isReady()) {
@@ -447,7 +452,11 @@ window.HDLAudioComponent = (function () {
           self.showProcessing('Transcribing your recording...');
         }
       },
-    })
+    };
+    if (this.whisperModel) transcribeOpts.model = this.whisperModel;
+    if (this.whisperNumBeams !== null) transcribeOpts.numBeams = this.whisperNumBeams;
+
+    T.transcribeBlob(blob, transcribeOpts)
       .then(function (transcript) {
         transcript = (transcript || '').trim();
         if (!transcript) {

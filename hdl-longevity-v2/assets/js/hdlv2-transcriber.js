@@ -19,8 +19,10 @@
  */
 
 const CFG = (typeof window !== 'undefined' && window.HDLV2_TRANSCRIBER_CFG) || {};
-const MODEL = CFG.modelName || 'Xenova/whisper-base';
+const DEFAULT_MODEL = CFG.modelName || 'Xenova/whisper-small';
+const DEFAULT_NUM_BEAMS = Number.isFinite(CFG.numBeams) && CFG.numBeams > 0 ? CFG.numBeams : 5;
 const TARGET_SR = 16000;
+const PEAK_TARGET = 0.95; // loudness-normalise to 95% of Float32 range
 
 let worker = null;
 let ready = false;
@@ -74,7 +76,7 @@ function init(opts) {
       }
     }
     w.addEventListener('message', onMsg);
-    w.postMessage({ type: 'init', model: MODEL });
+    w.postMessage({ type: 'init', model: DEFAULT_MODEL });
   });
 
   return initPromise;
@@ -84,6 +86,9 @@ function transcribeBlob(blob, opts) {
   if (!(blob instanceof Blob)) return Promise.reject(new Error('transcribeBlob expects a Blob.'));
   const onProgress = (opts && opts.onProgress) || null;
   const language = (opts && opts.language) || 'english';
+  // Per-call overrides for A/B between practitioner and client consumers.
+  const model = (opts && opts.model) || DEFAULT_MODEL;
+  const numBeams = (opts && Number.isFinite(opts.numBeams) && opts.numBeams > 0) ? opts.numBeams : DEFAULT_NUM_BEAMS;
 
   return init({ onProgress: onProgress })
     .then(function () { return decodeBlob(blob); })
@@ -124,7 +129,7 @@ function transcribeBlob(blob, opts) {
 
         const buf = audio.buffer;
         w.postMessage(
-          { type: 'transcribe', audio: buf, model: MODEL, language: language },
+          { type: 'transcribe', audio: buf, model: model, language: language, numBeams: numBeams },
           [buf]
         );
       });
@@ -160,11 +165,29 @@ async function decodeBlob(blob) {
   try {
     const decoded = await ctx.decodeAudioData(arrayBuffer.slice(0));
     const mono = downmixToMono(decoded);
-    if (decoded.sampleRate === TARGET_SR) return mono;
-    return resampleLinear(mono, decoded.sampleRate, TARGET_SR);
+    const resampled = decoded.sampleRate === TARGET_SR
+      ? mono
+      : resampleLinear(mono, decoded.sampleRate, TARGET_SR);
+    // Loudness normalise — phone mics often record 6–12dB below optimal
+    // and Whisper's accuracy degrades on quiet input. Simple peak
+    // normalisation to 0.95 of Float32 range is sufficient; full
+    // RMS/LUFS normalisation is overkill for speech.
+    return normalizePeak(resampled, PEAK_TARGET);
   } finally {
     try { ctx.close(); } catch (e) {}
   }
+}
+
+function normalizePeak(input, target) {
+  let peak = 0;
+  for (let i = 0; i < input.length; i++) {
+    const v = input[i] < 0 ? -input[i] : input[i];
+    if (v > peak) peak = v;
+  }
+  if (peak === 0 || peak >= target) return input; // silent or already loud
+  const gain = target / peak;
+  for (let i = 0; i < input.length; i++) input[i] *= gain;
+  return input;
 }
 
 function downmixToMono(audioBuffer) {
@@ -202,7 +225,7 @@ function reportError(source, message, stack) {
     source: String(source || '').slice(0, 100),
     message: String(message || '').slice(0, 1000),
     stack: String(stack || '').slice(0, 2000),
-    model: MODEL,
+    model: DEFAULT_MODEL,
     userAgent: (typeof navigator !== 'undefined' ? navigator.userAgent : '').slice(0, 500),
     ts: Date.now(),
   };
@@ -246,7 +269,8 @@ if (typeof window !== 'undefined') {
     // Consumers consult this alongside their own preloadOnIdle option.
     masterOverride: (CFG.preloadMaster === 'on' || CFG.preloadMaster === 'off') ? CFG.preloadMaster : null,
     config: {
-      model: MODEL,
+      model: DEFAULT_MODEL,
+      numBeams: DEFAULT_NUM_BEAMS,
       workerUrl: CFG.workerUrl || null,
       remoteHost: CFG.remoteHost || null,
     },

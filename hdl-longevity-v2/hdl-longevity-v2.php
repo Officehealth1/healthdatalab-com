@@ -165,7 +165,7 @@ add_action( 'plugins_loaded', function () {
     }
 
     // Constants — all prefixed HDLV2_ to avoid collision with V1's HDL_*
-    define( 'HDLV2_VERSION', '0.12.4' );
+    define( 'HDLV2_VERSION', '0.12.5' );
     define( 'HDLV2_DB_VERSION', '2.0' );
     define( 'HDLV2_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
     define( 'HDLV2_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
@@ -248,7 +248,14 @@ function hdlv2_register_transcriber() {
     if ( $preload_filter === false ) { $preload_master = 'off'; }
 
     wp_localize_script( 'hdlv2-transcriber', 'HDLV2_TRANSCRIBER_CFG', array(
-        'modelName'     => apply_filters( 'hdlv2_whisper_model', 'Xenova/whisper-base' ),
+        // whisper-small (~240MB quantised) is the accuracy target for clinical
+        // vocabulary after Matthew flagged whisper-base as too lossy on terms
+        // like SIBO / cortisol / mitochondrial. Override via filter if the
+        // accuracy diff shows we need to upgrade to whisper-large-v3-turbo.
+        'modelName'     => apply_filters( 'hdlv2_whisper_model', 'Xenova/whisper-small' ),
+        // Beam search over greedy decoding — material accuracy gain on
+        // long-form speech with minimal compute overhead at num_beams=5.
+        'numBeams'      => (int) apply_filters( 'hdlv2_whisper_num_beams', 5 ),
         'workerUrl'     => HDLV2_PLUGIN_URL . 'assets/js/hdlv2-transcriber.worker.js?ver=' . HDLV2_VERSION,
         'remoteHost'    => apply_filters( 'hdlv2_whisper_remote_host', null ),
         'errorEndpoint' => esc_url_raw( rest_url( 'hdl-v2/v1/audio/client-error' ) ),

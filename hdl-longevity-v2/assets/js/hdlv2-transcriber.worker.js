@@ -77,7 +77,7 @@ function onModelProgress(data) {
 // adapter requests. Asking for an adapter up-front is the only reliable
 // signal that the backend is actually usable.
 async function ensurePipeline(modelName, onProgress) {
-  const model = modelName || 'Xenova/whisper-base';
+  const model = modelName || 'Xenova/whisper-small';
   if (pipelineInstance && pipelineModel === model) return;
 
   pipelineInstance = null;
@@ -85,9 +85,17 @@ async function ensurePipeline(modelName, onProgress) {
   currentDevice = null;
 
   const device = await detectBestDevice();
-  const opts = { device: device, progress_callback: onProgress };
-  // fp32 is required for WebGPU session creation; WASM defaults are fine.
-  if (device === 'webgpu') opts.dtype = 'fp32';
+  // Per-device dtype:
+  //   webgpu: fp32 — required for session creation, the only combo ORT
+  //           accepts for WebGPU Whisper today.
+  //   wasm:   q8  — quantised int8. ~3–4× smaller + ~2× faster than fp32
+  //           with negligible accuracy loss on speech. Matches Xenova's
+  //           default quantized artefacts for Xenova/whisper-*.
+  const opts = {
+    device: device,
+    dtype: device === 'webgpu' ? 'fp32' : 'q8',
+    progress_callback: onProgress,
+  };
 
   pipelineInstance = await pipeline('automatic-speech-recognition', model, opts);
   currentDevice = device;
@@ -113,6 +121,9 @@ async function detectBestDevice() {
 async function runTranscription(msg) {
   const audio = new Float32Array(msg.audio);
   const language = msg.language || 'english';
+  // Accuracy-tuned decoder settings. num_beams configurable per-call so
+  // we can A/B practitioner (beam search) vs client-intake (greedy) later.
+  const numBeams = Number.isFinite(msg.numBeams) && msg.numBeams > 0 ? msg.numBeams : 5;
 
   const startedAt = Date.now();
   let firstChunkAt = 0;
@@ -120,9 +131,11 @@ async function runTranscription(msg) {
   const result = await pipelineInstance(audio, {
     chunk_length_s: 30,
     stride_length_s: 5,
-    language: language,
-    task: 'transcribe',
-    return_timestamps: false,
+    language: language,          // skip auto-detect — avoids mid-clip drift
+    task: 'transcribe',          // explicit (blocks accidental translate mode)
+    return_timestamps: false,    // we don't consume them; saves compute
+    num_beams: numBeams,         // beam search > greedy on clinical vocab
+    no_repeat_ngram_size: 3,     // suppresses Whisper's long-form loop failure
     callback_function: function (x) {
       if (aborted) return;
       if (!firstChunkAt) firstChunkAt = Date.now();
