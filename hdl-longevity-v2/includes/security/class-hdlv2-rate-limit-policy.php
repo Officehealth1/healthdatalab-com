@@ -92,6 +92,7 @@ class HDLV2_Rate_Limit_Policy {
             array( 'POST', '#^/hdl-v2/v1/consultation/(save-notes|add-recommendation|remove-recommendation|edit-field)$#', self::TIER_WRITE ),
             array( 'POST', '#^/hdl-v2/v1/timeline/add-note$#',                  self::TIER_WRITE ),
             array( 'POST', '#^/hdl-v2/v1/checkin/submit$#',                     self::TIER_WRITE ),
+            array( 'POST', '#^/hdl-v2/v1/audio/client-error$#',                 self::TIER_WRITE ),
 
             // ── Read (lightweight) ──────────────────────────────────────
             array( 'GET',  '#^/hdl-v2/v1/form/load$#',                          self::TIER_READ ),

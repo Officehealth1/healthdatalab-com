@@ -171,6 +171,7 @@
         apiBase: CFG.api_base.replace(/\/consultation$/, '/audio'),
         nonce: CFG.nonce,
         showConsent: true,
+        preloadOnIdle: true,
         onConfirm: function(summary) {
           // Append AI digest to notes
           var notesEl = document.getElementById('hdlv2-consult-notes');

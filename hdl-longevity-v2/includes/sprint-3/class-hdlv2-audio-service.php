@@ -79,6 +79,17 @@ class HDLV2_Audio_Service {
             'callback'            => array( $this, 'rest_extract' ),
             'permission_callback' => array( $this, 'check_audio_permission' ),
         ) );
+
+        // Client-side transcriber telemetry (PR 1 — in-browser Whisper).
+        // Open permission because errors may fire before a token is available
+        // (e.g. worker failed to boot on a Stage-2 page). The writer only
+        // touches error_log, so blast radius from noise is zero. Rate-limited
+        // via class-hdlv2-rate-limit-policy::TIER_WRITE.
+        register_rest_route( 'hdl-v2/v1', '/audio/client-error', array(
+            'methods'             => 'POST',
+            'callback'            => array( $this, 'rest_client_error' ),
+            'permission_callback' => '__return_true',
+        ) );
     }
 
     /**
@@ -211,6 +222,44 @@ class HDLV2_Audio_Service {
             'summary' => $summary,
         ) );
         } );
+    }
+
+    // ──────────────────────────────────────────────────────────────
+    //  REST: CLIENT-ERROR (transcriber telemetry)
+    // ──────────────────────────────────────────────────────────────
+
+    /**
+     * Log a transcriber-side failure so we can track real-world failure rates
+     * in the first month post-launch. Intentionally cheap: no DB writes, no
+     * heavy sanitisation — just append to error_log with a clear prefix.
+     *
+     * Body JSON: { source, message, stack?, model?, userAgent?, ts? }
+     */
+    public function rest_client_error( $request ) {
+        $params = $request->get_json_params();
+        if ( ! is_array( $params ) ) {
+            return new WP_Error( 'bad_payload', 'JSON body required.', array( 'status' => 400 ) );
+        }
+
+        $source  = substr( sanitize_text_field( $params['source']  ?? '' ), 0, 100 );
+        $message = substr( sanitize_text_field( $params['message'] ?? '' ), 0, 1000 );
+        $stack   = substr( sanitize_textarea_field( $params['stack'] ?? '' ), 0, 2000 );
+        $model   = substr( sanitize_text_field( $params['model']   ?? '' ), 0, 80 );
+        $ua      = substr( sanitize_text_field( $params['userAgent'] ?? '' ), 0, 300 );
+
+        if ( ! $message ) {
+            return rest_ensure_response( array( 'success' => true, 'skipped' => true ) );
+        }
+
+        error_log( sprintf(
+            '[HDLV2 Transcriber] source=%s model=%s ua=%s :: %s',
+            $source ?: '(unknown)',
+            $model  ?: '(unknown)',
+            $ua     ?: '(unknown)',
+            $message . ( $stack ? ' | stack: ' . str_replace( "\n", ' \n ', $stack ) : '' )
+        ) );
+
+        return rest_ensure_response( array( 'success' => true ) );
     }
 
     // ──────────────────────────────────────────────────────────────

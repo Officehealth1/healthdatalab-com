@@ -386,7 +386,7 @@ class HDLV2_Checkin {
 
     // ── Shortcode ──
     public function render_shortcode( $atts ) {
-        wp_enqueue_script( 'hdlv2-audio-component', HDLV2_PLUGIN_URL . 'assets/js/hdlv2-audio-component.js', array(), HDLV2_VERSION, true );
+        wp_enqueue_script( 'hdlv2-audio-component', HDLV2_PLUGIN_URL . 'assets/js/hdlv2-audio-component.js', array( 'hdlv2-transcriber' ), HDLV2_VERSION, true );
         wp_enqueue_script( 'hdlv2-checkin', HDLV2_PLUGIN_URL . 'assets/js/hdlv2-checkin.js', array( 'hdlv2-audio-component' ), HDLV2_VERSION, true );
         wp_enqueue_style( 'hdlv2-form', HDLV2_PLUGIN_URL . 'assets/css/hdlv2-form.css', array(), HDLV2_VERSION );
         // Flight-plan page slug is configurable via filter so sites that rename

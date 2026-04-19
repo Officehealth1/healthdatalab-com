@@ -116,6 +116,7 @@
             apiBase: CFG.api_base.replace('/timeline', '/audio'),
             nonce: CFG.nonce,
             showConsent: true,
+            preloadOnIdle: true,
             onConfirm: function (summary) { addNote(summary); }
           });
         }

@@ -165,7 +165,7 @@ add_action( 'plugins_loaded', function () {
     }
 
     // Constants — all prefixed HDLV2_ to avoid collision with V1's HDL_*
-    define( 'HDLV2_VERSION', '0.10.4' );
+    define( 'HDLV2_VERSION', '0.12.3' );
     define( 'HDLV2_DB_VERSION', '2.0' );
     define( 'HDLV2_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
     define( 'HDLV2_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
@@ -202,7 +202,74 @@ add_action( 'plugins_loaded', function () {
         );
     }, 5 );
 
+    // ── Transcriber (in-browser Whisper) ──
+    // Register the ES module globally at priority 5 so it's available as a
+    // dependency by the time shortcodes render their own audio enqueues.
+    // Each of the four audio-component consumers adds 'hdlv2-transcriber' to
+    // its audio-component dep array, and WP auto-enqueues the transcriber
+    // alongside. This replaces the earlier wp_script_is() auto-enqueue —
+    // which ran at wp_enqueue_scripts priority 100 (before shortcode render)
+    // and therefore never saw the audio-component as enqueued.
+    add_action( 'wp_enqueue_scripts', 'hdlv2_register_transcriber', 5 );
+    add_action( 'admin_enqueue_scripts', 'hdlv2_register_transcriber', 5 );
+
+    // Emit type="module" on the transcriber script tag so static imports resolve.
+    add_filter( 'script_loader_tag', 'hdlv2_transcriber_module_tag', 10, 3 );
+
 }, 20 );
+
+/**
+ * Register (do not enqueue) the transcriber ES module + its localized config.
+ * Called at wp_enqueue_scripts priority 5 on both frontend and admin so that
+ * any subsequent enqueue naming 'hdlv2-transcriber' as a dep finds it.
+ */
+function hdlv2_register_transcriber() {
+    if ( wp_script_is( 'hdlv2-transcriber', 'registered' ) ) {
+        return;
+    }
+
+    wp_register_script(
+        'hdlv2-transcriber',
+        HDLV2_PLUGIN_URL . 'assets/js/hdlv2-transcriber.js',
+        array(),
+        HDLV2_VERSION,
+        true
+    );
+
+    // preloadMaster is a tri-state master override consulted by each consumer:
+    //   'on'   → force preload everywhere, regardless of what the audio
+    //            component was asked to do.
+    //   'off'  → disable preload everywhere, regardless of consumer opt-in.
+    //   null   → no override. Per-consumer preloadOnIdle option wins.
+    // Filter default is null so admins can opt in/out without touching JS.
+    $preload_filter = apply_filters( 'hdlv2_whisper_preload_on_idle', null );
+    $preload_master = null;
+    if ( $preload_filter === true )  { $preload_master = 'on';  }
+    if ( $preload_filter === false ) { $preload_master = 'off'; }
+
+    wp_localize_script( 'hdlv2-transcriber', 'HDLV2_TRANSCRIBER_CFG', array(
+        'modelName'     => apply_filters( 'hdlv2_whisper_model', 'Xenova/whisper-base' ),
+        'workerUrl'     => HDLV2_PLUGIN_URL . 'assets/js/hdlv2-transcriber.worker.js?ver=' . HDLV2_VERSION,
+        'remoteHost'    => apply_filters( 'hdlv2_whisper_remote_host', null ),
+        'errorEndpoint' => esc_url_raw( rest_url( 'hdl-v2/v1/audio/client-error' ) ),
+        'nonce'         => wp_create_nonce( 'wp_rest' ),
+        'preloadMaster' => $preload_master,
+    ) );
+}
+
+/**
+ * Add type="module" to the transcriber <script> tag so the browser parses it
+ * as an ES module (required for the static import of transformers.min.js).
+ */
+function hdlv2_transcriber_module_tag( $tag, $handle, $src ) {
+    if ( 'hdlv2-transcriber' !== $handle ) {
+        return $tag;
+    }
+    if ( false !== strpos( $tag, 'type="module"' ) ) {
+        return $tag;
+    }
+    return str_replace( '<script ', '<script type="module" ', $tag );
+}
 
 // Activator / Deactivator — registered outside plugins_loaded so activation hook fires
 // even if V1 isn't loaded yet (tables are safe to create regardless).

@@ -81,6 +81,13 @@ window.HDLAudioComponent = (function () {
     this.onError = opts.onError || function () {};
     this.showConsent = !!opts.showConsent;
     this.simpleMode = !!opts.simpleMode;
+    // Consumer opt-in for preloading the Whisper model (~74MB) during idle.
+    // Default OFF — clients on mobile data doing intake shouldn't pay this
+    // cost if they'll never record. Practitioner-facing consumers
+    // (consultation, timeline) opt IN because recording is their primary path.
+    // A PHP admin filter ('hdlv2_whisper_preload_on_idle' → true/false) can
+    // force this on or off everywhere; null = per-consumer value wins.
+    this.preloadOnIdle = !!opts.preloadOnIdle;
 
     this.mediaRecorder = null;
     this.audioChunks = [];
@@ -98,7 +105,31 @@ window.HDLAudioComponent = (function () {
     this.textBeforeRecording = '';
 
     this.render();
+    this.triggerPreload();
   }
+
+  // Decide whether to preload the Whisper model now. Consults the transcriber's
+  // master override (set from PHP) before falling back to the consumer's opt-in.
+  // Polls briefly for HDLTranscriber because the ESM module loads with defer
+  // semantics and may arrive slightly after the IIFE constructs.
+  AudioComponent.prototype.triggerPreload = function () {
+    var self = this;
+    function attempt() {
+      var T = (typeof window !== 'undefined') ? window.HDLTranscriber : null;
+      if (!T || typeof T.preload !== 'function') return false;
+      var master = T.masterOverride;
+      var should = master === 'on'  ? true
+                 : master === 'off' ? false
+                 : self.preloadOnIdle;
+      if (should) T.preload();
+      return true;
+    }
+    if (attempt()) return;
+    var tries = 0;
+    var iv = setInterval(function () {
+      if (attempt() || ++tries > 10) clearInterval(iv);
+    }, 200);
+  };
 
   // ── State: input ──
   AudioComponent.prototype.render = function () {
@@ -381,41 +412,69 @@ window.HDLAudioComponent = (function () {
     this.processAudioBlob(file);
   };
 
+  // Single unified path: all uploaded blobs + MediaRecorder fallback output
+  // go through the in-browser Whisper pipeline (hdlv2-transcriber). No
+  // server call, no API key. Raw errors from the transcriber are caught here
+  // and replaced with a sanitised user-facing message — the transcriber
+  // module itself reports the raw error text to /audio/client-error for
+  // telemetry, so we never surface provider-level details (e.g. OpenAI
+  // "Incorrect API key" / sk-proj URLs) to the DOM.
   AudioComponent.prototype.processAudioBlob = function (blob) {
     var self = this;
-    this.showProcessing('Transcribing your recording...');
+    var T = (typeof window !== 'undefined') ? window.HDLTranscriber : null;
 
-    var formData = new FormData();
-    formData.append('audio', blob, 'recording.' + (blob.type.split('/')[1] || 'webm'));
-    if (this.token) formData.append('token', this.token);
+    if (!T || typeof T.transcribeBlob !== 'function') {
+      self.showError('Transcription failed, please try again or type directly.');
+      return;
+    }
 
-    fetch(this.apiBase + '/transcribe', {
-      method: 'POST',
-      headers: this.nonce ? { 'X-WP-Nonce': this.nonce } : {},
-      body: formData,
+    // First-use on this tab triggers the ~75MB model fetch. Show a distinct
+    // label so a 30–60s cold-start doesn't look like a stalled transcription.
+    this.showProcessing(T.isReady()
+      ? 'Transcribing your recording...'
+      : 'Loading transcription model (first time only, ~75 MB)...');
+
+    T.transcribeBlob(blob, {
+      language: 'english',
+      onProgress: function (m) {
+        if (m.stage === 'model' && !T.isReady()) {
+          var pct = (m.data && typeof m.data.progress === 'number')
+            ? Math.round(m.data.progress) : null;
+          self.showProcessing(pct !== null
+            ? 'Loading transcription model (' + pct + '%, one-time)...'
+            : 'Loading transcription model (first time only, ~75 MB)...');
+        } else if (m.stage === 'inference') {
+          self.showProcessing('Transcribing your recording...');
+        }
+      },
     })
-      .then(function (r) { return r.json(); })
-      .then(function (data) {
-        if (data.success && data.transcript) {
-          if (self.simpleMode) {
-            // Capture existing text BEFORE render() recreates the DOM
-            var prevTa = self.el.querySelector('.hdlv2-ac-text');
-            var savedText = prevTa ? prevTa.value.trim() : '';
-            self.render();
-            var ta = self.el.querySelector('.hdlv2-ac-text');
-            if (ta) {
-              ta.value = savedText + (savedText ? '\n\n' : '') + data.transcript.trim();
-              if (self.onChange) self.onChange(ta.value);
-            }
-          } else {
-            self.renderTranscriptReview(data.transcript);
+      .then(function (transcript) {
+        transcript = (transcript || '').trim();
+        if (!transcript) {
+          self.showError('No speech detected in the recording. Try again or type your response.');
+          return;
+        }
+        if (self.simpleMode) {
+          // Capture existing text BEFORE render() recreates the DOM
+          var prevTa = self.el.querySelector('.hdlv2-ac-text');
+          var savedText = prevTa ? prevTa.value.trim() : '';
+          self.render();
+          var ta = self.el.querySelector('.hdlv2-ac-text');
+          if (ta) {
+            ta.value = savedText + (savedText ? '\n\n' : '') + transcript;
+            if (self.onChange) self.onChange(ta.value);
           }
         } else {
-          self.showError(data.message || 'No speech detected in the recording. Try again or type your response.');
+          self.renderTranscriptReview(transcript);
         }
       })
-      .catch(function () {
-        self.showError('Connection error. Please try again.');
+      .catch(function (err) {
+        // User-initiated abort (stop()) is not an error.
+        if (err && err.message === 'aborted') return;
+        // Never surface err.message — it may contain model paths, stack
+        // traces, or provider detail. Telemetry already logged by the
+        // transcriber module via /audio/client-error.
+        self.showError('Transcription failed, please try again or type directly.');
       });
   };
 

@@ -512,7 +512,7 @@ class HDLV2_Staged_Form {
         wp_enqueue_script(
             'hdlv2-audio-component',
             HDLV2_PLUGIN_URL . 'assets/js/hdlv2-audio-component.js',
-            array(),
+            array( 'hdlv2-transcriber' ),
             HDLV2_VERSION,
             true
         );
