@@ -70,8 +70,12 @@ function onModelProgress(data) {
   self.postMessage({ type: 'progress', stage: 'model', data: data });
 }
 
-// Prefer WebGPU on capable browsers (Chrome 113+, Edge 113+, Safari 18+).
-// Fall back to WASM silently — that's the majority path today.
+// Feature-detect WebGPU before initialising the pipeline. The previous
+// try/catch approach let ONNX Runtime pick WebGPU, fail at session creation
+// ("no available backend found") and surface the error without falling
+// through to WASM — notably on Brave, which ships navigator.gpu but blocks
+// adapter requests. Asking for an adapter up-front is the only reliable
+// signal that the backend is actually usable.
 async function ensurePipeline(modelName, onProgress) {
   const model = modelName || 'Xenova/whisper-base';
   if (pipelineInstance && pipelineModel === model) return;
@@ -80,25 +84,30 @@ async function ensurePipeline(modelName, onProgress) {
   pipelineModel = null;
   currentDevice = null;
 
-  try {
-    pipelineInstance = await pipeline('automatic-speech-recognition', model, {
-      device: 'webgpu',
-      dtype: 'fp32',
-      progress_callback: onProgress,
-    });
-    currentDevice = 'webgpu';
-    pipelineModel = model;
-    return;
-  } catch (e) {
-    // fall through to WASM
-  }
+  const device = await detectBestDevice();
+  const opts = { device: device, progress_callback: onProgress };
+  // fp32 is required for WebGPU session creation; WASM defaults are fine.
+  if (device === 'webgpu') opts.dtype = 'fp32';
 
-  pipelineInstance = await pipeline('automatic-speech-recognition', model, {
-    device: 'wasm',
-    progress_callback: onProgress,
-  });
-  currentDevice = 'wasm';
+  pipelineInstance = await pipeline('automatic-speech-recognition', model, opts);
+  currentDevice = device;
   pipelineModel = model;
+}
+
+// Returns 'webgpu' only if a usable GPU adapter is present. 'wasm' otherwise.
+// Runs in a Worker where `navigator.gpu` is available in Chromium-based
+// browsers that ship WebGPU. Firefox Workers + Safari <18 + Brave all
+// return 'wasm' — which is what we want.
+async function detectBestDevice() {
+  if (typeof navigator === 'undefined' || !navigator.gpu || typeof navigator.gpu.requestAdapter !== 'function') {
+    return 'wasm';
+  }
+  try {
+    const adapter = await navigator.gpu.requestAdapter();
+    return adapter ? 'webgpu' : 'wasm';
+  } catch (e) {
+    return 'wasm';
+  }
 }
 
 async function runTranscription(msg) {
