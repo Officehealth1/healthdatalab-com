@@ -17,6 +17,8 @@ package-lock.json
 # Local documents & screenshots
 *.pdf
 docs/
+# Mockups — internal design artefacts (never deploy)
+mockups/
 # Local backups & archives
 backups/
 *.zip
