@@ -44,6 +44,8 @@ class HDLV2_Activator {
             'hdlv2_quarterly_review'        => 'daily',
             'hdlv2_pending_leads_cleanup'   => 'daily',
             'hdlv2_inactivity_sweep'        => 'daily',
+            // v0.40.17 — nudge practitioner about Stage 2 clients stuck > 3 days.
+            'hdlv2_stuck_release_reminder'  => 'daily',
             // v0.30.0 — bumped from hdlv2_five_minutes to hdlv2_one_minute.
             // 5-min safety-net wait was visible to practitioners as a 1-3 min
             // "Transcribing your audio..." stall whenever the loopback kick

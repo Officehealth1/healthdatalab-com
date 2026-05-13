@@ -22,6 +22,8 @@ class HDLV2_Checkin {
         add_action( 'hdlv2_checkin_reminder', array( $this, 'send_reminders' ) );
         add_action( 'hdlv2_quarterly_review', array( $this, 'check_quarterly_reviews' ) );
         add_action( 'hdlv2_inactivity_sweep', array( $this, 'run_inactivity_sweep' ) );
+        // v0.40.17 — nudge practitioner about clients stuck after Stage 2.
+        add_action( 'hdlv2_stuck_release_reminder', array( $this, 'run_stuck_release_reminder' ) );
         add_shortcode( 'hdlv2_checkin', array( $this, 'render_shortcode' ) );
     }
 
@@ -536,6 +538,82 @@ class HDLV2_Checkin {
                 'reasons'            => $status['reasons'],
                 'timeline_url'       => home_url( '/' . trim( apply_filters( 'hdlv2_practitioner_dashboard_slug', 'clients' ), '/' ) . '/?client_id=' .(int) $c->client_user_id ),
                 'practitioner_id'    => $c->practitioner_user_id ?? null,
+            ) );
+
+            set_transient( $key, 1, 7 * DAY_IN_SECONDS );
+        }
+    }
+
+    // ── Cron: Stuck-on-Stage-2 release reminder ──
+    //
+    // Fires daily. Scans form_progress where Stage 2 WHY was submitted but
+    // the practitioner has not yet released Stage 3 (current_stage = 2 and
+    // stage2_completed_at older than 3 days). For each stuck progress, emails
+    // the practitioner once per 7 days to nudge them to review and release.
+    //
+    // Without this safety net, if a practitioner forgets to click
+    // "Release WHY", the client waits indefinitely — /my-dashboard/ tells
+    // them "your practitioner will email you", but if no release happens,
+    // no email ever fires. This cron closes that gap.
+    //
+    // The CTA in the email deep-links to /clients/?release_progress_id=N
+    // which hdlv2-client-list-enhance.js:846 (applyReleaseDeepLink) reads
+    // to scroll + pulse-highlight the relevant client row.
+    //
+    // @since 0.40.17
+    public function run_stuck_release_reminder() {
+        if ( ! class_exists( 'HDLV2_Email_Templates' ) ) return;
+
+        global $wpdb;
+        $threshold = gmdate( 'Y-m-d H:i:s', time() - 3 * DAY_IN_SECONDS );
+
+        // Collapse multiple form_progress rows per client via ANY_VALUE
+        // (same pattern as send_reminders + run_inactivity_sweep above).
+        $stuck = $wpdb->get_results( $wpdb->prepare(
+            "SELECT
+                client_user_id,
+                ANY_VALUE(id)                   AS progress_id,
+                ANY_VALUE(client_name)          AS client_name,
+                ANY_VALUE(client_email)         AS client_email,
+                ANY_VALUE(practitioner_user_id) AS practitioner_user_id,
+                ANY_VALUE(stage2_completed_at)  AS stage2_completed_at
+             FROM {$wpdb->prefix}hdlv2_form_progress
+             WHERE current_stage = 2
+               AND stage2_completed_at IS NOT NULL
+               AND stage2_completed_at < %s
+               AND stage3_completed_at IS NULL
+               AND practitioner_user_id IS NOT NULL
+             GROUP BY client_user_id",
+            $threshold
+        ) );
+
+        if ( empty( $stuck ) ) return;
+
+        foreach ( $stuck as $c ) {
+            // Throttle per progress per 7 days. Keyed on progress_id (not
+            // client_user_id) so re-stuck cases after a release-then-revert
+            // cycle still re-fire when the new progress_id rolls in.
+            $key = 'hdlv2_stuck_release_' . (int) $c->progress_id;
+            if ( get_transient( $key ) ) continue;
+
+            $prac = get_userdata( $c->practitioner_user_id );
+            if ( ! $prac || empty( $prac->user_email ) ) continue;
+
+            $days_waiting = max( 0, floor( ( time() - strtotime( $c->stage2_completed_at . ' UTC' ) ) / DAY_IN_SECONDS ) );
+            $client_label = $c->client_name ?: ( $c->client_email ?: 'Your client' );
+
+            HDLV2_Email_Templates::client_needs_attention( array(
+                'practitioner_email' => $prac->user_email,
+                'client_name'        => $client_label,
+                'reasons'            => array(
+                    sprintf(
+                        'Stage 2 WHY submitted %d day%s ago — please review and release Stage 3 so they can continue.',
+                        (int) $days_waiting,
+                        $days_waiting === 1 ? '' : 's'
+                    ),
+                ),
+                'timeline_url'       => home_url( '/' . trim( apply_filters( 'hdlv2_practitioner_dashboard_slug', 'clients' ), '/' ) . '/?release_progress_id=' . (int) $c->progress_id ),
+                'practitioner_id'    => $c->practitioner_user_id,
             ) );
 
             set_transient( $key, 1, 7 * DAY_IN_SECONDS );
