@@ -92,6 +92,25 @@ class HDLV2_Activator {
         }
     }
 
+    /**
+     * Idempotent runtime check for the v0.40.17 stuck-release nudge cron.
+     *
+     * Mirrors ensure_worker_schedule_current(): runs on every boot from
+     * maybe_upgrade_db() so existing installs that don't trigger an
+     * HDLV2_DB_VERSION upgrade still pick up the new daily nudge schedule.
+     * Without this, the cron would only register on a fresh plugin
+     * activation — but our deploy mechanism is file-only scp.
+     *
+     * Cheap — one scheduled-event lookup. Idempotent.
+     *
+     * @since 0.40.17
+     */
+    public static function ensure_stuck_release_reminder_scheduled() {
+        if ( ! wp_next_scheduled( 'hdlv2_stuck_release_reminder' ) ) {
+            wp_schedule_event( time(), 'daily', 'hdlv2_stuck_release_reminder' );
+        }
+    }
+
     private static function run_migrations() {
         $current_db_version = get_option( 'hdlv2_db_version', '0' );
 
