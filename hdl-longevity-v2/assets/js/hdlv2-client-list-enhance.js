@@ -656,7 +656,7 @@
         delete _queuePendingActioning[leadId];
         if (!res.ok) {
           var msg = (res.body && (res.body.message || res.body.code)) || (action + ' failed');
-          alert('Could not ' + action + ' this lead: ' + msg);
+          window.HDLV2UI.toast('Could not ' + action + ' this lead: ' + msg, "error");
           pollNow();
           return;
         }
@@ -675,7 +675,7 @@
       })
       .catch(function () {
         delete _queuePendingActioning[leadId];
-        alert('Network error. Please try again.');
+        window.HDLV2UI.toast('Network error. Please try again.', "error");
         pollNow();
       });
   }
@@ -764,7 +764,7 @@
         if (!res.ok || res.body.code) {
           btn.disabled = false;
           btn.textContent = originalText;
-          alert('Could not release: ' + (res.body.message || 'Please refresh and try again.'));
+          window.HDLV2UI.toast('Could not release: ' + (res.body.message || 'Please refresh and try again.'), "error");
           return;
         }
         // Optimistic: remove the item with a fade. Next poll will confirm.
@@ -777,7 +777,7 @@
       .catch(function () {
         btn.disabled = false;
         btn.textContent = originalText;
-        alert('Network error. Please refresh and try again.');
+        window.HDLV2UI.toast('Network error. Please refresh and try again.', "error");
       });
   }
 
@@ -1039,7 +1039,7 @@
         if (!res.ok || res.body.code) {
           btn.disabled = false;
           btn.textContent = originalText;
-          alert('Could not release: ' + (res.body.message || 'Please refresh and try again.'));
+          window.HDLV2UI.toast('Could not release: ' + (res.body.message || 'Please refresh and try again.'), "error");
           return;
         }
         // Optimistic UI: swap banner to a success state; badge updates on next fetch.
@@ -1055,7 +1055,7 @@
       .catch(function () {
         btn.disabled = false;
         btn.textContent = originalText;
-        alert('Network error. Please refresh and try again.');
+        window.HDLV2UI.toast('Network error. Please refresh and try again.', "error");
       });
   }
 

@@ -256,7 +256,7 @@
         if (!res.ok || res.body.code) {
           btn.disabled = false;
           btn.textContent = original;
-          alert('Could not release: ' + (res.body.message || 'Please refresh and try again.'));
+          window.HDLV2UI.toast('Could not release: ' + (res.body.message || 'Please refresh and try again.'), "error");
           return;
         }
         btn.textContent = 'Released ✓';
@@ -269,7 +269,7 @@
       .catch(function () {
         btn.disabled = false;
         btn.textContent = original;
-        alert('Network error. Please refresh and try again.');
+        window.HDLV2UI.toast('Network error. Please refresh and try again.', "error");
       });
   }
 

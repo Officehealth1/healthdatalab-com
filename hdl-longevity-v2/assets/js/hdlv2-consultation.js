@@ -478,12 +478,12 @@
             bindAddRecButton();
           } else {
             btn.disabled = false;
-            alert('Could not remove that recommendation. Please try again.');
+            window.HDLV2UI.toast('Could not remove that recommendation. Please try again.', "error");
           }
         })
         .catch(function () {
           btn.disabled = false;
-          alert('Connection error — recommendation not removed.');
+          window.HDLV2UI.toast('Connection error — recommendation not removed.', "error");
         });
       });
     }
@@ -591,13 +591,13 @@
         } else {
           btn.disabled = false;
           btn.textContent = '↻ Re-organise these notes';
-          alert((res && res.message) || 'Could not reset. Please try again.');
+          window.HDLV2UI.toast((res && res.message) || 'Could not reset. Please try again.', "error");
         }
       })
       .catch(function () {
         btn.disabled = false;
         btn.textContent = '↻ Re-organise these notes';
-        alert('Connection error — reset not applied.');
+        window.HDLV2UI.toast('Connection error — reset not applied.', "error");
       });
     });
   }
@@ -1545,13 +1545,13 @@
             renderFinalReport(res);
           } else {
             restoreButton();
-            alert(res.message || 'Generation failed. Please try again.');
+            window.HDLV2UI.toast(res.message || 'Generation failed. Please try again.', "error");
           }
         })
         .catch(function () {
           clearTimeout(almostTimer);
           restoreButton();
-          alert('Connection error. Please try again.');
+          window.HDLV2UI.toast('Connection error. Please try again.', "error");
         });
       });
     });
@@ -2421,13 +2421,13 @@
             var card = document.getElementById('hdlv2-empty-recs-recovery');
             if (card && card.parentNode) card.parentNode.removeChild(card);
           } else {
-            alert((res && res.message) || 'Could not reset. Please try again.');
+            window.HDLV2UI.toast((res && res.message) || 'Could not reset. Please try again.', "error");
           }
         })
         .catch(function () {
           reorgBtn.disabled = false;
           reorgBtn.textContent = '↻ Re-organise the consultation';
-          alert('Connection error — reset not applied.');
+          window.HDLV2UI.toast('Connection error — reset not applied.', "error");
         });
       });
     }

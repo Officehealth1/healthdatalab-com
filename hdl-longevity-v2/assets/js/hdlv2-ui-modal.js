@@ -50,7 +50,19 @@
       '.hdlv2-ui-btn-ghost:active{transform:translateY(0)}',
       '.hdlv2-ui-x{position:absolute;top:10px;right:12px;background:transparent;border:none;font-size:22px;line-height:1;color:#999;cursor:pointer;padding:4px 10px;border-radius:6px;transition:background .15s ease,color .15s ease}',
       '.hdlv2-ui-x:hover{color:#555;background:#f5f5f5}',
-      '.hdlv2-ui-x:focus-visible{outline:2px solid #3d8da0;outline-offset:2px}'
+      '.hdlv2-ui-x:focus-visible{outline:2px solid #3d8da0;outline-offset:2px}',
+      // ── Toast notifications (v0.40.13) ──
+      // Bottom-right pill stack, click-to-dismiss, auto-fade.
+      // Replaces raw alert() calls on error paths. Uses HDL status palette
+      // from CLAUDE.md (error #dc2626, success #10b981, info #3b82f6).
+      '.hdlv2-ui-toast-stack{position:fixed;bottom:20px;right:20px;z-index:100001;display:flex;flex-direction:column;gap:8px;max-width:380px;pointer-events:none}',
+      '.hdlv2-ui-toast{background:#fff;border-radius:10px;box-shadow:0 6px 24px rgba(0,0,0,0.18);padding:12px 16px;font:500 14px/1.45 Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#111;border-left:4px solid #3d8da0;cursor:pointer;pointer-events:auto;animation:hdlv2-ui-toast-in .22s ease-out;max-width:380px;word-wrap:break-word}',
+      '.hdlv2-ui-toast-error{border-left-color:#dc2626;background:#fef2f2;color:#7f1d1d}',
+      '.hdlv2-ui-toast-success{border-left-color:#10b981;background:#ecfdf5;color:#064e3b}',
+      '.hdlv2-ui-toast-info{border-left-color:#3b82f6;background:#eff6ff;color:#1e3a8a}',
+      '.hdlv2-ui-toast-dismiss{animation:hdlv2-ui-toast-out .2s ease-in forwards}',
+      '@keyframes hdlv2-ui-toast-in{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}',
+      '@keyframes hdlv2-ui-toast-out{from{opacity:1;transform:none}to{opacity:0;transform:translateY(10px)}}'
     ].join('\n');
     document.head.appendChild(s);
   }
@@ -151,5 +163,53 @@
       // confirm, matching browser-native confirm() muscle memory.
       try { overlay.querySelector('[data-action="confirm"]').focus(); } catch (e) {}
     });
+  };
+
+  /**
+   * Show a themed toast notification (bottom-right pill).
+   *
+   * Replaces raw alert() calls on error paths. Non-modal — does not block
+   * interaction. Multiple toasts stack vertically.
+   *
+   * @param {string} message — text to display (escaped via textContent)
+   * @param {string} [type='error'] — 'error' | 'success' | 'info'
+   * @param {number} [ms=5000] — auto-dismiss after this many ms; 0 = sticky
+   * @returns {{dismiss: function}} — handle with dismiss() method
+   */
+  window.HDLV2UI.toast = function (message, type, ms) {
+    injectCss();
+    type = (type === 'success' || type === 'info') ? type : 'error';
+    ms = (typeof ms === 'number') ? ms : 5000;
+
+    var stack = document.getElementById('hdlv2-ui-toast-stack');
+    if (!stack) {
+      stack = document.createElement('div');
+      stack.id = 'hdlv2-ui-toast-stack';
+      stack.className = 'hdlv2-ui-toast-stack';
+      // Polite live region so screen readers announce errors without
+      // interrupting whatever the user is doing.
+      stack.setAttribute('aria-live', 'polite');
+      stack.setAttribute('role', 'status');
+      document.body.appendChild(stack);
+    }
+
+    var toast = document.createElement('div');
+    toast.className = 'hdlv2-ui-toast hdlv2-ui-toast-' + type;
+    toast.textContent = String(message == null ? '' : message);
+
+    var timer;
+    function dismiss() {
+      if (timer) { clearTimeout(timer); timer = null; }
+      if (!toast.parentNode) return;
+      toast.classList.add('hdlv2-ui-toast-dismiss');
+      setTimeout(function () {
+        if (toast.parentNode) toast.parentNode.removeChild(toast);
+      }, 200);
+    }
+    toast.addEventListener('click', dismiss);
+
+    stack.appendChild(toast);
+    if (ms > 0) timer = setTimeout(dismiss, ms);
+    return { dismiss: dismiss };
   };
 })();
