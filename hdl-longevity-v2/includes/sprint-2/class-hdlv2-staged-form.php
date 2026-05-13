@@ -19,6 +19,11 @@ class HDLV2_Staged_Form {
     public function register_hooks() {
         add_action( 'rest_api_init', array( $this, 'register_rest_routes' ) );
         add_shortcode( 'hdlv2_assessment', array( $this, 'render_shortcode' ) );
+        // v0.40.19 — Stage 2 WHY extraction retry safety net.
+        // Daily cron retries Make.com extraction for stuck rows (webhook
+        // fired > 30 min ago, no why_profile written). After 2 retries,
+        // falls back to local extract_why() via Anthropic direct.
+        add_action( 'hdlv2_stage2_extraction_retry', array( __CLASS__, 'run_stage2_extraction_retry' ) );
     }
 
     // ──────────────────────────────────────────────────────────────
@@ -228,7 +233,7 @@ class HDLV2_Staged_Form {
             $already_fired = ! empty( $progress->stage2_webhook_fired_at );
 
             if ( ! $already_fired || $text_hash !== $prev_hash ) {
-                $this->fire_stage2_webhook( $progress, $merged );
+                self::fire_stage2_webhook( $progress, $merged );
                 $wpdb->update(
                     $wpdb->prefix . 'hdlv2_form_progress',
                     array(
@@ -1955,7 +1960,13 @@ class HDLV2_Staged_Form {
      * Make.com handles AI extraction (distilled WHY, key people, motivations).
      * Payload matches the pattern used by fire_make_webhook() and Final Report.
      */
-    private function fire_stage2_webhook( $progress, $stage2_data ) {
+    /**
+     * v0.40.19 — Static so the stage2 extraction retry cron
+     * (HDLV2_Checkin::run_stage2_extraction_retry) can re-fire on a stuck
+     * progress row without instantiating HDLV2_Staged_Form. No $this access
+     * inside the body, so this conversion is safe.
+     */
+    public static function fire_stage2_webhook( $progress, $stage2_data ) {
         $webhook_url = defined( 'HDLV2_MAKE_STAGE2_WHY' ) ? HDLV2_MAKE_STAGE2_WHY : '';
         if ( empty( $webhook_url ) ) {
             error_log( '[HDLV2] Stage 2 webhook skipped — HDLV2_MAKE_STAGE2_WHY not configured.' );
@@ -2049,6 +2060,162 @@ class HDLV2_Staged_Form {
             ),
             'stage2_why'
         );
+    }
+
+    /**
+     * Daily cron — retry stuck Stage 2 WHY extractions.
+     *
+     * Closes a real production gap exposed during STBY testing 2026-05-13:
+     * the Make.com Stage 2 scenario can silently fail (e.g. Claude output
+     * exceeded max_tokens → ParseJSON 422 → callback never fires). Without
+     * this cron, a single Make.com failure permanently leaves the client
+     * with no why_profile row — which then degrades the eventual Final
+     * Report and every Flight Plan that reads from why_profiles.
+     *
+     * Logic:
+     *   1. Find form_progress rows where stage2_webhook_fired_at is set,
+     *      no matching why_profiles row exists, fired > 30 minutes ago,
+     *      and the vision_text is non-trivial (>= 10 chars).
+     *   2. For each, check the per-progress retry counter (transient).
+     *      • Attempts 1-2 (counter < 2): re-fire Make.com webhook via
+     *        self::retry_stage2_webhook(). If Make.com is back, the
+     *        callback writes why_profiles and the next cron pass exits
+     *        because the LEFT JOIN now matches.
+     *      • Attempt 3 (counter == 2): fall back to local extract_why()
+     *        via HDLV2_AI_Service. Writes why_profiles directly. Loses
+     *        the Stage 2 PDF (Make.com still owns that) but preserves
+     *        the data that Final Report + Flight Plan depend on.
+     *   3. After 3 attempts, the transient sits at 3 and the row is
+     *      skipped — practitioner-level intervention required.
+     *
+     * Throttle: 7-day transient per progress_id stops infinite loops.
+     * Bound: max 50 candidates per run (safety against runaway).
+     *
+     * @since 0.40.19
+     */
+    public static function run_stage2_extraction_retry() {
+        if ( ! class_exists( 'HDLV2_AI_Service' ) ) {
+            error_log( '[HDLV2] Stage 2 extraction retry: HDLV2_AI_Service missing, aborting.' );
+            return;
+        }
+
+        global $wpdb;
+        $threshold = gmdate( 'Y-m-d H:i:s', time() - 30 * MINUTE_IN_SECONDS );
+
+        $candidates = $wpdb->get_results( $wpdb->prepare(
+            "SELECT fp.id, fp.token, fp.client_user_id, fp.stage2_data, fp.client_name
+             FROM {$wpdb->prefix}hdlv2_form_progress fp
+             LEFT JOIN {$wpdb->prefix}hdlv2_why_profiles wpr ON wpr.form_progress_id = fp.id
+             WHERE fp.stage2_webhook_fired_at IS NOT NULL
+               AND fp.stage2_webhook_fired_at < %s
+               AND wpr.id IS NULL
+             ORDER BY fp.id DESC
+             LIMIT 50",
+            $threshold
+        ) );
+
+        if ( empty( $candidates ) ) return;
+
+        foreach ( $candidates as $row ) {
+            $stage2_data = json_decode( $row->stage2_data, true ) ?: array();
+            $vision_text = (string) ( $stage2_data['vision_text'] ?? '' );
+            if ( strlen( trim( $vision_text ) ) < 10 ) continue;
+
+            $key       = 'hdlv2_stage2_retry_' . (int) $row->id;
+            $attempts  = (int) get_transient( $key );
+            if ( $attempts >= 3 ) continue; // Exhausted
+
+            $next = $attempts + 1;
+
+            if ( $next <= 2 ) {
+                // Attempts 1-2: re-fire Make.com webhook.
+                $ok = self::retry_stage2_webhook( (int) $row->id );
+                error_log( sprintf(
+                    '[HDLV2] Stage 2 extraction retry %d/3 for progress %d via Make.com: %s',
+                    $next, (int) $row->id, $ok ? 'webhook re-fired' : 'webhook skipped'
+                ) );
+            } else {
+                // Attempt 3: local fallback via HDLV2_AI_Service::extract_why.
+                // Bypasses Make.com entirely so a persistent Make.com outage
+                // can't permanently strip a client's downstream personalisation.
+                $extracted = HDLV2_AI_Service::extract_why( $stage2_data );
+                if ( ! empty( $extracted['distilled_why'] ) ) {
+                    $inserted = $wpdb->insert(
+                        $wpdb->prefix . 'hdlv2_why_profiles',
+                        array(
+                            'form_progress_id' => (int) $row->id,
+                            'client_user_id'   => $row->client_user_id ? (int) $row->client_user_id : null,
+                            'key_people'       => wp_json_encode( $extracted['key_people']  ?? array() ),
+                            'motivations'      => wp_json_encode( $extracted['motivations'] ?? array() ),
+                            'fears'            => wp_json_encode( $extracted['fears']       ?? array() ),
+                            'vision_text'      => sanitize_textarea_field( $vision_text ),
+                            'distilled_why'    => sanitize_textarea_field( $extracted['distilled_why'] ),
+                            'ai_reformulation' => wp_kses_post( $extracted['ai_reformulation'] ?? '' ),
+                            'raw_input'        => wp_json_encode( $stage2_data ),
+                            'released'         => 0,
+                        ),
+                        array( '%d', '%d', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%d' )
+                    );
+                    error_log( sprintf(
+                        '[HDLV2] Stage 2 extraction retry %d/3 — local fallback %s for progress %d',
+                        $next, $inserted ? 'SUCCESS' : 'DB insert FAILED', (int) $row->id
+                    ) );
+                } else {
+                    error_log( sprintf(
+                        '[HDLV2] Stage 2 extraction retry %d/3 — local fallback returned no distilled_why for progress %d',
+                        $next, (int) $row->id
+                    ) );
+                }
+            }
+
+            set_transient( $key, $next, 7 * DAY_IN_SECONDS );
+        }
+    }
+
+    /**
+     * Re-fire the Stage 2 webhook for an existing form_progress row.
+     *
+     * Designed for the v0.40.19 stuck-extraction retry cron AND for any
+     * future practitioner-dashboard "Retry WHY" button. Loads the row,
+     * validates that vision_text exists, calls fire_stage2_webhook, then
+     * stamps stage2_webhook_fired_at + stage2_text_hash so subsequent
+     * auto-saves don't re-fire on the same content.
+     *
+     * Does NOT alter current_stage or stage2_completed_at — those are
+     * controlled by /form/complete-stage and the practitioner Release.
+     *
+     * @param int $progress_id
+     * @return bool true if fired, false if not (no row, no vision_text, or no webhook URL)
+     * @since 0.40.19
+     */
+    public static function retry_stage2_webhook( $progress_id ) {
+        $progress_id = (int) $progress_id;
+        if ( $progress_id <= 0 ) return false;
+
+        global $wpdb;
+        $progress = $wpdb->get_row( $wpdb->prepare(
+            "SELECT * FROM {$wpdb->prefix}hdlv2_form_progress WHERE id = %d LIMIT 1",
+            $progress_id
+        ) );
+        if ( ! $progress ) return false;
+
+        $stage2_data = json_decode( $progress->stage2_data, true ) ?: array();
+        $vision_text = (string) ( $stage2_data['vision_text'] ?? '' );
+        if ( strlen( trim( $vision_text ) ) < 10 ) return false;
+
+        self::fire_stage2_webhook( $progress, $stage2_data );
+
+        $wpdb->update(
+            $wpdb->prefix . 'hdlv2_form_progress',
+            array(
+                'stage2_webhook_fired_at' => current_time( 'mysql' ),
+                'stage2_text_hash'        => md5( $vision_text ),
+            ),
+            array( 'id' => $progress_id ),
+            array( '%s', '%s' ),
+            array( '%d' )
+        );
+        return true;
     }
 
     // ──────────────────────────────────────────────────────────────

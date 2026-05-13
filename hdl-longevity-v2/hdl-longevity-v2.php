@@ -3,7 +3,7 @@
  * Plugin Name: HDL Longevity V2 — Staged Workflow
  * Plugin URI: https://healthdatalab.net
  * Description: V2 longevity workflow: staged intake, WHY profiling, practitioner consultations, weekly flight plans, and AI coaching. Runs alongside the existing Health Data Lab plugin.
- * Version: 0.40.18
+ * Version: 0.40.19
  * Author: Health Data Lab
  * Author URI: https://healthdatalab.net
  * License: Proprietary
@@ -22,7 +22,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 // register_activation_hook callbacks, which fire synchronously during
 // `wp plugin activate`, can reference them. The activator needs
 // HDLV2_DB_VERSION / HDLV2_VERSION at call time to update version options.
-define( 'HDLV2_VERSION', '0.40.18' );
+define( 'HDLV2_VERSION', '0.40.19' );
 define( 'HDLV2_DB_VERSION', '3.7' );
 define( 'HDLV2_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'HDLV2_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
@@ -698,6 +698,8 @@ final class HDL_Longevity_V2 {
         // v0.40.17 — register the stuck-release nudge cron on every boot
         // so existing installs pick it up without a DB-version bump.
         HDLV2_Activator::ensure_stuck_release_reminder_scheduled();
+        // v0.40.19 — register Stage 2 extraction retry cron on every boot.
+        HDLV2_Activator::ensure_stage2_extraction_retry_scheduled();
     }
 
     private function load_dependencies() {

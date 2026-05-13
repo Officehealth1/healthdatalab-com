@@ -46,6 +46,8 @@ class HDLV2_Activator {
             'hdlv2_inactivity_sweep'        => 'daily',
             // v0.40.17 — nudge practitioner about Stage 2 clients stuck > 3 days.
             'hdlv2_stuck_release_reminder'  => 'daily',
+            // v0.40.19 — retry stuck Stage 2 WHY extractions (Make.com → local fallback).
+            'hdlv2_stage2_extraction_retry' => 'daily',
             // v0.30.0 — bumped from hdlv2_five_minutes to hdlv2_one_minute.
             // 5-min safety-net wait was visible to practitioners as a 1-3 min
             // "Transcribing your audio..." stall whenever the loopback kick
@@ -108,6 +110,21 @@ class HDLV2_Activator {
     public static function ensure_stuck_release_reminder_scheduled() {
         if ( ! wp_next_scheduled( 'hdlv2_stuck_release_reminder' ) ) {
             wp_schedule_event( time(), 'daily', 'hdlv2_stuck_release_reminder' );
+        }
+    }
+
+    /**
+     * Idempotent runtime check for the v0.40.19 Stage 2 extraction retry cron.
+     *
+     * Same pattern as ensure_stuck_release_reminder_scheduled — runs on
+     * every boot from maybe_upgrade_db() so existing installs pick up the
+     * new cron without a DB-version bump.
+     *
+     * @since 0.40.19
+     */
+    public static function ensure_stage2_extraction_retry_scheduled() {
+        if ( ! wp_next_scheduled( 'hdlv2_stage2_extraction_retry' ) ) {
+            wp_schedule_event( time(), 'daily', 'hdlv2_stage2_extraction_retry' );
         }
     }
 

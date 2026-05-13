@@ -31,6 +31,16 @@ class HDLV2_Webhook_Monitor {
     const RETENTION_SEC = 86400;
     const NOTICE_WINDOW = 3600;
 
+    // v0.40.19 — Rolling event log capturing EVERY webhook fire (success or
+    // failure), including the response body excerpt. The existing failure
+    // log only catches transport-level or non-2xx failures, but Make.com
+    // always returns 200 "Accepted" even when the scenario internally
+    // errors — so failures were invisible without WP_DEBUG_LOG.
+    // This log preserves the response body so ops can see what Make.com
+    // actually said. Capped at 100 entries to bound option size.
+    const LOG_OPTION_KEY  = 'hdlv2_webhook_log';
+    const LOG_MAX_ENTRIES = 100;
+
     /**
      * Fire a Make.com webhook with structured logging + failure tracking.
      *
@@ -55,25 +65,77 @@ class HDLV2_Webhook_Monitor {
                 $context, $elapsed, $msg
             ) );
             self::record_failure( $context, 0, $msg, $elapsed );
+            self::record_event( $context, 0, $msg, $elapsed, 'transport_error' );
             return $resp;
         }
 
         $code = (int) wp_remote_retrieve_response_code( $resp );
+        // v0.40.19 — capture the response body on success too, not just on
+        // failure. Make.com returns 200 "Accepted" even when its scenario
+        // internally errors; logging the body lets ops see at-a-glance
+        // whether the downstream actually processed the call.
+        $body_excerpt = substr( (string) wp_remote_retrieve_body( $resp ), 0, 200 );
+
         if ( $code >= 200 && $code < 300 ) {
             error_log( sprintf(
-                '[HDLV2 Webhook][%s] OK %d in %dms',
-                $context, $code, $elapsed
+                '[HDLV2 Webhook][%s] OK %d in %dms — body: %s',
+                $context, $code, $elapsed, $body_excerpt
             ) );
+            self::record_event( $context, $code, $body_excerpt, $elapsed, 'success' );
             return $resp;
         }
 
-        $body_excerpt = substr( (string) wp_remote_retrieve_body( $resp ), 0, 200 );
         error_log( sprintf(
             '[HDLV2 Webhook][%s] FAIL %d after %dms — body: %s',
             $context, $code, $elapsed, $body_excerpt
         ) );
         self::record_failure( $context, $code, $body_excerpt, $elapsed );
+        self::record_event( $context, $code, $body_excerpt, $elapsed, 'http_error' );
         return $resp;
+    }
+
+    /**
+     * Append every webhook fire (success or failure) to the rolling log.
+     *
+     * Distinct from record_failure(): that's the admin-notice trigger and
+     * only fires on non-2xx. This catches success too, so ops can answer
+     * "did Make.com just say 'Accepted' to my Stage 2 webhook?" by reading
+     * one option instead of digging through debug.log.
+     *
+     * @since 0.40.19
+     */
+    private static function record_event( $context, $http_code, $body_excerpt, $elapsed_ms, $outcome ) {
+        $events = get_option( self::LOG_OPTION_KEY, array() );
+        if ( ! is_array( $events ) ) $events = array();
+
+        $events[] = array(
+            'context'    => (string) $context,
+            'http_code'  => (int) $http_code,
+            'body'       => substr( (string) $body_excerpt, 0, 200 ),
+            'elapsed_ms' => (int) $elapsed_ms,
+            'outcome'    => (string) $outcome, // success | http_error | transport_error
+            'time'       => time(),
+        );
+
+        if ( count( $events ) > self::LOG_MAX_ENTRIES ) {
+            $events = array_slice( $events, -self::LOG_MAX_ENTRIES );
+        }
+
+        update_option( self::LOG_OPTION_KEY, $events, false );
+    }
+
+    /**
+     * Public reader for the last N webhook events. Useful for wp-cli debug
+     * and for the admin notice's "details" link.
+     *
+     * @param int $limit Default 20, max LOG_MAX_ENTRIES.
+     * @since 0.40.19
+     */
+    public static function recent_events( $limit = 20 ) {
+        $events = get_option( self::LOG_OPTION_KEY, array() );
+        if ( ! is_array( $events ) ) return array();
+        $limit = max( 1, min( self::LOG_MAX_ENTRIES, (int) $limit ) );
+        return array_slice( $events, -$limit );
     }
 
     /**

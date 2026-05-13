@@ -26,5 +26,7 @@ class HDLV2_Deactivator {
         wp_clear_scheduled_hook( 'hdlv2_pending_leads_cleanup' );
         // v0.40.17 — new daily nudge for Stage 2 stuck clients.
         wp_clear_scheduled_hook( 'hdlv2_stuck_release_reminder' );
+        // v0.40.19 — Stage 2 extraction retry safety net.
+        wp_clear_scheduled_hook( 'hdlv2_stage2_extraction_retry' );
     }
 }
