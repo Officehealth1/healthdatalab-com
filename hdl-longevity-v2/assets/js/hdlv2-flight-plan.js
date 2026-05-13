@@ -457,9 +457,18 @@
                 btn.replaceWith(link);
               }
             } else if (pollAttempts >= maxAttempts) {
+              // v0.40.14 \u2014 PDF generation is async via Make.com \u2192 PDFMonkey.
+              // After 2 minutes of polling without a PDF URL, surface a clear
+              // message so the user knows the plan still works (web view is
+              // fine) and the PDF will arrive separately. Click reloads.
               clearInterval(pdfPollTimer); pdfPollTimer = null;
               var btn2 = root.querySelector('#hdlv2-fp-pdf-pending');
-              if (btn2) btn2.textContent = '\ud83d\udda8 Reload for PDF';
+              if (btn2) {
+                btn2.textContent = '\u21bb PDF still being prepared \u2014 click to refresh';
+                btn2.title = 'Your Flight Plan is ready to use above. The downloadable PDF is generated separately and may take a few more minutes \u2014 we\u2019ll email it when it\u2019s ready.';
+                btn2.style.cursor = 'pointer';
+                btn2.addEventListener('click', function () { location.reload(); }, { once: true });
+              }
             }
           })
           .catch(function () {});

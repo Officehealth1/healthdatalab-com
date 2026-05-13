@@ -377,12 +377,12 @@
         .then(function (res) {
           if (res.success) { renderDone(); }
           else {
-            confirmBtn.disabled = false; confirmBtn.textContent = '\u2705 Confirm Check-in';
+            confirmBtn.disabled = false; confirmBtn.textContent = '\u21bb Try Again';
             showError('Could not confirm. Please try again.');
           }
         })
         .catch(function () {
-          confirmBtn.disabled = false; confirmBtn.textContent = '\u2705 Confirm Check-in';
+          confirmBtn.disabled = false; confirmBtn.textContent = '\u21bb Try Again';
           showError('Connection error. Please try again.');
         });
     });
