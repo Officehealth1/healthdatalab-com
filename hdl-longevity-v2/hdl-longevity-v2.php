@@ -3,7 +3,7 @@
  * Plugin Name: HDL Longevity V2 — Staged Workflow
  * Plugin URI: https://healthdatalab.net
  * Description: V2 longevity workflow: staged intake, WHY profiling, practitioner consultations, weekly flight plans, and AI coaching. Runs alongside the existing Health Data Lab plugin.
- * Version: 0.40.14
+ * Version: 0.40.15
  * Author: Health Data Lab
  * Author URI: https://healthdatalab.net
  * License: Proprietary
@@ -22,7 +22,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 // register_activation_hook callbacks, which fire synchronously during
 // `wp plugin activate`, can reference them. The activator needs
 // HDLV2_DB_VERSION / HDLV2_VERSION at call time to update version options.
-define( 'HDLV2_VERSION', '0.40.14' );
+define( 'HDLV2_VERSION', '0.40.15' );
 define( 'HDLV2_DB_VERSION', '3.7' );
 define( 'HDLV2_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'HDLV2_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
@@ -61,8 +61,28 @@ add_action( 'init', function () {
             $token
         ) );
 
-        if ( ! $invite ) return;
-        if ( ! empty( $invite->expires_at ) && strtotime( $invite->expires_at ) < time() ) return;
+        if ( ! $invite ) {
+            // v0.40.15 — surfaced from silent return. Invite row missing
+            // (deleted, never existed, or token forged). Friendly card with
+            // clear next step instead of letting the page render anonymously.
+            hdlv2_render_link_card(
+                'This invitation is no longer valid',
+                'The invitation link you clicked could not be found. It may have already been used or your practitioner may have replaced it. Please ask your practitioner to send you a new invitation.',
+                '',
+                ''
+            );
+        }
+        if ( ! empty( $invite->expires_at ) && strtotime( $invite->expires_at ) < time() ) {
+            // v0.40.15 — surfaced from silent return. Invites expire after
+            // 72 hours by default; tell the user clearly and point them at
+            // their practitioner.
+            hdlv2_render_link_card(
+                'This invitation has expired',
+                'For your security, invitation links expire after a short time. Please ask your practitioner to send you a fresh invitation.',
+                '',
+                ''
+            );
+        }
 
         $email = sanitize_email( $invite->client_email );
         $name  = sanitize_text_field( $invite->client_name );
@@ -187,7 +207,18 @@ add_action( 'init', function () {
 
         $transient_key = 'hdlv2_prac_login_' . $prac_token;
         $payload       = get_transient( $transient_key );
-        if ( ! is_array( $payload ) ) return; // expired or already consumed
+        if ( ! is_array( $payload ) ) {
+            // v0.40.15 — surfaced from silent return. Practitioner one-shot
+            // tokens are 30-min transients consumed on first use. Second
+            // click (forwarded email, browser back) used to land anonymously
+            // with no signal. Now show a clear "use normal sign-in" message.
+            hdlv2_render_link_card(
+                'Sign-in link already used',
+                'This one-time sign-in link has already been used or has expired. Please sign in to your practitioner account normally.',
+                'Sign in',
+                wp_login_url( home_url( '/' . trim( apply_filters( 'hdlv2_practitioner_dashboard_slug', 'clients' ), '/' ) . '/' ) )
+            );
+        }
 
         $prac_id     = (int) ( $payload['practitioner_id'] ?? 0 );
         $progress_id = (int) ( $payload['progress_id'] ?? 0 );
@@ -228,6 +259,22 @@ add_action( 'init', function () {
         if ( $progress && $progress->client_user_id ) {
             wp_set_current_user( $progress->client_user_id );
             wp_set_auth_cookie( $progress->client_user_id, false );
+        } else {
+            // v0.40.15 — surfaced from silent fall-through. Token regex was
+            // valid (64-hex) but no form_progress row matched, meaning the
+            // assessment record was deleted or the token is wrong. Previously
+            // we let the page render anonymously and the JS would call
+            // /form/load with an invalid token, producing a 404 the user
+            // never saw clearly. Render a friendly card instead.
+            //
+            // Note: we already passed the `is_user_logged_in()` guard at the
+            // top of this init callback, so we know the user is anonymous here.
+            hdlv2_render_link_card(
+                'Link not found',
+                'We could not find this assessment. The link may have expired or been replaced. Please use the link in your most recent email from your practitioner.',
+                '',
+                ''
+            );
         }
     }
 
@@ -528,6 +575,47 @@ function hdlv2_transcriber_module_tag( $tag, $handle, $src ) {
         return $tag;
     }
     return str_replace( '<script ', '<script type="module" ', $tag );
+}
+
+/**
+ * Render a self-contained "link expired / invalid" card and exit (v0.40.15).
+ *
+ * Called from the init-priority-1 magic-link handler when a token has expired
+ * or been consumed, replacing the previous bare `return` which left the user
+ * looking at a blank or anonymous page with no context. Output is intentionally
+ * theme-independent (init runs before theme hooks) — inline-styled card on a
+ * neutral background, no nav/footer.
+ *
+ * Always exits. Always 410 Gone + nocache headers + noindex.
+ *
+ * @param string $title      Card headline (escaped)
+ * @param string $body       Card body text (escaped)
+ * @param string $cta_label  Optional CTA button label (escaped)
+ * @param string $cta_url    Optional CTA button URL (escaped)
+ * @return void              Exits
+ */
+function hdlv2_render_link_card( $title, $body, $cta_label = '', $cta_url = '' ) {
+    if ( ! headers_sent() ) {
+        nocache_headers();
+        status_header( 410 );
+    }
+    $cta_html = '';
+    if ( $cta_label && $cta_url ) {
+        $cta_html = '<a href="' . esc_url( $cta_url ) . '" style="display:inline-block;background:#3d8da0;color:#fff;padding:11px 24px;border-radius:48px;font-size:14px;font-weight:600;text-decoration:none;font-family:Poppins,Inter,sans-serif;">' . esc_html( $cta_label ) . ' &rarr;</a>';
+    }
+    $html  = '<!DOCTYPE html><html lang="en"><head>';
+    $html .= '<meta charset="utf-8">';
+    $html .= '<meta name="viewport" content="width=device-width, initial-scale=1">';
+    $html .= '<meta name="robots" content="noindex">';
+    $html .= '<title>' . esc_html( $title ) . '</title>';
+    $html .= '</head><body style="margin:0;background:#fafbfc;font-family:Inter,-apple-system,BlinkMacSystemFont,sans-serif;min-height:100vh;">';
+    $html .= '<div style="max-width:560px;margin:80px auto;padding:40px 32px;background:#fff;border:1px solid #e4e6ea;border-radius:14px;box-shadow:0 4px 24px rgba(0,0,0,0.04);text-align:center;">';
+    $html .= '<h2 style="font-family:Poppins,Inter,sans-serif;font-size:22px;font-weight:600;color:#111;margin:0 0 10px;">' . esc_html( $title ) . '</h2>';
+    $html .= '<p style="font-size:14px;color:#666;margin:0 0 24px;line-height:1.5;">' . esc_html( $body ) . '</p>';
+    $html .= $cta_html;
+    $html .= '</div></body></html>';
+    echo $html; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped — variables escaped above
+    exit;
 }
 
 // Activator / Deactivator — registered outside plugins_loaded so activation hook fires

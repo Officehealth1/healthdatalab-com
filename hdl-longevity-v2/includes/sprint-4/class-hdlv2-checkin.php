@@ -408,6 +408,22 @@ class HDLV2_Checkin {
         wp_enqueue_script( 'hdlv2-audio-component', HDLV2_PLUGIN_URL . 'assets/js/hdlv2-audio-component.js', array( 'hdlv2-transcriber' ), HDLV2_VERSION, true );
         wp_enqueue_script( 'hdlv2-checkin', HDLV2_PLUGIN_URL . 'assets/js/hdlv2-checkin.js', array( 'hdlv2-audio-component', 'hdlv2-loading' ), HDLV2_VERSION, true );
         wp_enqueue_style( 'hdlv2-form', HDLV2_PLUGIN_URL . 'assets/css/hdlv2-form.css', array( 'hdlv2-loading-css' ), HDLV2_VERSION );
+
+        // v0.40.15 — Defensive guard for clients who reach /check-in/ without a
+        // valid token (e.g. bookmark, copy-pasted URL minus the ?token=). The JS
+        // expects a 64-hex token in the query string and silently fails to load
+        // weekly data without one. Render a friendly card pointing the user
+        // back to the email instead of a blank container.
+        $raw_token = isset( $_GET['token'] ) ? sanitize_text_field( wp_unslash( $_GET['token'] ) ) : '';
+        if ( ! $raw_token || ! preg_match( '/^[a-f0-9]{64}$/', $raw_token ) ) {
+            $dashboard_slug = apply_filters( 'hdlv2_client_dashboard_slug', 'my-dashboard' );
+            return '<div style="max-width:560px;margin:60px auto;padding:40px 32px;background:#fff;border:1px solid #e4e6ea;border-radius:14px;box-shadow:0 4px 24px rgba(0,0,0,0.04);text-align:center;font-family:Inter,-apple-system,sans-serif;">'
+                 . '<h2 style="font-family:Poppins,Inter,sans-serif;font-size:22px;font-weight:600;color:#111;margin:0 0 10px;">Please open this page from your weekly email</h2>'
+                 . '<p style="font-size:14px;color:#666;margin:0 0 24px;line-height:1.5;">Each weekly check-in uses a unique link. Use the link from your most recent email to start.</p>'
+                 . '<a href="' . esc_url( home_url( '/' . trim( $dashboard_slug, '/' ) . '/' ) ) . '" style="display:inline-block;background:#3d8da0;color:#fff;padding:11px 24px;border-radius:48px;font-size:14px;font-weight:600;text-decoration:none;font-family:Poppins,Inter,sans-serif;">Go to my dashboard &rarr;</a>'
+                 . '</div>';
+        }
+
         // Flight-plan page slug is configurable via filter so sites that rename
         // the page still get a working "View your Flight Plan" link post-confirm.
         $flight_plan_slug = apply_filters( 'hdlv2_flight_plan_slug', 'my-flight-plan' );
