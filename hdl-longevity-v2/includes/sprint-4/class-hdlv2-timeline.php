@@ -70,6 +70,14 @@ class HDLV2_Timeline {
     // ── REST: Practitioner timeline ──
     public function rest_load_practitioner( $request ) {
         $client_id = absint( $request['client_id'] );
+
+        // Ownership: caller must be the linked practitioner (or admin).
+        // Closes the IDOR where any practitioner could read any client's
+        // full timeline — including other practitioners' private notes.
+        if ( ! HDLV2_Compatibility::practitioner_owns_client( get_current_user_id(), $client_id ) ) {
+            return new WP_Error( 'forbidden', 'You do not have access to this client.', array( 'status' => 403 ) );
+        }
+
         $page      = max( 1, (int) $request->get_param( 'page' ) ?: 1 );
         $per_page  = min( 50, max( 1, (int) $request->get_param( 'per_page' ) ?: 20 ) );
         $type      = sanitize_text_field( $request->get_param( 'type' ) ?: '' );
@@ -82,7 +90,7 @@ class HDLV2_Timeline {
     public function rest_load_client( $request ) {
         $client_id = absint( $request['client_id'] );
 
-        // Auth: token-based client validation or practitioner override
+        // Auth: token-bound to client_id, or practitioner who owns this client
         $auth = $this->validate_client_token( $request, $client_id );
         if ( is_wp_error( $auth ) ) return $auth;
 
@@ -95,12 +103,19 @@ class HDLV2_Timeline {
 
     /**
      * Validate client access via token or practitioner session.
+     *
+     * Practitioner branch now requires ownership of the requested
+     * client_id — was previously a blanket override that let any
+     * practitioner read any client's data.
      */
     private function validate_client_token( $request, $client_id ) {
-        // Practitioner override
+        // Practitioner: must own this client.
         $user_id = get_current_user_id();
         if ( $user_id && HDLV2_Compatibility::is_practitioner( $user_id ) ) {
-            return true;
+            if ( HDLV2_Compatibility::practitioner_owns_client( $user_id, $client_id ) ) {
+                return true;
+            }
+            return new WP_Error( 'forbidden', 'You do not have access to this client.', array( 'status' => 403 ) );
         }
 
         $token = $request->get_param( 'token' ) ?: '';
@@ -172,6 +187,13 @@ class HDLV2_Timeline {
         }
 
         $prac_id = get_current_user_id();
+
+        // Ownership: body client_id must belong to the calling practitioner.
+        // Closes the IDOR where any practitioner could write a (private)
+        // note onto any client's timeline by passing the target client_id.
+        if ( ! HDLV2_Compatibility::practitioner_owns_client( $prac_id, $client_id ) ) {
+            return new WP_Error( 'forbidden', 'You do not have access to this client.', array( 'status' => 403 ) );
+        }
         $entry_id = self::add_entry( $client_id, $prac_id, 'note', $title, $summary, null, '', null, false, $private );
 
         return rest_ensure_response( array( 'success' => true, 'entry_id' => $entry_id ) );

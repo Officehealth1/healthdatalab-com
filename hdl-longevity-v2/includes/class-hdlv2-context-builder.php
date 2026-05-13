@@ -95,6 +95,10 @@ class HDLV2_Context_Builder {
         $context['recent_checkins'] = $wpdb->get_results( $wpdb->prepare(
             "SELECT week_number, summary, adherence_scores, comfort_zone FROM {$p}hdlv2_checkins WHERE client_id = %d AND status = 'confirmed' ORDER BY week_start DESC LIMIT 4", $client_id
         ) );
+        // v0.31.0 — surface check-in IDs to the prompt's audit trail (R8).
+        $context['checkin_ids'] = $wpdb->get_col( $wpdb->prepare(
+            "SELECT id FROM {$p}hdlv2_checkins WHERE client_id = %d AND status = 'confirmed' ORDER BY week_start DESC LIMIT 4", $client_id
+        ) );
 
         $context['recent_notes'] = $wpdb->get_col( $wpdb->prepare(
             "SELECT typed_notes FROM {$p}hdlv2_consultation_notes WHERE client_user_id = %d ORDER BY id DESC LIMIT 3", $client_id
@@ -111,6 +115,27 @@ class HDLV2_Context_Builder {
         }
         $context['comfort_zone_trend'] = $comfort;
 
+        // v0.31.0 — R5: tick-derived adherence. Pulls last 4 weeks of plan
+        // tick rows and computes a per-week completion rate. Lets the AI see
+        // engagement even when the client skipped check-ins. Combined with
+        // recent_checkins (self-reported), the prompt now has both signals.
+        $context['tick_adherence'] = self::compute_tick_adherence( $client_id );
+
+        // v0.31.0 — R7 engagement signal. Coarse "zero / low / medium / high"
+        // banding consumed by:
+        //   - Saturday cron → skips auto-generation when 'zero' (notifies
+        //     practitioner instead of producing a stale plan)
+        //   - Build prompt → tone calibration ("client may need re-engagement")
+        $context['engagement_signal'] = self::compute_engagement_signal( $client_id, $context['tick_adherence'] );
+
+        // v0.31.0 — R8 audit trail: addenda tied to current consultation.
+        $context['addenda_ids'] = $wpdb->get_col( $wpdb->prepare(
+            "SELECT id FROM {$p}hdlv2_consultation_addenda WHERE client_id = %d ORDER BY id DESC LIMIT 10", $client_id
+        ) );
+
+        // Adherence summary block (concise — 4 weeks worth) for audit JSON.
+        $context['adherence_summary'] = $context['tick_adherence'];
+
         if ( $tier < 3 ) return $context;
 
         // Tier 3 — Monthly summaries
@@ -119,6 +144,123 @@ class HDLV2_Context_Builder {
         ) );
 
         return $context;
+    }
+
+    /**
+     * v0.31.0 — R5: Compute per-week adherence directly from tick rows.
+     *
+     * Returns the last 4 weeks (most recent first) as:
+     *   [
+     *     [ 'week_start' => '2026-05-04', 'rate' => 0.62, 'ticked' => 18, 'total' => 29,
+     *       'days_active' => 4, 'category_breakdown' => [...] ],
+     *     ...
+     *   ]
+     *
+     * Distinct from check-in self-reported adherence: this measures actual
+     * tick-button engagement on the plan rows. A client who never opens the
+     * page produces all-zero adherence here even if they "felt good" in a
+     * verbal check-in. Both signals feed the next plan's prompt — see
+     * hdlv2-flight-plan.php build_prompt().
+     */
+    private static function compute_tick_adherence( $client_id ) {
+        global $wpdb;
+        $p = $wpdb->prefix;
+
+        $plans = $wpdb->get_results( $wpdb->prepare(
+            "SELECT id, week_start FROM {$p}hdlv2_flight_plans
+             WHERE client_id = %d AND week_start <= %s
+             ORDER BY week_start DESC LIMIT 4",
+            $client_id, current_time( 'Y-m-d' )
+        ) );
+
+        $out = array();
+        foreach ( $plans as $plan ) {
+            $row = $wpdb->get_row( $wpdb->prepare(
+                "SELECT
+                    COUNT(*)                                          AS total,
+                    SUM(CASE WHEN ticked = 1 THEN 1 ELSE 0 END)       AS ticked,
+                    COUNT(DISTINCT CASE WHEN ticked = 1 THEN day END) AS days_active
+                 FROM {$p}hdlv2_flight_plan_ticks
+                 WHERE flight_plan_id = %d",
+                $plan->id
+            ) );
+            $total  = (int) ( $row->total  ?? 0 );
+            $ticked = (int) ( $row->ticked ?? 0 );
+            $days_a = (int) ( $row->days_active ?? 0 );
+            $rate   = $total > 0 ? round( $ticked / $total, 3 ) : 0.0;
+
+            // Per-category breakdown so the AI can see WHICH category dropped
+            // (e.g. nutrition strong, movement weak → reduce movement targets
+            // not nutrition).
+            $cats = $wpdb->get_results( $wpdb->prepare(
+                "SELECT category,
+                        COUNT(*) AS total,
+                        SUM(CASE WHEN ticked = 1 THEN 1 ELSE 0 END) AS ticked
+                 FROM {$p}hdlv2_flight_plan_ticks
+                 WHERE flight_plan_id = %d
+                 GROUP BY category",
+                $plan->id
+            ) );
+            $cat_breakdown = array();
+            foreach ( $cats as $c ) {
+                $cat_total  = (int) $c->total;
+                $cat_ticked = (int) $c->ticked;
+                $cat_breakdown[ $c->category ] = array(
+                    'total'  => $cat_total,
+                    'ticked' => $cat_ticked,
+                    'rate'   => $cat_total > 0 ? round( $cat_ticked / $cat_total, 3 ) : 0.0,
+                );
+            }
+
+            $out[] = array(
+                'week_start'         => $plan->week_start,
+                'rate'               => $rate,
+                'ticked'             => $ticked,
+                'total'              => $total,
+                'days_active'        => $days_a,
+                'category_breakdown' => $cat_breakdown,
+            );
+        }
+        return $out;
+    }
+
+    /**
+     * v0.31.0 — R7: Coarse engagement signal for cron + prompt-tone use.
+     *
+     * Returns 'zero' | 'low' | 'medium' | 'high':
+     *   zero   — no check-ins AND no ticks in the last 14 days
+     *   low    — <30% tick rate AND no recent check-in
+     *   medium — 30-70% tick rate OR check-in present
+     *   high   — ≥70% tick rate AND recent check-in
+     *
+     * Saturday cron uses 'zero' to skip auto-generation; flight-plan prompt
+     * uses any signal to calibrate tone (high engagement → push harder, low
+     * → reduce + reinforce identity).
+     */
+    private static function compute_engagement_signal( $client_id, $tick_adherence ) {
+        global $wpdb;
+        $p = $wpdb->prefix;
+
+        $latest_checkin_at = $wpdb->get_var( $wpdb->prepare(
+            "SELECT MAX(week_start) FROM {$p}hdlv2_checkins WHERE client_id = %d AND status = 'confirmed'",
+            $client_id
+        ) );
+        $checkin_recent = $latest_checkin_at && ( strtotime( $latest_checkin_at ) > strtotime( '-14 days' ) );
+
+        // Use the most recent week's tick rate for the headline signal.
+        $latest_rate     = is_array( $tick_adherence ) && ! empty( $tick_adherence ) ? ( $tick_adherence[0]['rate']  ?? 0 ) : 0;
+        $latest_total    = is_array( $tick_adherence ) && ! empty( $tick_adherence ) ? ( $tick_adherence[0]['total'] ?? 0 ) : 0;
+        $latest_ticked   = is_array( $tick_adherence ) && ! empty( $tick_adherence ) ? ( $tick_adherence[0]['ticked'] ?? 0 ) : 0;
+
+        if ( ! $checkin_recent && $latest_ticked === 0 && $latest_total > 0 ) {
+            return 'zero';
+        }
+        if ( $latest_total === 0 && ! $checkin_recent ) {
+            return 'zero'; // brand-new client with no plan history yet → treat as zero so cron skips
+        }
+        if ( $latest_rate < 0.3 && ! $checkin_recent ) return 'low';
+        if ( $latest_rate >= 0.7 && $checkin_recent )  return 'high';
+        return 'medium';
     }
 
     /**
@@ -161,11 +303,12 @@ class HDLV2_Context_Builder {
                 $input .= "Week of {$ci->week_start}: " . $ci->summary . " | Adherence: " . $ci->adherence_scores . " | Comfort: {$ci->comfort_zone}\n\n";
             }
 
-            // Call Haiku 4.5
+            // v0.36.1 — Sonnet 4.6 (was Haiku 4.5). Promoted per
+            // "all AI analyzation on Sonnet 4.6" directive (2026-05-07).
             $response = wp_remote_post( 'https://api.anthropic.com/v1/messages', array(
                 'headers' => array( 'x-api-key' => $api_key, 'anthropic-version' => '2023-06-01', 'content-type' => 'application/json' ),
                 'body'    => wp_json_encode( array(
-                    'model'      => 'claude-haiku-4-5-20251001',
+                    'model'      => 'claude-sonnet-4-6',
                     'max_tokens' => 500,
                     'system'     => 'Summarise this client\'s last 4 weekly check-ins into a single monthly summary. Preserve: key trends, comfort zone shifts, major obstacles, wins, flag history, adherence pattern. Output: 200-300 words max.',
                     'messages'   => array( array( 'role' => 'user', 'content' => $input ) ),

@@ -1,0 +1,209 @@
+/**
+ * HDL V2 — Shared loading primitives
+ *
+ * Skeleton screens, progress-bar illusion, and optimistic-save toast.
+ * Reuses the existing V2 palette (#3d8da0 teal, #e6f3f5 teal-lighter,
+ * #f0fbfc teal-lightest, #e4e6ea border) — zero new colors introduced.
+ *
+ * Animation tokens reuse `hdlv2-generate-shimmer` and `hdlv2-dr-dots`
+ * declared in hdlv2-consultation.css and hdlv2-draft-report.css. We
+ * re-declare them here at the same definitions so this file is
+ * standalone (works on pages where the consultation/draft CSS isn't
+ * enqueued).
+ *
+ * Consumed by hdlv2-loading.js — see that file for the public API.
+ *
+ * @since 0.37.0
+ */
+
+/* ── Skeleton primitives ──────────────────────────────────────────── */
+
+.hdlv2-skel {
+  background: linear-gradient(
+    90deg,
+    #f0fbfc 0%,
+    #e6f3f5 50%,
+    #f0fbfc 100%
+  );
+  background-size: 200% 100%;
+  animation: hdlv2-loading-shimmer 1.6s linear infinite;
+  border-radius: 6px;
+  display: block;
+}
+
+.hdlv2-skel-line {
+  height: 14px;
+  width: 100%;
+  margin: 0 0 10px;
+}
+.hdlv2-skel-line.s { width: 45%; }
+.hdlv2-skel-line.m { width: 75%; }
+.hdlv2-skel-line.l { width: 95%; }
+
+.hdlv2-skel-heading {
+  height: 26px;
+  width: 55%;
+  margin: 0 0 18px;
+  border-radius: 6px;
+}
+
+.hdlv2-skel-pill {
+  height: 28px;
+  width: 100px;
+  border-radius: 999px;
+  display: inline-block;
+  vertical-align: middle;
+}
+
+.hdlv2-skel-block {
+  height: 160px;
+  width: 100%;
+  border-radius: 12px;
+  margin: 0 0 14px;
+}
+
+.hdlv2-skel-avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.hdlv2-skel-card {
+  padding: 24px;
+  border: 1px solid #e4e6ea;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(11, 26, 34, 0.03);
+}
+
+.hdlv2-skel-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 0;
+  border-bottom: 1px solid #f0f1f3;
+}
+.hdlv2-skel-row:last-child { border-bottom: 0; }
+.hdlv2-skel-row-body { flex: 1; min-width: 0; }
+.hdlv2-skel-row-body .hdlv2-skel-line:last-child { margin-bottom: 0; }
+
+/* Helps screen readers + integration tests recognise the placeholder */
+.hdlv2-skel-container[aria-busy="true"] { position: relative; }
+
+/* ── Progress-bar illusion ────────────────────────────────────────── */
+
+.hdlv2-progress {
+  margin: 18px 0 12px;
+  max-width: 420px;
+}
+
+.hdlv2-progress-track {
+  height: 6px;
+  background: #e4e6ea;
+  border-radius: 999px;
+  overflow: hidden;
+  position: relative;
+}
+
+.hdlv2-progress-fill {
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, #3d8da0, #5bb0c4);
+  border-radius: 999px;
+  transition: width 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  overflow: hidden;
+}
+.hdlv2-progress-fill::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent 30%,
+    rgba(255, 255, 255, 0.35) 50%,
+    transparent 70%
+  );
+  background-size: 200% 100%;
+  animation: hdlv2-loading-shimmer 1.6s linear infinite;
+}
+
+.hdlv2-progress-step {
+  font-size: 13px;
+  color: #555;
+  margin: 10px 0 0;
+  font-weight: 500;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+.hdlv2-progress-step::after {
+  content: "";
+  display: inline-block;
+  width: 20px;
+  text-align: left;
+  animation: hdlv2-loading-dots 1.4s infinite;
+}
+.hdlv2-progress-step.done::after {
+  animation: none;
+  content: "";
+}
+
+/* ── Optimistic-save toast chip ───────────────────────────────────── */
+
+.hdlv2-toast-saved {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  background: #ecfdf5;
+  color: #10b981;
+  border: 1px solid #a7f3d0;
+  opacity: 0;
+  transform: translateY(-4px);
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  vertical-align: middle;
+}
+.hdlv2-toast-saved.show {
+  opacity: 1;
+  transform: translateY(0);
+}
+.hdlv2-toast-saved.error {
+  background: #fef2f2;
+  color: #dc2626;
+  border-color: #fecaca;
+}
+
+/* ── Animations ──────────────────────────────────────────────────── */
+
+@keyframes hdlv2-loading-shimmer {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+@keyframes hdlv2-loading-dots {
+  0%   { content: ""; }
+  25%  { content: "."; }
+  50%  { content: ".."; }
+  75%  { content: "..."; }
+  100% { content: ""; }
+}
+
+/* Respect OS-level reduced motion preference — kill shimmer + dots */
+@media (prefers-reduced-motion: reduce) {
+  .hdlv2-skel,
+  .hdlv2-progress-fill::after {
+    animation: none;
+    background: #e6f3f5;
+  }
+  .hdlv2-progress-step::after {
+    animation: none;
+    content: "…";
+  }
+  .hdlv2-progress-fill {
+    transition: none;
+  }
+}

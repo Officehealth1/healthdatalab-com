@@ -20,6 +20,7 @@ class HDLV2_Idempotency {
 
     const KEY_PREFIX  = 'hdlv2_idem_';
     const DEFAULT_TTL = 30;
+    const AI_BURN_TTL = 300;
 
     /**
      * Read the Idempotency-Key header from a WP_REST_Request.
@@ -75,7 +76,7 @@ class HDLV2_Idempotency {
      * resulting response shape ({code, message, data}) matches WordPress's
      * own WP_Error → JSON conversion exactly, so clients see the same body.
      */
-    public static function wrap( $request, $scope, callable $worker ) {
+    public static function wrap( $request, $scope, callable $worker, $ttl = self::DEFAULT_TTL ) {
         $key = self::key_from_request( $request );
         if ( $key ) {
             $hit = self::lookup( $scope, $key );
@@ -104,8 +105,21 @@ class HDLV2_Idempotency {
         }
 
         if ( $key ) {
-            self::store( $scope, $key, $resp );
+            self::store( $scope, $key, $resp, $ttl );
         }
         return $resp;
+    }
+
+    /**
+     * Helper: replay-or-execute with the AI-burn TTL (5 minutes).
+     *
+     * Use for any endpoint that synchronously calls Anthropic or
+     * Deepgram. The default 30-second TTL is too short — Claude calls
+     * routinely take 8-20 seconds, so a practitioner who times out at
+     * 25s and retries at 35s would get a fresh API charge under the
+     * default. 5 minutes covers the realistic retry window.
+     */
+    public static function wrap_ai( $request, $scope, callable $worker ) {
+        return self::wrap( $request, $scope, $worker, self::AI_BURN_TTL );
     }
 }

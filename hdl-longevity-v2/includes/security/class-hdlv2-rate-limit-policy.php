@@ -69,38 +69,93 @@ class HDLV2_Rate_Limit_Policy {
      */
     private static function route_patterns() {
         return array(
-            // ── AI-burn (Claude/Whisper) ────────────────────────────────
-            array( 'POST', '#^/hdl-v2/v1/audio/transcribe$#',                   self::TIER_AI_BURN ),
+            // ── AI-burn (Claude/Deepgram) ───────────────────────────────
+            array( 'POST', '#^/hdl-v2/v1/audio/transcribe-async$#',             self::TIER_AI_BURN ),
             array( 'POST', '#^/hdl-v2/v1/audio/extract$#',                      self::TIER_AI_BURN ),
             array( 'POST', '#^/hdl-v2/v1/form/generate-report$#',               self::TIER_AI_BURN ),
             array( 'POST', '#^/hdl-v2/v1/checkin/confirm$#',                    self::TIER_AI_BURN ),
             array( 'POST', '#^/hdl-v2/v1/consultation/finalise$#',              self::TIER_AI_BURN ),
+            // v0.26.2 — fix #4 (/ultrareview): three Claude-firing endpoints
+            // were falling through to TIER_WRITE (60/hour). A retry loop
+            // could fire 60 of these per hour ≈ $4–6/hour Claude burn before
+            // the IP backstop trips. Now capped at the AI-burn 8/hour per
+            // token + 30/hour per practitioner.
+            array( 'POST', '#^/hdl-v2/v1/consultation/organise$#',              self::TIER_AI_BURN ),
+            array( 'POST', '#^/hdl-v2/v1/consultation/refresh-brief$#',         self::TIER_AI_BURN ),
+            array( 'POST', '#^/hdl-v2/v1/consultation/save-and-regenerate$#',   self::TIER_AI_BURN ),
+            // v0.28.0 — Consultation Addenda flow. /save-and-update-plan is
+            // the new post-Final action button (same backend as
+            // save-and-regenerate but distinct idempotency scope so the
+            // dedup buckets don't clash). AI-burn tier because it re-fires
+            // generate_final_report + generate_milestones (~$0.05/run).
+            array( 'POST', '#^/hdl-v2/v1/consultation/save-and-update-plan$#',  self::TIER_AI_BURN ),
             array( 'POST', '#^/hdl-v2/v1/flight-plan/[0-9]+/generate$#',        self::TIER_AI_BURN ),
 
-            // ── Bypass (Make.com bearer-authed callbacks) ───────────────
+            // v0.35.0 (Phase O) — practitioner Confirm a widget lead. Calls
+            // complete_signup() which fires Make.com Stage 1 PDF webhook and
+            // sends the magic-link email; both have non-zero cost. AI_BURN
+            // tier (10/hour) prevents accidental floods if a practitioner
+            // bulk-confirms a spammed inbox.
+            array( 'POST', '#^/hdl-v2/v1/widget/leads/confirm$#',               self::TIER_AI_BURN ),
+
+            // ── Bypass (Make.com bearer-authed callbacks + internal loopback) ───
             array( 'POST', '#^/hdl-v2/v1/form/stage2-callback$#',               self::TIER_BYPASS ),
             array( 'POST', '#^/hdl-v2/v1/flight-plan/pdf-callback$#',           self::TIER_BYPASS ),
+            // v0.30.0 — internal job-queue worker kick. Fired by
+            // HDLV2_Job_Queue::trigger_worker_async() over loopback HTTP so
+            // a freshly-enqueued audio-transcription job runs in seconds
+            // instead of waiting for the next cron tick. HMAC-gated via
+            // wp_salt('auth') so only an in-process WP request can reach it.
+            // Was previously unmapped → tier_for_request returned null, leaving
+            // the middleware free to throttle; bypass is the correct tier.
+            array( 'POST', '#^/hdl-v2/v1/internal/worker-tick$#',               self::TIER_BYPASS ),
 
-            // ── Public (open lead capture) ──────────────────────────────
+            // ── Public (open lead capture + resend + reject) ────────────
             array( 'POST', '#^/hdl-v2/v1/widget/lead$#',                        self::TIER_PUBLIC ),
+            array( 'POST', '#^/hdl-v2/v1/widget/resend$#',                      self::TIER_PUBLIC ),
+            array( 'POST', '#^/hdl-v2/v1/widget/reject$#',                      self::TIER_PUBLIC ),
+            // v0.35.0 (Phase O) — public widget pulls fresh display config
+            // (cta_link, theme_color, etc.) on mount so practitioners can
+            // update their booking link in Widget Settings without re-pasting
+            // embed code. Read-only safe-subset; no PII beyond display fields
+            // already shown publicly.
+            array( 'GET',  '#^/hdl-v2/v1/widget/public-config$#',               self::TIER_PUBLIC ),
 
             // ── Write (mutating but cheap) ──────────────────────────────
             array( 'POST', '#^/hdl-v2/v1/form/(save|complete-stage|create|release-why)$#', self::TIER_WRITE ),
             array( 'POST', '#^/hdl-v2/v1/widget/invite$#',                      self::TIER_WRITE ),
             array( 'POST', '#^/hdl-v2/v1/flight-plan/(tick|tick-all)$#',        self::TIER_WRITE ),
             array( 'POST', '#^/hdl-v2/v1/flight-plan/[0-9]+/(settings|priorities)$#', self::TIER_WRITE ),
-            array( 'POST', '#^/hdl-v2/v1/consultation/(save-notes|add-recommendation|remove-recommendation|edit-field)$#', self::TIER_WRITE ),
+            array( 'POST', '#^/hdl-v2/v1/consultation/(save-notes|add-recommendation|remove-recommendation|edit-field|addendum)$#', self::TIER_WRITE ),
             array( 'POST', '#^/hdl-v2/v1/timeline/add-note$#',                  self::TIER_WRITE ),
             array( 'POST', '#^/hdl-v2/v1/checkin/submit$#',                     self::TIER_WRITE ),
             array( 'POST', '#^/hdl-v2/v1/audio/client-error$#',                 self::TIER_WRITE ),
+            // v0.35.0 (Phase O) — practitioner rejects a widget lead. Silent
+            // (no email, no Make.com call), so TIER_WRITE rather than AI_BURN.
+            array( 'POST', '#^/hdl-v2/v1/widget/leads/reject$#',                self::TIER_WRITE ),
 
             // ── Read (lightweight) ──────────────────────────────────────
             array( 'GET',  '#^/hdl-v2/v1/form/load$#',                          self::TIER_READ ),
             array( 'GET',  '#^/hdl-v2/v1/widget/(config|invites|verify-invite)$#', self::TIER_READ ),
+            // v0.35.0 (Phase O) — practitioner inbox feed: pending widget leads.
+            array( 'GET',  '#^/hdl-v2/v1/widget/leads/pending$#',               self::TIER_READ ),
             array( 'GET',  '#^/hdl-v2/v1/flight-plan/[0-9]+/(current|history|adherence|preview)$#', self::TIER_READ ),
             array( 'GET',  '#^/hdl-v2/v1/timeline/[0-9]+(/client|/export)?$#',  self::TIER_READ ),
             array( 'GET',  '#^/hdl-v2/v1/dashboard/clients$#',                  self::TIER_READ ),
+            array( 'GET',  '#^/hdl-v2/v1/dashboard/client/[0-9]+/effort-outcomes$#', self::TIER_READ ),
+            // v0.25.2 — practitioner consultations index (/consultation/ landing).
+            array( 'GET',  '#^/hdl-v2/v1/consultations/list$#',                  self::TIER_READ ),
+            array( 'GET',  '#^/hdl-v2/v1/health$#',                             self::TIER_READ ),
             array( 'GET',  '#^/hdl-v2/v1/checkin/(load|history)$#',             self::TIER_READ ),
+
+            // v0.19.2 — job-status polling for async transcription. Previously
+            // unmapped → only the IP backstop applied (500/hr/IP), which was
+            // blowing up when clients polled every 3s for 30-90s transcripts
+            // across multiple audio uploads in a session. TIER_READ is
+            // per-token (200/hr) so clients share a bucket with their own
+            // form/load reads, and don't collide with other callers on the
+            // same NAT'd IP.
+            array( 'GET',  '#^/hdl-v2/v1/jobs/[0-9]+/status$#',                 self::TIER_READ ),
 
             // ── Self-status (always allowed but counted as read) ────────
             array( 'GET',  '#^/hdl-v2/v1/rate-limit/status$#',                  self::TIER_READ ),

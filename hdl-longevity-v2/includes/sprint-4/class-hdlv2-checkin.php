@@ -21,6 +21,7 @@ class HDLV2_Checkin {
         add_action( 'rest_api_init', array( $this, 'register_rest_routes' ) );
         add_action( 'hdlv2_checkin_reminder', array( $this, 'send_reminders' ) );
         add_action( 'hdlv2_quarterly_review', array( $this, 'check_quarterly_reviews' ) );
+        add_action( 'hdlv2_inactivity_sweep', array( $this, 'run_inactivity_sweep' ) );
         add_shortcode( 'hdlv2_checkin', array( $this, 'render_shortcode' ) );
     }
 
@@ -91,6 +92,15 @@ class HDLV2_Checkin {
         $progress = $this->get_progress_from_token( $params['token'] ?? '' );
         if ( is_wp_error( $progress ) ) return $progress;
 
+        // AI-burn idempotency: rest_submit calls Claude (Haiku 4.5) for the
+        // weekly check-in extraction. Without wrapping, a duplicate submission
+        // (network retry, double-click) charges Claude twice. Scope is per
+        // (token, week_start) so submissions in different weeks don't collide.
+        $idem_scope = 'tok:' . substr( hash( 'sha256', (string) ( $params['token'] ?? '' ) ), 0, 16 )
+                    . ':cs:' . (int) $progress->id
+                    . ':wk:' . $this->get_week_start();
+        return HDLV2_Idempotency::wrap_ai( $request, $idem_scope, function () use ( $request, $params, $progress ) {
+
         $text = sanitize_textarea_field( $params['text'] ?? '' );
         $audio_summary = $params['audio_summary'] ?? '';
 
@@ -139,7 +149,14 @@ class HDLV2_Checkin {
 
         // Only extract via AI if not already structured
         if ( ! $already_extracted ) {
-            $summary = HDLV2_Audio_Service::get_instance()->process_text( $raw_input, 'weekly_checkin' );
+            // Persist raw transcript + structured output for 90 days so the client's
+            // actual words survive beyond the check-in summary compression.
+            $meta = array(
+                'form_progress_id' => (int) $progress->id,
+                'client_user_id'   => $progress->client_user_id ? (int) $progress->client_user_id : null,
+                'input_method'     => $input_method,
+            );
+            $summary = HDLV2_Audio_Service::get_instance()->process_text( $raw_input, 'weekly_checkin', $meta );
             if ( is_wp_error( $summary ) ) return $summary;
         }
 
@@ -187,6 +204,7 @@ class HDLV2_Checkin {
             'has_flags'  => $parsed['has_flags'],
             'flags'      => $parsed['flags'],
         ) );
+        } );
     }
 
     // ── REST: Confirm check-in ──
@@ -340,6 +358,7 @@ class HDLV2_Checkin {
                     'client_name'        => $client_name,
                     'reasons'            => $flag_reasons,
                     'timeline_url'       => site_url( '/client-tracker/?client_id=' . $checkin->client_id ),
+                    'practitioner_id'    => $checkin->practitioner_id ?? null,
                 ) );
             }
 
@@ -387,8 +406,8 @@ class HDLV2_Checkin {
     // ── Shortcode ──
     public function render_shortcode( $atts ) {
         wp_enqueue_script( 'hdlv2-audio-component', HDLV2_PLUGIN_URL . 'assets/js/hdlv2-audio-component.js', array( 'hdlv2-transcriber' ), HDLV2_VERSION, true );
-        wp_enqueue_script( 'hdlv2-checkin', HDLV2_PLUGIN_URL . 'assets/js/hdlv2-checkin.js', array( 'hdlv2-audio-component' ), HDLV2_VERSION, true );
-        wp_enqueue_style( 'hdlv2-form', HDLV2_PLUGIN_URL . 'assets/css/hdlv2-form.css', array(), HDLV2_VERSION );
+        wp_enqueue_script( 'hdlv2-checkin', HDLV2_PLUGIN_URL . 'assets/js/hdlv2-checkin.js', array( 'hdlv2-audio-component', 'hdlv2-loading' ), HDLV2_VERSION, true );
+        wp_enqueue_style( 'hdlv2-form', HDLV2_PLUGIN_URL . 'assets/css/hdlv2-form.css', array( 'hdlv2-loading-css' ), HDLV2_VERSION );
         // Flight-plan page slug is configurable via filter so sites that rename
         // the page still get a working "View your Flight Plan" link post-confirm.
         $flight_plan_slug = apply_filters( 'hdlv2_flight_plan_slug', 'my-flight-plan' );
@@ -401,13 +420,31 @@ class HDLV2_Checkin {
     }
 
     // ── Cron: Send weekly reminders ──
+    //
+    // Cadence (v0.15.16): cron fires daily, but each client gets at most one
+    // reminder per 3-day window via a transient. Realistic pattern for a client
+    // who never checks in: Mon reminder → 3-day silence → Thu nudge → 3-day
+    // silence → next Mon reminder (by which point week_start advances and the
+    // skip-if-checked-in guard resets the clock). Replaces the pre-v0.15.16
+    // behaviour where a lazy client got a nag every single day.
     public function send_reminders() {
         global $wpdb;
-        // Get all active clients with completed stages
+        // v0.27.0 — fix #10 (/ultrareview): SELECT DISTINCT was treating all 5
+        // columns together, so a client with multiple form_progress rows
+        // (different tokens) appeared once per row → multiple weekly reminder
+        // emails. Group by client_user_id and aggregate the rest with
+        // ANY_VALUE (MySQL 5.7+) so each client is one row regardless of how
+        // many progress rows they have.
         $clients = $wpdb->get_results(
-            "SELECT DISTINCT client_user_id, client_email, client_name, practitioner_user_id, token
+            "SELECT
+                client_user_id,
+                ANY_VALUE(client_email)         AS client_email,
+                ANY_VALUE(client_name)          AS client_name,
+                ANY_VALUE(practitioner_user_id) AS practitioner_user_id,
+                ANY_VALUE(token)                AS token
              FROM {$wpdb->prefix}hdlv2_form_progress
-             WHERE stage3_completed_at IS NOT NULL AND client_email != ''"
+             WHERE stage3_completed_at IS NOT NULL AND client_email != ''
+             GROUP BY client_user_id"
         );
 
         $week_start = $this->get_week_start();
@@ -419,11 +456,73 @@ class HDLV2_Checkin {
             ) );
             if ( $exists ) continue;
 
+            // Cooldown: skip if we already emailed this client within the last 3 days.
+            $cooldown_key = 'hdlv2_checkin_remind_' . (int) $c->client_user_id;
+            if ( get_transient( $cooldown_key ) ) continue;
+
+            // v0.36.23 — drop the inline 'there' fallback; derive_first_name()
+            // handles empty + email-shaped names centrally now.
             HDLV2_Email_Templates::checkin_reminder( array(
-                'client_name'  => $c->client_name ?: 'there',
-                'client_email' => $c->client_email,
-                'checkin_url'  => site_url( '/weekly-check-in/?token=' . $c->token ),
+                'client_name'     => $c->client_name,
+                'client_email'    => $c->client_email,
+                'checkin_url'     => site_url( '/weekly-check-in/?token=' . $c->token ),
+                'practitioner_id' => $c->practitioner_user_id ?? null,
             ) );
+
+            set_transient( $cooldown_key, 1, 3 * DAY_IN_SECONDS );
+        }
+    }
+
+    // ── Cron: Inactivity sweep ──
+    //
+    // Fires daily. Scans every V2 client past Stage 3 and evaluates their
+    // current status. If a client is `needs_attention` (low-adherence streak,
+    // missed check-ins) OR `inactive` (4+ weeks silent), we email the
+    // practitioner — once per 7-day incident window to avoid spam.
+    //
+    // Critical-flag check-ins already fire `client_needs_attention` inline from
+    // confirm_checkin(); this cron is the "silent drop-off" safety net that
+    // didn't exist before v0.15.16 (audit Gaps A + B).
+    public function run_inactivity_sweep() {
+        if ( ! class_exists( 'HDLV2_Client_Status' ) || ! class_exists( 'HDLV2_Email_Templates' ) ) return;
+
+        global $wpdb;
+        // v0.27.0 — fix #10 (/ultrareview): same DISTINCT-vs-GROUP-BY bug as
+        // send_reminders above. One row per client, not one per form_progress.
+        $clients = $wpdb->get_results(
+            "SELECT
+                client_user_id,
+                ANY_VALUE(client_name)          AS client_name,
+                ANY_VALUE(client_email)         AS client_email,
+                ANY_VALUE(practitioner_user_id) AS practitioner_user_id,
+                ANY_VALUE(token)                AS token
+             FROM {$wpdb->prefix}hdlv2_form_progress
+             WHERE stage3_completed_at IS NOT NULL AND client_user_id IS NOT NULL AND practitioner_user_id IS NOT NULL
+             GROUP BY client_user_id"
+        );
+
+        foreach ( $clients as $c ) {
+            $status = HDLV2_Client_Status::calculate_status( $c->client_user_id );
+            if ( ! in_array( $status['status'], array( 'needs_attention', 'inactive' ), true ) ) continue;
+            if ( empty( $status['reasons'] ) ) continue;
+
+            // De-dup per client per 7 days (separate key per status so a state
+            // transition from inactive→needs_attention still notifies).
+            $key = 'hdlv2_attn_' . (int) $c->client_user_id . '_' . $status['status'];
+            if ( get_transient( $key ) ) continue;
+
+            $prac = get_userdata( $c->practitioner_user_id );
+            if ( ! $prac || empty( $prac->user_email ) ) continue;
+
+            HDLV2_Email_Templates::client_needs_attention( array(
+                'practitioner_email' => $prac->user_email,
+                'client_name'        => $c->client_name ?: 'Client',
+                'reasons'            => $status['reasons'],
+                'timeline_url'       => site_url( '/client-tracker/?client_id=' . (int) $c->client_user_id ),
+                'practitioner_id'    => $c->practitioner_user_id ?? null,
+            ) );
+
+            set_transient( $key, 1, 7 * DAY_IN_SECONDS );
         }
     }
 
@@ -555,14 +654,17 @@ class HDLV2_Checkin {
                 'practitioner_email' => $prac->user_email,
                 'client_name'        => $c->client_name,
                 'dashboard_url'      => admin_url( 'admin.php?page=hdl-dashboard' ),
+                'practitioner_id'    => $c->practitioner_user_id ?? null,
             ) );
 
-            // Send email to client
+            // Send email to client (v0.36.23 — practitioner_id now passed so
+            // header carries the practitioner's logo, not the HDL fallback).
             if ( $c->client_email ) {
                 HDLV2_Email_Templates::quarterly_review_client( array(
-                    'client_name'  => $c->client_name ?: 'there',
-                    'client_email' => $c->client_email,
-                    'review_url'   => site_url( '/my-flight-plan/?token=' . $c->token ),
+                    'client_name'     => $c->client_name,
+                    'client_email'    => $c->client_email,
+                    'review_url'      => site_url( '/my-flight-plan/?token=' . $c->token ),
+                    'practitioner_id' => $c->practitioner_user_id ?? null,
                 ) );
             }
 

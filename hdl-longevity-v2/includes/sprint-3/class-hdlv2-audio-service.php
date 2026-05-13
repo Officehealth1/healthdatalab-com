@@ -3,9 +3,8 @@
  * Audio Service — Shared record/transcribe/extract component.
  *
  * Used by Stage 2 WHY, consultation notes, and weekly check-in.
- * Whisper API for transcription, Claude API for structured extraction.
+ * Deepgram (via async job queue) for transcription, Claude API for structured extraction.
  *
- * Requires: HDLV2_OPENAI_API_KEY in wp-config.php for Whisper.
  * Claude calls route through HDLV2_AI_Service.
  *
  * @package HDL_Longevity_V2
@@ -18,9 +17,6 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 class HDLV2_Audio_Service {
 
-    const WHISPER_URL = 'https://api.openai.com/v1/audio/transcriptions';
-    const WHISPER_MODEL = 'whisper-1';
-
     const ALLOWED_MIMES = array(
         'mp3'  => 'audio/mpeg',
         'm4a'  => 'audio/mp4',
@@ -29,20 +25,29 @@ class HDLV2_Audio_Service {
         'webm' => 'audio/webm',
     );
 
-    const MAX_FILE_SIZE = 25 * 1024 * 1024; // 25MB Whisper limit
+    const MAX_FILE_SIZE = 25 * 1024 * 1024; // 25MB upload cap
 
-    /** Claude model per context type. */
+    /** Claude model per context type.
+     *  v0.36.1 — unified to Sonnet 4.6. weekly_checkin previously ran on
+     *  Haiku 4.5; promoted to Sonnet 4.6 alongside everything else per
+     *  "all AI analyzation on Sonnet 4.6" directive (2026-05-07).
+     */
     const MODELS = array(
-        'why_collection'     => 'claude-sonnet-4-20250514',
-        'consultation_notes' => 'claude-sonnet-4-20250514',
-        'weekly_checkin'     => 'claude-haiku-4-5-20251001',
+        'why_collection'     => 'claude-sonnet-4-6',
+        'consultation_notes' => 'claude-sonnet-4-6',
+        'weekly_checkin'     => 'claude-sonnet-4-6',
     );
 
-    /** Max tokens per context type. */
+    /** Max tokens per context type.
+     *  Bumped 2026-04-23 (v0.19.0) — previous caps compressed 10-minute audio
+     *  down to ~1000 words of output, losing 80% of client content. See
+     *  docs/ai-prompts/FIXES.md and QUIM-BRIEF-Flight-Plan-and-Checkin.md
+     *  ("preserve specifics and nuance" rule).
+     */
     const MAX_TOKENS = array(
-        'why_collection'     => 1500,
-        'consultation_notes' => 1500,
-        'weekly_checkin'     => 2000,
+        'why_collection'     => 4000,
+        'consultation_notes' => 4000,
+        'weekly_checkin'     => 3000,
     );
 
     private static $instance = null;
@@ -59,6 +64,7 @@ class HDLV2_Audio_Service {
     public function register_hooks() {
         add_action( 'rest_api_init', array( $this, 'register_rest_routes' ) );
         add_action( 'hdlv2_audio_cleanup', array( $this, 'cleanup_old_audio' ) );
+        add_action( 'hdlv2_audio_cleanup', array( $this, 'cleanup_old_extractions' ) );
     }
 
     // ──────────────────────────────────────────────────────────────
@@ -66,10 +72,14 @@ class HDLV2_Audio_Service {
     // ──────────────────────────────────────────────────────────────
 
     public function register_rest_routes() {
-        // Transcribe uploaded audio file
-        register_rest_route( 'hdl-v2/v1', '/audio/transcribe', array(
+        // v0.17.0 — async upload path. Validates + stores the file, enqueues a
+        // transcribe_audio job, and returns a job_id. Frontend polls
+        // /jobs/{id}/status. Replaces the blocking /audio/transcribe for the
+        // consultation upload flow where 1-hour files need Deepgram (not
+        // browser Whisper) and can't sit on an open HTTP request for minutes.
+        register_rest_route( 'hdl-v2/v1', '/audio/transcribe-async', array(
             'methods'             => 'POST',
-            'callback'            => array( $this, 'rest_transcribe' ),
+            'callback'            => array( $this, 'rest_transcribe_async' ),
             'permission_callback' => array( $this, 'check_audio_permission' ),
         ) );
 
@@ -117,68 +127,105 @@ class HDLV2_Audio_Service {
     }
 
     // ──────────────────────────────────────────────────────────────
-    //  REST: TRANSCRIBE
+    //  REST: TRANSCRIBE ASYNC  (v0.17.0 — Deepgram + job queue)
     // ──────────────────────────────────────────────────────────────
 
     /**
-     * Upload audio file → Whisper transcription → return transcript.
-     * Expects multipart form with 'audio' file field and optional 'context_type'.
+     * Upload audio, enqueue a transcribe_audio job, return job_id.
+     * The caller polls /jobs/{id}/status for progress/result.
+     *
+     * Expected multipart body:
+     *   - audio: file (required)
+     *   - context_type: 'consultation_notes' | 'consultation_addendum' | 'why_collection' | 'weekly_checkin'
+     *   - reference_id: int (id of consultation / why / checkin row; ignored for addendum)
+     *   - token: client token if unauthenticated
      */
-    public function rest_transcribe( $request ) {
+    public function rest_transcribe_async( $request ) {
         $tok        = $request->get_param( 'token' );
         $idem_scope = $tok ? 'tok:' . substr( hash( 'sha256', (string) $tok ), 0, 16 ) : 'anon-' . get_current_user_id();
         return HDLV2_Idempotency::wrap( $request, $idem_scope, function () use ( $request ) {
-        $files = $request->get_file_params();
-        if ( empty( $files['audio'] ) ) {
-            return new WP_Error( 'no_audio', 'Audio file is required.', array( 'status' => 400 ) );
-        }
-
-        $file = $files['audio'];
-
-        // Validate file
-        $validation = $this->validate_audio_file( $file );
-        if ( is_wp_error( $validation ) ) {
-            return $validation;
-        }
-
-        // Store the file
-        $stored_path = $this->store_audio_file( $file );
-        if ( is_wp_error( $stored_path ) ) {
-            return $stored_path;
-        }
-
-        // Transcribe via Whisper
-        $transcript = $this->transcribe_audio( $stored_path );
-        if ( is_wp_error( $transcript ) ) {
-            return $transcript;
-        }
-
-        // Optionally extract immediately if context_type is provided
-        $context_type = sanitize_text_field( $request->get_param( 'context_type' ) ?: '' );
-        $summary = null;
-        if ( $context_type && isset( self::MODELS[ $context_type ] ) ) {
-            $summary = $this->extract_summary( $transcript, $context_type );
-            if ( is_wp_error( $summary ) ) {
-                // Return transcript even if extraction fails
-                return rest_ensure_response( array(
-                    'success'    => true,
-                    'transcript' => $transcript,
-                    'audio_path' => $stored_path,
-                    'extract_error' => $summary->get_error_message(),
-                ) );
+            $files = $request->get_file_params();
+            if ( empty( $files['audio'] ) ) {
+                return new WP_Error( 'no_audio', 'Audio file is required.', array( 'status' => 400 ) );
             }
-        }
 
-        $response = array(
-            'success'    => true,
-            'transcript' => $transcript,
-            'audio_path' => $stored_path,
-        );
-        if ( $summary ) {
-            $response['summary'] = $summary;
-        }
+            $context_type = sanitize_text_field( $request->get_param( 'context_type' ) ?: '' );
+            $reference_id = (int) $request->get_param( 'reference_id' );
 
-        return rest_ensure_response( $response );
+            // v0.33.2 — Added 'consultation_addendum'. The addendum entry
+            // form (post-Final practitioner observations) was added in
+            // v0.28.0 with the same audio-upload component the consultation
+            // notes textarea uses, but the server-side allowlist was never
+            // extended — every addendum upload returned 400.
+            //
+            // Behaviour for consultation_addendum: same as why_collection /
+            // weekly_checkin — transcript is returned to the frontend via
+            // the job's result field, the JS audio component delivers it
+            // through onLiveTranscript() into the addendum textarea, and
+            // the practitioner clicks Save & Update Plan to persist via
+            // /consultation/addendum. No server-side write happens during
+            // transcription (handle_transcribe() persists only when
+            // context_type === 'consultation_notes' — verified in
+            // class-hdlv2-transcription-jobs.php line 101).
+            $allowed_contexts = array( 'consultation_notes', 'consultation_addendum', 'why_collection', 'weekly_checkin' );
+            if ( ! in_array( $context_type, $allowed_contexts, true ) ) {
+                return new WP_Error( 'bad_context', 'context_type must be one of: ' . implode( ', ', $allowed_contexts ), array( 'status' => 400 ) );
+            }
+            // reference_id is REQUIRED for consultation_notes (we write the
+            // transcript back into the consultation row and chain organise).
+            // For why_collection / weekly_checkin / consultation_addendum
+            // the transcript comes back via the job's result field and the
+            // consumer (form JS) pushes it into its own state — no DB row
+            // needs to exist yet.
+            if ( $context_type === 'consultation_notes' && ! $reference_id ) {
+                return new WP_Error( 'bad_reference', 'reference_id required for consultation_notes.', array( 'status' => 400 ) );
+            }
+
+            $file = $files['audio'];
+
+            $validation = $this->validate_audio_file( $file );
+            if ( is_wp_error( $validation ) ) {
+                return $validation;
+            }
+
+            $stored_path = $this->store_audio_file( $file );
+            if ( is_wp_error( $stored_path ) ) {
+                return $stored_path;
+            }
+
+            if ( ! class_exists( 'HDLV2_Job_Queue' ) ) {
+                return new WP_Error( 'queue_missing', 'Job queue unavailable.', array( 'status' => 500 ) );
+            }
+
+            // Unique per upload — new audio = new transcribe job, even if
+            // caller retries. (Organise is deduped separately per consult id.)
+            $idem_key = sprintf( 'transcribe:%s:%d:%s', $context_type, $reference_id, sha1( $stored_path ) );
+
+            $job_id = HDLV2_Job_Queue::enqueue(
+                'transcribe_audio',
+                array(
+                    'file_path'    => $stored_path,
+                    'context_type' => $context_type,
+                    'reference_id' => $reference_id,
+                ),
+                array(
+                    'reference_id' => $reference_id,
+                    'priority'     => 80,
+                    'idem_key'     => $idem_key,
+                )
+            );
+
+            if ( is_wp_error( $job_id ) ) {
+                return $job_id;
+            }
+
+            return rest_ensure_response( array(
+                'success'         => true,
+                'job_id'          => (int) $job_id,
+                'context_type'    => $context_type,
+                'reference_id'    => $reference_id,
+                'status_endpoint' => rest_url( 'hdl-v2/v1/jobs/' . (int) $job_id . '/status' ),
+            ) );
         } );
     }
 
@@ -212,7 +259,24 @@ class HDLV2_Audio_Service {
             $text = "PREVIOUS SUMMARY:\n" . $previous . "\n\nADDITIONAL INPUT:\n" . $text;
         }
 
-        $summary = $this->extract_summary( $text, $context_type );
+        // Build persistence metadata so the extraction survives in hdlv2_audio_extractions
+        $meta = array( 'input_method' => sanitize_text_field( $params['input_method'] ?? 'audio' ) );
+        if ( $tok ) {
+            global $wpdb;
+            $progress = $wpdb->get_row( $wpdb->prepare(
+                "SELECT id, client_user_id FROM {$wpdb->prefix}hdlv2_form_progress WHERE token = %s LIMIT 1",
+                $tok
+            ) );
+            if ( $progress ) {
+                $meta['form_progress_id'] = (int) $progress->id;
+                if ( $progress->client_user_id ) $meta['client_user_id'] = (int) $progress->client_user_id;
+            }
+        }
+        if ( ! empty( $params['reference_id'] ) ) {
+            $meta['reference_id'] = (int) $params['reference_id'];
+        }
+
+        $summary = $this->extract_summary( $text, $context_type, $meta );
         if ( is_wp_error( $summary ) ) {
             return $summary;
         }
@@ -267,82 +331,17 @@ class HDLV2_Audio_Service {
     // ──────────────────────────────────────────────────────────────
 
     /**
-     * Transcribe an audio file via OpenAI Whisper API.
-     *
-     * @param string $file_path Absolute path to audio file.
-     * @return string|WP_Error Transcript text.
-     */
-    public function transcribe_audio( $file_path ) {
-        $api_key = $this->get_openai_key();
-        if ( ! $api_key ) {
-            return new WP_Error( 'no_api_key', 'HDLV2_OPENAI_API_KEY not configured in wp-config.php.' );
-        }
-
-        if ( ! file_exists( $file_path ) ) {
-            return new WP_Error( 'file_not_found', 'Audio file not found.' );
-        }
-
-        // Build multipart request
-        $boundary = wp_generate_password( 24, false );
-        $body = '';
-
-        // File field
-        $body .= "--{$boundary}\r\n";
-        $body .= 'Content-Disposition: form-data; name="file"; filename="' . basename( $file_path ) . "\"\r\n";
-        $body .= "Content-Type: application/octet-stream\r\n\r\n";
-        $body .= file_get_contents( $file_path ) . "\r\n";
-
-        // Model field
-        $body .= "--{$boundary}\r\n";
-        $body .= "Content-Disposition: form-data; name=\"model\"\r\n\r\n";
-        $body .= self::WHISPER_MODEL . "\r\n";
-
-        // Language hint
-        $body .= "--{$boundary}\r\n";
-        $body .= "Content-Disposition: form-data; name=\"language\"\r\n\r\n";
-        $body .= "en\r\n";
-
-        $body .= "--{$boundary}--\r\n";
-
-        $response = wp_remote_post( self::WHISPER_URL, array(
-            'headers' => array(
-                'Authorization' => 'Bearer ' . $api_key,
-                'Content-Type'  => 'multipart/form-data; boundary=' . $boundary,
-            ),
-            'body'    => $body,
-            'timeout' => 120,
-        ) );
-
-        if ( is_wp_error( $response ) ) {
-            error_log( '[HDLV2 Audio] Whisper API error: ' . $response->get_error_message() );
-            return $response;
-        }
-
-        $code = wp_remote_retrieve_response_code( $response );
-        $data = json_decode( wp_remote_retrieve_body( $response ), true );
-
-        if ( $code !== 200 ) {
-            $err = $data['error']['message'] ?? "HTTP {$code}";
-            error_log( "[HDLV2 Audio] Whisper API HTTP {$code}: {$err}" );
-            return new WP_Error( 'whisper_error', $err );
-        }
-
-        $transcript = trim( $data['text'] ?? '' );
-        if ( ! $transcript ) {
-            return new WP_Error( 'empty_transcript', 'Whisper returned empty transcript.' );
-        }
-
-        return $transcript;
-    }
-
-    /**
      * Extract structured summary from text via Claude.
      *
      * @param string $text         Input text (transcript or typed).
      * @param string $context_type One of: why_collection, consultation_notes, weekly_checkin.
+     * @param array  $meta         Optional persistence metadata:
+     *                             { client_user_id, form_progress_id, reference_id, input_method }
+     *                             When provided, raw text + structured output is written to
+     *                             hdlv2_audio_extractions for audit + future reprocessing.
      * @return string|WP_Error JSON summary string.
      */
-    public function extract_summary( $text, $context_type ) {
+    public function extract_summary( $text, $context_type, $meta = array() ) {
         $api_key = defined( 'HDLV2_ANTHROPIC_API_KEY' ) ? HDLV2_ANTHROPIC_API_KEY : '';
         if ( ! $api_key ) {
             return new WP_Error( 'no_api_key', 'HDLV2_ANTHROPIC_API_KEY not configured.' );
@@ -353,7 +352,7 @@ class HDLV2_Audio_Service {
             return new WP_Error( 'invalid_context', "Unknown context type: {$context_type}" );
         }
 
-        $model      = self::MODELS[ $context_type ] ?? 'claude-sonnet-4-20250514';
+        $model      = self::MODELS[ $context_type ] ?? 'claude-sonnet-4-6';
         $max_tokens = self::MAX_TOKENS[ $context_type ] ?? 1000;
 
         $user_prompt = str_replace( '{client_input}', $text, $prompt['user'] );
@@ -400,30 +399,68 @@ class HDLV2_Audio_Service {
         $content = preg_replace( '/^\s*```(?:json)?\s*/i', '', $content );
         $content = preg_replace( '/\s*```\s*$/', '', $content );
 
+        // Persist raw transcript + structured output when caller provides metadata.
+        // Addresses the compression-loss problem: previously a 10-min audio was
+        // compressed to a distilled summary and the original was discarded.
+        // Now the full transcript survives for 90 days for audit + future reprocessing.
+        if ( ! empty( $meta ) ) {
+            $this->persist_extraction( $text, $content, $context_type, $model, $meta );
+        }
+
         return $content;
     }
 
     /**
-     * Process audio: transcribe + extract in one call.
-     *
-     * @param string $file_path    Absolute path to audio file.
-     * @param string $context_type Extraction context.
-     * @return array|WP_Error { transcript, summary }
+     * Write raw + structured extraction to hdlv2_audio_extractions.
+     * Non-blocking: failure to persist does not fail the caller.
      */
-    public function process_audio( $file_path, $context_type ) {
-        $transcript = $this->transcribe_audio( $file_path );
-        if ( is_wp_error( $transcript ) ) {
-            return $transcript;
-        }
+    private function persist_extraction( $raw_text, $structured_json, $context_type, $model, $meta ) {
+        global $wpdb;
+        $table = $wpdb->prefix . 'hdlv2_audio_extractions';
 
-        $summary = $this->extract_summary( $transcript, $context_type );
-        if ( is_wp_error( $summary ) ) {
-            return $summary;
+        // Guard: table may not exist on older installs — check once per request
+        static $table_exists = null;
+        if ( $table_exists === null ) {
+            $table_exists = (bool) $wpdb->get_var( $wpdb->prepare(
+                "SELECT 1 FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = %s",
+                $table
+            ) );
         }
+        if ( ! $table_exists ) return;
 
-        return array(
-            'transcript' => $transcript,
-            'summary'    => $summary,
+        $wpdb->insert( $table, array(
+            'client_user_id'    => isset( $meta['client_user_id'] )   ? (int) $meta['client_user_id']   : null,
+            'form_progress_id'  => isset( $meta['form_progress_id'] ) ? (int) $meta['form_progress_id'] : null,
+            'reference_id'      => isset( $meta['reference_id'] )     ? (int) $meta['reference_id']     : null,
+            'context_type'      => substr( (string) $context_type, 0, 32 ),
+            'input_method'      => substr( (string) ( $meta['input_method'] ?? 'audio' ), 0, 16 ),
+            'raw_transcript'    => (string) $raw_text,
+            'structured_json'   => (string) $structured_json,
+            'model'             => substr( (string) $model, 0, 64 ),
+            'transcript_chars'  => strlen( (string) $raw_text ),
+            'structured_chars'  => strlen( (string) $structured_json ),
+            'created_at'        => current_time( 'mysql' ),
+        ) );
+    }
+
+    /**
+     * Retention cleanup — brief spec says raw audio + transcripts kept for 90 days.
+     * Called from existing hdlv2_audio_cleanup cron (daily).
+     *
+     * Concurrency: safe — single DELETE with LIMIT; runs on one cron worker.
+     * At 50 users × 4 contexts × 4 weeks = ~800 rows/month, this stays trivial.
+     */
+    public function cleanup_old_extractions() {
+        global $wpdb;
+        $table = $wpdb->prefix . 'hdlv2_audio_extractions';
+        $exists = (bool) $wpdb->get_var( $wpdb->prepare(
+            "SELECT 1 FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = %s",
+            $table
+        ) );
+        if ( ! $exists ) return;
+        // Per brief: raw transcripts kept 90 days, then deleted.
+        $wpdb->query(
+            "DELETE FROM {$wpdb->prefix}hdlv2_audio_extractions WHERE created_at < DATE_SUB(NOW(), INTERVAL 90 DAY) LIMIT 1000"
         );
     }
 
@@ -432,10 +469,11 @@ class HDLV2_Audio_Service {
      *
      * @param string $text         Input text.
      * @param string $context_type Extraction context.
+     * @param array  $meta         Optional persistence metadata passed through to extract_summary.
      * @return string|WP_Error Summary.
      */
-    public function process_text( $text, $context_type ) {
-        return $this->extract_summary( $text, $context_type );
+    public function process_text( $text, $context_type, $meta = array() ) {
+        return $this->extract_summary( $text, $context_type, $meta );
     }
 
     // ──────────────────────────────────────────────────────────────
@@ -445,18 +483,25 @@ class HDLV2_Audio_Service {
     private function get_extraction_prompt( $context_type ) {
         $prompts = array(
             'why_collection' => array(
-                'system' => 'You are processing a client\'s response about why they are pursuing longevity and health changes. Return a structured JSON response.',
-                'user'   => 'Extract and structure the following from this client input:
+                'system' => 'You are processing a client\'s response about why they are pursuing longevity and health changes. Return a structured JSON response. You are an exhaustive archivist — your job is to capture EVERYTHING the client said, not to summarise.',
+                'user'   => 'Extract and structure the following from this client input. Be EXHAUSTIVE, not brief.
 
-1. KEY_PEOPLE: Who matters most to them? Names, relationships, ages if mentioned.
-2. KEY_MOTIVATIONS: What drives them? Be specific — not "wants to be healthy" but "wants to be able to play on the floor with grandchildren at 75."
-3. KEY_FEARS: What are they afraid of? What future do they want to avoid?
+1. KEY_PEOPLE: Every named person the client mentions. Include name, relationship, age if given, and a short note on why they matter to the client.
+2. MOTIVATIONS: Every specific motivation they raise — separate array entries. Be specific — not "wants to be healthy" but "wants to be able to play on the floor with grandchildren at 75."
+3. FEARS: Every fear / future they want to avoid — separate array entries. Keep the exact phrasing where it has emotional weight.
 4. DISTILLED_WHY: One sentence that captures their deepest motivation. Use their own words where possible.
+5. VERBATIM_QUOTES: Array of 3-10 direct quotes from their input that carry particular emotional weight, specific detail, or personal colour. These are the phrases that would lose meaning if paraphrased.
+6. LIFE_CONTEXT: Any concrete life details they volunteered — job, working hours, travel pattern, family situation, recent events, health incidents, hobbies. Short phrases, one per entry.
+7. NARRATIVE_SUMMARY: A 3-5 paragraph narrative re-telling of what they said, in second person, preserving their voice. This is the anti-compression safety net — aim for about 60-70% of the input length, not 10%.
 
-IMPORTANT: Preserve their exact language and specific details. Do NOT generalise.
-If they said "I don\'t want to end up like my mum Joan, stuck at home at 79" — keep that, don\'t flatten it to "wants to avoid dependency."
+CRITICAL RULES:
+- Preserve their EXACT language and specific details. Do NOT generalise.
+- If they said "I don\'t want to end up like my mum Joan, stuck at home at 79 with a broken hip" — keep Joan, 79, broken hip. Do NOT flatten to "wants to avoid dependency."
+- If they gave names — include ALL names. If they mentioned dates/ages/places — include them.
+- Do not summarise for length. The extraction must be long if the input is long. Brevity is a bug, not a feature.
+- If there is genuinely no data for a field, return an empty array or empty string — do not invent.
 
-Return valid JSON with keys: key_people, motivations, fears, distilled_why
+Return valid JSON with keys: key_people, motivations, fears, distilled_why, verbatim_quotes, life_context, narrative_summary
 
 Client input:
 {client_input}',
@@ -626,11 +671,4 @@ Client input:
         }
     }
 
-    // ──────────────────────────────────────────────────────────────
-    //  HELPERS
-    // ──────────────────────────────────────────────────────────────
-
-    private function get_openai_key() {
-        return defined( 'HDLV2_OPENAI_API_KEY' ) ? HDLV2_OPENAI_API_KEY : '';
-    }
 }

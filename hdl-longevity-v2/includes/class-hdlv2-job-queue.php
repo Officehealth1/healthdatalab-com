@@ -1,0 +1,517 @@
+<?php
+/**
+ * Background Job Queue.
+ *
+ * Universal async job pattern used by heavy operations (transcription,
+ * Claude calls, email sending, flight plan generation, etc.) so that
+ * REST endpoints stay fast and external API failures don't surface as
+ * 500s to the user.
+ *
+ * Flow:
+ *   1. Caller: HDLV2_Job_Queue::enqueue( $type, $payload, $opts )  → job_id
+ *   2. Cron worker hdlv2_job_queue_worker (every minute) claims up to
+ *      JOBS_PER_TICK pending rows, calls the registered handler for
+ *      each job_type, marks the row completed/failed.
+ *   3. Failures retry with exponential backoff (30s → 2m → 8m → dead).
+ *   4. Idempotency: unique (job_type, idem_key) prevents duplicates.
+ *
+ * Concurrency safety: claim_next_batch() uses SELECT ... FOR UPDATE
+ * inside a transaction so two workers racing for the same row can't
+ * both claim it.
+ *
+ * @package HDL_Longevity_V2
+ * @since 0.17.0
+ */
+
+if ( ! defined( 'ABSPATH' ) ) {
+    exit;
+}
+
+class HDLV2_Job_Queue {
+
+    const TABLE = 'hdlv2_jobs';
+
+    /** How many jobs one worker tick processes. Keeps a single tick bounded. */
+    const JOBS_PER_TICK = 5;
+
+    /** Max concurrent running jobs across all workers. Protects VPS. */
+    const MAX_CONCURRENT = 3;
+
+    /** Backoff schedule (seconds) per attempt. 4 attempts total before dead. */
+    const BACKOFF_SECONDS = array( 30, 120, 480 );
+
+    /** Handlers registered by feature classes at plugins_loaded. */
+    private static $handlers = array();
+
+    private static $instance = null;
+    public static function get_instance() {
+        if ( null === self::$instance ) self::$instance = new self();
+        return self::$instance;
+    }
+    private function __construct() {}
+
+    public function register_hooks() {
+        add_action( 'rest_api_init', array( $this, 'register_rest_routes' ) );
+        add_action( 'hdlv2_job_queue_worker', array( $this, 'run_worker_tick' ) );
+    }
+
+    // ──────────────────────────────────────────────────────────────
+    //  HANDLER REGISTRATION
+    // ──────────────────────────────────────────────────────────────
+
+    /**
+     * Register a callable handler for a job type. The handler receives the
+     * decoded payload and returns an array (stored as result JSON) or
+     * throws / returns WP_Error to fail the job.
+     *
+     * @param string   $job_type  e.g. 'transcribe_audio'
+     * @param callable $handler   function( array $payload ): array|WP_Error
+     */
+    public static function register_handler( $job_type, $handler ) {
+        self::$handlers[ $job_type ] = $handler;
+    }
+
+    public static function has_handler( $job_type ) {
+        return isset( self::$handlers[ $job_type ] );
+    }
+
+    // ──────────────────────────────────────────────────────────────
+    //  PUBLIC API
+    // ──────────────────────────────────────────────────────────────
+
+    /**
+     * Enqueue a job. Returns the job row id, or an existing id if
+     * idem_key collides (idempotent — safe to call on Back/Refresh).
+     *
+     * @param string $job_type
+     * @param array  $payload
+     * @param array  $opts {
+     *     @type string $idem_key      Default: sha1(job_type + json(payload))
+     *     @type int    $reference_id  Optional — link to owning row for lookup
+     *     @type int    $priority      Lower = runs first. Default 100.
+     *     @type int    $delay_seconds Start later (useful for chaining). Default 0.
+     *     @type int    $max_attempts  Default 4.
+     * }
+     * @return int|WP_Error job_id on success
+     */
+    public static function enqueue( $job_type, $payload, $opts = array() ) {
+        global $wpdb;
+        $table = $wpdb->prefix . self::TABLE;
+
+        $idem_key     = isset( $opts['idem_key'] ) ? (string) $opts['idem_key'] : sha1( $job_type . '|' . wp_json_encode( $payload ) );
+        $reference_id = isset( $opts['reference_id'] ) ? (int) $opts['reference_id'] : null;
+        $priority     = isset( $opts['priority'] ) ? (int) $opts['priority'] : 100;
+        $delay        = isset( $opts['delay_seconds'] ) ? (int) $opts['delay_seconds'] : 0;
+        $max_attempts = isset( $opts['max_attempts'] ) ? (int) $opts['max_attempts'] : 4;
+        $available_at = gmdate( 'Y-m-d H:i:s', time() + $delay );
+
+        // Idempotent upsert — if a pending/running row with same idem_key exists, return it.
+        $existing = $wpdb->get_row( $wpdb->prepare(
+            "SELECT id, status FROM $table WHERE job_type = %s AND idem_key = %s ORDER BY id DESC LIMIT 1",
+            $job_type, $idem_key
+        ) );
+        if ( $existing && in_array( $existing->status, array( 'pending', 'running', 'completed' ), true ) ) {
+            return (int) $existing->id;
+        }
+
+        $ok = $wpdb->insert( $table, array(
+            'job_type'     => $job_type,
+            'reference_id' => $reference_id,
+            'idem_key'     => $idem_key,
+            'payload'      => wp_json_encode( $payload ),
+            'status'       => 'pending',
+            'attempts'     => 0,
+            'max_attempts' => $max_attempts,
+            'priority'     => $priority,
+            'available_at' => $available_at,
+            'created_at'   => current_time( 'mysql', true ),
+        ) );
+
+        if ( ! $ok ) {
+            return new WP_Error( 'enqueue_failed', 'Could not enqueue job: ' . $wpdb->last_error );
+        }
+
+        $job_id = (int) $wpdb->insert_id;
+
+        // Kick the worker immediately (non-blocking) for low-latency start.
+        // The cron tick picks up anything the kick misses.
+        self::trigger_worker_async();
+
+        return $job_id;
+    }
+
+    /**
+     * Fetch a job by id (for status polling).
+     */
+    public static function get( $job_id ) {
+        global $wpdb;
+        $table = $wpdb->prefix . self::TABLE;
+        $row = $wpdb->get_row( $wpdb->prepare(
+            "SELECT id, job_type, reference_id, status, attempts, max_attempts, result, error, created_at, started_at, completed_at
+             FROM $table WHERE id = %d LIMIT 1",
+            (int) $job_id
+        ) );
+        if ( ! $row ) return null;
+        $row->result = $row->result ? json_decode( $row->result, true ) : null;
+        return $row;
+    }
+
+    /**
+     * Fetch the latest job for a (type, reference_id) pair.
+     * Handy for "does a transcribe job already exist for this consultation?"
+     */
+    public static function find_latest( $job_type, $reference_id ) {
+        global $wpdb;
+        $table = $wpdb->prefix . self::TABLE;
+        $row = $wpdb->get_row( $wpdb->prepare(
+            "SELECT id, status, attempts, result, error, created_at, completed_at
+             FROM $table WHERE job_type = %s AND reference_id = %d ORDER BY id DESC LIMIT 1",
+            $job_type, (int) $reference_id
+        ) );
+        if ( ! $row ) return null;
+        $row->result = $row->result ? json_decode( $row->result, true ) : null;
+        return $row;
+    }
+
+    // ──────────────────────────────────────────────────────────────
+    //  WORKER
+    // ──────────────────────────────────────────────────────────────
+
+    /**
+     * One worker tick. Claims up to JOBS_PER_TICK pending rows whose
+     * available_at has passed, runs each handler, marks result.
+     *
+     * Guard: if MAX_CONCURRENT rows already have status='running', skip —
+     * prevents piling up work during a stall.
+     */
+    public function run_worker_tick() {
+        global $wpdb;
+        $table = $wpdb->prefix . self::TABLE;
+
+        // Stale-run guard: mark any 'running' rows older than 10 min as failed.
+        // A handler that hangs would otherwise block the queue forever.
+        $wpdb->query( $wpdb->prepare(
+            "UPDATE $table
+             SET status = 'failed', error = 'worker_timeout',
+                 completed_at = %s
+             WHERE status = 'running' AND started_at < %s",
+            current_time( 'mysql', true ),
+            gmdate( 'Y-m-d H:i:s', time() - 600 )
+        ) );
+
+        // Check running count against cap
+        $running = (int) $wpdb->get_var( "SELECT COUNT(*) FROM $table WHERE status = 'running'" );
+        if ( $running >= self::MAX_CONCURRENT ) {
+            return;
+        }
+
+        $slots = max( 0, self::MAX_CONCURRENT - $running );
+        $claim = min( $slots, self::JOBS_PER_TICK );
+
+        for ( $i = 0; $i < $claim; $i++ ) {
+            $job = $this->claim_next();
+            if ( ! $job ) break;
+            $this->run_job( $job );
+        }
+    }
+
+    /**
+     * Atomically claim one pending job. Uses SELECT ... FOR UPDATE in a
+     * transaction so concurrent workers can't claim the same row.
+     *
+     * @return object|null
+     */
+    private function claim_next() {
+        global $wpdb;
+        $table = $wpdb->prefix . self::TABLE;
+
+        $wpdb->query( 'START TRANSACTION' );
+
+        $row = $wpdb->get_row( $wpdb->prepare(
+            "SELECT id FROM $table
+             WHERE status = 'pending' AND available_at <= %s
+             ORDER BY priority ASC, id ASC
+             LIMIT 1
+             FOR UPDATE",
+            current_time( 'mysql', true )
+        ) );
+
+        if ( ! $row ) {
+            $wpdb->query( 'COMMIT' );
+            return null;
+        }
+
+        $wpdb->update( $table,
+            array(
+                'status'     => 'running',
+                'started_at' => current_time( 'mysql', true ),
+            ),
+            array( 'id' => (int) $row->id )
+        );
+        // wpdb->update can't express `attempts = attempts + 1`; do it inline.
+        $wpdb->query( $wpdb->prepare(
+            "UPDATE $table SET attempts = attempts + 1 WHERE id = %d",
+            (int) $row->id
+        ) );
+
+        $wpdb->query( 'COMMIT' );
+
+        return $wpdb->get_row( $wpdb->prepare(
+            "SELECT * FROM $table WHERE id = %d LIMIT 1",
+            (int) $row->id
+        ) );
+    }
+
+    /**
+     * Run a claimed job's handler and update the row.
+     */
+    private function run_job( $job ) {
+        global $wpdb;
+        $table = $wpdb->prefix . self::TABLE;
+
+        if ( empty( self::$handlers[ $job->job_type ] ) ) {
+            $this->mark_failed( $job, 'no_handler', 'No handler registered for job_type=' . $job->job_type );
+            return;
+        }
+
+        $payload = json_decode( $job->payload, true );
+        if ( ! is_array( $payload ) ) $payload = array();
+
+        try {
+            $result = call_user_func( self::$handlers[ $job->job_type ], $payload, $job );
+        } catch ( \Throwable $e ) {
+            $this->mark_failed( $job, 'exception', $e->getMessage() );
+            return;
+        }
+
+        if ( is_wp_error( $result ) ) {
+            $this->mark_failed( $job, $result->get_error_code() ?: 'handler_error', $result->get_error_message() );
+            return;
+        }
+
+        // Success — store result
+        $wpdb->update( $table,
+            array(
+                'status'       => 'completed',
+                'result'       => wp_json_encode( is_array( $result ) ? $result : array( 'value' => $result ) ),
+                'completed_at' => current_time( 'mysql', true ),
+                'error'        => null,
+            ),
+            array( 'id' => (int) $job->id )
+        );
+    }
+
+    /**
+     * Mark a job failed. Schedules a retry if attempts remain, otherwise
+     * leaves status='failed' for operator investigation.
+     */
+    private function mark_failed( $job, $code, $message ) {
+        global $wpdb;
+        $table = $wpdb->prefix . self::TABLE;
+
+        $attempts = (int) $job->attempts;
+        $max      = (int) $job->max_attempts;
+
+        if ( $attempts < $max ) {
+            // Retry with backoff
+            $backoff_idx = min( $attempts - 1, count( self::BACKOFF_SECONDS ) - 1 );
+            $delay       = self::BACKOFF_SECONDS[ max( 0, $backoff_idx ) ];
+            $available   = gmdate( 'Y-m-d H:i:s', time() + $delay );
+
+            $wpdb->update( $table,
+                array(
+                    'status'       => 'pending',
+                    'error'        => sprintf( '[attempt %d] %s: %s', $attempts, $code, $message ),
+                    'available_at' => $available,
+                    'started_at'   => null,
+                ),
+                array( 'id' => (int) $job->id )
+            );
+            error_log( sprintf( '[HDLV2 Job #%d %s] retry in %ds — %s: %s', $job->id, $job->job_type, $delay, $code, $message ) );
+            return;
+        }
+
+        // Exhausted — permanent failure
+        $wpdb->update( $table,
+            array(
+                'status'       => 'failed',
+                'error'        => sprintf( '%s: %s', $code, $message ),
+                'completed_at' => current_time( 'mysql', true ),
+            ),
+            array( 'id' => (int) $job->id )
+        );
+        error_log( sprintf( '[HDLV2 Job #%d %s] PERMANENT FAIL after %d attempts — %s: %s', $job->id, $job->job_type, $attempts, $code, $message ) );
+    }
+
+    // ──────────────────────────────────────────────────────────────
+    //  ASYNC WORKER TRIGGER
+    //  After an enqueue, kick wp-cron so the worker runs within
+    //  seconds instead of waiting for the minute-tick.
+    // ──────────────────────────────────────────────────────────────
+
+    private static function trigger_worker_async() {
+        // v0.20.11 — POST to our internal /worker-tick endpoint instead of
+        // wp-cron.php. Sites commonly set DISABLE_WP_CRON=true (so they can
+        // rely on a system-cron wp-cli call), and in that setup a POST to
+        // wp-cron.php is a silent no-op — jobs sit pending until the next
+        // minute tick. The internal endpoint is a plain REST route, so it
+        // runs regardless of DISABLE_WP_CRON, and kicks the worker in ~1s.
+        //
+        // HMAC'd with wp_salt() so only in-process callers (which know the
+        // salt) can fire it. Non-blocking fire-and-forget — the enqueue
+        // response returns immediately; the tick runs on the loopback.
+        //
+        // v0.30.0 — timeout bumped 0.1s → 2s after diagnosing the consultation
+        // "Transcribing your audio..." stall on STBY (1 vCPU Vultr): the SSL
+        // handshake to https://stby.healthdatalab.net:8443 + LE cert routinely
+        // takes 200-500ms, so the 100ms ceiling killed the request before the
+        // handshake completed. With blocking:false the call still returns
+        // synchronously (cURL fires-and-forgets in a separate fd), so 2s is
+        // a safe ceiling that doesn't actually delay enqueue() callers.
+        $url = rest_url( 'hdl-v2/v1/internal/worker-tick' );
+        $key = hash_hmac( 'sha256', 'hdlv2-worker-tick', wp_salt( 'auth' ) );
+        $resp = wp_remote_post( $url, array(
+            'timeout'   => 2,
+            'blocking'  => false,
+            'sslverify' => apply_filters( 'https_local_ssl_verify', false ),
+            'body'      => array( 'key' => $key ),
+        ) );
+        // Surface silent failures so we can diagnose if the kick stops
+        // working again. The cron tick is the safety net (1-min from v0.30.0)
+        // so a kick miss is no longer catastrophic — but we should know.
+        if ( is_wp_error( $resp ) ) {
+            error_log( '[HDLV2 worker-tick] kick failed: ' . $resp->get_error_message() );
+        }
+    }
+
+    // ──────────────────────────────────────────────────────────────
+    //  REST — job status polling
+    // ──────────────────────────────────────────────────────────────
+
+    public function register_rest_routes() {
+        register_rest_route( 'hdl-v2/v1', '/jobs/(?P<id>\d+)/status', array(
+            'methods'             => 'GET',
+            'callback'            => array( $this, 'rest_status' ),
+            'permission_callback' => array( $this, 'permission_read' ),
+        ) );
+
+        // v0.20.11 — internal loopback worker kick. Bypasses DISABLE_WP_CRON.
+        // HMAC-gated via wp_salt(), so only our own process (which knows the
+        // salt) can fire it. Not listed in rate-limit policy because it's
+        // called at most once per enqueue, from within the same server.
+        register_rest_route( 'hdl-v2/v1', '/internal/worker-tick', array(
+            'methods'             => 'POST',
+            'callback'            => array( $this, 'rest_worker_tick' ),
+            'permission_callback' => '__return_true',
+        ) );
+    }
+
+    /**
+     * Token-based or practitioner auth. The caller provides the job ID;
+     * we return status without exposing job_type/payload internals — just
+     * status, progress hint, result (if completed), error (if failed).
+     *
+     * KNOWN IDOR (tracked, P2): any practitioner can poll any job_id and
+     * receive its result content (transcript / organised notes JSON), and
+     * any valid client token can do the same. Tightening this requires a
+     * per-job_type ownership dispatcher because reference_id resolves
+     * against three different tables depending on (job_type, context_type):
+     *   - organise_consultation       → hdlv2_consultation_notes.id
+     *   - transcribe_audio + cons     → hdlv2_consultation_notes.id
+     *   - transcribe_audio + why      → hdlv2_why_profiles.id
+     *   - transcribe_audio + checkin  → hdlv2_checkins.id
+     * A naive "join to consultation_notes" fix breaks the why/checkin
+     * client paths. Out of scope for the 2026-04-26 IDOR batch — see
+     * Change Log + .planning follow-up for the targeted fix.
+     */
+    public function permission_read( $request ) {
+        // Practitioner always allowed
+        $user_id = get_current_user_id();
+        if ( $user_id && HDLV2_Compatibility::is_practitioner( $user_id ) ) {
+            return true;
+        }
+
+        // Token (client) auth — standard 64-hex pattern already used elsewhere
+        $token = $request->get_param( 'token' ) ?: '';
+        if ( $token && preg_match( '/^[a-f0-9]{64}$/', $token ) ) {
+            global $wpdb;
+            $exists = $wpdb->get_var( $wpdb->prepare(
+                "SELECT id FROM {$wpdb->prefix}hdlv2_form_progress WHERE token = %s LIMIT 1",
+                $token
+            ) );
+            return (bool) $exists;
+        }
+
+        return false;
+    }
+
+    public function rest_status( $request ) {
+        $job_id = (int) $request->get_param( 'id' );
+        $job    = self::get( $job_id );
+        if ( ! $job ) {
+            return new WP_Error( 'not_found', 'Job not found.', array( 'status' => 404 ) );
+        }
+
+        // v0.33.3 — Self-healing kick. If the job is still pending when the
+        // client polls status, re-fire trigger_worker_async() so the worker
+        // runs immediately. Covers the case where the original kick from
+        // enqueue() was dropped (SSL handshake exceeded the 2s timeout,
+        // server was momentarily busy, or the loopback HTTP failed).
+        // Without this, a missed kick forced the user to wait up to 60
+        // seconds for the cron tick — explained the "minute hang" reported
+        // on Brave + STBY for short addendum recordings.
+        //
+        // Cheap to do per poll: trigger_worker_async() is non-blocking
+        // (cURL fire-and-forget, fd in another process). The worker
+        // queue's MAX_CONCURRENT guard + claim_next() FOR UPDATE prevent
+        // duplicate work even if multiple polls fire kicks before the
+        // first claim lands.
+        if ( $job->status === 'pending' ) {
+            self::trigger_worker_async();
+        }
+
+        $response = rest_ensure_response( array(
+            'id'           => (int) $job->id,
+            'status'       => $job->status,
+            'attempts'     => (int) $job->attempts,
+            'max_attempts' => (int) $job->max_attempts,
+            'result'       => $job->status === 'completed' ? $job->result : null,
+            'error'        => $job->status === 'failed' ? $job->error : null,
+            'created_at'   => $job->created_at,
+            'completed_at' => $job->completed_at,
+        ) );
+
+        // v0.20.11 — explicit no-store so Brave / Safari / any aggressive
+        // proxy cache never serves a stale "pending" response. The client
+        // also cache-busts via a `_=<ts>` query param; this is belt-and-braces.
+        $response->header( 'Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0' );
+        $response->header( 'Pragma', 'no-cache' );
+        $response->header( 'Expires', '0' );
+        return $response;
+    }
+
+    /**
+     * Internal worker-tick endpoint. Triggered by trigger_worker_async() so
+     * the queue processes a freshly-enqueued job without waiting for the
+     * next wp-cron minute tick.
+     *
+     * Why this exists: sites commonly set DISABLE_WP_CRON=true and rely on
+     * a system-cron wp-cli call to run events. In that setup wp-cron.php
+     * itself is a no-op, so POSTing to it does nothing. This endpoint is
+     * a plain REST route unaffected by DISABLE_WP_CRON, protected by an
+     * HMAC so only a WP request with wp_salt() access can fire it.
+     *
+     * @since 0.20.11
+     */
+    public function rest_worker_tick( $request ) {
+        $supplied = (string) ( $request->get_param( 'key' ) ?: '' );
+        $expected = hash_hmac( 'sha256', 'hdlv2-worker-tick', wp_salt( 'auth' ) );
+        if ( ! hash_equals( $expected, $supplied ) ) {
+            return new WP_Error( 'forbidden', 'Invalid key.', array( 'status' => 403 ) );
+        }
+        $this->run_worker_tick();
+        $response = rest_ensure_response( array( 'ok' => true ) );
+        $response->header( 'Cache-Control', 'no-store' );
+        return $response;
+    }
+}

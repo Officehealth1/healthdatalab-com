@@ -35,15 +35,18 @@ class HDLV2_Rate_Calculator {
 
     /**
      * Full weights — Stage 3.
-     * Correction 3: de-weighted breathHold, skinElasticity, supplementIntake,
-     * overallHealthScore. Increased strong evidence-based factors.
+     * Correction 3: de-weighted breathHold, skinElasticity, supplementIntake.
+     * v0.23.1 — overallHealthScore removed entirely (Matthew 2026-04-28). The
+     * 0-100 self-assessment had weak evidence + lowest weight (0.1) and the
+     * client-facing question is gone, so the score has no input source. Total
+     * sum-of-weights drops from 12.16 → 12.06; per-metric proportional impact
+     * is essentially unchanged. Increased strong evidence-based factors.
      */
     const FULL_WEIGHTS = array(
         // Body measurements
         'bmiScore'           => 0.8,
         'whrScore'           => 0.8,
         'whtrScore'          => 0.8,
-        'overallHealthScore' => 0.1,   // De-weighted (was 1.8) — weak evidence
         'bloodPressureScore' => 1.0,
         'heartRateScore'     => 0.6,
         'skinElasticity'     => 0.08,  // De-weighted (was 0.4) — weak evidence
@@ -202,13 +205,12 @@ class HDLV2_Rate_Calculator {
         $systolic  = (int) ( $data['bpSystolic'] ?? 0 );
         $diastolic = (int) ( $data['bpDiastolic'] ?? 0 );
         $heart_rate = (int) ( $data['restingHeartRate'] ?? 0 );
-        $overall_health = isset( $data['overallHealthPercent'] ) ? (float) $data['overallHealthPercent'] : null;
+        // v0.23.1 — overallHealthPercent input removed from Stage 3 wizard.
 
         $scores = array(
             'bmiScore'           => self::get_bmi_score( $bmi ),
             'whrScore'           => self::get_whr_score( $whr, $gender ),
             'whtrScore'          => self::get_whtr_score( $whtr ),
-            'overallHealthScore' => self::get_overall_health_score( $overall_health ),
             'bloodPressureScore' => self::get_bp_score( $systolic, $diastolic, $age ),
             'heartRateScore'     => self::get_heart_rate_score( $heart_rate, $age ),
             'skinElasticity'     => self::clamp_score( $data['skinElasticity'] ?? null ),
@@ -254,21 +256,31 @@ class HDLV2_Rate_Calculator {
         return $weight_kg / pow( $height_cm / 100, 2 );
     }
 
-    /** V1: longevity-form-raw.php:5816-5825 */
+    /**
+     * V1: longevity-form-raw.php:5816-5825
+     *
+     * v0.23.0 — returns null (not 0) when bmi is missing so calculate_age_shift's
+     * is_numeric guard correctly skips the metric instead of penalising the
+     * client for ticking "I don't know" on height or weight. Same change applied
+     * to whr, whtr, bp, heart-rate scorers below.
+     */
     private static function get_bmi_score( $bmi ) {
-        if ( $bmi === null || is_nan( (float) $bmi ) ) return 0;
-        if ( $bmi < 18.5 ) return 1;
-        if ( $bmi < 20 )   return 3;
-        if ( $bmi <= 22 )  return 5;
-        if ( $bmi <= 25 )  return 4;
-        if ( $bmi <= 27.5 ) return 3;
-        if ( $bmi <= 30 )  return 2;
+        if ( $bmi === null || is_nan( (float) $bmi ) ) return null;
+        // v0.34.0 — Canonical WHO/NICE adult bands aligned with Page 17
+        // methodology rubric. Replaces V1's narrower 20-22 = STRONG band that
+        // labelled 23.1 as 4/5 SOLID despite methodology table saying
+        // 18.5-24.9 = STRONG. Source: WHO Technical Report Series 894.
+        if ( $bmi < 18.5 )  return 1;
+        if ( $bmi <= 24.9 ) return 5;
+        if ( $bmi <= 26.9 ) return 4;
+        if ( $bmi <= 29.9 ) return 3;
+        if ( $bmi <= 34.9 ) return 2;
         return 1;
     }
 
     /** V1: longevity-form-raw.php:5836-5854 — gender-aware. */
     private static function get_whr_score( $whr, $gender ) {
-        if ( $whr === null || is_nan( (float) $whr ) ) return 0;
+        if ( $whr === null || is_nan( (float) $whr ) ) return null;
 
         if ( $gender === 'female' ) {
             if ( $whr <= 0.75 ) return 5;
@@ -288,7 +300,7 @@ class HDLV2_Rate_Calculator {
 
     /** V1: longevity-form-raw.php:5864-5875 — universal thresholds. */
     private static function get_whtr_score( $whtr ) {
-        if ( $whtr === null || is_nan( (float) $whtr ) ) return 0;
+        if ( $whtr === null || is_nan( (float) $whtr ) ) return null;
         if ( $whtr < 0.40 ) return 4;
         if ( $whtr < 0.50 ) return 5;
         if ( $whtr < 0.55 ) return 4;
@@ -302,12 +314,19 @@ class HDLV2_Rate_Calculator {
     //  BLOOD PRESSURE SCORING (age-specific)
     // ──────────────────────────────────────────────────────────────
 
-    /** V1: longevity-form-raw.php:5878-5950 */
+    /**
+     * V1: longevity-form-raw.php:5878-5950
+     *
+     * v0.23.0 — returns null when both systolic and diastolic are missing /
+     * out-of-range. 0 inputs were previously interpreted as worst-case score
+     * and shifted bio-age by +3.5 yrs (weight 1.0 × (3.5 - 0)). The 0 sentinel
+     * is fine for "value 0" because no real human has 0 systolic/diastolic.
+     */
     private static function get_bp_score( $systolic, $diastolic, $age ) {
         $sys_score = self::get_systolic_score( $systolic, $age );
         $dia_score = self::get_diastolic_score( $diastolic, $age );
 
-        if ( $sys_score === 0 && $dia_score === 0 ) return 0;
+        if ( $sys_score === 0 && $dia_score === 0 ) return null;
         if ( $sys_score === 0 ) return $dia_score;
         if ( $dia_score === 0 ) return $sys_score;
 
@@ -315,57 +334,24 @@ class HDLV2_Rate_Calculator {
     }
 
     private static function get_systolic_score( $val, $age ) {
-        if ( $val <= 0 || $val >= 180 ) return 0;
-
-        if ( $age >= 80 ) {
-            if ( $val < 110 ) return 0;
-            if ( $val <= 139 ) return 5;
-            if ( $val <= 149 ) return 4;
-            if ( $val <= 159 ) return 3;
-            if ( $val <= 169 ) return 2;
-            return 1;
-        }
-        if ( $age >= 65 ) {
-            if ( $val < 100 ) return 0;
-            if ( $val <= 129 ) return 5;
-            if ( $val <= 139 ) return 4;
-            if ( $val <= 149 ) return 3;
-            if ( $val <= 159 ) return 2;
-            return 1;
-        }
-        if ( $age >= 45 ) {
-            if ( $val < 95 ) return 0;
-            if ( $val <= 124 ) return 5;
-            if ( $val <= 134 ) return 4;
-            if ( $val <= 144 ) return 3;
-            if ( $val <= 159 ) return 2;
-            return 1;
-        }
-        // Age < 45
-        if ( $val < 90 ) return 0;
-        if ( $val <= 119 ) return 5;
-        if ( $val <= 129 ) return 4;
-        if ( $val <= 139 ) return 3;
-        if ( $val <= 159 ) return 2;
+        if ( $val <= 0 || $val >= 250 ) return 0;
+        // v0.34.0 — Canonical NICE/AHA fixed thresholds (no age-banding).
+        // Aligns Page 16 input pill with Page 17 methodology rubric.
+        // Source: NICE NG136 (2019), ACC/AHA Hypertension Guideline (2017).
+        if ( $val < 120 ) return 5;
+        if ( $val < 130 ) return 4;
+        if ( $val < 140 ) return 3;
+        if ( $val < 160 ) return 2;
         return 1;
     }
 
     private static function get_diastolic_score( $val, $age ) {
-        if ( $val <= 0 || $val >= 110 ) return 0;
-        if ( $val < 60 ) return 0;
-
-        if ( $age >= 45 ) {
-            // Ages 45+ (same thresholds for 45-64, 65-79, 80+)
-            if ( $val <= 79 ) return 5;
-            if ( $val <= 84 ) return 4;
-            if ( $val <= 89 ) return 3;
-            if ( $val <= 99 ) return 2;
-            return 1;
-        }
-        // Age < 45
-        if ( $val <= 79 ) return 5;
-        if ( $val <= 89 ) return 3;
-        if ( $val <= 99 ) return 2;
+        if ( $val <= 0 || $val >= 150 ) return 0;
+        // v0.34.0 — Canonical NICE/AHA fixed thresholds (no age-banding).
+        if ( $val < 80 )  return 5;
+        if ( $val < 85 )  return 4;
+        if ( $val < 90 )  return 3;
+        if ( $val < 100 ) return 2;
         return 1;
     }
 
@@ -373,49 +359,29 @@ class HDLV2_Rate_Calculator {
     //  HEART RATE SCORING (age-specific)
     // ──────────────────────────────────────────────────────────────
 
-    /** V1: longevity-form-raw.php:5953-5978 */
+    /**
+     * v0.34.0 — Canonical thresholds aligned with Page 17 methodology table.
+     * Replaces V1's age-banded logic (≥50 + HR ≤75 → 5/5 STRONG) which
+     * contradicted the displayed methodology rubric. Research-backed
+     * (AHA/NICE/Framingham/ARIC): lower RHR universally protective in adults
+     * absent pathological bradycardia. Athletic baselines (40-60 bpm) earn
+     * 5/5 STRONG. $age parameter kept for signature stability — unused.
+     */
     private static function get_heart_rate_score( $hr, $age ) {
-        if ( $hr <= 0 ) return 0;
-
-        // Bradycardia
-        if ( $hr < 60 ) {
-            return $age < 40 ? 3 : 2;
-        }
-
-        // Tachycardia
-        if ( $hr > 100 ) return 1;
-
-        // Normal range (60-100)
-        if ( $age >= 50 ) {
-            if ( $hr <= 75 ) return 5;
-            if ( $hr <= 85 ) return 3;
-            return 2;
-        }
-        // Age < 50
-        if ( $hr <= 70 ) return 5;
-        if ( $hr <= 80 ) return 4;
-        return 3;
-    }
-
-    // ──────────────────────────────────────────────────────────────
-    //  OVERALL HEALTH PERCENTAGE
-    // ──────────────────────────────────────────────────────────────
-
-    /** V1: longevity-form-raw.php:5724-5740 */
-    private static function get_overall_health_score( $percent ) {
-        if ( $percent === null ) return 3; // Default neutral
-        $percent = (float) $percent;
-        if ( $percent >= 95 ) return 5;
-        if ( $percent >= 85 ) return 4;
-        if ( $percent >= 70 ) return 3;
-        if ( $percent >= 55 ) return 2;
-        if ( $percent >= 40 ) return 1;
-        return 0;
+        if ( $hr <= 0 ) return null;
+        if ( $hr < 60 )  return 5;
+        if ( $hr <= 69 ) return 4;
+        if ( $hr <= 79 ) return 3;
+        if ( $hr <= 89 ) return 2;
+        return 1;
     }
 
     // ──────────────────────────────────────────────────────────────
     //  CORE CALCULATION
     // ──────────────────────────────────────────────────────────────
+    // v0.23.1 — get_overall_health_score() removed (Matthew 2026-04-28).
+    // The corresponding Stage 3 question + FULL_WEIGHTS entry + score key
+    // were all removed in the same release.
 
     /**
      * Calculate age shift from scores.
@@ -502,9 +468,15 @@ class HDLV2_Rate_Calculator {
 
     /**
      * Clamp a dropdown score to 0-5 range, or null if not provided.
+     *
+     * v0.23.0 — defensive: also treat 'skip' as null. Callers (rest_complete_stage,
+     * rest_load_consultation, final-report::generate, client-draft-view::rest_get_draft)
+     * already normalise 'skip' → null before reaching here, but this is the last
+     * line of defence — a future caller that forgets to normalise won't silently
+     * score 'skip' as 0 (which (float)'skip' would have produced).
      */
     private static function clamp_score( $value ) {
-        if ( $value === null || $value === '' ) return null;
+        if ( $value === null || $value === '' || $value === 'skip' ) return null;
         $v = (float) $value;
         return max( 0, min( 5, $v ) );
     }

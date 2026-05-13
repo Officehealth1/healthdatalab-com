@@ -63,25 +63,49 @@ class HDLV2_Rate_Limit_Middleware {
         $route = $request->get_route();
         if ( strpos( $route, '/hdl-v2/v1/' ) !== 0 ) return null;
 
+        // Reset per-request state. PHP statics persist across LSAPI/FastCGI
+        // requests on the same worker, and v0.20.0 has paths that legitimately
+        // skip the consume step (authenticated request + disabled tier), so
+        // without this reset add_headers() could emit stale X-RateLimit-* from
+        // the prior request on this worker.
+        self::$last_consumed = null;
+        self::$last_tier     = null;
+
         try {
             $method = strtoupper( $request->get_method() );
             $tier   = HDLV2_Rate_Limit_Policy::tier_for_request( $method, $route );
             $ip     = self::get_ip();
             $token  = self::get_token( $request );
 
-            // 1. Always-on IP backstop
-            $bs    = HDLV2_Rate_Limit_Policy::ip_backstop_config();
-            $bk_ip = HDLV2_Rate_Limiter::bucket_key( array( 'ip-backstop', $ip ) );
-            $r_ip  = HDLV2_Rate_Limiter::consume( $bk_ip, $bs['per_ip_limit'], $bs['window'] );
-            if ( ! $r_ip['allowed'] ) {
-                self::log_block( 'ip-backstop', $ip, $route );
-                return self::make_429( $r_ip, 'ip-backstop' );
+            // 1. IP backstop — anonymous traffic only.
+            //    v0.20.0 design-bug fix. Previously the backstop ran unconditionally,
+            //    so authenticated practitioners paid the "anonymous IP tax" on every
+            //    call and blew the 500/hr bucket (dashboard polls ~480 req/hr per
+            //    tab). The docstring at the top of this file already describes the
+            //    intended precedence; the code now matches it.
+            //    Also skippable per-tier via the 'hdlv2_rate_limit_disabled_tiers'
+            //    option so STBY can peel back limits one at a time.
+            $has_identity = ( $token || is_user_logged_in() );
+            if ( ! $has_identity && ! self::tier_is_disabled( 'ip-backstop' ) ) {
+                $bs    = HDLV2_Rate_Limit_Policy::ip_backstop_config();
+                $bk_ip = HDLV2_Rate_Limiter::bucket_key( array( 'ip-backstop', $ip ) );
+                $r_ip  = HDLV2_Rate_Limiter::consume( $bk_ip, $bs['per_ip_limit'], $bs['window'] );
+                if ( ! $r_ip['allowed'] ) {
+                    self::log_block( 'ip-backstop', $ip, $route );
+                    return self::make_429( $r_ip, 'ip-backstop' );
+                }
+                self::$last_consumed = $r_ip;
+                self::$last_tier     = 'ip-backstop';
             }
-            self::$last_consumed = $r_ip;
-            self::$last_tier     = 'ip-backstop';
 
             // 2. Bypass tier and unmapped routes get only the backstop
             if ( $tier === HDLV2_Rate_Limit_Policy::TIER_BYPASS || $tier === null ) {
+                return null;
+            }
+
+            // 2a. Staged disable (STBY rollback knob). Returning null here keeps
+            //     the request flowing with no tier accounting and no 429.
+            if ( self::tier_is_disabled( $tier ) ) {
                 return null;
             }
 
@@ -101,7 +125,21 @@ class HDLV2_Rate_Limit_Middleware {
             }
 
             // 4. Token-based tiers (ai-burn / write / read)
-            $identity = $token ? array( 'token', $token ) : array( 'ip-anon', $ip );
+            // v0.26.2 — fix #6 (/ultrareview): identity precedence is now
+            // token > user_id > IP. Previously authenticated practitioners
+            // making AI-burn calls without a magic-link token (every
+            // /consultation/* endpoint) fell back to IP-keyed buckets, so
+            // two practitioners sharing an office IP shared a single 8/hour
+            // cap. The per-practitioner cap below caught this on AI-burn
+            // tier only, but READ + WRITE tiers stayed broken. Now the
+            // user_id keys the bucket directly.
+            if ( $token ) {
+                $identity = array( 'token', $token );
+            } elseif ( is_user_logged_in() ) {
+                $identity = array( 'user', (int) get_current_user_id() );
+            } else {
+                $identity = array( 'ip-anon', $ip );
+            }
             $bk       = HDLV2_Rate_Limiter::bucket_key( array_merge( array( $tier ), $identity ) );
             $r        = HDLV2_Rate_Limiter::consume( $bk, $cfg['per_token_limit'], $cfg['window'] );
             if ( ! $r['allowed'] ) {
@@ -146,6 +184,31 @@ class HDLV2_Rate_Limit_Middleware {
             if ( strpos( $r, 'practitioner' ) !== false ) return true;
         }
         return user_can( $user_id, 'edit_posts' );
+    }
+
+    /**
+     * Check if a rate-limit tier is currently disabled via wp_option.
+     *
+     * STBY uses this to peel back rate limits one tier at a time for integration
+     * testing. LIVE should leave the option unset (or empty) so all tiers enforce.
+     *
+     * Option: 'hdlv2_rate_limit_disabled_tiers'
+     *   - Empty string / unset → all tiers enforced (production default)
+     *   - 'all' → every tier bypassed
+     *   - CSV of tier names, e.g. 'ip-backstop,read,write'
+     *
+     * Tier names: 'ip-backstop', 'read', 'write', 'ai-burn', 'public'.
+     *
+     * The option is autoloaded, so this costs a memory read, not a DB hit.
+     *
+     * @since 0.20.0
+     */
+    private static function tier_is_disabled( $tier ) {
+        $raw = get_option( 'hdlv2_rate_limit_disabled_tiers', '' );
+        if ( $raw === '' || $raw === false ) return false;
+        if ( $raw === 'all' ) return true;
+        $list = array_map( 'trim', explode( ',', (string) $raw ) );
+        return in_array( (string) $tier, $list, true );
     }
 
     /**

@@ -21,5 +21,8 @@ class HDLV2_Deactivator {
         wp_clear_scheduled_hook( 'hdlv2_checkin_reminder' );
         wp_clear_scheduled_hook( 'hdlv2_audio_cleanup' );
         wp_clear_scheduled_hook( 'hdlv2_quarterly_review' );
+        wp_clear_scheduled_hook( 'hdlv2_inactivity_sweep' );
+        wp_clear_scheduled_hook( 'hdlv2_job_queue_worker' );
+        wp_clear_scheduled_hook( 'hdlv2_pending_leads_cleanup' );
     }
 }

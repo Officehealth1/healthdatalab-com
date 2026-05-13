@@ -80,6 +80,108 @@ class HDLV2_Compatibility {
     }
 
     /**
+     * v0.35.4 (Quim 2026-05-07) — Page-level access gate for practitioner-only
+     * surfaces (/clients/, /consultation/, /practitioner-dashboard/).
+     *
+     * Three-way redirect:
+     *   • Logged-out                 → /login/?redirect_to=<current URL>
+     *   • Logged-in non-practitioner → /my-dashboard/ (their own surface)
+     *   • Practitioner / admin       → return (page renders)
+     *
+     * Replaces the previous hard-404 in maybe_404_unauthorised(), which broke
+     * the email-link-while-logged-out case and stranded clients on a 404
+     * instead of routing them to their own dashboard.
+     *
+     * Hooked at template_redirect priority 5 so it fires BEFORE Ultimate
+     * Member's content-restriction filter (priority 10 default). Without
+     * this priority, UM 404s any non-allowed visitor before our redirect
+     * logic gets a chance to run.
+     *
+     * Safe to call on every dashboard render — no-op for the allowed roles.
+     * Calls exit on redirect, so subsequent code never runs.
+     *
+     * @return void
+     */
+    public static function enforce_practitioner_only_page() {
+        if ( is_admin() || wp_doing_ajax() || wp_doing_cron() ) {
+            return;
+        }
+
+        $user_id = get_current_user_id();
+
+        // Logged out → kick to login with redirect_to back to where they
+        // were trying to go (so the "Review in your dashboard" notify-email
+        // CTA still lands them on /clients/ after they sign in).
+        if ( ! $user_id ) {
+            $current_url = ( is_ssl() ? 'https://' : 'http://' )
+                . ( isset( $_SERVER['HTTP_HOST'] ) ? $_SERVER['HTTP_HOST'] : '' )
+                . ( isset( $_SERVER['REQUEST_URI'] ) ? $_SERVER['REQUEST_URI'] : '/' );
+            wp_safe_redirect( wp_login_url( $current_url ) );
+            exit;
+        }
+
+        // Practitioner or administrator → render the page (no redirect).
+        if ( self::is_practitioner( $user_id ) ) {
+            return;
+        }
+
+        // Logged-in non-practitioner (um_client, um_consumer, subscriber,
+        // editor, author, contributor, …) → send them to their own
+        // dashboard. Filter so individual deployments can override the
+        // destination if they ever ship a different non-practitioner home.
+        $non_practitioner_url = apply_filters(
+            'hdlv2_non_practitioner_redirect',
+            home_url( '/my-dashboard/' )
+        );
+        wp_safe_redirect( $non_practitioner_url );
+        exit;
+    }
+
+    /**
+     * Check whether a practitioner owns a given client.
+     *
+     * "Owns" = there is at least one hdlv2_form_progress row linking the
+     * two. Mirrors get_clients_for_practitioner() so a practitioner can
+     * always reach any client that appears in their dashboard, but never
+     * reach one that does not.
+     *
+     * Admins (manage_options) bypass — same precedent as
+     * class-hdlv2-staged-form.php::rest_release_why so support flows
+     * still work.
+     *
+     * Closes the IDOR family found in the 2026-04-26 audit, where
+     * Timeline / FlightPlan / Final_Report routes treated "is a
+     * practitioner" as sufficient and let practitioner A reach
+     * practitioner B's client by URL.
+     *
+     * @param int $practitioner_id WordPress user ID of the caller.
+     * @param int $client_id       WordPress user ID of the target client.
+     * @return bool
+     */
+    public static function practitioner_owns_client( $practitioner_id, $client_id ) {
+        $practitioner_id = (int) $practitioner_id;
+        $client_id       = (int) $client_id;
+        if ( ! $practitioner_id || ! $client_id ) {
+            return false;
+        }
+
+        // Admin escape hatch — matches existing precedent.
+        if ( user_can( $practitioner_id, 'manage_options' ) ) {
+            return true;
+        }
+
+        global $wpdb;
+        $exists = $wpdb->get_var( $wpdb->prepare(
+            "SELECT 1 FROM {$wpdb->prefix}hdlv2_form_progress
+             WHERE practitioner_user_id = %d AND client_user_id = %d
+             LIMIT 1",
+            $practitioner_id,
+            $client_id
+        ) );
+        return (bool) $exists;
+    }
+
+    /**
      * Get latest V1 form submission for a client (for Stage 3 data import).
      *
      * @param int $user_id WordPress user ID.
@@ -241,5 +343,180 @@ class HDLV2_Compatibility {
         global $wpdb;
         $result = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) );
         return $result === $table;
+    }
+
+    /**
+     * v0.25.0 — Single source of truth for the practitioner gate that
+     * advances a client from Stage 2 → Stage 3 (formerly "Release WHY").
+     * Called by BOTH `rest_release_why` (REST) and `ajax_release_why`
+     * (AJAX) handlers — see B7 in CLAUDE-CHANGELOG. Make.com integration
+     * is untouched: Make.com posts to /form/stage2-callback (creates
+     * why_profiles row with released=0); this helper handles the manual
+     * practitioner gate that flips released=1 + advances current_stage.
+     *
+     * @param int $progress_id     wp_hdlv2_form_progress.id
+     * @param int $practitioner_id WP user ID of the calling practitioner
+     * @return array{ ok: bool, code?: string, message?: string, status?: int, already_released?: bool }
+     */
+    public static function advance_to_stage_3( $progress_id, $practitioner_id ) {
+        global $wpdb;
+
+        $progress = $wpdb->get_row( $wpdb->prepare(
+            "SELECT * FROM {$wpdb->prefix}hdlv2_form_progress WHERE id = %d",
+            (int) $progress_id
+        ) );
+        if ( ! $progress ) {
+            return array( 'ok' => false, 'code' => 'not_found', 'message' => 'Assessment not found.', 'status' => 404 );
+        }
+        if ( (int) $progress->practitioner_user_id !== (int) $practitioner_id && ! user_can( (int) $practitioner_id, 'manage_options' ) ) {
+            return array( 'ok' => false, 'code' => 'forbidden', 'message' => 'You do not have access to this assessment.', 'status' => 403 );
+        }
+
+        $why = $wpdb->get_row( $wpdb->prepare(
+            "SELECT id, released FROM {$wpdb->prefix}hdlv2_why_profiles WHERE form_progress_id = %d LIMIT 1",
+            (int) $progress->id
+        ) );
+        if ( ! $why ) {
+            return array( 'ok' => false, 'code' => 'no_why', 'message' => 'Stage 2 has not been completed yet.', 'status' => 400 );
+        }
+        if ( $why->released ) {
+            return array( 'ok' => true, 'already_released' => true );
+        }
+
+        $wpdb->update(
+            $wpdb->prefix . 'hdlv2_why_profiles',
+            array( 'released' => 1, 'released_at' => current_time( 'mysql' ) ),
+            array( 'id' => (int) $why->id )
+        );
+        // The ONLY place current_stage goes 2 → 3.
+        $wpdb->update(
+            $wpdb->prefix . 'hdlv2_form_progress',
+            array( 'current_stage' => 3 ),
+            array( 'id' => (int) $progress->id ),
+            array( '%d' ),
+            array( '%d' )
+        );
+
+        if ( ! empty( $progress->client_email ) && class_exists( 'HDLV2_Email_Templates' ) ) {
+            $form_url = site_url( '/assessment/?token=' . $progress->token );
+            HDLV2_Email_Templates::why_gate_released( array(
+                'client_name'     => $progress->client_name,
+                'client_email'    => $progress->client_email,
+                'form_url'        => $form_url,
+                'practitioner_id' => $progress->practitioner_user_id ?? null,
+            ) );
+        }
+
+        return array( 'ok' => true );
+    }
+
+    /**
+     * v0.32.1 — Is this a client-only role (not practitioner, not admin)?
+     *
+     * Used by the new /my-dashboard/ page guards so practitioners are
+     * silently redirected to /clients/ instead of seeing the client UI.
+     * Anyone logged-in who is NOT a practitioner counts as a client here
+     * (um_client, um_consumer, um_practitioner-invite, subscriber, etc.).
+     *
+     * @param int $user_id WordPress user ID.
+     * @return bool
+     */
+    public static function is_client_only( $user_id ) {
+        $user_id = (int) $user_id;
+        if ( ! $user_id ) return false;
+        if ( self::is_practitioner( $user_id ) ) return false;
+        $user = get_userdata( $user_id );
+        return $user ? true : false;
+    }
+
+    /**
+     * v0.32.1 — Resolve which journey state to render on /my-dashboard/.
+     *
+     * Returns one of:
+     *   'brand-new'   — no form_progress OR Stage 1 not finished
+     *   'stage1-done' — Stage 1 finished, no Stage 2 (no why_profiles row)
+     *   'stage2-done' — Stage 2 captured (why_profiles row exists), no draft report
+     *   'stage3-done' — draft report exists, final not yet finalised
+     *   'populated'   — final report exists with status='ready'
+     *
+     * Reads only V2 tables; cheap (4 single-row lookups, all indexed by
+     * client_user_id / form_progress_id). Safe to call on every page render.
+     *
+     * @param int $user_id WordPress user ID of the client.
+     * @return string One of the five state strings above.
+     */
+    public static function get_client_journey_state( $user_id ) {
+        global $wpdb;
+        $user_id = (int) $user_id;
+        if ( $user_id <= 0 ) return 'brand-new';
+
+        $progress = $wpdb->get_row( $wpdb->prepare(
+            "SELECT id, current_stage, stage1_completed_at, stage2_completed_at, stage3_completed_at
+             FROM {$wpdb->prefix}hdlv2_form_progress
+             WHERE client_user_id = %d
+             ORDER BY id DESC LIMIT 1",
+            $user_id
+        ) );
+        if ( ! $progress ) return 'brand-new';
+
+        $progress_id = (int) $progress->id;
+
+        // ─── populated: the journey is "complete enough" to surface the 3-tab dashboard.
+        //
+        // Trigger on ANY of three signals. The practitioner-side
+        // (HDLV2_Client_Status::calculate_status) considers the journey
+        // complete when consultation_notes.status='report_generated', so we
+        // mirror that as the canonical signal — anything later is icing.
+        // Also triggers on a generated Flight Plan (the actual deliverable
+        // clients engage with weekly) to handle older clients whose
+        // consultation row was migrated/imported without status update.
+        // The status='ready' check on the reports row remains as the cleanest
+        // explicit signal for new finalisations.
+        //
+        // 2026-05-05: previously only the reports.status='ready' check fired,
+        // which missed kim_4052 (final row exists with status='') and any
+        // client whose final write was interrupted before status flip.
+        $consult_done = $wpdb->get_var( $wpdb->prepare(
+            "SELECT 1 FROM {$wpdb->prefix}hdlv2_consultation_notes
+             WHERE form_progress_id = %d AND status = 'report_generated'
+             LIMIT 1",
+            $progress_id
+        ) );
+        $final_ready = $wpdb->get_var( $wpdb->prepare(
+            "SELECT 1 FROM {$wpdb->prefix}hdlv2_reports
+             WHERE form_progress_id = %d AND report_type = 'final' AND status = 'ready'
+             LIMIT 1",
+            $progress_id
+        ) );
+        $has_plan = $wpdb->get_var( $wpdb->prepare(
+            "SELECT 1 FROM {$wpdb->prefix}hdlv2_flight_plans
+             WHERE client_id = %d
+             LIMIT 1",
+            $user_id
+        ) );
+        if ( $consult_done || $final_ready || $has_plan ) return 'populated';
+
+        // Draft report exists → practitioner is finalising.
+        $draft_exists = $wpdb->get_var( $wpdb->prepare(
+            "SELECT 1 FROM {$wpdb->prefix}hdlv2_reports
+             WHERE form_progress_id = %d AND report_type = 'draft'
+             LIMIT 1",
+            $progress_id
+        ) );
+        if ( $draft_exists || ! empty( $progress->stage3_completed_at ) ) return 'stage3-done';
+
+        // Stage 2 (WHY) captured — released or not, the client has handed it over.
+        $why_exists = $wpdb->get_var( $wpdb->prepare(
+            "SELECT 1 FROM {$wpdb->prefix}hdlv2_why_profiles
+             WHERE form_progress_id = %d
+             LIMIT 1",
+            $progress_id
+        ) );
+        if ( $why_exists || ! empty( $progress->stage2_completed_at ) ) return 'stage2-done';
+
+        // Stage 1 finished, no Stage 2 yet.
+        if ( ! empty( $progress->stage1_completed_at ) ) return 'stage1-done';
+
+        return 'brand-new';
     }
 }

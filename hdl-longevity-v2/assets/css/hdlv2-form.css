@@ -13,6 +13,28 @@
   padding: 0 16px;
 }
 
+/* v0.22.1 — Stage 1 RESULT page goes full width.
+ * Class is toggled on by renderStage1Result and removed when the
+ * client navigates to Stage 2 so question forms stay narrow. */
+.hdlv2-assessment-root.is-wide {
+  max-width: none;
+  width: 100%;
+  padding: 0 24px;
+}
+
+/* v0.40.2 — Stage 2 + Stage 3 forms get a medium-width container
+ * (760px) so the reading-heavy WHY intro + 3 questions + tall
+ * textarea (Stage 2) and the multi-section wizard with paired
+ * fields (Stage 3) breathe — at 620px they read portrait-pinched
+ * with empty whitespace on both sides. Mirrors `is-wide` naming.
+ * Width chosen to match the client-dashboard 760px breakpoint and
+ * keep optimal line length (~70 chars) at 16px Inter body.
+ * No mobile breakpoint needed — `max-width: 760px` becomes 100%
+ * naturally on narrower viewports. */
+.hdlv2-assessment-root.is-medium {
+  max-width: 760px;
+}
+
 /* ── LOADING / ERROR STATES ── */
 .hdlv2-loading {
   text-align: center;
@@ -60,19 +82,41 @@
 }
 
 /* ── PROGRESS BAR ── */
-.hdlv2-progress {
+/* v0.40.4 — Stage-flow progress bar.
+ *
+ * RENAMED from `.hdlv2-progress*` → `.hdlv2-stage-flow*` to break a
+ * global-namespace collision with `hdlv2-loading.css` (shared loading
+ * helper). The loading helper animates `content` from "." → "..." on
+ * `.hdlv2-progress-step::after` (typewriter dots while Claude is
+ * thinking). Both stylesheets are enqueued on the assessment page,
+ * so the loading rule was leaking onto the form's step labels and
+ * rendering visible ".." marks below each Stage 1 / 2 / 3 chip.
+ *
+ * Rename targets:
+ *   .hdlv2-progress        → .hdlv2-stage-flow         (outer flex row)
+ *   .hdlv2-progress-step   → .hdlv2-stage-flow-step    (each step cell)
+ *   .hdlv2-progress-dot    → .hdlv2-stage-flow-dot     (circular number/check)
+ *   .hdlv2-progress-label  → .hdlv2-stage-flow-label   (text label below dot)
+ *   .hdlv2-progress-line   → .hdlv2-stage-flow-line    (connector line)
+ *
+ * Only `hdlv2-form.css` (here) + `hdlv2-staged-form.js` (progressBar
+ * function) reference these classes for the form path; no other surface
+ * is affected. Other `hdlv2-progress-EARLY-*` sub-classes used in the
+ * Client List enhance panel are independent and remain unchanged.
+ */
+.hdlv2-stage-flow {
   display: flex;
   gap: 0;
   padding: 20px 28px 0;
 }
 
-.hdlv2-progress-step {
+.hdlv2-stage-flow-step {
   flex: 1;
   text-align: center;
   position: relative;
 }
 
-.hdlv2-progress-dot {
+.hdlv2-stage-flow-dot {
   width: 32px;
   height: 32px;
   border-radius: 50%;
@@ -85,34 +129,34 @@
   transition: all 0.3s;
 }
 
-.hdlv2-progress-step.completed .hdlv2-progress-dot {
+.hdlv2-stage-flow-step.completed .hdlv2-stage-flow-dot {
   background: #3d8da0;
   color: #fff;
 }
 
-.hdlv2-progress-step.active .hdlv2-progress-dot {
+.hdlv2-stage-flow-step.active .hdlv2-stage-flow-dot {
   background: #3d8da0;
   color: #fff;
   box-shadow: 0 0 0 4px rgba(61, 141, 160, 0.2);
 }
 
-.hdlv2-progress-step.pending .hdlv2-progress-dot {
+.hdlv2-stage-flow-step.pending .hdlv2-stage-flow-dot {
   background: #f0f1f3;
   color: #aaa;
 }
 
-.hdlv2-progress-label {
+.hdlv2-stage-flow-label {
   font-size: 11px;
   color: #888;
   font-weight: 500;
 }
 
-.hdlv2-progress-step.active .hdlv2-progress-label,
-.hdlv2-progress-step.completed .hdlv2-progress-label {
+.hdlv2-stage-flow-step.active .hdlv2-stage-flow-label,
+.hdlv2-stage-flow-step.completed .hdlv2-stage-flow-label {
   color: #3d8da0;
 }
 
-.hdlv2-progress-line {
+.hdlv2-stage-flow-line {
   position: absolute;
   top: 16px;
   left: calc(50% + 20px);
@@ -121,11 +165,11 @@
   background: #e4e6ea;
 }
 
-.hdlv2-progress-step.completed .hdlv2-progress-line {
+.hdlv2-stage-flow-step.completed .hdlv2-stage-flow-line {
   background: #3d8da0;
 }
 
-.hdlv2-progress-step:last-child .hdlv2-progress-line {
+.hdlv2-stage-flow-step:last-child .hdlv2-stage-flow-line {
   display: none;
 }
 
@@ -277,6 +321,70 @@
 }
 
 .hdlv2-btn-secondary:hover { opacity: 0.85; }
+
+/* ── Navigation: Back / Previous (v0.20.9) ──
+ * Ghost-style secondary nav. Intentionally lighter than .hdlv2-btn and
+ * .hdlv2-btn-secondary (both solid-teal commit buttons) so clients read
+ * "Previous" as chrome, not as a primary action. Same visual vocabulary
+ * as .hdlv2-s1-sex-btn — ink-alpha border, teal hover shadow, double-ring
+ * focus, system easing. Hex values used rather than CSS vars because
+ * the --hdl-* tokens are scoped inside .hdlv2-s1 and Stage 3's wizard-nav
+ * sits outside that scope.
+ */
+.hdlv2-nav-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 9px 18px;
+  background: #fff;
+  border: 1px solid rgba(11, 26, 34, 0.10);
+  border-radius: 999px;
+  font-family: 'Inter', sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  color: #6b7280;
+  cursor: pointer;
+  transition:
+    border-color 180ms cubic-bezier(0.2, 0.6, 0.2, 1),
+    box-shadow   180ms cubic-bezier(0.2, 0.6, 0.2, 1),
+    transform    180ms cubic-bezier(0.2, 0.6, 0.2, 1),
+    color        180ms cubic-bezier(0.2, 0.6, 0.2, 1),
+    background   120ms cubic-bezier(0.2, 0.6, 0.2, 1);
+}
+
+.hdlv2-nav-back:hover {
+  color: #2c6f80;
+  background: #e9f3f5;
+  border-color: rgba(61, 141, 160, 0.5);
+  box-shadow: 0 2px 8px rgba(61, 141, 160, 0.12);
+  transform: translateY(-1px);
+}
+
+.hdlv2-nav-back:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px #fff, 0 0 0 5px #3d8da0;
+}
+
+.hdlv2-nav-back:active {
+  transform: translateY(0);
+  box-shadow: 0 1px 3px rgba(61, 141, 160, 0.12);
+}
+
+.hdlv2-nav-back:disabled,
+.hdlv2-nav-back[aria-disabled="true"] {
+  opacity: 0.4;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+/* Stage 1 header variant — smaller, sits above counter */
+.hdlv2-s1-back-btn {
+  padding: 6px 14px;
+  font-size: 12px;
+  margin-bottom: 10px;
+}
 
 /* ── FOOTER ── */
 .hdlv2-footer {
@@ -492,14 +600,25 @@
   color: #3d8da0;
 }
 
-/* ── READONLY VALUE ── */
+/* ── READONLY VALUE ──
+ * v0.25.1 — Matthew 2026-04-28: "a gray box makes you think like you can edit
+ * it. Just say like, this is the information you have about you. You're 50
+ * years old and you're male." The previous v0.23.3 box-with-no-fill still
+ * looked like an empty input. This is now a label + bold-value pair with
+ * bottom border only — clearly "data display," not "input field."
+ *
+ * Used only by `fieldReadonly()` in hdlv2-staged-form.js (Age + Sex in Stage
+ * 3 Section 1) — single call site, scoped change.
+ */
 .hdlv2-readonly-value {
-  padding: 10px 12px;
-  border: 1px solid #e4e6ea;
-  border-radius: 8px;
+  padding: 9px 0;
+  border: 0;
+  border-bottom: 1px solid #d1d5db;
+  border-radius: 0;
   font-size: 14px;
-  background: #eef0f3;
-  color: #888;
+  font-weight: 600;
+  background: transparent;
+  color: #2c3e50;
 }
 
 /* ── AUDIO PLACEHOLDER ── */
@@ -702,3 +821,1401 @@
 .hdlv2-report-section.awaken { border-left-color: #3d8da0; }
 .hdlv2-report-section.lift { border-left-color: #10b981; }
 .hdlv2-report-section.thrive { border-left-color: #f59e0b; }
+
+/* ──────────────────────────────────────────────────────────
+   STAGE 1 — Premium question block (v0.15.5)
+   Scoped design tokens so the rest of the form is unaffected.
+   ────────────────────────────────────────────────────────── */
+.hdlv2-s1 {
+  --hdl-teal-50:  #e9f3f5;
+  --hdl-teal-100: #cfe4e9;
+  --hdl-teal-500: #3d8da0;
+  --hdl-teal-700: #2c6f80;
+  --hdl-teal-900: #004F59;
+  --hdl-ink-900: #0b1a22;
+  --hdl-ink-700: #374151;
+  --hdl-ink-500: #6b7280;
+  --hdl-ease: cubic-bezier(0.2, 0.6, 0.2, 1);
+  animation: hdlv2-s1-fade-in 260ms var(--hdl-ease);
+}
+
+@keyframes hdlv2-s1-fade-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.hdlv2-s1-header {
+  padding: 0 28px 16px;
+}
+
+.hdlv2-s1-counter {
+  font-family: 'Inter', sans-serif;
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  font-weight: 600;
+  color: var(--hdl-teal-900);
+  opacity: 0.55;
+  text-transform: uppercase;
+  font-variant-numeric: tabular-nums;
+  margin: 0 0 10px;
+}
+
+.hdlv2-s1-progress {
+  height: 6px;
+  background: #eef1f3;
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.hdlv2-s1-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #3d8da0 0%, #4aa6bb 100%);
+  border-radius: 3px;
+  transition: width 400ms var(--hdl-ease);
+}
+
+.hdlv2-s1-title {
+  font-family: 'Poppins', sans-serif;
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--hdl-ink-900);
+  letter-spacing: -0.012em;
+  line-height: 1.25;
+  margin: 0 0 8px;
+}
+
+.hdlv2-s1-prompt {
+  font-size: 16px;
+  font-weight: 400;
+  color: var(--hdl-ink-700);
+  line-height: 1.55;
+  margin: 0 0 12px;
+}
+
+.hdlv2-s1-icon-wrap {
+  text-align: center;
+  margin: 6px 0 22px;
+  line-height: 0;
+}
+
+.hdlv2-s1-icon {
+  height: 72px;
+  width: auto;
+  display: inline-block;
+  vertical-align: middle;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+@media (max-width: 480px) {
+  .hdlv2-s1-icon { height: 60px; }
+  .hdlv2-s1-icon-wrap { margin: 4px 0 18px; }
+}
+
+.hdlv2-s1-helper {
+  font-size: 14px;
+  font-style: italic;
+  color: var(--hdl-ink-500);
+  line-height: 1.5;
+  border-left: 3px solid var(--hdl-teal-100);
+  padding: 2px 0 2px 12px;
+  margin: 0 0 24px;
+}
+
+.hdlv2-s1-cite {
+  font-size: 11px;
+  font-style: italic;
+  color: var(--hdl-ink-500);
+  opacity: 0.65;
+  margin: -12px 0 20px;
+  padding-left: 15px;
+}
+
+.hdlv2-s1-options {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.hdlv2-s1-opt {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  min-height: 60px;
+  padding: 10px 16px 10px 10px;
+  background: #fff;
+  border: 1px solid rgba(11, 26, 34, 0.10);
+  border-radius: 12px;
+  box-shadow: 0 1px 2px rgba(11, 26, 34, 0.03);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 15px;
+  line-height: 1.45;
+  color: var(--hdl-ink-900);
+  text-align: left;
+  transition:
+    transform 180ms var(--hdl-ease),
+    border-color 180ms var(--hdl-ease),
+    box-shadow 180ms var(--hdl-ease),
+    background 120ms var(--hdl-ease);
+  -webkit-tap-highlight-color: transparent;
+}
+
+.hdlv2-s1-opt:hover {
+  border-color: rgba(61, 141, 160, 0.5);
+  box-shadow: 0 4px 14px rgba(61, 141, 160, 0.14);
+  transform: translateY(-1px);
+}
+
+.hdlv2-s1-opt:focus-visible {
+  outline: none;
+  box-shadow:
+    0 0 0 2px #fff,
+    0 0 0 5px var(--hdl-teal-500);
+}
+
+.hdlv2-s1-opt:active { transform: scale(0.995); }
+
+.hdlv2-s1-opt.selected {
+  border: 2px solid var(--hdl-teal-500);
+  background: var(--hdl-teal-50);
+  padding: 9px 15px 9px 9px;
+  box-shadow:
+    0 0 0 2px #fff,
+    0 6px 18px rgba(61, 141, 160, 0.18);
+}
+
+.hdlv2-s1-chip {
+  flex: 0 0 32px;
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  background: var(--hdl-teal-50);
+  color: var(--hdl-teal-700);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  transition: background 160ms var(--hdl-ease), color 160ms var(--hdl-ease);
+}
+
+.hdlv2-s1-opt.selected .hdlv2-s1-chip {
+  background: var(--hdl-teal-500);
+  color: #fff;
+}
+
+.hdlv2-s1-opt-text { flex: 1; }
+
+/* Sex toggle (Q1) */
+.hdlv2-s1-sex {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin: 4px 0 0;
+}
+
+.hdlv2-s1-sex-btn {
+  min-height: 60px;
+  padding: 12px;
+  background: #fff;
+  border: 1px solid rgba(11, 26, 34, 0.10);
+  border-radius: 12px;
+  box-shadow: 0 1px 2px rgba(11, 26, 34, 0.03);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--hdl-ink-900);
+  transition:
+    transform 180ms var(--hdl-ease),
+    border-color 180ms var(--hdl-ease),
+    box-shadow 180ms var(--hdl-ease),
+    background 120ms var(--hdl-ease);
+}
+
+.hdlv2-s1-sex-btn:hover {
+  border-color: rgba(61, 141, 160, 0.5);
+  box-shadow: 0 4px 14px rgba(61, 141, 160, 0.14);
+  transform: translateY(-1px);
+}
+
+.hdlv2-s1-sex-btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px #fff, 0 0 0 5px var(--hdl-teal-500);
+}
+
+.hdlv2-s1-sex-btn.selected {
+  border: 2px solid var(--hdl-teal-500);
+  background: var(--hdl-teal-50);
+  color: var(--hdl-teal-700);
+  padding: 11px;
+}
+
+/* Silhouette + fat distribution pickers */
+.hdlv2-s1-sil-grid {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: 0 0 8px;
+}
+
+.hdlv2-s1-sil {
+  flex: 0 0 auto;
+  width: 78px;
+  padding: 10px 6px 8px;
+  background: #fff;
+  border: 1px solid rgba(11, 26, 34, 0.10);
+  border-radius: 12px;
+  box-shadow: 0 1px 2px rgba(11, 26, 34, 0.03);
+  cursor: pointer;
+  text-align: center;
+  font-family: inherit;
+  transition: all 180ms var(--hdl-ease);
+}
+
+.hdlv2-s1-sil:hover {
+  border-color: rgba(61, 141, 160, 0.5);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 14px rgba(61, 141, 160, 0.14);
+}
+
+.hdlv2-s1-sil:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px #fff, 0 0 0 5px var(--hdl-teal-500);
+}
+
+.hdlv2-s1-sil.selected {
+  border: 2px solid var(--hdl-teal-500);
+  background: var(--hdl-teal-50);
+  padding: 9px 5px 7px;
+}
+
+.hdlv2-s1-sil img {
+  width: 52px;
+  height: auto;
+  display: block;
+  margin: 0 auto 6px;
+}
+
+.hdlv2-s1-sil-label {
+  font-size: 10px;
+  line-height: 1.3;
+  color: var(--hdl-ink-500);
+  font-weight: 500;
+}
+
+.hdlv2-s1-sil.selected .hdlv2-s1-sil-label {
+  color: var(--hdl-teal-700);
+  font-weight: 600;
+}
+
+.hdlv2-s1-fat-grid {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  margin: 0 0 8px;
+}
+
+.hdlv2-s1-fat {
+  width: 108px;
+}
+
+.hdlv2-s1-fat img { width: 64px; }
+
+.hdlv2-s1-fat .hdlv2-s1-sil-label { font-size: 11px; line-height: 1.35; }
+
+/* Q1 age input boost */
+.hdlv2-s1 .hdlv2-field input[type="number"] {
+  font-size: 16px;
+  padding: 12px 14px;
+  min-height: 48px;
+  border-radius: 10px;
+}
+
+.hdlv2-s1 .hdlv2-field label {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--hdl-ink-500);
+}
+
+/* Q1 Next button */
+.hdlv2-s1-next {
+  margin-top: 22px;
+}
+
+/* Keyboard-shortcut hint (desktop only) */
+.hdlv2-s1-kbd-hint {
+  display: none;
+  font-size: 11px;
+  color: var(--hdl-ink-500);
+  opacity: 0.7;
+  text-align: center;
+  margin: 18px 0 0;
+  letter-spacing: 0.02em;
+}
+
+.hdlv2-s1-kbd-hint kbd {
+  display: inline-block;
+  padding: 1px 5px;
+  font-family: 'SF Mono', Menlo, Monaco, 'Courier New', monospace;
+  font-size: 10px;
+  background: #f3f4f6;
+  border: 1px solid rgba(11, 26, 34, 0.08);
+  border-radius: 3px;
+  margin: 0 1px;
+  box-shadow: 0 1px 0 rgba(11, 26, 34, 0.04);
+  color: var(--hdl-ink-700);
+}
+
+@media (min-width: 768px) {
+  .hdlv2-s1-kbd-hint { display: block; }
+}
+
+/* ──────────────────────────────────────────────────────────────
+ * v0.22.0 — Stage 1 RESULT page (premium, mirrors Final Report shell)
+ * Local design tokens kept in this block so we don't pollute global
+ * scope and don't depend on hdlv2-draft-report.css being loaded.
+ * ────────────────────────────────────────────────────────────── */
+.hdlv2-s1-result {
+  --s1r-teal:        #3d8da0;
+  --s1r-teal-light:  #5bb0c4;
+  --s1r-teal-soft:   #f0fbfc;
+  --s1r-bg:          #fafbfc;
+  --s1r-ink:         #111;
+  --s1r-ink-soft:    #555;
+  --s1r-ink-muted:   #888;
+  --s1r-border:      #e4e6ea;
+  --s1r-warn:        #c2410c;
+  --s1r-good:        #166534;
+
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  color: var(--s1r-ink);
+  line-height: 1.6;
+}
+
+/* Hero */
+.hdlv2-s1-hero {
+  position: relative;
+  background: linear-gradient(135deg, var(--s1r-teal) 0%, var(--s1r-teal-light) 100%);
+  color: #fff;
+  border-radius: 14px;
+  padding: 32px 36px;
+  margin: 0 0 20px;
+  overflow: hidden;
+}
+.hdlv2-s1-hero::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 80% 20%, rgba(255,255,255,0.12), transparent 60%);
+  pointer-events: none;
+}
+.hdlv2-s1-hero-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  position: relative;
+}
+.hdlv2-s1-hero-greeting {
+  font-size: 14px;
+  opacity: 0.85;
+  margin: 0 0 4px;
+  font-weight: 500;
+}
+.hdlv2-s1-hero-title {
+  font-family: 'Source Serif Pro', Georgia, serif;
+  font-size: 32px;
+  font-weight: 600;
+  margin: 0;
+  letter-spacing: -0.02em;
+}
+.hdlv2-s1-hero-pill {
+  background: #fff;
+  color: var(--s1r-teal);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 6px 14px;
+  border-radius: 999px;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+.hdlv2-s1-hero-body {
+  font-size: 15px;
+  opacity: 0.92;
+  margin: 14px 0 0;
+  max-width: 560px;
+  line-height: 1.6;
+  position: relative;
+}
+
+/* 3-card metric strip */
+.hdlv2-s1-stat-strip {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+  margin: 0 0 20px;
+}
+.hdlv2-s1-stat {
+  background: #fff;
+  border: 1px solid var(--s1r-border);
+  border-radius: 12px;
+  padding: 18px 20px;
+  text-align: center;
+}
+.hdlv2-s1-stat-label {
+  font-size: 12px;
+  color: var(--s1r-ink-soft);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 600;
+  margin: 0 0 8px;
+}
+.hdlv2-s1-stat-value {
+  font-family: 'Source Serif Pro', Georgia, serif;
+  font-size: 30px;
+  font-weight: 600;
+  color: var(--s1r-ink);
+  margin: 0;
+}
+.hdlv2-s1-stat-note {
+  font-size: 12px;
+  color: var(--s1r-teal);
+  margin: 6px 0 0;
+  font-weight: 500;
+}
+.hdlv2-s1-stat-note.warn { color: var(--s1r-warn); }
+.hdlv2-s1-stat-note.good { color: var(--s1r-good); }
+.hdlv2-s1-stat-note.avg  { color: var(--s1r-ink-soft); }
+
+/* Generic card */
+.hdlv2-s1-card {
+  background: #fff;
+  border: 1px solid var(--s1r-border);
+  border-radius: 14px;
+  padding: 28px 32px;
+  margin: 0 0 16px;
+}
+.hdlv2-s1-card h2 {
+  font-family: 'Source Serif Pro', Georgia, serif;
+  font-size: 24px;
+  font-weight: 600;
+  color: var(--s1r-ink);
+  margin: 0 0 8px;
+  letter-spacing: -0.01em;
+}
+.hdlv2-s1-card .hdlv2-s1-lede {
+  font-size: 13px;
+  color: var(--s1r-ink-muted);
+  margin: 0 0 18px;
+}
+.hdlv2-s1-card p {
+  margin: 0 0 14px;
+  font-size: 15px;
+  color: var(--s1r-ink-soft);
+  line-height: 1.75;
+}
+.hdlv2-s1-card p:last-child { margin-bottom: 0; }
+.hdlv2-s1-card p strong { color: var(--s1r-ink); font-weight: 600; }
+
+/* Eyebrow ✦ tag */
+.hdlv2-s1-eyebrow {
+  display: inline-block;
+  font-size: 11px;
+  color: var(--s1r-teal);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin: 0 0 10px;
+}
+
+/* Gauge card */
+.hdlv2-s1-gauge-card { text-align: center; }
+.hdlv2-s1-gauge-img {
+  display: block;
+  margin: 8px auto 0;
+  max-width: 640px;
+  width: 100%;
+  height: auto;
+}
+
+/* Commentary loading state */
+.hdlv2-s1-commentary { min-height: 60px; }
+.hdlv2-s1-commentary-loading {
+  padding: 18px 0;
+}
+
+/* Numbered "What happens next" list */
+.hdlv2-s1-next-list {
+  counter-reset: s1step;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.hdlv2-s1-next-list li {
+  counter-increment: s1step;
+  position: relative;
+  padding: 14px 14px 14px 56px;
+  font-size: 14px;
+  color: var(--s1r-ink-soft);
+  line-height: 1.5;
+  background: var(--s1r-bg);
+  border: 1px solid var(--s1r-border);
+  border-radius: 10px;
+  margin: 0 0 8px;
+}
+.hdlv2-s1-next-list li::before {
+  content: counter(s1step);
+  position: absolute;
+  left: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--s1r-teal);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 13px;
+}
+.hdlv2-s1-next-list li strong { color: var(--s1r-ink); font-weight: 600; }
+
+/* Phase 17 (v0.22.26) — buttons row + practitioner footer.
+ * Two CTAs after the What-Happens-Next list:
+ *   Primary  — Continue to Stage 2 (filled dark teal pill)
+ *   Secondary — Book a session (outlined teal pill, hidden if no cta_link)
+ * Practitioner footer mirrors the mockup avatar/name/Powered-by row. */
+.hdlv2-s1-buttons {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  margin-top: 22px;
+}
+.hdlv2-s1-btn {
+  display: inline-block;
+  padding: 12px 28px;
+  border-radius: 999px;
+  font-size: 14px;
+  font-weight: 600;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  text-decoration: none;
+  text-align: center;
+  cursor: pointer;
+  transition: background .15s ease, color .15s ease, border-color .15s ease, opacity .15s ease;
+  border: 1px solid transparent;
+  line-height: 1.3;
+  min-width: 240px;
+}
+.hdlv2-s1-btn-primary {
+  background: #004F59;
+  color: #fff;
+  border-color: #004F59;
+}
+.hdlv2-s1-btn-primary:hover { background: #003a42; border-color: #003a42; }
+.hdlv2-s1-btn-secondary {
+  background: #fff;
+  color: var(--s1r-teal);
+  border-color: var(--s1r-teal);
+}
+.hdlv2-s1-btn-secondary:hover {
+  background: var(--s1r-teal);
+  color: #fff;
+}
+.hdlv2-s1-email-note {
+  font-size: 12px;
+  color: var(--s1r-ink-muted);
+  margin: 4px 0 0;
+  text-align: center;
+}
+/* v0.22.46 — practitioner footer is now a block container with two children:
+   an optional confirm line on top + a flex row holding the avatar/name on
+   the left and the "Powered by HealthDataLab" badge on the right. The old
+   structure had the flex on the .hdlv2-s1-prac-foot itself; that's been
+   moved into .hdlv2-s1-prac-foot-row so we can stack the confirm above it. */
+.hdlv2-s1-prac-foot {
+  background: #fff;
+  border: 1px solid var(--s1r-border);
+  border-radius: 14px;
+  padding: 18px 24px;
+  margin-top: 16px;
+}
+.hdlv2-s1-prac-foot-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.hdlv2-s1-prac-confirm {
+  font-size: 13px;
+  color: var(--s1r-teal);
+  font-weight: 500;
+  margin: 0 0 14px;
+  text-align: center;
+}
+.hdlv2-s1-prac-foot-left {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+.hdlv2-s1-prac-foot-avatar {
+  flex-shrink: 0;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: var(--s1r-teal);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 14px;
+}
+.hdlv2-s1-prac-foot-logo {
+  flex-shrink: 0;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+.hdlv2-s1-prac-foot-name {
+  margin: 0 0 2px;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--s1r-ink);
+}
+.hdlv2-s1-prac-foot-role {
+  font-size: 12px;
+  color: var(--s1r-ink-muted);
+  margin: 0;
+}
+.hdlv2-s1-prac-foot-powered {
+  font-size: 12px;
+  color: var(--s1r-ink-muted);
+}
+.hdlv2-s1-prac-foot-powered strong { color: var(--s1r-ink); font-weight: 600; }
+
+/* v0.22.46 — 2-column page grid for the Stage 1 result body.
+   LEFT: gauge card (top) + 3 stat cards stacked vertically.
+   RIGHT: AWAKEN commentary + What Happens Next + CTAs.
+   align-items:start so each column flows independently — the right column
+   can grow downward as the async commentary loads without affecting the
+   left column's layout.  min-width:0 on the columns keeps long words from
+   blowing the grid columns out wider than 1fr. */
+.hdlv2-s1-twocol {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 22px;
+  align-items: start;
+  margin: 0 0 16px;
+}
+.hdlv2-s1-twocol-left,
+.hdlv2-s1-twocol-right {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+/* Stat cards inside the 2-col left column override the old 3-col grid layout.
+   Each card is now full-width of its column with vertical stacking via the
+   parent flex container. */
+.hdlv2-s1-twocol-left .hdlv2-s1-stat {
+  background: #fff;
+  border: 1px solid var(--s1r-border);
+  border-radius: 12px;
+  padding: 20px 24px;
+  text-align: center;
+  margin: 0;
+}
+
+/* Mobile + tablet collapse */
+@media (max-width: 900px) {
+  .hdlv2-s1-twocol {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+  .hdlv2-s1-gauge-img { max-width: 360px; }
+}
+@media (max-width: 640px) {
+  .hdlv2-s1-stat-strip   { grid-template-columns: 1fr; }
+  .hdlv2-s1-hero         { padding: 24px 22px; }
+  .hdlv2-s1-hero-title   { font-size: 24px; }
+  .hdlv2-s1-hero-row     { flex-direction: column; align-items: flex-start; }
+  .hdlv2-s1-card         { padding: 22px 22px; }
+  .hdlv2-s1-btn          { width: 100%; min-width: 0; }
+  .hdlv2-s1-prac-foot-row { flex-direction: column; align-items: flex-start; }
+}
+
+/* ──────────────────────────────────────────────────────────────
+ * v0.22.49 — Stage 2 INTRO STACK (video card on top, recommendation below)
+ * Single-column stack — both cards full form width. Replaces the v0.22.48
+ * 2-col side-by-side experiment (Quim 2026-04-28: "remove the 2 columns,
+ * just show 1 column, leave the video placeholder on top").
+ * The .hdlv2-s2-audio-tall scope below doubles the audio component's
+ * textarea min-height in Stage 2 only — other consumers (Stage 4
+ * check-in, consultation notes, draft-report inline) are unaffected.
+ * ────────────────────────────────────────────────────────────── */
+.hdlv2-s2-intro-row {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-bottom: 20px;
+}
+.hdlv2-s2-video-card {
+  background: #f0f9fa;
+  border: 1px solid #b2dfdb;
+  border-radius: 10px;
+  padding: 18px 16px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+.hdlv2-s2-video-play {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: #004F59;
+  flex-shrink: 0;
+}
+.hdlv2-s2-video-copy {
+  font-size: 13px;
+  color: #444;
+  line-height: 1.5;
+  margin: 0;
+}
+.hdlv2-s2-video-cta {
+  display: inline-block;
+  padding: 9px 22px;
+  background: #2D9596;
+  color: #fff;
+  border-radius: 48px;
+  text-decoration: none;
+  font-size: 13px;
+  font-weight: 600;
+  align-self: center;
+}
+.hdlv2-s2-video-cta:hover { background: #1f6e6f; }
+.hdlv2-s2-rec-card {
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: 10px;
+  padding: 18px 16px;
+  font-size: 13px;
+  color: #166534;
+  line-height: 1.6;
+}
+.hdlv2-s2-rec-label {
+  font-weight: 700;
+  font-size: 13px;
+  margin: 0 0 8px;
+  color: #166534;
+  letter-spacing: 0.02em;
+}
+.hdlv2-s2-rec-body {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.6;
+  color: #166534;
+}
+
+/* v0.36.20 — Stage-2-only override: doubled from 160px to 320px so the
+   client has visible room for the long-form WHY answer that addresses
+   all three guiding questions. Scoped via the wrapper class so Stage 4 /
+   consultation / draft-report stay default. */
+.hdlv2-s2-audio-tall .hdlv2-ac-text {
+  min-height: 320px;
+}
+
+/* v0.36.20 — Video placeholder (16:9 aspect, brand teal play button).
+   Replaces the old card+CTA when no video URL is set yet. Swap to a
+   real <iframe> embed when the explainer URL is ready. */
+.hdlv2-s2-video-placeholder {
+  position: relative;
+  width: 100%;
+  padding-bottom: 56.25%; /* 16:9 */
+  background: #f5f6f8;
+  border: 1px solid #e4e6ea;
+  border-radius: 10px;
+  overflow: hidden;
+  margin: 0 0 24px;
+}
+.hdlv2-s2-video-placeholder-inner {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+}
+.hdlv2-s2-video-placeholder-icon {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: #3d8da0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 14px rgba(61, 141, 160, 0.25);
+}
+.hdlv2-s2-video-placeholder-label {
+  font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #888;
+  margin: 0;
+}
+
+/* v0.36.20 — Stage 2 intro prose (4 editorial paragraphs). Inter body,
+   navy text, 15px / 1.6 line-height. */
+.hdlv2-s2-intro-prose {
+  margin: 0 0 12px;
+}
+.hdlv2-s2-intro-prose p {
+  font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 15px;
+  line-height: 1.6;
+  color: #2c3e50;
+  margin: 0 0 14px;
+}
+.hdlv2-s2-intro-prose p:last-child { margin-bottom: 0; }
+
+/* v0.36.20 — Three guiding question prompts. Poppins-style heading in
+   dark teal, Inter hint beneath in muted grey. Stacked vertically,
+   consistent spacing, no boxes — editorial guidance, not form inputs. */
+.hdlv2-s2-questions {
+  margin: 24px 0 4px;
+}
+.hdlv2-s2-question {
+  margin: 0 0 18px;
+}
+.hdlv2-s2-question:last-child { margin-bottom: 0; }
+.hdlv2-s2-question-title {
+  font-family: Poppins, Inter, -apple-system, sans-serif;
+  font-size: 15px;
+  font-weight: 600;
+  color: #004F59;
+  letter-spacing: -0.005em;
+  margin: 0 0 6px;
+  line-height: 1.35;
+}
+.hdlv2-s2-question-hint {
+  font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 13px;
+  line-height: 1.55;
+  color: #6b7280;
+  margin: 0;
+}
+
+@media (max-width: 640px) {
+  .hdlv2-s2-intro-row { gap: 12px; }
+  .hdlv2-s2-audio-tall .hdlv2-ac-text { min-height: 260px; }
+  .hdlv2-s2-video-placeholder-icon { width: 48px; height: 48px; }
+}
+
+/* ──────────────────────────────────────────────────────────────
+ * v0.22.2 — Stage 2 RESULT page additions
+ * Reuses .hdlv2-s1-result wrapper and most of its classes.
+ * Adds: distilled-WHY pull-quote card, chips, transcript collapse,
+ *       Awaken reformulation paragraph styling.
+ * ────────────────────────────────────────────────────────────── */
+.hdlv2-s1-result .hdlv2-s2-quote-card {
+  background: #fff;
+  border: 1px solid var(--s1r-border);
+  border-radius: 14px;
+  padding: 32px 36px;
+  margin: 0 0 16px;
+  border-left: 4px solid var(--s1r-teal);
+}
+.hdlv2-s1-result .hdlv2-s2-quote-card .hdlv2-s1-eyebrow { margin-bottom: 14px; }
+/* v0.22.50 — Distilled WHY blockquote uses the default Inter sans-serif
+   instead of Source Serif Pro italic. Quim 2026-04-28: "use the default
+   font for Your Distilled WHY". Quote marks (\201C / \201D before+after
+   pseudo-elements) stay teal serif for visual punctuation. */
+.hdlv2-s1-result .hdlv2-s2-quote-card blockquote {
+  margin: 0;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: 18px;
+  font-style: normal;
+  color: var(--s1r-ink);
+  line-height: 1.55;
+  font-weight: 500;
+}
+.hdlv2-s1-result .hdlv2-s2-quote-card blockquote::before {
+  content: '\201C';
+  color: var(--s1r-teal);
+  font-size: 36px;
+  line-height: 0;
+  vertical-align: -12px;
+  margin-right: 4px;
+}
+.hdlv2-s1-result .hdlv2-s2-quote-card blockquote::after {
+  content: '\201D';
+  color: var(--s1r-teal);
+  font-size: 36px;
+  line-height: 0;
+  vertical-align: -12px;
+  margin-left: 2px;
+}
+.hdlv2-s1-result .hdlv2-s2-quote-loading {
+  padding: 18px 0;
+}
+
+.hdlv2-s1-result .hdlv2-s2-reform p {
+  margin: 0 0 14px;
+  font-size: 15px;
+  color: var(--s1r-ink-soft);
+  line-height: 1.75;
+}
+.hdlv2-s1-result .hdlv2-s2-reform p:last-child { margin-bottom: 0; }
+.hdlv2-s1-result .hdlv2-s2-reform p strong { color: var(--s1r-ink); font-weight: 600; }
+
+.hdlv2-s1-result .hdlv2-s2-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 14px 0 0;
+}
+.hdlv2-s1-result .hdlv2-s2-chip {
+  background: var(--s1r-teal-soft);
+  color: var(--s1r-teal);
+  border: 1px solid var(--s1r-teal-light);
+  padding: 8px 16px;
+  border-radius: 999px;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.hdlv2-s1-result .hdlv2-s2-collapse {
+  background: var(--s1r-bg);
+  border: 1px solid var(--s1r-border);
+  border-radius: 12px;
+  padding: 18px 22px;
+  margin: 14px 0 0;
+}
+.hdlv2-s1-result .hdlv2-s2-collapse summary {
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--s1r-teal);
+  list-style: none;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.hdlv2-s1-result .hdlv2-s2-collapse summary::-webkit-details-marker { display: none; }
+.hdlv2-s1-result .hdlv2-s2-collapse[open] summary { margin-bottom: 14px; }
+.hdlv2-s1-result .hdlv2-s2-collapse summary::after {
+  content: '\2304';
+  color: var(--s1r-ink-muted);
+  transition: transform .2s;
+}
+.hdlv2-s1-result .hdlv2-s2-collapse[open] summary::after {
+  transform: rotate(180deg);
+}
+.hdlv2-s1-result .hdlv2-s2-collapse blockquote {
+  margin: 0;
+  font-size: 14px;
+  color: var(--s1r-ink-soft);
+  font-style: italic;
+  line-height: 1.7;
+  padding-left: 14px;
+  border-left: 3px solid var(--s1r-border);
+  white-space: pre-wrap;
+}
+
+@media (max-width: 640px) {
+  .hdlv2-s1-result .hdlv2-s2-quote-card { padding: 24px 22px; }
+  .hdlv2-s1-result .hdlv2-s2-quote-card blockquote { font-size: 16px; }
+}
+
+/* ──────────────────────────────────────────────────────────────
+ * v0.22.50 — Stage 2 RESULT page 2-col layout + closing message
+ * Mirrors Stage 1 result's 2-col grid pattern (hdlv2-s1-twocol).
+ *   LEFT col: Distilled WHY + What Matters Most + (optional) transcript
+ *             — the artefacts of what the client shared.
+ *   RIGHT col: ✦ Awaken + What Happens Next (with closing message)
+ *             — the interpretation + forward-looking pointer.
+ * Hero stays full-width above the grid; footer stays full-width below.
+ * align-items:start so each column flows independently — Distilled WHY
+ * blockquote can be tall while AWAKEN reformulation loads async, no
+ * layout jump.
+ * ────────────────────────────────────────────────────────────── */
+.hdlv2-s1-result .hdlv2-s2-result-twocol {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 22px;
+  align-items: start;
+  margin: 0 0 16px;
+}
+.hdlv2-s1-result .hdlv2-s2-result-left,
+.hdlv2-s1-result .hdlv2-s2-result-right {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+
+/* Closing message inside the What Happens Next card. Separated from the
+   ordered list above by a thin top border. Centred teal text — same
+   visual register as Stage 1's "details forwarded" confirm line. */
+.hdlv2-s1-result .hdlv2-s2-closing-msg {
+  text-align: center;
+  color: var(--s1r-teal);
+  font-size: 14px;
+  font-weight: 500;
+  margin: 18px 0 0;
+  padding-top: 16px;
+  border-top: 1px solid var(--s1r-border);
+  line-height: 1.6;
+}
+.hdlv2-s1-result .hdlv2-s2-closing-msg strong {
+  color: var(--s1r-teal);
+  font-weight: 700;
+}
+
+/* Tablet + mobile: collapse to single column, LEFT col first in source
+   order so artefacts (Distilled WHY etc.) show before interpretation. */
+@media (max-width: 900px) {
+  .hdlv2-s1-result .hdlv2-s2-result-twocol {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   v0.38.0 — Stage 3 "More Health Details" refactor support.
+   All colours come from HDL brand tokens already used elsewhere:
+     - #3d8da0   TEAL (primary)
+     - #004F59   DARK_TEAL (heading/hover)
+     - #2c3e50   DARK navy (body emphasis)
+     - #888      MUTED (secondary)
+     - #e4e6ea   BORDER grey
+     - #f8f9fb   SOFT_FILL card backgrounds
+   Fonts inherit Inter/Poppins from the form-level stack.
+   ───────────────────────────────────────────────────────────────── */
+
+/* Pre-fill hint — appears above sections that auto-pre-filled from Stage 1.
+   Calm, single line, low contrast. Replaces inline-style version. */
+.hdlv2-prefill-hint {
+  font-size: 12px;
+  color: #888;
+  margin: 0 0 14px;
+  line-height: 1.5;
+}
+
+/* Subgroup heading inside a section — e.g. "Body shape", "Cardiovascular"
+   inside Section 1. Quiet hairline above + small uppercase label, calmer
+   than a full <h2>. */
+.hdlv2-subgroup-heading {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #004F59;
+  margin: 18px 0 10px;
+  padding-top: 12px;
+  border-top: 1px solid #e4e6ea;
+}
+.hdlv2-subgroup-heading:first-child {
+  border-top: 0;
+  padding-top: 0;
+  margin-top: 4px;
+}
+
+/* Field-level helper hint, sits directly under a field's label or below
+   a row of fields (e.g. resting-HR/BP measurement instructions, cognitive-
+   activity examples). Italic, muted, no card. */
+.hdlv2-field-hint {
+  font-size: 12px;
+  color: #888;
+  font-style: italic;
+  line-height: 1.55;
+  margin: 4px 0 12px;
+}
+
+/* Section-intro callout — appears at the top of the Health Background
+   section. Calm soft-fill card matching the Stage 2 callout vocabulary. */
+.hdlv2-section-intro {
+  background: #f8f9fb;
+  border-left: 3px solid #3d8da0;
+  border-radius: 0 8px 8px 0;
+  padding: 12px 16px;
+  margin: 0 0 18px;
+  font-size: 13.5px;
+  color: #2c3e50;
+  line-height: 1.6;
+  font-style: italic;
+}
+
+/* Tooltip trigger — small info-icon next to a field label.
+   Hover on desktop; tap-to-toggle on mobile via :focus-within (the trigger
+   is tabindex="0" so tapping focuses it). */
+.hdlv2-tooltip-trigger {
+  position: relative;
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  margin-left: 6px;
+  border-radius: 50%;
+  background: #e4e6ea;
+  color: #2c3e50;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 16px;
+  text-align: center;
+  cursor: help;
+  vertical-align: middle;
+  user-select: none;
+}
+.hdlv2-tooltip-trigger::before {
+  content: 'i';
+  font-family: 'Inter', -apple-system, sans-serif;
+  font-style: italic;
+}
+.hdlv2-tooltip-trigger:hover,
+.hdlv2-tooltip-trigger:focus-within {
+  background: #3d8da0;
+  color: #fff;
+  outline: none;
+}
+.hdlv2-tooltip-bubble {
+  visibility: hidden;
+  opacity: 0;
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 8px);
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: 280px;
+  background: #2c3e50;
+  color: #fff;
+  font-family: 'Inter', -apple-system, sans-serif;
+  font-size: 12px;
+  font-weight: 400;
+  font-style: normal;
+  line-height: 1.5;
+  letter-spacing: 0;
+  text-transform: none;
+  text-align: left;
+  padding: 10px 12px;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  z-index: 100;
+  pointer-events: none;
+  transition: opacity 0.12s ease;
+}
+.hdlv2-tooltip-bubble::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 6px solid transparent;
+  border-top-color: #2c3e50;
+}
+.hdlv2-tooltip-trigger:hover .hdlv2-tooltip-bubble,
+.hdlv2-tooltip-trigger:focus-within .hdlv2-tooltip-bubble {
+  visibility: visible;
+  opacity: 1;
+}
+/* On narrow viewports keep bubble on-screen instead of clipping. */
+@media (max-width: 600px) {
+  .hdlv2-tooltip-bubble {
+    left: 0;
+    transform: none;
+    max-width: calc(100vw - 80px);
+  }
+  .hdlv2-tooltip-bubble::after {
+    left: 18px;
+    transform: none;
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────────────
+   v0.39.0 — THANK-YOU PAGE (Stage 3 submit + revisit)
+   Visual shell mirrors the canonical email layout so the in-browser
+   confirmation feels like a continuation of the email brand.
+   Brand tokens: teal #3d8da0, dark teal #004F59, navy #2c3e50, soft #fafbfc.
+   ───────────────────────────────────────────────────────────────────── */
+.hdlv2-ty-card {
+  /* inherits .hdlv2-card (white bg, 14px radius, soft shadow, 1px #e4e6ea border) */
+  overflow: hidden;
+}
+
+.hdlv2-ty-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 22px 28px;
+  background: #ffffff;
+  border-bottom: 1px solid #e4e6ea;
+}
+
+.hdlv2-ty-hdl-logo {
+  height: 26px;
+  width: auto;
+  display: block;
+}
+
+.hdlv2-ty-prac {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+}
+
+.hdlv2-ty-prac-logo {
+  height: 28px;
+  max-height: 28px;
+  width: auto;
+  max-width: 160px;
+  display: block;
+}
+
+.hdlv2-ty-prac-name,
+.hdlv2-ty-prac-name-only {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  color: #1a1a1a;
+  line-height: 1.4;
+}
+.hdlv2-ty-prac-name-only {
+  font-size: 14px;
+}
+
+.hdlv2-ty-banner {
+  background: #3d8da0;
+  padding: 28px 30px;
+  text-align: center;
+}
+.hdlv2-ty-banner h1 {
+  margin: 0;
+  font-family: 'Source Serif Pro', 'Poppins', Georgia, serif;
+  font-size: 26px;
+  font-weight: 600;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+  color: #ffffff;
+}
+
+.hdlv2-ty-body {
+  padding: 32px 32px 24px;
+  color: #2c3e50;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+.hdlv2-ty-h1 {
+  font-family: 'Poppins', 'Inter', sans-serif;
+  font-size: 22px;
+  font-weight: 700;
+  color: #111111;
+  margin: 0 0 14px;
+  line-height: 1.3;
+}
+
+.hdlv2-ty-lead {
+  font-size: 15px;
+  line-height: 1.7;
+  color: #2c3e50;
+  margin: 0 0 24px;
+}
+
+.hdlv2-ty-subhead {
+  font-family: 'Poppins', 'Inter', sans-serif;
+  font-size: 16px;
+  font-weight: 600;
+  color: #004F59;
+  margin: 0 0 12px;
+  line-height: 1.4;
+}
+
+.hdlv2-ty-list {
+  margin: 0 0 26px;
+  padding: 0 0 0 22px;
+}
+.hdlv2-ty-list li {
+  font-size: 15px;
+  line-height: 1.7;
+  color: #2c3e50;
+  margin: 0 0 8px;
+  padding-left: 4px;
+}
+.hdlv2-ty-list li::marker {
+  color: #3d8da0;
+  font-weight: 600;
+}
+.hdlv2-ty-list li:last-child { margin-bottom: 0; }
+
+.hdlv2-ty-note {
+  font-size: 13px;
+  line-height: 1.6;
+  color: #666666;
+  margin: 0;
+  padding: 14px 18px;
+  background: #f8f9fb;
+  border-left: 3px solid #e4e6ea;
+  border-radius: 0 8px 8px 0;
+}
+.hdlv2-ty-link {
+  color: #3d8da0;
+  text-decoration: none;
+  font-weight: 500;
+}
+.hdlv2-ty-link:hover { text-decoration: underline; }
+
+.hdlv2-ty-footer {
+  background: #fafbfc;
+  border-top: 1px solid #e4e6ea;
+  padding: 16px 28px;
+  text-align: center;
+  font-size: 11px;
+  color: #999999;
+  line-height: 1.5;
+}
+.hdlv2-ty-footer strong { color: #3d8da0; }
+.hdlv2-ty-footer a {
+  color: #999999;
+  text-decoration: underline;
+}
+.hdlv2-ty-footer a:hover { color: #3d8da0; }
+
+/* Narrow viewport: keep the header tidy when practitioner block wraps */
+@media (max-width: 520px) {
+  .hdlv2-ty-header {
+    flex-wrap: wrap;
+    gap: 12px;
+    padding: 18px 22px;
+  }
+  .hdlv2-ty-hdl-logo { height: 22px; }
+  .hdlv2-ty-banner   { padding: 22px 24px; }
+  .hdlv2-ty-banner h1 { font-size: 22px; }
+  .hdlv2-ty-body     { padding: 26px 22px 20px; }
+  .hdlv2-ty-h1       { font-size: 20px; }
+}
