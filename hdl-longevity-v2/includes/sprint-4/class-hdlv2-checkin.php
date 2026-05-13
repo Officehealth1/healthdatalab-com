@@ -357,7 +357,7 @@ class HDLV2_Checkin {
                     'practitioner_email' => $prac->user_email,
                     'client_name'        => $client_name,
                     'reasons'            => $flag_reasons,
-                    'timeline_url'       => site_url( '/client-tracker/?client_id=' . $checkin->client_id ),
+                    'timeline_url'       => home_url( '/' . trim( apply_filters( 'hdlv2_practitioner_dashboard_slug', 'clients' ), '/' ) . '/?client_id=' .$checkin->client_id ),
                     'practitioner_id'    => $checkin->practitioner_id ?? null,
                 ) );
             }
@@ -534,7 +534,7 @@ class HDLV2_Checkin {
                 'practitioner_email' => $prac->user_email,
                 'client_name'        => $c->client_name ?: 'Client',
                 'reasons'            => $status['reasons'],
-                'timeline_url'       => site_url( '/client-tracker/?client_id=' . (int) $c->client_user_id ),
+                'timeline_url'       => home_url( '/' . trim( apply_filters( 'hdlv2_practitioner_dashboard_slug', 'clients' ), '/' ) . '/?client_id=' .(int) $c->client_user_id ),
                 'practitioner_id'    => $c->practitioner_user_id ?? null,
             ) );
 

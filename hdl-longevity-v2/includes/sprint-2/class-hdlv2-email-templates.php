@@ -124,7 +124,7 @@ class HDLV2_Email_Templates {
      */
     public static function resolve_logo( $practitioner_id = null ) {
         $block = self::resolve_practitioner_block( $practitioner_id );
-        return $block['logo_url'] !== '' ? $block['logo_url'] : self::HDL_LOGO;
+        return $block['logo_url'] !== '' ? $block['logo_url'] : apply_filters( "hdlv2_email_logo_url", self::HDL_LOGO );
     }
 
     public static function resolve_logo_shape( $practitioner_id = null ) {
@@ -218,7 +218,10 @@ class HDLV2_Email_Templates {
         $age      = esc_html( $data['age'] ?? '' );
         $radar    = esc_url( $data['radar_chart_url'] ?? '' );
         $traject  = esc_url( $data['trajectory_chart_url'] ?? '' );
-        $url      = esc_url( ( $data['dashboard_url'] ?? '' ) ?: site_url( '/practitioner-dashboard/' ) );
+        // v0.40.16 — Filter-honouring fallback. Default is /clients/ (V2's
+        // practitioner dashboard slug). Was /practitioner-dashboard/ — a
+        // legacy slug that may not exist on LIVE.
+        $url      = esc_url( ( $data['dashboard_url'] ?? '' ) ?: home_url( '/' . trim( apply_filters( 'hdlv2_practitioner_dashboard_slug', 'clients' ), '/' ) . '/' ) );
 
         $content = "
             <h2 style='margin:0 0 8px;color:" . self::DARK . ";'>Stage 3 Form Completed</h2>
@@ -441,7 +444,7 @@ class HDLV2_Email_Templates {
         $out .= '<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">';
         $out .= '<tr>';
         $out .= '<td valign="middle" style="text-align:left;">';
-        $out .= '<img src="' . esc_url( self::HDL_LOGO ) . '" alt="Health Data Lab" width="265" height="25" style="width:265px;height:25px;max-width:265px;display:block;border:0;outline:none;text-decoration:none;">';
+        $out .= '<img src="' . esc_url( apply_filters( "hdlv2_email_logo_url", self::HDL_LOGO ) ) . '" alt="Health Data Lab" width="265" height="25" style="width:265px;height:25px;max-width:265px;display:block;border:0;outline:none;text-decoration:none;">';
         $out .= '</td>';
         $out .= '<td valign="middle" align="right" style="text-align:right;">' . $right_cell . '</td>';
         $out .= '</tr></table>';
@@ -463,8 +466,8 @@ class HDLV2_Email_Templates {
     private static function email_footer() {
         $out  = '<tr><td style="background:' . self::SOFT_FILL . ';border-top:1px solid ' . self::BORDER . ';padding:16px 28px;text-align:center;font-size:11px;color:#999999;line-height:1.5;font-family:Inter,-apple-system,BlinkMacSystemFont,\'Segoe UI\',sans-serif;">';
         $out .= 'Powered by <strong style="color:' . self::TEAL . ';">HealthDataLab</strong> &nbsp;&middot;&nbsp; ';
-        $out .= '<a href="' . esc_url( self::TERMS_URL ) . '" style="color:#999999;text-decoration:underline;">Terms</a> &nbsp;&middot;&nbsp; ';
-        $out .= '<a href="' . esc_url( self::PRIVACY_URL ) . '" style="color:#999999;text-decoration:underline;">Privacy</a>';
+        $out .= '<a href="' . esc_url( apply_filters( "hdlv2_email_terms_url", self::TERMS_URL ) ) . '" style="color:#999999;text-decoration:underline;">Terms</a> &nbsp;&middot;&nbsp; ';
+        $out .= '<a href="' . esc_url( apply_filters( "hdlv2_email_privacy_url", self::PRIVACY_URL ) ) . '" style="color:#999999;text-decoration:underline;">Privacy</a>';
         $out .= '</td></tr>';
         return $out;
     }
@@ -501,7 +504,12 @@ class HDLV2_Email_Templates {
         $cname   = esc_html( $data['client_name'] ?: $data['client_email'] );
         $cemail  = esc_html( $data['client_email'] ?? '' );
         $why     = esc_html( $data['distilled_why'] ?: '(WHY extraction still processing)' );
-        $url     = esc_url( $data['dashboard_url'] ?: site_url( '/client-dashboard/' ) );
+        // v0.40.16 — This email is sent to the PRACTITIONER ("Ready to invite
+        // your client to Stage 3"), so the dashboard fallback should point at
+        // the practitioner dashboard, not /client-dashboard/. The previous
+        // fallback was doubly wrong: wrong audience AND wrong slug (V2's
+        // client dashboard is /my-dashboard/, not /client-dashboard/).
+        $url     = esc_url( $data['dashboard_url'] ?: home_url( '/' . trim( apply_filters( 'hdlv2_practitioner_dashboard_slug', 'clients' ), '/' ) . '/' ) );
 
         $content = "
             <h2 style='margin:0 0 12px;color:" . self::DARK . ";font-family:Poppins,Inter,sans-serif;font-size:20px;font-weight:700;'>Ready to invite your client to Stage 3</h2>
@@ -669,7 +677,9 @@ class HDLV2_Email_Templates {
     public static function quarterly_review_due( $data ) {
         $prac_email  = $data['practitioner_email'] ?? '';
         $client_name = esc_html( $data['client_name'] ?? 'Unknown' );
-        $dash_url    = $data['dashboard_url'] ?? '#';
+        // v0.40.16 — Filter-honouring fallback (was '#'). Quarterly review is
+        // a practitioner email, so default to /clients/.
+        $dash_url    = $data['dashboard_url'] ?: home_url( '/' . trim( apply_filters( 'hdlv2_practitioner_dashboard_slug', 'clients' ), '/' ) . '/' );
 
         $content = "<h2 style='font-family:Poppins,Inter,sans-serif;font-size:20px;font-weight:700;color:" . self::DARK . ";margin:0 0 14px;'>Time for {$client_name}'s quarterly review</h2>"
             . "<p style='font-size:14px;color:#444;line-height:1.7;margin:0 0 20px;'>Three months have elapsed since their last assessment. A reassessment will update their trajectory and refresh their milestones.</p>"
@@ -862,7 +872,9 @@ class HDLV2_Email_Templates {
         $rate  = esc_html( $data['rate'] ?? '' );
         $bio   = esc_html( $data['bio_age'] ?? '' );
         $age   = esc_html( $data['age'] ?? '' );
-        $url   = esc_url( $data['report_url'] ?? site_url( '/practitioner-dashboard/' ) );
+        // v0.40.16 — Filter-honouring fallback. Default is /clients/ (V2's
+        // practitioner dashboard).
+        $url   = esc_url( $data['report_url'] ?? home_url( '/' . trim( apply_filters( 'hdlv2_practitioner_dashboard_slug', 'clients' ), '/' ) . '/' ) );
 
         $pos_list = self::format_score_list( $data['positives'] ?? array() );
         $neg_list = self::format_score_list( $data['negatives'] ?? array() );
