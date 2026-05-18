@@ -431,12 +431,15 @@ class HDLV2_Job_Queue {
             return true;
         }
 
-        // Token (client) auth — standard 64-hex pattern already used elsewhere
+        // Token (client) auth — standard 64-hex pattern already used elsewhere.
+        // v0.41.17 — `AND deleted_at IS NULL` so old tokens from archived
+        // assessments cannot authenticate to job-status endpoints.
         $token = $request->get_param( 'token' ) ?: '';
         if ( $token && preg_match( '/^[a-f0-9]{64}$/', $token ) ) {
             global $wpdb;
             $exists = $wpdb->get_var( $wpdb->prepare(
-                "SELECT id FROM {$wpdb->prefix}hdlv2_form_progress WHERE token = %s LIMIT 1",
+                "SELECT id FROM {$wpdb->prefix}hdlv2_form_progress
+                 WHERE token = %s AND deleted_at IS NULL LIMIT 1",
                 $token
             ) );
             return (bool) $exists;

@@ -78,8 +78,11 @@ class HDLV2_Consultation {
         }
 
         global $wpdb;
+        // v0.41.17 — `AND deleted_at IS NULL`. Don't surface practitioner_user_id
+        // for archived assessments via the consultation shortcode.
         $progress = $wpdb->get_row( $wpdb->prepare(
-            "SELECT token, practitioner_user_id FROM {$wpdb->prefix}hdlv2_form_progress WHERE id = %d LIMIT 1",
+            "SELECT token, practitioner_user_id FROM {$wpdb->prefix}hdlv2_form_progress
+             WHERE id = %d AND deleted_at IS NULL LIMIT 1",
             $progress_id
         ) );
         // Silent bail if not owner — let the shortcode's existing 403 handle it.
@@ -334,8 +337,10 @@ class HDLV2_Consultation {
             return new WP_Error( 'missing_id', 'Progress ID required.', array( 'status' => 400 ) );
         }
         global $wpdb;
+        // v0.41.17 — `AND deleted_at IS NULL`.
         $progress = $wpdb->get_row( $wpdb->prepare(
-            "SELECT * FROM {$wpdb->prefix}hdlv2_form_progress WHERE id = %d AND practitioner_user_id = %d LIMIT 1",
+            "SELECT * FROM {$wpdb->prefix}hdlv2_form_progress
+             WHERE id = %d AND practitioner_user_id = %d AND deleted_at IS NULL LIMIT 1",
             $progress_id, get_current_user_id()
         ) );
         if ( ! $progress ) {
@@ -533,8 +538,12 @@ class HDLV2_Consultation {
         $progress_id = (int) $request->get_param( 'progress_id' );
 
         global $wpdb;
+        // v0.41.17 — `AND deleted_at IS NULL`. The consultation UI must not
+        // load Stage 1/2/3 data for an archived assessment, even if the
+        // practitioner has a stale tab open.
         $progress = $wpdb->get_row( $wpdb->prepare(
-            "SELECT * FROM {$wpdb->prefix}hdlv2_form_progress WHERE id = %d LIMIT 1",
+            "SELECT * FROM {$wpdb->prefix}hdlv2_form_progress
+             WHERE id = %d AND deleted_at IS NULL LIMIT 1",
             $progress_id
         ) );
 
@@ -1543,8 +1552,11 @@ class HDLV2_Consultation {
         $progress_id = isset( $_GET['progress_id'] ) ? absint( $_GET['progress_id'] ) : 0;
         if ( $progress_id ) {
             global $wpdb;
+            // v0.41.17 — `AND deleted_at IS NULL`. Breadcrumb name lookup
+            // must not surface client identity for archived assessments.
             $client_user_id = (int) $wpdb->get_var( $wpdb->prepare(
-                "SELECT client_user_id FROM {$wpdb->prefix}hdlv2_form_progress WHERE id = %d LIMIT 1",
+                "SELECT client_user_id FROM {$wpdb->prefix}hdlv2_form_progress
+                 WHERE id = %d AND deleted_at IS NULL LIMIT 1",
                 $progress_id
             ) );
             if ( $client_user_id ) {

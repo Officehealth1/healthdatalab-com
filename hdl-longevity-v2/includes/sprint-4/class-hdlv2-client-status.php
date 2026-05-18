@@ -97,12 +97,42 @@ class HDLV2_Client_Status {
                 $progress_id = absint( $req['progress_id'] );
                 if ( ! $progress_id ) return false;
                 global $wpdb;
+                // v0.41.17 — `AND deleted_at IS NULL`. Without this, after
+                // a re-invite the practitioner still owns the new
+                // form_progress for this client_user_id, and the IDOR
+                // check (owner-by-progress_id) would pass for the OLD
+                // archived progress_id — leaking Stage 1/2/3/Final data.
                 $owner = (int) $wpdb->get_var( $wpdb->prepare(
-                    "SELECT practitioner_user_id FROM {$wpdb->prefix}hdlv2_form_progress WHERE id = %d",
+                    "SELECT practitioner_user_id FROM {$wpdb->prefix}hdlv2_form_progress
+                     WHERE id = %d AND deleted_at IS NULL",
                     $progress_id
                 ) );
                 if ( ! $owner ) return false;
                 return $owner === get_current_user_id() || current_user_can( 'manage_options' );
+            },
+        ) );
+
+        // v0.41.15 — Practitioner-side soft-delete for a V2 client.
+        // Closes the gap left by the v0.41.14 trash icon, which reused V1's
+        // wp_ajax_health_tracker_delete_client handler. That handler queries
+        // wp_health_tracker_practitioner_clients, which V2-only clients do
+        // not populate — every click returned "Client relationship not found
+        // or already deleted." This endpoint stamps hdlv2_form_progress's
+        // new deleted_at/deleted_by (Phase S, DB v3.11) so the practitioner
+        // dashboard hides the client without destroying assessment data.
+        //
+        // v0.41.17 — restoration is admin-only (Tools → V2 Restore, $89 fee).
+        // Re-invite creates a NEW form_progress; old data stays archived.
+        register_rest_route( 'hdl-v2/v1', '/dashboard/client/(?P<client_id>\d+)/delete', array(
+            'methods'  => 'POST',
+            'callback' => array( $this, 'rest_delete_client' ),
+            'permission_callback' => function ( $req ) {
+                $client_id = absint( $req['client_id'] );
+                // Use the _including_deleted helper so a race (two tabs
+                // double-clicking) returns a clean idempotent response
+                // instead of a 403 on the second call. The handler itself
+                // is the source of truth on whether the row needs an update.
+                return HDLV2_Compatibility::practitioner_owns_client_including_deleted( get_current_user_id(), $client_id );
             },
         ) );
 
@@ -114,6 +144,141 @@ class HDLV2_Client_Status {
             'methods'  => 'GET',
             'callback' => array( $this, 'rest_health' ),
             'permission_callback' => '__return_true',
+        ) );
+    }
+
+    /**
+     * v0.41.15 — Soft-delete a V2 client from this practitioner's dashboard.
+     *
+     * v0.41.17 — cascades the deleted_at stamp across every (practitioner,
+     * client)-scoped table. Without the cascade, re-inviting the same email
+     * re-used the same WP user → OLD client_id-keyed rows in
+     * checkins / timeline / flight_plans / monthly_summaries surfaced again
+     * in the new lifecycle, defeating the soft-delete model.
+     *
+     * Cascade order (newest tables first; all idempotent):
+     *   - hdlv2_form_progress       (Phase S column)
+     *   - V1 health_tracker_practitioner_clients (V1's deleted_at column)
+     *   - hdlv2_checkins            (Phase T)
+     *   - hdlv2_timeline            (Phase T)
+     *   - hdlv2_flight_plans        (Phase T)
+     *   - hdlv2_flight_plan_ticks   (Phase T, scoped via JOIN to flight_plans)
+     *   - hdlv2_monthly_summaries   (Phase T)
+     *   - hdlv2_widget_invites      (pending/opened → 'revoked', stops
+     *                                stale email links from re-triggering
+     *                                magic-link auto-login on the deleted
+     *                                user; the V1-link auto-restore was
+     *                                already disabled in compatibility.php)
+     *
+     * Idempotent: existing soft-deleted rows are skipped via the
+     * `AND deleted_at IS NULL` guard in each WHERE. Duplicate API calls
+     * succeed with rows_deleted counts of 0.
+     *
+     * IDOR is enforced in permission_callback. Every cascade UPDATE binds
+     * by `practitioner_id` / `practitioner_user_id` as defence-in-depth
+     * even though the permission callback already verified ownership.
+     *
+     * @param WP_REST_Request $request
+     * @return WP_REST_Response
+     */
+    public function rest_delete_client( $request ) {
+        $client_id       = absint( $request['client_id'] );
+        $practitioner_id = get_current_user_id();
+        if ( ! $client_id || ! $practitioner_id ) {
+            return new WP_Error( 'invalid', 'Invalid client or practitioner ID', array( 'status' => 400 ) );
+        }
+
+        global $wpdb;
+        $now    = current_time( 'mysql' );
+        $prefix = $wpdb->prefix;
+
+        // 1) form_progress — the source-of-truth row(s) for this client.
+        $updated_progress = (int) $wpdb->query( $wpdb->prepare(
+            "UPDATE {$prefix}hdlv2_form_progress
+             SET deleted_at = %s, deleted_by = %d
+             WHERE practitioner_user_id = %d
+               AND client_user_id = %d
+               AND deleted_at IS NULL",
+            $now, $practitioner_id, $practitioner_id, $client_id
+        ) );
+
+        // 2) V1 health_tracker_practitioner_clients — keeps the V1 dashboard
+        // consistent. Email-hash join (no client_user_id column on the V1 row).
+        $client_user       = get_userdata( $client_id );
+        $client_email_hash = $client_user ? hash( 'sha256', strtolower( trim( $client_user->user_email ) ) ) : null;
+        $v1_table          = $prefix . 'health_tracker_practitioner_clients';
+        $v1_exists         = $wpdb->get_var( "SHOW TABLES LIKE '" . esc_sql( $v1_table ) . "'" );
+        if ( $client_email_hash && $v1_exists === $v1_table ) {
+            $wpdb->update(
+                $v1_table,
+                array( 'deleted_at' => $now, 'deleted_by' => $practitioner_id ),
+                array( 'practitioner_user_id' => $practitioner_id, 'client_email_hash' => $client_email_hash, 'deleted_at' => null ),
+                array( '%s', '%d' ),
+                array( '%d', '%s', '%s' )
+            );
+        }
+
+        // 3–7) Cascade to client_id-keyed data tables. Each is scoped by
+        // (practitioner_id, client_id) so a multi-practitioner client (rare
+        // but supported) only loses access for the practitioner who deleted.
+        $cascade = array(
+            'hdlv2_checkins'           => 'practitioner_id',
+            'hdlv2_timeline'           => 'practitioner_id',
+            'hdlv2_flight_plans'       => 'practitioner_id',
+            'hdlv2_monthly_summaries'  => 'practitioner_id',
+        );
+        $cascade_counts = array();
+        foreach ( $cascade as $bare => $prac_col ) {
+            $tbl = $prefix . $bare;
+            $cascade_counts[ $bare ] = (int) $wpdb->query( $wpdb->prepare(
+                "UPDATE $tbl
+                 SET deleted_at = %s, deleted_by = %d
+                 WHERE $prac_col = %d
+                   AND client_id = %d
+                   AND deleted_at IS NULL",
+                $now, $practitioner_id, $practitioner_id, $client_id
+            ) );
+        }
+
+        // 6b) flight_plan_ticks — no practitioner_id column, scope via JOIN
+        // to flight_plans for IDOR safety.
+        $ticks_table = $prefix . 'hdlv2_flight_plan_ticks';
+        $fp_table    = $prefix . 'hdlv2_flight_plans';
+        $cascade_counts['hdlv2_flight_plan_ticks'] = (int) $wpdb->query( $wpdb->prepare(
+            "UPDATE $ticks_table t
+             INNER JOIN $fp_table p ON p.id = t.flight_plan_id
+             SET t.deleted_at = %s, t.deleted_by = %d
+             WHERE p.practitioner_id = %d
+               AND t.client_id = %d
+               AND t.deleted_at IS NULL",
+            $now, $practitioner_id, $practitioner_id, $client_id
+        ) );
+
+        // 8) Revoke pending/opened widget_invites for this client. Stops a
+        // stale invite email from triggering auto-login on the deleted user
+        // (closes the loop with the V1-link auto-restore disable). Uses the
+        // 'revoked' enum value (widget_invites.status ENUM does not include
+        // 'cancelled'; 'revoked' is the canonical "intentionally invalidated"
+        // state for this table).
+        $client_email = $client_user ? strtolower( trim( $client_user->user_email ) ) : null;
+        $invites_cancelled = 0;
+        if ( $client_email ) {
+            $invites_cancelled = (int) $wpdb->query( $wpdb->prepare(
+                "UPDATE {$prefix}hdlv2_widget_invites
+                 SET status = 'revoked'
+                 WHERE practitioner_id = %d
+                   AND LOWER(client_email) = %s
+                   AND status IN ('pending','opened')",
+                $practitioner_id, $client_email
+            ) );
+        }
+
+        return rest_ensure_response( array(
+            'success'           => true,
+            'rows_deleted'      => $updated_progress,
+            'cascade'           => $cascade_counts,
+            'invites_cancelled' => $invites_cancelled,
+            'client_id'         => $client_id,
         ) );
     }
 
@@ -133,10 +298,14 @@ class HDLV2_Client_Status {
         global $wpdb;
         $prefix = $wpdb->prefix;
 
+        // v0.41.17 — `AND deleted_at IS NULL` (matches the permission_callback
+        // filter; defense-in-depth in case the route is called from a different
+        // code path with a stale ID).
         $progress = $wpdb->get_row( $wpdb->prepare(
             "SELECT id, token, client_user_id, practitioner_user_id, client_email, client_name,
                     stage1_data, stage3_data, stage1_completed_at, stage3_completed_at, created_at
-             FROM {$prefix}hdlv2_form_progress WHERE id = %d",
+             FROM {$prefix}hdlv2_form_progress
+             WHERE id = %d AND deleted_at IS NULL",
             $progress_id
         ) );
         if ( ! $progress ) {
@@ -261,9 +430,14 @@ class HDLV2_Client_Status {
         global $wpdb;
         $prefix = $wpdb->prefix;
 
-        // Get latest form progress
+        // Get latest form progress.
+        // v0.41.17 — `AND deleted_at IS NULL`. After a re-invite, the OLD
+        // form_progress should not be the basis for client status (which
+        // drives the dashboard badge + Flight Plan generation gate).
         $progress = $wpdb->get_row( $wpdb->prepare(
-            "SELECT * FROM {$prefix}hdlv2_form_progress WHERE client_user_id = %d ORDER BY id DESC LIMIT 1",
+            "SELECT * FROM {$prefix}hdlv2_form_progress
+             WHERE client_user_id = %d AND deleted_at IS NULL
+             ORDER BY id DESC LIMIT 1",
             $client_user_id
         ) );
 
@@ -303,11 +477,14 @@ class HDLV2_Client_Status {
             return self::build_result( self::AWAITING_CONSULT );
         }
 
-        // Check recent check-ins for attention triggers
+        // Check recent check-ins for attention triggers.
+        // v0.41.17 — `AND deleted_at IS NULL` so archived check-ins from a
+        // prior lifecycle don't flip a fresh client into needs_attention.
         $reasons = array();
         $recent_checkins = $wpdb->get_results( $wpdb->prepare(
             "SELECT has_flags, adherence_scores, week_start, status FROM {$prefix}hdlv2_checkins
-             WHERE client_id = %d AND status = 'confirmed' ORDER BY week_start DESC LIMIT 4",
+             WHERE client_id = %d AND status = 'confirmed' AND deleted_at IS NULL
+             ORDER BY week_start DESC LIMIT 4",
             $client_user_id
         ) );
 
@@ -330,9 +507,11 @@ class HDLV2_Client_Status {
             }
         }
 
-        // Missed check-ins (2+ weeks with no confirmed check-in)
+        // Missed check-ins (2+ weeks with no confirmed check-in).
+        // v0.41.17 — `AND deleted_at IS NULL`.
         $last_confirmed = $wpdb->get_var( $wpdb->prepare(
-            "SELECT MAX(week_start) FROM {$prefix}hdlv2_checkins WHERE client_id = %d AND status = 'confirmed'",
+            "SELECT MAX(week_start) FROM {$prefix}hdlv2_checkins
+             WHERE client_id = %d AND status = 'confirmed' AND deleted_at IS NULL",
             $client_user_id
         ) );
         if ( $last_confirmed ) {
@@ -396,15 +575,24 @@ class HDLV2_Client_Status {
             $user   = get_userdata( $client_id );
             $status = self::calculate_status( $client_id );
 
+            // v0.41.17 — `AND deleted_at IS NULL` (both queries).
             $last_checkin = $wpdb->get_var( $wpdb->prepare(
-                "SELECT MAX(confirmed_at) FROM {$wpdb->prefix}hdlv2_checkins WHERE client_id = %d AND status = 'confirmed'",
+                "SELECT MAX(confirmed_at) FROM {$wpdb->prefix}hdlv2_checkins
+                 WHERE client_id = %d AND status = 'confirmed' AND deleted_at IS NULL",
                 $client_id
             ) );
 
             // Latest form progress row — used by the practitioner dashboard
             // to deep-link into the consultation UI (/consultation/?progress_id=X).
+            // v0.41.7 — also pull stage1_completed_at so the dashboard's V1
+            // table cells (First Entry / Total) can be populated for V2-only
+            // clients (Bug-1: previously hardcoded em-dash).
+            // v0.41.17 — filter soft-deleted rows.
             $progress = $wpdb->get_row( $wpdb->prepare(
-                "SELECT id, stage2_completed_at, stage3_completed_at FROM {$wpdb->prefix}hdlv2_form_progress WHERE client_user_id = %d ORDER BY id DESC LIMIT 1",
+                "SELECT id, stage1_completed_at, stage2_completed_at, stage3_completed_at
+                 FROM {$wpdb->prefix}hdlv2_form_progress
+                 WHERE client_user_id = %d AND deleted_at IS NULL
+                 ORDER BY id DESC LIMIT 1",
                 $client_id
             ) );
             $progress_id = $progress ? (int) $progress->id : 0;
@@ -451,6 +639,18 @@ class HDLV2_Client_Status {
                 $progress_id
             ) ) : false;
 
+            // v0.41.7 — V2 stage roll-up exposed so the client-list JS can
+            // populate First Entry / Last Entry / Total cells for V2-only
+            // rows. "Total" semantic = stages completed (1-3); see Bug-1
+            // in PRACTITIONER-DASHBOARD-V2-BRAINSTORM-2026-05-15.md.
+            $stage_dates = array_filter( array(
+                $progress && ! empty( $progress->stage1_completed_at ) ? $progress->stage1_completed_at : null,
+                $progress && ! empty( $progress->stage2_completed_at ) ? $progress->stage2_completed_at : null,
+                $progress && ! empty( $progress->stage3_completed_at ) ? $progress->stage3_completed_at : null,
+            ) );
+            $v2_first_event_at = $stage_dates ? min( $stage_dates ) : null;
+            $v2_total_stages   = count( $stage_dates );
+
             $result[] = array(
                 'user_id'          => (int) $client_id,
                 'progress_id'      => $progress_id,
@@ -465,6 +665,8 @@ class HDLV2_Client_Status {
                 'reasons'          => $status['reasons'],
                 'last_checkin_date' => $last_checkin,
                 'latest_event_at'  => $latest_event_at,
+                'v2_first_event_at' => $v2_first_event_at,
+                'v2_total_stages'   => $v2_total_stages,
                 'has_final_report' => $has_final_report,
             );
         }
@@ -504,14 +706,20 @@ class HDLV2_Client_Status {
         // ticked_at is now stamped on every action (tick OR untick) per
         // the rest_tick change in this same release, so this MAX
         // advances on adherence change, not just on the very first tick.
+        // v0.41.17 — every subquery filters by `deleted_at IS NULL` on the
+        // table that has the column. The digest must not advance when only
+        // archived data ticks (e.g., admin restores an old plan that has
+        // ticked_at in the past). The JOIN-on-form_progress subqueries get
+        // a `fp.deleted_at IS NULL` filter; the standalone tables get
+        // their own filter.
         $sql = "SELECT UNIX_TIMESTAMP(GREATEST(
-            COALESCE((SELECT MAX(updated_at) FROM {$p}hdlv2_form_progress WHERE client_user_id IN ($ids)), '1970-01-01 00:00:01'),
-            COALESCE((SELECT MAX(wp.updated_at) FROM {$p}hdlv2_why_profiles wp INNER JOIN {$p}hdlv2_form_progress fp ON fp.id = wp.form_progress_id WHERE fp.client_user_id IN ($ids)), '1970-01-01 00:00:01'),
-            COALESCE((SELECT MAX(confirmed_at) FROM {$p}hdlv2_checkins WHERE client_id IN ($ids)), '1970-01-01 00:00:01'),
-            COALESCE((SELECT MAX(rep.updated_at) FROM {$p}hdlv2_reports rep INNER JOIN {$p}hdlv2_form_progress fp ON fp.id = rep.form_progress_id WHERE fp.client_user_id IN ($ids)), '1970-01-01 00:00:01'),
-            COALESCE((SELECT MAX(created_at) FROM {$p}hdlv2_flight_plans WHERE client_id IN ($ids)), '1970-01-01 00:00:01'),
-            COALESCE((SELECT MAX(COALESCE(approved_at, started_at, created_at)) FROM {$p}hdlv2_consultation_notes WHERE client_user_id IN ($ids)), '1970-01-01 00:00:01'),
-            COALESCE((SELECT MAX(ticked_at) FROM {$p}hdlv2_flight_plan_ticks WHERE client_id IN ($ids)), '1970-01-01 00:00:01')
+            COALESCE((SELECT MAX(updated_at) FROM {$p}hdlv2_form_progress WHERE client_user_id IN ($ids) AND deleted_at IS NULL), '1970-01-01 00:00:01'),
+            COALESCE((SELECT MAX(wp.updated_at) FROM {$p}hdlv2_why_profiles wp INNER JOIN {$p}hdlv2_form_progress fp ON fp.id = wp.form_progress_id WHERE fp.client_user_id IN ($ids) AND fp.deleted_at IS NULL), '1970-01-01 00:00:01'),
+            COALESCE((SELECT MAX(confirmed_at) FROM {$p}hdlv2_checkins WHERE client_id IN ($ids) AND deleted_at IS NULL), '1970-01-01 00:00:01'),
+            COALESCE((SELECT MAX(rep.updated_at) FROM {$p}hdlv2_reports rep INNER JOIN {$p}hdlv2_form_progress fp ON fp.id = rep.form_progress_id WHERE fp.client_user_id IN ($ids) AND fp.deleted_at IS NULL), '1970-01-01 00:00:01'),
+            COALESCE((SELECT MAX(created_at) FROM {$p}hdlv2_flight_plans WHERE client_id IN ($ids) AND deleted_at IS NULL), '1970-01-01 00:00:01'),
+            COALESCE((SELECT MAX(COALESCE(approved_at, started_at, created_at)) FROM {$p}hdlv2_consultation_notes cn INNER JOIN {$p}hdlv2_form_progress fp ON fp.id = cn.form_progress_id WHERE cn.client_user_id IN ($ids) AND fp.deleted_at IS NULL), '1970-01-01 00:00:01'),
+            COALESCE((SELECT MAX(ticked_at) FROM {$p}hdlv2_flight_plan_ticks WHERE client_id IN ($ids) AND deleted_at IS NULL), '1970-01-01 00:00:01')
         )) as v";
 
         $v = (int) $wpdb->get_var( $sql );
@@ -544,12 +752,15 @@ class HDLV2_Client_Status {
         // Adherence series. Capped at 52 weeks (one year) — the practitioner
         // chart shows trajectory, not full audit history. Older rows remain
         // queryable via /timeline/{id}/export.
+        // v0.41.17 — `AND t.deleted_at IS NULL` (Flight Plan JOIN already
+        // returns NULL for archived plans via LEFT JOIN, but we also need
+        // to hide soft-deleted timeline rows).
         $adherence_rows = $wpdb->get_results( $wpdb->prepare(
             "SELECT t.date AS week_start, t.detail, fp.week_number
              FROM {$p}hdlv2_timeline t
              LEFT JOIN {$p}hdlv2_flight_plans fp
-               ON fp.client_id = t.client_id AND DATE(fp.week_start) = DATE(t.date)
-             WHERE t.client_id = %d AND t.entry_type = 'adherence'
+               ON fp.client_id = t.client_id AND DATE(fp.week_start) = DATE(t.date) AND fp.deleted_at IS NULL
+             WHERE t.client_id = %d AND t.entry_type = 'adherence' AND t.deleted_at IS NULL
              ORDER BY t.date DESC
              LIMIT 52",
             $client_id
@@ -574,10 +785,12 @@ class HDLV2_Client_Status {
         // Outcome series — prefer the rate_snapshot stored on the report row
         // at write-time (v0.22.22+). Falls back to re-deriving from form_progress
         // for legacy rows where the column is NULL. Capped at 12 reports.
+        // v0.41.17 — `AND p.deleted_at IS NULL` so outcomes from archived
+        // form_progress rows don't surface in the effort/outcomes chart.
         $report_rows = $wpdb->get_results( $wpdb->prepare(
             "SELECT r.id, r.created_at, r.report_type, r.rate_snapshot, p.stage1_data, p.stage3_data
              FROM {$p}hdlv2_reports r
-             LEFT JOIN {$p}hdlv2_form_progress p ON p.id = r.form_progress_id
+             INNER JOIN {$p}hdlv2_form_progress p ON p.id = r.form_progress_id AND p.deleted_at IS NULL
              WHERE r.client_user_id = %d
                AND r.status = 'ready'
                AND r.report_type IN ('final','quarterly')

@@ -55,9 +55,18 @@ class HDLV2_Compatibility {
             return array();
         }
 
+        // v0.41.15 — soft-delete filter. When a practitioner removes a V2
+        // client via the dashboard trash icon, form_progress.deleted_at is
+        // stamped (see HDLV2_Client_Status::rest_delete_client). Excluding
+        // those rows here hides the client from the practitioner's list
+        // without destroying assessment data — re-invite (which restores
+        // deleted_at = NULL in rest_create_form / dispatch_post_signup_artifacts)
+        // brings the client back with full history.
         return array_map( 'intval', $wpdb->get_col( $wpdb->prepare(
             "SELECT DISTINCT client_user_id FROM $table
-             WHERE practitioner_user_id = %d AND client_user_id IS NOT NULL
+             WHERE practitioner_user_id = %d
+               AND client_user_id IS NOT NULL
+               AND deleted_at IS NULL
              ORDER BY id DESC",
             $practitioner_user_id
         ) ) );
@@ -171,6 +180,44 @@ class HDLV2_Compatibility {
         }
 
         global $wpdb;
+        // v0.41.15 — soft-delete filter. Once a practitioner has removed a
+        // client (form_progress.deleted_at stamped), this helper denies all
+        // their per-client IDOR-gated endpoints (timeline, flight plan,
+        // effort-outcomes, etc.) so the deleted client is consistently
+        // invisible from the practitioner surface, not just from the list.
+        $exists = $wpdb->get_var( $wpdb->prepare(
+            "SELECT 1 FROM {$wpdb->prefix}hdlv2_form_progress
+             WHERE practitioner_user_id = %d
+               AND client_user_id = %d
+               AND deleted_at IS NULL
+             LIMIT 1",
+            $practitioner_id,
+            $client_id
+        ) );
+        return (bool) $exists;
+    }
+
+    /**
+     * Like practitioner_owns_client() but also returns true when the row is
+     * soft-deleted. ONLY use for endpoints that must access deleted rows —
+     * the delete endpoint itself (so a practitioner can re-delete after a
+     * race) and the restore-on-create lookups.
+     *
+     * @since v0.41.15
+     * @param int $practitioner_id
+     * @param int $client_id
+     * @return bool
+     */
+    public static function practitioner_owns_client_including_deleted( $practitioner_id, $client_id ) {
+        $practitioner_id = (int) $practitioner_id;
+        $client_id       = (int) $client_id;
+        if ( ! $practitioner_id || ! $client_id ) {
+            return false;
+        }
+        if ( user_can( $practitioner_id, 'manage_options' ) ) {
+            return true;
+        }
+        global $wpdb;
         $exists = $wpdb->get_var( $wpdb->prepare(
             "SELECT 1 FROM {$wpdb->prefix}hdlv2_form_progress
              WHERE practitioner_user_id = %d AND client_user_id = %d
@@ -212,11 +259,14 @@ class HDLV2_Compatibility {
      * Create practitioner-client relationship in V1 table.
      *
      * This write makes widget leads visible in the V1 practitioner dashboard.
-     * If a relationship already exists (including soft-deleted), it restores it.
+     * If an ACTIVE relationship already exists, it refreshes the fields.
+     * If a SOFT-DELETED relationship exists, it refuses to restore — admin
+     * recovery (Tools → HDL Deleted Data, paid) is the only path back.
      *
      * @param int $practitioner_id Practitioner user ID.
      * @param int $client_id       Client user ID.
-     * @return bool Success.
+     * @return bool True on insert/update of an active row, false otherwise
+     *              (no V1 table, no user lookup, OR refused soft-delete restore).
      */
     public static function create_practitioner_client_link( $practitioner_id, $client_id ) {
         global $wpdb;
@@ -241,11 +291,22 @@ class HDLV2_Compatibility {
         ) );
 
         if ( $existing ) {
-            // Restore soft-deleted relationship and refresh fields
-            $update_data = array( 'client_user_id' => $client_id );
+            // v0.41.17 — soft-deleted V1 links stay deleted. Auto-clearing
+            // deleted_at here was a silent restore path that defeated the
+            // admin-only Tools → HDL Deleted Data ($89) recovery policy.
+            // Triggered by every magic-link consumption and every widget
+            // signup. Now refused; caller proceeds without a V1 link, and
+            // the V2 splicer surfaces the new form_progress as a V2-only row.
             if ( $existing->deleted_at ) {
-                $update_data['deleted_at'] = null;
+                error_log( sprintf(
+                    '[HDLV2] Refused to auto-restore soft-deleted V1 link (id=%d, prac=%d, client=%d). Admin restore required.',
+                    $existing->id, $practitioner_id, $client_id
+                ) );
+                return false;
             }
+
+            // Active row exists — refresh fields. Do NOT touch deleted_at.
+            $update_data = array( 'client_user_id' => $client_id );
             if ( $client_name ) {
                 $update_data['client_name'] = $client_name;
             }
@@ -361,8 +422,11 @@ class HDLV2_Compatibility {
     public static function advance_to_stage_3( $progress_id, $practitioner_id ) {
         global $wpdb;
 
+        // v0.41.17 — `AND deleted_at IS NULL`. Stage 2 → Stage 3 advance must
+        // not target a soft-deleted assessment.
         $progress = $wpdb->get_row( $wpdb->prepare(
-            "SELECT * FROM {$wpdb->prefix}hdlv2_form_progress WHERE id = %d",
+            "SELECT * FROM {$wpdb->prefix}hdlv2_form_progress
+             WHERE id = %d AND deleted_at IS NULL",
             (int) $progress_id
         ) );
         if ( ! $progress ) {
@@ -450,10 +514,13 @@ class HDLV2_Compatibility {
         $user_id = (int) $user_id;
         if ( $user_id <= 0 ) return 'brand-new';
 
+        // v0.41.17 — `AND deleted_at IS NULL`. /my-dashboard/ journey state
+        // for a client whose latest lifecycle was soft-deleted should reset
+        // to 'brand-new' (until they re-engage on a fresh form_progress).
         $progress = $wpdb->get_row( $wpdb->prepare(
             "SELECT id, current_stage, stage1_completed_at, stage2_completed_at, stage3_completed_at
              FROM {$wpdb->prefix}hdlv2_form_progress
-             WHERE client_user_id = %d
+             WHERE client_user_id = %d AND deleted_at IS NULL
              ORDER BY id DESC LIMIT 1",
             $user_id
         ) );
@@ -488,9 +555,11 @@ class HDLV2_Compatibility {
              LIMIT 1",
             $progress_id
         ) );
+        // v0.41.17 — `AND deleted_at IS NULL`. Archived plans must not
+        // flip a fresh-lifecycle client to 'populated'.
         $has_plan = $wpdb->get_var( $wpdb->prepare(
             "SELECT 1 FROM {$wpdb->prefix}hdlv2_flight_plans
-             WHERE client_id = %d
+             WHERE client_id = %d AND deleted_at IS NULL
              LIMIT 1",
             $user_id
         ) );

@@ -781,11 +781,19 @@ class HDLV2_Staged_Form {
 
         $practitioner_id = get_current_user_id();
 
-        // Check if this client already has an active form for this practitioner
+        // Check if this client already has an active form for this practitioner.
+        //
+        // v0.41.16 — filter explicitly excludes soft-deleted rows. Re-inviting
+        // a removed client must create a FRESH assessment, not silently restore
+        // archived data. Per Matthew's policy (mirrors V1): restoration of
+        // archived data requires admin contact + $89 fee, surfaced via the
+        // Tools → V2 Restore admin page (HDLV2_Admin_Restore). Auto-restoring
+        // here would defeat that paid recovery path.
         global $wpdb;
         $existing = $wpdb->get_row( $wpdb->prepare(
             "SELECT id, token FROM {$wpdb->prefix}hdlv2_form_progress
              WHERE client_email = %s AND practitioner_user_id = %d
+               AND deleted_at IS NULL
              LIMIT 1",
             $client_email,
             $practitioner_id

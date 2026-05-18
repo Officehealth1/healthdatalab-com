@@ -75,6 +75,7 @@
   function init() {
     injectStyles();
     mountActionQueueShell();
+    bindDeleteV2Client();
     // v0.35.1 — fetch pending leads in parallel with /dashboard/clients
     // so the action queue can render both pre-existing client work AND
     // new widget submissions in the same first paint. Each fetch is
@@ -645,10 +646,21 @@
       row.querySelectorAll('button').forEach(function (b) { b.disabled = true; b.style.opacity = '0.55'; b.style.cursor = 'default'; });
       btn.textContent = (action === 'confirm') ? 'Confirming…' : 'Rejecting…';
     }
+    // v0.41.8 (Gap-4) — generate a per-click Idempotency-Key so the
+    // server-side wrap() dedupes browser auto-retries / accidental
+    // double-clicks. crypto.randomUUID is the modern path; fallback
+    // string is sufficient for WordPress transient lookup uniqueness.
+    var idemKey = (window.crypto && typeof window.crypto.randomUUID === 'function')
+      ? window.crypto.randomUUID()
+      : ('idem-' + Date.now() + '-' + Math.random().toString(36).slice(2));
     fetch(CFG.api_base + '/widget/leads/' + action, {
       method: 'POST',
       credentials: 'same-origin',
-      headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': CFG.rest_nonce || CFG.nonce },
+      headers: {
+        'Content-Type': 'application/json',
+        'X-WP-Nonce': CFG.rest_nonce || CFG.nonce,
+        'Idempotency-Key': idemKey,
+      },
       body: JSON.stringify({ lead_id: leadId }),
     })
       .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, body: j }; }); })
@@ -1107,7 +1119,7 @@
         + '<div class="hdlv2-st-meta">Completed ' + esc(formatDate(s1.completed_at)) + '</div>'
         + '<div class="hdlv2-st-row">'
         +   '<div class="hdlv2-st-stat"><strong>' + esc(s1.rate != null ? s1.rate + '×' : '—') + '</strong><span>Rate of ageing</span></div>'
-        +   '<div class="hdlv2-st-stat"><strong>' + esc(s1.age != null ? s1.age : '—') + '</strong><span>Age</span></div>'
+        +   '<div class="hdlv2-st-stat"><strong>' + esc(s1.age != null ? s1.age : '—') + '</strong><span>Chronological age</span></div>'
         +   '<div class="hdlv2-st-stat"><strong>' + esc(capSex) + '</strong><span>Sex</span></div>'
         + '</div>';
       if (s1.gauge_url) {
@@ -1627,6 +1639,26 @@
     row.dataset.clientHash = c.email_hash || '';
     var dash = '—';
     var badgeStyle = 'color:' + c.color + ';background:' + hexToRgba(c.color, 0.12) + ';border:1px solid ' + hexToRgba(c.color, 0.35) + ';';
+    // v0.41.7 (Bug-1) — populate First / Last / Total from V2 data when
+    // available, falling back to em-dash. "Total" = stages completed (1-3).
+    // Last Entry prefers latest_event_at (broadest signal — check-ins,
+    // reports, consultation activity) and falls back to last_checkin_date
+    // then v2_first_event_at, then dash.
+    var firstSortTs = c.v2_first_event_at || '';
+    var lastSortTs  = c.latest_event_at || c.last_checkin_date || c.v2_first_event_at || '';
+    var firstEntry = formatDate(c.v2_first_event_at) || dash;
+    var lastEntry  = formatDate(c.latest_event_at) || formatDate(c.last_checkin_date) || formatDate(c.v2_first_event_at) || dash;
+    var total      = (typeof c.v2_total_stages === 'number' && c.v2_total_stages > 0) ? String(c.v2_total_stages) : dash;
+    // v0.41.12 — populate the sort attributes the V1 sortTable() comparator
+    // reads via $(row).data('first-entry') / .data('last-entry') / .data('total').
+    // Without these, clicking the FIRST ENTRY / LAST ENTRY column header
+    // produced Invalid-Date arithmetic for V2-only rows and the rows drifted
+    // randomly through the sorted list. Sort keys are RAW MySQL timestamps
+    // (matching V1 PHP's data-* attribute convention), distinct from the
+    // display strings produced by formatDate() above.
+    row.dataset.firstEntry = firstSortTs;
+    row.dataset.lastEntry  = lastSortTs;
+    row.dataset.total      = (typeof c.v2_total_stages === 'number') ? String(c.v2_total_stages) : '0';
     // v0.21.0 — 7 cells to match the V1 header (Client · First · Last ·
     // Total · Status · Assessment · Action). Previously 6 cells made the
     // chevron render under the Assessment column. Keeping the action cell
@@ -1634,15 +1666,148 @@
     // actions aren't wired for V2-only rows and would otherwise break.
     row.innerHTML = [
       '<td class="client-name">' + esc(c.name) + '</td>',
-      '<td class="date-cell">' + dash + '</td>',
-      '<td class="date-cell">' + esc(formatDate(c.last_checkin_date) || dash) + '</td>',
-      '<td class="total-cell">' + dash + '</td>',
+      '<td class="date-cell">' + esc(firstEntry) + '</td>',
+      '<td class="date-cell">' + esc(lastEntry) + '</td>',
+      '<td class="total-cell">' + esc(total) + '</td>',
       '<td class="status-badge-cell"><span class="hdlv2-inline-badge" style="' + badgeStyle + '">V2 · ' + esc(c.label) + '</span></td>',
       '<td class="assessment-cell">' + renderV2Assessment(c) + '</td>',
-      '<td class="action-cell"></td>',
+      '<td class="action-cell">' + renderV2DeleteButton(c) + '</td>',
     ].join('');
     injectExpandButton(row, c);
     return row;
+  }
+
+  // v0.41.14 — delegated click handler for the animated trash button rendered
+  // by renderV2DeleteButton(). Distinct class (.hdlv2-delete-client-btn) from
+  // V1's .delete-client-btn so the V1 Apple-modal handler doesn't double-fire
+  // — the two paths reach the same backend endpoint with different confirm
+  // copy (V1 mentions message history + $89 fee, V2 surfaces restore-by-reinvite
+  // semantics which match how the V1 client_linker already behaves).
+  function bindDeleteV2Client() {
+    if (window.__hdlv2DeleteBound) return;
+    window.__hdlv2DeleteBound = true;
+    document.addEventListener('click', function (e) {
+      var btn = e.target && e.target.closest && e.target.closest('.hdlv2-delete-client-btn');
+      if (!btn) return;
+      e.preventDefault();
+      e.stopPropagation();
+      handleDeleteClient(btn);
+    });
+  }
+
+  function handleDeleteClient(btn) {
+    if (btn.disabled) return;
+    var clientId = parseInt(btn.getAttribute('data-client-id') || '0', 10);
+    var hash     = btn.getAttribute('data-client-hash') || '';
+    var name     = btn.getAttribute('data-client-name') || 'this client';
+    if (!clientId) return;
+    var row = btn.closest('.client-row');
+
+    // v0.41.16 — V1-aligned wording. Re-inviting the same email after removal
+    // creates a NEW assessment; it does NOT restore archived data. Restoration
+    // of archived assessment / check-in / report / Flight Plan data requires
+    // admin contact + a $89 fee (mirrors V1's class-admin-restore policy and
+    // is processed via the Tools → V2 Restore admin page).
+    var body =
+      'This archives ' + name + "'s assessment data — Stage 1, 2, 3, check-ins, reports, and Flight Plans. " +
+      'They will no longer appear in your dashboard.\n\n' +
+      '⚠ Re-inviting the same email later creates a new assessment — it will NOT restore previous data.\n\n' +
+      'To recover archived data, contact office@healthdatalab.com ($89 admin fee).';
+    var ask = (window.HDLV2UI && window.HDLV2UI.confirm)
+      ? window.HDLV2UI.confirm({
+          title: 'Remove ' + name + ' from your clients?',
+          body:  body,
+          confirmLabel: 'Remove client',
+          cancelLabel:  'Keep'
+        })
+      : Promise.resolve(window.confirm('Remove ' + name + ' from your clients?\n\n' + body));
+
+    ask.then(function (confirmed) {
+      if (!confirmed) return;
+      doDeleteClient(btn, clientId, hash, name, row);
+    });
+  }
+
+  function doDeleteClient(btn, clientId, hash, name, row) {
+    btn.disabled = true;
+    btn.classList.add('is-shaking');
+    setTimeout(function () { btn.classList.remove('is-shaking'); btn.classList.add('is-deleting'); }, 260);
+
+    // v0.41.15 — POSTs to the new V2 REST endpoint instead of V1's
+    // wp_ajax_health_tracker_delete_client. The V1 handler queries the V1
+    // link table which V2-only clients never populate, so every click on a
+    // V2-only row used to fail "Client relationship not found or already
+    // deleted." The V2 endpoint stamps form_progress.deleted_at directly,
+    // which is the actual source of truth for V2 dashboard visibility.
+    var apiBase = (CFG.api_base || '/wp-json/hdl-v2/v1');
+    var url     = apiBase.replace(/\/$/, '') + '/dashboard/client/' + encodeURIComponent(clientId) + '/delete';
+
+    fetch(url, {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-WP-Nonce':   CFG.nonce || '',
+      },
+    })
+      .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, body: j }; }); })
+      .then(function (res) {
+        if (!res.ok || !res.body || res.body.success !== true) {
+          var msg = (res.body && (res.body.message || (res.body.data && res.body.data.message))) || 'Could not remove client';
+          throw new Error(msg);
+        }
+        // Success — fade the row, remove from DOM, clear matched/byHash so
+        // the 4 s digest poll doesn't try to re-render. The dashboard API
+        // now filters AND deleted_at IS NULL, so the row won't return there
+        // either.
+        if (row) {
+          row.classList.add('is-removing');
+          setTimeout(function () {
+            if (row.parentNode) row.parentNode.removeChild(row);
+            var next = row.nextElementSibling;
+            if (next && next.classList && next.classList.contains('hdlv2-detail-row')) {
+              if (next.parentNode) next.parentNode.removeChild(next);
+            }
+          }, 320);
+        }
+        if (state && state.matched && hash) delete state.matched[hash];
+        if (state && state.byHash  && hash) delete state.byHash[hash];
+        if (window.HDLV2UI && window.HDLV2UI.toast) window.HDLV2UI.toast('Removed ' + name, 'success');
+      })
+      .catch(function (err) {
+        btn.disabled = false;
+        btn.classList.remove('is-deleting', 'is-shaking');
+        if (window.HDLV2UI && window.HDLV2UI.toast) window.HDLV2UI.toast(err.message || 'Could not remove client', 'error');
+      });
+  }
+
+  // v0.41.14 — animated trash button rendered on V2-only rows. SVG paths copied
+  // verbatim from itshover.com/icons/trash-icon (Tabler-style stroke set). Class
+  // hooks (.trash-lid-lower / .trash-lid-upper) are targeted by the hover-state
+  // CSS in injectStyles() to rotate the lid open without any JS during idle.
+  // Click flow → confirm modal → AJAX → row fade is in handleDeleteClient above.
+  function renderV2DeleteButton(c) {
+    if (!c || !c.user_id) return '';
+    var nameEsc = esc(c.name || 'this client');
+    // v0.41.15 — data-client-id is the V2 user_id (form_progress.client_user_id),
+    // used by the new /dashboard/client/{id}/delete REST endpoint. The hash
+    // attribute stays for any downstream code that still keys by email-hash,
+    // but the delete path no longer depends on it.
+    return '<button type="button" class="hdlv2-delete-client-btn" '
+      + 'data-client-id="' + esc(c.user_id) + '" '
+      + 'data-client-hash="' + esc(c.email_hash || '') + '" '
+      + 'data-client-name="' + nameEsc + '" '
+      + 'title="Remove ' + nameEsc + ' from your list" '
+      + 'aria-label="Remove ' + nameEsc + ' from your list">'
+      + '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+      +   '<path stroke="none" d="M0 0h24v24H0z" fill="none"/>'
+      +   '<path class="trash-lid-lower" d="M4 7l16 0"/>'
+      +   '<path d="M10 11l0 6"/>'
+      +   '<path d="M14 11l0 6"/>'
+      +   '<path d="M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2 -2l1 -12"/>'
+      +   '<path class="trash-lid-upper" d="M9 7v-3a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v3"/>'
+      + '</svg>'
+      + '</button>';
   }
 
   // v0.21.0 — tiny label driven by V2 status so the Assessment column isn't
@@ -1674,6 +1839,24 @@
       '.hdlv2-inline-badge { display:inline-flex; align-items:center; padding:3px 9px; margin-left:6px; border-radius:24px; font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:0.03em; white-space:nowrap; vertical-align:middle; font-family: Inter, -apple-system, sans-serif; }',
       '.hdlv2-expand-btn { display:inline-flex; align-items:center; justify-content:center; width:32px; height:32px; border:1px solid #e4e6ea; border-radius:50%; background:#fff; color:#888; cursor:pointer; margin-left:6px; padding:0; transition:all 0.15s ease; vertical-align:middle; }',
       '.hdlv2-expand-btn:hover { border-color:#3d8da0; color:#3d8da0; background:rgba(61,141,160,0.06); }',
+      // v0.41.14 — animated trash icon ported from itshover.com/icons/trash-icon.
+      // Vanilla CSS translation of the original Motion (Framer) hover animation:
+      //   lid lower rotates -25° + lifts; lid upper rotates -35° + lifts diagonally;
+      //   stroke colour shifts to #ef4444 (Tailwind red-500) on hover.
+      // Same dimensions + circular shape as .hdlv2-expand-btn so the two action-cell
+      // buttons read as a balanced pair. The :hover state is the calm default; the
+      // .is-deleting + .is-shaking classes are applied by JS during the confirm/AJAX
+      // flow so the lid stays open and the icon wiggles before the row fades out.
+      '.hdlv2-delete-client-btn { display:inline-flex; align-items:center; justify-content:center; width:32px; height:32px; border:1px solid #e4e6ea; border-radius:50%; background:#fff; color:#94a3b8; cursor:pointer; margin-left:6px; padding:0; transition: border-color 0.15s ease, background 0.15s ease, color 0.2s ease-in-out; vertical-align:middle; }',
+      '.hdlv2-delete-client-btn:hover { border-color:#fecaca; background:#fef2f2; color:#ef4444; }',
+      '.hdlv2-delete-client-btn:disabled { opacity:0.5; cursor:not-allowed; }',
+      '.hdlv2-delete-client-btn svg { display:block; width:16px; height:16px; transition: stroke 0.2s ease-in-out; pointer-events:none; }',
+      '.hdlv2-delete-client-btn svg .trash-lid-lower, .hdlv2-delete-client-btn svg .trash-lid-upper { transform-origin: 50% 100%; transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1); }',
+      '.hdlv2-delete-client-btn:hover svg .trash-lid-lower, .hdlv2-delete-client-btn.is-deleting svg .trash-lid-lower { transform: translateY(-2px) rotate(-25deg); }',
+      '.hdlv2-delete-client-btn:hover svg .trash-lid-upper, .hdlv2-delete-client-btn.is-deleting svg .trash-lid-upper { transform: translate(-1.5px, -3px) rotate(-35deg); }',
+      '@keyframes hdlv2-trash-shake { 0%{transform:translateX(0);} 25%{transform:translateX(-2px);} 50%{transform:translateX(2px);} 75%{transform:translateX(-1px);} 100%{transform:translateX(0);} }',
+      '.hdlv2-delete-client-btn.is-shaking svg { animation: hdlv2-trash-shake 0.25s ease-in-out; }',
+      '.hdlv2-v2-only-row.is-removing { transition: opacity 0.3s ease-out, transform 0.3s ease-out; opacity:0; transform: translateX(8px); }',
       '.hdlv2-expand-btn svg { transition: transform 0.2s ease; display:block; }',
       '.hdlv2-expand-btn.open svg { transform: rotate(180deg); }',
       '.hdlv2-detail-row > td { padding: 0 !important; background: #fafbfc; border-bottom: 1px solid #e4e6ea !important; }',

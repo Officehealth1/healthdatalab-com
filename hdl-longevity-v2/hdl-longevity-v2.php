@@ -3,7 +3,7 @@
  * Plugin Name: HDL Longevity V2 — Staged Workflow
  * Plugin URI: https://healthdatalab.net
  * Description: V2 longevity workflow: staged intake, WHY profiling, practitioner consultations, weekly flight plans, and AI coaching. Runs alongside the existing Health Data Lab plugin.
- * Version: 0.40.19
+ * Version: 0.41.17
  * Author: Health Data Lab
  * Author URI: https://healthdatalab.net
  * License: Proprietary
@@ -22,8 +22,8 @@ if ( ! defined( 'ABSPATH' ) ) {
 // register_activation_hook callbacks, which fire synchronously during
 // `wp plugin activate`, can reference them. The activator needs
 // HDLV2_DB_VERSION / HDLV2_VERSION at call time to update version options.
-define( 'HDLV2_VERSION', '0.40.19' );
-define( 'HDLV2_DB_VERSION', '3.7' );
+define( 'HDLV2_VERSION', '0.41.17' );
+define( 'HDLV2_DB_VERSION', '3.12' );
 define( 'HDLV2_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'HDLV2_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 define( 'HDLV2_PLUGIN_FILE', __FILE__ );
@@ -46,6 +46,29 @@ define( 'HDLV2_PLUGIN_FILE', __FILE__ );
  */
 add_action( 'init', function () {
     if ( is_admin() || is_user_logged_in() ) return;
+
+    // v0.41.3 — Skip REST API requests. The handlers below call
+    // hdlv2_render_link_card() which sets status_header(410) and echoes an
+    // HTML page on stale/invalid magic-link tokens. That's correct for page
+    // loads (replaces silent failures with a friendly card), but disastrous
+    // for REST callers: client JS does `.then(r => r.json())` and the HTML
+    // body makes JSON.parse() throw → `.catch()` fires → user sees the
+    // generic "Connection error" string on every button.
+    //
+    // REST handlers self-authenticate from the ?token= query param — they
+    // don't need the init auto-login. All client-facing routes use
+    // `permission_callback => '__return_true'` and validate the token in
+    // their own handler (see staged-form / checkin / draft-report / flight-plan).
+    //
+    // Note: WP only defines the REST_REQUEST constant on `parse_request`,
+    // which fires AFTER `init`. At our priority-1 init, the constant is
+    // not yet set, so we also sniff the request URI for `/wp-json/`. The
+    // defined() check stays for forward-compat with any plugin that sets
+    // it earlier.
+    if ( ( defined( 'REST_REQUEST' ) && REST_REQUEST )
+         || ( isset( $_SERVER['REQUEST_URI'] ) && false !== strpos( $_SERVER['REQUEST_URI'], '/wp-json/' ) ) ) {
+        return;
+    }
 
     // ── ?invite=TOKEN → auto-login for Assessment Links ──
     // Priority 1 (see add_action below) so we run before any plugin that might
@@ -150,8 +173,19 @@ add_action( 'init', function () {
         }
 
         // Look up existing form_progress so we know whether Stage 1 is done.
+        //
+        // v0.41.17 — `AND deleted_at IS NULL`. Without it, a soft-deleted
+        // client whose old invite/magic-link is still in their inbox could
+        // click it, get auto-logged-in, and resume on the archived
+        // form_progress row (Stage 2/3, draft report, etc.) — defeating
+        // the soft-delete. Now: archived rows are invisible; if there's no
+        // active row, we fall through to render the widget page (Stage 1
+        // path), which is harmless because the practitioner won't see the
+        // result until they create a new invite.
         $progress = $wpdb->get_row( $wpdb->prepare(
-            "SELECT id, token, stage1_completed_at FROM {$wpdb->prefix}hdlv2_form_progress WHERE client_user_id = %d ORDER BY id DESC LIMIT 1",
+            "SELECT id, token, stage1_completed_at FROM {$wpdb->prefix}hdlv2_form_progress
+             WHERE client_user_id = %d AND deleted_at IS NULL
+             ORDER BY id DESC LIMIT 1",
             $user_id
         ) );
 
@@ -252,9 +286,35 @@ add_action( 'init', function () {
         if ( ! preg_match( '/^[a-f0-9]{64}$/', $token ) ) return;
 
         global $wpdb;
+        // v0.40.20 — also fetch token_expires_at so we can show a specific
+        // "link expired" card (different copy than "not found"). Legacy
+        // rows have NULL expiry → treated as no expiry (back-compat).
+        //
+        // v0.41.17 — `AND deleted_at IS NULL`. Soft-deleted form_progress
+        // rows must not resolve, otherwise the client could click an old
+        // emailed link and auto-log into an archived assessment.
         $progress = $wpdb->get_row( $wpdb->prepare(
-            "SELECT client_user_id FROM {$wpdb->prefix}hdlv2_form_progress WHERE token = %s LIMIT 1", $token
+            "SELECT client_user_id, token_expires_at FROM {$wpdb->prefix}hdlv2_form_progress
+             WHERE token = %s AND deleted_at IS NULL
+             LIMIT 1",
+            $token
         ) );
+
+        if ( $progress && ! empty( $progress->token_expires_at )
+             && strtotime( $progress->token_expires_at ) < time() ) {
+            // v0.40.20 — explicit "expired" card. Distinct from the
+            // "not found" branch below so the practitioner / support
+            // can tell the user the right next step (ask for a fresh
+            // link rather than re-checking their inbox). The
+            // hdlv2_render_link_card helper sets 410 Gone + nocache
+            // + noindex headers and exits the request.
+            hdlv2_render_link_card(
+                'This assessment link has expired',
+                'For your security, assessment links expire after a period of time. Please ask your practitioner to send you a fresh link, or contact them if you need help continuing your assessment.',
+                '',
+                ''
+            );
+        }
 
         if ( $progress && $progress->client_user_id ) {
             wp_set_current_user( $progress->client_user_id );
@@ -700,6 +760,12 @@ final class HDL_Longevity_V2 {
         HDLV2_Activator::ensure_stuck_release_reminder_scheduled();
         // v0.40.19 — register Stage 2 extraction retry cron on every boot.
         HDLV2_Activator::ensure_stage2_extraction_retry_scheduled();
+        // v0.41.0 — register the weekly flight-plan cron on every boot. The
+        // LIVE plugin pre-dates this cron's existence; without this it would
+        // never auto-generate Saturday plans for existing clients.
+        HDLV2_Activator::ensure_weekly_flight_plan_scheduled();
+        // v0.41.8 (Bug-3) — register attention-digest cron on every boot.
+        HDLV2_Activator::ensure_attention_email_cron_scheduled();
     }
 
     private function load_dependencies() {
@@ -718,6 +784,7 @@ final class HDL_Longevity_V2 {
         require_once HDLV2_PLUGIN_DIR . 'includes/security/class-hdlv2-rate-limit-status.php';
         require_once HDLV2_PLUGIN_DIR . 'includes/security/class-hdlv2-idempotency.php';
         require_once HDLV2_PLUGIN_DIR . 'includes/security/class-hdlv2-webhook-monitor.php';
+        require_once HDLV2_PLUGIN_DIR . 'includes/security/class-hdlv2-webhook-retry.php';
 
         // Sprint 1: Lead Magnet Widget
         require_once HDLV2_PLUGIN_DIR . 'includes/sprint-1/class-hdlv2-widget-config.php';
@@ -763,6 +830,10 @@ final class HDL_Longevity_V2 {
         require_once HDLV2_PLUGIN_DIR . 'includes/sprint-4/class-hdlv2-practitioner-dashboard.php';
         // v0.32.7 — client-side dashboard (/my-dashboard/) + login_redirect + role guards
         require_once HDLV2_PLUGIN_DIR . 'includes/sprint-4/class-hdlv2-client-dashboard.php';
+        // v0.41.8 (Bug-3) — daily digest cron for needs_attention clients
+        require_once HDLV2_PLUGIN_DIR . 'includes/sprint-4/class-hdlv2-attention-cron.php';
+        // v0.41.16 — Tools → V2 Restore admin page for soft-deleted form_progress rows
+        require_once HDLV2_PLUGIN_DIR . 'includes/sprint-4/class-hdlv2-admin-restore.php';
 
         // Sprint 5: Flight Plan
         require_once HDLV2_PLUGIN_DIR . 'includes/sprint-5/class-hdlv2-flight-plan.php';
@@ -777,6 +848,17 @@ final class HDL_Longevity_V2 {
         HDLV2_Rate_Limit_Middleware::init();
         ( new HDLV2_Rate_Limit_Status() )->register_hooks();
         HDLV2_Webhook_Monitor::register_hooks();
+
+        // v0.40.20 — Webhook retry mechanism. Each fire helper that has a
+        // re-fire path (Draft Report / Final Report / Flight Plan PDF)
+        // registers itself below so HDLV2_Webhook_Retry::run_scheduled_retry
+        // can dispatch to it. Cron hooks are registered eagerly so the
+        // scheduled events fire even if the registering class hasn't been
+        // instantiated yet on the cron-tick request.
+        HDLV2_Webhook_Retry::register_cron_hooks();
+        HDLV2_Webhook_Retry::register_handler( 'draft', array( 'HDLV2_Staged_Form', 'refire_draft_webhook' ) );
+        HDLV2_Webhook_Retry::register_handler( 'final', array( 'HDLV2_Final_Report', 'refire_final_webhook' ) );
+        HDLV2_Webhook_Retry::register_handler( 'flight_pdf', array( 'HDLV2_Flight_Plan', 'refire_flight_plan_webhook' ) );
 
         // Sprint 1: Widget config dashboard + REST API + shortcode
         $widget_config = new HDLV2_Widget_Config();
@@ -809,6 +891,10 @@ final class HDL_Longevity_V2 {
         HDLV2_Client_Status::get_instance()->register_hooks();
         HDLV2_Practitioner_Dashboard::get_instance()->register_hooks();
         HDLV2_Client_Dashboard::get_instance()->register_hooks();
+        // v0.41.8 (Bug-3) — daily attention digest cron handler.
+        HDLV2_Attention_Cron::get_instance()->register_hooks();
+        // v0.41.16 — admin restore page (Tools → V2 Restore).
+        HDLV2_Admin_Restore::get_instance()->register_hooks();
 
         // Sprint 5: Flight Plan
         HDLV2_Flight_Plan::get_instance()->register_hooks();

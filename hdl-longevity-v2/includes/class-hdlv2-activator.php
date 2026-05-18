@@ -48,6 +48,10 @@ class HDLV2_Activator {
             'hdlv2_stuck_release_reminder'  => 'daily',
             // v0.40.19 — retry stuck Stage 2 WHY extractions (Make.com → local fallback).
             'hdlv2_stage2_extraction_retry' => 'daily',
+            // v0.41.8 (Bug-3) — daily digest email for practitioners' clients in
+            // needs_attention state. Without this, practitioners only see the
+            // red badge if they happen to load /clients/.
+            'hdlv2_attention_email_cron'    => 'daily',
             // v0.30.0 — bumped from hdlv2_five_minutes to hdlv2_one_minute.
             // 5-min safety-net wait was visible to practitioners as a 1-3 min
             // "Transcribing your audio..." stall whenever the loopback kick
@@ -125,6 +129,40 @@ class HDLV2_Activator {
     public static function ensure_stage2_extraction_retry_scheduled() {
         if ( ! wp_next_scheduled( 'hdlv2_stage2_extraction_retry' ) ) {
             wp_schedule_event( time(), 'daily', 'hdlv2_stage2_extraction_retry' );
+        }
+    }
+
+    /**
+     * Idempotent runtime check for the v0.41.8 attention-digest cron.
+     *
+     * Same pattern as ensure_stuck_release_reminder_scheduled — runs on
+     * every boot from maybe_upgrade_db() so existing installs pick up the
+     * new cron without a DB-version bump.
+     *
+     * @since 0.41.8
+     */
+    public static function ensure_attention_email_cron_scheduled() {
+        if ( ! wp_next_scheduled( 'hdlv2_attention_email_cron' ) ) {
+            wp_schedule_event( time(), 'daily', 'hdlv2_attention_email_cron' );
+        }
+    }
+
+    /**
+     * Idempotent runtime check for the weekly flight-plan cron.
+     *
+     * v0.41.0 — Mirrors the v0.40.17 / v0.40.19 pattern. Without this, an
+     * install that activated the plugin BEFORE the hdlv2_weekly_flight_plan
+     * cron existed (or that lost its schedule for any reason — e.g. WP-Cron
+     * pruning, manual `wp_unschedule_event`) silently lacks the Saturday
+     * auto-generation. The LIVE plugin has been activated for months and
+     * almost certainly falls into this category — confirmed risk per the
+     * 2026-05-13 audit. Cheap — one scheduled-event lookup per boot.
+     *
+     * @since 0.41.0
+     */
+    public static function ensure_weekly_flight_plan_scheduled() {
+        if ( ! wp_next_scheduled( 'hdlv2_weekly_flight_plan' ) ) {
+            wp_schedule_event( time(), 'daily', 'hdlv2_weekly_flight_plan' );
         }
     }
 
@@ -806,6 +844,229 @@ class HDLV2_Activator {
                 error_log( '[HDLV2] Phase P migration error: ' . $e->getMessage() . ' — boot continues; verify manually.' );
             }
         }
+
+        // Phase Q (DB v3.8) — form_progress token TTL.
+        //
+        // Closes a production-readiness gap surfaced by the v0.40.20 audit:
+        // form_progress.token magic links worked indefinitely. A leaked
+        // email gave permanent access; stale clients re-clicking 6-month-old
+        // emails landed on a schema/copy that had drifted; the absence of
+        // expiry weakened the bearer-credential model the rest of the
+        // plugin depends on (widget_invites.expires_at is 72h max).
+        //
+        // Adds the column nullable so legacy rows (NULL) stay valid — old
+        // links keep working until a practitioner explicitly regenerates
+        // them. New rows get a 90-day TTL by default, filterable via
+        // `hdlv2_progress_token_ttl_days`. Validation lives in the
+        // ?token= magic-link handler + validate_token_param/from_body.
+        //
+        // No backfill is performed: NULL = "no expiry set" = legacy bridge.
+        // Practitioners get a "Regenerate Link" REST endpoint
+        // (/form/regenerate-token) to issue a fresh 90-day token on demand.
+        if ( version_compare( $current_db_version, '3.8', '<' ) ) {
+            try {
+                $progress_table = $p . 'hdlv2_form_progress';
+
+                $progress_has_expiry = (int) $wpdb->get_var( $wpdb->prepare(
+                    "SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+                     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s AND COLUMN_NAME = 'token_expires_at'",
+                    $progress_table
+                ) );
+                if ( ! $progress_has_expiry ) {
+                    $wpdb->query( "ALTER TABLE $progress_table ADD COLUMN token_expires_at DATETIME DEFAULT NULL AFTER token" );
+                    if ( ! $wpdb->last_error ) {
+                        error_log( '[HDLV2] Phase Q (v3.8) migration: added token_expires_at to hdlv2_form_progress.' );
+                    }
+                }
+            } catch ( \Throwable $e ) {
+                error_log( '[HDLV2] Phase Q migration error: ' . $e->getMessage() . ' — boot continues; verify manually.' );
+            }
+        }
+
+        // Phase R (DB v3.9) — Backfill is_private on system-generated
+        // timeline rows that leaked to clients.
+        //
+        // Two entry types were being written without is_private=1:
+        //   - 'adherence'       — duplicates the Effort chart on the client
+        //                          Progress tab; redundant in /my-dashboard/.
+        //   - 'engagement_skip' — internal coaching-ops messaging; the
+        //                          summary says "Practitioner outreach
+        //                          recommended" about the client. Was
+        //                          masked in practice by the pre-existing
+        //                          dashboard column-name bug (Recent
+        //                          Activity query used 'client_user_id'
+        //                          which doesn't exist on hdlv2_timeline,
+        //                          so the section silently returned zero
+        //                          rows for every client). v0.41.6 fixes
+        //                          the column name — without this Phase R
+        //                          backfill, every populated client would
+        //                          immediately see legacy adherence +
+        //                          engagement_skip rows in their feed on
+        //                          their next dashboard render.
+        //
+        // The writes in class-hdlv2-flight-plan.php (lines 1494 and 1809)
+        // now stamp is_private=1 at insert time. This migration covers
+        // the pre-v0.41.6 backlog. Idempotent: only flips rows still at 0.
+        //
+        // Practitioner-side timeline view is unaffected — query_timeline()
+        // in class-hdlv2-timeline.php only adds the is_private=0 filter
+        // when called from rest_load_client; rest_load_practitioner passes
+        // exclude_private=false.
+        if ( version_compare( $current_db_version, '3.9', '<' ) ) {
+            try {
+                $timeline_table = $p . 'hdlv2_timeline';
+                $rows           = $wpdb->query(
+                    "UPDATE $timeline_table
+                     SET is_private = 1
+                     WHERE entry_type IN ('engagement_skip','adherence')
+                       AND ( is_private = 0 OR is_private IS NULL )"
+                );
+                if ( false === $rows ) {
+                    error_log( '[HDLV2] Phase R (v3.9) migration FAILED: ' . $wpdb->last_error );
+                } else {
+                    error_log( sprintf(
+                        '[HDLV2] Phase R (v3.9) migration: marked %d timeline row(s) as private (adherence + engagement_skip).',
+                        (int) $rows
+                    ) );
+                }
+            } catch ( \Throwable $e ) {
+                error_log( '[HDLV2] Phase R migration error: ' . $e->getMessage() . ' — boot continues; verify manually.' );
+            }
+        }
+
+        // Phase S (DB v3.11) — Practitioner-side soft-delete for V2 clients.
+        //
+        // Adds deleted_at + deleted_by columns to hdlv2_form_progress so the
+        // new /dashboard/client/{id}/delete REST endpoint can hide a V2-only
+        // client from the practitioner's list without touching the client's
+        // assessment data (Matthew's "never delete history" rule).
+        //
+        // v0.41.17 — restoration is admin-only (Tools → V2 Restore, $89 fee).
+        // Re-inviting / re-signing-up the same email creates a FRESH form_progress
+        // row beside the archived one — it does NOT clear deleted_at. The original
+        // rest_create_form + dispatch_post_signup_artifacts auto-restore was a
+        // soft-delete bypass and has been removed (see filter in those funcs).
+        if ( version_compare( $current_db_version, '3.11', '<' ) ) {
+            try {
+                $fp_table = $p . 'hdlv2_form_progress';
+
+                $has_deleted_at = (int) $wpdb->get_var( $wpdb->prepare(
+                    "SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+                     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s AND COLUMN_NAME = 'deleted_at'",
+                    $fp_table
+                ) );
+                if ( ! $has_deleted_at ) {
+                    $wpdb->query( "ALTER TABLE $fp_table ADD COLUMN deleted_at DATETIME DEFAULT NULL AFTER updated_at" );
+                    if ( $wpdb->last_error ) {
+                        error_log( '[HDLV2] Phase S (v3.11) migration FAILED on deleted_at: ' . $wpdb->last_error );
+                    }
+                }
+
+                $has_deleted_by = (int) $wpdb->get_var( $wpdb->prepare(
+                    "SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+                     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s AND COLUMN_NAME = 'deleted_by'",
+                    $fp_table
+                ) );
+                if ( ! $has_deleted_by ) {
+                    $wpdb->query( "ALTER TABLE $fp_table ADD COLUMN deleted_by BIGINT(20) UNSIGNED DEFAULT NULL AFTER deleted_at" );
+                    if ( $wpdb->last_error ) {
+                        error_log( '[HDLV2] Phase S (v3.11) migration FAILED on deleted_by: ' . $wpdb->last_error );
+                    }
+                }
+
+                // Index on deleted_at so the get_clients_for_practitioner +
+                // practitioner_owns_client queries (added filter is
+                // AND deleted_at IS NULL) stay sargable as form_progress
+                // grows past a few thousand rows.
+                $has_idx = (int) $wpdb->get_var( $wpdb->prepare(
+                    "SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS
+                     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s AND INDEX_NAME = 'idx_deleted_at'",
+                    $fp_table
+                ) );
+                if ( ! $has_idx ) {
+                    $wpdb->query( "ALTER TABLE $fp_table ADD INDEX idx_deleted_at (deleted_at)" );
+                    if ( $wpdb->last_error ) {
+                        error_log( '[HDLV2] Phase S (v3.11) migration FAILED on index: ' . $wpdb->last_error );
+                    }
+                }
+
+                if ( ! $has_deleted_at || ! $has_deleted_by || ! $has_idx ) {
+                    error_log( '[HDLV2] Phase S (v3.11) migration: added soft-delete columns + index to hdlv2_form_progress.' );
+                }
+            } catch ( \Throwable $e ) {
+                error_log( '[HDLV2] Phase S migration error: ' . $e->getMessage() . ' — boot continues; verify manually.' );
+            }
+        }
+
+        // Phase T (DB v3.12) — Cascade soft-delete to client_id-keyed data tables.
+        //
+        // Phase S stopped the practitioner dashboard from listing a soft-deleted
+        // client (form_progress filter). But the V2 splicer uses the same WP user
+        // for re-invites of the same email — so any data table keyed by `client_id`
+        // (not by form_progress_id) would still expose the previous lifecycle's
+        // rows in the new lifecycle. Concretely: timeline entries, weekly check-ins,
+        // Flight Plans, Flight-Plan ticks, and monthly summaries.
+        //
+        // The fix is to add deleted_at / deleted_by + idx_deleted_at to each of
+        // those five tables and to cascade the stamp in rest_delete_client. The
+        // admin restore page (Tools → V2 Restore) unwinds the stamp across the
+        // same set. Without this migration the bypass remained even with the
+        // Phase S form_progress filter in place.
+        if ( version_compare( $current_db_version, '3.12', '<' ) ) {
+            try {
+                $cascade_tables = array(
+                    'hdlv2_checkins',
+                    'hdlv2_timeline',
+                    'hdlv2_flight_plans',
+                    'hdlv2_flight_plan_ticks',
+                    'hdlv2_monthly_summaries',
+                );
+
+                foreach ( $cascade_tables as $bare ) {
+                    $tbl = $p . $bare;
+
+                    $has_deleted_at = (int) $wpdb->get_var( $wpdb->prepare(
+                        "SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+                         WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s AND COLUMN_NAME = 'deleted_at'",
+                        $tbl
+                    ) );
+                    if ( ! $has_deleted_at ) {
+                        $wpdb->query( "ALTER TABLE $tbl ADD COLUMN deleted_at DATETIME DEFAULT NULL" );
+                        if ( $wpdb->last_error ) {
+                            error_log( "[HDLV2] Phase T (v3.12) FAILED on $tbl.deleted_at: " . $wpdb->last_error );
+                        }
+                    }
+
+                    $has_deleted_by = (int) $wpdb->get_var( $wpdb->prepare(
+                        "SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+                         WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s AND COLUMN_NAME = 'deleted_by'",
+                        $tbl
+                    ) );
+                    if ( ! $has_deleted_by ) {
+                        $wpdb->query( "ALTER TABLE $tbl ADD COLUMN deleted_by BIGINT(20) UNSIGNED DEFAULT NULL" );
+                        if ( $wpdb->last_error ) {
+                            error_log( "[HDLV2] Phase T (v3.12) FAILED on $tbl.deleted_by: " . $wpdb->last_error );
+                        }
+                    }
+
+                    $has_idx = (int) $wpdb->get_var( $wpdb->prepare(
+                        "SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS
+                         WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s AND INDEX_NAME = 'idx_deleted_at'",
+                        $tbl
+                    ) );
+                    if ( ! $has_idx ) {
+                        $wpdb->query( "ALTER TABLE $tbl ADD INDEX idx_deleted_at (deleted_at)" );
+                        if ( $wpdb->last_error ) {
+                            error_log( "[HDLV2] Phase T (v3.12) FAILED on $tbl.idx_deleted_at: " . $wpdb->last_error );
+                        }
+                    }
+                }
+
+                error_log( '[HDLV2] Phase T (v3.12) migration: cascaded soft-delete columns to ' . count( $cascade_tables ) . ' tables.' );
+            } catch ( \Throwable $e ) {
+                error_log( '[HDLV2] Phase T migration error: ' . $e->getMessage() . ' — boot continues; verify manually.' );
+            }
+        }
     }
 
     /**
@@ -924,6 +1185,7 @@ class HDLV2_Activator {
             widget_invite_id BIGINT(20) UNSIGNED DEFAULT NULL,
             token VARCHAR(64) NOT NULL,
             current_stage TINYINT(1) UNSIGNED DEFAULT 1,
+            token_expires_at DATETIME DEFAULT NULL,
             stage1_data JSON DEFAULT NULL,
             stage1_completed_at DATETIME DEFAULT NULL,
             stage2_data JSON DEFAULT NULL,
@@ -936,10 +1198,13 @@ class HDLV2_Activator {
             pre_consult_summary_at DATETIME DEFAULT NULL,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            deleted_at DATETIME DEFAULT NULL,
+            deleted_by BIGINT(20) UNSIGNED DEFAULT NULL,
             PRIMARY KEY (id),
             UNIQUE KEY token (token),
             KEY client_user_id (client_user_id),
-            KEY practitioner_user_id (practitioner_user_id)
+            KEY practitioner_user_id (practitioner_user_id),
+            KEY idx_deleted_at (deleted_at)
         ) $charset_collate;";
 
         // Sprint 2: WHY profiles (AI-extracted motivational profile)
@@ -958,6 +1223,9 @@ class HDLV2_Activator {
             audio_id BIGINT(20) UNSIGNED DEFAULT NULL,
             released BOOLEAN DEFAULT FALSE,
             released_at DATETIME DEFAULT NULL,
+            released_by_practitioner_id BIGINT(20) UNSIGNED DEFAULT NULL,
+            last_resent_at DATETIME DEFAULT NULL,
+            resend_count INT UNSIGNED DEFAULT 0,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
             PRIMARY KEY (id),
@@ -1036,10 +1304,13 @@ class HDLV2_Activator {
             status ENUM('draft','confirmed') DEFAULT 'draft',
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             confirmed_at DATETIME DEFAULT NULL,
+            deleted_at DATETIME DEFAULT NULL,
+            deleted_by BIGINT(20) UNSIGNED DEFAULT NULL,
             PRIMARY KEY (id),
             KEY idx_client_week (client_id, week_number),
             KEY idx_practitioner (practitioner_id),
-            KEY idx_flags (has_flags)
+            KEY idx_flags (has_flags),
+            KEY idx_deleted_at (deleted_at)
         ) $charset_collate;";
 
         // Sprint 4: Client timeline
@@ -1068,12 +1339,15 @@ class HDLV2_Activator {
             flags JSON DEFAULT NULL,
             is_private BOOLEAN DEFAULT FALSE,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            deleted_at DATETIME DEFAULT NULL,
+            deleted_by BIGINT(20) UNSIGNED DEFAULT NULL,
             PRIMARY KEY (id),
             KEY idx_client_date (client_id, created_at),
             KEY idx_practitioner (practitioner_id),
             KEY idx_type (entry_type),
             KEY idx_flags (has_flags),
-            KEY idx_client_category_date (client_id, category, date)
+            KEY idx_client_category_date (client_id, category, date),
+            KEY idx_deleted_at (deleted_at)
         ) $charset_collate;";
 
         // Sprint 5: Flight plans
@@ -1102,9 +1376,12 @@ class HDLV2_Activator {
             generation_attempts TINYINT UNSIGNED DEFAULT 1,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             delivered_at DATETIME DEFAULT NULL,
+            deleted_at DATETIME DEFAULT NULL,
+            deleted_by BIGINT(20) UNSIGNED DEFAULT NULL,
             PRIMARY KEY (id),
             KEY idx_client_week (client_id, week_number),
-            KEY idx_practitioner (practitioner_id)
+            KEY idx_practitioner (practitioner_id),
+            KEY idx_deleted_at (deleted_at)
         ) $charset_collate;";
 
         // Sprint 5: Flight plan tick tracking
@@ -1120,9 +1397,12 @@ class HDLV2_Activator {
             action_index INT UNSIGNED DEFAULT 0,
             ticked BOOLEAN DEFAULT FALSE,
             ticked_at DATETIME DEFAULT NULL,
+            deleted_at DATETIME DEFAULT NULL,
+            deleted_by BIGINT(20) UNSIGNED DEFAULT NULL,
             PRIMARY KEY (id),
             KEY idx_plan (flight_plan_id),
-            KEY idx_client (client_id)
+            KEY idx_client (client_id),
+            KEY idx_deleted_at (deleted_at)
         ) $charset_collate;";
 
         // Sprint 1 (verification flow): Pending leads — submissions awaiting email confirmation.
@@ -1164,8 +1444,11 @@ class HDLV2_Activator {
             summary TEXT NOT NULL,
             checkin_ids JSON DEFAULT NULL,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            deleted_at DATETIME DEFAULT NULL,
+            deleted_by BIGINT(20) UNSIGNED DEFAULT NULL,
             PRIMARY KEY (id),
-            KEY idx_client (client_id, month_start)
+            KEY idx_client (client_id, month_start),
+            KEY idx_deleted_at (deleted_at)
         ) $charset_collate;";
 
         // v0.17.0 (DB v2.5) — Background job queue.

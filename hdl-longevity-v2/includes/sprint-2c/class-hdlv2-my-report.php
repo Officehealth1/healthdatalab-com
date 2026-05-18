@@ -121,9 +121,13 @@ class HDLV2_My_Report {
             return null;
         }
         global $wpdb;
+        // v0.41.17 — `AND deleted_at IS NULL`. Soft-deleted clients whose
+        // browser session is still alive must not be able to navigate to
+        // their archived final report via /my-report/.
         return $wpdb->get_var( $wpdb->prepare(
             "SELECT token FROM {$wpdb->prefix}hdlv2_form_progress
              WHERE client_user_id = %d AND token IS NOT NULL AND token != ''
+               AND deleted_at IS NULL
              ORDER BY id DESC LIMIT 1",
             $user_id
         ) );

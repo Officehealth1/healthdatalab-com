@@ -49,8 +49,13 @@ class HDLV2_Checkin {
 
         $week_start = $this->get_week_start();
         global $wpdb;
+        // v0.41.17 — `AND deleted_at IS NULL` on both queries. The check-in
+        // page must not surface archived draft/confirmed rows or archived
+        // Flight Plans from a previous lifecycle.
         $checkin = $wpdb->get_row( $wpdb->prepare(
-            "SELECT * FROM {$wpdb->prefix}hdlv2_checkins WHERE client_id = %d AND week_start = %s LIMIT 1",
+            "SELECT * FROM {$wpdb->prefix}hdlv2_checkins
+             WHERE client_id = %d AND week_start = %s AND deleted_at IS NULL
+             LIMIT 1",
             $progress->client_user_id, $week_start
         ) );
 
@@ -59,7 +64,10 @@ class HDLV2_Checkin {
         // Skip future-dated plans so we show the plan covering the current check-in week,
         // not a plan that's been pre-generated for an upcoming week.
         $fp_row = $wpdb->get_row( $wpdb->prepare(
-            "SELECT id, week_number, identity_statement, weekly_targets, adherence_summary, week_start FROM {$wpdb->prefix}hdlv2_flight_plans WHERE client_id = %d AND week_start <= %s ORDER BY week_start DESC LIMIT 1",
+            "SELECT id, week_number, identity_statement, weekly_targets, adherence_summary, week_start
+             FROM {$wpdb->prefix}hdlv2_flight_plans
+             WHERE client_id = %d AND week_start <= %s AND deleted_at IS NULL
+             ORDER BY week_start DESC LIMIT 1",
             $progress->client_user_id,
             current_time( 'Y-m-d' )
         ) );
@@ -132,8 +140,12 @@ class HDLV2_Checkin {
         // "Add more" mode — append new input to existing draft and re-extract
         if ( ! empty( $params['append_mode'] ) ) {
             global $wpdb;
+            // v0.41.17 — `AND deleted_at IS NULL` so an archived draft cannot
+            // be appended to in a re-invite lifecycle.
             $existing_raw = $wpdb->get_var( $wpdb->prepare(
-                "SELECT raw_input FROM {$wpdb->prefix}hdlv2_checkins WHERE client_id = %d AND week_start = %s AND status = 'draft' LIMIT 1",
+                "SELECT raw_input FROM {$wpdb->prefix}hdlv2_checkins
+                 WHERE client_id = %d AND week_start = %s AND status = 'draft' AND deleted_at IS NULL
+                 LIMIT 1",
                 $progress->client_user_id, $this->get_week_start()
             ) );
             if ( $existing_raw ) {
@@ -170,9 +182,12 @@ class HDLV2_Checkin {
         global $wpdb;
         $table = $wpdb->prefix . 'hdlv2_checkins';
 
-        // Upsert — one check-in per week
+        // Upsert — one check-in per week.
+        // v0.41.17 — `AND deleted_at IS NULL`. Without it, a re-invite client
+        // (same WP user, new lifecycle) would UPDATE the archived row instead
+        // of INSERTing a fresh draft for the new lifecycle's week.
         $existing = $wpdb->get_var( $wpdb->prepare(
-            "SELECT id FROM $table WHERE client_id = %d AND week_start = %s",
+            "SELECT id FROM $table WHERE client_id = %d AND week_start = %s AND deleted_at IS NULL",
             $progress->client_user_id, $week_start
         ) );
 
@@ -299,10 +314,13 @@ class HDLV2_Checkin {
             $flags = $summary_data['flags'];
         }
 
-        // Check adherence trend — ≤3/10 for 2+ consecutive weeks
+        // Check adherence trend — ≤3/10 for 2+ consecutive weeks.
+        // v0.41.17 — `AND deleted_at IS NULL` so the trend doesn't include
+        // archived data from a prior lifecycle.
         $prev_checkin = $wpdb->get_row( $wpdb->prepare(
             "SELECT adherence_scores FROM {$wpdb->prefix}hdlv2_checkins
              WHERE client_id = %d AND status = 'confirmed' AND id != %d
+               AND deleted_at IS NULL
              ORDER BY week_start DESC LIMIT 1",
             $checkin->client_id, $checkin->id
         ) );
@@ -319,10 +337,12 @@ class HDLV2_Checkin {
             }
         }
 
-        // Check for missed check-ins (2+ weeks gap)
+        // Check for missed check-ins (2+ weeks gap).
+        // v0.41.17 — `AND deleted_at IS NULL`.
         $last_confirmed = $wpdb->get_var( $wpdb->prepare(
             "SELECT MAX(week_start) FROM {$wpdb->prefix}hdlv2_checkins
-             WHERE client_id = %d AND status = 'confirmed' AND id != %d",
+             WHERE client_id = %d AND status = 'confirmed' AND id != %d
+               AND deleted_at IS NULL",
             $checkin->client_id, $checkin->id
         ) );
         if ( $last_confirmed ) {
@@ -341,10 +361,14 @@ class HDLV2_Checkin {
             array( 'id' => $checkin->id )
         );
 
-        // 4.4 — Notify practitioner if flags detected
+        // 4.4 — Notify practitioner if flags detected.
+        // v0.41.17 — `AND deleted_at IS NULL` (defensive — checkin should
+        // already be a current-lifecycle row).
         if ( $has_flags && $checkin->practitioner_id ) {
             $client_name = $wpdb->get_var( $wpdb->prepare(
-                "SELECT client_name FROM {$wpdb->prefix}hdlv2_form_progress WHERE client_user_id = %d ORDER BY id DESC LIMIT 1",
+                "SELECT client_name FROM {$wpdb->prefix}hdlv2_form_progress
+                 WHERE client_user_id = %d AND deleted_at IS NULL
+                 ORDER BY id DESC LIMIT 1",
                 $checkin->client_id
             ) ) ?: 'A client';
 
@@ -382,9 +406,11 @@ class HDLV2_Checkin {
 
         global $wpdb;
         $table = $wpdb->prefix . 'hdlv2_checkins';
+        // v0.41.17 — `AND deleted_at IS NULL`.
         $rows = $wpdb->get_results( $wpdb->prepare(
             "SELECT id, week_number, week_start, summary, adherence_scores, comfort_zone, has_flags, flags, status, confirmed_at
-             FROM $table WHERE client_id = %d AND status = 'confirmed' ORDER BY week_start DESC LIMIT %d OFFSET %d",
+             FROM $table WHERE client_id = %d AND status = 'confirmed' AND deleted_at IS NULL
+             ORDER BY week_start DESC LIMIT %d OFFSET %d",
             $progress->client_user_id, $per_page, $offset
         ) );
 
@@ -453,6 +479,10 @@ class HDLV2_Checkin {
         // emails. Group by client_user_id and aggregate the rest with
         // ANY_VALUE (MySQL 5.7+) so each client is one row regardless of how
         // many progress rows they have.
+        // v0.41.17 — `AND deleted_at IS NULL` so soft-deleted clients stop
+        // receiving weekly check-in reminders. Pair with the cascade in
+        // rest_delete_client + the deleted_at filter in the checkins
+        // existence check below.
         $clients = $wpdb->get_results(
             "SELECT
                 client_user_id,
@@ -462,14 +492,17 @@ class HDLV2_Checkin {
                 ANY_VALUE(token)                AS token
              FROM {$wpdb->prefix}hdlv2_form_progress
              WHERE stage3_completed_at IS NOT NULL AND client_email != ''
+               AND deleted_at IS NULL
              GROUP BY client_user_id"
         );
 
         $week_start = $this->get_week_start();
         foreach ( $clients as $c ) {
-            // Skip if already checked in this week
+            // Skip if already checked in this week (active rows only).
             $exists = $wpdb->get_var( $wpdb->prepare(
-                "SELECT id FROM {$wpdb->prefix}hdlv2_checkins WHERE client_id = %d AND week_start = %s AND status = 'confirmed'",
+                "SELECT id FROM {$wpdb->prefix}hdlv2_checkins
+                 WHERE client_id = %d AND week_start = %s AND status = 'confirmed'
+                   AND deleted_at IS NULL",
                 $c->client_user_id, $week_start
             ) );
             if ( $exists ) continue;
@@ -507,6 +540,8 @@ class HDLV2_Checkin {
         global $wpdb;
         // v0.27.0 — fix #10 (/ultrareview): same DISTINCT-vs-GROUP-BY bug as
         // send_reminders above. One row per client, not one per form_progress.
+        // v0.41.17 — `AND deleted_at IS NULL` so the attention digest stops
+        // surfacing soft-deleted clients.
         $clients = $wpdb->get_results(
             "SELECT
                 client_user_id,
@@ -516,6 +551,7 @@ class HDLV2_Checkin {
                 ANY_VALUE(token)                AS token
              FROM {$wpdb->prefix}hdlv2_form_progress
              WHERE stage3_completed_at IS NOT NULL AND client_user_id IS NOT NULL AND practitioner_user_id IS NOT NULL
+               AND deleted_at IS NULL
              GROUP BY client_user_id"
         );
 
@@ -569,6 +605,7 @@ class HDLV2_Checkin {
 
         // Collapse multiple form_progress rows per client via ANY_VALUE
         // (same pattern as send_reminders + run_inactivity_sweep above).
+        // v0.41.17 — `AND deleted_at IS NULL`.
         $stuck = $wpdb->get_results( $wpdb->prepare(
             "SELECT
                 client_user_id,
@@ -583,6 +620,7 @@ class HDLV2_Checkin {
                AND stage2_completed_at < %s
                AND stage3_completed_at IS NULL
                AND practitioner_user_id IS NOT NULL
+               AND deleted_at IS NULL
              GROUP BY client_user_id",
             $threshold
         ) );
@@ -626,8 +664,12 @@ class HDLV2_Checkin {
             return new WP_Error( 'invalid_token', 'Invalid token.', array( 'status' => 401 ) );
         }
         global $wpdb;
+        // v0.41.17 — `AND deleted_at IS NULL`. Bookmarked / emailed check-in
+        // links pointing at a soft-deleted progress must not post check-ins
+        // against the archived row.
         $progress = $wpdb->get_row( $wpdb->prepare(
-            "SELECT * FROM {$wpdb->prefix}hdlv2_form_progress WHERE token = %s", $token
+            "SELECT * FROM {$wpdb->prefix}hdlv2_form_progress WHERE token = %s AND deleted_at IS NULL",
+            $token
         ) );
         if ( ! $progress ) {
             return new WP_Error( 'not_found', 'Assessment not found.', array( 'status' => 404 ) );
@@ -714,6 +756,9 @@ class HDLV2_Checkin {
         // so an inner subquery picks the single latest row per client_user_id before
         // joining — guarantees token and practitioner_user_id come from the same row
         // (otherwise GROUP BY would return indeterminate values across columns).
+        // v0.41.17 — `AND fp.deleted_at IS NULL` on the outer SELECT and on
+        // the inner subquery's pick-latest. Quarterly nudges must skip
+        // soft-deleted clients entirely.
         $clients = $wpdb->get_results( $wpdb->prepare(
             "SELECT fp.client_user_id, fp.client_name, fp.client_email, fp.practitioner_user_id, fp.token, fp.created_at,
                     COALESCE(
@@ -725,16 +770,23 @@ class HDLV2_Checkin {
                  SELECT client_user_id, MAX(id) AS latest_id
                  FROM {$wpdb->prefix}hdlv2_form_progress
                  WHERE stage3_completed_at IS NOT NULL AND client_user_id IS NOT NULL
+                   AND deleted_at IS NULL
                  GROUP BY client_user_id
              ) latest ON latest.client_user_id = fp.client_user_id AND latest.latest_id = fp.id
+             WHERE fp.deleted_at IS NULL
              HAVING last_assessment < %s",
             $three_months_ago
         ) );
 
         foreach ( $clients as $c ) {
-            // Check we haven't already sent a reminder recently
+            // Check we haven't already sent a reminder recently (active rows only).
             $recent_reminder = $wpdb->get_var( $wpdb->prepare(
-                "SELECT id FROM {$wpdb->prefix}hdlv2_timeline WHERE client_id = %d AND entry_type = 'milestone' AND title LIKE '%%Quarterly review due%%' AND created_at > %s LIMIT 1",
+                "SELECT id FROM {$wpdb->prefix}hdlv2_timeline
+                 WHERE client_id = %d AND entry_type = 'milestone'
+                   AND title LIKE '%%Quarterly review due%%'
+                   AND created_at > %s
+                   AND deleted_at IS NULL
+                 LIMIT 1",
                 $c->client_user_id, date( 'Y-m-d', strtotime( '-7 days' ) )
             ) );
             if ( $recent_reminder ) continue;

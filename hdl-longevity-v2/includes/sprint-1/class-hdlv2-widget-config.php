@@ -1199,9 +1199,17 @@ class HDLV2_Widget_Config {
         // Reuse existing form_progress if (email, practitioner) already paired,
         // else create the WP user (or match an existing one by email) and a
         // fresh form_progress row.
+        //
+        // v0.41.16 — explicit `AND deleted_at IS NULL` filter. A widget re-
+        // submission for a soft-deleted client must create a fresh assessment
+        // row, NOT silently resurrect the archived one. Restoration of
+        // archived data is an admin-only flow (Tools → V2 Restore, $89 fee)
+        // mirroring V1's class-admin-restore policy.
         $existing = $wpdb->get_row( $wpdb->prepare(
             "SELECT id, token FROM {$wpdb->prefix}hdlv2_form_progress
-             WHERE client_email = %s AND practitioner_user_id = %d LIMIT 1",
+             WHERE client_email = %s AND practitioner_user_id = %d
+               AND deleted_at IS NULL
+             LIMIT 1",
             $visitor_email, $practitioner_id
         ) );
 

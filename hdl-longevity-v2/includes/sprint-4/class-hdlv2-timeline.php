@@ -124,8 +124,13 @@ class HDLV2_Timeline {
         }
 
         global $wpdb;
+        // v0.41.17 — `AND deleted_at IS NULL`. Old client token must not
+        // resolve once the practitioner soft-deleted the relationship.
         $progress = $wpdb->get_row( $wpdb->prepare(
-            "SELECT client_user_id FROM {$wpdb->prefix}hdlv2_form_progress WHERE token = %s LIMIT 1", $token
+            "SELECT client_user_id FROM {$wpdb->prefix}hdlv2_form_progress
+             WHERE token = %s AND deleted_at IS NULL
+             LIMIT 1",
+            $token
         ) );
         if ( ! $progress || (int) $progress->client_user_id !== (int) $client_id ) {
             return new WP_Error( 'forbidden', 'Access denied.', array( 'status' => 403 ) );
@@ -137,7 +142,9 @@ class HDLV2_Timeline {
     private function query_timeline( $client_id, $page, $per_page, $type, $search, $exclude_private ) {
         global $wpdb;
         $table  = $wpdb->prefix . 'hdlv2_timeline';
-        $where  = $wpdb->prepare( "WHERE client_id = %d", $client_id );
+        // v0.41.17 — `AND deleted_at IS NULL`. Phase T cascade hides timeline
+        // entries from prior lifecycles after a re-invite (same WP user).
+        $where  = $wpdb->prepare( "WHERE client_id = %d AND deleted_at IS NULL", $client_id );
 
         if ( $exclude_private ) $where .= " AND is_private = 0";
         if ( $type ) $where .= $wpdb->prepare( " AND entry_type = %s", $type );
@@ -208,8 +215,11 @@ class HDLV2_Timeline {
         if ( is_wp_error( $auth ) ) return $auth;
 
         global $wpdb;
+        // v0.41.17 — `AND deleted_at IS NULL` so the CSV export honours soft-delete.
         $rows = $wpdb->get_results( $wpdb->prepare(
-            "SELECT * FROM {$wpdb->prefix}hdlv2_timeline WHERE client_id = %d ORDER BY COALESCE(date, created_at) ASC, created_at ASC",
+            "SELECT * FROM {$wpdb->prefix}hdlv2_timeline
+             WHERE client_id = %d AND deleted_at IS NULL
+             ORDER BY COALESCE(date, created_at) ASC, created_at ASC",
             $client_id
         ) );
 

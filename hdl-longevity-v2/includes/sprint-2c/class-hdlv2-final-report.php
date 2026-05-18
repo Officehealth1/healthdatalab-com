@@ -50,8 +50,13 @@ class HDLV2_Final_Report {
         global $wpdb;
 
         // ── Load all data ──
+        // v0.41.17 — `AND deleted_at IS NULL`. Final Report generation must
+        // not target an archived assessment (would otherwise burn Claude +
+        // ship a Make.com webhook for a deleted client).
         $progress = $wpdb->get_row( $wpdb->prepare(
-            "SELECT * FROM {$wpdb->prefix}hdlv2_form_progress WHERE id = %d", $progress_id
+            "SELECT * FROM {$wpdb->prefix}hdlv2_form_progress
+             WHERE id = %d AND deleted_at IS NULL",
+            $progress_id
         ) );
         if ( ! $progress ) {
             return new WP_Error( 'not_found', 'Assessment not found.', array( 'status' => 404 ) );
@@ -1339,8 +1344,10 @@ class HDLV2_Final_Report {
     public static function regenerate( $progress_id, $consult_id, $practitioner_id ) {
         global $wpdb;
 
+        // v0.41.17 — `AND deleted_at IS NULL` on the entry-point lookup.
         $progress = $wpdb->get_row( $wpdb->prepare(
-            "SELECT id, client_user_id, practitioner_user_id FROM {$wpdb->prefix}hdlv2_form_progress WHERE id = %d",
+            "SELECT id, client_user_id, practitioner_user_id FROM {$wpdb->prefix}hdlv2_form_progress
+             WHERE id = %d AND deleted_at IS NULL",
             $progress_id
         ) );
         if ( ! $progress ) {
@@ -1600,8 +1607,10 @@ class HDLV2_Final_Report {
         // cached at the original pre-consultation snapshot. Failures are
         // logged but do NOT block the regen response (Brief is non-critical).
         if ( class_exists( 'HDLV2_Consultation' ) ) {
+            // v0.41.17 — `AND deleted_at IS NULL`.
             $progress_row = $wpdb->get_row( $wpdb->prepare(
-                "SELECT * FROM {$wpdb->prefix}hdlv2_form_progress WHERE id = %d",
+                "SELECT * FROM {$wpdb->prefix}hdlv2_form_progress
+                 WHERE id = %d AND deleted_at IS NULL",
                 $progress_id
             ) );
             if ( $progress_row ) {

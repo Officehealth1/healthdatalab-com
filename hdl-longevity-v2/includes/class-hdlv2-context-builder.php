@@ -38,9 +38,18 @@ class HDLV2_Context_Builder {
 
         $context = array();
 
+        // v0.41.17 — Every read below filters by `deleted_at IS NULL` (either
+        // directly on tables that have the column, or via a JOIN to form_progress
+        // for derived tables). Without this, after a re-invite the context
+        // builder would pull last-lifecycle data into the Claude prompt and
+        // contaminate the new Flight Plan / Final Report.
+
         // Tier 1 — Always included
         $progress = $wpdb->get_row( $wpdb->prepare(
-            "SELECT * FROM {$p}hdlv2_form_progress WHERE client_user_id = %d ORDER BY id DESC LIMIT 1", $client_id
+            "SELECT * FROM {$p}hdlv2_form_progress
+             WHERE client_user_id = %d AND deleted_at IS NULL
+             ORDER BY id DESC LIMIT 1",
+            $client_id
         ) );
 
         $s1 = $progress ? json_decode( $progress->stage1_data, true ) : array();
@@ -49,9 +58,15 @@ class HDLV2_Context_Builder {
         $context['sex']         = $s1['q1_sex'] ?? $s1['gender'] ?? null;
         $context['week_number'] = $progress ? max( 1, (int) ceil( ( time() - strtotime( $progress->created_at ) ) / ( 7 * DAY_IN_SECONDS ) ) ) : 1;
 
-        // WHY profile
+        // WHY profile — JOIN form_progress to filter archived lifecycles
+        // (why_profiles itself doesn't carry deleted_at; scoping via FK).
         $why = $wpdb->get_row( $wpdb->prepare(
-            "SELECT distilled_why, key_people, motivations, fears FROM {$p}hdlv2_why_profiles WHERE client_user_id = %d AND released = 1 ORDER BY id DESC LIMIT 1", $client_id
+            "SELECT w.distilled_why, w.key_people, w.motivations, w.fears
+             FROM {$p}hdlv2_why_profiles w
+             INNER JOIN {$p}hdlv2_form_progress fp ON fp.id = w.form_progress_id
+             WHERE w.client_user_id = %d AND w.released = 1 AND fp.deleted_at IS NULL
+             ORDER BY w.id DESC LIMIT 1",
+            $client_id
         ) );
         $context['why_profile'] = $why ? array(
             'distilled_why' => $why->distilled_why,
@@ -60,22 +75,37 @@ class HDLV2_Context_Builder {
             'fears'         => json_decode( $why->fears, true ),
         ) : null;
 
-        // Latest report + milestones
+        // Latest report + milestones — JOIN form_progress.
         $report = $wpdb->get_row( $wpdb->prepare(
-            "SELECT report_content, milestones FROM {$p}hdlv2_reports WHERE client_user_id = %d AND report_type = 'final' AND status = 'ready' ORDER BY id DESC LIMIT 1", $client_id
+            "SELECT r.report_content, r.milestones
+             FROM {$p}hdlv2_reports r
+             INNER JOIN {$p}hdlv2_form_progress fp ON fp.id = r.form_progress_id
+             WHERE r.client_user_id = %d AND r.report_type = 'final' AND r.status = 'ready'
+               AND fp.deleted_at IS NULL
+             ORDER BY r.id DESC LIMIT 1",
+            $client_id
         ) );
         $context['report_summary'] = $report ? substr( $report->report_content, 0, 800 ) : null;
         $context['milestones']     = $report ? json_decode( $report->milestones, true ) : null;
 
-        // Latest practitioner note
+        // Latest practitioner note — JOIN form_progress.
         $latest_note = $wpdb->get_var( $wpdb->prepare(
-            "SELECT typed_notes FROM {$p}hdlv2_consultation_notes WHERE client_user_id = %d ORDER BY id DESC LIMIT 1", $client_id
+            "SELECT cn.typed_notes
+             FROM {$p}hdlv2_consultation_notes cn
+             INNER JOIN {$p}hdlv2_form_progress fp ON fp.id = cn.form_progress_id
+             WHERE cn.client_user_id = %d AND fp.deleted_at IS NULL
+             ORDER BY cn.id DESC LIMIT 1",
+            $client_id
         ) );
         $context['latest_note'] = $latest_note ? substr( $latest_note, 0, 500 ) : null;
 
         // Latest check-in
         $latest_ci = $wpdb->get_row( $wpdb->prepare(
-            "SELECT summary, adherence_scores, comfort_zone FROM {$p}hdlv2_checkins WHERE client_id = %d AND status = 'confirmed' ORDER BY week_start DESC LIMIT 1", $client_id
+            "SELECT summary, adherence_scores, comfort_zone
+             FROM {$p}hdlv2_checkins
+             WHERE client_id = %d AND status = 'confirmed' AND deleted_at IS NULL
+             ORDER BY week_start DESC LIMIT 1",
+            $client_id
         ) );
         $context['latest_checkin']  = $latest_ci ? json_decode( $latest_ci->summary, true ) : null;
         $context['latest_adherence'] = $latest_ci ? json_decode( $latest_ci->adherence_scores, true ) : null;
@@ -83,7 +113,9 @@ class HDLV2_Context_Builder {
         // Previous shopping list — only from plans that have started, so a future-dated
         // plan generated ahead doesn't get fed back as "previous" input to itself.
         $prev_shop = $wpdb->get_var( $wpdb->prepare(
-            "SELECT shopping_list FROM {$p}hdlv2_flight_plans WHERE client_id = %d AND week_start <= %s ORDER BY week_start DESC LIMIT 1",
+            "SELECT shopping_list FROM {$p}hdlv2_flight_plans
+             WHERE client_id = %d AND week_start <= %s AND deleted_at IS NULL
+             ORDER BY week_start DESC LIMIT 1",
             $client_id,
             current_time( 'Y-m-d' )
         ) );
@@ -93,19 +125,34 @@ class HDLV2_Context_Builder {
 
         // Tier 2 — Rolling window
         $context['recent_checkins'] = $wpdb->get_results( $wpdb->prepare(
-            "SELECT week_number, summary, adherence_scores, comfort_zone FROM {$p}hdlv2_checkins WHERE client_id = %d AND status = 'confirmed' ORDER BY week_start DESC LIMIT 4", $client_id
+            "SELECT week_number, summary, adherence_scores, comfort_zone
+             FROM {$p}hdlv2_checkins
+             WHERE client_id = %d AND status = 'confirmed' AND deleted_at IS NULL
+             ORDER BY week_start DESC LIMIT 4",
+            $client_id
         ) );
         // v0.31.0 — surface check-in IDs to the prompt's audit trail (R8).
         $context['checkin_ids'] = $wpdb->get_col( $wpdb->prepare(
-            "SELECT id FROM {$p}hdlv2_checkins WHERE client_id = %d AND status = 'confirmed' ORDER BY week_start DESC LIMIT 4", $client_id
+            "SELECT id FROM {$p}hdlv2_checkins
+             WHERE client_id = %d AND status = 'confirmed' AND deleted_at IS NULL
+             ORDER BY week_start DESC LIMIT 4",
+            $client_id
         ) );
 
         $context['recent_notes'] = $wpdb->get_col( $wpdb->prepare(
-            "SELECT typed_notes FROM {$p}hdlv2_consultation_notes WHERE client_user_id = %d ORDER BY id DESC LIMIT 3", $client_id
+            "SELECT cn.typed_notes
+             FROM {$p}hdlv2_consultation_notes cn
+             INNER JOIN {$p}hdlv2_form_progress fp ON fp.id = cn.form_progress_id
+             WHERE cn.client_user_id = %d AND fp.deleted_at IS NULL
+             ORDER BY cn.id DESC LIMIT 3",
+            $client_id
         ) );
 
         $context['recent_adherence'] = $wpdb->get_results( $wpdb->prepare(
-            "SELECT fp.week_number, fp.week_start FROM {$p}hdlv2_flight_plans fp WHERE fp.client_id = %d ORDER BY fp.week_start DESC LIMIT 4", $client_id
+            "SELECT fp.week_number, fp.week_start FROM {$p}hdlv2_flight_plans fp
+             WHERE fp.client_id = %d AND fp.deleted_at IS NULL
+             ORDER BY fp.week_start DESC LIMIT 4",
+            $client_id
         ) );
 
         // Comfort zone data
@@ -129,8 +176,13 @@ class HDLV2_Context_Builder {
         $context['engagement_signal'] = self::compute_engagement_signal( $client_id, $context['tick_adherence'] );
 
         // v0.31.0 — R8 audit trail: addenda tied to current consultation.
+        // v0.41.17 — JOIN form_progress for active-lifecycle scope.
         $context['addenda_ids'] = $wpdb->get_col( $wpdb->prepare(
-            "SELECT id FROM {$p}hdlv2_consultation_addenda WHERE client_id = %d ORDER BY id DESC LIMIT 10", $client_id
+            "SELECT a.id FROM {$p}hdlv2_consultation_addenda a
+             INNER JOIN {$p}hdlv2_form_progress fp ON fp.id = a.form_progress_id
+             WHERE a.client_user_id = %d AND fp.deleted_at IS NULL
+             ORDER BY a.id DESC LIMIT 10",
+            $client_id
         ) );
 
         // Adherence summary block (concise — 4 weeks worth) for audit JSON.
@@ -140,7 +192,10 @@ class HDLV2_Context_Builder {
 
         // Tier 3 — Monthly summaries
         $context['monthly_summaries'] = $wpdb->get_results( $wpdb->prepare(
-            "SELECT month_start, month_end, summary FROM {$p}hdlv2_monthly_summaries WHERE client_id = %d ORDER BY month_start DESC LIMIT 6", $client_id
+            "SELECT month_start, month_end, summary FROM {$p}hdlv2_monthly_summaries
+             WHERE client_id = %d AND deleted_at IS NULL
+             ORDER BY month_start DESC LIMIT 6",
+            $client_id
         ) );
 
         return $context;
@@ -166,9 +221,10 @@ class HDLV2_Context_Builder {
         global $wpdb;
         $p = $wpdb->prefix;
 
+        // v0.41.17 — `AND deleted_at IS NULL` on plans + ticks subqueries.
         $plans = $wpdb->get_results( $wpdb->prepare(
             "SELECT id, week_start FROM {$p}hdlv2_flight_plans
-             WHERE client_id = %d AND week_start <= %s
+             WHERE client_id = %d AND week_start <= %s AND deleted_at IS NULL
              ORDER BY week_start DESC LIMIT 4",
             $client_id, current_time( 'Y-m-d' )
         ) );
@@ -181,7 +237,7 @@ class HDLV2_Context_Builder {
                     SUM(CASE WHEN ticked = 1 THEN 1 ELSE 0 END)       AS ticked,
                     COUNT(DISTINCT CASE WHEN ticked = 1 THEN day END) AS days_active
                  FROM {$p}hdlv2_flight_plan_ticks
-                 WHERE flight_plan_id = %d",
+                 WHERE flight_plan_id = %d AND deleted_at IS NULL",
                 $plan->id
             ) );
             $total  = (int) ( $row->total  ?? 0 );
@@ -197,7 +253,7 @@ class HDLV2_Context_Builder {
                         COUNT(*) AS total,
                         SUM(CASE WHEN ticked = 1 THEN 1 ELSE 0 END) AS ticked
                  FROM {$p}hdlv2_flight_plan_ticks
-                 WHERE flight_plan_id = %d
+                 WHERE flight_plan_id = %d AND deleted_at IS NULL
                  GROUP BY category",
                 $plan->id
             ) );
@@ -242,7 +298,8 @@ class HDLV2_Context_Builder {
         $p = $wpdb->prefix;
 
         $latest_checkin_at = $wpdb->get_var( $wpdb->prepare(
-            "SELECT MAX(week_start) FROM {$p}hdlv2_checkins WHERE client_id = %d AND status = 'confirmed'",
+            "SELECT MAX(week_start) FROM {$p}hdlv2_checkins
+             WHERE client_id = %d AND status = 'confirmed' AND deleted_at IS NULL",
             $client_id
         ) );
         $checkin_recent = $latest_checkin_at && ( strtotime( $latest_checkin_at ) > strtotime( '-14 days' ) );
@@ -271,9 +328,14 @@ class HDLV2_Context_Builder {
         global $wpdb;
         $p = $wpdb->prefix;
 
-        // Find clients with 4+ confirmed check-ins that haven't been summarised
+        // Find clients with 4+ confirmed check-ins that haven't been summarised.
+        // v0.41.17 — `AND deleted_at IS NULL` so we don't try to summarise
+        // archived lifecycles (their data would already be excluded from the
+        // monthly summary writes anyway, but skip the cron work entirely).
         $clients = $wpdb->get_col(
-            "SELECT DISTINCT client_id FROM {$p}hdlv2_checkins WHERE status = 'confirmed' GROUP BY client_id HAVING COUNT(*) >= 4"
+            "SELECT DISTINCT client_id FROM {$p}hdlv2_checkins
+             WHERE status = 'confirmed' AND deleted_at IS NULL
+             GROUP BY client_id HAVING COUNT(*) >= 4"
         );
 
         $api_key = defined( 'HDLV2_ANTHROPIC_API_KEY' ) ? HDLV2_ANTHROPIC_API_KEY : '';
@@ -283,7 +345,9 @@ class HDLV2_Context_Builder {
         foreach ( $clients as $client_id ) {
             // Get the last 4 unsummarised check-ins
             $last_summary = $wpdb->get_var( $wpdb->prepare(
-                "SELECT MAX(month_end) FROM {$p}hdlv2_monthly_summaries WHERE client_id = %d", $client_id
+                "SELECT MAX(month_end) FROM {$p}hdlv2_monthly_summaries
+                 WHERE client_id = %d AND deleted_at IS NULL",
+                $client_id
             ) );
 
             $where_date = $last_summary
@@ -291,7 +355,9 @@ class HDLV2_Context_Builder {
                 : '';
 
             $checkins = $wpdb->get_results( $wpdb->prepare(
-                "SELECT week_start, summary, adherence_scores, comfort_zone FROM {$p}hdlv2_checkins WHERE client_id = %d AND status = 'confirmed'{$where_date} ORDER BY week_start ASC LIMIT 4",
+                "SELECT week_start, summary, adherence_scores, comfort_zone FROM {$p}hdlv2_checkins
+                 WHERE client_id = %d AND status = 'confirmed' AND deleted_at IS NULL{$where_date}
+                 ORDER BY week_start ASC LIMIT 4",
                 $client_id
             ) );
 
@@ -326,9 +392,12 @@ class HDLV2_Context_Builder {
             $month_end   = $checkins[ count( $checkins ) - 1 ]->week_start;
             $checkin_ids = array_map( function ( $c ) { return $c->week_start; }, $checkins );
 
-            // Get practitioner_id
+            // Get practitioner_id (current lifecycle only).
             $prac_id = $wpdb->get_var( $wpdb->prepare(
-                "SELECT practitioner_id FROM {$p}hdlv2_checkins WHERE client_id = %d LIMIT 1", $client_id
+                "SELECT practitioner_id FROM {$p}hdlv2_checkins
+                 WHERE client_id = %d AND deleted_at IS NULL
+                 LIMIT 1",
+                $client_id
             ) );
 
             $wpdb->insert( $p . 'hdlv2_monthly_summaries', array(

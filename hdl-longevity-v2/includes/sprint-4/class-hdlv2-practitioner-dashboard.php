@@ -182,6 +182,12 @@ class HDLV2_Practitioner_Dashboard {
         wp_localize_script( 'hdlv2-client-list-enhance', 'hdlv2_client_enhance', array(
             'api_base'         => rest_url( 'hdl-v2/v1' ),
             'nonce'            => wp_create_nonce( 'wp_rest' ),
+            // v0.41.14 — separate nonce for the V1 wp_ajax_health_tracker_delete_client
+            // endpoint, which expects health_tracker_nonce (not wp_rest). Lets the V2
+            // splicer's delete-client button reuse V1's battle-tested soft-delete handler
+            // without duplicating backend logic. Endpoint URL is admin-ajax.php.
+            'delete_nonce'     => wp_create_nonce( 'health_tracker_nonce' ),
+            'ajax_url'         => admin_url( 'admin-ajax.php' ),
             'consultation_url' => home_url( '/' . trim( $consultation_slug, '/' ) . '/' ),
             'flight_plan_url'  => home_url( '/' . trim( $flight_plan_slug, '/' ) . '/' ),
         ) );

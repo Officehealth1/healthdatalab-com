@@ -45,8 +45,11 @@ class HDLV2_Flight_Plan {
      */
     public function repair_sparse_plan( $client_id, $practitioner_id, $sparse_plan_id ) {
         global $wpdb;
+        // v0.41.17 — `AND deleted_at IS NULL`. Auto-repair must not target
+        // a soft-deleted plan (would otherwise overwrite an archived row).
         $row = $wpdb->get_row( $wpdb->prepare(
-            "SELECT week_start FROM {$wpdb->prefix}hdlv2_flight_plans WHERE id = %d LIMIT 1",
+            "SELECT week_start FROM {$wpdb->prefix}hdlv2_flight_plans
+             WHERE id = %d AND deleted_at IS NULL LIMIT 1",
             (int) $sparse_plan_id
         ) );
         if ( ! $row ) {
@@ -152,8 +155,12 @@ class HDLV2_Flight_Plan {
         }
 
         global $wpdb;
+        // v0.41.17 — `AND deleted_at IS NULL`. Stale tokens for soft-deleted
+        // assessments must not grant access to flight-plan endpoints.
         $progress = $wpdb->get_row( $wpdb->prepare(
-            "SELECT client_user_id FROM {$wpdb->prefix}hdlv2_form_progress WHERE token = %s LIMIT 1", $token
+            "SELECT client_user_id FROM {$wpdb->prefix}hdlv2_form_progress
+             WHERE token = %s AND deleted_at IS NULL LIMIT 1",
+            $token
         ) );
         if ( ! $progress ) {
             return new WP_Error( 'unauthorized', 'Invalid token.', array( 'status' => 403 ) );
@@ -181,8 +188,13 @@ class HDLV2_Flight_Plan {
         // generation (consistently the richest, with all ticks) wins. New
         // rows post-Phase-I migration can't duplicate (DB unique index),
         // but this protects clients still on STBY with pre-migration data.
+        // v0.41.17 — `AND deleted_at IS NULL`. Plans from a prior lifecycle
+        // (Phase T cascade soft-delete) must not surface on the client's
+        // current Flight Plan view.
         $plan = $wpdb->get_row( $wpdb->prepare(
-            "SELECT * FROM {$wpdb->prefix}hdlv2_flight_plans WHERE client_id = %d AND week_start <= %s ORDER BY week_start DESC, id DESC LIMIT 1",
+            "SELECT * FROM {$wpdb->prefix}hdlv2_flight_plans
+             WHERE client_id = %d AND week_start <= %s AND deleted_at IS NULL
+             ORDER BY week_start DESC, id DESC LIMIT 1",
             $client_id,
             current_time( 'Y-m-d' )
         ) );
@@ -190,8 +202,13 @@ class HDLV2_Flight_Plan {
             return rest_ensure_response( array( 'plan' => null ) );
         }
 
+        // v0.41.17 — ticks for an active plan can themselves be archived
+        // (admin restored the plan but kept ticks soft-deleted in extreme
+        // edge cases). Filter for safety.
         $ticks = $wpdb->get_results( $wpdb->prepare(
-            "SELECT * FROM {$wpdb->prefix}hdlv2_flight_plan_ticks WHERE flight_plan_id = %d ORDER BY day, time_slot",
+            "SELECT * FROM {$wpdb->prefix}hdlv2_flight_plan_ticks
+             WHERE flight_plan_id = %d AND deleted_at IS NULL
+             ORDER BY day, time_slot",
             $plan->id
         ) );
 
@@ -231,7 +248,8 @@ class HDLV2_Flight_Plan {
         $today_in_window  = strtotime( current_time( 'Y-m-d' ) ) >= strtotime( $plan->week_start );
         if ( $today_in_window ) {
             $distinct_days = (int) $wpdb->get_var( $wpdb->prepare(
-                "SELECT COUNT(DISTINCT day) FROM {$wpdb->prefix}hdlv2_flight_plan_ticks WHERE flight_plan_id = %d",
+                "SELECT COUNT(DISTINCT day) FROM {$wpdb->prefix}hdlv2_flight_plan_ticks
+                 WHERE flight_plan_id = %d AND deleted_at IS NULL",
                 $plan->id
             ) );
             // Effective start day determines how many days we EXPECT.
@@ -259,9 +277,11 @@ class HDLV2_Flight_Plan {
                 if ( ! $produced_with_new_path && $stale_lock ) {
                     update_user_meta( $client_id, 'hdlv2_plan_repair_at', time() );
                     // Find the practitioner so we can pass it through.
+                    // v0.41.17 — `AND deleted_at IS NULL`.
                     $prac_id = (int) $wpdb->get_var( $wpdb->prepare(
                         "SELECT practitioner_user_id FROM {$wpdb->prefix}hdlv2_form_progress
-                         WHERE client_user_id = %d ORDER BY id DESC LIMIT 1",
+                         WHERE client_user_id = %d AND deleted_at IS NULL
+                         ORDER BY id DESC LIMIT 1",
                         $client_id
                     ) );
                     if ( $prac_id ) {
@@ -363,11 +383,14 @@ class HDLV2_Flight_Plan {
 
         // Look up the tick's plan + client via the join, used both for access
         // verification and for the post-update adherence recompute.
+        // v0.41.17 — exclude archived ticks/plans from this lookup so a tick
+        // POST against a soft-deleted plan returns 404 (not silently updates).
         global $wpdb;
         $tick_row = $wpdb->get_row( $wpdb->prepare(
             "SELECT t.flight_plan_id, fp.client_id FROM {$wpdb->prefix}hdlv2_flight_plan_ticks t
              JOIN {$wpdb->prefix}hdlv2_flight_plans fp ON fp.id = t.flight_plan_id
-             WHERE t.id = %d", $tick_id
+             WHERE t.id = %d AND t.deleted_at IS NULL AND fp.deleted_at IS NULL",
+            $tick_id
         ) );
         if ( ! $tick_row ) return new WP_Error( 'not_found', 'Tick not found.', array( 'status' => 404 ) );
 
@@ -400,10 +423,13 @@ class HDLV2_Flight_Plan {
         $ticked  = ! empty( $params['ticked'] );
         if ( ! $plan_id ) return new WP_Error( 'missing', 'Plan ID required.', array( 'status' => 400 ) );
 
-        // Verify the plan's client_id matches the requester's token
+        // Verify the plan's client_id matches the requester's token.
+        // v0.41.17 — soft-deleted plans must not accept tick-all writes.
         global $wpdb;
         $plan_client = $wpdb->get_var( $wpdb->prepare(
-            "SELECT client_id FROM {$wpdb->prefix}hdlv2_flight_plans WHERE id = %d", $plan_id
+            "SELECT client_id FROM {$wpdb->prefix}hdlv2_flight_plans
+             WHERE id = %d AND deleted_at IS NULL",
+            $plan_id
         ) );
         if ( ! $plan_client ) return new WP_Error( 'not_found', 'Plan not found.', array( 'status' => 404 ) );
 
@@ -447,8 +473,12 @@ class HDLV2_Flight_Plan {
         }
 
         global $wpdb;
+        // v0.41.17 — `AND deleted_at IS NULL`. Adherence chart must skip
+        // archived plans.
         $plans = $wpdb->get_results( $wpdb->prepare(
-            "SELECT id, week_number, week_start FROM {$wpdb->prefix}hdlv2_flight_plans WHERE client_id = %d ORDER BY week_start DESC LIMIT 8",
+            "SELECT id, week_number, week_start FROM {$wpdb->prefix}hdlv2_flight_plans
+             WHERE client_id = %d AND deleted_at IS NULL
+             ORDER BY week_start DESC LIMIT 8",
             $client_id
         ) );
 
@@ -469,8 +499,12 @@ class HDLV2_Flight_Plan {
         $offset = ( $page - 1 ) * 10;
 
         global $wpdb;
+        // v0.41.17 — `AND deleted_at IS NULL`.
         $plans = $wpdb->get_results( $wpdb->prepare(
-            "SELECT id, week_number, week_start, identity_statement, status, created_at FROM {$wpdb->prefix}hdlv2_flight_plans WHERE client_id = %d ORDER BY week_start DESC LIMIT 10 OFFSET %d",
+            "SELECT id, week_number, week_start, identity_statement, status, created_at
+             FROM {$wpdb->prefix}hdlv2_flight_plans
+             WHERE client_id = %d AND deleted_at IS NULL
+             ORDER BY week_start DESC LIMIT 10 OFFSET %d",
             $client_id, $offset
         ) );
 
@@ -552,8 +586,14 @@ class HDLV2_Flight_Plan {
         $plans_table = $wpdb->prefix . 'hdlv2_flight_plans';
         $ticks_table = $wpdb->prefix . 'hdlv2_flight_plan_ticks';
 
+        // v0.41.17 — `AND deleted_at IS NULL`. A soft-deleted "existing"
+        // plan must not block a fresh lifecycle's plan generation. Without
+        // this, re-inviting a client whose old Flight Plan was cascade-
+        // soft-deleted would silently return the archived plan_id.
         $existing_id = $wpdb->get_var( $wpdb->prepare(
-            "SELECT id FROM $plans_table WHERE client_id = %d AND week_start = %s LIMIT 1",
+            "SELECT id FROM $plans_table
+             WHERE client_id = %d AND week_start = %s AND deleted_at IS NULL
+             LIMIT 1",
             $client_id, $week_start
         ) );
 
@@ -773,14 +813,20 @@ class HDLV2_Flight_Plan {
         // and the client will see the Download PDF button next time they
         // visit the plan page.
         if ( $send_email && class_exists( 'HDLV2_Email_Templates' ) ) {
+            // v0.41.17 — `AND deleted_at IS NULL`. Don't email an archived
+            // client's old token (which is now invalid anyway via P0-2).
             $fp_progress = $wpdb->get_row( $wpdb->prepare(
-                "SELECT client_name, client_email, token, practitioner_user_id FROM {$wpdb->prefix}hdlv2_form_progress WHERE client_user_id = %d ORDER BY id DESC LIMIT 1",
+                "SELECT client_name, client_email, token, practitioner_user_id
+                 FROM {$wpdb->prefix}hdlv2_form_progress
+                 WHERE client_user_id = %d AND deleted_at IS NULL
+                 ORDER BY id DESC LIMIT 1",
                 $client_id
             ) );
             if ( $fp_progress && $fp_progress->client_email ) {
                 $plan_url = site_url( '/my-flight-plan/?token=' . $fp_progress->token );
                 $current_pdf = $wpdb->get_var( $wpdb->prepare(
-                    "SELECT pdf_url FROM {$wpdb->prefix}hdlv2_flight_plans WHERE id = %d",
+                    "SELECT pdf_url FROM {$wpdb->prefix}hdlv2_flight_plans
+                     WHERE id = %d AND deleted_at IS NULL",
                     $plan_id
                 ) );
                 // v0.36.23 — drop inline 'there' fallback; derive_first_name()
@@ -826,8 +872,12 @@ class HDLV2_Flight_Plan {
         // and silently return — leaving the client with no live plan after
         // every Save & Update Plan. Now: live row = no-op (auto-fire path);
         // archived/completed = replace via $force=true.
+        // v0.41.17 — `AND deleted_at IS NULL`. A soft-deleted plan for the
+        // same week must not block a fresh lifecycle's plan generation.
         $existing = $wpdb->get_row( $wpdb->prepare(
-            "SELECT id, status FROM {$wpdb->prefix}hdlv2_flight_plans WHERE client_id = %d AND week_start = %s LIMIT 1",
+            "SELECT id, status FROM {$wpdb->prefix}hdlv2_flight_plans
+             WHERE client_id = %d AND week_start = %s AND deleted_at IS NULL
+             LIMIT 1",
             $client_id, $week_start
         ) );
         $force = false;
@@ -840,9 +890,11 @@ class HDLV2_Flight_Plan {
             $force = true;
         }
 
-        // Get practitioner
+        // Get practitioner. v0.41.17 — `AND deleted_at IS NULL`.
         $prac_id = $wpdb->get_var( $wpdb->prepare(
-            "SELECT practitioner_user_id FROM {$wpdb->prefix}hdlv2_form_progress WHERE client_user_id = %d ORDER BY id DESC LIMIT 1",
+            "SELECT practitioner_user_id FROM {$wpdb->prefix}hdlv2_form_progress
+             WHERE client_user_id = %d AND deleted_at IS NULL
+             ORDER BY id DESC LIMIT 1",
             $client_id
         ) );
 
@@ -902,9 +954,13 @@ class HDLV2_Flight_Plan {
             return;
         }
 
+        // v0.41.17 — `AND deleted_at IS NULL`. Never fire the PDFMonkey
+        // webhook for an archived plan. Phase T cascade puts plans into
+        // deleted_at when the client was removed.
         global $wpdb;
         $plan = $wpdb->get_row( $wpdb->prepare(
-            "SELECT * FROM {$wpdb->prefix}hdlv2_flight_plans WHERE id = %d",
+            "SELECT * FROM {$wpdb->prefix}hdlv2_flight_plans
+             WHERE id = %d AND deleted_at IS NULL",
             $plan_id
         ) );
         if ( ! $plan ) return;
@@ -916,8 +972,12 @@ class HDLV2_Flight_Plan {
         // Final Report and Stage 2 with file-existence validation built in.
         $prac_logo = HDLV2_Practitioner::get_logo_url( (int) $plan->practitioner_id );
 
+        // v0.41.17 — `AND deleted_at IS NULL`. Skip stale tokens from
+        // archived lifecycles.
         $fp_token = $wpdb->get_var( $wpdb->prepare(
-            "SELECT token FROM {$wpdb->prefix}hdlv2_form_progress WHERE client_user_id = %d ORDER BY id DESC LIMIT 1",
+            "SELECT token FROM {$wpdb->prefix}hdlv2_form_progress
+             WHERE client_user_id = %d AND deleted_at IS NULL
+             ORDER BY id DESC LIMIT 1",
             $plan->client_id
         ) );
 
@@ -1239,13 +1299,16 @@ class HDLV2_Flight_Plan {
         try {
 
         foreach ( $cats as $cat ) {
-            $total = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM $table WHERE flight_plan_id = %d AND category = %s", $plan_id, $cat ) );
-            $done  = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM $table WHERE flight_plan_id = %d AND category = %s AND ticked = 1", $plan_id, $cat ) );
+            // v0.41.17 — `AND deleted_at IS NULL`. Adherence percentages must
+            // exclude archived ticks.
+            $total = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM $table WHERE flight_plan_id = %d AND category = %s AND deleted_at IS NULL", $plan_id, $cat ) );
+            $done  = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM $table WHERE flight_plan_id = %d AND category = %s AND ticked = 1 AND deleted_at IS NULL", $plan_id, $cat ) );
             $scores[ $cat ] = $total > 0 ? round( $done / $total * 100 ) : 0;
         }
 
-        $total_all = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM $table WHERE flight_plan_id = %d", $plan_id ) );
-        $done_all  = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM $table WHERE flight_plan_id = %d AND ticked = 1", $plan_id ) );
+        // v0.41.17 — `AND deleted_at IS NULL`.
+        $total_all = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM $table WHERE flight_plan_id = %d AND deleted_at IS NULL", $plan_id ) );
+        $done_all  = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM $table WHERE flight_plan_id = %d AND ticked = 1 AND deleted_at IS NULL", $plan_id ) );
         $scores['overall'] = $total_all > 0 ? round( $done_all / $total_all * 100 ) : 0;
 
         // 5.9 — Store adherence summary on the flight plan record
@@ -1262,8 +1325,14 @@ class HDLV2_Flight_Plan {
         // Upsert by (client_id, entry_type='adherence', date=week_start) — every
         // tick toggle calls this; a plain INSERT would create N rows per week.
         if ( $write_timeline && class_exists( 'HDLV2_Timeline' ) ) {
+            // v0.41.17 — `AND deleted_at IS NULL`. Don't write timeline
+            // entries for an archived plan; the cascade would have soft-
+            // deleted those too anyway.
             $plan = $wpdb->get_row( $wpdb->prepare(
-                "SELECT client_id, practitioner_id, week_number, week_start FROM {$wpdb->prefix}hdlv2_flight_plans WHERE id = %d", $plan_id
+                "SELECT client_id, practitioner_id, week_number, week_start
+                 FROM {$wpdb->prefix}hdlv2_flight_plans
+                 WHERE id = %d AND deleted_at IS NULL",
+                $plan_id
             ) );
             if ( $plan ) {
                 $title    = sprintf( 'Week %d adherence: %d%%', $plan->week_number, $scores['overall'] );
@@ -1275,6 +1344,7 @@ class HDLV2_Flight_Plan {
                 $existing_id = $wpdb->get_var( $wpdb->prepare(
                     "SELECT id FROM {$wpdb->prefix}hdlv2_timeline
                      WHERE client_id = %d AND entry_type = 'adherence' AND date = %s
+                       AND deleted_at IS NULL
                      ORDER BY id DESC LIMIT 1",
                     $plan->client_id, $plan->week_start
                 ) );
@@ -1533,10 +1603,13 @@ TODAY: " . date( 'Y-m-d' );
         global $wpdb;
         $today = strtolower( date( 'l' ) );
 
+        // v0.41.17 — `AND fp.deleted_at IS NULL`. Don't generate weekly
+        // Flight Plans for soft-deleted clients.
         $clients = $wpdb->get_results(
             "SELECT DISTINCT fp.client_user_id, fp.practitioner_user_id
              FROM {$wpdb->prefix}hdlv2_form_progress fp
-             WHERE fp.stage3_completed_at IS NOT NULL AND fp.client_user_id IS NOT NULL"
+             WHERE fp.stage3_completed_at IS NOT NULL AND fp.client_user_id IS NOT NULL
+               AND fp.deleted_at IS NULL"
         );
 
         $count   = 0;
@@ -1551,9 +1624,13 @@ TODAY: " . date( 'Y-m-d' );
             // Saturday) to produce the plan for the UPCOMING week. Never for
             // the week already in progress — that plan already exists (it was
             // created after the final report or the previous check-in).
+            // v0.41.17 — `AND deleted_at IS NULL` so archived plans don't
+            // block a fresh-lifecycle weekly generation.
             $week_start = date( 'Y-m-d', strtotime( 'next monday' ) );
             $existing = $wpdb->get_var( $wpdb->prepare(
-                "SELECT id FROM {$wpdb->prefix}hdlv2_flight_plans WHERE client_id = %d AND week_start = %s LIMIT 1",
+                "SELECT id FROM {$wpdb->prefix}hdlv2_flight_plans
+                 WHERE client_id = %d AND week_start = %s AND deleted_at IS NULL
+                 LIMIT 1",
                 $c->client_user_id, $week_start
             ) );
             if ( $existing ) continue;
@@ -1597,9 +1674,12 @@ TODAY: " . date( 'Y-m-d' );
     private function log_zero_engagement_skip( $client_id, $practitioner_id ) {
         global $wpdb;
         $week_start = date( 'Y-m-d', strtotime( 'next monday' ) );
+        // v0.41.17 — `AND deleted_at IS NULL` on the dedup lookup so archived
+        // timeline entries don't suppress a fresh-lifecycle skip log.
         $existing   = $wpdb->get_var( $wpdb->prepare(
             "SELECT id FROM {$wpdb->prefix}hdlv2_timeline
              WHERE client_id = %d AND entry_type = 'engagement_skip' AND date = %s
+               AND deleted_at IS NULL
              ORDER BY id DESC LIMIT 1",
             (int) $client_id, $week_start
         ) );
@@ -1631,8 +1711,12 @@ TODAY: " . date( 'Y-m-d' );
         $tok = isset( $_GET['token'] ) ? sanitize_text_field( $_GET['token'] ) : '';
         if ( $tok && preg_match( '/^[a-f0-9]{64}$/', $tok ) ) {
             global $wpdb;
+            // v0.41.17 — `AND deleted_at IS NULL`. Old tokens for archived
+            // assessments must not surface a client_id to the shortcode.
             $progress = $wpdb->get_row( $wpdb->prepare(
-                "SELECT client_user_id FROM {$wpdb->prefix}hdlv2_form_progress WHERE token = %s LIMIT 1", $tok
+                "SELECT client_user_id FROM {$wpdb->prefix}hdlv2_form_progress
+                 WHERE token = %s AND deleted_at IS NULL LIMIT 1",
+                $tok
             ) );
             if ( $progress ) $client_id = (int) $progress->client_user_id;
         }

@@ -76,10 +76,12 @@ class HDLV2_Client_Draft_View {
 
         global $wpdb;
 
+        // v0.41.17 — `AND deleted_at IS NULL`. Stale tokens for soft-deleted
+        // assessments must not load draft/final report data.
         $progress = $wpdb->get_row( $wpdb->prepare(
             "SELECT id, client_user_id, practitioner_user_id, client_name, stage1_data, stage3_data, stage3_completed_at
              FROM {$wpdb->prefix}hdlv2_form_progress
-             WHERE token = %s
+             WHERE token = %s AND deleted_at IS NULL
              LIMIT 1",
             $token
         ) );
@@ -369,8 +371,10 @@ class HDLV2_Client_Draft_View {
                        : ( isset( $_GET['token'] ) ? sanitize_text_field( wp_unslash( $_GET['token'] ) ) : '' );
             if ( $nav_token && preg_match( '/^[a-f0-9]{64}$/', $nav_token ) ) {
                 global $wpdb;
+                // v0.41.17 — `AND deleted_at IS NULL`.
                 $nav_row = $wpdb->get_row( $wpdb->prepare(
-                    "SELECT client_user_id, practitioner_user_id FROM {$wpdb->prefix}hdlv2_form_progress WHERE token = %s LIMIT 1",
+                    "SELECT client_user_id, practitioner_user_id FROM {$wpdb->prefix}hdlv2_form_progress
+                     WHERE token = %s AND deleted_at IS NULL LIMIT 1",
                     $nav_token
                 ) );
                 $current_uid = get_current_user_id();

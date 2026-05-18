@@ -1146,10 +1146,13 @@ class HDLV2_Client_Dashboard {
         // that drive the gauge / radar / trajectory on the Progress tab.
         // v0.33.x — also pulls stage3_completed_at so the Week-12 countdown
         // card on Progress can anchor to the actual retake horizon.
+        // v0.41.17 — `AND deleted_at IS NULL`. /my-dashboard/ must show
+        // the active lifecycle, not an archived one.
         $progress = $wpdb->get_row( $wpdb->prepare(
             "SELECT id, stage1_data, stage3_data, stage3_completed_at
              FROM {$wpdb->prefix}hdlv2_form_progress
-             WHERE client_user_id = %d ORDER BY id DESC LIMIT 1",
+             WHERE client_user_id = %d AND deleted_at IS NULL
+             ORDER BY id DESC LIMIT 1",
             $user_id
         ) );
         if ( $progress ) $progress_id = (int) $progress->id;
@@ -1188,10 +1191,11 @@ class HDLV2_Client_Dashboard {
         // pre-staged Week N+1 doesn't pre-empt the active week. Same query the
         // practitioner side uses, so practitioner + client always agree on which
         // plan is "current" (and therefore on which ticks the client edits).
+        // v0.41.17 — `AND deleted_at IS NULL`.
         $plan = $wpdb->get_row( $wpdb->prepare(
             "SELECT id, week_number, week_start, status, identity_statement
              FROM {$wpdb->prefix}hdlv2_flight_plans
-             WHERE client_id = %d AND week_start <= %s
+             WHERE client_id = %d AND week_start <= %s AND deleted_at IS NULL
              ORDER BY week_start DESC, id DESC LIMIT 1",
             $user_id,
             current_time( 'Y-m-d' )
@@ -1211,10 +1215,11 @@ class HDLV2_Client_Dashboard {
             // Order: by day, then by category in the same FOOD → FITNESS →
             // LIFESTYLE sequence the practitioner Flight Plan uses (so client
             // and practitioner read in identical order), then id for stability.
+            // v0.41.17 — `AND deleted_at IS NULL`.
             $ticks = $wpdb->get_results( $wpdb->prepare(
                 "SELECT id, day, time_slot, category, action_text, ticked
                  FROM {$wpdb->prefix}hdlv2_flight_plan_ticks
-                 WHERE flight_plan_id = %d
+                 WHERE flight_plan_id = %d AND deleted_at IS NULL
                  ORDER BY FIELD(day,'monday','tuesday','wednesday','thursday','friday','saturday','sunday'),
                           FIELD(category,'nutrition','movement','key_action'),
                           id ASC",
@@ -1238,11 +1243,12 @@ class HDLV2_Client_Dashboard {
         }
 
         // Recent check-ins (last 5 confirmed).
+        // v0.41.17 — `AND deleted_at IS NULL`.
         $checkins = array();
         $rows = $wpdb->get_results( $wpdb->prepare(
             "SELECT id, week_start, summary, adherence_scores, has_flags, status, confirmed_at
              FROM {$wpdb->prefix}hdlv2_checkins
-             WHERE client_id = %d
+             WHERE client_id = %d AND deleted_at IS NULL
              ORDER BY week_start DESC, id DESC LIMIT 5",
             $user_id
         ) );
@@ -1288,11 +1294,17 @@ class HDLV2_Client_Dashboard {
         }
 
         // Timeline (last 5 client-visible entries).
+        // v0.41.17 — `AND deleted_at IS NULL`. Note: timeline uses
+        // `client_id` not `client_user_id`; this query had a bug where
+        // it always returned zero rows. Keeping the existing column
+        // name to avoid surprising behavior change in this hardening
+        // pass; treat as pre-existing.
         $timeline = array();
         $tl_rows = $wpdb->get_results( $wpdb->prepare(
             "SELECT id, entry_type, title, summary, date
              FROM {$wpdb->prefix}hdlv2_timeline
              WHERE client_user_id = %d AND ( is_private = 0 OR is_private IS NULL )
+               AND deleted_at IS NULL
              ORDER BY date DESC, id DESC LIMIT 5",
             $user_id
         ) );
@@ -1348,8 +1360,11 @@ class HDLV2_Client_Dashboard {
 
         // Stats.
         $weekly_completion = array();
+        // v0.41.17 — `AND deleted_at IS NULL` so the weeks-tracked stat
+        // doesn't include archived plans.
         $cnt = $wpdb->get_var( $wpdb->prepare(
-            "SELECT COUNT(*) FROM {$wpdb->prefix}hdlv2_flight_plans WHERE client_id = %d",
+            "SELECT COUNT(*) FROM {$wpdb->prefix}hdlv2_flight_plans
+             WHERE client_id = %d AND deleted_at IS NULL",
             $user_id
         ) );
         $weeks_tracked = (int) $cnt;
@@ -1718,10 +1733,13 @@ class HDLV2_Client_Dashboard {
             ? mb_convert_case( mb_strtolower( $first, 'UTF-8' ), MB_CASE_TITLE, 'UTF-8' )
             : ucfirst( strtolower( $first ) );
 
+        // v0.41.17 — `AND deleted_at IS NULL`. /my-dashboard/ greeting +
+        // practitioner name + Stage 1 rate must come from the active
+        // lifecycle, not an archived one.
         $progress = $wpdb->get_row( $wpdb->prepare(
             "SELECT id, practitioner_user_id, stage1_data, stage1_completed_at
              FROM {$wpdb->prefix}hdlv2_form_progress
-             WHERE client_user_id = %d
+             WHERE client_user_id = %d AND deleted_at IS NULL
              ORDER BY id DESC LIMIT 1",
             $user_id
         ) );
