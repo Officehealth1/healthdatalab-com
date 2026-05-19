@@ -1703,16 +1703,23 @@
     if (!clientId) return;
     var row = btn.closest('.client-row');
 
-    // v0.41.16 — V1-aligned wording. Re-inviting the same email after removal
-    // creates a NEW assessment; it does NOT restore archived data. Restoration
-    // of archived assessment / check-in / report / Flight Plan data requires
-    // admin contact + a $89 fee (mirrors V1's class-admin-restore policy and
-    // is processed via the Tools → V2 Restore admin page).
+    // v0.41.18 — V1-aligned wording, retention policy clarified.
+    //   - Soft-delete archives every V2 surface (form_progress + check-ins +
+    //     timeline + Flight Plans + monthly summaries + reports + why_profile
+    //     + consultation notes) + the V1 link row.
+    //   - Re-invite creates a fresh form_progress; it does NOT auto-restore
+    //     archived data.
+    //   - Data is retained INDEFINITELY by default — no purge cron. Admin
+    //     restore (Tools → V2 Restore, $89 fee) brings everything back at
+    //     any point, no time limit.
+    //   - Permanent deletion happens only on explicit client request
+    //     (GDPR Article 17, right-to-be-forgotten) via the admin page.
     var body =
       'This archives ' + name + "'s assessment data — Stage 1, 2, 3, check-ins, reports, and Flight Plans. " +
       'They will no longer appear in your dashboard.\n\n' +
-      '⚠ Re-inviting the same email later creates a new assessment — it will NOT restore previous data.\n\n' +
-      'To recover archived data, contact office@healthdatalab.com ($89 admin fee).';
+      '⚠ Re-inviting the same email later creates a NEW assessment — it will NOT restore previous data.\n\n' +
+      'Archived data is kept indefinitely. To recover, contact office@healthdatalab.com ($89 admin fee, no time limit).\n\n' +
+      'Permanent deletion only happens on explicit client request (GDPR).';
     var ask = (window.HDLV2UI && window.HDLV2UI.confirm)
       ? window.HDLV2UI.confirm({
           title: 'Remove ' + name + ' from your clients?',
