@@ -1560,16 +1560,22 @@ class HDLV2_Staged_Form {
      *
      * @param float $rate Rate of ageing (any range).
      * @param array $opts {
-     *   bool  stage3    True → 0.5-2.0 bounds (Final Report path).
-     *   float minValue  Explicit override (wins over stage3 flag).
-     *   float maxValue  Explicit override.
+     *   bool  stage3      True → 0.5-2.0 bounds (Final Report path).
+     *   float minValue    Explicit override (wins over stage3 flag).
+     *   float maxValue    Explicit override.
+     *   bool  show_value  v0.41.20 — when true, flip valueLabel + subtitle
+     *                     back ON. Default false keeps the PDFMonkey path
+     *                     untouched (template renders the value below the
+     *                     image). Practitioner panel sets this so the
+     *                     centred numeric reads inside the dial.
      * }
      */
     public static function build_gauge_url( $rate, $opts = array() ) {
-        $opts     = is_array( $opts ) ? $opts : array();
-        $stage3   = ! empty( $opts['stage3'] );
-        $minValue = isset( $opts['minValue'] ) ? (float) $opts['minValue'] : ( $stage3 ? 0.5 : 0.8 );
-        $maxValue = isset( $opts['maxValue'] ) ? (float) $opts['maxValue'] : ( $stage3 ? 2.0 : 1.4 );
+        $opts       = is_array( $opts ) ? $opts : array();
+        $stage3     = ! empty( $opts['stage3'] );
+        $show_value = ! empty( $opts['show_value'] );
+        $minValue   = isset( $opts['minValue'] ) ? (float) $opts['minValue'] : ( $stage3 ? 0.5 : 0.8 );
+        $maxValue   = isset( $opts['maxValue'] ) ? (float) $opts['maxValue'] : ( $stage3 ? 2.0 : 1.4 );
 
         $clamped = max( $minValue, min( $maxValue, round( (float) $rate, 2 ) ) );
 
@@ -1623,15 +1629,18 @@ class HDLV2_Staged_Form {
             'options' => array(
                 'layout'     => array( 'padding' => array( 'top' => 30, 'bottom' => 15, 'left' => 15, 'right' => 15 ) ),
                 'needle'     => array( 'radiusPercentage' => 2.5, 'widthPercentage' => 4.0, 'lengthPercentage' => 68, 'color' => '#004F59', 'shadowColor' => 'rgba(0,79,89,0.4)', 'shadowBlur' => 8, 'shadowOffsetY' => 4, 'borderWidth' => 2, 'borderColor' => 'rgba(255,255,255,1.0)' ),
-                // v0.28.10 — valueLabel + subtitle disabled. The PDFMonkey
-                // template now renders the value below the gauge image (big
-                // 0.96×) and the band labels (SLOWER / AVG / FASTER) as a
-                // rotated SVG overlay above the dial, so the gauge image
+                // v0.28.10 — valueLabel + subtitle DEFAULT to off. The
+                // PDFMonkey template renders the value below the gauge image
+                // (big 0.96×) and the band labels (SLOWER / AVG / FASTER) as
+                // a rotated SVG overlay above the dial, so the gauge image
                 // itself shouldn't double-print either.
-                'valueLabel' => array( 'display' => false, 'fontSize' => 36, 'fontFamily' => "'Inter',sans-serif", 'fontWeight' => 'bold', 'color' => '#004F59', 'backgroundColor' => 'transparent', 'bottomMarginPercentage' => -10, 'padding' => 8 ),
+                // v0.41.20 — show_value opt re-enables both for the
+                // practitioner expand-panel context (no SVG overlay, no
+                // template numeric below — the gauge stands alone).
+                'valueLabel' => array( 'display' => (bool) $show_value, 'fontSize' => 36, 'fontFamily' => "'Inter',sans-serif", 'fontWeight' => 'bold', 'color' => '#004F59', 'backgroundColor' => 'transparent', 'bottomMarginPercentage' => -10, 'padding' => 8 ),
                 'centerArea' => array( 'displayText' => false, 'backgroundColor' => 'transparent' ),
                 'arc'        => array( 'borderWidth' => 0, 'padding' => 2, 'margin' => 3, 'roundedCorners' => true ),
-                'subtitle'   => array( 'display' => false, 'text' => $interp, 'color' => $interp_color, 'font' => array( 'size' => 20, 'weight' => 'bold', 'family' => "'Inter',sans-serif" ), 'padding' => array( 'top' => 8 ) ),
+                'subtitle'   => array( 'display' => (bool) $show_value, 'text' => $interp, 'color' => $interp_color, 'font' => array( 'size' => 20, 'weight' => 'bold', 'family' => "'Inter',sans-serif" ), 'padding' => array( 'top' => 8 ) ),
             ),
         );
 

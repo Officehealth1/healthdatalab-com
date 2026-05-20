@@ -323,25 +323,19 @@ class HDLV2_Client_Status {
             $s1_rate = isset( $tmp['rate'] ) ? (float) $tmp['rate'] : null;
         }
 
+        // v0.41.20 — Stage 1 gauge uses the practitioner-panel variant with
+        // the centered value label + slower/average/faster subtitle visible.
+        // The PDFMonkey/email path is unaffected (default show_value=false
+        // keeps that gauge text-free; the template prints the value below).
+        // HDLV2_Widget_Config::build_gauge_url is private (the reflection
+        // gate below never picked it up); the canonical builder is the
+        // public HDLV2_Staged_Form::build_gauge_url, so we call it directly.
         $s1_gauge_url = '';
-        if ( $s1_rate !== null && class_exists( 'HDLV2_Widget_Config' ) ) {
-            $reflect = new ReflectionClass( 'HDLV2_Widget_Config' );
-            if ( $reflect->hasMethod( 'build_gauge_url' ) ) {
-                $m = $reflect->getMethod( 'build_gauge_url' );
-                if ( $m->isPublic() && $m->isStatic() ) {
-                    $s1_gauge_url = (string) HDLV2_Widget_Config::build_gauge_url( $s1_rate );
-                }
-            }
-        }
-        // Fallback — staged-form's public build_gauge_url, default Stage 1 bounds.
-        if ( ! $s1_gauge_url && $s1_rate !== null && class_exists( 'HDLV2_Staged_Form' ) ) {
-            $reflect = new ReflectionClass( 'HDLV2_Staged_Form' );
-            if ( $reflect->hasMethod( 'build_gauge_url' ) ) {
-                $m = $reflect->getMethod( 'build_gauge_url' );
-                if ( $m->isPublic() && $m->isStatic() ) {
-                    $s1_gauge_url = (string) HDLV2_Staged_Form::build_gauge_url( $s1_rate, array() );
-                }
-            }
+        if ( $s1_rate !== null && class_exists( 'HDLV2_Staged_Form' ) ) {
+            $s1_gauge_url = (string) HDLV2_Staged_Form::build_gauge_url(
+                $s1_rate,
+                array( 'show_value' => true )
+            );
         }
 
         $stage1 = array(
@@ -352,13 +346,19 @@ class HDLV2_Client_Status {
             'sex'            => isset( $s1['q1_sex'] ) ? (string) $s1['q1_sex'] : '',
             'q2_silhouette'  => isset( $s1['q2a'] ) ? (string) $s1['q2a'] : '',
             'q2_fat_dist'    => isset( $s1['q2b'] ) ? (string) $s1['q2b'] : '',
-            'q3_zone2'       => isset( $s1['q3'] ) ? strtoupper( (string) $s1['q3'] ) : '',
-            'q4_vo2'         => isset( $s1['q4'] ) ? strtoupper( (string) $s1['q4'] ) : '',
-            'q5_sts'         => isset( $s1['q5'] ) ? strtoupper( (string) $s1['q5'] ) : '',
-            'q6_sleep'       => isset( $s1['q6'] ) ? strtoupper( (string) $s1['q6'] ) : '',
-            'q7_smoking'     => isset( $s1['q7'] ) ? strtoupper( (string) $s1['q7'] ) : '',
-            'q8_social'      => isset( $s1['q8'] ) ? strtoupper( (string) $s1['q8'] ) : '',
-            'q9_diet'        => isset( $s1['q9'] ) ? strtoupper( (string) $s1['q9'] ) : '',
+            // v0.41.20 — Q3-Q9 used to round-trip as raw upper-case letters
+            // (A/B/C/D/E) — useless to the practitioner reading the panel.
+            // Translate to the canonical answer text from S1_QUESTIONS in
+            // hdlv2-staged-form.js. Map below mirrors that JS table line-by-
+            // line. The only consumer of these keys is the splicer JS
+            // (hdlv2-client-list-enhance.js loadStage1), grep-verified.
+            'q3_zone2'       => self::s1_option_label( 'q3', $s1['q3'] ?? '' ),
+            'q4_vo2'         => self::s1_option_label( 'q4', $s1['q4'] ?? '' ),
+            'q5_sts'         => self::s1_option_label( 'q5', $s1['q5'] ?? '' ),
+            'q6_sleep'       => self::s1_option_label( 'q6', $s1['q6'] ?? '' ),
+            'q7_smoking'     => self::s1_option_label( 'q7', $s1['q7'] ?? '' ),
+            'q8_social'      => self::s1_option_label( 'q8', $s1['q8'] ?? '' ),
+            'q9_diet'        => self::s1_option_label( 'q9', $s1['q9'] ?? '' ),
         );
 
         // ── Stage 2 ─────────────────────────────────────────────
@@ -433,6 +433,87 @@ class HDLV2_Client_Status {
             'stage3'      => $stage3,
             'final'       => $stage_final,
         ) );
+    }
+
+    /**
+     * v0.41.20 — Resolve a Stage 1 question option letter (a-e) to its
+     * canonical answer text. Mirrors S1_QUESTIONS in assets/js/hdlv2-staged-
+     * form.js line-by-line so the practitioner panel reads the same prose
+     * the client saw when answering. Returns '' when the letter is missing
+     * or unknown (caller suppresses the row).
+     *
+     * Used by rest_get_client_record() only. If the labels in the JS form
+     * ever change, update both sides — there's no shared JSON source.
+     *
+     * @param string $q_key  One of q3, q4, q5, q6, q7, q8, q9.
+     * @param string $letter Answer letter (case-insensitive, a-e).
+     * @return string Canonical answer text, or '' if no match.
+     */
+    private static function s1_option_label( $q_key, $letter ) {
+        $letter = strtolower( trim( (string) $letter ) );
+        if ( $letter === '' ) return '';
+
+        static $table = null;
+        if ( $table === null ) {
+            // Note: literal UTF-8 em-dash (—) and en-dash (–) inline.
+            // PHP single-quoted strings don't interpret \xNN — we lean on
+            // the file being saved as UTF-8 (matches the rest of the V2
+            // codebase). JSON_UNESCAPED_UNICODE in wp_json_encode keeps
+            // the bytes as-is on the wire.
+            $table = array(
+                'q3' => array(
+                    'a' => "Almost none — I'm mostly sedentary",
+                    'b' => 'About 30–60 minutes per week',
+                    'c' => 'About 1–2 hours per week',
+                    'd' => 'About 2–4 hours per week',
+                    'e' => 'More than 4 hours per week',
+                ),
+                'q4' => array(
+                    'a' => "One flight is difficult — I'd need to stop and rest",
+                    'b' => "I can walk up 2–3 flights but I'd be noticeably out of breath",
+                    'c' => 'I can walk up 4–5 flights at a steady pace without stopping',
+                    'd' => 'I can walk up 5+ flights comfortably, or jog up 3–4 flights',
+                    'e' => 'I could run up 4–5 flights without significant difficulty',
+                ),
+                'q5' => array(
+                    'a' => "I couldn't get down, or I'd need someone to help me back up",
+                    'b' => "I'd need furniture or both hands and a knee on the ground",
+                    'c' => "I'd use one hand or one knee for a bit of support",
+                    'd' => 'I could do it without support, but it takes effort',
+                    'e' => 'I can sit down and stand back up smoothly, no hands',
+                ),
+                'q6' => array(
+                    'a' => 'Fewer than 5 hours, or I struggle most nights',
+                    'b' => "About 5–6 hours, or I wake frequently and don't feel rested",
+                    'c' => 'About 6–7 hours, reasonable quality',
+                    'd' => 'About 7–8 hours, good quality — I usually wake feeling rested',
+                    'e' => 'I sleep 9+ hours but still feel tired',
+                ),
+                'q7' => array(
+                    'a' => 'I smoke daily',
+                    'b' => 'I smoke occasionally or socially',
+                    'c' => 'I quit within the last 5 years',
+                    'd' => 'I quit more than 5 years ago',
+                    'e' => "I've never smoked (in last 10 years)",
+                ),
+                'q8' => array(
+                    'a' => 'Rarely — I feel isolated most of the time',
+                    'b' => 'Once or twice a month',
+                    'c' => 'About once a week',
+                    'd' => 'Several times a week',
+                    'e' => 'Daily — strong, regular connections',
+                ),
+                'q9' => array(
+                    'a' => 'Mostly processed or fast food, very few vegetables',
+                    'b' => 'Mixed — some healthy meals, a lot of convenience food',
+                    'c' => 'Reasonably healthy — I cook most meals',
+                    'd' => 'Mostly whole foods, plenty of vegetables',
+                    'e' => 'Very clean — whole foods, diverse vegetables, minimal processed',
+                ),
+            );
+        }
+
+        return isset( $table[ $q_key ][ $letter ] ) ? $table[ $q_key ][ $letter ] : '';
     }
 
     // ── Main calculation ──

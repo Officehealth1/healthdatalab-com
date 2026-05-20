@@ -2339,8 +2339,12 @@
       '.hdlv2-st-list { list-style:none !important; padding-left:0 !important; margin:0 !important; display:flex; flex-direction:column; gap:5px; font-family: Inter, -apple-system, sans-serif; }',
       '.hdlv2-st-list li { list-style:none !important; display:flex; justify-content:space-between; gap:10px; padding:7px 12px; background:#fafbfc; border:1px solid #f0f0f0; border-radius:6px; font-size:12px; color:#333; }',
       '.hdlv2-st-list li::before, .hdlv2-st-list li::marker { content:none !important; }',
-      '.hdlv2-st-list li > span:first-child { color:#666; }',
-      '.hdlv2-st-list li > span:last-child { font-weight:600; color:#111; }',
+      '.hdlv2-st-list li > span:first-child { color:#666; flex:0 0 auto; }',
+      // v0.41.20 — value spans now carry the full Stage-1 option text (e.g.
+      // "About 6–7 hours, reasonable quality"), not just the A-E letter.
+      // text-align right + min-width 0 lets long strings wrap on a second
+      // line right-aligned without pushing the label out of the row.
+      '.hdlv2-st-list li > span:last-child { font-weight:600; color:#111; flex:1 1 auto; min-width:0; text-align:right; word-break:normal; overflow-wrap:anywhere; }',
       '.hdlv2-st-bullets { list-style:none !important; padding-left:0 !important; margin:0 0 8px !important; font-family: Inter, -apple-system, sans-serif; }',
       '.hdlv2-st-bullets li { list-style:none !important; padding:5px 0 5px 18px; position:relative; font-size:13px; color:#333; line-height:1.5; }',
       '.hdlv2-st-bullets li::marker { content:none !important; }',
