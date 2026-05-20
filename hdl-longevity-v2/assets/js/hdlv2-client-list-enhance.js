@@ -1576,10 +1576,19 @@
       // Score groups — pulled from server scores map. Each group renders
       // only the rows whose score is present, so older clients (pre-v0.38)
       // still produce a clean grid without empty placeholders.
+      //
+      // v0.41.22 — scores are 0-5 (HDLV2_Rate_Calculator::clamp_score),
+      // NOT 0-100. The mockup hard-coded illustrative 60-90 values that
+      // misled the prior threshold (≥70 green / 50-69 amber / <50 red),
+      // which rendered every real score red. Canonical bands per the
+      // Final Report key (class-hdlv2-final-report.php:1227):
+      //   5/5 green · 4/5 green · 3/5 amber · 2/5 red · 1/5 red.
+      // Display includes the "/5" suffix so the scale is explicit —
+      // matches the Final PDF, Claude prompts, and AI service convention.
       function sevPill(n) {
         var v = Math.round(n);
-        var cls = v >= 70 ? 'high' : (v >= 50 ? 'mid' : 'low');
-        return '<span class="hdlv2-score-pill ' + cls + '">' + v + '</span>';
+        var cls = v >= 4 ? 'high' : (v === 3 ? 'mid' : 'low');
+        return '<span class="hdlv2-score-pill ' + cls + '">' + v + '<span class="hdlv2-score-pill-max">/5</span></span>';
       }
       function scoreGroup(title, pairs) {
         var rows = [];
@@ -2552,10 +2561,13 @@
       '.hdlv2-score-group { background:#fff; border:1px solid #e4e6ea; border-radius:10px; padding:12px 14px; }',
       '.hdlv2-score-group h4 { font-family: Poppins, Inter, sans-serif; font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:0.05em; color:#666; margin:0 0 8px; padding-bottom:6px; border-bottom:1px solid #f0f0f0; }',
       '.hdlv2-score-row { display:flex; justify-content:space-between; align-items:center; padding:4px 0; font-size:12px; color:#333; }',
-      '.hdlv2-score-pill { display:inline-block; min-width:28px; padding:2px 9px; background:#fafbfc; border:1px solid #f0f0f0; border-radius:6px; color:#111; font-family: Poppins, Inter, sans-serif; font-weight:700; font-size:11.5px; text-align:center; }',
+      '.hdlv2-score-pill { display:inline-block; min-width:36px; padding:2px 9px; background:#fafbfc; border:1px solid #f0f0f0; border-radius:6px; color:#111; font-family: Poppins, Inter, sans-serif; font-weight:700; font-size:11.5px; text-align:center; font-variant-numeric:tabular-nums; }',
       '.hdlv2-score-pill.high { color:#047857; border-color:#a7f3d0; background:#ecfdf5; }',
       '.hdlv2-score-pill.mid { color:#92400e; border-color:#fde68a; background:#fffbeb; }',
       '.hdlv2-score-pill.low { color:#991b1b; border-color:#fecaca; background:#fef2f2; }',
+      // v0.41.22 — "/5" suffix lives inside the pill; lighter weight and
+      // slightly lower opacity so the digit reads as the primary value.
+      '.hdlv2-score-pill-max { font-weight:500; opacity:0.6; margin-left:1px; }',
       '.hdlv2-hb-section-h { font-family: Poppins, Inter, sans-serif; font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:0.05em; color:#666; margin:20px 0 10px; }',
       '.hdlv2-hb-note { display:inline-block; margin-left:8px; font-family: Inter, sans-serif; font-size:10.5px; font-weight:500; letter-spacing:0.02em; text-transform:none; color:#888; }',
       '.hdlv2-hb-grid { display:grid; grid-template-columns:repeat(3, 1fr); gap:10px; }',
