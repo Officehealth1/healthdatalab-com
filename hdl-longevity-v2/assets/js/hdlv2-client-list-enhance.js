@@ -193,7 +193,10 @@
     var panels = document.querySelectorAll('.hdlv2-detail-panel');
     if (!panels.length) return;
     panels.forEach(function (panel) {
-      var activeTab = panel.querySelector('.hdlv2-detail-tab.active');
+      // v0.41.19 — selection class renamed from .active to .current so it
+      // doesn't collide with the .active-stage journey-state class on
+      // tab dots. The auto-refresher follows the rename.
+      var activeTab = panel.querySelector('.hdlv2-detail-tab.current');
       if (!activeTab) return;
       if (activeTab.getAttribute('data-tab') !== 'flight-plan') return;
       var uid = panel.getAttribute('data-user-id');
@@ -825,6 +828,14 @@
       if (!cell) return;
       var existing = cell.querySelector('.hdlv2-inline-badge');
       var newLabel = 'V2 · ' + c.label;
+      // v0.41.19 — also reconcile the mini-stages strip when the journey
+      // state shifts (e.g. practitioner releases WHY in another tab → S3
+      // dot flips from amber to teal on the next 4-s digest poll). Hash
+      // is status + has_final_report so we only re-render the strip when
+      // something actually moves; idle polls are no-ops.
+      var existingStrip = cell.querySelector('.hdlv2-mini-stages');
+      var newStripHash  = (c.status || '') + '|' + (c.has_final_report ? '1' : '0');
+      var stripChanged  = !existingStrip || existingStrip.getAttribute('data-state-hash') !== newStripHash;
       if (!existing || existing.textContent !== newLabel) {
         if (existing) existing.remove();
         injectV2Badge(row, c);
@@ -833,7 +844,13 @@
           fresh.classList.add('hdlv2-badge-flash');
           setTimeout(function () { fresh.classList.remove('hdlv2-badge-flash'); }, 1200);
         }
+      } else if (stripChanged) {
+        // Pill text unchanged, but journey state moved (e.g. has_final_report
+        // flipped without a label change). Re-inject just the strip.
+        injectMiniStages(cell, c);
       }
+      var newlyRendered = cell.querySelector('.hdlv2-mini-stages');
+      if (newlyRendered) newlyRendered.setAttribute('data-state-hash', newStripHash);
     });
   }
 
@@ -915,6 +932,94 @@
     pill.style.border = '1px solid ' + hexToRgba(c.color, 0.35);
     pill.textContent = 'V2 · ' + c.label;
     cell.appendChild(pill);
+
+    // v0.41.19 — append a 6-dot journey strip alongside the badge so the
+    // practitioner sees stage progression at a glance from the closed
+    // row, no expand required. Sits INSIDE .status-badge-cell so V1's
+    // table structure (7 columns) is unchanged — no header shifting,
+    // sort comparator stays accurate.
+    injectMiniStages(cell, c);
+  }
+
+  // v0.41.19 — 6-dot inline journey indicator. Order matches the
+  // expand-panel tab strip + the buildDetailPanel head ribbon:
+  //   S1 · S2 · S3 · Consult · Final · Plan
+  // States: 'done' (teal) · 'active' (amber pulse, current step the
+  // workflow is waiting on) · 'pending' (grey).
+  function injectMiniStages(cell, c) {
+    // Idempotent — remove any prior strip before re-render so the 4-s
+    // digest poll's reconcileRows path can refresh dots when a status
+    // change actually moves the journey forward.
+    var existing = cell.querySelector('.hdlv2-mini-stages');
+    if (existing) existing.parentNode.removeChild(existing);
+
+    var dots = deriveJourneyState(c);
+    var wrap = document.createElement('span');
+    wrap.className = 'hdlv2-mini-stages';
+    wrap.title = 'Stage 1 · Stage 2 · Stage 3 · Consultation · Final · Flight Plan';
+    // Hash for reconcileRows() so idle polls don't re-render the strip.
+    wrap.setAttribute('data-state-hash', (c.status || '') + '|' + (c.has_final_report ? '1' : '0'));
+    var html = '';
+    for (var i = 0; i < dots.length; i++) {
+      html += '<span class="hdlv2-mini-stages-dot ' + dots[i] + '" aria-hidden="true"></span>';
+    }
+    // Compact step label (e.g. "Wk 1" / "Stage 3" / "Stage 1") so the
+    // strip is self-explanatory without a tooltip. Driven by status,
+    // not free text — always accurate.
+    html += '<span class="hdlv2-mini-stages-label">' + esc(stepLabel(c)) + '</span>';
+    wrap.innerHTML = html;
+    cell.appendChild(wrap);
+  }
+
+  // Map dashboard status → array of 6 states [S1, S2, S3, Consult, Final, Plan].
+  // Hard rule: once a stage is done it stays done. The first not-done stage
+  // is 'active'. Everything after is 'pending'. has_final_report is the
+  // ground truth for "Consult + Final + Plan generated".
+  function deriveJourneyState(c) {
+    var dots = ['pending','pending','pending','pending','pending','pending'];
+    var st = c && c.status;
+    if (!st || st === 'not_started') { dots[0] = 'active'; return dots; }
+    dots[0] = 'done';
+    if (st === 'low_data') { dots[1] = 'active'; return dots; }
+    dots[1] = 'done';
+    if (st === 'awaiting_why_release' || st === 'stage3_in_progress') {
+      dots[2] = 'active';
+      return dots;
+    }
+    dots[2] = 'done';
+    if (st === 'awaiting_consult') { dots[3] = 'active'; return dots; }
+    // Post-consult states (active / progress_normal / needs_attention / inactive).
+    if (c.has_final_report) {
+      dots[3] = 'done';
+      dots[4] = 'done';
+      // needs_attention or inactive — flag the plan dot amber so practitioner
+      // sees something to look at. progress_normal / active = all green.
+      if (st === 'needs_attention' || st === 'inactive') dots[5] = 'active';
+      else                                                dots[5] = 'done';
+    } else {
+      // Defensive: post-consult status without a final report row. Shouldn't
+      // happen in practice (consult_done → final generated) but never crash.
+      dots[3] = 'done';
+    }
+    return dots;
+  }
+
+  // Compact label that pairs the dot strip with a one-word "where" hint.
+  // Mirrors the status-aware text in the journey ribbon at the panel head.
+  function stepLabel(c) {
+    var st = c && c.status;
+    switch (st) {
+      case 'not_started':          return 'Stage 1';
+      case 'low_data':             return 'Stage 2';
+      case 'awaiting_why_release': return 'WHY';
+      case 'stage3_in_progress':   return 'Stage 3';
+      case 'awaiting_consult':     return 'Consult';
+      case 'active':
+      case 'progress_normal':      return 'Plan';
+      case 'needs_attention':      return 'Plan ⚠';
+      case 'inactive':             return 'Idle';
+      default:                     return '';
+    }
   }
 
   function injectExpandButton(row, c) {
@@ -975,35 +1080,58 @@
         + '</div>';
     }
 
+    // v0.41.19 — journey ribbon in the head + snapshot strip above tabs
+    // + per-tab status dot. All data driven by deriveJourneyState(c) so
+    // a single source of truth governs every visual stage indicator.
+    var dots          = deriveJourneyState(c);
+    var headPill      = '<span class="hdlv2-detail-status-pill" style="color:' + (c.color || '#94a3b8') + ';background:' + hexToRgba(c.color || '#94a3b8', 0.12) + ';border:1px solid ' + hexToRgba(c.color || '#94a3b8', 0.35) + ';">' + esc(c.label || c.status || '') + '</span>';
+    var journeyRibbon = renderJourneyRibbon(dots);
+    var snapshotShell = renderSnapshotShell();
+
     panel.innerHTML = [
+      // Head — name, email, status pill, 6-step journey ribbon on one line.
       '<div class="hdlv2-detail-head">',
+      '<div class="hdlv2-detail-head-id">',
       '<strong>' + esc(c.name) + '</strong>',
       '<span class="hdlv2-detail-email">' + esc(c.email || '') + '</span>',
       '</div>',
+      '<div class="hdlv2-detail-head-meta">',
+      headPill,
+      journeyRibbon,
+      '</div>',
+      '</div>',
       actionBanner,
+      // 4-tile KPI snapshot — fills async once client-record + effort-outcomes resolve.
+      snapshotShell,
       // v0.24.0 — tab strip reordered to match client journey (Matthew E1):
       // Progress (default landing — current state) → Stage 1 → Stage 2 →
-      // Stage 3 → Consultation → Final → Flight Plan. Check-ins + Timeline
-      // dropped as standalone tabs; their data is surfaced inside Progress
-      // and Flight Plan.
+      // Stage 3 → Consultation → Final → Flight Plan.
+      // v0.41.19 — each tab carries a tiny status dot (done/active/pending)
+      // so the journey is readable without clicking.
       '<nav class="hdlv2-detail-tabs" role="tablist">',
-      '<button type="button" class="hdlv2-detail-tab active" data-tab="progress">Progress</button>',
-      '<button type="button" class="hdlv2-detail-tab" data-tab="stage1">Stage 1</button>',
-      '<button type="button" class="hdlv2-detail-tab" data-tab="stage2">Stage 2</button>',
-      '<button type="button" class="hdlv2-detail-tab" data-tab="stage3">Stage 3</button>',
-      '<button type="button" class="hdlv2-detail-tab" data-tab="consultation">Consultation</button>',
-      '<button type="button" class="hdlv2-detail-tab" data-tab="final">Final</button>',
-      '<button type="button" class="hdlv2-detail-tab" data-tab="flight-plan">Flight Plan</button>',
+      tabHtml('progress',     'Progress',      'active'),
+      '<span class="hdlv2-detail-tab-sep" aria-hidden="true"></span>',
+      tabHtml('stage1',       'Stage 1',       dots[0]),
+      tabHtml('stage2',       'Stage 2',       dots[1]),
+      tabHtml('stage3',       'Stage 3',       dots[2]),
+      '<span class="hdlv2-detail-tab-sep" aria-hidden="true"></span>',
+      tabHtml('consultation', 'Consultation',  dots[3]),
+      tabHtml('final',        'Final',         dots[4]),
+      tabHtml('flight-plan',  'Flight Plan',   dots[5]),
       '</nav>',
       '<div class="hdlv2-detail-content" data-tab-content></div>',
     ].join('');
+
+    // Mark the Progress tab as currently selected (separate from journey state).
+    var progressTab = panel.querySelector('.hdlv2-detail-tab[data-tab="progress"]');
+    if (progressTab) progressTab.classList.add('current');
 
     var tabs = panel.querySelectorAll('.hdlv2-detail-tab');
     var content = panel.querySelector('[data-tab-content]');
     tabs.forEach(function (t) {
       t.addEventListener('click', function () {
-        tabs.forEach(function (x) { x.classList.remove('active'); });
-        t.classList.add('active');
+        tabs.forEach(function (x) { x.classList.remove('current'); });
+        t.classList.add('current');
         loadTab(t.dataset.tab, c, content);
       });
     });
@@ -1015,7 +1143,177 @@
 
     // v0.24.0 — default landing tab is Progress (was Flight Plan).
     loadTab('progress', c, content);
+    // v0.41.19 — fire-and-forget snapshot hydration. Both fetches are cached
+    // on the client object, so subsequent tab clicks (Progress, Stage 1/3)
+    // reuse the same in-flight or resolved promise — net zero extra requests.
+    mountSnapshot(c, panel);
     return panel;
+  }
+
+  // v0.41.19 — single source of truth for tab markup. The status arg is one
+  // of 'active' (current selected tab), 'done', 'pending' (journey state), or
+  // 'active-stage' (the workflow's current step — amber pulse).
+  function tabHtml(tabKey, label, journeyState) {
+    var dotClass = 'hdlv2-tab-dot';
+    if (journeyState === 'done')   dotClass += ' done';
+    if (journeyState === 'active') dotClass += ' active-stage';
+    // The 'active' value for the Progress tab is the journeyState arg from
+    // buildDetailPanel — translate to the 'current' selection class via the
+    // outer code that runs after innerHTML. Keep dot class for visual hint.
+    return '<button type="button" class="hdlv2-detail-tab" data-tab="' + tabKey + '">'
+      + '<span class="' + dotClass + '" aria-hidden="true"></span>'
+      + esc(label)
+      + '</button>';
+  }
+
+  function renderJourneyRibbon(dots) {
+    var labels = ['Stage 1', 'Stage 2', 'Stage 3', 'Consult', 'Final', 'Flight Plan'];
+    var parts  = ['<div class="hdlv2-detail-journey" aria-label="Client journey">'];
+    for (var i = 0; i < dots.length; i++) {
+      if (i > 0) parts.push('<span class="hdlv2-detail-journey-sep" aria-hidden="true"></span>');
+      var state = dots[i];
+      var mark  = state === 'done' ? '&#10003;' : (state === 'active' ? '&#9679;' : '');
+      parts.push(
+        '<span class="hdlv2-detail-journey-item state-' + state + '">'
+          + '<span class="hdlv2-detail-journey-mark" aria-hidden="true">' + mark + '</span>'
+          + esc(labels[i])
+        + '</span>'
+      );
+    }
+    parts.push('</div>');
+    return parts.join('');
+  }
+
+  function renderSnapshotShell() {
+    // 4 tiles rendered as skeletons until mountSnapshot() resolves.
+    // Labels are static so they read correctly even before data arrives.
+    return '<div class="hdlv2-detail-snapshot" data-snapshot-mount>'
+      + snapshotTile('rate',     'Rate of Ageing', '—', '', 'accent-amber')
+      + snapshotTile('adh',      'Adherence',      '—', '', 'accent-teal')
+      + snapshotTile('weeks',    'Weeks active',   '—', '', 'accent-blue')
+      + snapshotTile('next',     'Next milestone', '—', '', 'accent-grey')
+      + '</div>';
+  }
+
+  function snapshotTile(key, label, value, sub, accent) {
+    return '<div class="hdlv2-snap-tile ' + accent + '" data-snap="' + key + '">'
+      + '<div class="hdlv2-snap-tile-label">' + esc(label) + '</div>'
+      + '<div class="hdlv2-snap-tile-value">' + value + '</div>'
+      + '<div class="hdlv2-snap-tile-sub">' + sub + '</div>'
+      + '</div>';
+  }
+
+  // v0.41.19 — Hydrate the 4-tile snapshot strip. Reuses fetchClientRecord(c)
+  // (already cached on the client object — same fetch the journey tabs use)
+  // and a per-client effort-outcomes fetch. Both fail silently; the tile
+  // value just stays at '—'. No new endpoint, no extra round-trips: the
+  // client-record fetch is the same one the Stage 1/2/3 tabs already trigger
+  // on first click — running it eagerly on expand simply re-orders timing.
+  function mountSnapshot(c, panel) {
+    var mount = panel.querySelector('[data-snapshot-mount]');
+    if (!mount) return;
+
+    // 1) Rate of Ageing — prefer Stage 3 (full calc), fall back to Stage 1
+    //    (9-question quick rate). Static after first paint per expand.
+    fetchClientRecord(c).then(function (data) {
+      var rate = null, source = '';
+      if (data) {
+        if (data.stage3 && typeof data.stage3.rate === 'number') {
+          rate = data.stage3.rate; source = 'From Stage 3 full calc';
+        } else if (data.stage1 && typeof data.stage1.rate === 'number') {
+          rate = data.stage1.rate; source = 'From Stage 1 quick rate';
+        }
+      }
+      var tile = mount.querySelector('[data-snap="rate"]');
+      if (!tile) return;
+      var val = tile.querySelector('.hdlv2-snap-tile-value');
+      var sub = tile.querySelector('.hdlv2-snap-tile-sub');
+      if (rate !== null) {
+        val.innerHTML = rate.toFixed(2) + '<span class="hdlv2-snap-tile-unit">×</span>';
+        // Faster/slower/average comparable to 1.00 baseline.
+        var verdict = rate > 1.05 ? 'Faster than baseline' : rate < 0.95 ? 'Slower than baseline' : 'On baseline';
+        sub.innerHTML = esc(source + ' · ' + verdict);
+      } else {
+        val.textContent = '—';
+        sub.textContent = c.status === 'not_started' ? 'No Stage 1 yet' : 'Pending';
+      }
+    });
+
+    // 2-4) Adherence / Weeks active / Next milestone — fetch effort-outcomes
+    //      once per expand and derive all three from the same payload.
+    fetchEffortOutcomes(c).then(function (eo) {
+      var adhTile   = mount.querySelector('[data-snap="adh"]');
+      var weeksTile = mount.querySelector('[data-snap="weeks"]');
+      var nextTile  = mount.querySelector('[data-snap="next"]');
+      if (!eo) return;
+      var adherence = (eo && eo.adherence) || [];
+
+      if (adhTile) {
+        var aVal = adhTile.querySelector('.hdlv2-snap-tile-value');
+        var aSub = adhTile.querySelector('.hdlv2-snap-tile-sub');
+        if (adherence.length) {
+          var last = adherence[adherence.length - 1];
+          aVal.innerHTML = (last.overall|0) + '<span class="hdlv2-snap-tile-unit">% · Wk ' + (last.week_number|0) + '</span>';
+          aSub.textContent = 'Movement ' + (last.movement|0) + ' · Nutrition ' + (last.nutrition|0) + ' · Key ' + (last.key_action|0);
+        } else {
+          aVal.textContent = '—';
+          aSub.textContent = c.has_final_report ? 'No ticks yet' : 'Plan not started';
+        }
+      }
+
+      if (weeksTile) {
+        var wVal = weeksTile.querySelector('.hdlv2-snap-tile-value');
+        var wSub = weeksTile.querySelector('.hdlv2-snap-tile-sub');
+        if (adherence.length) {
+          var latestWeek = adherence[adherence.length - 1].week_number || adherence.length;
+          wVal.innerHTML = latestWeek + '<span class="hdlv2-snap-tile-unit">/12</span>';
+          wSub.textContent = 'Plan in week ' + latestWeek;
+        } else if (c.has_final_report) {
+          wVal.innerHTML = '0<span class="hdlv2-snap-tile-unit">/12</span>';
+          wSub.textContent = 'Plan delivered · awaiting first tick';
+        } else {
+          wVal.textContent = 'Pre-plan';
+          wSub.textContent = c.status === 'awaiting_consult' ? 'Stage 3 complete · consult pending' : 'Plan not generated';
+        }
+      }
+
+      if (nextTile) {
+        var nVal = nextTile.querySelector('.hdlv2-snap-tile-value');
+        var nSub = nextTile.querySelector('.hdlv2-snap-tile-sub');
+        if (adherence.length) {
+          var wk    = adherence[adherence.length - 1].week_number || adherence.length;
+          var togo  = Math.max(0, 12 - wk);
+          nVal.innerHTML = '<span class="hdlv2-snap-tile-next-line">Quarterly</span><span class="hdlv2-snap-tile-next-line">reassessment</span>';
+          nSub.textContent = togo > 0 ? ('Week 12 · in ' + togo + ' week' + (togo === 1 ? '' : 's')) : 'Reassessment due now';
+        } else if (c.has_final_report) {
+          nVal.innerHTML = '<span class="hdlv2-snap-tile-next-line">Quarterly</span><span class="hdlv2-snap-tile-next-line">reassessment</span>';
+          nSub.textContent = 'Week 12 · in 12 weeks';
+        } else {
+          nVal.textContent = '—';
+          nSub.textContent = 'Set by Final report';
+        }
+      }
+    });
+  }
+
+  // v0.41.19 — per-client cached fetch for /effort-outcomes. Mirrors the
+  // pattern fetchClientRecord uses so loadProgress (which fetches the same
+  // payload on tab click) and mountSnapshot (eager on expand) share a single
+  // promise. Saves one round-trip per expand when the practitioner lands
+  // on Progress.
+  function fetchEffortOutcomes(c) {
+    if (c._effort_promise) return c._effort_promise;
+    if (!c.user_id) {
+      c._effort_promise = Promise.resolve(null);
+      return c._effort_promise;
+    }
+    c._effort_promise = fetch(CFG.api_base + '/dashboard/client/' + c.user_id + '/effort-outcomes', {
+      credentials: 'same-origin',
+      headers: { 'X-WP-Nonce': CFG.nonce },
+    })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .catch(function () { return null; });
+    return c._effort_promise;
   }
 
   function releaseWhy(c, btn, panel) {
@@ -1115,16 +1413,17 @@
         return;
       }
       var capSex = s1.sex ? s1.sex.charAt(0).toUpperCase() + s1.sex.slice(1) : '—';
-      var html = '<div class="hdlv2-st-card">'
-        + '<div class="hdlv2-st-meta">Completed ' + esc(formatDate(s1.completed_at)) + '</div>'
-        + '<div class="hdlv2-st-row">'
+
+      // v0.41.19 — 2-col grid. Left: 3 stat cards + 9-question Q&A list.
+      // Right: production gauge image (s1.gauge_url is built server-side
+      // via HDLV2_Widget_Config::build_gauge_url → QuickChart.io, same URL
+      // the client receives by email). No SVG approximation.
+      var leftStats = '<div class="hdlv2-st-row">'
         +   '<div class="hdlv2-st-stat"><strong>' + esc(s1.rate != null ? s1.rate + '×' : '—') + '</strong><span>Rate of ageing</span></div>'
         +   '<div class="hdlv2-st-stat"><strong>' + esc(s1.age != null ? s1.age : '—') + '</strong><span>Chronological age</span></div>'
         +   '<div class="hdlv2-st-stat"><strong>' + esc(capSex) + '</strong><span>Sex</span></div>'
         + '</div>';
-      if (s1.gauge_url) {
-        html += '<div class="hdlv2-st-gauge"><img src="' + esc(s1.gauge_url) + '" alt="Pace of ageing gauge"></div>';
-      }
+
       var rows = [];
       if (s1.q2_silhouette) rows.push(['Body shape', 'silhouette ' + s1.q2_silhouette + '/5 · ' + (s1.q2_fat_dist || 'even')]);
       if (s1.q3_zone2)      rows.push(['Zone-2 cardio (Q3)', s1.q3_zone2]);
@@ -1134,14 +1433,27 @@
       if (s1.q7_smoking)    rows.push(['Smoking (Q7)', s1.q7_smoking]);
       if (s1.q8_social)     rows.push(['Social connection (Q8)', s1.q8_social]);
       if (s1.q9_diet)       rows.push(['Diet (Q9)', s1.q9_diet]);
-      if (rows.length) {
-        html += '<div class="hdlv2-fp-block-label">9-question answers</div>'
+      var leftList = rows.length
+        ? '<div class="hdlv2-fp-block-label">9-question answers</div>'
           + '<ul class="hdlv2-st-list">'
           + rows.map(function (r) { return '<li><span>' + esc(r[0]) + '</span><span>' + esc(r[1]) + '</span></li>'; }).join('')
-          + '</ul>';
-      }
-      html += '</div>';
-      target.innerHTML = html;
+          + '</ul>'
+        : '';
+
+      var rightGauge = s1.gauge_url
+        ? '<div class="hdlv2-st-gauge-card">'
+          +   '<img class="hdlv2-st-gauge-img" src="' + esc(s1.gauge_url) + '" alt="Pace of ageing gauge · ' + esc((s1.rate != null ? s1.rate + 'x' : '')) + '">'
+          +   '<div class="hdlv2-st-gauge-caption">Pace of ageing &middot; ' + esc(s1.rate != null ? s1.rate + '× chronological' : 'pending') + '</div>'
+          + '</div>'
+        : '<div class="hdlv2-st-gauge-card"><div class="hdlv2-detail-empty">Gauge image unavailable.</div></div>';
+
+      target.innerHTML = '<div class="hdlv2-st-card">'
+        + '<div class="hdlv2-st-meta">Stage 1 &middot; Quick insight &middot; Completed ' + esc(formatDate(s1.completed_at)) + '</div>'
+        + '<div class="hdlv2-s1-grid">'
+        +   '<div>' + leftStats + leftList + '</div>'
+        +   '<div>' + rightGauge + '</div>'
+        + '</div>'
+        + '</div>';
     });
   }
 
@@ -1156,52 +1468,63 @@
         target.innerHTML = '<div class="hdlv2-detail-empty">Client hasn’t completed Stage 2 (WHY profile) yet.</div>';
         return;
       }
+
+      // v0.41.19 — hero WHY quote → 3-col profile (Key People / Motivations /
+      // Fears) → vision card full-width. Same data as before, organised by
+      // category instead of stacked single-column lists.
       var releaseTag = s2.released
-        ? ''
-        : ' · <span style="color:#d97706;font-weight:600">awaiting WHY release</span>';
-      var html = '<div class="hdlv2-st-card">'
-        + '<div class="hdlv2-st-meta">Completed ' + esc(formatDate(s2.completed_at)) + releaseTag + '</div>';
-      if (s2.distilled_why) {
-        html += '<div class="hdlv2-fp-identity">“' + esc(s2.distilled_why) + '”</div>';
-      } else {
-        html += '<div class="hdlv2-detail-empty">No distilled WHY recorded.</div>';
+        ? ' &middot; <span style="color:#047857;font-weight:600">released</span>'
+        : ' &middot; <span style="color:#d97706;font-weight:600">awaiting WHY release</span>';
+
+      // Normalisers — items can be plain strings or shaped {name|label|text|relationship}.
+      function normItem(it) {
+        if (!it) return '';
+        if (typeof it === 'string') return it;
+        return it.name || it.label || it.text || it.relationship || '';
       }
-      var people = Array.isArray(s2.key_people) ? s2.key_people.filter(function (p) { return p; }) : [];
-      if (people.length) {
-        html += '<div class="hdlv2-fp-block-label">Key people</div>'
-          + '<ul class="hdlv2-st-bullets">'
-          + people.map(function (p) {
-              var label = typeof p === 'string' ? p : (p && (p.name || p.label || p.relationship)) || '';
-              return label ? '<li>' + esc(label) + '</li>' : '';
-            }).join('')
-          + '</ul>';
+      function listOf(arr) {
+        return Array.isArray(arr)
+          ? arr.map(normItem).filter(function (v) { return v; })
+          : [];
       }
-      var motiv = Array.isArray(s2.motivations) ? s2.motivations.filter(function (m) { return m; }) : [];
-      if (motiv.length) {
-        html += '<div class="hdlv2-fp-block-label">Motivations</div>'
-          + '<ul class="hdlv2-st-bullets">'
-          + motiv.map(function (m) {
-              var label = typeof m === 'string' ? m : (m && (m.text || m.label)) || '';
-              return label ? '<li>' + esc(label) + '</li>' : '';
-            }).join('')
-          + '</ul>';
+      var people = listOf(s2.key_people);
+      var motiv  = listOf(s2.motivations);
+      var fears  = listOf(s2.fears);
+
+      function whyCard(title, items, iconSvg, emptyMsg) {
+        var body = items.length
+          ? '<ul>' + items.map(function (x) { return '<li>' + esc(x) + '</li>'; }).join('') + '</ul>'
+          : '<div class="hdlv2-why-card-empty">' + esc(emptyMsg) + '</div>';
+        return '<div class="hdlv2-why-card">'
+          + '<h4>' + iconSvg + '<span>' + esc(title) + '</span></h4>'
+          + body
+          + '</div>';
       }
-      var fears = Array.isArray(s2.fears) ? s2.fears.filter(function (f) { return f; }) : [];
-      if (fears.length) {
-        html += '<div class="hdlv2-fp-block-label">Fears</div>'
-          + '<ul class="hdlv2-st-bullets">'
-          + fears.map(function (f) {
-              var label = typeof f === 'string' ? f : (f && (f.text || f.label)) || '';
-              return label ? '<li>' + esc(label) + '</li>' : '';
-            }).join('')
-          + '</ul>';
-      }
-      if (s2.vision_text) {
-        html += '<div class="hdlv2-fp-block-label">Vision (free-text)</div>'
-          + '<div class="hdlv2-st-quote">' + esc(s2.vision_text) + '</div>';
-      }
-      html += '</div>';
-      target.innerHTML = html;
+
+      var iconPeople = '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>';
+      var iconMotiv  = '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15 8 22 9 17 14 18 21 12 18 6 21 7 14 2 9 9 8 12 2"/></svg>';
+      var iconFears  = '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>';
+
+      var hero = s2.distilled_why
+        ? '<div class="hdlv2-why-hero">&ldquo;' + esc(s2.distilled_why) + '&rdquo;</div>'
+        : '<div class="hdlv2-detail-empty">No distilled WHY recorded.</div>';
+
+      var grid = '<div class="hdlv2-why-grid">'
+        + whyCard('Key people',  people, iconPeople, 'No key people noted')
+        + whyCard('Motivations', motiv,  iconMotiv,  'No motivations noted')
+        + whyCard('Fears',       fears,  iconFears,  'No fears noted')
+        + '</div>';
+
+      var vision = s2.vision_text
+        ? '<div class="hdlv2-vision-card"><div class="hdlv2-vision-card-label">Vision &middot; free-text</div>' + esc(s2.vision_text) + '</div>'
+        : '';
+
+      target.innerHTML = '<div class="hdlv2-st-card">'
+        + '<div class="hdlv2-st-meta">Stage 2 &middot; WHY profile &middot; Completed ' + esc(formatDate(s2.completed_at)) + releaseTag + '</div>'
+        + hero
+        + grid
+        + vision
+        + '</div>';
     });
   }
 
@@ -1216,66 +1539,136 @@
         target.innerHTML = '<div class="hdlv2-detail-empty">Client hasn’t completed Stage 3 (full health detail) yet.</div>';
         return;
       }
-      var html = '<div class="hdlv2-st-card">'
-        + '<div class="hdlv2-st-meta">Completed ' + esc(formatDate(s3.completed_at)) + '</div>'
-        + '<div class="hdlv2-st-row">'
-        +   '<div class="hdlv2-st-stat"><strong>' + esc(s3.rate != null ? s3.rate + '×' : '—') + '</strong><span>Rate of ageing</span></div>'
-        +   '<div class="hdlv2-st-stat"><strong>' + esc(s3.bio_age != null ? s3.bio_age : '—') + '</strong><span>Biological age</span></div>'
-        +   '<div class="hdlv2-st-stat"><strong>' + esc(s3.bmi != null ? s3.bmi : '—') + '</strong><span>BMI</span></div>'
-        + '</div>';
-      var bodyRows = [];
-      if (s3.height != null)      bodyRows.push('<li>Height: ' + esc(s3.height) + ' cm</li>');
-      if (s3.weight != null)      bodyRows.push('<li>Weight: ' + esc(s3.weight) + ' kg</li>');
-      if (s3.waist  != null)      bodyRows.push('<li>Waist: ' + esc(s3.waist) + ' cm</li>');
-      if (s3.hip    != null)      bodyRows.push('<li>Hip: ' + esc(s3.hip) + ' cm</li>');
-      if (s3.whr    != null)      bodyRows.push('<li>Waist-to-Hip: ' + esc(s3.whr) + '</li>');
-      if (s3.whtr   != null)      bodyRows.push('<li>Waist-to-Height: ' + esc(s3.whtr) + '</li>');
-      if (s3.bp_systolic && s3.bp_diastolic) bodyRows.push('<li>Blood pressure: ' + esc(s3.bp_systolic) + '/' + esc(s3.bp_diastolic) + ' mmHg</li>');
-      if (s3.resting_hr != null)  bodyRows.push('<li>Resting heart rate: ' + esc(s3.resting_hr) + ' bpm</li>');
-      if (bodyRows.length) {
-        html += '<div class="hdlv2-fp-block-label">Body composition &amp; vitals</div>'
-          + '<ul class="hdlv2-st-bullets">' + bodyRows.join('') + '</ul>';
-      }
 
-      var SCORE_ORDER = [
-        ['physicalActivity',    'Activity'],
-        ['sitToStand',          'Sit-to-stand'],
-        ['breathHold',          'Breath hold'],
-        ['balance',             'Balance'],
-        ['skinElasticity',      'Skin elasticity'],
-        ['sleepDuration',       'Sleep duration'],
-        ['sleepQuality',        'Sleep quality'],
-        ['stressLevels',        'Stress'],
-        ['socialConnections',   'Social'],
-        ['dietQuality',         'Diet'],
-        ['alcoholConsumption',  'Alcohol'],
-        ['smokingStatus',       'Smoking'],
-        ['cognitiveActivity',   'Cognitive'],
-        ['sunlightExposure',    'Sunlight'],
-        ['supplementIntake',    'Supplements'],
-        ['dailyHydration',      'Hydration'],
-        ['bmiScore',            'BMI'],
-        ['whrScore',            'WHR'],
-        ['whtrScore',           'WHtR'],
-        ['bloodPressureScore',  'Blood pressure'],
-        ['heartRateScore',      'Heart rate'],
-      ];
-      var scoreRows = [];
-      if (s3.scores && typeof s3.scores === 'object') {
-        SCORE_ORDER.forEach(function (pair) {
-          var v = s3.scores[pair[0]];
-          if (v == null) return;
-          var n = parseFloat(v);
-          if (isNaN(n)) return;
-          scoreRows.push('<div class="hdlv2-st-score"><span>' + esc(pair[1]) + '</span><span class="hdlv2-st-score-pill">' + esc(Math.round(n)) + '</span></div>');
-        });
+      // v0.41.19 — top stat strip, 2-col body composition, scores grouped
+      // into 4 functional categories (Activity & Body / Sleep, Stress &
+      // Social / Diet & Lifestyle / Vitals), then Section 6 Health
+      // Background block (v0.38.0 — family_history, medications,
+      // existing_conditions — surfaced via /dashboard/client-record now
+      // that the backend exposes those three keys).
+      var topStats = '<div class="hdlv2-s3-stats">'
+        +   '<div class="hdlv2-st-stat"><strong>' + esc(s3.rate    != null ? s3.rate    + '×' : '—') + '</strong><span>Rate of ageing</span></div>'
+        +   '<div class="hdlv2-st-stat"><strong>' + esc(s3.bio_age != null ? s3.bio_age      : '—') + '</strong><span>Biological age</span></div>'
+        +   '<div class="hdlv2-st-stat"><strong>' + esc(s3.bmi     != null ? s3.bmi          : '—') + '</strong><span>BMI</span></div>'
+        + '</div>';
+
+      var bodyLeft = [], bodyRight = [];
+      if (s3.height != null) bodyLeft.push(['Height', s3.height + ' cm']);
+      if (s3.weight != null) bodyLeft.push(['Weight', s3.weight + ' kg']);
+      if (s3.waist  != null) bodyLeft.push(['Waist',  s3.waist  + ' cm']);
+      if (s3.hip    != null) bodyLeft.push(['Hip',    s3.hip    + ' cm']);
+      if (s3.whr    != null) bodyRight.push(['Waist-to-Hip', s3.whr]);
+      if (s3.whtr   != null) bodyRight.push(['Waist-to-Height', s3.whtr]);
+      if (s3.bp_systolic && s3.bp_diastolic) bodyRight.push(['Blood pressure', s3.bp_systolic + '/' + s3.bp_diastolic + ' mmHg']);
+      if (s3.resting_hr != null) bodyRight.push(['Resting heart rate', s3.resting_hr + ' bpm']);
+
+      function kvList(rows) {
+        if (!rows.length) return '';
+        return '<ul class="hdlv2-st-list">'
+          + rows.map(function (r) { return '<li><span>' + esc(r[0]) + '</span><span>' + esc(r[1]) + '</span></li>'; }).join('')
+          + '</ul>';
       }
-      if (scoreRows.length) {
-        html += '<div class="hdlv2-fp-block-label">21-metric score breakdown</div>'
-          + '<div class="hdlv2-st-scores">' + scoreRows.join('') + '</div>';
+      var bodyBlock = (bodyLeft.length || bodyRight.length)
+        ? '<div class="hdlv2-fp-block-label">Body composition &amp; vitals</div>'
+          + '<div class="hdlv2-s3-body">' + kvList(bodyLeft) + kvList(bodyRight) + '</div>'
+        : '';
+
+      // Score groups — pulled from server scores map. Each group renders
+      // only the rows whose score is present, so older clients (pre-v0.38)
+      // still produce a clean grid without empty placeholders.
+      function sevPill(n) {
+        var v = Math.round(n);
+        var cls = v >= 70 ? 'high' : (v >= 50 ? 'mid' : 'low');
+        return '<span class="hdlv2-score-pill ' + cls + '">' + v + '</span>';
       }
-      html += '</div>';
-      target.innerHTML = html;
+      function scoreGroup(title, pairs) {
+        var rows = [];
+        if (s3.scores && typeof s3.scores === 'object') {
+          pairs.forEach(function (pair) {
+            var v = s3.scores[pair[0]];
+            if (v == null) return;
+            var n = parseFloat(v);
+            if (isNaN(n)) return;
+            rows.push('<div class="hdlv2-score-row"><span>' + esc(pair[1]) + '</span>' + sevPill(n) + '</div>');
+          });
+        }
+        if (!rows.length) return '';
+        return '<div class="hdlv2-score-group">'
+          + '<h4>' + esc(title) + '</h4>'
+          + rows.join('')
+          + '</div>';
+      }
+      var scoreGroups = ''
+        + scoreGroup('Activity & body', [
+            ['physicalActivity',   'Physical activity'],
+            ['sitToStand',         'Sit-to-stand'],
+            ['breathHold',         'Breath hold'],
+            ['balance',            'Balance'],
+            ['skinElasticity',     'Skin elasticity'],
+            ['bmiScore',           'BMI'],
+            ['whrScore',           'WHR'],
+            ['whtrScore',          'WHtR'],
+          ])
+        + scoreGroup('Sleep, stress & social', [
+            ['sleepDuration',      'Sleep duration'],
+            ['sleepQuality',       'Sleep quality'],
+            ['stressLevels',       'Stress levels'],
+            ['socialConnections',  'Social connections'],
+            ['cognitiveActivity',  'Cognitive activity'],
+          ])
+        + scoreGroup('Diet & lifestyle', [
+            ['dietQuality',        'Diet quality'],
+            ['alcoholConsumption', 'Alcohol'],
+            ['smokingStatus',      'Smoking'],
+            ['sunlightExposure',   'Sunlight'],
+            ['supplementIntake',   'Supplements'],
+            ['dailyHydration',     'Hydration'],
+          ])
+        + scoreGroup('Vitals', [
+            ['bloodPressureScore', 'Blood pressure'],
+            ['heartRateScore',     'Heart rate'],
+          ]);
+
+      var scoresBlock = scoreGroups
+        ? '<div class="hdlv2-fp-block-label">21-metric score breakdown &middot; grouped</div>'
+          + '<div class="hdlv2-score-groups">' + scoreGroups + '</div>'
+        : '';
+
+      // Section 6 — Health Background (v0.38.0). Three optional free-text
+      // fields. Only render the block when at least one is non-empty so a
+      // pre-v0.38 client (no background data) doesn't get a sea of "Not
+      // provided" placeholders. Each card escapes via esc() — practitioner
+      // text could contain markup, never trust raw.
+      function hbCard(title, value, iconSvg) {
+        var trimmed = (value || '').trim();
+        return '<div class="hdlv2-hb-card' + (trimmed ? '' : ' is-empty') + '">'
+          + '<div class="hdlv2-hb-card-head">' + iconSvg + '<span>' + esc(title) + '</span></div>'
+          + '<p>' + (trimmed ? esc(trimmed) : 'Not provided') + '</p>'
+          + '</div>';
+      }
+      var iconHistory = '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 11l-3 3-3-3"/><path d="M19 14V5"/></svg>';
+      var iconMeds    = '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.5 20H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h11l5 5v6"/><path d="M14 2v6h6"/><path d="M16 19h6"/><path d="M19 16v6"/></svg>';
+      var iconCond    = '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>';
+
+      var fh   = (s3.family_history      || '').trim();
+      var meds = (s3.medications         || '').trim();
+      var cond = (s3.existing_conditions || '').trim();
+      var hbBlock = (fh || meds || cond)
+        ? '<h4 class="hdlv2-hb-section-h">Health Background<span class="hdlv2-hb-note">Optional &middot; client free-text &middot; not scored &middot; woven into Claude draft</span></h4>'
+          + '<div class="hdlv2-hb-grid">'
+          +   hbCard('Family history',                  fh,   iconHistory)
+          +   hbCard('Current medications',             meds, iconMeds)
+          +   hbCard('Existing conditions / diagnoses', cond, iconCond)
+          + '</div>'
+        : '';
+
+      target.innerHTML = '<div class="hdlv2-st-card">'
+        + '<div class="hdlv2-st-meta">Stage 3 &middot; Full detail &middot; 22 measurements across 5 sections &middot; Completed ' + esc(formatDate(s3.completed_at)) + '</div>'
+        + topStats
+        + bodyBlock
+        + scoresBlock
+        + hbBlock
+        + '</div>';
     });
   }
 
@@ -1412,11 +1805,9 @@
       target.innerHTML = '<div class="hdlv2-detail-empty">Chart library failed to load. Please refresh the page.</div>';
       return;
     }
-    fetch(CFG.api_base + '/dashboard/client/' + c.user_id + '/effort-outcomes', {
-      credentials: 'same-origin',
-      headers: { 'X-WP-Nonce': CFG.nonce },
-    })
-      .then(function (r) { return r.ok ? r.json() : null; })
+    // v0.41.19 — reuse the per-client cached fetch shared with mountSnapshot
+    // so the strip + the Progress chart hit one /effort-outcomes call, not two.
+    fetchEffortOutcomes(c)
       .then(function (data) {
         if (!data) {
           target.innerHTML = '<div class="hdlv2-detail-empty">Couldn’t load progress data.</div>';
@@ -1439,9 +1830,6 @@
         }
 
         renderProgressChartView(target, adherence, outcomes, data.baseline_rate);
-      })
-      .catch(function () {
-        target.innerHTML = '<div class="hdlv2-detail-empty">Couldn’t load progress data.</div>';
       });
   }
 
@@ -1450,34 +1838,76 @@
   // there's only 1 week and 1 baseline). The card states the facts plainly
   // and tells them when the chart will appear.
   function renderProgressEarly(target, adherence, outcomes, baseline) {
-    var firstAdh = adherence[0];
-    var firstOut = outcomes[0];
-    var weekLabel = firstAdh ? ('Week ' + firstAdh.week_number + ' (' + formatDate(firstAdh.week_start) + ')') : 'No week recorded yet';
-    var adhText = firstAdh
-      ? firstAdh.overall + '% overall &nbsp;·&nbsp; movement ' + firstAdh.movement + '% &nbsp;·&nbsp; nutrition ' + firstAdh.nutrition + '% &nbsp;·&nbsp; key actions ' + firstAdh.key_action + '%'
-      : 'Client hasn’t ticked any boxes yet.';
-    var rateText = firstOut
-      ? firstOut.rate.toFixed(2) + ' &nbsp;<span class="hdlv2-progress-early-meta">(from ' + firstOut.report_type + ' report on ' + formatDate(firstOut.date) + ')</span>'
-      : (baseline ? baseline.toFixed(2) : 'Not yet calculated');
+    // v0.41.19 — 2-column grid layout. Left card: 4 metric tiles for the
+    // current week (overall · movement · nutrition · key actions). Right
+    // card: baseline rate with big numeric value + next-outcome chip.
+    // Same data, same source — but practitioner scans 4 tiles instead of
+    // parsing a comma-joined sentence, and the right column uses the
+    // panel whitespace the legacy layout wasted.
+    var firstAdh   = adherence[0];
+    var firstOut   = outcomes[0];
+    var weekLabel  = firstAdh ? ('Week ' + (firstAdh.week_number|0)) : 'No week recorded yet';
+    var weekStart  = firstAdh ? formatDate(firstAdh.week_start) : '';
+    var rateNum    = firstOut ? firstOut.rate : (typeof baseline === 'number' ? baseline : null);
+    var rateMeta   = firstOut
+      ? ('From ' + esc(firstOut.report_type) + ' report · ' + esc(formatDate(firstOut.date)))
+      : (rateNum !== null ? 'Baseline rate' : 'Not yet calculated');
+
+    // Tile severity hint — <50% reads "lo" (amber), 50-69 "mid", 70+ default (teal).
+    function tileSev(n) { n = n|0; return n < 50 ? 'lo' : (n < 70 ? 'mid' : ''); }
+    var overall   = firstAdh ? (firstAdh.overall|0)    : 0;
+    var movement  = firstAdh ? (firstAdh.movement|0)   : 0;
+    var nutrition = firstAdh ? (firstAdh.nutrition|0)  : 0;
+    var keyAction = firstAdh ? (firstAdh.key_action|0) : 0;
+
+    var leftCard;
+    if (firstAdh) {
+      leftCard = '<div class="hdlv2-progress-card">'
+        +   '<div class="hdlv2-progress-card-title"><span>Adherence &middot; ' + esc(weekLabel) + '</span><span class="hdlv2-progress-card-meta">' + esc(weekStart) + '</span></div>'
+        +   '<div class="hdlv2-progress-metric-grid">'
+        +     metricTile(overall,   'Overall',     tileSev(overall))
+        +     metricTile(movement,  'Movement',    tileSev(movement))
+        +     metricTile(nutrition, 'Nutrition',   tileSev(nutrition))
+        +     metricTile(keyAction, 'Key actions', tileSev(keyAction))
+        +   '</div>'
+        +   '<div class="hdlv2-progress-hint">'
+        +     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>'
+        +     '<div>Week 2 adherence unlocks the dual-axis trend chart (Adherence &times; Rate of Ageing).</div>'
+        +   '</div>'
+        + '</div>';
+    } else {
+      leftCard = '<div class="hdlv2-progress-card">'
+        +   '<div class="hdlv2-progress-card-title"><span>Adherence</span></div>'
+        +   '<div class="hdlv2-detail-empty" style="padding:14px 0;text-align:left;">Client hasn’t ticked any boxes yet.</div>'
+        + '</div>';
+    }
+
+    var rightCard = '<div class="hdlv2-progress-card">'
+      +   '<div class="hdlv2-progress-card-title"><span>Baseline rate of ageing</span></div>'
+      +   '<div class="hdlv2-progress-card-meta">' + esc(rateMeta) + '</div>'
+      +   '<div class="hdlv2-progress-baseline-row">'
+      +     (rateNum !== null
+            ? '<span class="hdlv2-progress-baseline-value">' + rateNum.toFixed(2) + '</span><span class="hdlv2-progress-baseline-unit">&times; chronological</span>'
+            : '<span class="hdlv2-progress-baseline-value">&mdash;</span>')
+      +   '</div>'
+      +   '<div class="hdlv2-progress-next-outcome">'
+      +     '<div class="hdlv2-progress-next-text">Next outcome update<strong>Quarterly reassessment</strong></div>'
+      +     '<span class="hdlv2-progress-next-chip">Week 12</span>'
+      +   '</div>'
+      + '</div>';
 
     target.innerHTML = ''
       + '<div class="hdlv2-progress-eyebrow">Effort vs Outcomes</div>'
       + '<p class="hdlv2-progress-headline">'
-      +   'Trend chart appears once adherence reaches Week&nbsp;2. Until then a chart with one data point would misread as broken &mdash; here are the facts plainly.'
+      +   'Trend chart appears once adherence reaches Week&nbsp;2. Until then a chart with one data point would misread as broken &mdash; here are the facts, balanced across the panel.'
       + '</p>'
-      + '<div class="hdlv2-progress-early">'
-      +   '<div class="hdlv2-progress-early-row">'
-      +     '<span class="hdlv2-progress-early-label">' + esc(weekLabel) + '</span>'
-      +     '<span class="hdlv2-progress-early-value">' + adhText + '</span>'
-      +   '</div>'
-      +   '<div class="hdlv2-progress-early-row">'
-      +     '<span class="hdlv2-progress-early-label">Baseline rate of ageing</span>'
-      +     '<span class="hdlv2-progress-early-value">' + rateText + '</span>'
-      +   '</div>'
-      +   '<div class="hdlv2-progress-early-row">'
-      +     '<span class="hdlv2-progress-early-label">Next outcome update</span>'
-      +     '<span class="hdlv2-progress-early-value">Quarterly reassessment (Week 12)</span>'
-      +   '</div>'
+      + '<div class="hdlv2-progress-grid">' + leftCard + rightCard + '</div>';
+  }
+
+  function metricTile(value, label, sev) {
+    return '<div class="hdlv2-metric-tile' + (sev ? ' ' + sev : '') + '">'
+      + '<div class="hdlv2-metric-tile-value">' + (value|0) + '<span class="hdlv2-metric-tile-unit">%</span></div>'
+      + '<div class="hdlv2-metric-tile-label">' + esc(label) + '</div>'
       + '</div>';
   }
 
@@ -1985,6 +2415,143 @@
       // Badge flash on poll-driven status change
       '.hdlv2-inline-badge.hdlv2-badge-flash { animation: hdlv2-badge-flash 1.2s ease-in-out; }',
       '@keyframes hdlv2-badge-flash { 0%,100% { transform: scale(1); } 30% { transform: scale(1.15); filter: brightness(1.1); } }',
+
+      // ─────────────────────────────────────────────────────────────
+      // v0.41.19 — Mini-stages strip inside the closed-row Status cell
+      // 6-dot journey indicator: S1 · S2 · S3 · Consult · Final · Plan.
+      // Sits AFTER the V2 status pill, doesn't change V1 table columns.
+      // ─────────────────────────────────────────────────────────────
+      '.hdlv2-mini-stages { display:inline-flex; align-items:center; gap:3px; margin-left:8px; vertical-align:middle; line-height:1; }',
+      '.hdlv2-mini-stages-dot { display:inline-block; width:7px; height:7px; border-radius:50%; background:#e4e6ea; flex:0 0 7px; }',
+      '.hdlv2-mini-stages-dot.done { background:#3d8da0; }',
+      '.hdlv2-mini-stages-dot.active { background:#d97706; box-shadow:0 0 0 2px rgba(217,119,6,0.18); }',
+      '.hdlv2-mini-stages-label { margin-left:4px; font-size:10.5px; color:#666; font-weight:500; letter-spacing:0.02em; font-variant-numeric:tabular-nums; font-family: Inter, -apple-system, sans-serif; }',
+
+      // ─────────────────────────────────────────────────────────────
+      // v0.41.19 — Expanded panel HEAD: name+email left, status pill +
+      // 6-step journey ribbon right. Wraps on narrow viewports so the
+      // ribbon never crops out of view.
+      // ─────────────────────────────────────────────────────────────
+      '.hdlv2-detail-head { display:flex; align-items:center; justify-content:space-between; gap:14px; padding-bottom:14px; margin-bottom:16px; border-bottom:1px solid #e4e6ea; flex-wrap:wrap; }',
+      '.hdlv2-detail-head-id { display:flex; align-items:baseline; gap:10px; min-width:0; }',
+      '.hdlv2-detail-head-id strong { font-family: Poppins, Inter, sans-serif; font-size:16px; font-weight:600; color:#111; }',
+      '.hdlv2-detail-head-meta { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }',
+      '.hdlv2-detail-status-pill { display:inline-flex; align-items:center; padding:4px 10px; border-radius:24px; font-size:10.5px; font-weight:600; text-transform:uppercase; letter-spacing:0.04em; white-space:nowrap; font-family: Inter, -apple-system, sans-serif; }',
+      '.hdlv2-detail-journey { display:inline-flex; align-items:center; gap:0; background:#fff; border:1px solid #e4e6ea; border-radius:999px; padding:4px 6px; max-width:100%; flex-wrap:wrap; }',
+      '.hdlv2-detail-journey-item { display:inline-flex; align-items:center; gap:5px; padding:4px 9px; font-size:11px; font-weight:600; color:#666; letter-spacing:0.02em; border-radius:999px; font-family: Inter, -apple-system, sans-serif; white-space:nowrap; }',
+      '.hdlv2-detail-journey-item.state-done { color:#004F59; }',
+      '.hdlv2-detail-journey-item.state-active { background:#fffbeb; color:#92400e; }',
+      '.hdlv2-detail-journey-item.state-pending { color:#94a3b8; }',
+      '.hdlv2-detail-journey-mark { width:14px; height:14px; border-radius:50%; background:#e4e6ea; color:#fff; display:inline-flex; align-items:center; justify-content:center; font-size:9px; flex:0 0 14px; line-height:1; }',
+      '.hdlv2-detail-journey-item.state-done .hdlv2-detail-journey-mark { background:#3d8da0; }',
+      '.hdlv2-detail-journey-item.state-active .hdlv2-detail-journey-mark { background:#d97706; }',
+      '.hdlv2-detail-journey-sep { width:8px; height:1px; background:#e4e6ea; flex:0 0 8px; }',
+
+      // ─────────────────────────────────────────────────────────────
+      // v0.41.19 — Snapshot strip (4 KPI tiles) above the tab strip
+      // ─────────────────────────────────────────────────────────────
+      '.hdlv2-detail-snapshot { display:grid; grid-template-columns:repeat(4, 1fr); gap:10px; margin-bottom:18px; }',
+      '@media (max-width: 820px) { .hdlv2-detail-snapshot { grid-template-columns:repeat(2, 1fr); } }',
+      '.hdlv2-snap-tile { background:#fff; border:1px solid #e4e6ea; border-radius:10px; padding:12px 14px; }',
+      '.hdlv2-snap-tile-label { font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:0.06em; color:#666; margin-bottom:5px; }',
+      '.hdlv2-snap-tile-value { font-family: Poppins, Inter, sans-serif; font-size:20px; font-weight:700; color:#004F59; line-height:1.1; font-variant-numeric:tabular-nums; }',
+      '.hdlv2-snap-tile-value .hdlv2-snap-tile-unit { font-size:13px; color:#666; font-weight:500; margin-left:2px; }',
+      '.hdlv2-snap-tile-next-line { display:block; font-size:14px; line-height:1.25; color:#004F59; font-weight:600; }',
+      '.hdlv2-snap-tile-sub { margin-top:4px; font-size:11px; color:#888; line-height:1.4; }',
+      '.hdlv2-snap-tile.accent-amber { border-left:3px solid #d97706; }',
+      '.hdlv2-snap-tile.accent-teal  { border-left:3px solid #3d8da0; }',
+      '.hdlv2-snap-tile.accent-blue  { border-left:3px solid #3b82f6; }',
+      '.hdlv2-snap-tile.accent-grey  { border-left:3px solid #cbd5e1; }',
+
+      // ─────────────────────────────────────────────────────────────
+      // v0.41.19 — Tab strip enhancements: status dot per tab, group
+      // separators, "current" selection class (replaces .active to
+      // avoid collision with the .active-stage journey-state class).
+      // ─────────────────────────────────────────────────────────────
+      '.hdlv2-detail-tab { gap:7px; }',
+      '.hdlv2-detail-tab.current { color:#3d8da0; border-bottom-color:#3d8da0; }',
+      '.hdlv2-detail-tab.current .hdlv2-tab-dot { background:#3d8da0; }',
+      '.hdlv2-tab-dot { display:inline-block; width:6px; height:6px; border-radius:50%; background:#e4e6ea; flex:0 0 6px; }',
+      '.hdlv2-tab-dot.done { background:#3d8da0; }',
+      '.hdlv2-tab-dot.active-stage { background:#d97706; box-shadow:0 0 0 2px rgba(217,119,6,0.18); }',
+      '.hdlv2-detail-tab-sep { display:inline-block; width:1px; height:18px; background:#e4e6ea; margin:0 6px; align-self:center; flex:0 0 1px; }',
+
+      // ─────────────────────────────────────────────────────────────
+      // v0.41.19 — Progress tab — 2-col grid (metrics left, baseline right)
+      // ─────────────────────────────────────────────────────────────
+      '.hdlv2-progress-grid { display:grid; grid-template-columns:1.4fr 1fr; gap:18px; align-items:start; }',
+      '@media (max-width: 900px) { .hdlv2-progress-grid { grid-template-columns:1fr; } }',
+      '.hdlv2-progress-card { background:#fff; border:1px solid #e4e6ea; border-radius:12px; padding:16px 18px; }',
+      '.hdlv2-progress-card-title { font-family: Poppins, Inter, sans-serif; font-size:13px; font-weight:600; color:#111; margin:0 0 4px; display:flex; align-items:center; justify-content:space-between; gap:10px; }',
+      '.hdlv2-progress-card-meta { font-size:11px; color:#888; margin-bottom:12px; }',
+      '.hdlv2-progress-metric-grid { display:grid; grid-template-columns:repeat(4, 1fr); gap:8px; }',
+      '.hdlv2-metric-tile { padding:10px 11px; background:#fafbfc; border:1px solid #f0f0f0; border-radius:8px; }',
+      '.hdlv2-metric-tile-value { font-family: Poppins, Inter, sans-serif; font-size:18px; font-weight:700; color:#004F59; line-height:1.1; font-variant-numeric:tabular-nums; }',
+      '.hdlv2-metric-tile-unit { font-size:12px; font-weight:500; color:#666; margin-left:1px; }',
+      '.hdlv2-metric-tile-label { font-size:10px; text-transform:uppercase; letter-spacing:0.05em; color:#666; margin-top:4px; font-weight:600; }',
+      '.hdlv2-metric-tile.lo .hdlv2-metric-tile-value { color:#92400e; }',
+      '.hdlv2-metric-tile.mid .hdlv2-metric-tile-value { color:#92400e; }',
+      '.hdlv2-progress-baseline-row { display:flex; align-items:baseline; gap:10px; margin-bottom:6px; }',
+      '.hdlv2-progress-baseline-value { font-family: Poppins, Inter, sans-serif; font-size:32px; font-weight:700; color:#004F59; letter-spacing:-0.5px; line-height:1; font-variant-numeric:tabular-nums; }',
+      '.hdlv2-progress-baseline-unit { font-size:13px; color:#666; }',
+      '.hdlv2-progress-next-outcome { margin-top:14px; padding-top:14px; border-top:1px solid #f0f0f0; display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; }',
+      '.hdlv2-progress-next-text { font-size:12px; color:#666; }',
+      '.hdlv2-progress-next-text strong { display:block; color:#111; font-weight:600; font-size:13px; margin-top:2px; }',
+      '.hdlv2-progress-next-chip { display:inline-flex; align-items:center; gap:5px; padding:4px 9px; border-radius:999px; background:#e3eef1; border:1px solid #b8d9e0; font-size:11px; font-weight:600; color:#004F59; }',
+      '.hdlv2-progress-hint { margin-top:14px; padding:10px 14px; background:#fafbfc; border:1px dashed #e4e6ea; border-radius:8px; font-size:12px; color:#666; display:flex; align-items:center; gap:10px; }',
+      '.hdlv2-progress-hint svg { width:16px; height:16px; color:#3d8da0; flex:0 0 16px; }',
+
+      // ─────────────────────────────────────────────────────────────
+      // v0.41.19 — Stage 1 — 2-col grid (stats+Q&A left, gauge right)
+      // ─────────────────────────────────────────────────────────────
+      '.hdlv2-s1-grid { display:grid; grid-template-columns:1fr 1fr; gap:18px; align-items:start; }',
+      '@media (max-width: 900px) { .hdlv2-s1-grid { grid-template-columns:1fr; } }',
+      '.hdlv2-st-gauge-card { padding:8px 12px 14px; background:#fff; border:1px solid #e4e6ea; border-radius:12px; text-align:center; }',
+      '.hdlv2-st-gauge-img { display:block; margin:0 auto; max-width:340px; width:100%; height:auto; }',
+      '.hdlv2-st-gauge-caption { font-size:12px; color:#666; margin-top:-4px; }',
+
+      // ─────────────────────────────────────────────────────────────
+      // v0.41.19 — Stage 2 — hero WHY + 3-col profile + vision card
+      // ─────────────────────────────────────────────────────────────
+      '.hdlv2-why-hero { padding:18px 22px; background:#fff; border:1px solid #e4e6ea; border-left:4px solid #3d8da0; border-radius:0 12px 12px 0; font-size:15px; font-style:italic; color:#111; line-height:1.55; font-weight:500; margin-bottom:14px; }',
+      '.hdlv2-why-grid { display:grid; grid-template-columns:repeat(3, 1fr); gap:12px; }',
+      '@media (max-width: 820px) { .hdlv2-why-grid { grid-template-columns:1fr; } }',
+      '.hdlv2-why-card { background:#fff; border:1px solid #e4e6ea; border-radius:10px; padding:14px 16px; }',
+      '.hdlv2-why-card h4 { font-family: Poppins, Inter, sans-serif; font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:0.05em; color:#666; margin:0 0 8px; display:flex; align-items:center; gap:6px; }',
+      '.hdlv2-why-card h4 .ico { width:14px; height:14px; color:#3d8da0; flex:0 0 14px; }',
+      '.hdlv2-why-card ul { list-style:none !important; margin:0 !important; padding:0 !important; }',
+      '.hdlv2-why-card li { list-style:none !important; padding:6px 0 6px 14px; position:relative; font-size:13px; color:#2c3e50; line-height:1.5; }',
+      '.hdlv2-why-card li::marker { content:none !important; }',
+      '.hdlv2-why-card li::before { content:""; position:absolute; left:0; top:13px; width:5px; height:5px; border-radius:50%; background:#3d8da0; }',
+      '.hdlv2-why-card-empty { font-size:12px; color:#888; font-style:italic; padding:4px 0; }',
+      '.hdlv2-vision-card { margin-top:14px; padding:14px 18px; background:#fafbfc; border:1px solid #e4e6ea; border-left:3px solid #3d8da0; border-radius:0 10px 10px 0; font-size:13px; color:#2c3e50; line-height:1.55; }',
+      '.hdlv2-vision-card-label { font-size:10.5px; font-weight:600; text-transform:uppercase; letter-spacing:0.05em; color:#666; margin-bottom:6px; }',
+
+      // ─────────────────────────────────────────────────────────────
+      // v0.41.19 — Stage 3 — top stats row, body 2-col, grouped scores,
+      // Section 6 Health Background block (v0.38.0).
+      // ─────────────────────────────────────────────────────────────
+      '.hdlv2-s3-stats { display:grid; grid-template-columns:repeat(3, 1fr); gap:8px; margin-bottom:16px; }',
+      '.hdlv2-s3-body { display:grid; grid-template-columns:repeat(2, 1fr); gap:8px; margin-bottom:18px; }',
+      '@media (max-width: 700px) { .hdlv2-s3-stats { grid-template-columns:1fr; } .hdlv2-s3-body { grid-template-columns:1fr; } }',
+      '.hdlv2-score-groups { display:grid; grid-template-columns:repeat(2, 1fr); gap:12px; }',
+      '@media (max-width: 820px) { .hdlv2-score-groups { grid-template-columns:1fr; } }',
+      '.hdlv2-score-group { background:#fff; border:1px solid #e4e6ea; border-radius:10px; padding:12px 14px; }',
+      '.hdlv2-score-group h4 { font-family: Poppins, Inter, sans-serif; font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:0.05em; color:#666; margin:0 0 8px; padding-bottom:6px; border-bottom:1px solid #f0f0f0; }',
+      '.hdlv2-score-row { display:flex; justify-content:space-between; align-items:center; padding:4px 0; font-size:12px; color:#333; }',
+      '.hdlv2-score-pill { display:inline-block; min-width:28px; padding:2px 9px; background:#fafbfc; border:1px solid #f0f0f0; border-radius:6px; color:#111; font-family: Poppins, Inter, sans-serif; font-weight:700; font-size:11.5px; text-align:center; }',
+      '.hdlv2-score-pill.high { color:#047857; border-color:#a7f3d0; background:#ecfdf5; }',
+      '.hdlv2-score-pill.mid { color:#92400e; border-color:#fde68a; background:#fffbeb; }',
+      '.hdlv2-score-pill.low { color:#991b1b; border-color:#fecaca; background:#fef2f2; }',
+      '.hdlv2-hb-section-h { font-family: Poppins, Inter, sans-serif; font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:0.05em; color:#666; margin:20px 0 10px; }',
+      '.hdlv2-hb-note { display:inline-block; margin-left:8px; font-family: Inter, sans-serif; font-size:10.5px; font-weight:500; letter-spacing:0.02em; text-transform:none; color:#888; }',
+      '.hdlv2-hb-grid { display:grid; grid-template-columns:repeat(3, 1fr); gap:10px; }',
+      '@media (max-width: 820px) { .hdlv2-hb-grid { grid-template-columns:1fr; } }',
+      '.hdlv2-hb-card { background:#fff; border:1px solid #e4e6ea; border-radius:10px; padding:12px 14px; }',
+      '.hdlv2-hb-card-head { display:flex; align-items:center; gap:7px; font-family: Poppins, Inter, sans-serif; font-size:11.5px; font-weight:600; text-transform:uppercase; letter-spacing:0.04em; color:#004F59; margin-bottom:8px; padding-bottom:8px; border-bottom:1px solid #f0f0f0; }',
+      '.hdlv2-hb-card-head .ico { width:14px; height:14px; color:#3d8da0; flex:0 0 14px; }',
+      '.hdlv2-hb-card p { margin:0; font-size:12.5px; color:#2c3e50; line-height:1.55; white-space:pre-wrap; }',
+      '.hdlv2-hb-card.is-empty p { color:#94a3b8; font-style:italic; }',
     ].join('\n');
     document.head.appendChild(s);
   }

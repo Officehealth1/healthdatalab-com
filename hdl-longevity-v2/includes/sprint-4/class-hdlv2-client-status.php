@@ -396,6 +396,16 @@ class HDLV2_Client_Status {
             'bp_diastolic'   => isset( $s3['bpDiastolic'] )      && is_numeric( $s3['bpDiastolic'] )      ? (int) $s3['bpDiastolic']      : null,
             'resting_hr'     => isset( $s3['restingHeartRate'] ) && is_numeric( $s3['restingHeartRate'] ) ? (int) $s3['restingHeartRate'] : null,
             'scores'         => isset( $s3_calc['scores'] ) && is_array( $s3_calc['scores'] ) ? $s3_calc['scores'] : array(),
+            // v0.41.19 — Stage 3 Section 6 (Health Background, v0.38.0).
+            // Three optional client free-text fields. Not consumed by the
+            // rate calculator (zero impact on scores). Already fed into the
+            // Claude draft prompt + Final PDF template; this exposes them
+            // to the practitioner expand-panel's Stage 3 tab so the same
+            // context is visible without opening the consultation page.
+            // Strings only (cast in PHP, esc in JS render).
+            'family_history'       => isset( $s3['family_history'] )      ? (string) $s3['family_history']      : '',
+            'medications'          => isset( $s3['medications'] )         ? (string) $s3['medications']         : '',
+            'existing_conditions'  => isset( $s3['existing_conditions'] ) ? (string) $s3['existing_conditions'] : '',
         );
 
         // ── Final report ────────────────────────────────────────
