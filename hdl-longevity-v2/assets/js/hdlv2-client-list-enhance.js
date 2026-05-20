@@ -2471,14 +2471,23 @@
       // v0.41.19 — Tab strip enhancements: status dot per tab, group
       // separators, "current" selection class (replaces .active to
       // avoid collision with the .active-stage journey-state class).
+      // v0.41.21 — display:inline-flex + align-items:center so the
+      // gap property between dot and label actually takes effect
+      // (gap is ignored on the default inline-block button).
       // ─────────────────────────────────────────────────────────────
-      '.hdlv2-detail-tab { gap:7px; }',
+      '.hdlv2-detail-tab { display:inline-flex; align-items:center; gap:7px; }',
       '.hdlv2-detail-tab.current { color:#3d8da0; border-bottom-color:#3d8da0; }',
       '.hdlv2-detail-tab.current .hdlv2-tab-dot { background:#3d8da0; }',
       '.hdlv2-tab-dot { display:inline-block; width:6px; height:6px; border-radius:50%; background:#e4e6ea; flex:0 0 6px; }',
       '.hdlv2-tab-dot.done { background:#3d8da0; }',
       '.hdlv2-tab-dot.active-stage { background:#d97706; box-shadow:0 0 0 2px rgba(217,119,6,0.18); }',
       '.hdlv2-detail-tab-sep { display:inline-block; width:1px; height:18px; background:#e4e6ea; margin:0 6px; align-self:center; flex:0 0 1px; }',
+      // v0.41.21 — replace overflow-x:auto with flex-wrap so the wider tab
+      // strip (now carrying status dots + group separators) wraps cleanly
+      // on narrow panels instead of triggering a scrollbar. Belt-and-braces
+      // scrollbar suppression in case any host theme injects an overflow.
+      '.hdlv2-detail-tabs { flex-wrap:wrap; overflow-x:visible; overflow-y:visible; scrollbar-width:none; }',
+      '.hdlv2-detail-tabs::-webkit-scrollbar { display:none; }',
 
       // ─────────────────────────────────────────────────────────────
       // v0.41.19 — Progress tab — 2-col grid (metrics left, baseline right)
