@@ -338,14 +338,41 @@ class HDLV2_Client_Status {
             );
         }
 
+        // v0.41.23 — Stage 1 per-question scores. The calculator persists
+        // both 'raw' (letter→1-5 with Q6 'e'=2 special case) and 'scores'
+        // (post age-norm, includes q2_body combined silhouette+modifier).
+        // We surface the raw 1-5 integer to the panel because that's what
+        // the client most directly chose; the age-norm adjustment is an
+        // internal weight for the rate calculation.
+        $s1_raw    = isset( $s1['server_result']['raw'] )    && is_array( $s1['server_result']['raw'] )    ? $s1['server_result']['raw']    : array();
+        $s1_scores = isset( $s1['server_result']['scores'] ) && is_array( $s1['server_result']['scores'] ) ? $s1['server_result']['scores'] : array();
+
+        // v0.41.23 — Stage 1 biological-age estimate. Stage 1's
+        // calculate_quick() returns rate only, not bio_age (Stage 3's
+        // calculate_full() owns that). The Stage 1 PDFMonkey template uses
+        // the same identity inverse — bio_age = round(rate × chrono_age) —
+        // in HDLV2_Stage1_Commentary line 535. We mirror that integer
+        // rounding so the practitioner panel matches the Bio Age the
+        // client sees in their Stage 1 PDF.
+        $s1_age = isset( $s1['q1_age'] ) ? (int) $s1['q1_age'] : null;
+        $s1_bio_age_est = ( $s1_rate !== null && $s1_age && $s1_age > 0 )
+            ? (int) round( $s1_rate * $s1_age )
+            : null;
+
         $stage1 = array(
             'completed_at'   => $progress->stage1_completed_at ?: $progress->created_at,
             'rate'           => $s1_rate !== null ? round( $s1_rate, 2 ) : null,
+            'bio_age_est'    => $s1_bio_age_est,
             'gauge_url'      => $s1_gauge_url,
-            'age'            => isset( $s1['q1_age'] ) ? (int) $s1['q1_age'] : null,
+            'age'            => $s1_age,
             'sex'            => isset( $s1['q1_sex'] ) ? (string) $s1['q1_sex'] : '',
             'q2_silhouette'  => isset( $s1['q2a'] ) ? (string) $s1['q2a'] : '',
             'q2_fat_dist'    => isset( $s1['q2b'] ) ? (string) $s1['q2b'] : '',
+            // v0.41.23 — Q2b internal code (apple/pear/even) → questionnaire
+            // wording (Mostly middle / Hips & thighs / Evenly spread) mapped
+            // by s1_q2b_label() below. Mirrors widget/hdl-lead-magnet.js
+            // line 752-754 fatOpt() labels — single source of truth.
+            'q2b_label'      => self::s1_q2b_label( $s1['q2b'] ?? '' ),
             // v0.41.20 — Q3-Q9 used to round-trip as raw upper-case letters
             // (A/B/C/D/E) — useless to the practitioner reading the panel.
             // Translate to the canonical answer text from S1_QUESTIONS in
@@ -359,6 +386,19 @@ class HDLV2_Client_Status {
             'q7_smoking'     => self::s1_option_label( 'q7', $s1['q7'] ?? '' ),
             'q8_social'      => self::s1_option_label( 'q8', $s1['q8'] ?? '' ),
             'q9_diet'        => self::s1_option_label( 'q9', $s1['q9'] ?? '' ),
+            // v0.41.23 — per-question 1-5 score for the panel pill. Reads
+            // server_result.raw (Q3-Q9, integer, Q6 'e'=2 already applied)
+            // and server_result.scores.q2_body (combined Q2a silhouette +
+            // Q2b modifier, float — round to int for display). null when
+            // a legacy row predates persistence of server_result.raw.
+            'q2_score'       => isset( $s1_scores['q2_body'] )  ? (int) round( (float) $s1_scores['q2_body'] )  : null,
+            'q3_score'       => isset( $s1_raw['q3_zone2'] )    ? (int) $s1_raw['q3_zone2']                     : null,
+            'q4_score'       => isset( $s1_raw['q4_vo2'] )      ? (int) $s1_raw['q4_vo2']                       : null,
+            'q5_score'       => isset( $s1_raw['q5_sts'] )      ? (int) $s1_raw['q5_sts']                       : null,
+            'q6_score'       => isset( $s1_raw['q6_sleep'] )    ? (int) $s1_raw['q6_sleep']                     : null,
+            'q7_score'       => isset( $s1_raw['q7_smoking'] )  ? (int) $s1_raw['q7_smoking']                   : null,
+            'q8_score'       => isset( $s1_raw['q8_social'] )   ? (int) $s1_raw['q8_social']                    : null,
+            'q9_score'       => isset( $s1_raw['q9_diet'] )     ? (int) $s1_raw['q9_diet']                      : null,
         );
 
         // ── Stage 2 ─────────────────────────────────────────────
@@ -514,6 +554,28 @@ class HDLV2_Client_Status {
         }
 
         return isset( $table[ $q_key ][ $letter ] ) ? $table[ $q_key ][ $letter ] : '';
+    }
+
+    /**
+     * v0.41.23 — Resolve a Q2b body-shape code (apple/pear/even) to the
+     * canonical option text the client saw in the widget. Source-of-truth
+     * labels live in widget/hdl-lead-magnet.js line 752-754 (the fatOpt
+     * calls inside renderS1_Q2b). Keep both in sync if either changes.
+     *
+     * Returns '' for unknown / empty codes — caller renders just the
+     * silhouette index in that case (back-compat with pre-Q2b rows).
+     *
+     * @param string $code apple | pear | even (case-insensitive).
+     * @return string Questionnaire label or ''.
+     */
+    private static function s1_q2b_label( $code ) {
+        $code = strtolower( trim( (string) $code ) );
+        switch ( $code ) {
+            case 'apple': return 'Mostly middle';
+            case 'pear':  return 'Hips & thighs';
+            case 'even':  return 'Evenly spread';
+            default:      return '';
+        }
     }
 
     // ── Main calculation ──

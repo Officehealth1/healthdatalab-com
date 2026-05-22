@@ -1418,25 +1418,58 @@
       // Right: production gauge image (s1.gauge_url is built server-side
       // via HDLV2_Widget_Config::build_gauge_url → QuickChart.io, same URL
       // the client receives by email). No SVG approximation.
+      // v0.41.23 — middle stat card now surfaces the Stage 1 Bio Age
+      // estimate (round(rate × age)) that the client already sees on
+      // their Stage 1 PDF. Chronological age moves to a sub-line so the
+      // practitioner can still cross-reference.
       var leftStats = '<div class="hdlv2-st-row">'
         +   '<div class="hdlv2-st-stat"><strong>' + esc(s1.rate != null ? s1.rate + '×' : '—') + '</strong><span>Rate of ageing</span></div>'
-        +   '<div class="hdlv2-st-stat"><strong>' + esc(s1.age != null ? s1.age : '—') + '</strong><span>Chronological age</span></div>'
+        +   '<div class="hdlv2-st-stat"><strong>' + esc(s1.bio_age_est != null ? s1.bio_age_est : '—') + '</strong><span>Bio age (est.)</span>'
+        +     (s1.age != null ? '<small>vs. ' + esc(s1.age) + ' actual</small>' : '')
+        +   '</div>'
         +   '<div class="hdlv2-st-stat"><strong>' + esc(capSex) + '</strong><span>Sex</span></div>'
         + '</div>';
 
+      // v0.41.23 — per-row score pill mirroring Stage 3 (1-2 red, 3 amber,
+      // 4-5 green) so the practitioner sees the score the client earned
+      // on each answer without leaving the panel.
+      function s1Pill(n) {
+        if (n == null) return '';
+        var v = parseInt(n, 10);
+        if (isNaN(v) || v < 1 || v > 5) return '';
+        var cls = v >= 4 ? 'high' : (v === 3 ? 'mid' : 'low');
+        return ' <span class="hdlv2-score-pill ' + cls + '">' + v + '<span class="hdlv2-score-pill-max">/5</span></span>';
+      }
+
       var rows = [];
-      if (s1.q2_silhouette) rows.push(['Body shape', 'silhouette ' + s1.q2_silhouette + '/5 · ' + (s1.q2_fat_dist || 'even')]);
-      if (s1.q3_zone2)      rows.push(['Zone-2 cardio (Q3)', s1.q3_zone2]);
-      if (s1.q4_vo2)        rows.push(['VO2 / cardio reserve (Q4)', s1.q4_vo2]);
-      if (s1.q5_sts)        rows.push(['Sit-to-stand (Q5)', s1.q5_sts]);
-      if (s1.q6_sleep)      rows.push(['Sleep (Q6)', s1.q6_sleep]);
-      if (s1.q7_smoking)    rows.push(['Smoking (Q7)', s1.q7_smoking]);
-      if (s1.q8_social)     rows.push(['Social connection (Q8)', s1.q8_social]);
-      if (s1.q9_diet)       rows.push(['Diet (Q9)', s1.q9_diet]);
+      // v0.41.23 — Body shape: silhouette index reads as "#N" (not "N/5",
+      // which collided visually with the score-pill "/5" suffix). Q2b
+      // code replaced by the questionnaire label resolved server-side
+      // (s1.q2b_label — "Mostly middle" / "Hips & thighs" / "Evenly spread").
+      // Score pill uses the combined q2_body score (Q2a silhouette +
+      // Q2b modifier, clamped 1-5).
+      if (s1.q2_silhouette) {
+        var bodyTxt = 'silhouette #' + s1.q2_silhouette;
+        if (s1.q2b_label) bodyTxt += ' · ' + s1.q2b_label;
+        else if (s1.q2_fat_dist) bodyTxt += ' · ' + s1.q2_fat_dist;
+        rows.push(['Body shape (Q2)', bodyTxt, s1.q2_score]);
+      }
+      if (s1.q3_zone2)      rows.push(['Zone-2 cardio (Q3)',  s1.q3_zone2,   s1.q3_score]);
+      // v0.41.23 — Q4 label renamed "VO2 / cardio reserve" → "VO2max" so
+      // the practitioner panel matches the clinical metric the question
+      // proxies for (stair-climbing as a VO2max proxy).
+      if (s1.q4_vo2)        rows.push(['VO2max (Q4)',         s1.q4_vo2,     s1.q4_score]);
+      if (s1.q5_sts)        rows.push(['Sit-to-stand (Q5)',   s1.q5_sts,     s1.q5_score]);
+      if (s1.q6_sleep)      rows.push(['Sleep (Q6)',          s1.q6_sleep,   s1.q6_score]);
+      if (s1.q7_smoking)    rows.push(['Smoking (Q7)',        s1.q7_smoking, s1.q7_score]);
+      if (s1.q8_social)     rows.push(['Social connection (Q8)', s1.q8_social, s1.q8_score]);
+      if (s1.q9_diet)       rows.push(['Diet (Q9)',           s1.q9_diet,    s1.q9_score]);
       var leftList = rows.length
         ? '<div class="hdlv2-fp-block-label">9-question answers</div>'
           + '<ul class="hdlv2-st-list">'
-          + rows.map(function (r) { return '<li><span>' + esc(r[0]) + '</span><span>' + esc(r[1]) + '</span></li>'; }).join('')
+          + rows.map(function (r) {
+              return '<li><span>' + esc(r[0]) + '</span><span>' + esc(r[1]) + s1Pill(r[2]) + '</span></li>';
+            }).join('')
           + '</ul>'
         : '';
 
@@ -2340,6 +2373,10 @@
       '.hdlv2-st-stat { flex:1; min-width:120px; padding:10px 14px; background:#fff; border:1px solid #e4e6ea; border-radius:10px; text-align:center; }',
       '.hdlv2-st-stat strong { display:block; font-family: Poppins, Inter, sans-serif; font-size:18px; font-weight:700; color:#004F59; margin-bottom:2px; line-height:1.1; }',
       '.hdlv2-st-stat span { display:block; font-size:10px; color:#888; text-transform:uppercase; letter-spacing:0.05em; }',
+      // v0.41.23 — optional sub-line under the stat label (e.g. "vs. 50 actual"
+      // for the Stage 1 Bio Age estimate card). Smaller weight + neutral tone
+      // so the headline value stays dominant.
+      '.hdlv2-st-stat small { display:block; margin-top:3px; font-size:10px; color:#94a3b8; text-transform:none; letter-spacing:0; font-weight:500; font-family: Inter, sans-serif; }',
       '.hdlv2-st-gauge { text-align:center; margin: 0 0 14px; padding: 8px; background: #fff; border: 1px solid #e4e6ea; border-radius: 10px; }',
       '.hdlv2-st-gauge img { max-width: 320px; max-height: 200px; height: auto; display: inline-block; }',
       // v0.24.2 — !important + padding-left:0 + list-style on <li> to defeat
