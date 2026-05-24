@@ -22,7 +22,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 // register_activation_hook callbacks, which fire synchronously during
 // `wp plugin activate`, can reference them. The activator needs
 // HDLV2_DB_VERSION / HDLV2_VERSION at call time to update version options.
-define( 'HDLV2_VERSION', '0.41.33' );
+define( 'HDLV2_VERSION', '0.41.34' );
 define( 'HDLV2_DB_VERSION', '3.13' );
 define( 'HDLV2_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'HDLV2_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
@@ -844,6 +844,9 @@ final class HDL_Longevity_V2 {
         // v0.41.16 — Tools → V2 Restore admin page for soft-deleted form_progress rows
         require_once HDLV2_PLUGIN_DIR . 'includes/sprint-4/class-hdlv2-admin-restore.php';
 
+        // W13 (v0.41.34) — Automation Tier admin page (top-level menu)
+        require_once HDLV2_PLUGIN_DIR . 'includes/class-hdlv2-admin-automation-tier.php';
+
         // Sprint 5: Flight Plan
         require_once HDLV2_PLUGIN_DIR . 'includes/sprint-5/class-hdlv2-flight-plan.php';
         require_once HDLV2_PLUGIN_DIR . 'includes/sprint-5/class-hdlv2-flight-plan-renderer.php';
@@ -913,6 +916,9 @@ final class HDL_Longevity_V2 {
         HDLV2_Attention_Cron::get_instance()->register_hooks();
         // v0.41.16 — admin restore page (Tools → V2 Restore).
         HDLV2_Admin_Restore::get_instance()->register_hooks();
+
+        // W13 (v0.41.34) — Automation Tier admin page (top-level menu).
+        HDLV2_Admin_Automation_Tier::get_instance()->register_hooks();
 
         // Sprint 5: Flight Plan
         HDLV2_Flight_Plan::get_instance()->register_hooks();
