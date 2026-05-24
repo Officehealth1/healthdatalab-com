@@ -108,9 +108,14 @@ class HDL_Paid_Report_Provisioner {
             'methods'             => 'GET',
             'callback'            => array( $this, 'handle_validate_token' ),
             'permission_callback' => '__return_true',
+            // NOTE — intentionally NOT marking 't' as required:true. WP REST
+            // would 400-reject the request before our handler runs, and the
+            // spec mandates flag-check is the FIRST gate (returning 503 even
+            // for malformed requests when the tier is dark). Missing/malformed
+            // 't' is validated manually in handle_validate_token after the
+            // flag-check passes.
             'args'                => array(
                 't' => array(
-                    'required'          => true,
                     'type'              => 'string',
                     'sanitize_callback' => 'sanitize_text_field',
                 ),
