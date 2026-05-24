@@ -496,7 +496,7 @@ class HDLV2_Audio_Service {
 
 CRITICAL RULES:
 - Preserve their EXACT language and specific details. Do NOT generalise.
-- If they said "I don\'t want to end up like my mum Joan, stuck at home at 79 with a broken hip" — keep Joan, 79, broken hip. Do NOT flatten to "wants to avoid dependency."
+- If they said "I don\'t want to end up like my mum Joan, stuck at home at 79 with a broken hip" — keep "Does not want a life like their mother [mother: Joan, 79, broken hip, housebound]". Do NOT flatten to "wants to avoid dependency."
 - If they gave names — include ALL names. If they mentioned dates/ages/places — include them.
 - Do not summarise for length. The extraction must be long if the input is long. Brevity is a bug, not a feature.
 - If there is genuinely no data for a field, return an empty array or empty string — do not invent.

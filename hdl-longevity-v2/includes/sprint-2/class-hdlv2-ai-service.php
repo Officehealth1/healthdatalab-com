@@ -59,7 +59,7 @@ class HDLV2_AI_Service {
             . "}\n\n"
             . "CRITICAL:\n"
             . "- If they named Sophie, Mia, Leo, dad, mum — include ALL names.\n"
-            . "- If they said 'I don't want to end up like my mum Joan, stuck at home at 79 with a broken hip' — keep Joan, 79, broken hip in fears.\n"
+            . "- If they said 'I don't want to end up like my mum Joan, stuck at home at 79 with a broken hip' — keep \"Does not want a life like their mother [mother: Joan, 79, broken hip, housebound]\". Do NOT flatten to \"wants to avoid dependency.\"\n"
             . "- Brevity is a bug. Longer input deserves longer extraction.\n"
             . "- If a field has genuinely no content, return an empty array/string. Do not invent.\n"
             . "- Return JSON only. No markdown. No code fences.",
@@ -67,9 +67,10 @@ class HDLV2_AI_Service {
         );
 
         $system = 'You are a health coaching assistant for HealthDataLab, a longevity platform. '
-            . 'You are an exhaustive archivist — your job is to capture EVERYTHING the client said, '
-            . 'preserving names, ages, places, exact phrases. You never compress for length. '
-            . 'You never invent facts not in the input. Always return valid JSON only — no markdown, no code fences.';
+            . 'You are a careful and exhaustive archivist, with experience in the health and wellbeing field. '
+            . 'Your job is to capture EVERYTHING the client said, preserving names, ages, places, exact phrases. '
+            . 'You never compress for length. You never invent facts nor modify inputs. '
+            . 'Always return valid JSON only — no markdown, no code fences.';
 
         $response = self::call_claude( $key, $system, $user_prompt, 2500 );
         if ( is_wp_error( $response ) ) {
