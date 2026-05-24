@@ -97,6 +97,25 @@ class HDL_Paid_Report_Provisioner {
             // 503 from a flagged-off endpoint regardless of HMAC validity.
             'permission_callback' => '__return_true',
         ) );
+
+        // W5 — validate-token: Altituding's gated landing page calls this
+        // when the user clicks the magic link, to confirm the token is
+        // still usable and pull the client metadata for state-aware UI.
+        // First call on a fresh (status=issued) token transitions it to
+        // started + stamps started_at. Subsequent calls return the same
+        // shape (idempotent). Same HMAC key as paid-report-provision.
+        register_rest_route( 'hdl/v1', '/validate-token', array(
+            'methods'             => 'GET',
+            'callback'            => array( $this, 'handle_validate_token' ),
+            'permission_callback' => '__return_true',
+            'args'                => array(
+                't' => array(
+                    'required'          => true,
+                    'type'              => 'string',
+                    'sanitize_callback' => 'sanitize_text_field',
+                ),
+            ),
+        ) );
     }
 
     public function handle_request( $request ) {
@@ -280,6 +299,215 @@ class HDL_Paid_Report_Provisioner {
             'email_sent'     => (bool) $email_sent,
             'request_id'     => $request_id,
         ), 200 );
+    }
+
+    /**
+     * W5: GET /wp-json/hdl/v1/validate-token?t=<TOKEN>
+     *
+     * Altituding's gated landing page calls this when the user clicks the
+     * magic link. Returns the client metadata for state-aware UI rendering
+     * and transitions an `issued` token to `started` on first call.
+     *
+     * Order of operations:
+     *   1. Flag check first → 503 + log + return.
+     *   2. HMAC via shared HDL_PAID_REPORT_PROVISION_KEY → 401 on mismatch.
+     *   3. Rate limit (same V1 bucket, 30/hour/IP).
+     *   4. Validate `t` query param: 64-char [a-f0-9]. Reject 400 if bad.
+     *   5. Token lookup. Not found → 404 with generic "token_not_found"
+     *      (don't leak format-vs-existence distinction externally — that's
+     *      only in the audit log).
+     *   6. Status routing:
+     *        revoked    → 200 + {valid:false, status:revoked}
+     *        completed  → 200 + {valid:false, status:completed}
+     *        issued     → atomic UPDATE → started + started_at=NOW().
+     *                     On race (affected_rows=0): re-SELECT and respond
+     *                     based on fresh state.
+     *        started    → 200 + {valid:true} (idempotent)
+     *
+     * Race safety. The `UPDATE ... WHERE id=? AND status='issued'` is the
+     * primary guard. A concurrent revoke between SELECT and UPDATE wins
+     * (our UPDATE affects 0 rows; we re-read and return revoked, not
+     * accidentally over-write status back to started).
+     */
+    public function handle_validate_token( $request ) {
+        $request_id = wp_generate_uuid4();
+        $ip         = $this->get_ip();
+        $user_agent = isset( $_SERVER['HTTP_USER_AGENT'] ) ? (string) $_SERVER['HTTP_USER_AGENT'] : '';
+
+        // ── 1. FLAG CHECK FIRST.
+        if ( get_option( 'hdlv2_automation_tier_enabled', false ) !== true ) {
+            $this->log_request( $request_id, $ip, $user_agent, $request, 503, 'flag_disabled' );
+            return new WP_REST_Response( array(
+                'error'      => 'automation_tier_disabled',
+                'message'    => 'Automation tier is not enabled on this server.',
+                'request_id' => $request_id,
+            ), 503 );
+        }
+
+        // ── 2. HMAC verification (shared key with paid-report-provision).
+        $expected = defined( 'HDL_PAID_REPORT_PROVISION_KEY' ) ? HDL_PAID_REPORT_PROVISION_KEY : '';
+        $provided = $request->get_header( 'X-HDL-Paid-Report-Key' );
+        if ( empty( $expected ) || empty( $provided ) || ! hash_equals( (string) $expected, (string) $provided ) ) {
+            $this->log_request( $request_id, $ip, $user_agent, $request, 401, 'hmac_invalid' );
+            return new WP_REST_Response( array(
+                'error'      => 'unauthorized',
+                'request_id' => $request_id,
+            ), 401 );
+        }
+
+        // ── 3. Rate limit.
+        if ( class_exists( 'HDL_Rate_Limiter' ) ) {
+            $rl = new HDL_Rate_Limiter();
+            if ( ! $rl->check_limit( 'paid_report_provision', $ip, 30, HOUR_IN_SECONDS ) ) {
+                $this->log_request( $request_id, $ip, $user_agent, $request, 429, 'rate_limited' );
+                return new WP_REST_Response( array(
+                    'error'      => 'rate_limited',
+                    'request_id' => $request_id,
+                ), 429 );
+            }
+        }
+
+        // ── 4. Validate `t` param.
+        $token = (string) $request->get_param( 't' );
+        if ( ! preg_match( '/^[a-f0-9]{64}$/', $token ) ) {
+            $this->log_request( $request_id, $ip, $user_agent, $request, 400, 'body_invalid' );
+            // Externally: same generic 400 — don't reveal whether format
+            // was malformed vs missing. Audit log carries the detail.
+            return new WP_REST_Response( array(
+                'error'      => 'invalid_token_format',
+                'request_id' => $request_id,
+            ), 400 );
+        }
+
+        // ── 5. Token lookup.
+        global $wpdb;
+        $tokens_table = $wpdb->prefix . 'hdlv2_automation_tokens';
+        $row = $wpdb->get_row( $wpdb->prepare(
+            "SELECT * FROM $tokens_table WHERE token = %s LIMIT 1",
+            $token
+        ) );
+        if ( ! $row ) {
+            $this->log_request( $request_id, $ip, $user_agent, $request, 404, 'token_not_found' );
+            return new WP_REST_Response( array(
+                'valid'      => false,
+                'error'      => 'token_not_found',
+                'request_id' => $request_id,
+            ), 404 );
+        }
+
+        // ── 6a. Terminal states — no transition.
+        if ( 'revoked' === $row->status ) {
+            $this->log_request( $request_id, $ip, $user_agent, $request, 200, 'token_revoked' );
+            return new WP_REST_Response( array(
+                'valid'      => false,
+                'status'     => 'revoked',
+                'request_id' => $request_id,
+            ), 200 );
+        }
+        if ( 'completed' === $row->status ) {
+            $this->log_request( $request_id, $ip, $user_agent, $request, 200, 'token_completed' );
+            return new WP_REST_Response( array(
+                'valid'      => false,
+                'status'     => 'completed',
+                'request_id' => $request_id,
+            ), 200 );
+        }
+
+        // ── 6b. Transition (issued → started) atomically.
+        $outcome = 'token_validated_idempotent';
+        if ( 'issued' === $row->status ) {
+            $now_gmt = current_time( 'mysql', true ); // UTC
+            $affected = $wpdb->update(
+                $tokens_table,
+                array(
+                    'status'     => 'started',
+                    'started_at' => $now_gmt,
+                ),
+                array(
+                    'id'     => (int) $row->id,
+                    'status' => 'issued',
+                ),
+                array( '%s', '%s' ),
+                array( '%d', '%s' )
+            );
+            if ( false === $affected ) {
+                $this->log_request( $request_id, $ip, $user_agent, $request, 500, 'internal_error:' . $wpdb->last_error );
+                return new WP_REST_Response( array(
+                    'error'      => 'internal_error',
+                    'message'    => $wpdb->last_error,
+                    'request_id' => $request_id,
+                ), 500 );
+            }
+            if ( 1 === (int) $affected ) {
+                $row->status     = 'started';
+                $row->started_at = $now_gmt;
+                $outcome         = 'token_validated_first_call';
+            } else {
+                // Lost the race — somebody else transitioned the row
+                // between our SELECT and our UPDATE. Re-read and respond
+                // based on the new state.
+                $row = $wpdb->get_row( $wpdb->prepare(
+                    "SELECT * FROM $tokens_table WHERE id = %d LIMIT 1",
+                    (int) $row->id
+                ) );
+                if ( ! $row ) {
+                    // Vanishingly unlikely (row deleted out from under us).
+                    $this->log_request( $request_id, $ip, $user_agent, $request, 404, 'token_not_found' );
+                    return new WP_REST_Response( array(
+                        'valid'      => false,
+                        'error'      => 'token_not_found',
+                        'request_id' => $request_id,
+                    ), 404 );
+                }
+                if ( 'revoked' === $row->status ) {
+                    $this->log_request( $request_id, $ip, $user_agent, $request, 200, 'token_revoked' );
+                    return new WP_REST_Response( array(
+                        'valid'      => false,
+                        'status'     => 'revoked',
+                        'request_id' => $request_id,
+                    ), 200 );
+                }
+                if ( 'completed' === $row->status ) {
+                    $this->log_request( $request_id, $ip, $user_agent, $request, 200, 'token_completed' );
+                    return new WP_REST_Response( array(
+                        'valid'      => false,
+                        'status'     => 'completed',
+                        'request_id' => $request_id,
+                    ), 200 );
+                }
+                // else: status === 'started' — idempotent path.
+            }
+        }
+
+        // ── 7. Success response — token valid (status now `started`).
+        $this->log_request( $request_id, $ip, $user_agent, $request, 200, $outcome );
+        return new WP_REST_Response( array(
+            'valid'      => true,
+            'status'     => 'started',
+            'email'      => $row->client_email,
+            'name'       => $row->client_name,
+            'programme'  => $row->programme,
+            'tier'       => $row->tier,
+            'issued_at'  => $this->to_iso8601( $row->issued_at ),
+            'started_at' => $this->to_iso8601( $row->started_at ),
+            'request_id' => $request_id,
+        ), 200 );
+    }
+
+    /**
+     * MySQL DATETIME (UTC, no zone) → ISO-8601 Zulu. Returns null for
+     * null/empty inputs (e.g., started_at on a freshly issued token
+     * before validate-token runs).
+     */
+    private function to_iso8601( $datetime ) {
+        if ( empty( $datetime ) || '0000-00-00 00:00:00' === $datetime ) {
+            return null;
+        }
+        $ts = strtotime( $datetime . ' UTC' );
+        if ( false === $ts ) {
+            return null;
+        }
+        return gmdate( 'Y-m-d\TH:i:s\Z', $ts );
     }
 
     // ──────────────────────────────────────────────────────────────────────
