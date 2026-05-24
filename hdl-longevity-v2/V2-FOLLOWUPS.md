@@ -6,6 +6,42 @@ includes context, scope, and a "queue after" hint so they can be ordered.
 
 ---
 
+## Detail-view audio + final-report markdown rendering for automation-tier clients
+
+**Discovered:** 2026-05-24 during W11 build (SELF-REPORTED badge + Source filter — automation-tier dashboard surfacing).
+
+**Decision context.** W11's new `loadAutoConsultation()` tab handler renders a read-only "Self-reported data" block (heading + submitted timestamp + body blockquote + Make.com-Route-1 footer). The W11 backend exposes `auto_consultation = { addendum_id, submitted_at, body_text }` per automation-tier client through the `/dashboard/clients` response.
+
+**Deferred scope.** The original W11 spec asked for two additional render elements in the detail view:
+
+- **Inline audio player** for the original self-reported recording (uses V2's existing signed-URL generation helper — same mechanism the practitioner-consultation audio playback uses today).
+- **AI-generated Trajectory Plan markdown** rendered inline (from `wp_hdlv2_reports.report_content` or wherever Make.com Route 1's callback stamps the final markdown — depends on whether the Route-1 callback writes back to V2 or only emails the PDF).
+
+**Why deferred.** Make.com Route 1 already emails the rendered PDF directly to the client, and the audio is already captured in the body_text transcript (via W9's `onConfirm` append to the textarea). The practitioner read-only view doesn't STRICTLY need either embedded in the dashboard for the launch to work — the boss can use the SELF-REPORTED badge + submitted timestamp + body text to understand who self-reported and when. The audio file lives in `wp_hdlv2_audio_extractions` if the practitioner needs to listen later (currently no UI for that).
+
+**Fix path (post-launch, gated on real demand).**
+
+1. **Audio player.** Extend `auto_consultation` object in `class-hdlv2-client-status.php::rest_get_clients()` with `audio_signed_url` (look up the audio extraction row matching the form_progress + addendum, generate signed URL via the existing V2 helper). Render `<audio controls src="..." />` inside the W11 `loadAutoConsultation()` body block. ~30 lines server + ~10 lines client.
+2. **Final report markdown.** Extend `auto_consultation` with `final_report_md` (read from `wp_hdlv2_reports.report_content` where `form_progress_id` matches and `report_type='final'`). Render via the same markdown helper the practitioner consultation editor uses. ~20 lines server + ~15 lines client.
+
+**Gate.** Only build this when real automation-tier submissions surface a practitioner workflow that needs either element. If the boss never opens the Consultation tab for an automation-tier client because the Make.com PDF email is enough, this stays deferred indefinitely.
+
+**Queue after:** the automation tier build ships (post-W13) AND real automation-tier traffic creates a practitioner workflow that needs either element.
+
+---
+
+## PDFMonkey Final Report template subtitle still references "Longevity Report"
+
+**Discovered:** 2026-05-24 during W12 build (string rename pass).
+
+**Decision context.** The Final Report PDFMonkey template (`1c9f06c5-ca6d-4264-9993-33f3531f9f89`) subtitle still reads "Longevity Report" — that copy is rendered server-side by PDFMonkey, not by the WordPress plugin tree. W12's grep + rename pass covers all `.php` / `.js` / `.css` / `.html` matches inside the repo, but the PDFMonkey template lives outside the codebase.
+
+**Scope.** Matthew or the boss renames the template subtitle inside the PDFMonkey UI from "Longevity Report" → "Trajectory Plan" after W12 ships. Mirrored docs `hdl-longevity-v2/docs/pdfmonkey/PDFMONKEY-FINAL-REPORT-HTML.md` should also be updated in the same pass so the local copy stays in sync.
+
+**Queue after:** W12 deploys and the WordPress-side rename is verified on LIVE V2. PDFMonkey rename is a separate, manual step in the PDFMonkey admin UI.
+
+---
+
 ## `HDLV2_AI_Service::MODEL_HAIKU` constant-name vs value mismatch — silent Sonnet misrouting
 
 **Discovered:** 2026-05-24 during W9 build (looking for a Haiku-routable helper for the automation-tier rec/milestone Claude call).
