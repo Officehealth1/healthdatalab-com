@@ -6,6 +6,60 @@ includes context, scope, and a "queue after" hint so they can be ordered.
 
 ---
 
+## V1 rename Gist deploys — 6 files modified locally in W12 but not yet on LIVE V2
+
+**Discovered:** 2026-05-24 during W12 build (Phase 3 edits).
+
+**Decision context.** W12 renamed "Report" → "Trajectory Plan" across 64 user-facing strings — 58 in V2 (deployed via safe-deploy-to-live.sh in commit cc39297) and 6 in V1. The V1 edits ARE present in the local files but cannot reach LIVE V2 through this commit because `health-data-lab-plugin/` is `.gitignored` per the repo root `.gitignore` (V1 is deployed via the Gist + wget pattern documented in CLAUDE.md, not by the rsync script).
+
+**Files modified locally (V1):**
+- `forms/longevity-form-content.php:594` — Apple modal heading "Your Longevity Report is on its way!" → "Your Trajectory Plan…" (note: file is also broken — see separate follow-up)
+- `forms/health-form-raw.php:15927` — modal title `'Processing Your Report'` → `'Processing Your Trajectory Plan'`
+- `forms/longevity-form-raw.php:470` — Apple modal heading (same string as longevity-form-content)
+- `api/class-consumer-provisioner.php:900` — email header `'Your Longevity Report'` → `'Your Trajectory Plan'`
+- `api/class-consumer-provisioner.php:917` — email subject `'Your {$source_label} Longevity Report — powered by HealthDataLab'` → `'… Trajectory Plan …'`
+- `core/class-health-tracker.php:297` — admin practitioner stat label `'Longevity Reports'` → `'Trajectory Plans'` (plural)
+
+**Fix path.** Deploy each file via the existing V1 Gist workflow per CLAUDE.md:
+
+```bash
+gh gist edit <GIST_ID> -f <filename> <local_path>
+ssh healthdatalab.net 'wget -O /var/www/html/wp-content/plugins/health-data-lab-plugin/.../<filename> "https://gist.githubusercontent.com/raw/<GIST_ID>/<filename>"'
+```
+
+Known Gist IDs (from CLAUDE.md):
+- `class-consumer-provisioner.php` → `70b1b85de86c1d013d58eac1199d5e86`
+- `class-health-tracker.php` → `6ec9205d676814a05d56d15b462c847c`
+- `longevity-form-raw.php` → `5f1e5e5d07a13aed7d197f2992dbfd46`
+- `health-form-raw.php` → `d8dc28ca026e4e5de3a4574d13be5e2c`
+- `longevity-form-content.php` — NOT in the known-Gists table; check if a Gist exists or if this file deploys differently (likely doesn't deploy at all — see related follow-up about its parse error)
+
+**Queue.** Before IIPA launch — V1 modals + email subjects need consistent copy with V2 for the launch to feel coherent to clients. Bundle the 4 known-Gist deploys in one session.
+
+---
+
+## V1 `longevity-form-content.php` — unmatched `}` on line 10325, file appears unused
+
+**Discovered:** 2026-05-24 during W12 lint pass.
+
+**Symptom.** `php -l health-data-lab-plugin/includes/forms/longevity-form-content.php` returns `Parse error: Unmatched '}' in … on line 10325`. Same error present on LIVE V2 (file dated `Feb 22 13:58`, 536KB) → predates the entire W12 work.
+
+**Why not blocking.** `grep -rn 'longevity-form-content' /var/www/html/wp-content/plugins/health-data-lab-plugin/` returns no `require_once` references. The file is never loaded at runtime, so the parse error never fires. WordPress + V1 plugin boot normally.
+
+**Why filing.** Two reasons:
+1. **The W12 edit at line 594** (rename "Longevity Report" → "Trajectory Plan" in an Apple modal heading) is functionally a no-op because the file is dead code. It's classified as user-facing and Matthew approved the rename, so it stays in the local file for consistency, but the modal heading no user will see is irrelevant.
+2. **Hygiene** — a 536KB PHP file with a syntax error in the active V1 plugin directory is a footgun for anyone running `php -l` across the tree, and a code-quality smell.
+
+**Fix path (either).**
+- Fix the brace match — find what's missing/extra on line 10325 and patch.
+- Delete the file — verified no consumers; deletion is safe.
+
+The deletion option is faster and safer; the file is presumably a legacy template that was superseded by the `*-raw.php` variants (longevity-form-raw.php, longevity-form-content.php seem to overlap on the same modal markup, with `*-raw.php` being the actively loaded version).
+
+**Queue after:** post-W13 build chain ships, before the V1 Gist deploys above. Confirm no `require_once` exists (already verified) + check git blame for the file's original purpose, then delete or fix.
+
+---
+
 ## Detail-view audio + final-report markdown rendering for automation-tier clients
 
 **Discovered:** 2026-05-24 during W11 build (SELF-REPORTED badge + Source filter — automation-tier dashboard surfacing).
