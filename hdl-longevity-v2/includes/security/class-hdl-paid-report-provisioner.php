@@ -102,17 +102,20 @@ class HDL_Paid_Report_Provisioner {
     public function handle_request( $request ) {
         $request_id = wp_generate_uuid4();
         $ip         = $this->get_ip();
+        $user_agent = isset( $_SERVER['HTTP_USER_AGENT'] ) ? (string) $_SERVER['HTTP_USER_AGENT'] : '';
 
         // ── 1. FLAG CHECK FIRST. Endpoint is dark when flag is false.
+        // Log even the flag-off rejections — Altituding's Stripe webhook
+        // will fire here in production, and we want an audit trail of every
+        // hit (including when the flag is mid-toggle or off by accident).
         if ( get_option( 'hdlv2_automation_tier_enabled', false ) !== true ) {
+            $this->log_request( $request_id, $ip, $user_agent, $request, 503, 'flag_disabled' );
             return new WP_REST_Response( array(
                 'error'      => 'automation_tier_disabled',
                 'message'    => 'Automation tier is not enabled on this server.',
                 'request_id' => $request_id,
             ), 503 );
         }
-
-        $user_agent = isset( $_SERVER['HTTP_USER_AGENT'] ) ? (string) $_SERVER['HTTP_USER_AGENT'] : '';
 
         // ── 2. HMAC verification.
         $expected = defined( 'HDL_PAID_REPORT_PROVISION_KEY' ) ? HDL_PAID_REPORT_PROVISION_KEY : '';
