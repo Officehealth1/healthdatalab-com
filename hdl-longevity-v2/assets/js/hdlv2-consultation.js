@@ -277,10 +277,10 @@
     // "Generate Final Report" button — that button hits the duplicate
     // guard in HDLV2_Final_Report::generate() and is a flat no-op.
     if (state.data && state.data.final_report) {
-      return '<p class="hdlv2-consult-hint">Final Report already generated. Use the <strong>Consultation Addenda</strong> section below to add follow-up notes and refresh the plan.</p>';
+      return '<p class="hdlv2-consult-hint">Trajectory Plan already generated. Use the <strong>Consultation Addenda</strong> section below to add follow-up notes and refresh the plan.</p>';
     }
 
-    return '<button id="hdlv2-action-btn" class="hdlv2-btn hdlv2-consult-generate-btn" type="button">Generate Final Report</button>'
+    return '<button id="hdlv2-action-btn" class="hdlv2-btn hdlv2-consult-generate-btn" type="button">Generate Trajectory Plan</button>'
       + '<p class="hdlv2-consult-hint">Your notes will be organised into a structured summary for the report.</p>';
   }
 
@@ -622,7 +622,7 @@
         saveNotes(raw).then(function (savedOK) {
           if (!savedOK) {
             actionBtn.disabled = false;
-            actionBtn.textContent = 'Generate Final Report';
+            actionBtn.textContent = 'Generate Trajectory Plan';
             setOrganiseStatus('error', 'Could not save your notes. Please try again.');
             return;
           }
@@ -644,13 +644,13 @@
               window.scrollTo({ top: document.getElementById('hdlv2-action-wrap').offsetTop - 24, behavior: 'smooth' });
             } else {
               actionBtn.disabled = false;
-              actionBtn.textContent = 'Generate Final Report';
+              actionBtn.textContent = 'Generate Trajectory Plan';
               setOrganiseStatus('error', (res && res.message) || 'Something went wrong. Please try again.');
             }
           })
           .catch(function () {
             actionBtn.disabled = false;
-            actionBtn.textContent = 'Generate Final Report';
+            actionBtn.textContent = 'Generate Trajectory Plan';
             setOrganiseStatus('error', 'Connection error. Please try again.');
           });
         });
@@ -1492,7 +1492,7 @@
     }
     function restoreButton() {
       btn.disabled = false;
-      btn.textContent = 'Generate Final Report';
+      btn.textContent = 'Generate Trajectory Plan';
     }
 
     btn.addEventListener('click', function () {
@@ -1500,16 +1500,16 @@
       var clientName = state.data.client_name || 'this client';
       var ask = (window.HDLV2UI && window.HDLV2UI.confirm)
         ? window.HDLV2UI.confirm({
-            title: 'Generate the Final Report for ' + clientName + '?',
+            title: 'Generate the Trajectory Plan for ' + clientName + '?',
             body: 'This will replace the Draft.',
-            confirmLabel: 'Generate Final Report',
+            confirmLabel: 'Generate Trajectory Plan',
             cancelLabel: 'Cancel'
           })
-        : Promise.resolve(window.confirm('Generate the Final Report for ' + clientName + '? This will replace the Draft.'));
+        : Promise.resolve(window.confirm('Generate the Trajectory Plan for ' + clientName + '? This will replace the Draft.'));
       ask.then(function (confirmed) {
         if (!confirmed) return;
         btn.disabled = true;
-        showSpinner('Generating Final Report…');
+        showSpinner('Generating Trajectory Plan…');
 
         // After 8s, swap to a softer "still working" message so the practitioner
         // knows the request hasn't hung. Cleared on response.
@@ -1932,7 +1932,7 @@
         +     '<line x1="12" y1="16" x2="12.01" y2="16"></line>'
         +   '</svg>'
         +   '<div class="hdlv2-phase-n-banner__body">'
-        +     '<strong>Final Report was recovered.</strong> '
+        +     '<strong>Trajectory Plan was recovered.</strong> '
         +     'A corrupted state was repaired on ' + esc(recoveredDate) + '. '
         +     'The displayed report content reflects an earlier version. '
         +     'Click <strong>Save &amp; Update Plan</strong> once to publish the latest content to your client.'
@@ -1946,7 +1946,7 @@
     // entry stays open; older entries collapse so the timeline is scannable.
     var timelineHtml = addenda.length
       ? addenda.map(function (a, i) { return renderAddendumCard(a, i === 0); }).join('')
-      : '<p class="hdlv2-addenda-empty">No addenda yet. Add the first one below — anything that has changed since the Final Report was generated.</p>';
+      : '<p class="hdlv2-addenda-empty">No addenda yet. Add the first one below — anything that has changed since the Trajectory Plan was generated.</p>';
 
     var defaultDate = formatDateTimeLocalNow();
 
@@ -1955,7 +1955,7 @@
       +   '<h4>Consultation Addenda</h4>'
       +   '<span class="hdlv2-addenda-count">' + addenda.length + ' ' + (addenda.length === 1 ? 'entry' : 'entries') + '</span>'
       + '</div>'
-      + '<p class="hdlv2-consult-hint">Add timestamped observations after the Final Report has been generated. Past addenda are read-only — Matthew\'s rule: never change past information, only add to it.</p>'
+      + '<p class="hdlv2-consult-hint">Add timestamped observations after the Trajectory Plan has been generated. Past addenda are read-only — Matthew\'s rule: never change past information, only add to it.</p>'
 
       + '<div class="hdlv2-addenda-timeline">' + timelineHtml + '</div>'
 
@@ -1979,7 +1979,7 @@
 
       +   '<label class="hdlv2-addendum-label" style="margin-top:4px;">Note</label>'
       +   '<div class="hdlv2-consult-notes-bar">'
-      +     '<textarea id="hdlv2-addendum-text" class="hdlv2-consult-notes-input" rows="6" placeholder="What has changed since the Final Report? Observations, allergies, lifestyle changes, lab results."></textarea>'
+      +     '<textarea id="hdlv2-addendum-text" class="hdlv2-consult-notes-input" rows="6" placeholder="What has changed since the Trajectory Plan? Observations, allergies, lifestyle changes, lab results."></textarea>'
       +     '<div class="hdlv2-consult-notes-iconbar" id="hdlv2-addendum-audio"></div>'
       +   '</div>'
 
@@ -2180,13 +2180,13 @@
     var modalOpts = hasAddendum
       ? {
           title: 'Save addendum and re-issue the plan?',
-          body: 'This will:\n• Save your addendum (timestamped, never deleted)\n• Re-run the AI with the original consultation + every addendum\n• Generate a new Final Report and Flight Plan\n• Send a fresh email + PDF to your client (they will receive a second email)',
+          body: 'This will:\n• Save your addendum (timestamped, never deleted)\n• Re-run the AI with the original consultation + every addendum\n• Generate a new Trajectory Plan and Flight Plan\n• Send a fresh email + PDF to your client (they will receive a second email)',
           confirmLabel: 'Yes, save and update',
           cancelLabel: 'Cancel'
         }
       : {
           title: 'Re-issue the plan now?',
-          body: 'No new addendum to save — your AI summary edits above are already auto-saved. Continuing will:\n• Re-run the AI with the existing consultation + addenda\n• Generate a new Final Report and Flight Plan\n• Send a fresh email + PDF to your client (they will receive a second email)',
+          body: 'No new addendum to save — your AI summary edits above are already auto-saved. Continuing will:\n• Re-run the AI with the existing consultation + addenda\n• Generate a new Trajectory Plan and Flight Plan\n• Send a fresh email + PDF to your client (they will receive a second email)',
           confirmLabel: 'Yes, re-issue plan',
           cancelLabel: 'Cancel'
         };
@@ -2330,7 +2330,7 @@
               restoreButton();
               setAddendumStatus(
                 'error',
-                'Regeneration completed server-side but the page could not confirm the new Final Report. Please refresh and check the report URL.'
+                'Regeneration completed server-side but the page could not confirm the new Trajectory Plan. Please refresh and check the report URL.'
               );
             }
           });
@@ -2453,13 +2453,13 @@
     wrap.innerHTML = ''
       + '<div class="hdlv2-update-success">'
       +   '<div class="hdlv2-update-success-icon">✓</div>'
-      +   '<h4>Final Report regenerated</h4>'
+      +   '<h4>Trajectory Plan regenerated</h4>'
       +   '<p class="hdlv2-update-success-meta">Generated <strong>' + esc(generatedAt) + '</strong> · client + practitioner emails on the way.</p>'
       // v0.34.3 — explicit hint that the report opens in a new tab so the
       // consultation page stays open with all in-progress state preserved
       // (audio component, brief autosave, etc.).
       +   '<p class="hdlv2-update-success-hint">Opens in a new tab — this consultation stays open so you can keep adding addenda below.</p>'
-      +   (reportUrl ? '<a class="hdlv2-update-success-link" href="' + esc(reportUrl) + '" target="_blank" rel="noopener">View the new Final Report →</a>' : '')
+      +   (reportUrl ? '<a class="hdlv2-update-success-link" href="' + esc(reportUrl) + '" target="_blank" rel="noopener">View the new Trajectory Plan →</a>' : '')
       // v0.34.3 — renamed from "Refresh to add another addendum" (sounded
       // like a cache-bust). Implementation stays as window.location.reload
       // — soft re-render would touch DOM, audio component lifecycle, and

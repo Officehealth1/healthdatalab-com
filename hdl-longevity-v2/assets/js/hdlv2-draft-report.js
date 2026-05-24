@@ -174,14 +174,14 @@
     // Hero
     var firstName = (data.client_name || '').split(' ')[0] || 'there';
     var heroSubtitleHtml = isFinal
-      ? 'This is your <strong style="font-weight:600;">finalised Longevity Report</strong>, reviewed by your practitioner. Use it as your roadmap — your weekly Flight Plan is next.'
+      ? 'This is your <strong style="font-weight:600;">finalised Trajectory Plan</strong>, reviewed by your practitioner. Use it as your roadmap — your weekly Flight Plan is next.'
       : 'Here\'s a first look at what we\'ve learnt so far. <strong style="font-weight:600;">This is a draft</strong> — your practitioner will fine-tune it during your consultation, then send you the final plan.';
 
     html += '<header class="hdlv2-dr-hero">' +
       '<div class="hdlv2-dr-hero-header">' +
         '<div>' +
           '<p class="hdlv2-dr-hero-greeting">Hi ' + escape(firstName) + ' —</p>' +
-          '<h1 class="hdlv2-dr-hero-title">Your Longevity Report</h1>' +
+          '<h1 class="hdlv2-dr-hero-title">Your Trajectory Plan</h1>' +
         '</div>' +
         '<span class="hdlv2-dr-' + (isFinal ? 'final' : 'draft') + '-badge">' + (isFinal ? 'Final' : 'Draft') + '</span>' +
       '</div>' +

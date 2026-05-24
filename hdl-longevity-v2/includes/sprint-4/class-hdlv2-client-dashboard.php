@@ -1045,7 +1045,7 @@ class HDLV2_Client_Dashboard {
 
         // ── Cover ──────────────────────────────────────────────────────────
         $h .= '<div class="cdp-report-cover cdp-reveal cdp-reveal-1">';
-        $h .= '<div class="cdp-report-meta">Your Longevity Report &middot; <span class="cdp-report-badge cdp-report-badge-' . ( $is_final ? 'final' : 'draft' ) . '">' . esc_html( $status_label ) . '</span></div>';
+        $h .= '<div class="cdp-report-meta">Your Trajectory Plan &middot; <span class="cdp-report-badge cdp-report-badge-' . ( $is_final ? 'final' : 'draft' ) . '">' . esc_html( $status_label ) . '</span></div>';
         $h .= '<h1>' . $display_name . '</h1>';
         $h .= '<p class="cdp-report-subtitle">';
         if ( $is_final && $reviewer_raw && $issued ) {
@@ -1653,8 +1653,8 @@ class HDLV2_Client_Dashboard {
         $bodies = array(
             1 => array( 'Stage 1 &middot; Quick insight',     '9 questions, ~3 minutes. You see your pace-of-ageing gauge straight away.' ),
             2 => array( 'Stage 2 &middot; Your WHY',          'Your practitioner releases this when ready. You record what matters most &mdash; speak it or type it.' ),
-            3 => array( 'Stage 3 &middot; Full detail',       '22 measurements across 5 sections. Auto-drafts your Longevity Report for your practitioner&rsquo;s review.' ),
-            4 => array( 'Consultation &middot; Final Report', 'Your practitioner edits, adds notes, finalises. PDF + Flight Plan delivered to you.' ),
+            3 => array( 'Stage 3 &middot; Full detail',       '22 measurements across 5 sections. Auto-drafts your Trajectory Plan for your practitioner&rsquo;s review.' ),
+            4 => array( 'Consultation &middot; Trajectory Plan', 'Your practitioner edits, adds notes, finalises. PDF + Flight Plan delivered to you.' ),
         );
 
         $h = '<ol class="cd-steps">';

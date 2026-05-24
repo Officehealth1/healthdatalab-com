@@ -225,7 +225,7 @@ class HDLV2_Email_Templates {
 
         $content = "
             <h2 style='margin:0 0 8px;color:" . self::DARK . ";'>Stage 3 Form Completed</h2>
-            <p style='color:" . self::MUTED . ";margin:0 0 24px;line-height:1.5;'>Draft Report is ready. Your client <strong>{$cname}</strong> has completed all three stages. Please review before the consultation.</p>
+            <p style='color:" . self::MUTED . ";margin:0 0 24px;line-height:1.5;'>Draft Trajectory Plan is ready. Your client <strong>{$cname}</strong> has completed all three stages. Please review before the consultation.</p>
 
             <table cellpadding='0' cellspacing='0' border='0' width='100%' style='margin:0 0 20px;'>
                 <tr>
@@ -249,9 +249,9 @@ class HDLV2_Email_Templates {
             <p style='color:#444;line-height:1.6;margin:16px 0 24px;'>
                 Remember this report is a draft and requires you to adjust and check the data provided by your client during the consultation in order to generate the final report that will be based on their data, your edits where needed and your consultation information.
             </p>"
-            . self::cta_button( $url, 'Review Draft Report' );
+            . self::cta_button( $url, 'Review Draft Trajectory Plan' );
 
-        return self::base_layout( $content, $data['practitioner_id'] ?? null, 'Draft Report — Review Required' );
+        return self::base_layout( $content, $data['practitioner_id'] ?? null, 'Draft Trajectory Plan — Review Required' );
     }
 
     // ──────────────────────────────────────────────────────────────
@@ -273,7 +273,7 @@ class HDLV2_Email_Templates {
             <p style='font-size:15px;color:#2c3e50;line-height:1.7;margin:0 0 18px;'>You've finished all three stages of your longevity assessment. Here's what's next.</p>
             {$cta_block}";
 
-        return self::base_layout( $content, $data['practitioner_id'] ?? null, 'Your Draft Report' );
+        return self::base_layout( $content, $data['practitioner_id'] ?? null, 'Your Draft Trajectory Plan' );
     }
 
     // ──────────────────────────────────────────────────────────────
@@ -580,7 +580,7 @@ class HDLV2_Email_Templates {
         </table>";
 
         $content = "<p style='font-size:16px;color:" . self::DARK_TEXT . ";line-height:1.7;margin:0 0 18px;'>Dear " . esc_html( $first ) . ",</p>"
-            . "<p style='font-size:15px;color:#2c3e50;line-height:1.7;margin:0 0 18px;'>I've reviewed the answers you shared in your &ldquo;Your Why&rdquo; form (Stage 2). Stage 3 is the next piece &mdash; it collects detailed health measurements that, combined with everything you've already shared, will form the basis of your personalised Longevity Report.</p>"
+            . "<p style='font-size:15px;color:#2c3e50;line-height:1.7;margin:0 0 18px;'>I've reviewed the answers you shared in your &ldquo;Your Why&rdquo; form (Stage 2). Stage 3 is the next piece &mdash; it collects detailed health measurements that, combined with everything you've already shared, will form the basis of your personalised Trajectory Plan.</p>"
             . "<p style='font-size:15px;color:#2c3e50;line-height:1.7;margin:0 0 18px;'>It takes around <strong>10&ndash;15 minutes</strong>. A few of the questions involve simple physical checks (a sit-to-stand test, a breath hold, a balance test) and a tape measure for waist and hip. If anything isn't possible right now, leave it blank &mdash; we'll cover it in your first consultation. Best to do your honest best rather than guess.</p>"
             . "<p style='font-size:15px;color:#2c3e50;line-height:1.7;margin:0 0 8px;'>When you're ready:</p>"
             . self::cta_button( $form_url, 'Continue to Stage 3' )
@@ -908,10 +908,10 @@ class HDLV2_Email_Templates {
                 <p style='font-size:13px;margin:0;line-height:1.6;'><strong style='color:#e74c3c;'>Focus areas:</strong> <span style='color:#444;'>{$neg_list}</span></p>
             </div>
             <p style='color:#444;line-height:1.7;margin:0 0 8px;font-size:14px;'>Open the final report to preview exactly what {$cname} sees:</p>"
-            . self::cta_button( $url, 'Open Final Report' )
+            . self::cta_button( $url, 'Open Trajectory Plan' )
             . "<p style='font-size:12px;color:" . self::MUTED . ";line-height:1.5;margin:20px 0 0;text-align:center;'>Delivered to {$email} &middot; Flight Plan follows shortly</p>";
 
-        return self::base_layout( $content, $data['practitioner_id'] ?? null, 'Final Report Delivered' );
+        return self::base_layout( $content, $data['practitioner_id'] ?? null, 'Trajectory Plan Delivered' );
     }
 
     // ──────────────────────────────────────────────────────────────
@@ -941,13 +941,13 @@ class HDLV2_Email_Templates {
             . "</tr></table>" : '';
 
         $content = "
-            <h2 style='margin:0 0 12px;color:" . self::DARK . ";font-family:Poppins,Inter,sans-serif;font-size:22px;font-weight:700;'>Hi " . esc_html( $first ) . ", your Longevity Report is ready</h2>
+            <h2 style='margin:0 0 12px;color:" . self::DARK . ";font-family:Poppins,Inter,sans-serif;font-size:22px;font-weight:700;'>Hi " . esc_html( $first ) . ", your Trajectory Plan is ready</h2>
             <p style='color:#2c3e50;line-height:1.7;margin:0 0 20px;font-size:15px;'>Your personalised longevity report has been finalised by your practitioner. It includes your rate of ageing, biological age, and the specific focus areas for your 12-week flight plan.</p>
             {$stats}
             <p style='color:#2c3e50;line-height:1.7;margin:0 0 20px;font-size:15px;'>Your PDF copy will arrive in a separate email shortly. In the meantime, you can review your full report online:</p>"
-            . self::cta_button( $url, 'View Your Longevity Report' )
+            . self::cta_button( $url, 'View Your Trajectory Plan' )
             . "<p style='font-size:12px;color:" . self::MUTED . ";line-height:1.5;margin:20px 0 0;text-align:center;'>Questions? Just reply to this email — your practitioner will see it.</p>";
 
-        return self::base_layout( $content, $data['practitioner_id'] ?? null, 'Your Longevity Report' );
+        return self::base_layout( $content, $data['practitioner_id'] ?? null, 'Your Trajectory Plan' );
     }
 }

@@ -1047,7 +1047,7 @@ class HDLV2_AI_Service {
             . "- When an addendum says to remove or replace something (e.g. \"pulled tomatoes from diet recommendations\"), drop the removed item from recommendations AND note the change explicitly as a recent update so the client understands what shifted.\n"
             . "- Multiple addenda integrate chronologically. The latest wins where they conflict; earlier addenda inform context.\n"
             . "- Preserve the practitioner's wording from the original consultation — the report should READ as the same voice, with timestamped updates layered on top.\n"
-            . "- Do not invent numeric values from addenda text. The numeric calc is unchanged from the original Final Report.";
+            . "- Do not invent numeric values from addenda text. The numeric calc is unchanged from the original Trajectory Plan.";
 
         return implode( "\n\n", $blocks );
     }
@@ -1126,7 +1126,7 @@ class HDLV2_AI_Service {
         $existing_json = wp_json_encode( $existing_organised, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES );
         $addenda_block = implode( "\n\n", $addenda_text_blocks );
 
-        $system = "You integrate new practitioner Addenda (timestamped clinical updates added AFTER the original consultation) into an existing curated consultation summary. The client will SEE the integrated summary on their Final Report's \"From your practitioner\" section, so addenda must be visible to the client — never silent background.\n\n"
+        $system = "You integrate new practitioner Addenda (timestamped clinical updates added AFTER the original consultation) into an existing curated consultation summary. The client will SEE the integrated summary on their Trajectory Plan's \"From your practitioner\" section, so addenda must be visible to the client — never silent background.\n\n"
             . "PRINCIPLES:\n"
             . "1. ADDITIVE — never delete or rewrite the practitioner's existing wording in health_summary, health_history, follow_up_actions, recommendations, or additional_notes. The original is preserved verbatim.\n"
             . "2. PRIORITISE THE ADDENDUM — addenda are the highest-priority intelligence. The latest addendum wins where it conflicts with earlier addenda or the original consultation.\n"
@@ -1400,7 +1400,7 @@ class HDLV2_AI_Service {
             . "- Write 3 short paragraphs as ONE HTML string with <p> tags.\n"
             . "- Para 1: open with <strong>...</strong> sentence naming %s and stating the rate finding (note Stage 1 vs Stage 3 contrast if interesting).\n"
             . "- Para 2: honest read of THEIR scores. Pick 1-2 specific strengths and 1-2 focus areas BY NAME + VALUE from the lists above. Use prose, not bullets.\n"
-            . "- Para 3: bridge to their WHY (use it if non-empty, otherwise to next steps). Mention practitioner consultation + final Longevity Report.\n"
+            . "- Para 3: bridge to their WHY (use it if non-empty, otherwise to next steps). Mention practitioner consultation + Trajectory Plan.\n"
             . "- Total 130-200 words.\n"
             . "- British English. Never \"everyone is different\" / \"small changes can make a big difference\" / generic filler.\n"
             . "- No lists or headings inside the paragraphs.\n\n"

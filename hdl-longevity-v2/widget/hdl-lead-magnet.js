@@ -1218,7 +1218,7 @@
             +   '<ol class="hdlw-r-next-list">'
             +     '<li><strong>Stage 2 \u2014 Your WHY.</strong> Tell us what motivates you. We capture your reasons in your own words. ~10 minutes.</li>'
             +     '<li><strong>Stage 3 \u2014 Full Health Detail.</strong> Replace today\u2019s visual estimates with real measurements (body, fitness, sleep, lifestyle).</li>'
-            +     '<li><strong>Your Longevity Report arrives.</strong> Reviewed by your practitioner, with your weekly Flight Plan to follow.</li>'
+            +     '<li><strong>Your Trajectory Plan arrives.</strong> Reviewed by your practitioner, with your weekly Flight Plan to follow.</li>'
             +   '</ol>'
             +   '<div class="hdlw-r-buttons">'
             +     '<div id="' + id + '-continue" class="hdlw-r-buttons-continue">'

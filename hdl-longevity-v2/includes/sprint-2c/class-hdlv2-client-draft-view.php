@@ -409,7 +409,7 @@ class HDLV2_Client_Draft_View {
                     wp_localize_script( 'hdlv2-client-nav-bar', 'hdlv2_nav_bar', array(
                         'clients_url' => home_url( '/clients/' ),
                         'client_name' => $nav_client_name,
-                        'page_label'  => 'Longevity Report',
+                        'page_label'  => 'Trajectory Plan',
                         'api_base'    => rest_url( 'hdl-v2/v1' ),
                         'nonce'       => wp_create_nonce( 'wp_rest' ),
                     ) );

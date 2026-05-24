@@ -852,7 +852,7 @@
       +       '<ol class="hdlv2-s1-next-list">'
       +         '<li><strong>Stage 2 \u2014 Your WHY.</strong> Tell us what motivates you. We capture your reasons in your own words. ~10 minutes.</li>'
       +         '<li><strong>Stage 3 \u2014 Full Health Detail.</strong> Replace today\u2019s visual estimates with real measurements (body, fitness, sleep, lifestyle).</li>'
-      +         '<li><strong>Your Longevity Report arrives.</strong> Reviewed by your practitioner, with your weekly Flight Plan to follow.</li>'
+      +         '<li><strong>Your Trajectory Plan arrives.</strong> Reviewed by your practitioner, with your weekly Flight Plan to follow.</li>'
       +       '</ol>'
       // Phase 17 (v0.22.26) two CTAs preserved.
       //   Primary: continue the assessment in-line (Stage 2).
@@ -939,7 +939,7 @@
     box.innerHTML =
         '<p>Your pace-of-ageing snapshot has been calculated from your 9 answers. '
       + 'A more detailed personalised read will be available shortly \u2014 if it doesn\u2019t appear, refresh this page.</p>'
-      + '<p>This isn\u2019t a verdict \u2014 it\u2019s a starting picture. Most of these levers are within your control. Stage 2 captures your <em>why</em>, then Stage 3 turns this into your full Longevity Report.</p>';
+      + '<p>This isn\u2019t a verdict \u2014 it\u2019s a starting picture. Most of these levers are within your control. Stage 2 captures your <em>why</em>, then Stage 3 turns this into your full Trajectory Plan.</p>';
   }
 
   // ══════════════════════════════════════════════════════════════
@@ -1200,7 +1200,7 @@
       // closing line which carries the practitioner name + the warm sign-off.
       +    '<ol class="hdlv2-s1-next-list">'
       +      '<li><strong>Stage 3 unlocks — Full Health Detail.</strong> Real measurements: body, fitness, sleep, lifestyle. You’ll get an email when it’s ready for you.</li>'
-      +      '<li><strong>Your full Longevity Report arrives.</strong> Built around the WHY you just shared, with a weekly Flight Plan to follow.</li>'
+      +      '<li><strong>Your Trajectory Plan arrives.</strong> Built around the WHY you just shared, with a weekly Flight Plan to follow.</li>'
       +    '</ol>'
       +    '<p class="hdlv2-s2-closing-msg">'
       +      (pracName
@@ -1645,7 +1645,7 @@
       +   '<p class="hdlv2-ty-lead">We’ve just sent your draft report to your email. It should arrive within a few minutes.</p>'
       +   '<p class="hdlv2-ty-subhead">What happens next</p>'
       +   '<ol class="hdlv2-ty-list">'
-      +     '<li>Check your inbox for your draft Longevity Report.</li>'
+      +     '<li>Check your inbox for your Draft Trajectory Plan.</li>'
       +     '<li>If you haven’t already done so, please book your consultation with your practitioner.</li>'
       +     '<li>Your final personalised report follows after that consultation.</li>'
       +   '</ol>'
@@ -1772,7 +1772,7 @@
       +      '</div>'
       +      '<span class="hdlv2-s1-hero-pill">Stage 3</span>'
       +    '</div>'
-      +    '<p class="hdlv2-s1-hero-body">All three stages complete. Your draft Longevity Report is being prepared in the background \u2014 your practitioner will review it before walking you through it.</p>'
+      +    '<p class="hdlv2-s1-hero-body">All three stages complete. Your Draft Trajectory Plan is being prepared in the background \u2014 your practitioner will review it before walking you through it.</p>'
       +  '</section>';
 
     html += '<section class="hdlv2-s1-stat-strip">'
@@ -1825,13 +1825,13 @@
 
     html += '<div class="hdlv2-s1-card">'
       +    '<h2>What Happens Next</h2>'
-      +    '<p class="hdlv2-s1-lede">Your draft Longevity Report is being prepared right now.</p>'
+      +    '<p class="hdlv2-s1-lede">Your Draft Trajectory Plan is being prepared right now.</p>'
       +    '<ol class="hdlv2-s1-next-list">'
       +      '<li><strong>Your practitioner reviews the draft.</strong> They check the numbers, your WHY, and shape the recommendations.</li>'
       +      '<li><strong>You meet for your consultation.</strong> They walk you through the report and you align on next steps together.</li>'
-      +      '<li><strong>You receive your final Longevity Report + weekly Flight Plan.</strong> Personalised, practitioner-approved, ready to act on.</li>'
+      +      '<li><strong>You receive your Trajectory Plan + weekly Flight Plan.</strong> Personalised, practitioner-approved, ready to act on.</li>'
       +    '</ol>'
-      +    '<a id="hdlv2-view-draft" href="/longevity-draft-report/?t=' + encodeURIComponent(token) + '" class="hdlv2-btn" style="display:inline-block;margin-top:18px;text-decoration:none;text-align:center;">View your draft Longevity Report \u2192</a>'
+      +    '<a id="hdlv2-view-draft" href="/longevity-draft-report/?t=' + encodeURIComponent(token) + '" class="hdlv2-btn" style="display:inline-block;margin-top:18px;text-decoration:none;text-align:center;">View your Draft Trajectory Plan \u2192</a>'
       +  '</div>';
 
     html += footer() + '</div>';

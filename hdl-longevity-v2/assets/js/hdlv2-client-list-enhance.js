@@ -31,6 +31,7 @@
     actionQueueEl: null,  // DOM node for the action queue card
     freshnessEl: null,    // DOM node for "Updated Xs ago"
     sourceFilter: 'all',  // W11 — Source filter state: 'all' | 'practitioner' | 'automation'
+    defaultSortApplied: false, // W12 — one-shot default-sort guard
   };
 
   // v0.35.1 — How many pending leads we surface in the "What needs you
@@ -92,6 +93,10 @@
       state.pendingLeads = leads;
       enhanceMatchedRows(list);
       appendV2OnlyRows(list);
+      // W12 — one-time default sort by latest activity descending. Skipped
+      // on subsequent poll-driven re-renders so user column-header clicks
+      // are never overridden by a digest tick.
+      defaultSortByLatestActivity();
       renderActionQueue(list);
       lastFetchedAt = Date.now();
       updateFreshnessIndicator();
@@ -1757,7 +1762,7 @@
       var f = data && data.final;
       if (!f || !f.has_report) {
         target.innerHTML = '<div class="hdlv2-detail-empty">'
-          + 'Final report hasn’t been generated yet. Open the Consultation tab and click <strong>Generate Final Report</strong> after reviewing the draft.'
+          + 'Trajectory Plan hasn’t been generated yet. Open the Consultation tab and click <strong>Generate Trajectory Plan</strong> after reviewing the draft.'
           + '</div>';
         return;
       }
@@ -1993,6 +1998,51 @@
         next.style.display = show ? '' : 'none';
       }
     });
+  }
+
+  // ── W12 — Default sort by latest activity (descending) ──
+  //
+  // Runs ONCE on first render (state.defaultSortApplied guard). Sorts the
+  // visible <tr.client-row> set by the client's latest_event_at descending.
+  // Null/empty latest_event_at sorts to the bottom (oldest-effectively).
+  //
+  // Why one-shot: subsequent poll-driven re-renders (reconcileRows) update
+  // row content, not order. If the practitioner has clicked a column header
+  // to sort by name/date/status, we don't want a 4-s digest tick to undo
+  // their sort. V1's sortTable() comparator still runs on column-header
+  // clicks via the existing handler — it reads the data-* sort attributes
+  // we set in buildV2OnlyRow + V1's server-rendered rows, so user sorts
+  // work transparently after our default sort lands.
+  function defaultSortByLatestActivity() {
+    if (state.defaultSortApplied) return;
+    if (!state.tbody) return;
+    var rows = Array.prototype.slice.call(state.tbody.querySelectorAll('tr.client-row'));
+    if (rows.length === 0) return;
+    rows.sort(function (a, b) {
+      var ah = a.dataset.clientHash;
+      var bh = b.dataset.clientHash;
+      var ac = state.byHash[ah];
+      var bc = state.byHash[bh];
+      // Treat missing/null timestamps as oldest (empty string sorts before
+      // any real ISO/MySQL datetime via lexical comparison).
+      var av = (ac && ac.latest_event_at) ? String(ac.latest_event_at) : '';
+      var bv = (bc && bc.latest_event_at) ? String(bc.latest_event_at) : '';
+      if (av === bv) return 0;
+      if (av === '') return 1;   // a is oldest → push down
+      if (bv === '') return -1;  // b is oldest → a stays up
+      return av < bv ? 1 : -1;   // descending
+    });
+    // Re-append in sorted order. appendChild on an already-mounted node
+    // moves it — no clone, no re-render. Detail rows (.hdlv2-detail-row)
+    // are preserved adjacent to their client-row via the move logic below.
+    rows.forEach(function (row) {
+      var detail = row.nextSibling;
+      state.tbody.appendChild(row);
+      if (detail && detail.nodeType === 1 && detail.classList && detail.classList.contains('hdlv2-detail-row')) {
+        state.tbody.appendChild(detail);
+      }
+    });
+    state.defaultSortApplied = true;
   }
 
   // ── Progress tab — Effort vs Outcomes (the money chart) ──

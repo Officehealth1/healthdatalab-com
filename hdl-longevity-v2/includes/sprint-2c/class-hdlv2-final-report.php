@@ -504,7 +504,7 @@ class HDLV2_Final_Report {
                     '[HDLV2 generate] UPDATE failed for reports.id=%d, progress=%d, consult=%d: %s',
                     (int) $update_existing_id, $progress_id, $consult_id, $wpdb->last_error
                 ) );
-                return new WP_Error( 'db_error', 'Could not update Final Report row. Please try again.', array( 'status' => 500 ) );
+                return new WP_Error( 'db_error', 'Could not update Trajectory Plan row. Please try again.', array( 'status' => 500 ) );
             }
             $report_id = (int) $update_existing_id;
         } else {
@@ -517,7 +517,7 @@ class HDLV2_Final_Report {
                     '[HDLV2 generate] INSERT failed for progress=%d, consult=%d: %s',
                     $progress_id, $consult_id, $wpdb->last_error
                 ) );
-                return new WP_Error( 'db_error', 'Could not create Final Report row. Please try again.', array( 'status' => 500 ) );
+                return new WP_Error( 'db_error', 'Could not create Trajectory Plan row. Please try again.', array( 'status' => 500 ) );
             }
             $report_id = (int) $wpdb->insert_id;
         }
@@ -528,7 +528,7 @@ class HDLV2_Final_Report {
                 $update_existing_id !== null ? 'UPDATE' : 'INSERT',
                 $progress_id, $consult_id
             ) );
-            return new WP_Error( 'db_error', 'Final Report write returned no id. Please try again.', array( 'status' => 500 ) );
+            return new WP_Error( 'db_error', 'Trajectory Plan write returned no id. Please try again.', array( 'status' => 500 ) );
         }
 
         // Update consultation status
@@ -1171,7 +1171,7 @@ class HDLV2_Final_Report {
             ) );
             wp_mail(
                 $client_email,
-                'Your Longevity Report is Ready — HealthDataLab',
+                'Your Trajectory Plan is Ready — HealthDataLab',
                 $html,
                 array( 'Content-Type: text/html; charset=UTF-8' )
             );
@@ -1492,7 +1492,7 @@ class HDLV2_Final_Report {
         if ( ! $existing_final_id ) {
             return new WP_Error(
                 'no_final',
-                'Cannot regenerate: no Final Report exists yet. Click Generate Final Report first.',
+                'Cannot regenerate: no Trajectory Plan exists yet. Click Generate Trajectory Plan first.',
                 array( 'status' => 409 )
             );
         }
