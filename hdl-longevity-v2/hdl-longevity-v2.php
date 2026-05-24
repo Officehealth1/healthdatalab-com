@@ -22,7 +22,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 // register_activation_hook callbacks, which fire synchronously during
 // `wp plugin activate`, can reference them. The activator needs
 // HDLV2_DB_VERSION / HDLV2_VERSION at call time to update version options.
-define( 'HDLV2_VERSION', '0.41.25' );
+define( 'HDLV2_VERSION', '0.41.26' );
 define( 'HDLV2_DB_VERSION', '3.13' );
 define( 'HDLV2_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'HDLV2_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
@@ -785,6 +785,12 @@ final class HDL_Longevity_V2 {
         require_once HDLV2_PLUGIN_DIR . 'includes/security/class-hdlv2-idempotency.php';
         require_once HDLV2_PLUGIN_DIR . 'includes/security/class-hdlv2-webhook-monitor.php';
         require_once HDLV2_PLUGIN_DIR . 'includes/security/class-hdlv2-webhook-retry.php';
+        // v0.41.26 (W4) — Altituding Stripe → HDL automation tier endpoint.
+        // V1-style class name (HDL_*) because it registers under V1's
+        // hdl/v1 REST namespace; file lives here because the downstream
+        // pipeline (token, widget invite pre-fill, magic link) is V2-owned.
+        // Dark behind hdlv2_automation_tier_enabled feature flag.
+        require_once HDLV2_PLUGIN_DIR . 'includes/security/class-hdl-paid-report-provisioner.php';
 
         // Sprint 1: Lead Magnet Widget
         require_once HDLV2_PLUGIN_DIR . 'includes/sprint-1/class-hdlv2-widget-config.php';
@@ -859,6 +865,11 @@ final class HDL_Longevity_V2 {
         HDLV2_Webhook_Retry::register_handler( 'draft', array( 'HDLV2_Staged_Form', 'refire_draft_webhook' ) );
         HDLV2_Webhook_Retry::register_handler( 'final', array( 'HDLV2_Final_Report', 'refire_final_webhook' ) );
         HDLV2_Webhook_Retry::register_handler( 'flight_pdf', array( 'HDLV2_Flight_Plan', 'refire_flight_plan_webhook' ) );
+
+        // v0.41.26 (W4) — Paid-flow REST endpoint (Altituding Stripe →
+        // automation tier). Dark behind hdlv2_automation_tier_enabled
+        // flag; with flag false every request returns 503.
+        HDL_Paid_Report_Provisioner::get_instance()->register_hooks();
 
         // Sprint 1: Widget config dashboard + REST API + shortcode
         $widget_config = new HDLV2_Widget_Config();
