@@ -513,7 +513,12 @@ class HDLV2_Widget_Config {
                 'stage1_data'     => $stage1_data,
                 'invite_id'       => $invite_id,
                 'config'          => $config,
-                'send_practitioner_notify' => true,
+                // v0.41.24 — "New Lead from Your Widget" email suppressed.
+                // Make.com Module 40 fires its own "New Lead" email with the
+                // Stage 1 PDF, which is the canonical practitioner copy. The
+                // wp_mail version was a duplicate. send_make_pdf remains true
+                // so the Make.com fan-out still fires.
+                'send_practitioner_notify' => false,
                 'send_make_pdf'   => true,
             ) );
 
@@ -572,7 +577,10 @@ class HDLV2_Widget_Config {
             'form_token'                => $cache_token,
             'config'                    => $config,
             'invite_id'                 => null,
-            'send_practitioner_notify'  => true,
+            // v0.41.24 — "New Lead from Your Widget" wp_mail suppressed;
+            // Make.com Module 40 already fires the canonical "New Lead" email
+            // with the Stage 1 PDF, so the wp_mail copy was a duplicate.
+            'send_practitioner_notify'  => false,
             'send_make_pdf'             => true,
         ) );
 
@@ -1415,7 +1423,10 @@ class HDLV2_Widget_Config {
             'rate'            => $row->rate_of_ageing,
             'stage1_data'     => $stage1,
             'config'          => $config,
-            'send_practitioner_notify' => true,
+            // v0.41.24 — "New Lead from Your Widget" wp_mail suppressed on
+            // verification-click path too. Make.com Module 40 owns the
+            // practitioner "New Lead" email (canonical, with Stage 1 PDF).
+            'send_practitioner_notify' => false,
             'send_make_pdf'   => true,
         ) );
 
