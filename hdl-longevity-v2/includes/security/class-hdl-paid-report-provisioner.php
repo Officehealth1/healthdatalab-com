@@ -121,6 +121,31 @@ class HDL_Paid_Report_Provisioner {
                 ),
             ),
         ) );
+
+        // W6 — revoke-token: Altituding's refund handler (and the W13
+        // Settings → Tokens admin per-row Revoke action) calls this to
+        // mark a token unusable. Idempotent on re-revoke (Stripe refund
+        // edge cases can fire twice). Reason param is captured to the
+        // audit log but not persisted to the row — W3 schema doesn't
+        // include a revoke_reason column; if Matthew later wants the
+        // reason persisted that's a tiny W3.1 schema bump, deferred.
+        register_rest_route( 'hdl/v1', '/revoke-token', array(
+            'methods'             => 'POST',
+            'callback'            => array( $this, 'handle_revoke_token' ),
+            'permission_callback' => '__return_true',
+            // Same lesson as W5 — token NOT marked required:true. Flag
+            // check has to fire first, even for malformed requests.
+            'args'                => array(
+                'token'  => array(
+                    'type'              => 'string',
+                    'sanitize_callback' => 'sanitize_text_field',
+                ),
+                'reason' => array(
+                    'type'              => 'string',
+                    'sanitize_callback' => 'sanitize_text_field',
+                ),
+            ),
+        ) );
     }
 
     public function handle_request( $request ) {
@@ -496,6 +521,153 @@ class HDL_Paid_Report_Provisioner {
             'issued_at'  => $this->to_iso8601( $row->issued_at ),
             'started_at' => $this->to_iso8601( $row->started_at ),
             'request_id' => $request_id,
+        ), 200 );
+    }
+
+    /**
+     * W6: POST /wp-json/hdl/v1/revoke-token
+     *
+     * Mark a token as revoked. Called by Altituding's refund handler (and
+     * later by the W13 Settings → Tokens admin per-row Revoke action).
+     * Idempotent — repeat revocations return the existing revoked_at.
+     *
+     * Body
+     *   token  string  required  64-char hex
+     *   reason string  optional  max 255 — captured in audit log only,
+     *                            NOT persisted (W3 schema doesn't have
+     *                            a revoke_reason column; future W3.1
+     *                            schema bump if needed)
+     *
+     * Order of operations:
+     *   1. Flag check first → 503 + log + return.
+     *   2. HMAC verification → 401 on mismatch.
+     *   3. Rate limit (same V1 bucket, 30/hour/IP).
+     *   4. Validate token format (64-char [a-f0-9]) and reason length.
+     *   5. Token lookup. Not found → 404 with generic "token_not_found"
+     *      (don't leak format-vs-existence distinction externally).
+     *   6. Idempotency: if status='revoked' already, return existing
+     *      revoked_at with already_revoked:true.
+     *   7. Otherwise UPDATE status='revoked', revoked_at=NOW() (UTC).
+     *      Allowed previous states: issued, started, completed.
+     */
+    public function handle_revoke_token( $request ) {
+        $request_id = wp_generate_uuid4();
+        $ip         = $this->get_ip();
+        $user_agent = isset( $_SERVER['HTTP_USER_AGENT'] ) ? (string) $_SERVER['HTTP_USER_AGENT'] : '';
+
+        // ── 1. FLAG CHECK FIRST.
+        if ( get_option( 'hdlv2_automation_tier_enabled', false ) !== true ) {
+            $this->log_request( $request_id, $ip, $user_agent, $request, 503, 'flag_disabled' );
+            return new WP_REST_Response( array(
+                'error'      => 'automation_tier_disabled',
+                'message'    => 'Automation tier is not enabled on this server.',
+                'request_id' => $request_id,
+            ), 503 );
+        }
+
+        // ── 2. HMAC verification (shared key with paid-report-provision + validate-token).
+        $expected = defined( 'HDL_PAID_REPORT_PROVISION_KEY' ) ? HDL_PAID_REPORT_PROVISION_KEY : '';
+        $provided = $request->get_header( 'X-HDL-Paid-Report-Key' );
+        if ( empty( $expected ) || empty( $provided ) || ! hash_equals( (string) $expected, (string) $provided ) ) {
+            $this->log_request( $request_id, $ip, $user_agent, $request, 401, 'hmac_invalid' );
+            return new WP_REST_Response( array(
+                'error'      => 'unauthorized',
+                'request_id' => $request_id,
+            ), 401 );
+        }
+
+        // ── 3. Rate limit (same bucket as the other two endpoints).
+        if ( class_exists( 'HDL_Rate_Limiter' ) ) {
+            $rl = new HDL_Rate_Limiter();
+            if ( ! $rl->check_limit( 'paid_report_provision', $ip, 30, HOUR_IN_SECONDS ) ) {
+                $this->log_request( $request_id, $ip, $user_agent, $request, 429, 'rate_limited' );
+                return new WP_REST_Response( array(
+                    'error'      => 'rate_limited',
+                    'request_id' => $request_id,
+                ), 429 );
+            }
+        }
+
+        // ── 4. Body validation.
+        $token  = (string) $request->get_param( 'token' );
+        $reason = $this->trim_to( (string) $request->get_param( 'reason' ), 255 );
+
+        if ( ! preg_match( '/^[a-f0-9]{64}$/', $token ) ) {
+            $this->log_request( $request_id, $ip, $user_agent, $request, 400, 'body_invalid' );
+            return new WP_REST_Response( array(
+                'error'      => 'invalid_token_format',
+                'request_id' => $request_id,
+            ), 400 );
+        }
+
+        // ── 5. Token lookup.
+        global $wpdb;
+        $tokens_table = $wpdb->prefix . 'hdlv2_automation_tokens';
+        $row = $wpdb->get_row( $wpdb->prepare(
+            "SELECT id, status, revoked_at FROM $tokens_table WHERE token = %s LIMIT 1",
+            $token
+        ) );
+        if ( ! $row ) {
+            $this->log_request( $request_id, $ip, $user_agent, $request, 404, 'token_not_found' );
+            return new WP_REST_Response( array(
+                'error'      => 'token_not_found',
+                'request_id' => $request_id,
+            ), 404 );
+        }
+
+        // ── 6. Idempotent re-revoke.
+        if ( 'revoked' === $row->status ) {
+            $this->log_request(
+                $request_id, $ip, $user_agent, $request, 200,
+                'token_already_revoked' . ( '' !== $reason ? ' reason=' . $reason : '' )
+            );
+            return new WP_REST_Response( array(
+                'revoked'         => true,
+                'already_revoked' => true,
+                'token'           => $token,
+                'revoked_at'      => $this->to_iso8601( $row->revoked_at ),
+                'request_id'      => $request_id,
+            ), 200 );
+        }
+
+        // ── 7. Atomic revoke.
+        $now_gmt        = current_time( 'mysql', true );
+        $previous_status = $row->status;
+        $affected = $wpdb->update(
+            $tokens_table,
+            array(
+                'status'     => 'revoked',
+                'revoked_at' => $now_gmt,
+            ),
+            array(
+                'id' => (int) $row->id,
+            ),
+            array( '%s', '%s' ),
+            array( '%d' )
+        );
+        if ( false === $affected ) {
+            $this->log_request( $request_id, $ip, $user_agent, $request, 500, 'internal_error:' . $wpdb->last_error );
+            return new WP_REST_Response( array(
+                'error'      => 'internal_error',
+                'message'    => $wpdb->last_error,
+                'request_id' => $request_id,
+            ), 500 );
+        }
+
+        // Log the reason on the audit line (NOT persisted to row).
+        $this->log_request(
+            $request_id, $ip, $user_agent, $request, 200,
+            'token_revoked_first_call previous_status=' . $previous_status .
+            ( '' !== $reason ? ' reason=' . $reason : '' )
+        );
+
+        return new WP_REST_Response( array(
+            'revoked'         => true,
+            'already_revoked' => false,
+            'token'           => $token,
+            'previous_status' => $previous_status,
+            'revoked_at'      => $this->to_iso8601( $now_gmt ),
+            'request_id'      => $request_id,
         ), 200 );
     }
 
