@@ -1067,6 +1067,80 @@ class HDLV2_Activator {
                 error_log( '[HDLV2] Phase T migration error: ' . $e->getMessage() . ' — boot continues; verify manually.' );
             }
         }
+
+        // Phase U (DB v3.13) — Automation tier schema additions.
+        //
+        // Three additive column additions + one new option:
+        //   - submitter ENUM('practitioner','client_automation') on
+        //     hdlv2_consultation_addenda. The existing `source` column on
+        //     this table is ENUM('typed','voice') (input method), so it
+        //     cannot carry the practitioner-vs-automation distinction the
+        //     dashboard badge needs. Separate column avoids overloading.
+        //   - source ENUM('practitioner','automation') on hdlv2_form_progress.
+        //   - source ENUM('practitioner','automation') on hdlv2_widget_invites.
+        //   - hdlv2_automation_tier_enabled option (default false).
+        //     Feature-flag gate for all W4+ automation-tier code paths.
+        //
+        // Existing rows on all three tables default to 'practitioner' for
+        // the new column, preserving current dashboard rendering behaviour.
+        // All paths are idempotent — re-running the migration is a no-op.
+        if ( version_compare( $current_db_version, '3.13', '<' ) ) {
+            try {
+                $addenda_table  = $p . 'hdlv2_consultation_addenda';
+                $progress_table = $p . 'hdlv2_form_progress';
+                $invites_table  = $p . 'hdlv2_widget_invites';
+
+                $has_submitter = (int) $wpdb->get_var( $wpdb->prepare(
+                    "SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+                     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s AND COLUMN_NAME = 'submitter'",
+                    $addenda_table
+                ) );
+                if ( ! $has_submitter ) {
+                    $wpdb->query( "ALTER TABLE $addenda_table ADD COLUMN submitter ENUM('practitioner','client_automation') NOT NULL DEFAULT 'practitioner'" );
+                    if ( $wpdb->last_error ) {
+                        error_log( '[HDLV2] Phase U (v3.13) FAILED on consultation_addenda.submitter: ' . $wpdb->last_error );
+                    } else {
+                        error_log( '[HDLV2] Phase U (v3.13) migration: added submitter to hdlv2_consultation_addenda.' );
+                    }
+                }
+
+                $has_progress_source = (int) $wpdb->get_var( $wpdb->prepare(
+                    "SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+                     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s AND COLUMN_NAME = 'source'",
+                    $progress_table
+                ) );
+                if ( ! $has_progress_source ) {
+                    $wpdb->query( "ALTER TABLE $progress_table ADD COLUMN source ENUM('practitioner','automation') NOT NULL DEFAULT 'practitioner'" );
+                    if ( $wpdb->last_error ) {
+                        error_log( '[HDLV2] Phase U (v3.13) FAILED on form_progress.source: ' . $wpdb->last_error );
+                    } else {
+                        error_log( '[HDLV2] Phase U (v3.13) migration: added source to hdlv2_form_progress.' );
+                    }
+                }
+
+                $has_invites_source = (int) $wpdb->get_var( $wpdb->prepare(
+                    "SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+                     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s AND COLUMN_NAME = 'source'",
+                    $invites_table
+                ) );
+                if ( ! $has_invites_source ) {
+                    $wpdb->query( "ALTER TABLE $invites_table ADD COLUMN source ENUM('practitioner','automation') NOT NULL DEFAULT 'practitioner'" );
+                    if ( $wpdb->last_error ) {
+                        error_log( '[HDLV2] Phase U (v3.13) FAILED on widget_invites.source: ' . $wpdb->last_error );
+                    } else {
+                        error_log( '[HDLV2] Phase U (v3.13) migration: added source to hdlv2_widget_invites.' );
+                    }
+                }
+
+                // Feature flag (default disabled). add_option is a no-op if
+                // already set — safe to re-run.
+                add_option( 'hdlv2_automation_tier_enabled', false );
+
+                error_log( '[HDLV2] Phase U (v3.13) migration completed.' );
+            } catch ( \Throwable $e ) {
+                error_log( '[HDLV2] Phase U migration error: ' . $e->getMessage() . ' — boot continues; verify manually.' );
+            }
+        }
     }
 
     /**
@@ -1537,6 +1611,37 @@ class HDLV2_Activator {
             KEY idx_superseded (superseded_by_report_id)
         ) $charset_collate;";
 
+        // DB v3.13 — Automation tier tokens. Paid-flow magic-link tokens
+        // issued by /paid-report-provision (W4) when Altituding's Stripe
+        // webhook fires for a completed automation-tier checkout. The
+        // token is the bearer credential the client uses to land on
+        // /assessment/?invite=<TOKEN>. status tracks lifecycle
+        // (issued → started → completed | revoked). stripe_session_id
+        // provides idempotency for retried webhook calls. Defaults preserve
+        // existing-row behaviour (no existing rows on first migration).
+        $table_tokens = $wpdb->prefix . 'hdlv2_automation_tokens';
+        $sql_tokens = "CREATE TABLE $table_tokens (
+            id BIGINT(20) UNSIGNED NOT NULL AUTO_INCREMENT,
+            token VARCHAR(64) NOT NULL,
+            client_email VARCHAR(255) NOT NULL,
+            client_name VARCHAR(255) DEFAULT NULL,
+            programme VARCHAR(64) DEFAULT NULL,
+            tier ENUM('automation','practitioner') NOT NULL DEFAULT 'practitioner',
+            stripe_session_id VARCHAR(128) DEFAULT NULL,
+            status ENUM('issued','started','completed','revoked') NOT NULL DEFAULT 'issued',
+            issued_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            started_at DATETIME DEFAULT NULL,
+            completed_at DATETIME DEFAULT NULL,
+            revoked_at DATETIME DEFAULT NULL,
+            source VARCHAR(32) NOT NULL DEFAULT 'altituding_paid',
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (id),
+            UNIQUE KEY uniq_token (token),
+            KEY idx_client_email (client_email),
+            KEY idx_stripe_session (stripe_session_id),
+            KEY idx_status (status)
+        ) $charset_collate;";
+
         require_once ABSPATH . 'wp-admin/includes/upgrade.php';
         dbDelta( $sql_widget );
         dbDelta( $sql_leads );
@@ -1554,5 +1659,6 @@ class HDLV2_Activator {
         dbDelta( $sql_jobs );
         dbDelta( $sql_audio_extractions );
         dbDelta( $sql_addenda );
+        dbDelta( $sql_tokens );
     }
 }

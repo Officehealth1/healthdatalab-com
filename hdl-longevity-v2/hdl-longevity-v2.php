@@ -23,7 +23,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 // `wp plugin activate`, can reference them. The activator needs
 // HDLV2_DB_VERSION / HDLV2_VERSION at call time to update version options.
 define( 'HDLV2_VERSION', '0.41.25' );
-define( 'HDLV2_DB_VERSION', '3.12' );
+define( 'HDLV2_DB_VERSION', '3.13' );
 define( 'HDLV2_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'HDLV2_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 define( 'HDLV2_PLUGIN_FILE', __FILE__ );
