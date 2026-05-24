@@ -22,7 +22,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 // register_activation_hook callbacks, which fire synchronously during
 // `wp plugin activate`, can reference them. The activator needs
 // HDLV2_DB_VERSION / HDLV2_VERSION at call time to update version options.
-define( 'HDLV2_VERSION', '0.41.29' );
+define( 'HDLV2_VERSION', '0.41.30' );
 define( 'HDLV2_DB_VERSION', '3.13' );
 define( 'HDLV2_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'HDLV2_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
@@ -808,6 +808,9 @@ final class HDL_Longevity_V2 {
         require_once HDLV2_PLUGIN_DIR . 'includes/sprint-2c/class-hdlv2-consultation.php';
         require_once HDLV2_PLUGIN_DIR . 'includes/sprint-2c/class-hdlv2-final-report.php';
 
+        // W8 (v0.41.30) — Automation-tier self-reported consultation shortcode
+        require_once HDLV2_PLUGIN_DIR . 'includes/sprint-2c/class-hdlv2-auto-consultation.php';
+
         // Phase 5 (v0.18.0) — Client DRAFT Report interactive view
         require_once HDLV2_PLUGIN_DIR . 'includes/sprint-2c/class-hdlv2-client-draft-view.php';
 
@@ -882,6 +885,10 @@ final class HDL_Longevity_V2 {
         // Sprint 2C: Practitioner consultation interface
         $consultation = new HDLV2_Consultation();
         $consultation->register_hooks();
+
+        // W8 (v0.41.30) — Automation-tier self-reported consultation
+        $auto_consultation = new HDLV2_Auto_Consultation();
+        $auto_consultation->register_hooks();
 
         // v0.21.3 — /my-report/ resolver shortcode + template_redirect
         $my_report = new HDLV2_My_Report();
