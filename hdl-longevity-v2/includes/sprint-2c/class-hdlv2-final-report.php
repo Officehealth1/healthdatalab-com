@@ -662,7 +662,28 @@ class HDLV2_Final_Report {
     //  MAKE.COM WEBHOOK
     // ──────────────────────────────────────────────────────────────
 
-    private static function fire_webhook( $progress, $calc_result, $s1_data, $report, $milestones, $why_profile, $recommendations, $health_changes, $notes, $practitioner_id ) {
+    /**
+     * Fire the Final Report Make.com webhook.
+     *
+     * @param object $progress         hdlv2_form_progress row
+     * @param array  $calc_result      output of HDLV2_Rate_Calculator::calculate_full
+     * @param array  $s1_data          decoded stage1_data
+     * @param array  $report           awaken/lift/thrive content (may be empty for automation tier)
+     * @param array  $milestones       four-key array (six_months/two_years/five_years/ten_plus_years)
+     * @param array  $why_profile      hdlv2_why_profiles row decoded
+     * @param array  $recommendations  array of {category, text, priority, frequency}
+     * @param array  $health_changes   practitioner-edited health data (empty for automation tier)
+     * @param string $notes            typed notes (empty for automation tier — practitioner_health_summary
+     *                                 is supplied via $overrides instead)
+     * @param int    $practitioner_id  0 for automation tier
+     * @param array  $overrides        W9 (v0.41.31) — optional payload overrides applied via array_replace
+     *                                 just before HDLV2_Webhook_Monitor::fire. Used by the automation-tier
+     *                                 submit handler to inject practitioner_health_summary +
+     *                                 consultation_notes_summary without needing a synthetic
+     *                                 consultation_notes row. Default empty array preserves all prior
+     *                                 caller behaviour byte-for-byte.
+     */
+    private static function fire_webhook( $progress, $calc_result, $s1_data, $report, $milestones, $why_profile, $recommendations, $health_changes, $notes, $practitioner_id, $overrides = array() ) {
         global $wpdb;
 
         // v0.28.5 — read URL from constant first (matches other 4 Make.com
@@ -985,6 +1006,15 @@ class HDLV2_Final_Report {
             }
         } );
 
+        // W9 (v0.41.31) — automation-tier overrides. Applied AFTER the
+        // rec_N_* / practitioner_follow_ups joins + html-safe sanitisation so
+        // automation-tier overrides land in their final, on-the-wire form
+        // without needing to re-implement those passes. Empty array (default)
+        // is a no-op.
+        if ( ! empty( $overrides ) ) {
+            $payload = array_replace( $payload, $overrides );
+        }
+
         HDLV2_Webhook_Monitor::fire(
             $webhook_url,
             array(
@@ -995,6 +1025,96 @@ class HDLV2_Final_Report {
             ),
             'final_report'
         );
+    }
+
+    /**
+     * W9 (v0.41.31) — Fire the Final Report Make.com webhook for an
+     * automation-tier client. Loads the same data the practitioner-led path
+     * loads (progress + calc + s1 + why_profile), then delegates to
+     * fire_webhook with overrides for the practitioner-supplied fields.
+     *
+     * Empty $report (no awaken/lift/thrive markdown) — Make.com Route 1
+     * generates those sections itself when they arrive empty. $health_changes
+     * is empty and $practitioner_id=0 because no practitioner has touched the
+     * row. $notes is empty too — the marker-prefixed self-reported content is
+     * shipped via the `practitioner_health_summary` override.
+     *
+     * @param int    $form_progress_id     the client's hdlv2_form_progress row
+     * @param string $marker_health_summary marker-prefixed self-reported content
+     *                                     (lands in practitioner_health_summary)
+     * @param string $brief_summary         500-char truncation (lands in
+     *                                     consultation_notes_summary)
+     * @param array  $ai_recommendations    array of {text, category} from W9 Claude call
+     * @param array  $ai_milestones         four-key array (six_months/two_years/
+     *                                     five_years/ten_plus_years), each an array of
+     *                                     milestone strings (HDLV2_Staged_Form::format_milestones
+     *                                     consumes this exact shape)
+     * @return true|WP_Error              true on successful fire; WP_Error on missing data
+     */
+    public static function fire_for_automation_tier( $form_progress_id, $marker_health_summary, $brief_summary, $ai_recommendations, $ai_milestones ) {
+        global $wpdb;
+
+        $progress = $wpdb->get_row( $wpdb->prepare(
+            "SELECT * FROM {$wpdb->prefix}hdlv2_form_progress
+             WHERE id = %d AND deleted_at IS NULL",
+            (int) $form_progress_id
+        ) );
+        if ( ! $progress ) {
+            return new WP_Error( 'not_found', 'Form progress not found for automation-tier webhook.' );
+        }
+
+        $s1_data = json_decode( $progress->stage1_data, true ) ?: array();
+        $s3_data = json_decode( $progress->stage3_data, true ) ?: array();
+
+        $calc_data = array_merge( $s1_data, $s3_data );
+        foreach ( $calc_data as $k => $v ) { if ( $v === 'skip' ) $calc_data[ $k ] = null; }
+        $age    = (int) ( $calc_data['q1_age'] ?? $calc_data['age'] ?? 0 );
+        $gender = $calc_data['q1_sex'] ?? $calc_data['gender'] ?? 'other';
+        $calc_result = HDLV2_Rate_Calculator::calculate_full( $age, $calc_data, $gender );
+
+        $why_row = $wpdb->get_row( $wpdb->prepare(
+            "SELECT distilled_why, ai_reformulation, key_people, motivations, fears
+             FROM {$wpdb->prefix}hdlv2_why_profiles WHERE form_progress_id = %d LIMIT 1",
+            (int) $form_progress_id
+        ), ARRAY_A );
+        $why_profile = $why_row ?: array();
+        if ( ! empty( $why_profile['key_people'] ) ) {
+            $why_profile['key_people'] = json_decode( $why_profile['key_people'], true );
+        }
+        if ( ! empty( $why_profile['motivations'] ) ) {
+            $why_profile['motivations'] = json_decode( $why_profile['motivations'], true );
+        }
+        if ( ! empty( $why_profile['fears'] ) ) {
+            $why_profile['fears'] = json_decode( $why_profile['fears'], true );
+        }
+
+        $overrides = array(
+            'practitioner_health_summary' => (string) $marker_health_summary,
+            'consultation_notes_summary'  => (string) $brief_summary,
+            // Automation tier has no practitioner follow-up actions — null out
+            // explicitly so PDFMonkey's Liquid `{% if %}` doesn't render a stale
+            // value from an earlier payload's array-join.
+            'practitioner_follow_ups'     => '',
+            'practitioner_name'           => '',
+            'practitioner_email'          => '',
+            'practitioner_initials'       => '',
+        );
+
+        self::fire_webhook(
+            $progress,
+            $calc_result,
+            $s1_data,
+            array(), // $report — Make.com Route 1 generates awaken/lift/thrive
+            $ai_milestones,
+            $why_profile,
+            $ai_recommendations,
+            array(), // $health_changes — none for automation tier
+            '',      // $notes — content lives in overrides[practitioner_health_summary]
+            0,       // $practitioner_id — none for automation tier
+            $overrides
+        );
+
+        return true;
     }
 
     // ──────────────────────────────────────────────────────────────

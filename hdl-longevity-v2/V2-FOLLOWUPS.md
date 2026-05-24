@@ -6,6 +6,22 @@ includes context, scope, and a "queue after" hint so they can be ordered.
 
 ---
 
+## Audio `contextType: 'why_collection'` reuse on automation tier
+
+**Discovered:** 2026-05-24 during W8 build (`[hdlv2_auto_consultation]` shortcode).
+
+**Decision context.** The audio recorder mounted by the new automation-tier shortcode uses `HDLAudioComponent.create()` with `contextType: 'why_collection'` — the closest existing semantic for open-ended client input. Existing values are `why_collection` / `consultation_notes` / `weekly_checkin`, all routed by the server-side audio service. Introducing a fourth value (`self_reported`) would require a matching server-side handler change before this build's atomic-commit chain can close.
+
+**Trade-off.** Audio extractions from automation-tier clients land in `wp_hdlv2_audio_extractions` tagged `why_collection` internally — same bucket as Stage 2 WHY recordings. The source-of-truth distinction for automation-tier consultations lives in `wp_hdlv2_consultation_addenda.submitter='client_automation'` (W3 schema), which is queryable and unambiguous. The audio-extractions table is correlational, not authoritative — it doesn't need source separation for any current downstream consumer.
+
+**Why not block the build.** No current code path joins `audio_extractions` with `consultation_addenda` to attribute automation-tier audio specifically. Analytics + reporting (e.g., "how many minutes of audio per client?") would still aggregate correctly because the rows are owned by the same user. The only risk is a future analyst grouping `audio_extractions` by `context_type` and over-counting "WHY" audio — which a `JOIN` against `consultation_addenda.submitter` would correct.
+
+**Fix path (cleanup, post-launch).** Add `'self_reported'` to the audio-service's accepted `context_type` enum, route to the same Deepgram handler with no special processing, and flip W8's JS to send the new value. Single-file change in `sprint-3/class-hdlv2-audio-service.php` + version bump in `assets/js/hdlv2-auto-consultation.js`.
+
+**Queue after:** the automation tier build ships (post-W13) AND analytics/reporting need cleaner separation (no consumer today).
+
+---
+
 ## rest_get_version SQL ambiguity — `class-hdlv2-client-status.php` line 874
 
 **Discovered:** 2026-05-24 during W2 catch-up post-deploy verification.

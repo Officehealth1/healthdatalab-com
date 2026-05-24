@@ -116,7 +116,7 @@
           'Content-Type': 'application/json',
           'X-WP-Nonce': CFG.nonce
         },
-        body: JSON.stringify({ text: text })
+        body: JSON.stringify({ text_answers: text })
       }).then(function (r) {
         return r.json().then(
           function (body) { return { ok: r.ok, status: r.status, body: body }; },

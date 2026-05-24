@@ -91,6 +91,12 @@ class HDLV2_Rate_Limit_Policy {
             array( 'POST', '#^/hdl-v2/v1/consultation/save-and-update-plan$#',  self::TIER_AI_BURN ),
             array( 'POST', '#^/hdl-v2/v1/flight-plan/[0-9]+/generate$#',        self::TIER_AI_BURN ),
 
+            // W9 (v0.41.31) — automation-tier self-reported consultation
+            // submit. Runs ONE Claude Haiku call + fires Make.com Route 1
+            // webhook + marks the user's automation token completed.
+            // TIER_AI_BURN so a malicious double-tap can't cost burn.
+            array( 'POST', '#^/hdl-v2/v1/auto-consultation/submit$#',           self::TIER_AI_BURN ),
+
             // v0.35.0 (Phase O) — practitioner Confirm a widget lead. Calls
             // complete_signup() which fires Make.com Stage 1 PDF webhook and
             // sends the magic-link email; both have non-zero cost. AI_BURN
