@@ -190,6 +190,12 @@ class HDLV2_Practitioner_Dashboard {
             'ajax_url'         => admin_url( 'admin-ajax.php' ),
             'consultation_url' => home_url( '/' . trim( $consultation_slug, '/' ) . '/' ),
             'flight_plan_url'  => home_url( '/' . trim( $flight_plan_slug, '/' ) . '/' ),
+            // W11 (v0.41.32) — automation-tier UI gate. JS reads this and
+            // skips ALL new code paths (badge injection, filter chips, the
+            // self-reported Consultation tab) when false. With flag off the
+            // dashboard is byte-identical to today.
+            'automation_tier_enabled'    => (bool) get_option( 'hdlv2_automation_tier_enabled', false ),
+            'automation_hold_for_review' => (bool) get_option( 'hdlv2_automation_hold_for_review', false ),
         ) );
     }
 

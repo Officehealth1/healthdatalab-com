@@ -30,6 +30,7 @@
     pendingLeads: [],     // v0.35.1 — latest /widget/leads/pending response
     actionQueueEl: null,  // DOM node for the action queue card
     freshnessEl: null,    // DOM node for "Updated Xs ago"
+    sourceFilter: 'all',  // W11 — Source filter state: 'all' | 'practitioner' | 'automation'
   };
 
   // v0.35.1 — How many pending leads we surface in the "What needs you
@@ -912,13 +913,32 @@
       state.matched[hash] = true;
       injectV2Badge(row, c);
       injectExpandButton(row, c);
+      // W11 — flag-gated row tagging for the Source filter. Always sets a
+      // value (default 'practitioner') so the filter doesn't have to guard
+      // missing attributes. Reads `tier` from the /dashboard/clients
+      // response added in W11's backend extension.
+      if (CFG.automation_tier_enabled) {
+        row.dataset.source = (c.tier === 'automation') ? 'automation' : 'practitioner';
+      }
     });
+    // W11 — mount the source-filter chips once per render after rows are
+    // tagged. mountSourceFilter is a no-op when the flag is off or no
+    // automation-tier rows exist; idempotent on re-render.
+    if (CFG.automation_tier_enabled) {
+      mountSourceFilter();
+    }
   }
 
   function appendV2OnlyRows(list) {
     list.forEach(function (c) {
       if (!c.email_hash || state.matched[c.email_hash]) return;
-      state.tbody.appendChild(buildV2OnlyRow(c));
+      var newRow = buildV2OnlyRow(c);
+      // W11 — same data-source tagging for V2-only rows so the filter
+      // catches them too. Same flag-gate as enhanceMatchedRows.
+      if (CFG.automation_tier_enabled) {
+        newRow.dataset.source = (c.tier === 'automation') ? 'automation' : 'practitioner';
+      }
+      state.tbody.appendChild(newRow);
     });
   }
 
@@ -939,6 +959,20 @@
     // table structure (7 columns) is unchanged — no header shifting,
     // sort comparator stays accurate.
     injectMiniStages(cell, c);
+
+    // W11 — SELF-REPORTED pill for automation-tier clients. Same
+    // status-badge-cell parent so V1's 7-column structure is preserved.
+    // Idempotent (skips if a prior pill already exists for this row);
+    // safe for reconcileRows() re-renders.
+    if (CFG.automation_tier_enabled && c.tier === 'automation' && !cell.querySelector('.hdlv2-self-reported-badge')) {
+      var srPill = document.createElement('span');
+      srPill.className = 'hdlv2-inline-badge hdlv2-self-reported-badge';
+      srPill.textContent = 'SELF-REPORTED';
+      srPill.title = c.auto_consultation
+        ? 'Submitted ' + (c.auto_consultation.submitted_at || '')
+        : 'Automation tier — awaiting self-reported submission';
+      cell.appendChild(srPill);
+    }
   }
 
   // v0.41.19 — 6-dot inline journey indicator. Order matches the
@@ -1809,6 +1843,13 @@
   }
 
   function loadConsultation(c, target) {
+    // W11 — automation-tier branch. Flag check + tier check.
+    // loadAutoConsultation handles BOTH the read-only "Self-reported data"
+    // block (safety-valve off — the common case) and the editor-with-banner
+    // variant (safety-valve on — held for practitioner review).
+    if (CFG.automation_tier_enabled && c.tier === 'automation') {
+      return loadAutoConsultation(c, target);
+    }
     if (!c.progress_id) {
       target.innerHTML = '<div class="hdlv2-detail-empty">No consultation record yet. The client needs to complete Stage 3 of the assessment first.</div>';
       return;
@@ -1830,6 +1871,128 @@
       + '<p>Record your consultation with ' + esc(c.name) + ' — audio recording, typed notes, AI-organised output. You\'ll also review the draft report and finalise recommendations here.</p>'
       + '<a class="hdlv2-detail-deeplink" href="' + esc(url) + '">Record consultation →</a>'
       + '</div>';
+  }
+
+  // ── W11 — Automation-tier Consultation tab ──
+  //
+  // Replaces the practitioner-led Record/Edit-consultation card with a
+  // read-only "Self-reported data" block when the client is on the
+  // automation tier. Two states:
+  //   • Submitted: render the saved addendum (timestamp + body)
+  //   • Not yet submitted: render a "Awaiting self-report" empty state
+  // Safety-valve mode (hdlv2_automation_hold_for_review === true): render
+  // the existing consultation editor deeplink with a banner instructing
+  // the practitioner to finalise.
+  //
+  // Audio playback + final-report markdown rendering deferred to a
+  // follow-up commit (Make.com Route 1 stamps the PDF + emails it to the
+  // client directly; the practitioner read-only view doesn't strictly
+  // need either embedded). See V2-FOLLOWUPS.md.
+  function loadAutoConsultation(c, target) {
+    var auto = c && c.auto_consultation;
+
+    if (CFG.automation_hold_for_review) {
+      // Safety-valve ON: practitioner reviews + finalises through the
+      // existing editor. We still surface the self-reported submission as
+      // a banner so they know what's waiting and when it arrived.
+      var url = c.progress_id ? (CFG.consultation_url + '?progress_id=' + c.progress_id) : '';
+      var bannerText = auto
+        ? 'Self-reported on ' + esc(auto.submitted_at) + ' — review and finalise to send.'
+        : 'Automation-tier client. Their submission will appear here for your review.';
+      var bodyHtml = auto
+        ? '<div class="hdlv2-auto-consult-body">' + esc(auto.body_text) + '</div>'
+        : '';
+      var deeplink = url
+        ? '<a class="hdlv2-detail-deeplink" href="' + esc(url) + '">Open consultation →</a>'
+        : '';
+      target.innerHTML = '<div class="hdlv2-auto-safety-banner">' + bannerText + '</div>'
+        + '<div class="hdlv2-auto-consult-card">'
+        + '<h3>Self-reported data</h3>'
+        + bodyHtml
+        + deeplink
+        + '</div>';
+      return;
+    }
+
+    // Safety-valve OFF (the common case): read-only Self-reported data block.
+    if (!auto) {
+      target.innerHTML = '<div class="hdlv2-auto-consult-card">'
+        + '<h3>Awaiting self-report</h3>'
+        + '<p class="hdlv2-auto-consult-empty">'
+        + 'This automation-tier client has been provisioned but has not yet submitted their self-reported answers. '
+        + 'They\'ll receive their Trajectory Plan automatically once they complete the assessment and submit.'
+        + '</p>'
+        + '</div>';
+      return;
+    }
+
+    // Submitted — render the saved addendum as a read-only block.
+    target.innerHTML = '<div class="hdlv2-auto-consult-card">'
+      + '<h3>Self-reported data</h3>'
+      + '<p class="hdlv2-auto-consult-meta">Submitted ' + esc(auto.submitted_at) + '</p>'
+      + '<div class="hdlv2-auto-consult-body">' + esc(auto.body_text) + '</div>'
+      + '<p class="hdlv2-auto-consult-footer">Final report sent automatically. No practitioner finalisation required.</p>'
+      + '</div>';
+  }
+
+  // ── W11 — Source filter chips (All / Practitioner / Self-reported) ──
+  //
+  // Mounted once per render above .clients-table when the feature flag is
+  // on. Idempotent — checks for an existing chip cluster before injecting.
+  // No-op when the flag is off (caller already guards, this is belt+braces).
+  // Filter state persists in state.sourceFilter across re-renders.
+  function mountSourceFilter() {
+    if (!CFG.automation_tier_enabled) return;
+    if (!state.table || !state.table.parentNode) return;
+    if (document.getElementById('hdlv2-source-filter')) return;
+
+    var wrap = document.createElement('div');
+    wrap.id = 'hdlv2-source-filter';
+    wrap.className = 'hdlv2-source-filter';
+    wrap.innerHTML = '<span class="hdlv2-source-filter-label">Source:</span>'
+      + '<button type="button" class="hdlv2-source-chip current" data-source="all">All</button>'
+      + '<button type="button" class="hdlv2-source-chip" data-source="practitioner">Practitioner</button>'
+      + '<button type="button" class="hdlv2-source-chip" data-source="automation">Self-reported</button>';
+
+    state.table.parentNode.insertBefore(wrap, state.table);
+
+    wrap.addEventListener('click', function (e) {
+      var btn = e.target && e.target.closest ? e.target.closest('.hdlv2-source-chip') : null;
+      if (!btn) return;
+      var source = btn.dataset.source || 'all';
+      state.sourceFilter = source;
+      // Update chip current-state.
+      wrap.querySelectorAll('.hdlv2-source-chip').forEach(function (chip) {
+        if (chip.dataset.source === source) {
+          chip.classList.add('current');
+        } else {
+          chip.classList.remove('current');
+        }
+      });
+      applySourceFilter();
+    });
+
+    // Apply current filter on mount (no-op if state.sourceFilter is unset
+    // or 'all'); covers the case where a re-render happens after the user
+    // already picked a non-default filter.
+    applySourceFilter();
+  }
+
+  function applySourceFilter() {
+    var source = state.sourceFilter || 'all';
+    if (!state.tbody) return;
+    var rows = state.tbody.querySelectorAll('tr.client-row');
+    rows.forEach(function (row) {
+      var rowSource = row.dataset.source || 'practitioner';
+      var show = (source === 'all') || (rowSource === source);
+      row.style.display = show ? '' : 'none';
+      // If this row has a follow-up detail panel mounted (expanded state),
+      // hide that too so the filter doesn't leave orphan panels visible.
+      var next = row.nextSibling;
+      if (next && next.nodeType === 1 && next.classList && next.classList.contains('hdlv2-detail-row')) {
+        next.style.display = show ? '' : 'none';
+      }
+    });
   }
 
   // ── Progress tab — Effort vs Outcomes (the money chart) ──
@@ -2614,6 +2777,24 @@
       '.hdlv2-hb-card-head .ico { width:14px; height:14px; color:#3d8da0; flex:0 0 14px; }',
       '.hdlv2-hb-card p { margin:0; font-size:12.5px; color:#2c3e50; line-height:1.55; white-space:pre-wrap; }',
       '.hdlv2-hb-card.is-empty p { color:#94a3b8; font-style:italic; }',
+      // W11 — SELF-REPORTED badge + Source filter chips. Same palette as
+      // existing inline badges; distinct value-only styling (light teal
+      // surface + dark teal text) so it reads as a source label, not a
+      // status pill.
+      '.hdlv2-self-reported-badge { color:#3D8DA0; background:#EAF4F7; border:1px solid rgba(61,141,160,0.30); }',
+      '.hdlv2-source-filter { display:flex; align-items:center; gap:8px; padding:10px 0 12px; margin:0 0 8px; flex-wrap:wrap; }',
+      '.hdlv2-source-filter-label { font-family: Inter, -apple-system, sans-serif; font-size:12px; font-weight:600; color:#888; text-transform:uppercase; letter-spacing:0.04em; }',
+      '.hdlv2-source-chip { display:inline-flex; align-items:center; padding:5px 12px; border:1px solid #e4e6ea; border-radius:24px; background:#fff; color:#555; font-family: Inter, -apple-system, sans-serif; font-size:12px; font-weight:500; cursor:pointer; transition: border-color 0.12s, color 0.12s, background 0.12s; }',
+      '.hdlv2-source-chip:hover { border-color:#3d8da0; color:#3d8da0; }',
+      '.hdlv2-source-chip.current { background:#3d8da0; color:#fff; border-color:#3d8da0; }',
+      '.hdlv2-source-chip.current:hover { background:#327686; }',
+      '.hdlv2-auto-consult-card { background:#fff; border:1px solid #e4e6ea; border-radius:12px; padding:20px 22px; font-family: Inter, -apple-system, sans-serif; color:#2c3e50; }',
+      '.hdlv2-auto-consult-card h3 { font-family: Poppins, Inter, sans-serif; font-weight:600; font-size:16px; color:#004F59; margin:0 0 6px; }',
+      '.hdlv2-auto-consult-meta { font-size:12px; color:#888; margin:0 0 14px; }',
+      '.hdlv2-auto-consult-body { background:#f8f9fb; border-left:3px solid #3d8da0; border-radius:6px; padding:12px 14px; margin:0 0 14px; font-size:14px; line-height:1.6; color:#2c3e50; white-space:pre-wrap; max-height:360px; overflow-y:auto; }',
+      '.hdlv2-auto-consult-empty { color:#888; font-size:13px; font-style:italic; }',
+      '.hdlv2-auto-consult-footer { font-size:12.5px; color:#555; font-style:italic; margin-top:10px; }',
+      '.hdlv2-auto-safety-banner { background:#fffbeb; border:1px solid #fde68a; color:#92400e; padding:10px 14px; border-radius:8px; font-size:13px; font-family: Inter, -apple-system, sans-serif; margin:0 0 12px; }',
     ].join('\n');
     document.head.appendChild(s);
   }

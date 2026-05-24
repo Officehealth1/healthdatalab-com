@@ -804,6 +804,37 @@ class HDLV2_Client_Status {
             $v2_first_event_at = $stage_dates ? min( $stage_dates ) : null;
             $v2_total_stages   = count( $stage_dates );
 
+            // W11 (v0.41.32) — automation-tier discriminator. user_meta is set
+            // at provision time (W4) so this works for both pre-submission
+            // (token issued, not yet completed Stage 3) and post-submission
+            // automation clients with a single check. Skips the addendum
+            // query for the practitioner-led path (the common case) so the
+            // dashboard endpoint cost is unchanged for existing rows.
+            $tier = (string) get_user_meta( $client_id, 'hdlv2_tier', true );
+            $auto_consultation = null;
+            if ( $tier === 'automation' && $progress_id ) {
+                $addendum_row = $wpdb->get_row( $wpdb->prepare(
+                    "SELECT id, occurred_at, note_text
+                     FROM {$wpdb->prefix}hdlv2_consultation_addenda
+                     WHERE client_user_id = %d
+                       AND form_progress_id = %d
+                       AND submitter = 'client_automation'
+                     ORDER BY occurred_at DESC LIMIT 1",
+                    $client_id,
+                    $progress_id
+                ) );
+                if ( $addendum_row ) {
+                    $auto_consultation = array(
+                        'addendum_id'  => (int) $addendum_row->id,
+                        'submitted_at' => (string) $addendum_row->occurred_at,
+                        // Full body_text — practitioner detail view renders
+                        // the complete block. ~10KB ceiling enforced upstream
+                        // at submit time (W9 sanitisation).
+                        'body_text'    => (string) $addendum_row->note_text,
+                    );
+                }
+            }
+
             $result[] = array(
                 'user_id'          => (int) $client_id,
                 'progress_id'      => $progress_id,
@@ -821,6 +852,11 @@ class HDLV2_Client_Status {
                 'v2_first_event_at' => $v2_first_event_at,
                 'v2_total_stages'   => $v2_total_stages,
                 'has_final_report' => $has_final_report,
+                // W11 (v0.41.32) — automation-tier fields. Default 'practitioner'
+                // (empty user_meta → cast to '' → JS treats as practitioner) so
+                // every existing client renders identically when flag is off.
+                'tier'             => $tier !== '' ? $tier : 'practitioner',
+                'auto_consultation' => $auto_consultation,
             );
         }
 
