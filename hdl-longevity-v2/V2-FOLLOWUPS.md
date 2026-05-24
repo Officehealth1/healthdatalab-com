@@ -6,6 +6,38 @@ includes context, scope, and a "queue after" hint so they can be ordered.
 
 ---
 
+## `HDLV2_AI_Service::MODEL_HAIKU` constant-name vs value mismatch — silent Sonnet misrouting
+
+**Discovered:** 2026-05-24 during W9 build (looking for a Haiku-routable helper for the automation-tier rec/milestone Claude call).
+
+**Symptom.** `class-hdlv2-ai-service.php` lines 24–25:
+
+```php
+const MODEL       = 'claude-sonnet-4-6';
+const MODEL_HAIKU = 'claude-sonnet-4-6';   // ← name says Haiku, value is Sonnet
+```
+
+The comment block immediately above (lines 21–23) documents the original intent: *"MODEL_HAIKU kept as a separate const so the [cost-optimisation Haiku migration] without touching every other caller of MODEL."* So the value is the wrong half of the pair — the rename was applied to `MODEL` (correct: Sonnet) but `MODEL_HAIKU` was set identically instead of to a Haiku model id.
+
+**Active caller** — there is exactly one: `class-hdlv2-ai-service.php:1422` in `generate_stage3_commentary()`:
+
+```php
+$response = self::call_claude( $key, $system, $user_prompt, 800, self::MODEL_HAIKU );
+```
+
+This call fires every time a client lands on the Stage 3 result page. It's been running on Sonnet (intended: Haiku) since the constant was introduced — roughly 10× cost overrun per call (~$0.005–0.01 Sonnet vs ~$0.0005–0.001 Haiku, 800-token cap).
+
+**Fix path (single-line commit post-W13).** Decide which of the two is canonical:
+
+- **Most likely correct:** change the value — `const MODEL_HAIKU = 'claude-haiku-4-5-20251001';` — matches the constant name and the prior dev's stated intent. Net effect: Stage 3 commentary call migrates to Haiku, ~10× cost reduction on that one path. Risk: Haiku may produce different commentary text quality; eyeball-review one Stage 3 result before/after.
+- **Alternative:** rename the constant to `MODEL_SONNET_FALLBACK` (or just delete it and have the caller use `MODEL` directly). Reflects current behaviour without changing it. Lower-risk but doesn't realise the cost saving the original code was designed for.
+
+The name vs value mismatch makes intent ambiguous; the comment block weighs toward Option 1 but a quick eyeball-diff on Stage 3 commentary quality (Sonnet vs Haiku, same input) would settle it before committing.
+
+**Queue after:** the automation tier build ships (post-W13). Either fix path is a single-line commit + push-additive deploy.
+
+---
+
 ## Audio `contextType: 'why_collection'` reuse on automation tier
 
 **Discovered:** 2026-05-24 during W8 build (`[hdlv2_auto_consultation]` shortcode).
