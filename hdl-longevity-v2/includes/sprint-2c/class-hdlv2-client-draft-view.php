@@ -283,6 +283,19 @@ class HDLV2_Client_Draft_View {
     // ──────────────────────────────────────────────────────────────
 
     public function render_shortcode( $atts ) {
+
+        // W7: automation-tier branch — dark behind feature flag.
+        // Flag check is FIRST so flag=false is byte-identical to pre-W7
+        // for every existing user, regardless of user_meta state.
+        if ( get_option( 'hdlv2_automation_tier_enabled', false ) === true
+             && get_user_meta( get_current_user_id(), 'hdlv2_tier', true ) === 'automation' ) {
+            if ( shortcode_exists( 'hdlv2_auto_consultation' ) ) {
+                return do_shortcode( '[hdlv2_auto_consultation]' );
+            }
+            // Placeholder until W8 registers the real shortcode.
+            return '<div style="max-width:640px;margin:60px auto;padding:32px 28px;text-align:center;font-family:Inter,-apple-system,BlinkMacSystemFont,\'Segoe UI\',sans-serif;color:#2c3e50;background:#f8f9fb;border:1px solid #e4e6ea;border-radius:12px;"><h2 style="font-family:Poppins,Inter,sans-serif;color:#004F59;margin:0 0 12px 0;font-size:22px;">Self-reported step coming soon</h2><p style="color:#888;margin:0;font-size:15px;line-height:1.5;">We\'re finalising this step of your assessment. Please check back shortly.</p></div>';
+        }
+
         $plugin_url = defined( 'HDLV2_PLUGIN_URL' ) ? HDLV2_PLUGIN_URL : plugin_dir_url( dirname( __DIR__ ) . '/hdl-longevity-v2.php' );
         $version    = defined( 'HDLV2_VERSION' ) ? HDLV2_VERSION : '0.18.0';
 
