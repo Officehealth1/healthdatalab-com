@@ -194,6 +194,12 @@ class HDLV2_Client_Draft_View {
             'whr'       => isset( $calc_source['whr'] )     ? (float) $calc_source['whr']     : null,
             'whtr'      => isset( $calc_source['whtr'] )    ? (float) $calc_source['whtr']    : null,
             'scores'    => $calc_source['scores'] ?? array(),
+            // v0.41.36 — Derived surrogate metabolic signal (AUDIT Action Point 1).
+            // Computed once here from the same calc_source; the JS renders it
+            // (renderMetabolicSignal) and never recomputes. Display-only — does
+            // not alter any score above. Shared by the client draft view AND the
+            // practitioner consultation panel (both read this rest_get_draft calc).
+            'metabolic' => HDLV2_Rate_Calculator::metabolic_signal( $calc_source['scores'] ?? array(), $calc_source ),
         );
 
         // Practitioner info

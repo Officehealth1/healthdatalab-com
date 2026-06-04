@@ -753,6 +753,27 @@ class HDLV2_Final_Report {
         $trajectory_chart_url = self::build_trajectory_chart_url( $chrono_age_int, $bio_age_num, $rate_num );
         $radar_chart_url      = self::build_radar_chart_url( $calc_result['scores'] ?? array() );
 
+        // v0.41.36 — Derived surrogate metabolic signal (AUDIT Action Point 1).
+        // Display-only ESTIMATE from existing /5 scores — this product measures
+        // NO blood markers. Single source of truth is HDLV2_Rate_Calculator; the
+        // web draft view renders the same helper. Computed HERE inside
+        // fire_webhook (not generate) so BOTH the normal Finalise path AND the
+        // automation-tier path — which also routes through this method with a
+        // full calc_result (see fire_for_automation_tier) — get the panel; the
+        // $overrides array_replace further down preserves these keys. Values are
+        // pre-formatted to flat scalars (PDFMonkey uses bare {{ }} and the
+        // payload is pre-sanitised below); blank when <3 contributing inputs so
+        // the template hides the whole panel via {% if metabolic_score != blank %}.
+        $metabolic = HDLV2_Rate_Calculator::metabolic_signal( $calc_result['scores'] ?? array(), $calc_result );
+        $metabolic_chips_str = '';
+        if ( ! empty( $metabolic['chips'] ) ) {
+            $chip_parts = array();
+            foreach ( $metabolic['chips'] as $chip ) {
+                $chip_parts[] = $chip['label'] . ' ' . $chip['score'] . '/5';
+            }
+            $metabolic_chips_str = implode( ' · ', $chip_parts );
+        }
+
         // v0.22.8 — Pre-render gauge to a short on-domain PNG. The raw
         // QuickChart.io URL is ~1,800 chars, which Gmail's image proxy
         // refuses to fetch — leaves a broken-image placeholder in the email
@@ -920,6 +941,17 @@ class HDLV2_Final_Report {
             'bmi'                         => $calc_result['bmi'] ?? null,
             'whr'                         => $calc_result['whr'] ?? null,
             'whtr'                        => $calc_result['whtr'] ?? null,
+            // v0.41.36 — Derived surrogate metabolic signal (AUDIT AP1), placed
+            // straight after the Body Composition block. Flat, pre-formatted
+            // scalars; blank when the panel is hidden (<3 inputs) so the PDFMonkey
+            // template drops it via {% if metabolic_score != blank %}. Survives
+            // the automation-tier $overrides array_replace (no key collision).
+            'metabolic_score'             => $metabolic['show'] ? $metabolic['score_display'] : '',
+            'metabolic_band'              => $metabolic['show'] ? $metabolic['band_label'] : '',
+            'metabolic_band_key'          => $metabolic['show'] ? $metabolic['band'] : '',
+            'metabolic_marker_pct'        => $metabolic['show'] ? (int) $metabolic['marker_pct'] : '',
+            'metabolic_driver'            => $metabolic['show'] ? $metabolic['driver_note'] : '',
+            'metabolic_chips'             => $metabolic_chips_str,
             'practitioner_initials'       => self::derive_initials( $prac_user ? $prac_user->display_name : '' ),
             // v0.28.9 — Raw clinical inputs (resting HR bpm, BP mmHg, anthropometrics).
             // Used by PDFMonkey Page 16 to render `RESTING HR · 58 bpm · 5/5 STRONG · range 50–70`.

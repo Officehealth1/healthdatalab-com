@@ -509,4 +509,153 @@ class HDLV2_Rate_Calculator {
         $adjusted = 3.0 + ( (float) $raw_score - $expected );
         return max( 1.0, min( 5.0, $adjusted ) );
     }
+
+    /**
+     * v0.41.36 — Metabolic-health signal (DERIVED SURROGATE — AUDIT Action Point 1).
+     *
+     * DISPLAY-ONLY. This product collects NO blood markers — there is no
+     * insulin, glucose, HbA1c, CRP, lipid or HOMA measurement anywhere (see the
+     * data whitelist in class-hdlv2-ai-service.php). This index is an ESTIMATE
+     * inferred from existing lifestyle + body-shape /5 scores, NEVER a
+     * measurement; the UI must label it "Inferred · no bloods". It does NOT feed
+     * biological age, the ageing rate, the radar, or FULL_WEIGHTS — it is a
+     * separate, read-only composite that alters no existing figure.
+     *
+     * Forward-compat (AUDIT B.6 — design for, do not build): adding a weighted
+     * input later (gum bleeding, post-meal energy/cravings, family T2D history,
+     * ethnicity) is a one-line addition to the $weights + $labels config below.
+     *
+     * @param array $scores HDLV2_Rate_Calculator::calculate_full()['scores']
+     *                      (0-5 floats; null = the input was never collected).
+     * @param array $calc   The full calc_result, for raw whr/whtr/bmi driver values.
+     * @return array {
+     *   show: bool, score: float|null, score_display: string ("3.0"),
+     *   band: 'good'|'watch'|'elevated',
+     *   band_label: string, marker_pct: int, present_count: int,
+     *   driver: {key,label,value}|null, driver_note: string,
+     *   chips: array<{label,score}>
+     * }
+     */
+    public static function metabolic_signal( $scores, $calc = array() ) {
+        // ── CONFIG (PENDING MATTHEW SIGN-OFF — do not treat as final) ──────────
+        // Contributing /5 inputs → display weight. NEW and SEPARATE from
+        // FULL_WEIGHTS; changing these never affects bio-age or the ageing rate.
+        $weights = array(
+            'whtrScore'          => 3, // waist-to-height — strongest single IR proxy
+            'whrScore'           => 3, // waist-to-hip
+            'bloodPressureScore' => 2,
+            'dietQuality'        => 2,
+            'physicalActivity'   => 2,
+            'bmiScore'           => 1,
+        );
+        // Band thresholds on the 0-5 composite (higher = healthier).
+        $band_watch_min = 2.5; // composite < this  → elevated
+        $band_good_min  = 3.5; // composite >= this → good
+        // Human labels + the lead word used in the one-line driver note.
+        $labels = array(
+            'whtrScore'          => 'Waist-to-height',
+            'whrScore'           => 'Waist-to-hip',
+            'bloodPressureScore' => 'Blood pressure',
+            'dietQuality'        => 'Diet',
+            'physicalActivity'   => 'Activity',
+            'bmiScore'           => 'BMI',
+        );
+        $band_lead   = array( 'good' => 'Solid', 'watch' => 'Moderate', 'elevated' => 'Elevated' );
+        $band_labels = array( 'good' => 'Good', 'watch' => 'Watch', 'elevated' => 'Elevated' );
+        // Raw anthropometric value to show for these driver keys (else "N/5").
+        $raw_map     = array( 'whtrScore' => 'whtr', 'whrScore' => 'whr', 'bmiScore' => 'bmi' );
+        $min_inputs  = 3; // fewer present → hide the panel entirely
+        // Chip display order (reference design): anthropometrics, then BP, then lifestyle.
+        $chip_order  = array( 'whtrScore', 'whrScore', 'bmiScore', 'bloodPressureScore', 'dietQuality', 'physicalActivity' );
+        // ──────────────────────────────────────────────────────────────────────
+
+        $hidden = array(
+            'show' => false, 'score' => null, 'band' => '', 'band_label' => '',
+            'marker_pct' => 0, 'present_count' => 0, 'driver' => null,
+            'driver_note' => '', 'chips' => array(),
+        );
+        if ( ! is_array( $scores ) ) {
+            return $hidden;
+        }
+
+        $sum_weight = 0.0;
+        $sum_score  = 0.0;
+        $present    = array();
+        $chips      = array();
+        foreach ( $weights as $key => $weight ) {
+            $value = $scores[ $key ] ?? null;
+            if ( ! is_numeric( $value ) ) {
+                continue; // null/''/'skip' = never collected — drop it (note: 0 IS valid)
+            }
+            $value        = (float) $value;
+            $sum_weight  += $weight;
+            $sum_score   += $value * $weight;
+            $present[ $key ] = $value;
+        }
+
+        $count = count( $present );
+        if ( $count < $min_inputs || $sum_weight <= 0 ) {
+            return $hidden;
+        }
+
+        // Single source of truth: clamp once, then band, marker AND the printed
+        // number all derive from the SAME 1-dp value, so the displayed score can
+        // never contradict its own band / gauge colour (and a future weighted
+        // input can never print "6 / 5").
+        $score      = max( 0.0, min( 5.0, $sum_score / $sum_weight ) ); // 0-5, clamped
+        $display    = round( $score, 1 );
+        $band       = ( $display >= $band_good_min ) ? 'good' : ( ( $display >= $band_watch_min ) ? 'watch' : 'elevated' );
+        // Green-left axis: healthy (high score) sits at the LEFT, so the marker's
+        // distance from the left grows as the score drops — (5 - score)/5 * 100.
+        $marker_pct = (int) round( ( 5.0 - $display ) / 5 * 100 );
+
+        // Driver = lowest-scoring present input. Tie-break: higher weight wins;
+        // on an exact tie, config order wins (first-declared stays — deterministic).
+        $driver_key    = null;
+        $driver_value  = null;
+        $driver_weight = -1;
+        foreach ( $weights as $key => $weight ) {
+            if ( ! isset( $present[ $key ] ) ) {
+                continue;
+            }
+            $sv = $present[ $key ];
+            if ( $driver_key === null || $sv < $driver_value || ( $sv == $driver_value && $weight > $driver_weight ) ) {
+                $driver_key    = $key;
+                $driver_value  = $sv;
+                $driver_weight = $weight;
+            }
+        }
+        if ( isset( $raw_map[ $driver_key ], $calc[ $raw_map[ $driver_key ] ] ) && is_numeric( $calc[ $raw_map[ $driver_key ] ] ) ) {
+            $driver_display = (string) $calc[ $raw_map[ $driver_key ] ];
+        } else {
+            $driver_display = ( (int) round( $driver_value ) ) . '/5';
+        }
+        $driver      = array( 'key' => $driver_key, 'label' => $labels[ $driver_key ], 'value' => $driver_display );
+        // A 'good' result has no drag to call out — saying one contradicts the
+        // score. (Copy pending Matthew sign-off; see METABOLIC-AUDIT B4.)
+        $driver_note = ( 'good' === $band )
+            ? 'Solid — every tracked input is in a healthy range.'
+            : $band_lead[ $band ] . ' — ' . strtolower( $labels[ $driver_key ] ) . ' ' . $driver_display . ' is the single drag pulling this down.';
+
+        // Contributing-input chips in the reference display order.
+        foreach ( $chip_order as $key ) {
+            if ( ! isset( $present[ $key ] ) ) {
+                continue;
+            }
+            $chips[] = array( 'label' => $labels[ $key ], 'score' => round( $present[ $key ], 1 ) );
+        }
+
+        return array(
+            'show'          => true,
+            'score'         => $display,
+            'score_display' => number_format( $display, 1 ), // "3.0" — shared by web + PDF so both print the same number
+            'band'          => $band,
+            'band_label'    => $band_labels[ $band ],
+            'marker_pct'    => $marker_pct,
+            'present_count' => $count,
+            'driver'        => $driver,
+            'driver_note'   => $driver_note,
+            'chips'         => $chips,
+        );
+    }
 }

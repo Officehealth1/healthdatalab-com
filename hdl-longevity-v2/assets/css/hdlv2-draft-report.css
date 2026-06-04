@@ -563,3 +563,74 @@
   .hdlv2-dr-footer { padding: 18px; }
   .hdlv2-dr-practitioner-notes-avatar { width: 40px; height: 40px; font-size: 14px; }
 }
+
+/* ── Metabolic Health — derived surrogate signal (AUDIT Action Point 1) ──
+   Display-only estimate. Green-LEFT axis (healthy on the left). Reuses the
+   report tokens; soft band tints are the HDL Status-palette borders; Info-blue
+   accent for the "Inferred" tag + suggested-input chips. No chart library. */
+.hdlv2-dr-metab {
+  --metab-good: #10b981;      /* status Success — matches the report's green */
+  --metab-watch: #d97706;     /* status Warning — matches the report's orange (was pale #fde68a) */
+  --metab-elevated: #dc2626;  /* status Error — matches the report's red (was pink #fecaca) */
+  --metab-blue-ink: #2563eb;
+  --metab-blue-bg: #eff6ff;
+  --metab-blue-bd: #bfdbfe;
+  background: #fff;
+  border: 1px solid var(--hdlv2-border);
+  border-radius: 14px;
+  padding: 24px clamp(18px, 3vw, 32px);
+  margin: 0 auto 28px;
+  max-width: 1280px;
+}
+.hdlv2-dr-metab-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.hdlv2-dr-metab-eyebrow { font-size: 12px; color: var(--hdlv2-ink-muted); margin: 0 0 2px; }
+.hdlv2-dr-metab-head h2 { margin: 0; font-size: 18px; line-height: 1.3; }
+.hdlv2-dr-metab-tag {
+  flex: 0 0 auto;
+  font-size: 11px; font-weight: 600; letter-spacing: 0.02em;
+  color: var(--metab-blue-ink); background: var(--metab-blue-bg);
+  border: 1px solid var(--metab-blue-bd); border-radius: 999px;
+  padding: 4px 10px; white-space: nowrap;
+}
+.hdlv2-dr-metab-bar { margin: 20px 0 14px; }
+.hdlv2-dr-metab-gauge { position: relative; padding-top: 24px; }
+.hdlv2-dr-metab-track {
+  display: flex; height: 8px;
+  border-radius: 999px; overflow: hidden;
+}
+.hdlv2-dr-metab-zone { display: block; height: 100%; }
+.hdlv2-dr-metab-zone--good     { width: 30%; background: var(--metab-good); }
+.hdlv2-dr-metab-zone--watch    { width: 20%; background: var(--metab-watch); }
+.hdlv2-dr-metab-zone--elevated { width: 50%; background: var(--metab-elevated); }
+.hdlv2-dr-metab-marker {
+  position: absolute; top: 0; bottom: 0;
+  display: flex; flex-direction: column; align-items: center;
+  transform: translateX(-50%); pointer-events: none;
+}
+.hdlv2-dr-metab-marker::after {
+  content: ''; flex: 1; width: 2px; border-radius: 1px;
+  background: var(--hdlv2-ink);
+}
+.hdlv2-dr-metab-you {
+  font-size: 11px; font-weight: 600; color: var(--hdlv2-ink);
+  line-height: 1; margin-bottom: 3px; white-space: nowrap;
+}
+.hdlv2-dr-metab-scale {
+  display: flex; justify-content: space-between; margin-top: 7px;
+  font-size: 11px; color: var(--hdlv2-ink-muted);
+}
+.hdlv2-dr-metab-readout { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 12px; margin-top: 14px; }
+.hdlv2-dr-metab-score { font-family: Poppins, Inter, sans-serif; font-size: 30px; font-weight: 600; color: var(--hdlv2-ink); }
+.hdlv2-dr-metab-score small { font-size: 15px; color: var(--hdlv2-ink-muted); font-weight: 500; }
+.hdlv2-dr-metab-note { font-size: 14px; color: var(--hdlv2-ink-soft); }
+.hdlv2-dr-metab-divider { height: 1px; background: var(--hdlv2-border); margin: 16px 0; }
+.hdlv2-dr-metab-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.hdlv2-dr-metab-chip {
+  font-size: 12px; color: var(--hdlv2-ink-soft); background: #fff;
+  border: 1px solid var(--hdlv2-border); border-radius: 8px; padding: 5px 10px;
+}
+.hdlv2-dr-metab-chip b { color: var(--hdlv2-ink); margin-left: 5px; font-weight: 600; }
+@media (max-width: 640px) {
+  .hdlv2-dr-metab-head { flex-direction: column; gap: 8px; }
+  .hdlv2-dr-metab-score { font-size: 26px; }
+}

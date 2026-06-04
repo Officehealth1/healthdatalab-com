@@ -295,6 +295,11 @@
         ) +
       '</section>';
 
+    // Metabolic Health — derived surrogate signal (AUDIT Action Point 1).
+    // Empty container; filled post-innerHTML by renderMetabolicSignal(calc.metabolic),
+    // mirroring how the radar/trajectory visuals are populated in the batch below.
+    html += '<div class="hdlv2-dr-section hdlv2-dr-metab" id="hdlv2-dr-metabolic-container" style="display:none"></div>';
+
     // Goals linkage
     if (Array.isArray(ai.goals_linkage) && ai.goals_linkage.length) {
       html +=
@@ -436,6 +441,7 @@
     setTimeout(function () {
       renderTrajectory(calc);
       renderRadar(calc);
+      renderMetabolicSignal(calc.metabolic);
     }, 50);
   }
 
@@ -508,6 +514,53 @@
   }
 
   // ── Radar commentary split ──
+  // ── Metabolic Health — derived surrogate signal (AUDIT Action Point 1) ──
+  // Display-only ESTIMATE built from existing /5 scores (this product collects
+  // no blood markers). Renders from calc.metabolic ONLY — never recomputes.
+  // Hidden when the server marks show=false (fewer than 3 contributing inputs).
+  function renderMetabolicSignal(m) {
+    var el = document.getElementById('hdlv2-dr-metabolic-container');
+    if (!el) { return; }
+    if (!m || !m.show) { el.style.display = 'none'; return; }
+
+    var pct  = Math.max(0, Math.min(100, Number(m.marker_pct) || 0));
+    // Keep the "You" marker label inside the gauge at the extreme ends (B6).
+    var mtx  = pct <= 6 ? '0' : (pct >= 94 ? '-100%' : '-50%');
+    var chips = (m.chips || []).map(function (c) {
+      return '<span class="hdlv2-dr-metab-chip">' + escape(String(c.label)) +
+             '<b>' + escape(String(c.score)) + '/5</b></span>';
+    }).join('');
+    el.className = 'hdlv2-dr-section hdlv2-dr-metab';
+    el.innerHTML =
+      '<div class="hdlv2-dr-metab-head">' +
+        '<div>' +
+          '<div class="hdlv2-dr-metab-eyebrow">Metabolic health</div>' +
+          '<h2>Insulin-resistance &amp; inflammation signal</h2>' +
+        '</div>' +
+        '<span class="hdlv2-dr-metab-tag">Inferred &middot; no bloods</span>' +
+      '</div>' +
+      '<div class="hdlv2-dr-metab-bar">' +
+        '<div class="hdlv2-dr-metab-gauge">' +
+          '<div class="hdlv2-dr-metab-marker" style="left:' + pct + '%;transform:translateX(' + mtx + ')">' +
+            '<span class="hdlv2-dr-metab-you">You</span>' +
+          '</div>' +
+          '<div class="hdlv2-dr-metab-track">' +
+            '<span class="hdlv2-dr-metab-zone hdlv2-dr-metab-zone--good"></span>' +
+            '<span class="hdlv2-dr-metab-zone hdlv2-dr-metab-zone--watch"></span>' +
+            '<span class="hdlv2-dr-metab-zone hdlv2-dr-metab-zone--elevated"></span>' +
+          '</div>' +
+        '</div>' +
+        '<div class="hdlv2-dr-metab-scale"><span>Good</span><span>Watch</span><span>Elevated</span></div>' +
+      '</div>' +
+      '<div class="hdlv2-dr-metab-readout">' +
+        '<span class="hdlv2-dr-metab-score">' + escape(String(m.score_display || m.score)) + ' <small>/ 5</small></span>' +
+        (m.driver_note ? '<span class="hdlv2-dr-metab-note">' + escape(String(m.driver_note)) + '</span>' : '') +
+      '</div>' +
+      '<div class="hdlv2-dr-metab-divider"></div>' +
+      '<div class="hdlv2-dr-metab-chips">' + chips + '</div>';
+    el.style.display = '';
+  }
+
   function renderRadarCommentary(rc) {
     if (!rc || (!Array.isArray(rc.strengths) && !Array.isArray(rc.focus_areas))) return '';
     var s = (rc.strengths || []).map(function (item) {
