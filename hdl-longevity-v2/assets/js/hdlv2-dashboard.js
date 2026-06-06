@@ -713,7 +713,7 @@
       + '#hdlv2-widget-preview-frame .hdlw,'
       + '#hdlv2-widget-preview-frame .hdlw-shell{overflow:hidden!important;}'
       + '.hdlv2-ws-preview__caption{font-size:11px;color:#888;line-height:1.5;margin:8px 0 0;font-style:italic;text-align:center;}'
-      + '.hdlv2-ws-form{display:flex;flex-direction:column;max-height:calc(100vh - 220px);overflow-y:auto;padding-right:6px;}'
+      + '.hdlv2-ws-form{display:flex;flex-direction:column;}'
       + '.hdlv2-ws-section{font-family:Poppins,Inter,sans-serif;font-size:11px;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;color:#004F59;margin:14px 0 12px;padding-bottom:6px;border-bottom:1px solid #eef0f3;}'
       + '.hdlv2-ws-section:first-child{margin-top:0;}'
       + '.hdlv2-ws-form__intro{font-size:13px;color:#666;line-height:1.5;margin:0 0 18px;}'
@@ -750,6 +750,7 @@
       +   '<p class="hdlv2-ws-form__intro">Customise the widget on the left — the preview updates as you type.</p>'
       +   '<h4 class="hdlv2-ws-section">Branding</h4>'
       + formField('practitioner_name', 'Your Name', 'text', c.practitioner_name || '')
+      + formField('clinic_name', 'Practice / Clinic Name <span style="color:#888;font-weight:400;">(optional — shown on consultation notes)</span>', 'text', c.clinic_name || '')
       // Logo upload area — uses <label> wrapping file input for reliable native click
       + '<div style="margin-bottom:10px;">'
       + '<span style="display:block;font-size:12px;color:#555;margin-bottom:3px;font-weight:500;">Your Logo <span style="color:#888;font-weight:400;">(JPG, PNG, GIF, WebP — up to 5MB)</span></span>'
@@ -1131,6 +1132,7 @@
     var bookEl = document.getElementById('hdlv2-show_book_button_after_widget');
     return {
       practitioner_name: val('hdlv2-practitioner_name'),
+      clinic_name: val('hdlv2-clinic_name'),
       logo_url: val('hdlv2-logo_url'),
       cta_text: val('hdlv2-cta_text') || ('Book a session with ' + (val('hdlv2-practitioner_name') || 'a practitioner')),
       cta_link: val('hdlv2-cta_link'),

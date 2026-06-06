@@ -461,13 +461,39 @@ class HDLV2_Email_Templates {
     }
 
     /**
-     * Build the canonical footer: "Powered by HealthDataLab · Terms · Privacy".
+     * Confidential / NOT-MEDICAL-ADVICE / IRISLAB registered-entity fine print.
+     *
+     * Option A treatment: a hairline divider then 10px muted text, with
+     * "NOT MEDICAL ADVICE" the only emphasised phrase, so it reads as a
+     * designed-in footer line rather than a pasted block.
+     *
+     * Single source of truth for the legal line. Reused by:
+     *   • email_footer()          — every base_layout() email
+     *   • magic-link login email  — HDL_Paid_Report_Provisioner (bespoke body)
+     *   • New-Lead widget alert    — HDLV2_Widget_Config (bespoke body)
+     * Public so those cross-class callers render identical wording. HDL /
+     * IRISLAB variant only — this codebase sends HealthDataLab-branded mail
+     * exclusively, so no per-brand switch (YAGNI).
+     *
+     * @since 0.41.35
+     */
+    public static function legal_disclaimer_html() {
+        return '<div style="margin:12px auto 0;max-width:460px;padding-top:12px;border-top:1px solid #eef0f3;font-size:10px;line-height:1.6;color:#aaaaaa;font-family:Inter,-apple-system,BlinkMacSystemFont,\'Segoe UI\',sans-serif;">'
+            . 'Confidential &mdash; recipient only. <span style="color:#8a9098;font-weight:600;letter-spacing:0.02em;">NOT MEDICAL ADVICE.</span> '
+            . 'Operated by IRISLAB LIMITED, England &amp; Wales Co. No. 8260301, Sussex Innovation Centre, Science Park Square, Brighton BN1 9SB.'
+            . '</div>';
+    }
+
+    /**
+     * Build the canonical footer: "Powered by HealthDataLab · Terms · Privacy"
+     * followed by the legal disclaimer line (legal_disclaimer_html()).
      */
     private static function email_footer() {
-        $out  = '<tr><td style="background:' . self::SOFT_FILL . ';border-top:1px solid ' . self::BORDER . ';padding:16px 28px;text-align:center;font-size:11px;color:#999999;line-height:1.5;font-family:Inter,-apple-system,BlinkMacSystemFont,\'Segoe UI\',sans-serif;">';
+        $out  = '<tr><td style="background:' . self::SOFT_FILL . ';border-top:1px solid ' . self::BORDER . ';padding:16px 28px 18px;text-align:center;font-size:11px;color:#999999;line-height:1.5;font-family:Inter,-apple-system,BlinkMacSystemFont,\'Segoe UI\',sans-serif;">';
         $out .= 'Powered by <strong style="color:' . self::TEAL . ';">HealthDataLab</strong> &nbsp;&middot;&nbsp; ';
         $out .= '<a href="' . esc_url( apply_filters( "hdlv2_email_terms_url", self::TERMS_URL ) ) . '" style="color:#999999;text-decoration:underline;">Terms</a> &nbsp;&middot;&nbsp; ';
         $out .= '<a href="' . esc_url( apply_filters( "hdlv2_email_privacy_url", self::PRIVACY_URL ) ) . '" style="color:#999999;text-decoration:underline;">Privacy</a>';
+        $out .= self::legal_disclaimer_html();
         $out .= '</td></tr>';
         return $out;
     }

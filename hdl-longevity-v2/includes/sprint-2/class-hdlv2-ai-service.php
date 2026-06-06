@@ -1295,6 +1295,188 @@ class HDLV2_AI_Service {
     }
 
     // ──────────────────────────────────────────────────────────────
+    //  PUBLIC: FLIGHT CONSULTATION NOTES — practitioner print-aid text
+    //  (Flight Notes Phase 2)
+    //
+    //  Produces the grey "suggestion" text on the F·L·I·G·H·T sheet:
+    //  intake-review flags, session outcomes, pre-consultation notes, and
+    //  one tailored line per FLIGHT section. Practitioner-facing only (never
+    //  shown to the client) so it MAY name the inferred metabolic signal.
+    //  ALL output is optional/grey — on ANY failure (no key, WP_Error,
+    //  parse fail) it returns the empty shape so the PDF still renders its
+    //  static chrome. Clones generate_pre_consultation_summary()'s facts
+    //  assembly + call pattern; adds one inferred-metabolic line.
+    // ──────────────────────────────────────────────────────────────
+
+    /**
+     * @param array $stage1_data q1_age, q1_sex, server_result, etc.
+     * @param array $stage3_data full Stage-3 health detail.
+     * @param array $calc_result HDLV2_Rate_Calculator::calculate_full() output.
+     * @param array $why_profile { distilled_why, ... }.
+     * @param array $addenda     chronological practitioner addenda (optional).
+     * @return array Always the flight-notes shape (flags/session_outcomes/
+     *               pre_consult_notes/tailored). Never a WP_Error, never throws.
+     */
+    public static function generate_flight_consult_notes( $stage1_data, $stage3_data, $calc_result, $why_profile, $addenda = array() ) {
+        $api_key = self::get_api_key();
+        if ( ! $api_key ) {
+            return self::flight_notes_empty();
+        }
+
+        // ── Facts block — mirror generate_pre_consultation_summary() ──
+        $age    = $stage1_data['q1_age'] ?? $stage1_data['age'] ?? 'unknown';
+        $sex    = $stage1_data['q1_sex'] ?? $stage1_data['gender'] ?? 'unknown';
+        $rate   = isset( $calc_result['rate'] ) ? $calc_result['rate'] : null;
+        $bioage = isset( $calc_result['bio_age'] ) ? $calc_result['bio_age'] : null;
+        $scores = isset( $calc_result['scores'] ) && is_array( $calc_result['scores'] ) ? $calc_result['scores'] : array();
+        $why    = is_array( $why_profile ) ? ( $why_profile['distilled_why'] ?? '' ) : '';
+
+        $facts = "CLIENT DATA\nAge: $age\nSex: $sex\n";
+        if ( $rate !== null )   $facts .= "Rate of ageing: $rate\n";
+        if ( $bioage !== null ) $facts .= "Biological age: $bioage\n";
+        if ( $why )             $facts .= "Client WHY: $why\n";
+
+        // +1 inferred-metabolic line (NO bloods) — only when the panel shows.
+        if ( class_exists( 'HDLV2_Rate_Calculator' ) ) {
+            $metabolic = HDLV2_Rate_Calculator::metabolic_signal( $scores, $calc_result );
+            if ( ! empty( $metabolic['show'] ) ) {
+                $facts .= sprintf(
+                    "\nMETABOLIC (inferred surrogate, NO bloods): composite %s/5 — %s. %s\n",
+                    $metabolic['score_display'],
+                    $metabolic['band_label'],
+                    $metabolic['driver_note']
+                );
+            }
+        }
+
+        if ( ! empty( $stage3_data ) ) {
+            $facts .= "\nHEALTH INPUTS\n";
+            foreach ( $stage3_data as $k => $v ) {
+                if ( $v === '' || $v === null || $v === 'skip' || $k === 'server_result' || is_array( $v ) ) continue;
+                $facts .= "- $k: $v\n";
+            }
+        }
+        if ( ! empty( $scores ) ) {
+            $facts .= "\nDERIVED SCORES (0-5 scale, higher is better)\n";
+            foreach ( $scores as $k => $v ) {
+                if ( ! is_numeric( $v ) ) continue;
+                $facts .= "- $k: $v\n";
+            }
+        }
+
+        // Practitioner addenda — chronological, same convention as the brief.
+        if ( is_array( $addenda ) && ! empty( $addenda ) ) {
+            $lines = array();
+            $i = 0;
+            foreach ( $addenda as $a ) {
+                $note = trim( wp_strip_all_tags( $a['note_text'] ?? '' ) );
+                if ( $note === '' ) continue;
+                $i++;
+                $when_ts = ! empty( $a['occurred_at'] ) ? strtotime( $a['occurred_at'] ) : false;
+                $when    = $when_ts ? gmdate( 'j M Y · H:i', $when_ts ) : 'unknown date';
+                $pri     = strtoupper( in_array( $a['priority'] ?? 'medium', array( 'low', 'medium', 'high' ), true ) ? $a['priority'] : 'medium' );
+                $lines[] = sprintf( '[%d] %s · %s priority — %s', $i, $when, $pri, $note );
+            }
+            if ( ! empty( $lines ) ) {
+                $facts .= "\nPRACTITIONER ADDENDA — chronological clinical observations added since the consultation. Latest is highest-priority intelligence.\n";
+                $facts .= implode( "\n", $lines ) . "\n";
+            }
+        }
+
+        $system = "You are preparing a PRIVATE consultation-prep sheet for a longevity PRACTITIONER — it is NEVER shown to the client. Your job is to help the practitioner run a strong 30–60 minute Stage-4 consultation.\n\n"
+            . "Rules:\n"
+            . "- British English. Concise, plain, clinical-but-warm. No filler, no praise.\n"
+            . "- These are SUGGESTIONS the practitioner may use, edit, or ignore — phrase them as prompts, not instructions.\n"
+            . "- Ground everything ONLY in the data provided. Do NOT invent measurements, history, or numbers.\n"
+            . "- This product takes NO blood. The \"metabolic / insulin-resistance / inflammation\" figure is an INFERRED signal from lifestyle and body-shape scores. You MAY reference it to the practitioner, but always as an inferred signal, never as a measured value or diagnosis.\n"
+            . "- \"Flags\" = genuine contradictions or risk patterns across Stages 1–3 (e.g. self-reported activity vs no resistance training; sleep fragmentation + high stress; BP + medication). 3–4 max, most important first. Keep EACH flag SHORT: a label plus ONE sentence of detail, ≤ 22 words total — the practitioner expands it in the room, the sheet just points.\n"
+            . "- \"Session outcomes\" = 2–3 realistic goals to AGREE in this session, tied to the client's WHY. ONE short line each, ≤ 16 words.\n"
+            . "- \"Pre-consultation notes\" = 1–3 short prep reminders (tone, what to listen for). ONE short line each, ≤ 16 words.\n"
+            . "- \"Tailored\" = ONE short line per FLIGHT section (frame/listen/inspect/goals/health/trajectory) ONLY where the data warrants it; otherwise return an empty string for that section.\n\n"
+            . "Return ONLY valid JSON in exactly this shape, nothing else:\n"
+            . '{"flags":[{"label":"string","detail":"string","severity":"high|moderate|info"}],"session_outcomes":["string"],"pre_consult_notes":["string"],"tailored":{"frame":"string","listen":"string","inspect":"string","goals":"string","health":"string","trajectory":"string"}}'
+            . "\n\nReturn JSON only — no preamble, no markdown fences.";
+
+        $raw = self::call_claude( $api_key, $system, $facts, 3000 );
+        if ( is_wp_error( $raw ) ) {
+            error_log( '[HDLV2] generate_flight_consult_notes: ' . $raw->get_error_message() );
+            return self::flight_notes_empty();
+        }
+
+        return self::parse_flight_notes( $raw );
+    }
+
+    /**
+     * Defensive normalisation of the Claude flight-notes JSON. Any malformed
+     * or missing field degrades to the empty shape for that field, never an
+     * error — the PDF must always render. Public output is practitioner-only.
+     *
+     * @param string $raw Claude content (already fence-stripped by call_claude).
+     * @return array The flight-notes shape.
+     */
+    private static function parse_flight_notes( $raw ) {
+        $parsed = json_decode( (string) $raw, true );
+        if ( ! is_array( $parsed ) ) {
+            error_log( '[HDLV2] parse_flight_notes: non-JSON. Raw: ' . substr( (string) $raw, 0, 300 ) );
+            return self::flight_notes_empty();
+        }
+
+        $out = self::flight_notes_empty();
+
+        if ( isset( $parsed['flags'] ) && is_array( $parsed['flags'] ) ) {
+            $out['flags'] = array_values( array_filter( array_map( function ( $f ) {
+                if ( ! is_array( $f ) ) {
+                    return null;
+                }
+                $label  = sanitize_text_field( $f['label'] ?? '' );
+                $detail = sanitize_text_field( $f['detail'] ?? '' );
+                if ( '' === $label && '' === $detail ) {
+                    return null; // an empty flag would render a blank grey bullet
+                }
+                $sev = $f['severity'] ?? 'info';
+                return array(
+                    'label'    => $label,
+                    'detail'   => $detail,
+                    'severity' => in_array( $sev, array( 'high', 'moderate', 'info' ), true ) ? $sev : 'info',
+                );
+            }, $parsed['flags'] ) ) );
+        }
+
+        foreach ( array( 'session_outcomes', 'pre_consult_notes' ) as $k ) {
+            if ( isset( $parsed[ $k ] ) && is_array( $parsed[ $k ] ) ) {
+                $out[ $k ] = array_values( array_filter( array_map( 'sanitize_text_field', $parsed[ $k ] ) ) );
+            }
+        }
+
+        foreach ( array( 'frame', 'listen', 'inspect', 'goals', 'health', 'trajectory' ) as $s ) {
+            if ( isset( $parsed['tailored'][ $s ] ) ) {
+                $out['tailored'][ $s ] = sanitize_text_field( $parsed['tailored'][ $s ] );
+            }
+        }
+
+        return $out;
+    }
+
+    /**
+     * The empty flight-notes shape — also the no-key / WP_Error / parse-fail
+     * fallback. Six tailored keys always present so the PDF template can guard
+     * each with {% if x != blank %}.
+     *
+     * @return array
+     */
+    private static function flight_notes_empty() {
+        return array(
+            'flags'             => array(),
+            'session_outcomes'  => array(),
+            'pre_consult_notes' => array(),
+            'tailored'          => array(
+                'frame' => '', 'listen' => '', 'inspect' => '',
+                'goals' => '', 'health' => '', 'trajectory' => '',
+            ),
+        );
+    }
+
+    // ──────────────────────────────────────────────────────────────
     //  PUBLIC: STAGE 3 "WHAT THIS TELLS US" COMMENTARY  (v0.22.4)
     //
     //  Bridges all three stages: contrasts Stage 1 estimated rate vs

@@ -959,6 +959,7 @@ class HDLV2_Widget_Config {
                 // Footer
                 . '<div style="text-align:center;padding:16px;font-size:11px;color:#aaa;">'
                 . 'This lead came from your HealthDataLab embedded widget.'
+                . ( class_exists( 'HDLV2_Email_Templates' ) ? HDLV2_Email_Templates::legal_disclaimer_html() : '' )
                 . '</div>'
                 . '</div></body></html>';
 
