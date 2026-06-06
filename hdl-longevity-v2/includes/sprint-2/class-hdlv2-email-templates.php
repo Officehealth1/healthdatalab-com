@@ -461,39 +461,13 @@ class HDLV2_Email_Templates {
     }
 
     /**
-     * Confidential / NOT-MEDICAL-ADVICE / IRISLAB registered-entity fine print.
-     *
-     * Option A treatment: a hairline divider then 10px muted text, with
-     * "NOT MEDICAL ADVICE" the only emphasised phrase, so it reads as a
-     * designed-in footer line rather than a pasted block.
-     *
-     * Single source of truth for the legal line. Reused by:
-     *   • email_footer()          — every base_layout() email
-     *   • magic-link login email  — HDL_Paid_Report_Provisioner (bespoke body)
-     *   • New-Lead widget alert    — HDLV2_Widget_Config (bespoke body)
-     * Public so those cross-class callers render identical wording. HDL /
-     * IRISLAB variant only — this codebase sends HealthDataLab-branded mail
-     * exclusively, so no per-brand switch (YAGNI).
-     *
-     * @since 0.41.35
-     */
-    public static function legal_disclaimer_html() {
-        return '<div style="margin:12px auto 0;max-width:460px;padding-top:12px;border-top:1px solid #eef0f3;font-size:10px;line-height:1.6;color:#aaaaaa;font-family:Inter,-apple-system,BlinkMacSystemFont,\'Segoe UI\',sans-serif;">'
-            . 'Confidential &mdash; recipient only. <span style="color:#8a9098;font-weight:600;letter-spacing:0.02em;">NOT MEDICAL ADVICE.</span> '
-            . 'Operated by IRISLAB LIMITED, England &amp; Wales Co. No. 8260301, Sussex Innovation Centre, Science Park Square, Brighton BN1 9SB.'
-            . '</div>';
-    }
-
-    /**
-     * Build the canonical footer: "Powered by HealthDataLab · Terms · Privacy"
-     * followed by the legal disclaimer line (legal_disclaimer_html()).
+     * Build the canonical footer: "Powered by HealthDataLab · Terms · Privacy".
      */
     private static function email_footer() {
-        $out  = '<tr><td style="background:' . self::SOFT_FILL . ';border-top:1px solid ' . self::BORDER . ';padding:16px 28px 18px;text-align:center;font-size:11px;color:#999999;line-height:1.5;font-family:Inter,-apple-system,BlinkMacSystemFont,\'Segoe UI\',sans-serif;">';
+        $out  = '<tr><td style="background:' . self::SOFT_FILL . ';border-top:1px solid ' . self::BORDER . ';padding:16px 28px;text-align:center;font-size:11px;color:#999999;line-height:1.5;font-family:Inter,-apple-system,BlinkMacSystemFont,\'Segoe UI\',sans-serif;">';
         $out .= 'Powered by <strong style="color:' . self::TEAL . ';">HealthDataLab</strong> &nbsp;&middot;&nbsp; ';
         $out .= '<a href="' . esc_url( apply_filters( "hdlv2_email_terms_url", self::TERMS_URL ) ) . '" style="color:#999999;text-decoration:underline;">Terms</a> &nbsp;&middot;&nbsp; ';
         $out .= '<a href="' . esc_url( apply_filters( "hdlv2_email_privacy_url", self::PRIVACY_URL ) ) . '" style="color:#999999;text-decoration:underline;">Privacy</a>';
-        $out .= self::legal_disclaimer_html();
         $out .= '</td></tr>';
         return $out;
     }
@@ -758,6 +732,148 @@ class HDLV2_Email_Templates {
         $html = self::base_layout( $content, $data['practitioner_id'] ?? null, 'Client Needs Attention' );
 
         wp_mail( $prac_email, "Attention Required: {$client_name} — HealthDataLab", $html, array( 'Content-Type: text/html; charset=UTF-8' ) );
+    }
+
+    // ──────────────────────────────────────────────────────────────
+    //  RED-FLAG EMAILS — client-facing, non-diagnostic
+    // ──────────────────────────────────────────────────────────────
+
+    /**
+     * ONE combined client safety email (v0.45.3). Replaces the former separate
+     * client_redflag_alert (GP nudge) + client_crisis_resources (crisis) sends,
+     * so a flagged client never receives more than one safety email.
+     *
+     * Layout (see mockups/safety-flag-emails-preview.html):
+     *   - Crisis support block FIRST when a self-harm flag is present (the
+     *     support lines are the priority; the self-harm tick is never echoed).
+     *   - A premium "card" per symptom/mood finding: urgency chip + what they
+     *     flagged + why we flagged it + the caring next step.
+     *   - Banner + subject lead on the crisis tone when crisis is present.
+     *
+     * $data: client_email, client_name, practitioner_id,
+     *        crisis (bool — any self-harm flag present),
+     *        findings (array of flag objects: label, concern, urgency,
+     *                  client_facing_wording).
+     */
+    public static function client_safety_alert( $data ) {
+        $email = $data['client_email'] ?? '';
+        if ( ! $email ) { return; }
+        $crisis   = ! empty( $data['crisis'] );
+        $findings = ( isset( $data['findings'] ) && is_array( $data['findings'] ) ) ? $data['findings'] : array();
+        // Nothing to say → send nothing (notify() already guards; belt-and-braces).
+        if ( ! $crisis && empty( $findings ) ) { return; }
+        $first = esc_html( self::derive_first_name( $data['client_name'] ?? '', $email ) );
+
+        $content = '';
+
+        if ( $crisis ) {
+            $content .= "<h2 style='font-family:Poppins,Inter,sans-serif;font-size:21px;font-weight:700;color:" . self::DARK . ";margin:0 0 14px;line-height:1.3;'>Hi {$first}, thank you for being honest</h2>"
+                . "<p style='font-size:15px;line-height:1.7;color:#2c3e50;margin:0 0 22px;'>Thank you for completing your assessment &mdash; your results are on their way. A couple of things you shared are worth acting on, starting with the most important.</p>"
+                . "<table role='presentation' cellpadding='0' cellspacing='0' border='0' width='100%' style='margin:0 0 26px;'><tr><td style='background:#f1f6f7;border:1px solid #cfe0e3;border-left:4px solid " . self::DARK_TEAL . ";border-radius:0 10px 10px 0;padding:18px 20px;'>"
+                . "<div style='font-size:12px;text-transform:uppercase;letter-spacing:0.06em;color:" . self::DARK_TEAL . ";font-weight:700;margin-bottom:8px;'>If you're struggling right now</div>"
+                . "<p style='font-size:14px;line-height:1.7;color:#2c3e50;margin:0 0 12px;'>What you shared about how you've been feeling matters, and it's not something to face on your own. These lines are free, confidential, and open right now:</p>"
+                . "<ul style='font-size:14px;line-height:1.9;color:#2c3e50;margin:0;padding-left:20px;'>"
+                . "<li>If you feel unsafe right now: call <a href='tel:999' style='color:" . self::TEAL . ";'><strong>999</strong></a> or go to A&amp;E.</li>"
+                . "<li><a href='https://111.nhs.uk' style='color:" . self::TEAL . ";'><strong>NHS 111</strong></a> &mdash; select the mental health option, 24/7.</li>"
+                . "<li><a href='https://www.samaritans.org' style='color:" . self::TEAL . ";'><strong>Samaritans</strong></a> &mdash; call <a href='tel:116123' style='color:" . self::TEAL . ";'><strong>116 123</strong></a>, any time.</li>"
+                . "<li><a href='https://giveusashout.org' style='color:" . self::TEAL . ";'><strong>Shout</strong></a> &mdash; text <strong>SHOUT</strong> to <strong>85258</strong> if you'd rather text than talk.</li>"
+                . "<li><a href='https://www.papyrus-uk.org/papyrus-hopeline247/' style='color:" . self::TEAL . ";'><strong>Papyrus HOPELINE247</strong></a> (for people under 35) &mdash; call <a href='tel:08000684141' style='color:" . self::TEAL . ";'><strong>0800 068 4141</strong></a> or text <strong>88247</strong>.</li>"
+                . "</ul></td></tr></table>";
+            if ( ! empty( $findings ) ) {
+                $content .= "<h3 style='font-family:Poppins,Inter,sans-serif;font-size:16px;font-weight:700;color:" . self::DARK . ";margin:0 0 14px;'>Also worth a word with your GP</h3>";
+            }
+        } else {
+            $content .= "<h2 style='font-family:Poppins,Inter,sans-serif;font-size:21px;font-weight:700;color:" . self::DARK . ";margin:0 0 14px;line-height:1.3;'>Hi {$first}, a couple of things worth following up</h2>"
+                . "<p style='font-size:15px;line-height:1.7;color:#2c3e50;margin:0 0 24px;'>Thank you for completing your assessment &mdash; your results are on their way. A few of your answers stood out as worth a proper look. Here's what we noticed, and why:</p>";
+        }
+
+        foreach ( $findings as $f ) {
+            $content .= self::safety_finding_card( $f );
+        }
+
+        $closing_margin = empty( $findings ) ? '0' : '4px 0 0';
+        $content .= "<p style='font-size:13px;line-height:1.7;color:#666;margin:{$closing_margin};'>This isn't a diagnosis and it isn't medical advice &mdash; we're simply flagging what we noticed so you can mention it to a professional. HealthDataLab is not a medical or crisis service.</p>";
+
+        $banner  = $crisis ? "You don't have to face this alone" : 'A note about your assessment';
+        $subject = $crisis ? 'Support is available — HealthDataLab' : 'A note about your HealthDataLab assessment';
+
+        $html = self::base_layout( $content, $data['practitioner_id'] ?? null, $banner );
+        wp_mail( $email, $subject, $html, array( 'Content-Type: text/html; charset=UTF-8' ) );
+    }
+
+    /**
+     * Render one premium "caring card" for a non-crisis flag. Reads label
+     * (what they ticked), concern (why), urgency (chip) and
+     * client_facing_wording (the caring next step). Degrades gracefully when a
+     * flag (e.g. an AI-scan flag) lacks a clean label.
+     */
+    private static function safety_finding_card( $flag ) {
+        if ( ! is_array( $flag ) ) { return ''; }
+
+        $label = '';
+        if ( ! empty( $flag['label'] ) ) {
+            $label = (string) $flag['label'];
+        } elseif ( ! empty( $flag['trigger'] ) ) {
+            // "Safety screen — ticked: <label>" → recover the label.
+            $label = trim( preg_replace( '/^.*?ticked:\s*/i', '', (string) $flag['trigger'] ) );
+        } elseif ( ! empty( $flag['concern'] ) ) {
+            $label = (string) $flag['concern'];
+        }
+        $concern = trim( (string) ( $flag['concern'] ?? '' ) );
+        $action  = trim( (string) ( $flag['client_facing_wording'] ?? '' ) );
+        $urgency = strtoupper( (string) ( $flag['urgency'] ?? '' ) );
+
+        // Urgency → chip label + status-palette colour + matching left accent.
+        $chip = 'Worth a GP conversation';
+        $ct = '#3b82f6'; $cb = '#eff6ff'; $cd = '#bfdbfe'; $accent = '#3b82f6';
+        if ( 'TODAY' === $urgency ) {
+            $chip = 'Worth checking today';
+            $ct = '#dc2626'; $cb = '#fef2f2'; $cd = '#fecaca'; $accent = '#dc2626';
+        } elseif ( 'THIS_WEEK' === $urgency ) {
+            $chip = 'Worth a GP visit this week';
+            $ct = '#d97706'; $cb = '#fffbeb'; $cd = '#fde68a'; $accent = '#d97706';
+        } elseif ( 'WITHIN_WEEKS' === $urgency ) {
+            $chip = 'Worth raising with your GP'; // keeps the blue (info) palette
+        }
+
+        $out  = "<table role='presentation' cellpadding='0' cellspacing='0' border='0' width='100%' style='margin:0 0 16px;'><tr><td style='background:#ffffff;border:1px solid " . self::BORDER . ";border-left:3px solid {$accent};border-radius:0 12px 12px 0;padding:18px 20px;'>";
+        $out .= "<span style='display:inline-block;background:{$cb};color:{$ct};border:1px solid {$cd};border-radius:999px;padding:3px 11px;font-size:11px;font-weight:700;letter-spacing:0.03em;text-transform:uppercase;'>" . esc_html( $chip ) . "</span>";
+        if ( $label !== '' ) {
+            $out .= "<h3 style='font-family:Poppins,Inter,sans-serif;font-size:17px;font-weight:700;color:" . self::DARK . ";margin:12px 0 8px;line-height:1.35;'>" . esc_html( $label ) . "</h3>";
+        }
+        if ( $concern !== '' ) {
+            $out .= "<p style='font-size:14px;line-height:1.65;color:#444;margin:0 0 8px;'><strong style='color:#2c3e50;'>Why we flagged this:</strong> " . esc_html( rtrim( $concern, '.' ) ) . ".</p>";
+        }
+        if ( $action !== '' ) {
+            $out .= "<p style='font-size:14px;line-height:1.65;color:#2c3e50;margin:0;'>" . esc_html( $action ) . "</p>";
+        }
+        $out .= "</td></tr></table>";
+        return $out;
+    }
+
+    /**
+     * Practitioner-facing red-flag alert (action B). Sent when a client is flagged
+     * by the safety screen or AI scan, in addition to the dashboard "Needs attention"
+     * badge. $data: practitioner_email, practitioner_id, client_name, dashboard_url,
+     * flags_html (pre-built <tr> rows from HDLV2_Flags_Store::practitioner_flags_html()).
+     */
+    public static function practitioner_redflag_alert( $data ) {
+        $email = $data['practitioner_email'] ?? '';
+        if ( ! $email ) { return; }
+        $client = esc_html( $data['client_name'] ?? 'A client' );
+        $first  = esc_html( self::derive_first_name( $data['client_name'] ?? '', '' ) );
+        $rows   = $data['flags_html'] ?? '';
+        $url    = $data['dashboard_url'] ?? '#';
+
+        $content = "<div style='background:#fef2f2;border:1px solid #fecaca;border-left:3px solid #dc2626;border-radius:0 6px 6px 0;padding:14px 16px;margin:0 0 18px;'>"
+            . "<p style='margin:0;font-family:Poppins,Inter,sans-serif;font-size:15px;font-weight:700;color:#dc2626;'>{$client} flagged something on the safety check</p>"
+            . "<p style='margin:6px 0 0;font-size:13px;color:#7f1d1d;line-height:1.6;'>Self-reported tick-box answers from the Stage 1 safety check &mdash; <strong>not a diagnosis</strong>.</p>"
+            . "</div>"
+            . "<table role='presentation' cellpadding='0' cellspacing='0' border='0' width='100%' style='margin:0 0 22px;'>{$rows}</table>"
+            . self::cta_button( $url, "Open {$first}'s record" );
+
+        $html = self::base_layout( $content, $data['practitioner_id'] ?? null, 'Needs attention' );
+        wp_mail( $email, "Needs attention: {$client} — HealthDataLab", $html, array( 'Content-Type: text/html; charset=UTF-8' ) );
     }
 
     // ──────────────────────────────────────────────────────────────

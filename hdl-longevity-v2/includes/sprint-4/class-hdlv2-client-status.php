@@ -303,7 +303,8 @@ class HDLV2_Client_Status {
         // code path with a stale ID).
         $progress = $wpdb->get_row( $wpdb->prepare(
             "SELECT id, token, client_user_id, practitioner_user_id, client_email, client_name,
-                    stage1_data, stage3_data, stage1_completed_at, stage3_completed_at, created_at
+                    stage1_data, stage3_data, stage1_completed_at, stage3_completed_at, created_at,
+                    has_flags, flags, flags_scan_status
              FROM {$prefix}hdlv2_form_progress
              WHERE id = %d AND deleted_at IS NULL",
             $progress_id
@@ -466,12 +467,14 @@ class HDLV2_Client_Status {
             : array( 'has_report' => false );
 
         return rest_ensure_response( array(
-            'progress_id' => (int) $progress->id,
-            'client_name' => (string) $progress->client_name,
-            'stage1'      => $stage1,
-            'stage2'      => $stage2,
-            'stage3'      => $stage3,
-            'final'       => $stage_final,
+            'progress_id'       => (int) $progress->id,
+            'client_name'       => (string) $progress->client_name,
+            'stage1'            => $stage1,
+            'stage2'            => $stage2,
+            'stage3'            => $stage3,
+            'final'             => $stage_final,
+            'flags'             => json_decode( (string) $progress->flags, true ) ?: array(),
+            'flags_scan_status' => (string) $progress->flags_scan_status,
         ) );
     }
 
@@ -596,6 +599,11 @@ class HDLV2_Client_Status {
 
         if ( ! $progress || empty( $progress->stage1_completed_at ) ) {
             return self::build_result( self::NOT_STARTED );
+        }
+
+        // A medical red flag outranks workflow state — surface it immediately.
+        if ( ! empty( $progress->has_flags ) ) {
+            return self::build_result( self::NEEDS_ATTENTION, array( 'Red flag detected in assessment' ) );
         }
 
         // Pre-Stage-3 window: distinguish practitioner-blocked vs client-in-progress.

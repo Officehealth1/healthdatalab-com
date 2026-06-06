@@ -361,17 +361,67 @@ class HDLV2_Flight_Plan {
             return new WP_Error( 'forbidden', 'You do not have access to this client.', array( 'status' => 403 ) );
         }
 
-        $idem_scope = 'fp:' . $client_id . ':p:' . $prac_id;
-        return HDLV2_Idempotency::wrap_ai( $request, $idem_scope, function () use ( $client_id, $prac_id ) {
-            // Phase 15 (v0.22.24) — manual practitioner click should
-            // regenerate the current-week plan even if one already exists.
-            // The 5-minute idempotency window above prevents accidental
-            // double-fires from the UI; force=true clears the prior plan
-            // + ticks atomically so the new Claude output fully replaces it.
+        // v0.46.x (prod-readiness CL-03) — move the ~1-4min Claude generation
+        // OFF the request onto the job queue so the manual regenerate never
+        // holds a PHP worker. The dashboard polls /jobs/{id}/status. The weekly
+        // cron + post-finalise/post-checkin scheduled generations are untouched
+        // (already off-request). force=true replaces the current-week plan.
+        if ( ! class_exists( 'HDLV2_Job_Queue' ) || ! class_exists( 'HDLV2_Flight_Plan_Jobs' ) ) {
+            // Degraded inline fallback (holds the worker) — better than failing.
             $result = $this->generate( $client_id, $prac_id, 'manual', false, null, true );
             if ( is_wp_error( $result ) ) return $result;
             return rest_ensure_response( array( 'success' => true, 'plan_id' => $result ) );
-        } );
+        }
+
+        global $wpdb;
+        // Serialise the in-flight check + enqueue with a short per-client DB lock
+        // (mirrors enqueue_report_job) so two near-simultaneous clicks can't both
+        // enqueue a generation (which would double-fire the Make.com PDF). The
+        // queue's find_latest pending/running guard + this lock are the dedup;
+        // a deliberate re-click AFTER completion still regenerates (the documented
+        // "iterate on priority notes mid-week" flow). Fail-open.
+        $lock_name = substr( 'hdlv2_fpgen_' . $client_id, 0, 64 );
+        $got_lock  = (bool) $wpdb->get_var( $wpdb->prepare( 'SELECT GET_LOCK(%s, 5)', $lock_name ) );
+
+        $existing = HDLV2_Job_Queue::find_latest( HDLV2_Flight_Plan_Jobs::JOB, $client_id );
+        if ( $existing && in_array( $existing->status, array( 'pending', 'running' ), true ) ) {
+            if ( $got_lock ) {
+                $wpdb->query( $wpdb->prepare( 'SELECT RELEASE_LOCK(%s)', $lock_name ) );
+            }
+            return rest_ensure_response( array(
+                'success'         => true,
+                'queued'          => true,
+                'job_id'          => (int) $existing->id,
+                'status_endpoint' => rest_url( 'hdl-v2/v1/jobs/' . (int) $existing->id . '/status' ),
+            ) );
+        }
+
+        $idem_key = 'fpman:' . $client_id . ':' . substr( md5( uniqid( '', true ) ), 0, 12 );
+        $job_id   = HDLV2_Job_Queue::enqueue(
+            HDLV2_Flight_Plan_Jobs::JOB,
+            array( 'client_id' => $client_id, 'practitioner_id' => $prac_id ),
+            array(
+                'reference_id' => $client_id,
+                'idem_key'     => $idem_key,
+                'priority'     => 88,
+                // No auto-retry: generate() fires the Make.com PDF webhook.
+                'max_attempts' => 1,
+            )
+        );
+
+        if ( $got_lock ) {
+            $wpdb->query( $wpdb->prepare( 'SELECT RELEASE_LOCK(%s)', $lock_name ) );
+        }
+
+        if ( is_wp_error( $job_id ) ) {
+            return new WP_Error( 'enqueue_failed', 'Could not start flight plan generation. Please try again.', array( 'status' => 503 ) );
+        }
+        return rest_ensure_response( array(
+            'success'         => true,
+            'queued'          => true,
+            'job_id'          => (int) $job_id,
+            'status_endpoint' => rest_url( 'hdl-v2/v1/jobs/' . (int) $job_id . '/status' ),
+        ) );
     }
 
     // ── REST: Tick ──

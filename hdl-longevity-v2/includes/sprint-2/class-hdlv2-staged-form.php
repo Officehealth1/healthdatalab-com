@@ -476,18 +476,45 @@ class HDLV2_Staged_Form {
         // fire + single client email per Stage 3 completion. Was double-firing
         // pre-v0.23.4 because no idempotency_key was being supplied.
         if ( $stage === 3 ) {
-            wp_remote_post(
-                rest_url( 'hdl-v2/v1/form/generate-report' ),
-                array(
-                    'body'     => wp_json_encode( array(
-                        'token'           => $token,
-                        'idempotency_key' => 'gen-' . $token,
-                    ) ),
-                    'headers'  => array( 'Content-Type' => 'application/json' ),
-                    'timeout'  => 0.01,
-                    'blocking' => false,
-                )
-            );
+            // v0.46.x (prod-readiness CL-02) — enqueue the draft-report
+            // generation on the job queue (capped worker) instead of a
+            // non-blocking loopback to /generate-report that ran the ~30-60s of
+            // Claude on a web PHP worker. The client's own fire-and-forget call
+            // to /generate-report enqueues the SAME idempotent job (stable
+            // 'draftgen:<pid>' key), so the two dedup to one run.
+            if ( class_exists( 'HDLV2_Job_Queue' ) && class_exists( 'HDLV2_Draft_Report_Jobs' ) ) {
+                HDLV2_Job_Queue::enqueue(
+                    HDLV2_Draft_Report_Jobs::JOB,
+                    array( 'progress_id' => (int) $progress->id ),
+                    array(
+                        'reference_id' => (int) $progress->id,
+                        'idem_key'     => 'draftgen:' . (int) $progress->id,
+                        'priority'     => 80,
+                        'max_attempts' => 1,
+                    )
+                );
+            } else {
+                // Degraded fallback — the original non-blocking loopback.
+                wp_remote_post(
+                    rest_url( 'hdl-v2/v1/form/generate-report' ),
+                    array(
+                        'body'     => wp_json_encode( array(
+                            'token'           => $token,
+                            'idempotency_key' => 'gen-' . $token,
+                        ) ),
+                        'headers'  => array( 'Content-Type' => 'application/json' ),
+                        'timeout'  => 0.01,
+                        'blocking' => false,
+                    )
+                );
+            }
+            if ( (bool) get_option( 'hdlv2_ff_redflag_scan', false ) && class_exists( 'HDLV2_Redflag_Jobs' ) ) {
+                HDLV2_Job_Queue::enqueue(
+                    HDLV2_Redflag_Jobs::JOB_SCAN,
+                    array( 'progress_id' => (int) $progress->id, 'stage' => 3 ),
+                    array( 'reference_id' => (int) $progress->id, 'idem_key' => 'redflag:' . (int) $progress->id . ':3' )
+                );
+            }
         }
 
         // Send stage completion email
@@ -528,22 +555,58 @@ class HDLV2_Staged_Form {
      * Body: { token }
      */
     public function rest_generate_report( $request ) {
-        $params     = $request->get_json_params();
-        $idem_scope = ( is_array( $params ) && ! empty( $params['token'] ) )
-            ? 'tok:' . substr( hash( 'sha256', (string) $params['token'] ), 0, 16 )
-            : 'anon';
-        return HDLV2_Idempotency::wrap_ai( $request, $idem_scope, function () use ( $request, $params ) {
-        $token  = $this->validate_token_from_body( $params );
+        $params   = $request->get_json_params();
+        $token    = $this->validate_token_from_body( $params );
         if ( is_wp_error( $token ) ) return $token;
 
         $progress = $this->get_progress_by_token( $token );
         if ( ! $progress ) {
             return new WP_Error( 'invalid_token', 'Assessment not found.', array( 'status' => 404 ) );
         }
-
         if ( empty( $progress->stage3_completed_at ) ) {
             return new WP_Error( 'stage3_incomplete', 'Stage 3 must be completed first.', array( 'status' => 400 ) );
         }
+
+        // v0.46.x (prod-readiness CL-02) — move the 3 Claude calls OFF the
+        // request onto the job queue so neither the client's fire-and-forget
+        // call nor the server loopback holds a PHP worker for ~30-60s. Stable
+        // idem 'draftgen:<pid>' dedups the two callers to ONE job; the internal
+        // atomic claim below is defence-in-depth. The client never waits on
+        // this (Thank-You renders immediately; the report arrives by email/PDF).
+        if ( class_exists( 'HDLV2_Job_Queue' ) && class_exists( 'HDLV2_Draft_Report_Jobs' ) ) {
+            $job_id = HDLV2_Job_Queue::enqueue(
+                HDLV2_Draft_Report_Jobs::JOB,
+                array( 'progress_id' => (int) $progress->id ),
+                array(
+                    'reference_id' => (int) $progress->id,
+                    'idem_key'     => 'draftgen:' . (int) $progress->id,
+                    'priority'     => 80,
+                    'max_attempts' => 1,
+                )
+            );
+            if ( ! is_wp_error( $job_id ) ) {
+                return rest_ensure_response( array( 'success' => true, 'queued' => true, 'job_id' => (int) $job_id ) );
+            }
+            // fall through to the inline path on enqueue failure
+        }
+        // Degraded inline fallback (queue unavailable) — run the generation now.
+        $res = $this->generate_draft_for_progress( $progress );
+        return is_wp_error( $res ) ? $res : rest_ensure_response( $res );
+    }
+
+    /**
+     * Run draft-report generation for one assessment: atomic claim → 3 Claude
+     * calls → persist (status='ready') → Make.com webhook. Extracted from
+     * rest_generate_report (v0.46.x CL-02) so it runs inside an HDLV2_Job_Queue
+     * worker (capped, off the web request). Returns a MINIMAL array (NO report
+     * content — /jobs/{id}/status is world-readable to practitioners) or
+     * WP_Error. The client-facing draft view was retired in v0.39.0 so nothing
+     * consumes the awaken/lift/thrive body here.
+     *
+     * @param object $progress wp_hdlv2_form_progress row
+     * @return array|WP_Error
+     */
+    public function generate_draft_for_progress( $progress ) {
 
         // v0.23.4 — Atomic claim guard. The wrap_ai cache only kicks in AFTER
         // a worker finishes (5-minute TTL on the response). During the ~30-60s
@@ -603,29 +666,16 @@ class HDLV2_Staged_Form {
             ) );
 
             if ( $existing && $existing->status === 'ready' ) {
-                // Already generated by another worker — return cached content
-                // without re-firing the webhook or re-charging Claude.
-                $cached = json_decode( $existing->report_content, true ) ?: array();
-                return rest_ensure_response( array(
-                    'success'         => true,
-                    'awaken_content'  => $cached['awaken_content']  ?? '',
-                    'lift_content'    => $cached['lift_content']    ?? '',
-                    'thrive_content'  => $cached['thrive_content']  ?? '',
-                    'replayed'        => true,
-                ) );
+                // Already generated by another worker — no re-fire of the
+                // webhook or re-charge of Claude. Minimal result (no content).
+                return array( 'success' => true, 'replayed' => true, 'report_id' => (int) $existing->id );
             }
 
             if ( $existing && strpos( (string) $existing->status, 'claimed-' ) === 0 ) {
-                // Another worker is currently generating. The frontend always
-                // redirects to /longevity-draft-report/?t=… which polls
-                // /reports/draft for status — by the time the polling lands,
-                // the other worker will have set status='ready'. Return a
-                // benign "in progress" payload.
-                return rest_ensure_response( array(
-                    'success'         => false,
-                    'in_progress'     => true,
-                    'message'         => 'Report generation already in progress.',
-                ) );
+                // Another worker/job is currently generating. Benign no-op for
+                // this job — the other run will set status='ready'. (success so
+                // the queue doesn't mark this job failed.)
+                return array( 'success' => true, 'in_progress' => true );
             }
             // Else fall through — the UPSERT at the bottom of this function
             // will create or update the row. No claim was required because
@@ -752,13 +802,11 @@ class HDLV2_Staged_Form {
         // generate_client_draft_narrative and is already in scope.
         $this->fire_make_webhook( $progress, $calc_result, $s1_data, $report, $why_profile, $milestones, is_array( $ai_narrative ) ? $ai_narrative : array() );
 
-        return rest_ensure_response( array(
-            'success'         => true,
-            'awaken_content'  => $report['awaken_content'],
-            'lift_content'    => $report['lift_content'],
-            'thrive_content'  => $report['thrive_content'],
-        ) );
-        } );
+        return array(
+            'success'   => true,
+            'generated' => true,
+            'report_id' => (int) ( $existing_id ?: $wpdb->insert_id ),
+        );
     }
 
     // ──────────────────────────────────────────────────────────────
@@ -1950,7 +1998,23 @@ class HDLV2_Staged_Form {
      * @param int $progress_id     hdlv2_form_progress.id this CTA targets.
      * @return string Absolute URL.
      */
-    private static function build_practitioner_release_url( $practitioner_id, $progress_id ) {
+    /**
+     * Mint a one-shot practitioner auto-login URL (public, v0.45.3).
+     *
+     * Stores { practitioner_id, progress_id, dest } in a 30-minute one-shot
+     * transient consumed by the ?prac_login= init handler in
+     * hdl-longevity-v2.php. Public so cross-class callers (e.g. the red-flag
+     * notifier in HDLV2_Flags_Store) build identical auto-login links.
+     *
+     * @param int    $practitioner_id WP user ID.
+     * @param int    $progress_id     form_progress.id to deep-link to (0 = none).
+     * @param string $dest            'release' (open the client row via
+     *                                release_progress_id) or 'pending_leads'
+     *                                (open the Pending Leads inbox — used when
+     *                                the lead has no record yet).
+     * @return string Absolute URL.
+     */
+    public static function mint_prac_login_url( $practitioner_id, $progress_id = 0, $dest = 'release' ) {
         $token = bin2hex( random_bytes( 32 ) );
 
         set_transient(
@@ -1958,18 +2022,22 @@ class HDLV2_Staged_Form {
             array(
                 'practitioner_id' => (int) $practitioner_id,
                 'progress_id'     => (int) $progress_id,
+                'dest'            => (string) $dest,
                 'created_at'      => time(),
             ),
             30 * MINUTE_IN_SECONDS
         );
 
         $slug = apply_filters( 'hdlv2_practitioner_dashboard_slug', 'clients' );
+        $url  = home_url( '/' . trim( $slug, '/' ) . '/' . '?prac_login=' . $token );
+        if ( 'pending_leads' !== $dest && (int) $progress_id > 0 ) {
+            $url .= '&release_progress_id=' . (int) $progress_id;
+        }
+        return $url;
+    }
 
-        return home_url(
-            '/' . trim( $slug, '/' ) . '/'
-            . '?prac_login=' . $token
-            . '&release_progress_id=' . (int) $progress_id
-        );
+    private static function build_practitioner_release_url( $practitioner_id, $progress_id ) {
+        return self::mint_prac_login_url( $practitioner_id, $progress_id, 'release' );
     }
 
     /**

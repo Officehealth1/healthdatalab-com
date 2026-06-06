@@ -214,6 +214,7 @@ class HDLV2_Widget_Config {
         $config = $this->get_config( $user_id );
         $config_arr = $config ? array(
             'practitioner_name'             => $config->practitioner_name,
+            'clinic_name'                   => ! empty( $config->clinic_name ) ? $config->clinic_name : '',
             'logo_url'                      => $config->logo_url,
             'logo_shape'                    => ! empty( $config->logo_shape ) ? $config->logo_shape : 'square',
             'cta_text'                      => $config->cta_text,
@@ -485,6 +486,21 @@ class HDLV2_Widget_Config {
             $rate = $server_result['rate'];
         }
 
+        // ── Front-door safety screen (v0.43.0) - flag-gated. Carry the ticked
+        // safety answers inside stage1_data so they ride through BOTH Stage-1
+        // paths: invite-fast-path -> complete_signup() now; public path ->
+        // widget_leads -> rest_confirm_lead -> complete_signup() later. Flags
+        // are computed deterministically in complete_signup(). Inert when the
+        // flag is off or nothing valid was ticked.
+        if ( get_option( 'hdlv2_ff_safety_screen', false )
+             && isset( $params['safety'] )
+             && class_exists( 'HDLV2_Safety_Screen' ) ) {
+            $clean_safety = HDLV2_Safety_Screen::sanitize_input( $params['safety'] );
+            if ( ! empty( $clean_safety ) ) {
+                $stage1_data['_safety'] = $clean_safety;
+            }
+        }
+
         // v0.29.1 — Submit dedupe. A double-click on "See My Results" or a
         // flaky network → retry would otherwise fire the practitioner-notify
         // email and Make.com Stage 1 PDF webhook twice. record_widget_lead()
@@ -551,7 +567,7 @@ class HDLV2_Widget_Config {
         // legitimate workflows. It's never used as an auth token because
         // there's no form_progress row keyed on it — the post-Confirm magic
         // link uses a real token instead.
-        self::record_widget_lead( array(
+        $lead_id = self::record_widget_lead( array(
             'practitioner_id' => $practitioner_id,
             'visitor_name'    => $visitor_name,
             'visitor_email'   => $visitor_email,
@@ -559,6 +575,42 @@ class HDLV2_Widget_Config {
             'rate'            => $rate,
             'stage1_data'     => $stage1_data,
         ) );
+
+        // ── Front-door safety screen (v0.45.0) — fire flag emails at PUBLIC
+        // submit. The public path defers complete_signup() (and the safety
+        // notify inside it) to practitioner Confirm, which is too slow for a
+        // self-harm / HARD-symptom disclosure. Fire the same client +
+        // practitioner emails NOW via the shared notify() path, then carry the
+        // messaged-stamped flags on the lead so Confirm dedups (no re-send).
+        // Wrapped so a flag/email failure can NEVER break lead capture — the
+        // visitor already has their on-screen result.
+        if ( $lead_id
+             && get_option( 'hdlv2_ff_safety_screen', false )
+             && ! empty( $stage1_data['_safety'] )
+             && class_exists( 'HDLV2_Safety_Screen' ) ) {
+            try {
+                $stamped = HDLV2_Safety_Screen::process_lead( array(
+                    'client_email'         => $visitor_email,
+                    'client_name'          => $visitor_name,
+                    'practitioner_user_id' => $practitioner_id,
+                ), $stage1_data['_safety'] );
+
+                if ( ! empty( $stamped ) ) {
+                    // Carry the stamped flags on the lead. complete_signup()
+                    // seeds form_progress.flags from this at Confirm so the
+                    // process() call there sees them already-messaged.
+                    global $wpdb;
+                    $stage1_data['_safety_flags'] = $stamped;
+                    $wpdb->update(
+                        $wpdb->prefix . 'hdlv2_widget_leads',
+                        array( 'stage1_data' => wp_json_encode( $stage1_data ) ),
+                        array( 'id' => (int) $lead_id )
+                    );
+                }
+            } catch ( \Throwable $e ) {
+                error_log( '[HDLV2 safety-screen] process_lead failed for lead=' . $lead_id . ': ' . $e->getMessage() );
+            }
+        }
 
         // Synthetic 64-hex cache key for prerender_gauge_png() filename only.
         // Stable across repeat submissions for the same (practitioner, email)
@@ -959,7 +1011,6 @@ class HDLV2_Widget_Config {
                 // Footer
                 . '<div style="text-align:center;padding:16px;font-size:11px;color:#aaa;">'
                 . 'This lead came from your HealthDataLab embedded widget.'
-                . ( class_exists( 'HDLV2_Email_Templates' ) ? HDLV2_Email_Templates::legal_disclaimer_html() : '' )
                 . '</div>'
                 . '</div></body></html>';
 
@@ -1198,6 +1249,19 @@ class HDLV2_Widget_Config {
         $invite_id       = $args['invite_id'] ?? null;
         $config          = $args['config'] ?? null;
 
+        // v0.45.0 — the public path fired the safety emails at SUBMIT and
+        // carried the messaged-stamped flags on the lead
+        // (stage1_data._safety_flags). Lift them out: (a) seed
+        // form_progress.flags below so the process() call at the end DEDUPS
+        // instead of re-sending, and (b) keep the carrier out of the persisted
+        // stage1_data. Empty on the invite / verification path (no submit-time
+        // send) → those notify normally via process() as before.
+        $seed_flags = array();
+        if ( is_array( $stage1_data ) && ! empty( $stage1_data['_safety_flags'] ) && is_array( $stage1_data['_safety_flags'] ) ) {
+            $seed_flags = $stage1_data['_safety_flags'];
+            unset( $stage1_data['_safety_flags'] );
+        }
+
         if ( ! $config ) {
             $config = $wpdb->get_row( $wpdb->prepare(
                 "SELECT * FROM {$wpdb->prefix}hdlv2_widget_config WHERE practitioner_user_id = %d LIMIT 1",
@@ -1224,6 +1288,7 @@ class HDLV2_Widget_Config {
 
         if ( $existing ) {
             $form_token = $existing->token;
+            $fp_id      = (int) $existing->id;
             $wpdb->update(
                 $wpdb->prefix . 'hdlv2_form_progress',
                 array(
@@ -1270,20 +1335,27 @@ class HDLV2_Widget_Config {
             }
 
             $form_token = bin2hex( random_bytes( 32 ) );
-            $wpdb->insert(
-                $wpdb->prefix . 'hdlv2_form_progress',
-                array(
-                    'client_user_id'       => $client_user_id,
-                    'practitioner_user_id' => $practitioner_id,
-                    'client_name'          => $visitor_name,
-                    'client_email'         => $visitor_email,
-                    'widget_invite_id'     => $invite_id,
-                    'token'                => $form_token,
-                    'current_stage'        => 2,
-                    'stage1_data'          => wp_json_encode( $stage1_data ),
-                    'stage1_completed_at'  => current_time( 'mysql' ),
-                )
+            $fp_insert  = array(
+                'client_user_id'       => $client_user_id,
+                'practitioner_user_id' => $practitioner_id,
+                'client_name'          => $visitor_name,
+                'client_email'         => $visitor_email,
+                'widget_invite_id'     => $invite_id,
+                'token'                => $form_token,
+                'current_stage'        => 2,
+                'stage1_data'          => wp_json_encode( $stage1_data ),
+                'stage1_completed_at'  => current_time( 'mysql' ),
             );
+            if ( $seed_flags ) {
+                // Already messaged at submit — seed so the process() call below
+                // sees them present (dedup) and does NOT re-send.
+                $fp_insert['flags']             = wp_json_encode( $seed_flags );
+                $fp_insert['has_flags']         = 1;
+                $fp_insert['flags_scanned_at']  = current_time( 'mysql', true );
+                $fp_insert['flags_scan_status'] = 'ok';
+            }
+            $wpdb->insert( $wpdb->prefix . 'hdlv2_form_progress', $fp_insert );
+            $fp_id = (int) $wpdb->insert_id;
 
             if ( $client_user_id && class_exists( 'HDLV2_Compatibility' ) ) {
                 HDLV2_Compatibility::create_practitioner_client_link( $practitioner_id, $client_user_id );
@@ -1354,6 +1426,22 @@ class HDLV2_Widget_Config {
             'send_practitioner_notify' => ! empty( $args['send_practitioner_notify'] ),
             'send_make_pdf'    => ! empty( $args['send_make_pdf'] ),
         ) );
+
+        // ── Front-door safety screen (v0.43.0) - deterministic red-flag write.
+        // Reached by BOTH Stage-1 paths (both converge on complete_signup).
+        // Flag-gated; wrapped so a failure can NEVER break signup - the client
+        // already has their account + result. Reuses the red-flag storage,
+        // client emails (GP nudge / crisis), and dashboard "Needs attention".
+        if ( ! empty( $fp_id )
+             && get_option( 'hdlv2_ff_safety_screen', false )
+             && class_exists( 'HDLV2_Safety_Screen' )
+             && ! empty( $stage1_data['_safety'] ) ) {
+            try {
+                HDLV2_Safety_Screen::process( $fp_id, $stage1_data['_safety'] );
+            } catch ( \Throwable $e ) {
+                error_log( '[HDLV2 safety-screen] process failed for fp=' . $fp_id . ': ' . $e->getMessage() );
+            }
+        }
 
         return $form_token;
     }
@@ -1810,6 +1898,10 @@ class HDLV2_Widget_Config {
             'cta_text'                      => (string) $row->cta_text,
             'theme_color'                   => (string) $row->theme_color,
             'show_book_button_after_widget' => ! empty( $row->show_book_button_after_widget ),
+            // v0.43.0 - front-door safety screen (global dark flag). When true,
+            // the embedded widget shows the 2-question safety screen before the
+            // result. Default off = widget behaves exactly as before.
+            'safety_screen_enabled'         => (bool) get_option( 'hdlv2_ff_safety_screen', false ),
         ) ) );
     }
 
@@ -2292,6 +2384,7 @@ class HDLV2_Widget_Config {
             'cta_link'                       => $config ? $config->cta_link : '',
             'theme_color'                    => $config ? $config->theme_color : '#3d8da0',
             'show_book_button_after_widget'  => $config ? ! empty( $config->show_book_button_after_widget ) : false,
+            'safety_screen_enabled'          => (bool) get_option( 'hdlv2_ff_safety_screen', false ),
             'api_url'                        => rest_url( 'hdl-v2/v1/widget/lead' ),
             'prefill_stage1'                 => $prefill,
         ) );
@@ -2707,6 +2800,7 @@ class HDLV2_Widget_Config {
         $row = array(
             'practitioner_user_id'          => $user_id,
             'practitioner_name'             => $data['practitioner_name'] ?? '',
+            'clinic_name'                   => $data['clinic_name'] ?? '',
             'logo_url'                      => $data['logo_url'] ?? '',
             'cta_text'                      => $data['cta_text'] ?? 'Book a session',
             'cta_link'                      => $data['cta_link'] ?? '',
@@ -2742,6 +2836,7 @@ class HDLV2_Widget_Config {
 
         return array(
             'practitioner_name'             => sanitize_text_field( $data['practitioner_name'] ?? '' ),
+            'clinic_name'                   => sanitize_text_field( $data['clinic_name'] ?? '' ),
             'logo_url'                      => esc_url_raw( $data['logo_url'] ?? '' ),
             'cta_text'                      => sanitize_text_field( $data['cta_text'] ?? 'Book a session' ),
             'cta_link'                      => $cta_clean,

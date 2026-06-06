@@ -90,9 +90,6 @@ class HDLV2_Rate_Limit_Policy {
             // generate_final_report + generate_milestones (~$0.05/run).
             array( 'POST', '#^/hdl-v2/v1/consultation/save-and-update-plan$#',  self::TIER_AI_BURN ),
             array( 'POST', '#^/hdl-v2/v1/flight-plan/[0-9]+/generate$#',        self::TIER_AI_BURN ),
-            // Flight Consultation Notes — fires Claude (~$0.05) + a PDFMonkey
-            // render per fresh generate. AI-burn caps it; the handler also adds
-            // a free-repeat cache + per-client cooldown + daily cap.
             array( 'GET',  '#^/hdl-v2/v1/flight-notes/pdf$#',                   self::TIER_AI_BURN ),
 
             // W9 (v0.41.31) — automation-tier self-reported consultation

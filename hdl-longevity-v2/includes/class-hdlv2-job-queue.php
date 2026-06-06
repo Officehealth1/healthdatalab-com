@@ -269,6 +269,16 @@ class HDLV2_Job_Queue {
         global $wpdb;
         $table = $wpdb->prefix . self::TABLE;
 
+        // Heavy handlers (Final Report, Flight Notes — Claude + PDFMonkey) can
+        // run for minutes. Raise PHP's own execution clock so max_execution_time
+        // can't kill a job mid-run (which would leave it 'running' until the
+        // 10-min stale guard force-fails it permanently), and ignore_user_abort
+        // so a dropped loopback connection / closed tab doesn't abort the work.
+        // (v0.46.x — prod-readiness ASYNC-03. set_time_limit governs only PHP's
+        // clock, not the FPM/proxy request ceiling — that is verified on LIVE.)
+        if ( function_exists( 'set_time_limit' ) ) { @set_time_limit( 300 ); }
+        if ( function_exists( 'ignore_user_abort' ) ) { ignore_user_abort( true ); }
+
         if ( empty( self::$handlers[ $job->job_type ] ) ) {
             $this->mark_failed( $job, 'no_handler', 'No handler registered for job_type=' . $job->job_type );
             return;

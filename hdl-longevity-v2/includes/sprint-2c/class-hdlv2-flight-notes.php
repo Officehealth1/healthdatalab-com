@@ -40,8 +40,11 @@ class HDLV2_Flight_Notes {
 		}
 
 		$fp_table = $wpdb->prefix . 'hdlv2_form_progress';
+		// `deleted_at IS NULL` (prod-readiness SD-2): never build a print aid for
+		// an archived/soft-deleted client. The caller already filters deleted
+		// rows at the resolver; this is defence-in-depth for any direct caller.
 		$progress = $wpdb->get_row(
-			$wpdb->prepare( "SELECT * FROM {$fp_table} WHERE id = %d", $form_progress_id )
+			$wpdb->prepare( "SELECT * FROM {$fp_table} WHERE id = %d AND deleted_at IS NULL", $form_progress_id )
 		);
 		if ( ! $progress ) {
 			return new WP_Error( 'hdlv2_flight_notes_not_found', 'Client record not found.' );

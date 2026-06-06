@@ -31,6 +31,9 @@
     actionQueueEl: null,  // DOM node for the action queue card
     freshnessEl: null,    // DOM node for "Updated Xs ago"
     sourceFilter: 'all',  // W11 — Source filter state: 'all' | 'practitioner' | 'automation'
+    statusFilter: 'all',  // red-flag dashboard: 'all' | 'needs_attention'
+    stageFilter: 'any',   // Stalled filter — 'any' | '1' | '2' (v2_total_stages match)
+    quietFilter: 'any',   // Stalled filter — 'any' | '14' | '28' (days since last activity)
     defaultSortApplied: false, // W12 — one-shot default-sort guard
   };
 
@@ -335,6 +338,7 @@
       + '<div class="hdlv2-aq-header" data-role="header">'
       +   '<h3 class="hdlv2-aq-title">What needs you today</h3>'
       +   '<span class="hdlv2-aq-header-count" data-role="header-count" hidden></span>'
+      +   '<a class="hdlv2-aq-alllink" href="' + esc(CFG.consultation_url || '#') + '">View all consultations &rarr;</a>'
       +   '<div class="hdlv2-aq-freshness" data-role="freshness">Updated just now</div>'
       +   '<button type="button" class="hdlv2-aq-toggle" data-role="toggle" aria-expanded="true" aria-controls="hdlv2-aq-body" title="Collapse">&#9662;</button>'
       + '</div>'
@@ -824,11 +828,18 @@
       if (!row) {
         // V2-only row we haven't rendered yet (e.g. new client appeared)
         if (!state.matched[c.email_hash]) {
-          state.tbody.appendChild(buildV2OnlyRow(c));
+          var newRow = buildV2OnlyRow(c);
+          newRow.dataset.status = c.status || '';
+          state.tbody.appendChild(newRow);
           state.matched[c.email_hash] = true;
         }
         return;
       }
+      // Keep status attribute in sync with server state so the filter
+      // reflects status changes picked up during polling.
+      row.dataset.status = c.status || '';
+      // Keep the stalled-filter attrs fresh as the client progresses / goes quiet.
+      stampStalledAttrs(row, c);
       // Update inline pill
       var cell = row.querySelector('.status-badge-cell');
       if (!cell) return;
@@ -858,6 +869,9 @@
       var newlyRendered = cell.querySelector('.hdlv2-mini-stages');
       if (newlyRendered) newlyRendered.setAttribute('data-state-hash', newStripHash);
     });
+    // Re-apply active filters so a poll-driven status change is immediately
+    // reflected in the filtered view (e.g. client moves to needs_attention).
+    applyFilters();
   }
 
   // ──────────────────────────────────────────────────────────────────
@@ -909,6 +923,25 @@
       .catch(function () { return []; });
   }
 
+  // ── Stalled-leads filter — stamp the two data-attrs the filter reads ──
+  // stalledStage = completed-stage count (v2_total_stages).
+  // stalledLast  = epoch ms of the most recent signal, coalescing
+  //   latest_event_at → last_checkin_date → v2_first_event_at, so a
+  //   Stage-1-only lead (whose latest_event_at is null) still gets their
+  //   Stage 1 date as the inactivity anchor. MySQL datetimes are server-local;
+  //   parse via .replace(' ','T') (NOT new Date(str+'Z')) to match the
+  //   existing relative-time code and avoid forcing UTC.
+  function stampStalledAttrs(row, c) {
+    row.dataset.stalledStage = (typeof c.v2_total_stages === 'number') ? String(c.v2_total_stages) : '';
+    var raw = c.latest_event_at || c.last_checkin_date || c.v2_first_event_at || '';
+    var ms = '';
+    if (raw) {
+      var d = new Date(String(raw).replace(' ', 'T'));
+      if (!isNaN(d.getTime())) ms = String(d.getTime());
+    }
+    row.dataset.stalledLast = ms;
+  }
+
   function enhanceMatchedRows(list) {
     var rows = state.tbody.querySelectorAll('tr.client-row');
     rows.forEach(function (row) {
@@ -925,6 +958,8 @@
       if (CFG.automation_tier_enabled) {
         row.dataset.source = (c.tier === 'automation') ? 'automation' : 'practitioner';
       }
+      row.dataset.status = c.status || '';
+      stampStalledAttrs(row, c);
     });
     // W11 — mount the source-filter chips once per render after rows are
     // tagged. mountSourceFilter is a no-op when the flag is off or no
@@ -932,6 +967,10 @@
     if (CFG.automation_tier_enabled) {
       mountSourceFilter();
     }
+    // Red-flag status filter — self-guards on CFG.redflag_scan_enabled + idempotent.
+    mountStatusFilter();
+    // Stalled-leads targeting filter — self-guards on CFG.stalled_filter_enabled + idempotent.
+    mountStalledFilter();
   }
 
   function appendV2OnlyRows(list) {
@@ -943,6 +982,7 @@
       if (CFG.automation_tier_enabled) {
         newRow.dataset.source = (c.tier === 'automation') ? 'automation' : 'practitioner';
       }
+      newRow.dataset.status = c.status || '';
       state.tbody.appendChild(newRow);
     });
   }
@@ -1099,6 +1139,106 @@
     btn.classList.add('open');
   }
 
+  // -- Flight Consultation Notes -- per-client download (Phase 4) --
+  // Recreated itshover download-icon (Apache-2.0) as inline SVG; animated by
+  // pure CSS on hover/loading (no React/motion, CSP-safe).
+  function flightNotesIconSVG() {
+    return '<svg class="hdlv2-fn-ico" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+      + '<path class="fn-ico-tray" d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>'
+      + '<path class="fn-ico-stem" d="M12 15V3"></path>'
+      + '<path class="fn-ico-head" d="m7 10 5 5 5-5"></path>'
+      + '</svg>';
+  }
+  // Gated, labelled download button. Only shown once Stage 3 is complete
+  // (Matthew: the sheet generates once after Stage 3, for the consultation).
+  function flightNotesButtonHtml(c) {
+    if (deriveJourneyState(c)[2] !== 'done') return '';
+    return '<button type="button" class="hdlv2-fn-btn" title="Download this client\'s FLIGHT consultation notes (PDF)" aria-label="Download ' + esc(c.name) + ' flight consultation notes">'
+      + '<span class="hdlv2-fn-content">' + flightNotesIconSVG() + '<span class="hdlv2-fn-label">Flight Notes</span></span>'
+      + '<span class="hdlv2-fn-loading"><span class="hdlv2-fn-ring" aria-hidden="true"></span><span>Preparing\u2026</span></span>'
+      + '</button>';
+  }
+
+  // v0.46.x — Flight Notes render now runs on the async job queue (so a ~30-90s
+  // Claude+PDFMonkey render never holds a PHP worker). The click either gets an
+  // instant cached URL, or a { queued, job_id } we poll until the render lands,
+  // then re-fetch the (now cached) URL through the same ownership-checked route.
+  function fnReset(btn) { btn.classList.remove('is-loading'); btn.disabled = false; }
+
+  function fnError(btn, msg) {
+    fnReset(btn);
+    if (window.HDLV2UI && typeof window.HDLV2UI.toast === 'function') {
+      window.HDLV2UI.toast(msg, 'error');
+    } else {
+      window.alert(msg);
+    }
+  }
+
+  function fnTriggerDownload(j) {
+    var a = document.createElement('a');
+    a.href = j.pdf_url; a.rel = 'noopener';
+    if (j.filename) { a.download = j.filename; }
+    document.body.appendChild(a); a.click(); a.remove();
+  }
+
+  // Re-fetch the now-cached PDF URL (job results never carry the signed URL —
+  // that would re-open the /jobs/status IDOR) and trigger the download.
+  function fnFetchAndDownload(c, btn) {
+    fetch(CFG.api_base + '/flight-notes/pdf?client_id=' + encodeURIComponent(c.user_id), {
+      headers: { 'X-WP-Nonce': CFG.nonce }, credentials: 'same-origin', cache: 'no-store'
+    })
+      .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }, function () { return { ok: r.ok, j: null }; }); })
+      .then(function (res) {
+        if (res.ok && res.j && res.j.pdf_url) { fnTriggerDownload(res.j); fnReset(btn); return; }
+        fnError(btn, (res.j && res.j.message) ? res.j.message : 'Could not prepare the flight notes PDF.');
+      })
+      .catch(function () { fnError(btn, 'Network error preparing the PDF.'); });
+  }
+
+  function fnJobStatusUrl(jobId) {
+    return CFG.api_base.replace(/\/$/, '') + '/jobs/' + jobId + '/status';
+  }
+
+  function fnPollJob(c, btn, jobId, startedAt) {
+    if (!btn.isConnected) return; // panel torn down — stop cleanly
+    if (Date.now() - startedAt > 3 * 60 * 1000) {
+      fnError(btn, 'The flight notes are taking longer than expected. Please try again in a moment.');
+      return;
+    }
+    var url = fnJobStatusUrl(jobId) + (fnJobStatusUrl(jobId).indexOf('?') === -1 ? '?' : '&') + '_=' + Date.now();
+    fetch(url, { headers: CFG.nonce ? { 'X-WP-Nonce': CFG.nonce } : {}, cache: 'no-store' })
+      .then(function (r) { return r.json(); })
+      .then(function (job) {
+        if (!btn.isConnected) return;
+        if (!job || !job.status || job.status === 'pending' || job.status === 'running') {
+          setTimeout(function () { fnPollJob(c, btn, jobId, startedAt); }, 2500);
+          return;
+        }
+        if (job.status === 'completed') { fnFetchAndDownload(c, btn); return; }
+        fnError(btn, 'The flight notes could not be generated. Please try again.');
+      })
+      .catch(function () { setTimeout(function () { fnPollJob(c, btn, jobId, startedAt); }, 2500); });
+  }
+
+  function downloadFlightNotes(c, btn) {
+    if (btn.classList.contains('is-loading')) return;
+    btn.classList.add('is-loading');
+    btn.disabled = true;
+    fetch(CFG.api_base + '/flight-notes/pdf?client_id=' + encodeURIComponent(c.user_id), {
+      headers: { 'X-WP-Nonce': CFG.nonce },
+      credentials: 'same-origin',
+      cache: 'no-store'
+    })
+      .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }, function () { return { ok: r.ok, j: null }; }); })
+      .then(function (res) {
+        if (!res.j) { fnError(btn, 'Could not prepare the flight notes PDF.'); return; }
+        if (res.ok && res.j.pdf_url) { fnTriggerDownload(res.j); fnReset(btn); return; } // instant cache hit
+        if (res.ok && res.j.queued && res.j.job_id) { fnPollJob(c, btn, res.j.job_id, Date.now()); return; }
+        fnError(btn, res.j.message || 'Could not prepare the flight notes PDF.');
+      })
+      .catch(function () { fnError(btn, 'Network error preparing the PDF.'); });
+  }
+
   function buildDetailPanel(c) {
     var panel = document.createElement('div');
     panel.className = 'hdlv2-detail-panel';
@@ -1137,6 +1277,7 @@
       '<div class="hdlv2-detail-head-meta">',
       headPill,
       journeyRibbon,
+      flightNotesButtonHtml(c),
       '</div>',
       '</div>',
       actionBanner,
@@ -1178,6 +1319,11 @@
     var releaseBtn = panel.querySelector('.hdlv2-release-why-btn');
     if (releaseBtn) {
       releaseBtn.addEventListener('click', function () { releaseWhy(c, releaseBtn, panel); });
+    }
+
+    var fnBtn = panel.querySelector('.hdlv2-fn-btn');
+    if (fnBtn) {
+      fnBtn.addEventListener('click', function () { downloadFlightNotes(c, fnBtn); });
     }
 
     // v0.24.0 — default landing tab is Progress (was Flight Plan).
@@ -1223,6 +1369,38 @@
     return parts.join('');
   }
 
+  // v0.42.2 — Red-flag banner for the client detail panel. Rendered from
+  // the /dashboard/client-record response (flags + flags_scan_status).
+  // Returns '' when there are no flags and no scan failure — safe to always call.
+  // Uses .hdlv2-redflag-banner (own CSS, separate from hdlv2-action-banner).
+  function redflagBannerHtml(record) {
+    if (record && record.flags_scan_status === 'failed') {
+      return '<div class="hdlv2-redflag-banner" data-kind="failed">'
+        + '<div class="hdlv2-redflag-head">&#9888; Red-flag scan did not complete</div>'
+        + '<div class="hdlv2-redflag-sub">The automated scan did not finish — please review this client manually. A failed scan is not an all-clear.</div>'
+        + '</div>';
+    }
+    var flags = (record && record.flags) || [];
+    if (!flags.length) { return ''; }
+    var URG = { TODAY: 'Today', THIS_WEEK: 'This week', WITHIN_WEEKS: 'Within weeks', REPORT_ONLY: 'Report only' };
+    var CATCLASS = { HARD: 'hard', AMBER: 'amber', PATTERN: 'pattern', CONTEXT: 'context' };
+    var items = flags.map(function (f) {
+      var cat = String(f.category || '').toUpperCase();
+      var cls = CATCLASS[cat] || 'context';
+      var catLabel = cat ? cat.charAt(0) + cat.slice(1).toLowerCase() : 'Note';
+      var urg = URG[String(f.urgency || '').toUpperCase()] || '';
+      var chipText = catLabel + (urg ? ' · ' + urg : '');
+      return '<div class="hdlv2-redflag-item">'
+        + '<span class="hdlv2-redflag-chip ' + cls + '">' + esc(chipText) + '</span>'
+        + '<div class="hdlv2-redflag-note">' + esc(f.practitioner_note || f.concern || '') + '</div>'
+        + '</div>';
+    }).join('');
+    return '<div class="hdlv2-redflag-banner">'
+      + '<div class="hdlv2-redflag-head">&#9888; Red flags from assessment</div>'
+      + items
+      + '</div>';
+  }
+
   function renderSnapshotShell() {
     // 4 tiles rendered as skeletons until mountSnapshot() resolves.
     // Labels are static so they read correctly even before data arrives.
@@ -1251,6 +1429,17 @@
   function mountSnapshot(c, panel) {
     var mount = panel.querySelector('[data-snapshot-mount]');
     if (!mount) return;
+
+    // v0.42.1 — Red-flag banner: injected once per panel expand, before the
+    // snapshot strip, using the same fetchClientRecord promise the rate tile
+    // already triggers. Returns '' when flags are empty or scan is pending —
+    // so no banner is inserted for healthy clients.
+    fetchClientRecord(c).then(function (data) {
+      var bannerHtml = redflagBannerHtml(data);
+      if (bannerHtml) {
+        mount.insertAdjacentHTML('beforebegin', bannerHtml);
+      }
+    });
 
     // 1) Rate of Ageing — prefer Stage 3 (full calc), fall back to Stage 1
     //    (9-question quick rate). Static after first paint per expand.
@@ -1940,6 +2129,38 @@
       + '</div>';
   }
 
+  // ── Red-flag status filter chips (All / Needs attention) ──
+  //
+  // Gated on CFG.redflag_scan_enabled. Mounted once per render above
+  // .clients-table. Idempotent. No-op when the flag is off.
+  // Filter state persists in state.statusFilter across re-renders.
+  function mountStatusFilter() {
+    if (!CFG.redflag_scan_enabled) return;
+    if (!state.table || !state.table.parentNode) return;
+    if (document.getElementById('hdlv2-status-filter')) return;
+
+    var wrap = document.createElement('div');
+    wrap.id = 'hdlv2-status-filter';
+    wrap.className = 'hdlv2-filter-bar';
+    wrap.innerHTML = '<span class="hdlv2-filter-label">Show:</span>'
+      + '<button type="button" class="hdlv2-filter-chip current" data-status="all">All clients</button>'
+      + '<button type="button" class="hdlv2-filter-chip" data-status="needs_attention">Needs attention</button>';
+
+    state.table.parentNode.insertBefore(wrap, state.table);
+
+    wrap.addEventListener('click', function (e) {
+      var btn = e.target && e.target.closest ? e.target.closest('.hdlv2-filter-chip') : null;
+      if (!btn) return;
+      state.statusFilter = btn.dataset.status || 'all';
+      wrap.querySelectorAll('.hdlv2-filter-chip').forEach(function (chip) {
+        if (chip.dataset.status === state.statusFilter) { chip.classList.add('current'); }
+        else { chip.classList.remove('current'); }
+      });
+      applyFilters();
+    });
+    applyFilters();
+  }
+
   // ── W11 — Source filter chips (All / Practitioner / Self-reported) ──
   //
   // Mounted once per render above .clients-table when the feature flag is
@@ -1983,13 +2204,24 @@
     applySourceFilter();
   }
 
-  function applySourceFilter() {
+  function applyFilters() {
     var source = state.sourceFilter || 'all';
+    var status = state.statusFilter || 'all';
+    var stage   = state.stageFilter || 'any';
+    var quiet   = state.quietFilter || 'any';
+    var quietMs = quiet === 'any' ? 0 : parseInt(quiet, 10) * 86400000;
+    var now     = Date.now();
     if (!state.tbody) return;
     var rows = state.tbody.querySelectorAll('tr.client-row');
     rows.forEach(function (row) {
       var rowSource = row.dataset.source || 'practitioner';
-      var show = (source === 'all') || (rowSource === source);
+      var rowStatus = row.dataset.status || '';
+      var rowStage  = row.dataset.stalledStage || '';
+      var rowLast   = row.dataset.stalledLast ? parseInt(row.dataset.stalledLast, 10) : 0;
+      var show = ((source === 'all') || (rowSource === source))
+              && ((status === 'all') || (rowStatus === status))
+              && ((stage === 'any') || (rowStage === stage))
+              && ((quiet === 'any') || (rowLast > 0 && (now - rowLast) >= quietMs));
       row.style.display = show ? '' : 'none';
       // If this row has a follow-up detail panel mounted (expanded state),
       // hide that too so the filter doesn't leave orphan panels visible.
@@ -1998,6 +2230,52 @@
         next.style.display = show ? '' : 'none';
       }
     });
+  }
+  function applySourceFilter() { applyFilters(); }
+
+  // ── Stalled-leads targeting filter (Stage + Quiet) ──
+  //
+  // Gated on CFG.stalled_filter_enabled. Mounted once per render above
+  // .clients-table (id-guarded, idempotent). No-op when the flag is off.
+  // Two chip groups feed the unified applyFilters() (ANDed with Source +
+  // Needs-attention). Matthew: "done stage one and haven't responded in two weeks."
+  // Reuses the existing .hdlv2-filter-* chip theme.
+  function mountStalledFilter() {
+    if (!CFG.stalled_filter_enabled) return;
+    if (!state.table || !state.table.parentNode) return;
+    if (document.getElementById('hdlv2-stalled-filter')) return;
+
+    var wrap = document.createElement('div');
+    wrap.id = 'hdlv2-stalled-filter';
+    wrap.className = 'hdlv2-stalled-bar';
+    wrap.innerHTML = '<span class="hdlv2-stalled-title">Stalled leads</span>'
+      + '<label class="hdlv2-stalled-field"><span class="hdlv2-stalled-flabel">Stage reached</span>'
+      +   '<select class="hdlv2-stalled-select" data-filter="stage" aria-label="Filter by stage reached">'
+      +     '<option value="any">Any stage</option>'
+      +     '<option value="1">Stage 1 only</option>'
+      +     '<option value="2">Stage 2</option>'
+      +   '</select></label>'
+      + '<label class="hdlv2-stalled-field"><span class="hdlv2-stalled-flabel">Last reply</span>'
+      +   '<select class="hdlv2-stalled-select" data-filter="quiet" aria-label="Filter by time since last reply">'
+      +     '<option value="any">Any time</option>'
+      +     '<option value="14">Over 2 weeks ago</option>'
+      +     '<option value="28">Over 4 weeks ago</option>'
+      +   '</select></label>';
+
+    state.table.parentNode.insertBefore(wrap, state.table);
+
+    // Native <select> 'change' — read the picked value, update state, re-filter.
+    wrap.addEventListener('change', function (e) {
+      var sel = e.target && e.target.closest ? e.target.closest('.hdlv2-stalled-select') : null;
+      if (!sel) return;
+      var which = sel.getAttribute('data-filter');
+      if (which === 'stage')      { state.stageFilter = sel.value || 'any'; }
+      else if (which === 'quiet') { state.quietFilter = sel.value || 'any'; }
+      else return;
+      applyFilters();
+    });
+
+    applyFilters();
   }
 
   // ── W12 — Default sort by latest activity (descending) ──
@@ -2359,6 +2637,7 @@
       '<td class="action-cell">' + renderV2DeleteButton(c) + '</td>',
     ].join('');
     injectExpandButton(row, c);
+    stampStalledAttrs(row, c);
     return row;
   }
 
@@ -2646,6 +2925,8 @@
       '.hdlv2-aq-header { display:flex; align-items:center; justify-content:space-between; gap:12px; margin:0 0 14px; flex-wrap:wrap; }',
       '.hdlv2-aq-title { font-family: Poppins, Inter, sans-serif; font-size:16px; font-weight:600; color:#111; margin:0; letter-spacing:0.01em; }',
       '.hdlv2-aq-freshness { font-size:11px; color:#94a3b8; font-weight:500; }',
+      '.hdlv2-aq-alllink { margin-left:auto; font-family: Inter, sans-serif; font-size:13px; font-weight:600; color:#3d8da0; text-decoration:none; white-space:nowrap; }',
+      '.hdlv2-aq-alllink:hover { color:#004F59; text-decoration:underline; }',
       '.hdlv2-aq-empty { padding:16px 0; font-size:13px; color:#888; text-align:left; }',
       '.hdlv2-aq-body { display:flex; flex-direction:column; gap:14px; }',
       '.hdlv2-aq-group { border-radius:10px; padding:12px 14px; border:1px solid #e4e6ea; background:#fafbfc; }',
@@ -2705,6 +2986,19 @@
       '.hdlv2-detail-journey-item.state-done { color:#004F59; }',
       '.hdlv2-detail-journey-item.state-active { background:#fffbeb; color:#92400e; }',
       '.hdlv2-detail-journey-item.state-pending { color:#94a3b8; }',
+      '.hdlv2-fn-btn { display:inline-flex; align-items:center; gap:6px; height:30px; padding:0 13px 0 10px; border-radius:999px; border:1px solid #3d8da0; background:#fff; color:#3d8da0; cursor:pointer; flex-shrink:0; font-family: Inter, -apple-system, sans-serif; font-size:11px; font-weight:600; letter-spacing:0.01em; transition:background .15s; }',
+      '.hdlv2-fn-btn:hover { background:rgba(61,141,160,0.08); }',
+      '.hdlv2-fn-btn:disabled { cursor:default; opacity:0.85; }',
+      '.hdlv2-fn-content, .hdlv2-fn-loading { display:inline-flex; align-items:center; gap:6px; }',
+      '.hdlv2-fn-loading { display:none; }',
+      '.hdlv2-fn-btn.is-loading .hdlv2-fn-content { display:none; }',
+      '.hdlv2-fn-btn.is-loading .hdlv2-fn-loading { display:inline-flex; }',
+      '.hdlv2-fn-ico { display:block; }',
+      '.hdlv2-fn-ico .fn-ico-stem, .hdlv2-fn-ico .fn-ico-head { transition: transform .2s ease; }',
+      '.hdlv2-fn-btn:hover .fn-ico-stem, .hdlv2-fn-btn:hover .fn-ico-head { animation: hdlv2-fn-bounce 0.7s ease infinite; }',
+      '.hdlv2-fn-ring { width:13px; height:13px; border-radius:50%; border:2px solid rgba(61,141,160,0.25); border-top-color:#3d8da0; animation: hdlv2-fn-spin 0.7s linear infinite; }',
+      '@keyframes hdlv2-fn-bounce { 0%,80%,100%{transform:translateY(0)} 40%{transform:translateY(3px)} }',
+      '@keyframes hdlv2-fn-spin { to { transform: rotate(360deg) } }',
       '.hdlv2-detail-journey-mark { width:14px; height:14px; border-radius:50%; background:#e4e6ea; color:#fff; display:inline-flex; align-items:center; justify-content:center; font-size:9px; flex:0 0 14px; line-height:1; }',
       '.hdlv2-detail-journey-item.state-done .hdlv2-detail-journey-mark { background:#3d8da0; }',
       '.hdlv2-detail-journey-item.state-active .hdlv2-detail-journey-mark { background:#d97706; }',
@@ -2845,6 +3139,36 @@
       '.hdlv2-auto-consult-empty { color:#888; font-size:13px; font-style:italic; }',
       '.hdlv2-auto-consult-footer { font-size:12.5px; color:#555; font-style:italic; margin-top:10px; }',
       '.hdlv2-auto-safety-banner { background:#fffbeb; border:1px solid #fde68a; color:#92400e; padding:10px 14px; border-radius:8px; font-size:13px; font-family: Inter, -apple-system, sans-serif; margin:0 0 12px; }',
+      // Red-flag banner — own CSS, separate from hdlv2-action-banner.
+      '.hdlv2-redflag-banner { padding:14px 16px; background:#fef2f2; border:1px solid #fecaca; border-left:4px solid #dc2626; border-radius:10px; margin:0 0 16px; }',
+      '.hdlv2-redflag-banner[data-kind="failed"] { background:#fffbeb; border-color:#fde68a; border-left-color:#d97706; }',
+      '.hdlv2-redflag-head { font-family: Poppins, Inter, sans-serif; font-size:14px; font-weight:700; color:#991b1b; margin:0 0 8px; }',
+      '.hdlv2-redflag-banner[data-kind="failed"] .hdlv2-redflag-head { color:#92400e; }',
+      '.hdlv2-redflag-sub { font-family: Inter, -apple-system, sans-serif; font-size:12px; color:#78350f; line-height:1.5; }',
+      '.hdlv2-redflag-item { display:flex; align-items:flex-start; gap:10px; padding:7px 0; border-top:1px solid rgba(220,38,38,0.10); }',
+      '.hdlv2-redflag-item:first-of-type { border-top:none; }',
+      '.hdlv2-redflag-chip { flex:0 0 auto; display:inline-flex; align-items:center; padding:3px 9px; border-radius:24px; font-family: Inter, -apple-system, sans-serif; font-size:10.5px; font-weight:600; text-transform:uppercase; letter-spacing:0.03em; white-space:nowrap; }',
+      '.hdlv2-redflag-chip.hard { color:#dc2626; background:#fff; border:1px solid #fecaca; }',
+      '.hdlv2-redflag-chip.amber { color:#d97706; background:#fff; border:1px solid #fde68a; }',
+      '.hdlv2-redflag-chip.pattern { color:#3b82f6; background:#fff; border:1px solid #bfdbfe; }',
+      '.hdlv2-redflag-chip.context { color:#6b7280; background:#fff; border:1px solid #e5e7eb; }',
+      '.hdlv2-redflag-note { flex:1; font-family: Inter, -apple-system, sans-serif; font-size:12.5px; color:#3a3a3a; line-height:1.55; }',
+      // Status filter bar (Needs attention).
+      '.hdlv2-filter-bar { display:flex; align-items:center; gap:8px; padding:10px 0 12px; margin:0 0 8px; flex-wrap:wrap; }',
+      '.hdlv2-filter-label { font-family: Inter, -apple-system, sans-serif; font-size:12px; font-weight:600; color:#888; text-transform:uppercase; letter-spacing:0.04em; }',
+      '.hdlv2-filter-chip { display:inline-flex; align-items:center; padding:5px 12px; border:1px solid #e4e6ea; border-radius:24px; background:#fff; color:#555; font-family: Inter, -apple-system, sans-serif; font-size:12px; font-weight:500; cursor:pointer; transition: border-color 0.12s, color 0.12s, background 0.12s; }',
+      '.hdlv2-filter-chip:hover { border-color:#3d8da0; color:#3d8da0; }',
+      '.hdlv2-filter-chip.current { background:#3d8da0; color:#fff; border-color:#3d8da0; }',
+      '.hdlv2-filter-chip.current:hover { background:#327686; }',
+      // Stalled-leads targeting filter — themed dropdown row (own bar, generous padding).
+      '.hdlv2-stalled-bar { display:flex; align-items:center; flex-wrap:wrap; gap:12px 22px; padding:16px 16px 18px 24px; margin:0; }',
+      '.hdlv2-stalled-title { font-family: Inter, -apple-system, sans-serif; font-size:13px; font-weight:600; color:#2c3e50; }',
+      '.hdlv2-stalled-field { position:relative; display:inline-flex; align-items:center; gap:8px; }',
+      '.hdlv2-stalled-flabel { font-family: Inter, -apple-system, sans-serif; font-size:12px; font-weight:500; color:#888; white-space:nowrap; }',
+      '.hdlv2-stalled-select { font-family: Inter, -apple-system, sans-serif; font-size:13px; font-weight:500; color:#2c3e50; background:#fff; border:1px solid #e4e6ea; border-radius:8px; padding:7px 32px 7px 12px; cursor:pointer; appearance:none; -webkit-appearance:none; -moz-appearance:none; transition:border-color .12s, box-shadow .12s; }',
+      '.hdlv2-stalled-select:hover { border-color:#3d8da0; }',
+      '.hdlv2-stalled-select:focus { outline:none; border-color:#3d8da0; box-shadow:0 0 0 3px rgba(61,141,160,0.15); }',
+      '.hdlv2-stalled-field::after { content:""; position:absolute; right:13px; top:50%; width:7px; height:7px; border-right:1.5px solid #8a9099; border-bottom:1.5px solid #8a9099; transform:translateY(-70%) rotate(45deg); pointer-events:none; }',
     ].join('\n');
     document.head.appendChild(s);
   }

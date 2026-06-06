@@ -195,6 +195,8 @@ class HDLV2_Practitioner_Dashboard {
             // self-reported Consultation tab) when false. With flag off the
             // dashboard is byte-identical to today.
             'automation_tier_enabled'    => (bool) get_option( 'hdlv2_automation_tier_enabled', false ),
+            'redflag_scan_enabled'       => (bool) get_option( 'hdlv2_ff_redflag_scan', false ),
+            'stalled_filter_enabled'     => (bool) get_option( 'hdlv2_ff_stalled_filter', false ),
             'automation_hold_for_review' => (bool) get_option( 'hdlv2_automation_hold_for_review', false ),
         ) );
     }

@@ -1141,6 +1141,63 @@ class HDLV2_Activator {
                 error_log( '[HDLV2] Phase U migration error: ' . $e->getMessage() . ' — boot continues; verify manually.' );
             }
         }
+
+        // Phase V (DB v3.14) — intake red-flag scan columns on form_progress.
+        if ( version_compare( $current_db_version, '3.14', '<' ) ) {
+            try {
+                $progress_table = $p . 'hdlv2_form_progress';
+                $cols = array(
+                    'has_flags'         => "ADD COLUMN has_flags BOOLEAN DEFAULT FALSE",
+                    'flags'             => "ADD COLUMN flags JSON DEFAULT NULL",
+                    'flags_scanned_at'  => "ADD COLUMN flags_scanned_at DATETIME DEFAULT NULL",
+                    'flags_scan_status' => "ADD COLUMN flags_scan_status VARCHAR(20) DEFAULT NULL",
+                );
+                foreach ( $cols as $col => $ddl ) {
+                    $exists = (int) $wpdb->get_var( $wpdb->prepare(
+                        "SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+                         WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s AND COLUMN_NAME = %s",
+                        $progress_table, $col
+                    ) );
+                    if ( ! $exists ) {
+                        $wpdb->query( "ALTER TABLE $progress_table $ddl" );
+                        if ( $wpdb->last_error ) {
+                            error_log( "[HDLV2] Phase V (v3.14) FAILED on form_progress.$col: " . $wpdb->last_error );
+                        } else {
+                            error_log( "[HDLV2] Phase V (v3.14) migration: added $col to hdlv2_form_progress." );
+                        }
+                    }
+                }
+                // Feature flag, default OFF. add_option is a no-op if already set.
+                add_option( 'hdlv2_ff_redflag_scan', false );
+                error_log( '[HDLV2] Phase V (v3.14) migration completed.' );
+            } catch ( \Throwable $e ) {
+                error_log( '[HDLV2] Phase V migration error: ' . $e->getMessage() . ' — boot continues; verify manually.' );
+            }
+        }
+
+        // Phase W (DB v3.15) — per-practitioner clinic / practice name, set in
+        // Widget Settings (e.g. "Altituding"). Shown on the FLIGHT Consultation
+        // Notes cover; empty hides the Clinic cell (no clinic concept otherwise).
+        if ( version_compare( $current_db_version, '3.15', '<' ) ) {
+            try {
+                $config_table = $p . 'hdlv2_widget_config';
+                $has_clinic = (int) $wpdb->get_var( $wpdb->prepare(
+                    "SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+                     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s AND COLUMN_NAME = 'clinic_name'",
+                    $config_table
+                ) );
+                if ( ! $has_clinic ) {
+                    $wpdb->query( "ALTER TABLE $config_table ADD COLUMN clinic_name VARCHAR(200) DEFAULT '' AFTER practitioner_name" );
+                    if ( $wpdb->last_error ) {
+                        error_log( '[HDLV2] Phase W (v3.15) FAILED on widget_config.clinic_name: ' . $wpdb->last_error );
+                    } else {
+                        error_log( '[HDLV2] Phase W (v3.15) migration: added clinic_name to hdlv2_widget_config.' );
+                    }
+                }
+            } catch ( \Throwable $e ) {
+                error_log( '[HDLV2] Phase W migration error: ' . $e->getMessage() . ' — boot continues; verify manually.' );
+            }
+        }
     }
 
     /**
@@ -1185,6 +1242,7 @@ class HDLV2_Activator {
             id BIGINT(20) UNSIGNED NOT NULL AUTO_INCREMENT,
             practitioner_user_id BIGINT(20) UNSIGNED NOT NULL,
             practitioner_name VARCHAR(200) DEFAULT '',
+            clinic_name VARCHAR(200) DEFAULT '',
             logo_url VARCHAR(500) DEFAULT '',
             logo_shape ENUM('square','wordmark','tall') DEFAULT 'square',
             cta_text VARCHAR(300) DEFAULT 'Book a session',
@@ -1274,6 +1332,10 @@ class HDLV2_Activator {
             updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
             deleted_at DATETIME DEFAULT NULL,
             deleted_by BIGINT(20) UNSIGNED DEFAULT NULL,
+            has_flags BOOLEAN DEFAULT FALSE,
+            flags JSON DEFAULT NULL,
+            flags_scanned_at DATETIME DEFAULT NULL,
+            flags_scan_status VARCHAR(20) DEFAULT NULL,
             PRIMARY KEY (id),
             UNIQUE KEY token (token),
             KEY client_user_id (client_user_id),

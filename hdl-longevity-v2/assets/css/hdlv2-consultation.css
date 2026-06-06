@@ -194,8 +194,19 @@ body.hdlv2-wide-page .hdlv2-consult-layout {
   font-size: 28px;
   font-weight: 600;
   color: #004F59;
-  margin: 0 0 18px;
   letter-spacing: 0.01em;
+  /* Align the title with the full-bleed consultation root below it
+     (root is width:100vw; padding:0 32px). Without this the h1 sits in the
+     theme's content gutter while the cards are full-bleed — a ~32px mismatch
+     that reads as "dropped in". Now both start at the same 32px inset. */
+  width: 100vw;
+  max-width: 100vw;
+  box-sizing: border-box;
+  margin: 0 calc((100vw - 100%) / -2) 18px;
+  padding: 0 32px;
+}
+@media (max-width: 1024px) {
+  .hdlv2-consultation-page-title { padding: 0 16px; }
 }
 
 /* v0.24.7 — Matthew asked the editability hint to be visually prominent

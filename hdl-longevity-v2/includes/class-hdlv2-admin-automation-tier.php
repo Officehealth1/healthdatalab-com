@@ -34,8 +34,11 @@ class HDLV2_Admin_Automation_Tier {
     const OPTION_KEY    = 'hdlv2_automation_tier';
     const ENABLED_KEY   = 'hdlv2_automation_tier_enabled';
     const HOLD_KEY      = 'hdlv2_automation_hold_for_review';
-    const NONCE_ACTION  = 'hdlv2_automation_tier_save';
-    const REVOKE_ACTION = 'hdlv2_automation_revoke_token';
+    const NONCE_ACTION      = 'hdlv2_automation_tier_save';
+    const REVOKE_ACTION     = 'hdlv2_automation_revoke_token';
+    const REDFLAG_SCAN_KEY  = 'hdlv2_ff_redflag_scan';
+    const STALLED_FILTER_KEY = 'hdlv2_ff_stalled_filter';
+    const SAFETY_SCREEN_KEY  = 'hdlv2_ff_safety_screen';
 
     /** @var self|null */
     private static $instance = null;
@@ -113,6 +116,9 @@ class HDLV2_Admin_Automation_Tier {
 
     private function render_settings_tab() {
         $enabled     = (bool) get_option( self::ENABLED_KEY, false );
+        $redflag     = (bool) get_option( self::REDFLAG_SCAN_KEY, false );
+        $stalled     = (bool) get_option( self::STALLED_FILTER_KEY, false );
+        $safety      = (bool) get_option( self::SAFETY_SCREEN_KEY, false );
         $hold        = (bool) get_option( self::HOLD_KEY, false );
         $opt         = get_option( self::OPTION_KEY, array() );
         if ( ! is_array( $opt ) ) {
@@ -156,6 +162,36 @@ class HDLV2_Admin_Automation_Tier {
                             <input type="checkbox" name="enabled" id="hdlv2_enabled" value="1" <?php checked( $enabled ); ?>
                                    data-active-tokens="<?php echo esc_attr( $active_tokens ); ?>">
                             <span>Master switch. When off, the W7 routing branch, the W8 shortcode, the W9 submit handler, and the W11 dashboard chrome are all dead code.</span>
+                        </label>
+                    </td>
+                </tr>
+
+                <tr>
+                    <th scope="row"><label for="hdlv2_redflag">Intake red-flag scan</label></th>
+                    <td>
+                        <label>
+                            <input type="checkbox" name="redflag_scan" id="hdlv2_redflag" value="1" <?php checked( $redflag ); ?>>
+                            <span>When on, a completed Stage 3 intake (or any client you scan manually) is checked for medical red flags; flags appear on the practitioner dashboard and the client is emailed a non-diagnostic GP nudge. Leave OFF until tested.</span>
+                        </label>
+                    </td>
+                </tr>
+
+                <tr>
+                    <th scope="row"><label for="hdlv2_stalled_filter">Stalled-leads targeting filter</label></th>
+                    <td>
+                        <label>
+                            <input type="checkbox" name="stalled_filter" id="hdlv2_stalled_filter" value="1" <?php checked( $stalled ); ?>>
+                            <span>When on, adds a Stage + Quiet filter to the practitioner client list so you can isolate leads who stalled early (e.g. Stage 1, no reply in 2 weeks). Read-only dashboard filter. Off by default.</span>
+                        </label>
+                    </td>
+                </tr>
+
+                <tr>
+                    <th scope="row"><label for="hdlv2_safety_screen">Front-door safety screen</label></th>
+                    <td>
+                        <label>
+                            <input type="checkbox" name="safety_screen" id="hdlv2_safety_screen" value="1" <?php checked( $safety ); ?>>
+                            <span>When on, the widget shows a short symptom + mental-health check before the result. Ticked warning signs raise a flag on the dashboard and email the visitor (a non-diagnostic GP nudge, or crisis lines for self-harm). <strong>Clinical wording + 999/GP routing must be signed off before LIVE.</strong> Off by default.</span>
                         </label>
                     </td>
                 </tr>
@@ -398,6 +434,12 @@ class HDLV2_Admin_Automation_Tier {
 
         // Persist.
         update_option( self::ENABLED_KEY, $enabled, false );
+        $redflag = ! empty( $_POST['redflag_scan'] );
+        update_option( self::REDFLAG_SCAN_KEY, $redflag, false );
+        $stalled = ! empty( $_POST['stalled_filter'] );
+        update_option( self::STALLED_FILTER_KEY, $stalled, false );
+        $safety = ! empty( $_POST['safety_screen'] );
+        update_option( self::SAFETY_SCREEN_KEY, $safety, false );
         update_option( self::HOLD_KEY, $hold, false );
         update_option( self::OPTION_KEY, array(
             'widget_origin'          => $widget_origin,

@@ -144,6 +144,10 @@
           +   '<textarea id="hdlv2-consult-notes" class="hdlv2-consult-notes-input" rows="10" placeholder="Write your consultation notes here — observations, health history, recommendations, follow-ups. You can also tap the mic to record, or attach an audio file.">' + esc(consult.raw_notes || consult.typed_notes || '') + '</textarea>'
           +   '<div class="hdlv2-consult-notes-iconbar" id="hdlv2-consult-audio"></div>'
           + '</div>'
+          + '<div class="hdlv2-addendum-reminder" role="note">'
+          +   '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>'
+          +   '<span><strong>Before you stop the recording</strong> — read out any notes you wrote on the FLIGHT sheet so they\'re captured in the transcript.</span>'
+          + '</div>'
           + '<div id="hdlv2-notes-status" class="hdlv2-save-status"></div>'
           + '</div>'
         ))
@@ -668,55 +672,22 @@
       if (finBtn) {
         finBtn.addEventListener('click', function () {
           var edited = collectOrganisedFromDom();
-
-          // v0.26.0 — P-001: stepped progress feedback during the ~30–45s
-          // /finalise chain (Claude awaken/lift/thrive + Claude milestones +
-          // Make.com webhook + emails + flight-plan schedule). Practitioners
-          // were seeing a static "Generating report" label for ~40s and
-          // retry-clicking thinking it had hung. Idempotency caught the dupes
-          // but the UX was anxiety-inducing. Now we show a spinner inside the
-          // button + a status line below cycling through honest stage
-          // descriptions. Timings calibrated against real STBY runs.
           var SPINNER = '<span class="hdlv2-spinner" aria-hidden="true"></span>';
-          var progressSteps = [
-            { at:    0, msg: 'Reviewing your edits…' },
-            { at: 4000, msg: 'Recomputing scores with your changes…' },
-            { at: 10000, msg: 'Generating your final report…' },
-            { at: 25000, msg: 'Building your milestones…' },
-            { at: 35000, msg: 'Saving and sending notifications…' },
-            { at: 50000, msg: 'Almost there — finalising…' }
-          ];
-          var progressTimers = [];
-          function startProgress() {
-            progressSteps.forEach(function (step) {
-              progressTimers.push(setTimeout(function () {
-                finBtn.innerHTML = SPINNER + '<span class="hdlv2-spinner-label">' + step.msg + '</span>';
-                setOrganiseStatus('loading', step.msg);
-              }, step.at));
-            });
-          }
-          function stopProgress() {
-            progressTimers.forEach(function (t) { clearTimeout(t); });
-            progressTimers = [];
-          }
-          function restoreButton() {
-            stopProgress();
-            finBtn.disabled = false;
-            finBtn.textContent = 'Looks good — Generate Report';
-          }
 
-          // v0.26.2 — fix #2 (/ultrareview): the new finalise click flow built
-          // for P-001 dropped the Idempotency-Key header. Server-side wrap_ai
-          // is wired and ready, but does nothing without this header — every
-          // double-click would re-burn Claude. Stable key per consultation row
-          // so retries within the 5-minute cache window replay the cached
-          // response instead of re-running.
+          // v0.46.0 — the report now generates ASYNC on the job queue, so the
+          // old fake setTimeout "progress ladder" is gone. The /approve write
+          // is quick (no Claude) so a brief honest spinner is fine; once
+          // /finalise hands back a job_id we switch to the real preparing UI
+          // (showReportPreparing) and poll for completion (pollReportJob).
+          //
+          // /approve MUST commit before the report job reads the organised
+          // notes (v0.27.0 race fix #11) — so it stays a synchronous first
+          // step. Stable Idempotency-Key on /approve dedupes a double-click.
           var idemKey = 'fin-' + state.consultId + '-' + state.progressId;
 
           finBtn.disabled = true;
-          finBtn.innerHTML = SPINNER + '<span class="hdlv2-spinner-label">' + progressSteps[0].msg + '</span>';
-          setOrganiseStatus('loading', progressSteps[0].msg);
-          startProgress();
+          finBtn.innerHTML = SPINNER + '<span class="hdlv2-spinner-label">Saving your edits…</span>';
+          setOrganiseStatus('loading', 'Saving your edits…');
 
           fetch(CFG.api_base + '/approve', {
             method: 'POST',
@@ -726,31 +697,35 @@
           .then(function (r) { return r.json(); })
           .then(function (res) {
             if (!res || !res.success) {
-              restoreButton();
+              finBtn.disabled = false;
+              finBtn.textContent = 'Looks good — Generate Report';
               setOrganiseStatus('error', (res && res.message) || 'Save failed.');
               return;
             }
             state.data.consultation.ai_organised_notes    = edited;
             state.data.consultation.practitioner_approved = 1;
+            // Kick off the report — returns a job_id immediately (no Claude
+            // in this request), so the worker is freed at once.
             return fetch(CFG.api_base + '/finalise', {
               method: 'POST',
-              headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': CFG.nonce, 'Idempotency-Key': idemKey },
+              headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': CFG.nonce },
               body: JSON.stringify({ progress_id: state.progressId, consultation_id: state.consultId })
             })
             .then(function (r) { return r.json(); })
             .then(function (fres) {
-              stopProgress();
-              if (fres && fres.success) {
-                setOrganiseStatus('ok', 'Final report generated.');
-                renderFinalReport(fres);
+              if (fres && fres.success && fres.job_id) {
+                showReportPreparing('final');
+                pollReportJob(fres.job_id, 'final');
               } else {
-                restoreButton();
-                setOrganiseStatus('error', (fres && fres.message) || 'Final report failed. Please try again.');
+                finBtn.disabled = false;
+                finBtn.textContent = 'Looks good — Generate Report';
+                setOrganiseStatus('error', (fres && fres.message) || 'Could not start the report. Please try again.');
               }
             });
           })
           .catch(function () {
-            restoreButton();
+            finBtn.disabled = false;
+            finBtn.textContent = 'Looks good — Generate Report';
             setOrganiseStatus('error', 'Connection error. Please try again.');
           });
         });
@@ -1480,8 +1455,17 @@
     });
   }
 
-  // ── GENERATE FINAL REPORT ──
+  // ── GENERATE FINAL REPORT (DEAD — disabled v0.46.0) ──
+  // bindGenerateButton() is an orphaned SYNCHRONOUS /finalise caller: zero
+  // call sites, and its element #hdlv2-generate-final is never rendered (the
+  // live pre-Final CTA is #hdlv2-finalise-btn, handled in bindActionButton()).
+  // It pre-dated the async conversion and would flash a false "success" against
+  // the new job-queue contract (which returns a job_id, not a finished report)
+  // if ever re-wired. Hard-disabled with an immediate return so it can never
+  // execute that path; the unreachable body below is kept only to minimise the
+  // diff and is slated for deletion in a follow-up cleanup.
   function bindGenerateButton() {
+    return; // permanently disabled — see note above
     var btn = document.getElementById('hdlv2-generate-final');
     if (!btn) return;
 
@@ -1570,6 +1554,158 @@
       +   (reportUrl ? '<a href="' + esc(reportUrl) + '" style="display:inline-block;background:#10b981;color:#fff;padding:10px 22px;border-radius:48px;font-size:14px;font-weight:600;text-decoration:none;font-family:Poppins,Inter,sans-serif;">View the final report \u2192</a>' : 'Refresh this page to view the final layout.')
       + '</div>'
       + '</div>';
+  }
+
+  // ──────────────────────────────────────────────────────────────────
+  //  v0.46.0 — Async Final Report: "preparing" UI + job polling.
+  //
+  //  The heavy Claude work now runs on the server's job queue, so the
+  //  /finalise + /save-and-update-plan requests return a job_id in well under
+  //  a second (the PHP worker is freed at once — many practitioners can
+  //  generate reports without freezing the site). Here we replace the old
+  //  fake setTimeout "progress ladder" with an honest preparing state
+  //  (spinner + skeleton + a message telling the practitioner WHERE the
+  //  report will appear) and poll /jobs/{id}/status until it's ready.
+  //
+  //  Poll loop mirrors hdlv2-audio-component.js pollTranscriptionJob():
+  //  recursive setTimeout (self-terminating — never double-fires, no leaked
+  //  setInterval), adaptive backoff, cache-bust + cache:'no-store' (so a
+  //  cached "pending" can't hang the UI), and a root.isConnected guard so a
+  //  late tick can't write into a torn-down DOM.
+  // ──────────────────────────────────────────────────────────────────
+
+  function jobsStatusUrl(jobId) {
+    // CFG.api_base ends in '/consultation'; the job status lives at
+    // '<root>/jobs/{id}/status'. Resilient to site_url / wp-json structures.
+    var rootBase = CFG.api_base.replace(/\/consultation\/?$/, '').replace(/\/$/, '');
+    return rootBase + '/jobs/' + jobId + '/status';
+  }
+
+  function reportPollInterval(attempts) {
+    // Report jobs run for MINUTES, so poll gently. Polling too fast would
+    // drain the per-user read rate-limit (TIER_READ ~200/hr, shared with
+    // dashboard + draft-report reads) and could surface a perfectly healthy
+    // report as a false "timeout". A few-second cadence is plenty.
+    if (attempts < 3) return 3000;
+    if (attempts < 8) return 5000;
+    return 8000;
+  }
+
+  // Replace the whole consultation panel with an honest "preparing" card.
+  function showReportPreparing(kind) {
+    var title = (kind === 'regen') ? 'Updating the Trajectory Plan…' : 'Preparing the final report…';
+    var skel = (window.HDLV2Loading && typeof HDLV2Loading.skeleton === 'function')
+      ? HDLV2Loading.skeleton('consultation')
+      : '';
+    root.innerHTML =
+      '<div class="hdlv2-report-preparing" style="max-width:680px;margin:40px auto;padding:0 20px;font-family:Inter,-apple-system,BlinkMacSystemFont,sans-serif;">'
+      + '<div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:14px;padding:26px 24px;text-align:center;">'
+      +   '<div class="hdlv2-spinner" aria-hidden="true" style="width:30px;height:30px;border:3px solid #bfdbfe;border-top-color:#3b82f6;border-radius:50%;margin:0 auto 16px;animation:hdlv2spin 0.8s linear infinite;"></div>'
+      +   '<h3 style="font-family:Poppins,Inter,sans-serif;font-size:18px;font-weight:600;color:#1e3a5f;margin:0 0 10px;">' + esc(title) + '</h3>'
+      +   '<p style="color:#2c3e50;font-size:14px;line-height:1.55;margin:0 0 8px;">This usually takes a minute or two. You can stay on this page &mdash; <strong>the report will appear here automatically</strong> when it&rsquo;s ready. You don&rsquo;t need to refresh.</p>'
+      +   '<p style="color:#5b6b7b;font-size:13px;line-height:1.5;margin:0;">It is also saved to the client&rsquo;s Trajectory Plan, so it is safe to leave this page and come back later.</p>'
+      +   '<p class="hdlv2-rp-status" id="hdlv2-rp-status" role="status" aria-live="polite" style="color:#3b82f6;font-size:13px;font-weight:600;margin:16px 0 0;">Generating the report&hellip;</p>'
+      + '</div>'
+      + (skel ? '<div aria-hidden="true" style="margin-top:18px;opacity:0.65;">' + skel + '</div>' : '')
+      + '</div>';
+  }
+
+  function setReportPrepStatus(msg) {
+    var el = document.getElementById('hdlv2-rp-status');
+    if (el && typeof msg === 'string') el.textContent = msg;
+  }
+
+  // Poll the report job until completed / failed / timeout.
+  function pollReportJob(jobId, kind) {
+    var MAX_POLL_MS = 8 * 60 * 1000; // 8 min — covers worst-case Claude + slack at the gentler poll cadence
+    var startedAt = Date.now();
+    var attempts = 0;
+    var base = jobsStatusUrl(jobId);
+
+    var tick = function () {
+      // DOM torn down (navigated away / re-rendered) — stop cleanly.
+      if (!root || !root.isConnected) return;
+      if (Date.now() - startedAt > MAX_POLL_MS) {
+        showReportTimeout(kind);
+        return;
+      }
+      attempts++;
+      // Cache-bust + no-store: LiteSpeed/Cloudflare/Brave would otherwise
+      // serve a stale "pending" and the UI would hang forever.
+      var url = base + (base.indexOf('?') === -1 ? '?' : '&') + '_=' + Date.now();
+      fetch(url, {
+        headers: CFG.nonce ? { 'X-WP-Nonce': CFG.nonce } : {},
+        cache: 'no-store'
+      })
+        .then(function (r) { return r.json(); })
+        .then(function (job) {
+          if (!root || !root.isConnected) return;
+          if (!job || !job.status) { setTimeout(tick, reportPollInterval(attempts)); return; }
+          if (job.status === 'pending' || job.status === 'running') {
+            // Drive the reassurance copy off elapsed time (report jobs use
+            // max_attempts=1, so job.attempts is always 1 — an attempts-based
+            // message would never change).
+            var elapsed = Date.now() - startedAt;
+            setReportPrepStatus(elapsed > 45000 ? 'Still working on it — almost there…' : 'Generating the report…');
+            setTimeout(tick, reportPollInterval(attempts));
+            return;
+          }
+          if (job.status === 'completed') {
+            if (kind === 'regen') {
+              // Re-load the consultation so the refreshed report + the new
+              // addendum in the timeline render from fresh server state.
+              showLoading('Loading your updated report…');
+              loadConsultation();
+            } else {
+              renderFinalReport();
+            }
+            return;
+          }
+          // failed / cancelled
+          showReportError(kind, job.error);
+        })
+        .catch(function () {
+          // Transient network blip — keep polling until the cap.
+          setTimeout(tick, reportPollInterval(attempts));
+        });
+    };
+    tick();
+  }
+
+  function showReportError(kind, jobError) {
+    var isEmptyRecs = jobError && String(jobError).indexOf('empty_recommendations') !== -1;
+    var label = (kind === 'regen') ? 'update' : 'report';
+    var headline = isEmptyRecs ? 'No recommendations to build from' : ('The ' + label + ' didn’t finish');
+    var detail = isEmptyRecs
+      ? 'There are no recommendations to build the plan from. Go back, add at least one recommendation, then update the plan again. Nothing was sent to your client.'
+      : 'Nothing was sent to your client. You can try again.';
+    var btnLabel = isEmptyRecs ? 'Back to consultation' : 'Try again';
+    root.innerHTML =
+      '<div style="max-width:620px;margin:48px auto;padding:0 20px;text-align:center;font-family:Inter,-apple-system,sans-serif;">'
+      + '<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:14px;padding:26px 24px;">'
+      +   '<div style="font-family:Poppins,Inter,sans-serif;font-size:17px;font-weight:600;color:#991b1b;margin:0 0 6px;">' + esc(headline) + '</div>'
+      +   '<div style="color:#b91c1c;font-size:13px;line-height:1.5;margin:0 0 18px;">' + esc(detail) + '</div>'
+      +   '<button id="hdlv2-report-retry" type="button" style="background:#3d8da0;color:#fff;border:none;padding:10px 22px;border-radius:48px;font-size:14px;font-weight:600;cursor:pointer;font-family:Poppins,Inter,sans-serif;">' + esc(btnLabel) + '</button>'
+      + '</div>'
+      + '</div>';
+    var btn = document.getElementById('hdlv2-report-retry');
+    if (btn) btn.addEventListener('click', function () { showLoading('Loading consultation data...'); loadConsultation(); });
+  }
+
+  function showReportTimeout(kind) {
+    var token = state.data && state.data.token ? state.data.token : '';
+    var reportUrl = token ? (window.location.origin + '/longevity-draft-report/?t=' + encodeURIComponent(token)) : '';
+    root.innerHTML =
+      '<div style="max-width:620px;margin:48px auto;padding:0 20px;text-align:center;font-family:Inter,-apple-system,sans-serif;">'
+      + '<div style="background:#fffbeb;border:1px solid #fde68a;border-radius:14px;padding:26px 24px;">'
+      +   '<div style="font-family:Poppins,Inter,sans-serif;font-size:17px;font-weight:600;color:#92400e;margin:0 0 6px;">Still preparing&hellip;</div>'
+      +   '<div style="color:#b45309;font-size:13px;line-height:1.5;margin:0 0 18px;">This is taking a little longer than usual. It will appear on the client&rsquo;s Trajectory Plan when it&rsquo;s ready &mdash; please check back shortly.</div>'
+      +   (reportUrl ? '<a href="' + esc(reportUrl) + '" style="display:inline-block;background:#d97706;color:#fff;padding:10px 22px;border-radius:48px;font-size:14px;font-weight:600;text-decoration:none;font-family:Poppins,Inter,sans-serif;margin:0 8px 8px 0;">View the Trajectory Plan →</a>' : '')
+      +   '<button id="hdlv2-report-refresh" type="button" style="background:#fff;color:#92400e;border:1px solid #fde68a;padding:10px 22px;border-radius:48px;font-size:14px;font-weight:600;cursor:pointer;font-family:Poppins,Inter,sans-serif;">Refresh</button>'
+      + '</div>'
+      + '</div>';
+    var btn = document.getElementById('hdlv2-report-refresh');
+    if (btn) btn.addEventListener('click', function () { showLoading('Loading consultation data...'); loadConsultation(); });
   }
 
   // ── UTILS ──
@@ -2200,56 +2336,31 @@
     var submitBtn = document.getElementById('hdlv2-addendum-submit');
     if (!submitBtn) return;
 
-    // Stable idempotency key per consult+progress so a double-click within
-    // the cache window replays the cached response — does not re-burn Claude.
-    var idemKey = 'updateplan-' + state.consultId + '-' + state.progressId;
-
     var SPINNER = '<span class="hdlv2-spinner" aria-hidden="true"></span>';
-    // v0.28.2 — first progress message differs depending on whether we are
-    // writing a new addendum first or going straight to regen.
-    var progressSteps = hasAddendum
-      ? [
-          { at:    0, msg: 'Saving your addendum…' },
-          { at:  3000, msg: 'Re-reading the original consultation + addenda…' },
-          { at: 10000, msg: 'Generating your refreshed report…' },
-          { at: 25000, msg: 'Building updated milestones…' },
-          { at: 38000, msg: 'Saving and sending notifications…' },
-          { at: 50000, msg: 'Almost there — finalising…' }
-        ]
-      : [
-          { at:    0, msg: 'Reading your edits…' },
-          { at:  3000, msg: 'Re-reading the original consultation + addenda…' },
-          { at: 10000, msg: 'Generating your refreshed report…' },
-          { at: 25000, msg: 'Building updated milestones…' },
-          { at: 38000, msg: 'Saving and sending notifications…' },
-          { at: 50000, msg: 'Almost there — finalising…' }
-        ];
-    var timers = [];
-    function startProgress() {
-      progressSteps.forEach(function (step) {
-        timers.push(setTimeout(function () {
-          submitBtn.innerHTML = SPINNER + '<span class="hdlv2-spinner-label">' + step.msg + '</span>';
-          setAddendumStatus('loading', step.msg);
-        }, step.at));
-      });
-    }
-    function stopProgress() { timers.forEach(function (t) { clearTimeout(t); }); timers = []; }
     function restoreButton() {
-      stopProgress();
       submitBtn.disabled = false;
       submitBtn.textContent = 'Save & Update Plan';
     }
 
+    // v0.46.0 — regeneration now runs ASYNC on the job queue (see
+    // showReportPreparing / pollReportJob). The old fake setTimeout ladder +
+    // the v0.34.3 client-side re-verify step are gone: the poll's 'completed'
+    // branch reloads the consultation from fresh server state, which both
+    // confirms the new Final row and refreshes the addenda timeline. The
+    // server-side guards (DB-return checks → WP_Error) still hold, surfacing
+    // as a failed job that the poll turns into a "Try again" card.
+    var firstMsg = hasAddendum ? 'Saving your addendum…' : 'Reading your edits…';
+    // Set true once we've shown a SPECIFIC error, so the trailing .catch
+    // doesn't clobber it with the generic 'Connection error' message.
+    var handled = false;
     submitBtn.disabled = true;
-    submitBtn.innerHTML = SPINNER + '<span class="hdlv2-spinner-label">' + progressSteps[0].msg + '</span>';
-    setAddendumStatus('loading', progressSteps[0].msg);
-    startProgress();
+    submitBtn.innerHTML = SPINNER + '<span class="hdlv2-spinner-label">' + firstMsg + '</span>';
+    setAddendumStatus('loading', firstMsg);
 
     // Step 1 — POST /consultation/addendum (only when there is new text).
-    // v0.28.2 — when the practitioner only edited the AI summary above (no
-    // new addendum text), skip the write step and go straight to regen.
-    // The auto-saved summary edits in ai_organised_notes are picked up by
-    // generate() automatically.
+    // When the practitioner only edited the AI summary above (no new addendum),
+    // skip the write and go straight to regen; the auto-saved summary edits in
+    // ai_organised_notes are picked up by generate() automatically.
     var step1 = hasAddendum
       ? fetch(CFG.api_base + '/addendum', {
           method: 'POST',
@@ -2269,73 +2380,35 @@
         if (!res || !res.success) {
           restoreButton();
           setAddendumStatus('error', (res && res.message) || 'Failed to save the addendum.');
+          handled = true;
           throw new Error('addendum failed');
         }
-        // Step 2 — POST /consultation/save-and-update-plan (wraps Claude)
+        // Step 2 — kick off the regeneration (returns a job_id immediately).
         return fetch(CFG.api_base + '/save-and-update-plan', {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-WP-Nonce': CFG.nonce,
-            'Idempotency-Key': idemKey
-          },
+          headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': CFG.nonce },
           body: JSON.stringify({ progress_id: state.progressId, consultation_id: state.consultId })
         });
       })
       .then(function (r) { return r.json(); })
       .then(function (res) {
-        if (!res || !res.success) {
-          stopProgress();
+        if (!res || !res.success || !res.job_id) {
           restoreButton();
-          setAddendumStatus('error', (res && res.message) || 'Plan update failed. Please try again.');
-          // v0.33.6 — Recovery panel: when the server returns the L1 hard
-          // guard (empty_recommendations), reveal the + Add and ↻ Re-organise
-          // buttons inline so the practitioner can recover without leaving
-          // the page. Hidden by default in v0.33.6 because auto-re-organise
-          // on regen handles 99% of cases automatically.
-          if (res && res.code === 'empty_recommendations') {
-            renderEmptyRecsRecovery();
-          }
+          setAddendumStatus('error', (res && res.message) || 'Could not start the update. Please try again.');
+          handled = true;
           return;
         }
-
-        // v0.34.3 — Step 3 (re-verify): fetch /consultation/{id} and confirm
-        // the Final row really exists with content before rendering the
-        // green success card. Defense-in-depth — the server-side fix in
-        // v0.34.3 already checks $wpdb->update/insert return values and
-        // returns WP_Error on DB failure, so success: true is now reliable.
-        // This extra round trip catches the rare path where a cache layer
-        // (LiteSpeed/Cloudflare) returns stale data immediately after the
-        // UPDATE, AND it refreshes state.data so the addenda timeline
-        // reflects the just-saved addendum.
-        return fetch(CFG.api_base + '/' + state.progressId, {
-          headers: { 'X-WP-Nonce': CFG.nonce }
-        })
-          .then(function (r) { return r.json(); })
-          .then(function (verifyData) {
-            stopProgress();
-            var verifyOK = verifyData
-              && verifyData.final_report
-              && verifyData.final_report.id;
-            if (verifyOK) {
-              // Refresh local state — new addendum is in timeline, the
-              // recovery banner transient is gone, etc.
-              state.data = verifyData;
-              state.previousFinalId = verifyData.final_report.id;
-              setAddendumStatus('ok', 'Final report regenerated.');
-              renderUpdatePlanSuccess(res);
-            } else {
-              // Server confirmed but client-side verify couldn't see the
-              // Final. Surface error rather than render misleading success.
-              restoreButton();
-              setAddendumStatus(
-                'error',
-                'Regeneration completed server-side but the page could not confirm the new Trajectory Plan. Please refresh and check the report URL.'
-              );
-            }
-          });
+        // Hand-off OK — show the preparing UI and poll. On completion the
+        // poll reloads the consultation (refreshed report + the new addendum
+        // in the timeline). An empty-recommendations failure surfaces in the
+        // poll's error card with guidance to add a recommendation first.
+        showReportPreparing('regen');
+        pollReportJob(res.job_id, 'regen');
       })
       .catch(function () {
+        // A specific error (addendum save / could-not-start) was already shown
+        // — don't overwrite it with the generic connection message.
+        if (handled) return;
         restoreButton();
         setAddendumStatus('error', 'Connection error. Please try again.');
       });

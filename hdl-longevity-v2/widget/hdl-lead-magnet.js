@@ -399,7 +399,24 @@
       + '.hdlw-r-prac-foot .hdlw-logo{background:transparent;border:0;padding:0;}'
       + '.hdlw-r-prac-foot .hdlw-logo[data-shape="square"]{width:48px;height:48px;border-radius:50%;}'
       + '.hdlw-r-prac-foot .hdlw-logo[data-shape="tall"]{height:46px;}'
-      + '.hdlw-r-prac-foot .hdlw-logo[data-shape="wordmark"]{height:38px;}';
+      + '.hdlw-r-prac-foot .hdlw-logo[data-shape="wordmark"]{height:38px;}'
+      // ----- v0.43.0 front-door safety screen (checkbox rows) -----
+      + '.hdlw-sfx-opt{grid-template-columns:24px 1fr;align-items:center;}'
+      + '.hdlw-sfx-box{width:16px;height:16px;border:1.5px solid #cbd5e1;border-radius:3px;background:#fff;position:relative;flex-shrink:0;transition:background 0.15s,border-color 0.15s;}'
+      + '.hdlw-sfx-opt:hover .hdlw-sfx-box{border-color:var(--hdl-accent,#3d8da0);}'
+      + '.hdlw-sfx-opt.hdlw-selected .hdlw-sfx-box{background:var(--hdl-accent,#3d8da0);border-color:var(--hdl-accent,#3d8da0);}'
+      + '.hdlw-sfx-opt.hdlw-selected .hdlw-sfx-box::after{content:"";position:absolute;left:5px;top:2px;width:4px;height:8px;border:solid #fff;border-width:0 2px 2px 0;transform:rotate(45deg);}'
+      + '.hdlw-sfx-none{margin-top:6px;}'
+      // v0.45.2 — stacked sections, each list 2-up. "A quick safety check"
+      // then "How you’ve been feeling", each opener full-width above its own
+      // 2-up checklist. Removes the long-vs-short dead space and the old 168px
+      // header-align magic number. renderSafetyScreen still widens the shell to
+      // 880px for the grid and restores it on exit (sfxContinue); collapses to
+      // one column under 720px (phones / narrow embeds).
+      + '.hdlw-sfx-grid{padding:8px 28px 22px;display:grid;grid-template-columns:1fr 1fr;gap:6px;}'
+      + '.hdlw-sfx-grid .hdlw-sfx-none{grid-column:1 / -1;}'
+      + '.hdlw-sfx-sec + .hdlw-sfx-sec .hdlw-q-opener{padding-top:6px;}'
+      + '@media (max-width:720px){.hdlw-sfx-grid{grid-template-columns:1fr;}}';
     document.head.appendChild(s);
   }
 
@@ -497,6 +514,11 @@
     if (cfg.logoShape !== 'square' && cfg.logoShape !== 'wordmark' && cfg.logoShape !== 'tall') {
       cfg.logoShape = 'square';
     }
+
+    // v0.43.0 - front-door safety screen flag. Exposed on BOTH the public-
+    // config payload (public path) and the invite verify payload (invite
+    // path), so it reaches both Stage-1 entry routes.
+    cfg.safetyScreen = !!((publicCfg && publicCfg.safety_screen_enabled) || (invite && invite.safety_screen_enabled));
 
     var id = 'hdlw-' + cfg.pracId;
     var c = cfg.color;
@@ -907,8 +929,203 @@
         answers._name = name;
         answers._email = email;
         answers._phone = phone;
-        goTo(10);
+        // v0.43.0 - front-door safety screen before the result (flag-gated).
+        // Off = identical to before. On = collect the 2 safety answers + fire
+        // any crisis/hard interrupt, then goTo(10).
+        if (cfg.safetyScreen && !answers._safetyDone) {
+          renderSafetyScreen();
+        } else {
+          goTo(10);
+        }
       });
+    }
+
+    // --- v0.43.0 Front-door safety screen ---
+    //
+    // Shown after Contact, before the result, ONLY when cfg.safetyScreen is
+    // true (the global dark flag). A short FIXED symptom + mental-health
+    // check. Ticks are mapped to medical flags server-side
+    // (HDLV2_Safety_Screen). A crisis tick (self-harm) or a hard symptom
+    // fires an on-screen interrupt before the result is shown.
+    var SFX_SYMPTOMS = [
+      { k: 'chest_pain',        t: 'Chest pain or pressure, especially on effort' },
+      { k: 'breathless',        t: 'Unusual breathlessness — at rest, lying flat, or with light effort' },
+      { k: 'fainting',          t: 'Fainting, blackouts, or near-blackouts' },
+      { k: 'stroke_weakness',   t: 'Sudden weakness or numbness, especially on one side' },
+      { k: 'stroke_speech',     t: 'Sudden trouble speaking or finding words' },
+      { k: 'stroke_vision',     t: 'Sudden loss of vision, or double vision' },
+      { k: 'worst_headache',    t: 'A sudden, severe headache unlike any before' },
+      { k: 'weight_loss',       t: 'Losing weight without trying' },
+      { k: 'new_lump',          t: 'A new lump anywhere' },
+      { k: 'bleeding',          t: 'Blood in your stool, urine, or when you cough' },
+      { k: 'swallowing',        t: 'Difficulty or pain swallowing' },
+      { k: 'persistent_cough',  t: 'A cough lasting more than three weeks' },
+      { k: 'changing_mole',     t: 'A mole or skin patch that is changing' },
+      { k: 'abnormal_bleeding', t: 'Bleeding after the menopause, or unusually heavy or irregular bleeding' }
+    ];
+    var SFX_MH = [
+      { k: 'low_mood',        t: 'Persistent low mood for weeks at a time' },
+      { k: 'anxiety',         t: 'Severe anxiety affecting sleep, work, or relationships' },
+      { k: 'self_harm',       t: 'Thoughts of harming myself' },
+      { k: 'life_not_worth',  t: 'Thoughts that life might not be worth living' }
+    ];
+    var sfxSel = { symptoms: {}, mh: {} };
+
+    function sfxRow(group, item) {
+      var sel = sfxSel[group][item.k] ? ' hdlw-selected' : '';
+      return '<div class="hdlw-opt hdlw-sfx-opt' + sel + '" data-sfx-group="' + group + '" data-sfx-key="' + item.k + '">'
+        +   '<span class="hdlw-sfx-box" aria-hidden="true"></span>'
+        +   '<span class="hdlw-opt-text">' + item.t + '</span>'
+        + '</div>';
+    }
+
+    function sfxNoneRow(group, label) {
+      var sel = sfxSel[group].__none ? ' hdlw-selected' : '';
+      return '<div class="hdlw-opt hdlw-sfx-opt hdlw-sfx-none' + sel + '" data-sfx-group="' + group + '" data-sfx-key="__none">'
+        +   '<span class="hdlw-sfx-box" aria-hidden="true"></span>'
+        +   '<span class="hdlw-opt-text">' + label + '</span>'
+        + '</div>';
+    }
+
+    function sfxBindToggles() {
+      var opts = contentEl.querySelectorAll('.hdlw-sfx-opt');
+      for (var i = 0; i < opts.length; i++) {
+        opts[i].addEventListener('click', function () {
+          var g = this.getAttribute('data-sfx-group');
+          var k = this.getAttribute('data-sfx-key');
+          if (k === '__none') {
+            var was = !!sfxSel[g].__none;
+            sfxSel[g] = {};
+            if (!was) sfxSel[g].__none = true;
+          } else {
+            if (sfxSel[g].__none) delete sfxSel[g].__none;
+            if (sfxSel[g][k]) delete sfxSel[g][k]; else sfxSel[g][k] = true;
+          }
+          var rows = contentEl.querySelectorAll('.hdlw-sfx-opt[data-sfx-group="' + g + '"]');
+          for (var j = 0; j < rows.length; j++) {
+            var rk = rows[j].getAttribute('data-sfx-key');
+            if (sfxSel[g][rk]) rows[j].classList.add('hdlw-selected');
+            else rows[j].classList.remove('hdlw-selected');
+          }
+        });
+      }
+    }
+
+    function renderSafetyScreen() {
+      var np = document.getElementById(id + '-nav-prev'); if (np) np.style.display = 'none';
+      var nx = document.getElementById(id + '-nav-next'); if (nx) nx.style.display = 'none';
+      if (stepEl) stepEl.innerHTML = '<b>Safety</b>';
+      // v0.43.3 — widen for this two-section step. The host mount (e.g. altituding’s
+      // #hdl-widget-NN) caps the widget at 480px; break out of that cap like the
+      // result page does (el.maxWidth:none), then cap the shell at 880px so it
+      // centres instead of spanning the full container.
+      var sfxShell = contentEl.closest('.hdlw-shell');
+      if (sfxShell) {
+        if (sfxShell.parentElement) sfxShell.parentElement.style.maxWidth = 'none';
+        sfxShell.style.maxWidth = '880px';
+      }
+
+      var symHtml = '';
+      for (var a = 0; a < SFX_SYMPTOMS.length; a++) symHtml += sfxRow('symptoms', SFX_SYMPTOMS[a]);
+      var mhHtml = '';
+      for (var b = 0; b < SFX_MH.length; b++) mhHtml += sfxRow('mh', SFX_MH[b]);
+
+      contentEl.innerHTML = ''
+        + '<div class="hdlw-sfx-sec">'
+        +   '<div class="hdlw-q-opener">'
+        +     '<p class="hdlw-q-section">One last check · before your result</p>'
+        +     '<h2 class="hdlw-q-title">A quick safety check</h2>'
+        +     '<div class="hdlw-q-rule"></div>'
+        +     '<p class="hdlw-q-prompt">This isn’t a medical assessment — but part of our job is to notice anything that deserves a doctor’s eye before we build your plan. Tick anything you’ve noticed in the last 6–12 months, even once or twice.</p>'
+        +   '</div>'
+        +   '<div class="hdlw-sfx-grid">' + symHtml + sfxNoneRow('symptoms', 'None of these') + '</div>'
+        + '</div>'
+        + '<div class="hdlw-sfx-sec">'
+        +   '<div class="hdlw-q-opener">'
+        +     '<p class="hdlw-q-section">Optional &amp; confidential</p>'
+        +     '<h2 class="hdlw-q-title">How you’ve been feeling</h2>'
+        +     '<div class="hdlw-q-rule"></div>'
+        +     '<p class="hdlw-q-prompt">And how have you been feeling in yourself lately? Skip anything you’d rather not answer.</p>'
+        +   '</div>'
+        +   '<div class="hdlw-sfx-grid">' + mhHtml + sfxNoneRow('mh', 'None of these · I’d rather not say') + '</div>'
+        + '</div>'
+        + '<div class="hdlw-fields" style="padding-top:0;">'
+        +   '<button id="' + id + '-sfx-continue" type="button" class="hdlw-cta">See my results →</button>'
+        +   '<p class="hdlw-privacy">If something feels like an emergency, call <b>999</b>.</p>'
+        + '</div>';
+
+      sfxBindToggles();
+      var cont = document.getElementById(id + '-sfx-continue');
+      if (cont) cont.addEventListener('click', sfxContinue);
+    }
+
+    function sfxCollect() {
+      var picked = {};
+      var sym = [];
+      for (var k in sfxSel.symptoms) { if (k !== '__none' && sfxSel.symptoms[k]) sym.push(k); }
+      var mh = [];
+      for (var m in sfxSel.mh) { if (m !== '__none' && sfxSel.mh[m]) mh.push(m); }
+      if (sym.length) picked.symptoms = sym;
+      if (mh.length) picked.mh = mh;
+      return picked;
+    }
+
+    function sfxContinue() {
+      // v0.43.3 — restore widths before leaving (crisis/hard render narrow; the
+      // result re-widens itself). Reverts the shell + the host-mount breakout.
+      var sfxShell = contentEl.closest('.hdlw-shell');
+      if (sfxShell) {
+        sfxShell.style.maxWidth = '';
+        if (sfxShell.parentElement) sfxShell.parentElement.style.maxWidth = '';
+      }
+      var picked = sfxCollect();
+      answers._safety = (picked.symptoms || picked.mh) ? picked : null;
+      answers._safetyDone = true;
+      var mh = picked.mh || [];
+      var crisis = mh.indexOf('self_harm') > -1 || mh.indexOf('life_not_worth') > -1;
+      var hasHard = !!(picked.symptoms && picked.symptoms.length);
+      if (crisis) { renderCrisisScreen(hasHard); return; }
+      if (hasHard) { renderHardScreen(); return; }
+      goTo(10);
+    }
+
+    function renderCrisisScreen(hasHard) {
+      contentEl.innerHTML = ''
+        + '<div class="hdlw-q-opener">'
+        +   '<p class="hdlw-q-section">You don’t have to face this alone</p>'
+        +   '<h2 class="hdlw-q-title">Please reach out — now</h2>'
+        +   '<div class="hdlw-q-rule"></div>'
+        +   '<p class="hdlw-q-prompt">Thank you for being honest. What you shared matters. These lines are free, confidential, and open right now.</p>'
+        + '</div>'
+        + '<div class="hdlw-callout"><p class="hdlw-callout-body">'
+        +   'If you feel unsafe right now: call <b>999</b> or go to A&amp;E.<br>'
+        +   '<b>Samaritans</b> — call <b>116 123</b>, any time.<br>'
+        +   '<b>NHS 111</b> — then choose the mental-health option.<br>'
+        +   '<b>Shout</b> — text <b>85258</b>.'
+        + '</p></div>'
+        + '<div class="hdlw-fields" style="padding-top:0;">'
+        +   '<button id="' + id + '-sfx-go" type="button" class="hdlw-cta">' + (hasHard ? 'Continue' : 'See my results →') + '</button>'
+        + '</div>';
+      var go = document.getElementById(id + '-sfx-go');
+      if (go) go.addEventListener('click', function () { if (hasHard) renderHardScreen(); else goTo(10); });
+    }
+
+    function renderHardScreen() {
+      contentEl.innerHTML = ''
+        + '<div class="hdlw-q-opener">'
+        +   '<p class="hdlw-q-section">Worth a doctor’s eye</p>'
+        +   '<h2 class="hdlw-q-title">One thing before your result</h2>'
+        +   '<div class="hdlw-q-rule"></div>'
+        +   '<p class="hdlw-q-prompt">You mentioned something it’s worth having a doctor look at before we build your plan. This isn’t a diagnosis — but please don’t sit on it.</p>'
+        + '</div>'
+        + '<div class="hdlw-callout"><p class="hdlw-callout-body">'
+        +   'Please contact <b>NHS 111</b> or your <b>GP</b> soon. If anything is severe or came on suddenly, call <b>999</b>.'
+        + '</p></div>'
+        + '<div class="hdlw-fields" style="padding-top:0;">'
+        +   '<button id="' + id + '-sfx-go2" type="button" class="hdlw-cta">I’ve seen this — show my result →</button>'
+        + '</div>';
+      var go2 = document.getElementById(id + '-sfx-go2');
+      if (go2) go2.addEventListener('click', function () { goTo(10); });
     }
 
     // --- Results ---
@@ -1289,6 +1506,9 @@
         q6: answers.q6, q7: answers.q7, q8: answers.q8, q9: answers.q9,
         rate_of_ageing_result: rate
       };
+      // v0.43.0 - front-door safety answers (present only when the flag is on
+      // and something was ticked). Server sanitises against a key allowlist.
+      if (answers._safety) payload.safety = answers._safety;
       if (inviteToken) payload.invite_token = inviteToken;
 
       if (cfg.apiUrl) {

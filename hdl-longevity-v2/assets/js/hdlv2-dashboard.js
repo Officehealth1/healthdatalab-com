@@ -1856,19 +1856,56 @@
       });
     } else if (action === 'regenerate') {
       btnEl.disabled = true; btnEl.textContent = 'Generating...';
+      // v0.46.x — the manual generate now runs async on the job queue (so a
+      // ~1-4min Claude call never holds a PHP worker). We get a job_id back and
+      // poll /jobs/{id}/status. A degraded server still returns plan_id inline.
       fetch(restBase + 'hdl-v2/v1/flight-plan/' + clientId + '/generate', {
         method: 'POST', headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': CFG.nonce },
         body: '{}'
       }).then(function (r) { return r.json(); }).then(function (res) {
-        if (res.success) {
+        if (res && res.success && res.queued && res.job_id) {
+          pollFlightPlanJob(btnEl, area, res.job_id, Date.now());
+        } else if (res && res.success && res.plan_id) {
           btnEl.textContent = 'Generated!'; btnEl.style.background = S.green;
           area.innerHTML = '<span style="color:' + S.green + ';font-size:11px;">Flight Plan regenerated (ID: ' + res.plan_id + ').</span>';
         } else {
           btnEl.disabled = false; btnEl.textContent = 'Regenerate Flight Plan'; btnEl.style.background = '#10b981';
-          area.innerHTML = '<span style="color:' + S.red + ';font-size:11px;">' + escAttr(res.message || 'Generation failed.') + '</span>';
+          area.innerHTML = '<span style="color:' + S.red + ';font-size:11px;">' + escAttr((res && res.message) || 'Generation failed.') + '</span>';
         }
       }).catch(function () { btnEl.disabled = false; btnEl.textContent = 'Regenerate Flight Plan'; });
     }
+  }
+
+  // v0.46.x — poll the async manual-flight-plan job to completion, then confirm.
+  // Self-terminating recursive setTimeout (no leaked interval); stops if the
+  // dashboard re-rendered the button away (isConnected guard).
+  function pollFlightPlanJob(btnEl, area, jobId, startedAt) {
+    if (!btnEl || !btnEl.isConnected) return;
+    if (Date.now() - startedAt > 5 * 60 * 1000) {
+      btnEl.disabled = false; btnEl.textContent = 'Regenerate Flight Plan'; btnEl.style.background = '#10b981';
+      area.innerHTML = '<span style="color:' + S.red + ';font-size:11px;">Taking longer than expected — try again in a moment.</span>';
+      return;
+    }
+    fetch(restBase + 'hdl-v2/v1/jobs/' + jobId + '/status?_=' + Date.now(), {
+      headers: { 'X-WP-Nonce': CFG.nonce }, cache: 'no-store'
+    }).then(function (r) { return r.json(); }).then(function (job) {
+      if (!btnEl || !btnEl.isConnected) return;
+      if (!job || !job.status || job.status === 'pending' || job.status === 'running') {
+        setTimeout(function () { pollFlightPlanJob(btnEl, area, jobId, startedAt); }, 3000);
+        return;
+      }
+      if (job.status === 'completed') {
+        var pid = (job.result && job.result.plan_id) ? parseInt(job.result.plan_id, 10) : 0;
+        btnEl.textContent = 'Generated!'; btnEl.style.background = S.green;
+        area.innerHTML = '<span style="color:' + S.green + ';font-size:11px;">Flight Plan regenerated' + (pid ? ' (ID: ' + pid + ')' : '') + '.</span>';
+        return;
+      }
+      // failed / cancelled
+      btnEl.disabled = false; btnEl.textContent = 'Regenerate Flight Plan'; btnEl.style.background = '#10b981';
+      area.innerHTML = '<span style="color:' + S.red + ';font-size:11px;">Generation failed. Please try again.</span>';
+    }).catch(function () {
+      setTimeout(function () { pollFlightPlanJob(btnEl, area, jobId, startedAt); }, 3000);
+    });
   }
 
   function releaseWhy(btnEl, progressId) {

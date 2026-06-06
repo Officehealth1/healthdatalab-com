@@ -20,6 +20,16 @@ class HDLV2_Consultation {
         add_action( 'rest_api_init', array( $this, 'register_rest_routes' ) );
         add_shortcode( 'hdlv2_consultation', array( $this, 'render_shortcode' ) );
         add_filter( 'body_class', array( $this, 'maybe_add_wide_body_class' ) );
+        // v0.46.7 — surface a "Consultations" link in the practitioner top menu
+        // so the (already-built) /consultation/ hub is reachable without typing
+        // the URL by hand. Role-gated to practitioners/admins inside the method.
+        add_filter( 'wp_nav_menu_items', array( $this, 'inject_consultations_menu_item' ), 10, 2 );
+        // v0.46.7 — the extra menu item widens the Divi header menu past its
+        // fixed module width, wrapping "More" onto a second row. Free the
+        // module to size to its content (centred, as before) and stop the
+        // menu list wrapping. Practitioner-only (the only audience with the
+        // extra item); desktop-only (Divi swaps to its hamburger < 980px).
+        add_action( 'wp_head', array( $this, 'print_practitioner_menu_layout_css' ), 99 );
         // v0.25.2 — 404 unauthorised users at the page level (template_redirect
         // fires before the_posts/shortcode rendering). Practitioner +
         // administrator are allowed (HDLV2_Compatibility::is_practitioner()
@@ -117,6 +127,114 @@ class HDLV2_Consultation {
             $classes[] = 'hdlv2-wide-page';
         }
         return $classes;
+    }
+
+    /**
+     * v0.46.7 — Inject a "Consultations" item into the practitioner top menu.
+     *
+     * Why: the /consultation/ list view (the "Consultations" hub — ready /
+     * in-progress / delivered, with Open & Resume buttons) was fully built but
+     * had no link pointing at it. Practitioners could only reach a single
+     * client's consultation via the per-row "Record consultation" button on
+     * /clients/. This adds one top-level menu door to the hub.
+     *
+     * Scope + safety:
+     *   • Role-gated: only practitioners/administrators (the same audience the
+     *     /consultation/ page itself allows) ever see the item. Clients,
+     *     consumers, and logged-out visitors never get it. Belt-and-braces:
+     *     enforce_practitioner_only_page() still guards the URL itself.
+     *   • Menu-scoped: only injects into the menu that already renders the
+     *     practitioner "Clients" link (string match on the /clients/ href), so
+     *     the item never lands in the footer menu, the client menu, or any
+     *     secondary nav that runs the same filter.
+     *   • Idempotent: bails if a /consultation/ link is already present, so a
+     *     menu that legitimately contains one (or a double filter pass) never
+     *     double-renders.
+     *
+     * @param string   $items Serialized <li> menu items HTML.
+     * @param stdClass $args  wp_nav_menu args (unused; signature completeness).
+     * @return string
+     */
+    public function inject_consultations_menu_item( $items, $args ) {
+        if ( ! is_user_logged_in()
+             || ! HDLV2_Compatibility::is_practitioner( get_current_user_id() ) ) {
+            return $items;
+        }
+        // Only the menu that holds the practitioner "Clients" link.
+        $clients_pos = strpos( $items, '/clients/' );
+        if ( false === $clients_pos ) {
+            return $items;
+        }
+        // Already linked somewhere in this menu — don't duplicate.
+        if ( false !== strpos( $items, '/consultation/' ) ) {
+            return $items;
+        }
+
+        $slug   = apply_filters( 'hdlv2_consultation_slug', 'consultation' );
+        $url    = esc_url( home_url( '/' . trim( $slug, '/' ) . '/' ) );
+        $req    = isset( $_SERVER['REQUEST_URI'] ) ? wp_unslash( $_SERVER['REQUEST_URI'] ) : '';
+        $is_cur = ( 0 === strpos( $req, '/' . trim( $slug, '/' ) . '/' ) );
+
+        $classes = 'menu-item menu-item-type-custom menu-item-object-custom hdlv2-menu-consultations';
+        if ( $is_cur ) {
+            $classes .= ' current-menu-item current_page_item';
+        }
+
+        $new_item = '<li class="' . esc_attr( $classes ) . '">'
+                  . '<a href="' . $url . '">' . esc_html__( 'Consultations', 'hdl-longevity-v2' ) . '</a>'
+                  . '</li>';
+
+        // Insert right after the first "Clients" <li> so the order reads
+        // Clients → Consultations → …. The Clients link is a plain top-level
+        // item (no submenu), so the first </li> after its href closes it.
+        // Fallback: append to the end if the boundary can't be located.
+        $li_end = strpos( $items, '</li>', $clients_pos );
+        if ( false !== $li_end ) {
+            $li_end += strlen( '</li>' );
+            return substr( $items, 0, $li_end ) . $new_item . substr( $items, $li_end );
+        }
+        return $items . $new_item;
+    }
+
+    /**
+     * v0.46.7 — One-line guarantee for the practitioner header menu.
+     *
+     * The Divi Theme Builder header menu module ships with a fixed inner
+     * width (~360px) and the menu <ul> uses `flex-wrap: wrap`. Adding the
+     * "Consultations" item pushes the row past that width, so "More" wraps
+     * onto a second line. This frees the module to size to its content
+     * (`max-content`, still centred in its column via auto margins) and
+     * forces the menu list onto a single line.
+     *
+     * Scope:
+     *   • Practitioner/admin only — the only audience that gets the extra
+     *     item, so non-practitioner headers are never touched.
+     *   • Desktop only in effect — Divi swaps to its hamburger menu below
+     *     980px, where `.et-menu` is hidden, so `nowrap` is moot there.
+     *   • Targets the specific TB header module class, not all Divi menus,
+     *     so footer/secondary menus are unaffected. Verified across 1024 /
+     *     1280 / 1920px: one line, within viewport, no logo overlap.
+     */
+    public function print_practitioner_menu_layout_css() {
+        if ( is_admin() ) {
+            return;
+        }
+        if ( ! is_user_logged_in()
+             || ! HDLV2_Compatibility::is_practitioner( get_current_user_id() ) ) {
+            return;
+        }
+        // Desktop only (min-width 981px). Divi shows the mobile hamburger at
+        // <=980px, and THIS module wraps the mobile dropdown too. Without the
+        // media query, `width:max-content` shrinks the whole module to the
+        // hamburger's width (~44px) on phones/tablets, collapsing the mobile
+        // menu into a broken one-word-per-line column. The query confines the
+        // override to the desktop menu only.
+        echo '<style id="hdlv2-consultations-menu-fix">'
+           . '@media (min-width:981px){'
+           . '.et_pb_menu_0_tb_header{width:max-content!important;max-width:100%!important;margin-left:auto!important;margin-right:auto!important}'
+           . '.et_pb_menu_0_tb_header ul.et-menu{flex-wrap:nowrap!important}'
+           . '}'
+           . '</style>' . "\n";
     }
 
     // ──────────────────────────────────────────────────────────────
@@ -1254,18 +1372,16 @@ class HDLV2_Consultation {
      * to Week 1. Idempotency-wrapped so accidental double-clicks dedupe.
      */
     public function rest_save_and_regenerate( $request ) {
+        // v0.46.0 — async via HDLV2_Job_Queue (see rest_finalise + enqueue_report_job).
         $params      = $request->get_json_params();
         $progress_id = (int) ( $params['progress_id'] ?? 0 );
         $consult_id  = (int) ( $params['consultation_id'] ?? 0 );
-        $idem_scope  = 'regen:' . $progress_id . ':' . $consult_id;
-        return HDLV2_Idempotency::wrap_ai( $request, $idem_scope, function () use ( $progress_id, $consult_id ) {
-            if ( ! $progress_id || ! $consult_id ) {
-                return new WP_Error( 'invalid', 'Progress ID and consultation ID required.', array( 'status' => 400 ) );
-            }
-            $result = HDLV2_Final_Report::regenerate( $progress_id, $consult_id, get_current_user_id() );
-            if ( is_wp_error( $result ) ) return $result;
-            return rest_ensure_response( $result );
-        } );
+        return $this->enqueue_report_job(
+            HDLV2_Report_Jobs::JOB_REGEN,
+            $progress_id,
+            $consult_id,
+            null
+        );
     }
 
     // ──────────────────────────────────────────────────────────────
@@ -1397,39 +1513,152 @@ class HDLV2_Consultation {
      * Body: { progress_id, consultation_id }
      */
     public function rest_save_and_update_plan( $request ) {
+        // v0.46.0 — async via HDLV2_Job_Queue. null idem_key → a fresh unique
+        // job per deliberate click, so each "Save & Update Plan" produces a new
+        // report. Rapid double-clicks are absorbed by the in-flight-job guard
+        // in enqueue_report_job() (+ the disabled button), so this cannot
+        // double-fire the Claude / PDF webhook / client email side effects.
         $params      = $request->get_json_params();
         $progress_id = (int) ( $params['progress_id'] ?? 0 );
         $consult_id  = (int) ( $params['consultation_id'] ?? 0 );
-        $idem_scope  = 'updateplan:' . $progress_id . ':' . $consult_id;
-        return HDLV2_Idempotency::wrap_ai( $request, $idem_scope, function () use ( $progress_id, $consult_id ) {
-            if ( ! $progress_id || ! $consult_id ) {
-                return new WP_Error( 'invalid', 'Progress ID and consultation ID required.', array( 'status' => 400 ) );
-            }
-            $result = HDLV2_Final_Report::regenerate( $progress_id, $consult_id, get_current_user_id() );
-            if ( is_wp_error( $result ) ) return $result;
-            return rest_ensure_response( $result );
-        } );
+        return $this->enqueue_report_job(
+            HDLV2_Report_Jobs::JOB_REGEN,
+            $progress_id,
+            $consult_id,
+            null
+        );
     }
 
+    /**
+     * v0.46.0 — Final Report generation now runs ASYNC on HDLV2_Job_Queue.
+     *
+     * Previously this called HDLV2_Final_Report::generate() inline, holding a
+     * PHP worker for the full ~1-3 min of Claude work. With only ~10 workers,
+     * a few practitioners finalising at once could exhaust the pool and freeze
+     * every page on the site. Now we validate + ownership-check, enqueue a
+     * generate_final_report job, and return a job_id immediately. The
+     * front-end shows a "preparing" state and polls /jobs/{id}/status. The
+     * heavy work runs in the background at a capped concurrency.
+     */
     public function rest_finalise( $request ) {
         $params      = $request->get_json_params();
         $progress_id = (int) ( $params['progress_id'] ?? 0 );
         $consult_id  = (int) ( $params['consultation_id'] ?? 0 );
-        $idem_scope  = 'fin:' . $progress_id . ':' . $consult_id;
-        return HDLV2_Idempotency::wrap_ai( $request, $idem_scope, function () use ( $progress_id, $consult_id ) {
+        // Stable idem_key: only ever ONE first-finalise per assessment. A
+        // double-click returns the same job; a completed job is returned as-is
+        // (the generator's own duplicate guard prevents a second report); a
+        // FAILED job is allowed to re-enqueue so "Try again" works.
+        return $this->enqueue_report_job(
+            HDLV2_Report_Jobs::JOB_FINAL,
+            $progress_id,
+            $consult_id,
+            'genfinal:' . $progress_id . ':' . $consult_id
+        );
+    }
+
+    /**
+     * Shared enqueue path for the async Final Report jobs (v0.46.0).
+     *
+     * Validates input + ownership (so a non-owner is rejected at the click,
+     * not after a queued run), refuses to start a second job while one is
+     * already in flight for this assessment, then enqueues and returns the
+     * job_id + status_endpoint the front-end polls.
+     *
+     * @param string      $job_type    HDLV2_Report_Jobs::JOB_FINAL | JOB_REGEN
+     * @param int         $progress_id
+     * @param int         $consult_id
+     * @param string|null $stable_idem Stable idem_key for the idempotent first
+     *                                 finalise; null for regenerate (unique key
+     *                                 per deliberate click).
+     * @return WP_REST_Response|WP_Error
+     */
+    private function enqueue_report_job( $job_type, $progress_id, $consult_id, $stable_idem ) {
         if ( ! $progress_id || ! $consult_id ) {
             return new WP_Error( 'invalid', 'Progress ID and consultation ID required.', array( 'status' => 400 ) );
         }
-
-        // Delegate to the Final Report generator
-        $result = HDLV2_Final_Report::generate( $progress_id, $consult_id, get_current_user_id() );
-
-        if ( is_wp_error( $result ) ) {
-            return $result;
+        if ( ! class_exists( 'HDLV2_Job_Queue' ) || ! class_exists( 'HDLV2_Report_Jobs' ) ) {
+            return new WP_Error( 'queue_unavailable', 'Background processing is unavailable. Please try again shortly.', array( 'status' => 503 ) );
         }
 
-        return rest_ensure_response( $result );
-        } );
+        $practitioner_id = get_current_user_id();
+
+        // Ownership — the same rule the generator enforces, applied up-front.
+        global $wpdb;
+        $owner = $wpdb->get_var( $wpdb->prepare(
+            "SELECT practitioner_user_id FROM {$wpdb->prefix}hdlv2_form_progress
+             WHERE id = %d AND deleted_at IS NULL",
+            $progress_id
+        ) );
+        if ( $owner === null ) {
+            return new WP_Error( 'not_found', 'Assessment not found.', array( 'status' => 404 ) );
+        }
+        if ( (int) $owner !== (int) $practitioner_id && ! current_user_can( 'manage_options' ) ) {
+            return new WP_Error( 'forbidden', 'You do not have access to this assessment.', array( 'status' => 403 ) );
+        }
+
+        // Serialise the in-flight check + enqueue with a short per-assessment
+        // DB lock. The regenerate path uses a unique idem_key (so the queue's
+        // own (job_type, idem_key) dedup can't catch a concurrent double-click),
+        // and regenerate() runs in UPDATE mode (no duplicate guard, no UNIQUE
+        // report key), so without this two near-simultaneous clicks could both
+        // pass the find_latest guard and double-fire the external side effects
+        // (Make.com PDF webhook + client email + Flight-Plan reset). The lock
+        // makes the second request wait, then see the first's pending row.
+        // Fail-open if the lock can't be taken — the disabled button + the
+        // in-flight check are still in play.
+        $lock_name = substr( 'hdlv2_repjob_' . $progress_id, 0, 64 );
+        $got_lock  = (bool) $wpdb->get_var( $wpdb->prepare( 'SELECT GET_LOCK(%s, 5)', $lock_name ) );
+
+        // In-flight guard — if a job of this type for this assessment is
+        // already pending/running, return it rather than starting a second.
+        $existing = HDLV2_Job_Queue::find_latest( $job_type, $progress_id );
+        if ( $existing && in_array( $existing->status, array( 'pending', 'running' ), true ) ) {
+            if ( $got_lock ) {
+                $wpdb->query( $wpdb->prepare( 'SELECT RELEASE_LOCK(%s)', $lock_name ) );
+            }
+            return rest_ensure_response( $this->queued_response( (int) $existing->id ) );
+        }
+
+        $idem_key = $stable_idem
+            ? $stable_idem
+            : 'regen:' . $progress_id . ':' . $consult_id . ':' . substr( md5( uniqid( '', true ) ), 0, 12 );
+
+        $job_id = HDLV2_Job_Queue::enqueue(
+            $job_type,
+            array(
+                'progress_id'     => $progress_id,
+                'consultation_id' => $consult_id,
+                'practitioner_id' => $practitioner_id,
+            ),
+            array(
+                'reference_id' => $progress_id,
+                'idem_key'     => $idem_key,
+                'priority'     => 85,
+                // No auto-retry: report generation has external side effects
+                // (Make.com PDF webhook + client email + Flight Plan reset). A
+                // retry of a half-completed job could double-fire them. A
+                // failed report surfaces "Try again" to the practitioner.
+                'max_attempts' => 1,
+            )
+        );
+
+        if ( $got_lock ) {
+            $wpdb->query( $wpdb->prepare( 'SELECT RELEASE_LOCK(%s)', $lock_name ) );
+        }
+
+        if ( is_wp_error( $job_id ) ) {
+            return new WP_Error( 'enqueue_failed', 'Could not start report generation. Please try again.', array( 'status' => 503 ) );
+        }
+        return rest_ensure_response( $this->queued_response( (int) $job_id ) );
+    }
+
+    private function queued_response( $job_id ) {
+        return array(
+            'success'         => true,
+            'state'           => 'queued',
+            'job_id'          => (int) $job_id,
+            'status_endpoint' => esc_url_raw( rest_url( 'hdl-v2/v1/jobs/' . (int) $job_id . '/status' ) ),
+        );
     }
 
     // ──────────────────────────────────────────────────────────────
@@ -1660,7 +1889,12 @@ class HDLV2_Consultation {
         $cn_table       = $wpdb->prefix . 'hdlv2_consultation_notes';
 
         // ── READY: Stage 3 done, no consultation_notes row ─────────────
+        // v0.46.7 — `AND fp.deleted_at IS NULL`. An archived assessment must
+        // never appear as "ready to start": rest_load_consultation() rejects
+        // deleted rows, so an "Open consultation" button on one would dead-end
+        // at "Assessment not found." Keep the list and the loader in lockstep.
         $ready_where = " WHERE fp.stage3_completed_at IS NOT NULL
+                         AND fp.deleted_at IS NULL
                          AND NOT EXISTS (
                              SELECT 1 FROM $cn_table cn WHERE cn.form_progress_id = fp.id
                          )";
@@ -1688,10 +1922,15 @@ class HDLV2_Consultation {
         // ── EXISTING: latest consultation_notes per progress ───────────
         // INNER JOIN against MAX(id) per form_progress_id so each progress
         // contributes exactly one row (the most recent consultation).
-        $existing_where = '';
+        // v0.46.7 — always exclude archived (soft-deleted) assessments, same as
+        // the READY query and rest_load_consultation(). Without this, a deleted
+        // row that still has consultation_notes leaks into "in progress /
+        // delivered" and its Resume / Open & re-edit button dead-ends at
+        // "Assessment not found."
+        $existing_where = ' WHERE fp.deleted_at IS NULL';
         $existing_args  = array();
         if ( ! $is_admin ) {
-            $existing_where = ' WHERE fp.practitioner_user_id = %d';
+            $existing_where .= ' AND fp.practitioner_user_id = %d';
             $existing_args[] = $uid;
         }
 

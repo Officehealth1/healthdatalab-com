@@ -3,7 +3,7 @@
  * Plugin Name: HDL Longevity V2 — Staged Workflow
  * Plugin URI: https://healthdatalab.net
  * Description: V2 longevity workflow: staged intake, WHY profiling, practitioner consultations, weekly flight plans, and AI coaching. Runs alongside the existing Health Data Lab plugin.
- * Version: 0.41.18
+ * Version: 0.46.0
  * Author: Health Data Lab
  * Author URI: https://healthdatalab.net
  * License: Proprietary
@@ -22,8 +22,8 @@ if ( ! defined( 'ABSPATH' ) ) {
 // register_activation_hook callbacks, which fire synchronously during
 // `wp plugin activate`, can reference them. The activator needs
 // HDLV2_DB_VERSION / HDLV2_VERSION at call time to update version options.
-define( 'HDLV2_VERSION', '0.41.37' );
-define( 'HDLV2_DB_VERSION', '3.13' );
+define( 'HDLV2_VERSION', '0.46.16' );
+define( 'HDLV2_DB_VERSION', '3.15' );
 define( 'HDLV2_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'HDLV2_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 define( 'HDLV2_PLUGIN_FILE', __FILE__ );
@@ -256,6 +256,7 @@ add_action( 'init', function () {
 
         $prac_id     = (int) ( $payload['practitioner_id'] ?? 0 );
         $progress_id = (int) ( $payload['progress_id'] ?? 0 );
+        $dest        = isset( $payload['dest'] ) ? (string) $payload['dest'] : 'release';
 
         if ( $prac_id <= 0 || ! class_exists( 'HDLV2_Compatibility' ) ) return;
         if ( ! HDLV2_Compatibility::is_practitioner( $prac_id ) ) return;
@@ -269,12 +270,19 @@ add_action( 'init', function () {
         wp_set_auth_cookie( $prac_id, false );
 
         // Strip the prac_login param from the URL — leaks the consumed token
-        // into browser history otherwise. release_progress_id is preserved
-        // so applyReleaseDeepLink() can scroll+pulse the right client row.
+        // into browser history otherwise. Destination per the token payload:
+        //   dest=pending_leads → Pending Leads inbox (#hdlv2-pending-leads),
+        //     used for an unconfirmed public red-flag lead (no record yet);
+        //   otherwise → release_progress_id so the dashboard scrolls+pulses the
+        //     client's row (Stage 2 release + confirmed/AI red-flag records).
         $slug     = apply_filters( 'hdlv2_practitioner_dashboard_slug', 'clients' );
-        $redirect = home_url( '/' . trim( $slug, '/' ) . '/' );
-        if ( $progress_id > 0 ) {
-            $redirect = add_query_arg( 'release_progress_id', $progress_id, $redirect );
+        $base     = home_url( '/' . trim( $slug, '/' ) . '/' );
+        if ( 'pending_leads' === $dest ) {
+            $redirect = $base . '#hdlv2-pending-leads';
+        } elseif ( $progress_id > 0 ) {
+            $redirect = add_query_arg( 'release_progress_id', $progress_id, $base );
+        } else {
+            $redirect = $base;
         }
         wp_safe_redirect( $redirect );
         exit;
@@ -772,6 +780,10 @@ final class HDL_Longevity_V2 {
         // Compatibility bridge (read-only V1 access)
         require_once HDLV2_PLUGIN_DIR . 'includes/class-hdlv2-compatibility.php';
 
+        // Flags notifier — single notification path for the safety screen + AI scan
+        // (Make.com if HDLV2_MAKE_REDFLAG is set, else wp_mail fallback).
+        require_once HDLV2_PLUGIN_DIR . 'includes/class-hdlv2-flags-store.php';
+
         // Practitioner-level reads (canonical logo URL resolver — used by
         // every consumer that surfaces the practitioner's logo)
         require_once HDLV2_PLUGIN_DIR . 'includes/class-hdlv2-practitioner.php';
@@ -795,6 +807,7 @@ final class HDL_Longevity_V2 {
         // Sprint 1: Lead Magnet Widget
         require_once HDLV2_PLUGIN_DIR . 'includes/sprint-1/class-hdlv2-widget-config.php';
         require_once HDLV2_PLUGIN_DIR . 'includes/sprint-1/class-hdlv2-widget-renderer.php';
+        require_once HDLV2_PLUGIN_DIR . 'includes/sprint-1/class-hdlv2-safety-screen.php';
 
         // Sprint 2: Staged Form + Rate Calculator + AI + Email
         require_once HDLV2_PLUGIN_DIR . 'includes/sprint-2/class-hdlv2-rate-calculator.php';
@@ -803,10 +816,14 @@ final class HDL_Longevity_V2 {
         require_once HDLV2_PLUGIN_DIR . 'includes/sprint-2/class-hdlv2-stage2-insight.php';
         require_once HDLV2_PLUGIN_DIR . 'includes/sprint-2/class-hdlv2-email-templates.php';
         require_once HDLV2_PLUGIN_DIR . 'includes/sprint-2/class-hdlv2-staged-form.php';
+        // v0.46.x — async client draft-report generation (queue-backed).
+        require_once HDLV2_PLUGIN_DIR . 'includes/sprint-2/class-hdlv2-draft-report-jobs.php';
 
         // Sprint 2C: Consultation Interface + Final Report
         require_once HDLV2_PLUGIN_DIR . 'includes/sprint-2c/class-hdlv2-consultation.php';
         require_once HDLV2_PLUGIN_DIR . 'includes/sprint-2c/class-hdlv2-final-report.php';
+        // v0.46.0 — async Final Report job handlers (queue-backed generation).
+        require_once HDLV2_PLUGIN_DIR . 'includes/sprint-2c/class-hdlv2-report-jobs.php';
 
         // W8 (v0.41.30) — Automation-tier self-reported consultation shortcode
         require_once HDLV2_PLUGIN_DIR . 'includes/sprint-2c/class-hdlv2-auto-consultation.php';
@@ -821,6 +838,10 @@ final class HDL_Longevity_V2 {
 
         // v0.20.17 — V1 trajectory chart ported to PHP/SVG for PDF embedding
         require_once HDLV2_PLUGIN_DIR . 'includes/sprint-2c/class-hdlv2-trajectory-svg.php';
+        require_once HDLV2_PLUGIN_DIR . 'includes/sprint-2c/class-hdlv2-flight-notes.php';
+        require_once HDLV2_PLUGIN_DIR . 'includes/sprint-2c/class-hdlv2-flight-notes-service.php';
+        // v0.46.x — async Flight Notes render job handler (queue-backed, like reports).
+        require_once HDLV2_PLUGIN_DIR . 'includes/sprint-2c/class-hdlv2-flight-notes-jobs.php';
 
         // v0.17.0 — Background job queue (foundation for async work).
         // Loaded before sprint-3 so the audio service's transcribe-async
@@ -831,6 +852,7 @@ final class HDL_Longevity_V2 {
         require_once HDLV2_PLUGIN_DIR . 'includes/sprint-3/class-hdlv2-audio-service.php';
         require_once HDLV2_PLUGIN_DIR . 'includes/sprint-3/class-hdlv2-deepgram-service.php';
         require_once HDLV2_PLUGIN_DIR . 'includes/sprint-3/class-hdlv2-transcription-jobs.php';
+        require_once HDLV2_PLUGIN_DIR . 'includes/sprint-2/class-hdlv2-redflag-jobs.php';
 
         // Sprint 4: Check-in + Timeline + Client Status + Practitioner Dashboard
         require_once HDLV2_PLUGIN_DIR . 'includes/sprint-4/class-hdlv2-checkin.php';
@@ -850,6 +872,8 @@ final class HDL_Longevity_V2 {
         // Sprint 5: Flight Plan
         require_once HDLV2_PLUGIN_DIR . 'includes/sprint-5/class-hdlv2-flight-plan.php';
         require_once HDLV2_PLUGIN_DIR . 'includes/sprint-5/class-hdlv2-flight-plan-renderer.php';
+        // v0.46.x — async manual Flight Plan generation (queue-backed, like reports).
+        require_once HDLV2_PLUGIN_DIR . 'includes/sprint-5/class-hdlv2-flight-plan-jobs.php';
 
         // Context Builder + Monthly Summaries
         require_once HDLV2_PLUGIN_DIR . 'includes/class-hdlv2-context-builder.php';
@@ -902,6 +926,15 @@ final class HDL_Longevity_V2 {
         // Handlers must register AFTER the queue class is loaded so
         // HDLV2_Job_Queue::register_handler() is available.
         HDLV2_Transcription_Jobs::register();
+        HDLV2_Redflag_Jobs::register();
+        // v0.46.0 — Final Report generation now runs on the job queue.
+        HDLV2_Report_Jobs::register();
+        // v0.46.x — Flight Notes PDF render now runs on the job queue too.
+        HDLV2_Flight_Notes_Jobs::register();
+        // v0.46.x — manual Flight Plan regeneration now runs on the job queue.
+        HDLV2_Flight_Plan_Jobs::register();
+        // v0.46.x — client draft-report generation now runs on the job queue.
+        HDLV2_Draft_Report_Jobs::register();
 
         // Sprint 3: Audio service
         HDLV2_Audio_Service::get_instance()->register_hooks();
@@ -922,6 +955,7 @@ final class HDL_Longevity_V2 {
 
         // Sprint 5: Flight Plan
         HDLV2_Flight_Plan::get_instance()->register_hooks();
+        HDLV2_Flight_Notes_Service::get_instance()->register_hooks();
 
         // Context Builder (monthly summary cron)
         HDLV2_Context_Builder::get_instance()->register_hooks();

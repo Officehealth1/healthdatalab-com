@@ -865,10 +865,6 @@ class HDL_Paid_Report_Provisioner {
     private function render_default_email_body( $name, $magic_link_url ) {
         $greeting = esc_html( '' !== trim( (string) $name ) ? trim( (string) $name ) : 'there' );
         $url      = esc_url( $magic_link_url );
-        // v0.41.35 — shared legal disclaimer (Confidential / NOT MEDICAL ADVICE /
-        // IRISLAB entity). The class is always loaded by send time; the guard only
-        // protects against an unexpected require order so provisioning never fatals.
-        $legal    = class_exists( 'HDLV2_Email_Templates' ) ? HDLV2_Email_Templates::legal_disclaimer_html() : '';
         return <<<HTML
 <!DOCTYPE html>
 <html><body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,sans-serif;color:#2c3e50;background:#fafbfc;margin:0;padding:32px;">
@@ -884,9 +880,6 @@ class HDL_Paid_Report_Provisioner {
       If the button doesn't work, copy and paste this link into your browser:<br>
       <span style="word-break:break-all;color:#3d8da0;">{$url}</span>
     </p>
-  </div>
-  <div style="max-width:560px;margin:16px auto 0;text-align:center;font-size:11px;color:#999999;line-height:1.5;font-family:Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
-    Powered by <strong style="color:#3d8da0;">HealthDataLab</strong> &nbsp;&middot;&nbsp; <a href="https://healthdatalab.com/terms" style="color:#999999;text-decoration:underline;">Terms</a> &nbsp;&middot;&nbsp; <a href="https://healthdatalab.com/privacy" style="color:#999999;text-decoration:underline;">Privacy</a>{$legal}
   </div>
 </body></html>
 HTML;

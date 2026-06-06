@@ -87,8 +87,11 @@ class HDLV2_Flight_Notes_Service {
 			return true;
 		}
 		global $wpdb;
+		// `deleted_at IS NULL` (prod-readiness SD-2): the raw fallback must not
+		// re-grant access to an archived client that practitioner_owns_client
+		// would deny.
 		$n = (int) $wpdb->get_var( $wpdb->prepare(
-			"SELECT COUNT(*) FROM {$wpdb->prefix}hdlv2_form_progress WHERE client_user_id = %d AND practitioner_user_id = %d",
+			"SELECT COUNT(*) FROM {$wpdb->prefix}hdlv2_form_progress WHERE client_user_id = %d AND practitioner_user_id = %d AND deleted_at IS NULL",
 			$client, $prac
 		) );
 		return $n > 0 ? true : new WP_Error( 'hdlv2_forbidden', 'You are not linked to this client.', array( 'status' => 403 ) );
@@ -96,30 +99,152 @@ class HDLV2_Flight_Notes_Service {
 
 	public function rest_generate_pdf( $request ) {
 		global $wpdb;
-		$client = absint( $request['client_id'] );
-		$pid    = absint( $request['progress_id'] );
-		if ( ! $pid ) {
-			// Resolve the latest assessment for this client (scoped to the
-			// practitioner unless an admin is calling).
-			$prac = current_user_can( 'manage_options' ) ? 0 : get_current_user_id();
-			$sql  = $prac
-				? $wpdb->prepare( "SELECT id FROM {$wpdb->prefix}hdlv2_form_progress WHERE client_user_id = %d AND practitioner_user_id = %d ORDER BY id DESC LIMIT 1", $client, $prac )
-				: $wpdb->prepare( "SELECT id FROM {$wpdb->prefix}hdlv2_form_progress WHERE client_user_id = %d ORDER BY id DESC LIMIT 1", $client );
-			$pid  = (int) $wpdb->get_var( $sql );
+		$client   = absint( $request['client_id'] );
+		$is_admin = current_user_can( 'manage_options' );
+		$prac     = get_current_user_id();
+		$pid      = absint( $request['progress_id'] );
+
+		// Resolve $pid to a NON-archived assessment that genuinely belongs to
+		// the validated client (and to this practitioner, unless admin).
+		if ( $pid ) {
+			// IDOR-02: a caller-supplied progress_id is otherwise unbound to the
+			// authorised client_id — a practitioner could pass their own
+			// client_id (passes permission) but another client's progress_id.
+			$bind = $is_admin
+				? $wpdb->prepare( "SELECT id FROM {$wpdb->prefix}hdlv2_form_progress WHERE id = %d AND client_user_id = %d AND deleted_at IS NULL", $pid, $client )
+				: $wpdb->prepare( "SELECT id FROM {$wpdb->prefix}hdlv2_form_progress WHERE id = %d AND client_user_id = %d AND practitioner_user_id = %d AND deleted_at IS NULL", $pid, $client, $prac );
+			$pid = (int) $wpdb->get_var( $bind );
+		} else {
+			// Latest non-archived assessment for this client.
+			$sql = $is_admin
+				? $wpdb->prepare( "SELECT id FROM {$wpdb->prefix}hdlv2_form_progress WHERE client_user_id = %d AND deleted_at IS NULL ORDER BY id DESC LIMIT 1", $client )
+				: $wpdb->prepare( "SELECT id FROM {$wpdb->prefix}hdlv2_form_progress WHERE client_user_id = %d AND practitioner_user_id = %d AND deleted_at IS NULL ORDER BY id DESC LIMIT 1", $client, $prac );
+			$pid = (int) $wpdb->get_var( $sql );
 		}
 		if ( ! $pid ) {
 			return new WP_REST_Response( array( 'ok' => false, 'message' => 'No assessment found for this client yet.' ), 404 );
 		}
-		$res = self::generate_pdf( $pid );
-		if ( is_wp_error( $res ) ) {
-			$status = $res->get_error_data();
+
+		// FAST PATH ($0): if a rendered PDF for the current data already exists,
+		// return its fresh download URL inline. peek_cached() does only cheap
+		// reads + the config + Stage-3 gate (no Claude, no fresh render).
+		$cached = self::peek_cached( $pid );
+		if ( is_wp_error( $cached ) ) {
+			$status = $cached->get_error_data();
 			$status = is_array( $status ) && isset( $status['status'] ) ? $status['status'] : 502;
-			return new WP_REST_Response(
-				array( 'ok' => false, 'message' => $res->get_error_message() ),
-				$status
-			);
+			return new WP_REST_Response( array( 'ok' => false, 'message' => $cached->get_error_message() ), $status );
 		}
-		return new WP_REST_Response( array( 'ok' => true ) + $res, 200 );
+		if ( is_array( $cached ) ) {
+			return new WP_REST_Response( array( 'ok' => true ) + $cached, 200 );
+		}
+
+		// A FRESH render is needed. Move the ~30-90s Claude + PDFMonkey work OFF
+		// the request onto the job queue (prod-readiness CL-01) so it never holds
+		// a PHP worker. The browser polls /jobs/{id}/status and re-fetches this
+		// endpoint (now a cache hit) when the job completes.
+		if ( ! class_exists( 'HDLV2_Job_Queue' ) || ! class_exists( 'HDLV2_Flight_Notes_Jobs' ) ) {
+			// Degraded fallback (holds the worker) — better than a hard failure.
+			$res = self::generate_pdf( $pid, $prac );
+			if ( is_wp_error( $res ) ) {
+				$status = $res->get_error_data();
+				$status = is_array( $status ) && isset( $status['status'] ) ? $status['status'] : 502;
+				return new WP_REST_Response( array( 'ok' => false, 'message' => $res->get_error_message() ), $status );
+			}
+			return new WP_REST_Response( array( 'ok' => true ) + $res, 200 );
+		}
+
+		// Per-client cooldown surfaced at the click so the practitioner sees the
+		// clear "just generated" message immediately, not after a queued run.
+		if ( get_transient( 'hdlv2_fn_cool_' . $pid ) ) {
+			return new WP_REST_Response( array( 'ok' => false, 'message' => 'These notes were just generated — please wait a couple of minutes before regenerating with the latest data.' ), 429 );
+		}
+
+		// Serialise the in-flight check + enqueue with a short per-assessment DB
+		// lock (mirrors enqueue_report_job) so two near-simultaneous clicks can't
+		// both enqueue a render and double-charge Claude/PDFMonkey. Fail-open —
+		// the disabled button + the in-flight guard are still in play.
+		$lock_name = substr( 'hdlv2_fnjob_' . $pid, 0, 64 );
+		$got_lock  = (bool) $wpdb->get_var( $wpdb->prepare( 'SELECT GET_LOCK(%s, 5)', $lock_name ) );
+
+		$existing = HDLV2_Job_Queue::find_latest( HDLV2_Flight_Notes_Jobs::JOB, $pid );
+		if ( $existing && in_array( $existing->status, array( 'pending', 'running' ), true ) ) {
+			if ( $got_lock ) {
+				$wpdb->query( $wpdb->prepare( 'SELECT RELEASE_LOCK(%s)', $lock_name ) );
+			}
+			return new WP_REST_Response( self::queued_body( (int) $existing->id ), 200 );
+		}
+
+		// Unique idem_key per fresh render (the GET_LOCK + the find_latest
+		// pending/running guard above are the concurrency dedup, NOT the idem
+		// key — a stable key would make the queue return an OLD completed job
+		// after the data changed and never regenerate). reference_id ties the
+		// job to the assessment for find_latest.
+		$idem_key = 'fnpdf:' . $pid . ':' . substr( md5( uniqid( '', true ) ), 0, 12 );
+		$job_id   = HDLV2_Job_Queue::enqueue(
+			HDLV2_Flight_Notes_Jobs::JOB,
+			array( 'progress_id' => $pid, 'practitioner_id' => $prac ),
+			array(
+				'reference_id' => $pid,
+				'idem_key'     => $idem_key,
+				'priority'     => 90,
+				// No auto-retry: a PDFMonkey render + Claude burn are paid side
+				// effects. A failed job surfaces "try again" to the practitioner.
+				'max_attempts' => 1,
+			)
+		);
+
+		if ( $got_lock ) {
+			$wpdb->query( $wpdb->prepare( 'SELECT RELEASE_LOCK(%s)', $lock_name ) );
+		}
+
+		if ( is_wp_error( $job_id ) ) {
+			return new WP_REST_Response( array( 'ok' => false, 'message' => 'Could not start the flight notes. Please try again.' ), 503 );
+		}
+		return new WP_REST_Response( self::queued_body( (int) $job_id ), 200 );
+	}
+
+	/** The queued-response body the front-end polls on. */
+	private static function queued_body( $job_id ) {
+		return array(
+			'ok'              => true,
+			'queued'          => true,
+			'job_id'          => (int) $job_id,
+			'status_endpoint' => rest_url( 'hdl-v2/v1/jobs/' . (int) $job_id . '/status' ),
+		);
+	}
+
+	/**
+	 * Cheap fast-path: does a rendered PDF for the CURRENT data already exist?
+	 * Does only DB reads + config/Stage-3 gates + (on a hit) one light
+	 * PDFMonkey card fetch for a fresh presigned URL. NO Claude, NO fresh render.
+	 *
+	 * @param int $pid
+	 * @return array|WP_Error|null  array = cache hit; WP_Error = config/gate fail;
+	 *                              null = a fresh render is needed.
+	 */
+	private static function peek_cached( $pid ) {
+		$key = defined( 'HDLV2_PDFMONKEY_API_KEY' ) ? HDLV2_PDFMONKEY_API_KEY : '';
+		$tid = defined( 'HDLV2_FLIGHT_NOTES_TEMPLATE_ID' ) ? HDLV2_FLIGHT_NOTES_TEMPLATE_ID : '';
+		if ( ! $key || ! $tid ) {
+			return new WP_Error( 'hdlv2_fn_unconfigured', 'Flight Notes PDF is not configured on this server.', array( 'status' => 503 ) );
+		}
+		$in = self::build_ai_inputs( $pid );
+		if ( empty( $in['s3'] ) ) {
+			return new WP_Error( 'hdlv2_fn_not_ready', 'Flight Notes are available once the client has completed Stage 3.', array( 'status' => 409 ) );
+		}
+		$flat = HDLV2_Flight_Notes::build_flight_notes_payload( $pid );
+		if ( is_wp_error( $flat ) ) {
+			return $flat;
+		}
+		$hash  = md5( wp_json_encode( $flat ) . '|' . wp_json_encode( $in ) );
+		$cache = get_transient( 'hdlv2_fn_pdf_' . $pid );
+		if ( is_array( $cache ) && ! empty( $cache['hash'] ) && $cache['hash'] === $hash && ! empty( $cache['doc_id'] ) ) {
+			$card = self::pdfmonkey_get( '/document_cards/' . $cache['doc_id'], $key );
+			if ( ! is_wp_error( $card ) && ( $card['document_card']['status'] ?? '' ) === 'success' && ! empty( $card['document_card']['download_url'] ) ) {
+				return array( 'pdf_url' => $card['document_card']['download_url'], 'filename' => $cache['filename'] ?? '', 'cached' => true );
+			}
+		}
+		return null; // a fresh render is needed
 	}
 
 	/**
@@ -127,10 +252,14 @@ class HDLV2_Flight_Notes_Service {
 	 * PDF URL. Caches per (progress_id, payload-hash) so a repeat click on
 	 * unchanged data reuses the rendered PDF instead of re-burning Claude+render.
 	 *
-	 * @param int $pid form_progress id
+	 * @param int $pid             form_progress id
+	 * @param int $practitioner_id owning practitioner (passed by the async job
+	 *                             handler — get_current_user_id() is 0 in the
+	 *                             cron worker, so without this the per-practitioner
+	 *                             daily cap collapses to one shared bucket).
 	 * @return array|WP_Error { pdf_url, filename, cached }
 	 */
-	public static function generate_pdf( $pid ) {
+	public static function generate_pdf( $pid, $practitioner_id = 0 ) {
 		$key = defined( 'HDLV2_PDFMONKEY_API_KEY' ) ? HDLV2_PDFMONKEY_API_KEY : '';
 		$tid = defined( 'HDLV2_FLIGHT_NOTES_TEMPLATE_ID' ) ? HDLV2_FLIGHT_NOTES_TEMPLATE_ID : '';
 		if ( ! $key || ! $tid ) {
@@ -172,7 +301,10 @@ class HDLV2_Flight_Notes_Service {
 		}
 
 		// Per-practitioner daily cap (absolute ceiling a runaway loop can't beat).
-		$uid       = function_exists( 'get_current_user_id' ) ? get_current_user_id() : 0;
+		// Prefer the passed practitioner_id — get_current_user_id() is 0 inside
+		// the async worker, which would collapse every practitioner to one shared
+		// 'sys' bucket (prod-readiness FATAL-01 correction).
+		$uid       = $practitioner_id ?: ( function_exists( 'get_current_user_id' ) ? get_current_user_id() : 0 );
 		$daily_key = 'hdlv2_fn_daily_' . ( $uid ?: 'sys' );
 		$daily     = (int) get_transient( $daily_key );
 		if ( $daily >= self::DAILY_CAP ) {
@@ -239,7 +371,7 @@ class HDLV2_Flight_Notes_Service {
 	private static function build_ai_inputs( $pid ) {
 		global $wpdb;
 		$row = $wpdb->get_row(
-			$wpdb->prepare( "SELECT * FROM {$wpdb->prefix}hdlv2_form_progress WHERE id = %d", $pid )
+			$wpdb->prepare( "SELECT * FROM {$wpdb->prefix}hdlv2_form_progress WHERE id = %d AND deleted_at IS NULL", $pid )
 		);
 		$s1 = $row ? ( json_decode( (string) $row->stage1_data, true ) ?: array() ) : array();
 		$s3 = $row ? ( json_decode( (string) $row->stage3_data, true ) ?: array() ) : array();
