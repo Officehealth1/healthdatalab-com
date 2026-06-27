@@ -3422,6 +3422,22 @@
         }
         if (state && state.matched && hash) delete state.matched[hash];
         if (state && state.byHash  && hash) delete state.byHash[hash];
+        // v0.47.11 — also drop the client from the in-memory roster and
+        // re-render the "What needs you today" action queue immediately, so a
+        // deleted client doesn't linger in that top panel until the next 4-s
+        // poll (which is paused while the tab is backgrounded — the "needs a
+        // refresh" symptom). This mirrors exactly what the next poll would do
+        // (same renderActionQueue call, same data minus the removed client) —
+        // no new behaviour, just instant. Guarded so a failure can't break the
+        // delete's success path.
+        try {
+          if (state && Array.isArray(state.clients)) {
+            state.clients = state.clients.filter(function (cc) {
+              return String(cc.user_id) !== String(clientId) && ( !hash || cc.email_hash !== hash );
+            });
+            renderActionQueue(state.clients);
+          }
+        } catch (e) { /* non-fatal — the next poll reconciles anyway */ }
         if (window.HDLV2UI && window.HDLV2UI.toast) window.HDLV2UI.toast('Removed ' + name, 'success');
       })
       .catch(function (err) {
