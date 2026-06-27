@@ -317,7 +317,8 @@ class HDLV2_Report_PDF {
             "SELECT wp.client_user_id, wp.pdf_stored_path
                FROM {$wpdb->prefix}hdlv2_why_profiles wp
                JOIN {$wpdb->prefix}hdlv2_form_progress fp ON fp.id = wp.form_progress_id
-              WHERE wp.form_progress_id = %d AND fp.deleted_at IS NULL LIMIT 1", $wid ) );
+              WHERE wp.form_progress_id = %d AND fp.deleted_at IS NULL
+              ORDER BY wp.id DESC LIMIT 1", $wid ) );
         if ( ! $row || empty( $row->pdf_stored_path ) ) { status_header( 404 ); exit; }
         $is_prac = class_exists( 'HDLV2_Compatibility' ) && HDLV2_Compatibility::practitioner_owns_client( $uid, (int) $row->client_user_id );
         if ( ! $is_prac ) { status_header( 403 ); exit; } // clients explicitly rejected

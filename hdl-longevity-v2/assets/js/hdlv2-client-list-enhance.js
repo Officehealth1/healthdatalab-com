@@ -183,6 +183,7 @@
       // client side renders within the next digest poll instead of
       // waiting for the practitioner to manually click the tab again.
       maybeRefreshActiveFlightPlanTabs();
+      maybeRefreshActiveReportTabs();
       updateFreshnessIndicator();
     });
   }
@@ -230,6 +231,52 @@
       } else {
         loadFlightPlan(fresh, content);
       }
+    });
+  }
+
+  // v0.47.13 — report tabs (Stage 1/2/3/Final) share the cached client
+  // record; these two helpers let the poll refresher detect a real change.
+  function reportRecordKey(tab) {
+    return (tab === 'stage1' || tab === 'stage2' || tab === 'stage3' || tab === 'final') ? tab : null;
+  }
+  function reportTabSig(data, tab) {
+    var k = reportRecordKey(tab);
+    if (!k) return null;
+    try { return JSON.stringify((data && data[k]) || null); } catch (e) { return null; }
+  }
+
+  // v0.47.13 — sibling to maybeRefreshActiveFlightPlanTabs, for the report
+  // tabs. After a Stage-1/2/3/Final webhook stores its PDF (or a report is
+  // regenerated) the dashboard download card must appear / refresh WITHOUT
+  // the practitioner collapsing+reopening the panel. Twitch-free: re-renders
+  // ONLY when the stage record actually changed (signature diff). Each poll's
+  // `fresh` client object is a NEW object with no _record_promise, so
+  // fetchClientRecord() pulls live data; the in-place re-render via loadTab
+  // re-stamps the baseline. Report cards are read-only (no inline-edit state
+  // to lose), so a full re-render on change is safe here.
+  function maybeRefreshActiveReportTabs() {
+    var panels = document.querySelectorAll('.hdlv2-detail-panel');
+    if (!panels.length) return;
+    panels.forEach(function (panel) {
+      var activeTab = panel.querySelector('.hdlv2-detail-tab.current');
+      if (!activeTab) return;
+      var tabKey = activeTab.getAttribute('data-tab');
+      if (!reportRecordKey(tabKey)) return;
+      var uid = panel.getAttribute('data-user-id');
+      if (!uid) return;
+      var fresh = (state.clients || []).filter(function (c) {
+        return String(c.user_id) === String(uid);
+      })[0];
+      if (!fresh || !fresh.progress_id) return;
+      var content = panel.querySelector('[data-tab-content]');
+      if (!content) return;
+      fetchClientRecord(fresh).then(function (data) {
+        if (!data) return;                       // network hiccup — keep the current card
+        var sig = reportTabSig(data, tabKey);
+        if (sig === content._reportSig) return;  // unchanged → no re-render
+        content._reportSig = sig;
+        loadTab(tabKey, fresh, content);         // changed → re-render in place (re-stamps)
+      });
     });
   }
 
@@ -2023,6 +2070,12 @@
 
   function loadTab(tab, c, target) {
     target.innerHTML = '<div class="hdlv2-detail-loading">Loading…</div>';
+    // v0.47.13 — stamp the rendered report-tab signature (from the SAME
+    // cached record the loader renders from) so the poll refresher
+    // (maybeRefreshActiveReportTabs) re-renders only on a genuine change.
+    if (reportRecordKey(tab)) {
+      fetchClientRecord(c).then(function (data) { target._reportSig = reportTabSig(data, tab); });
+    }
     // v0.24.0 — journey-order routing. Stage 1/2/3/Final share one cached
     // /dashboard/client-record/{progress_id} fetch, so switching between
     // them is instant after first hit.
