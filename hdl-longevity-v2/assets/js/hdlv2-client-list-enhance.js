@@ -1242,11 +1242,25 @@
       if (!c.email_hash) return;
       var row = findRowForClient(c);
       if (!row) {
-        // V2-only row we haven't rendered yet (e.g. new client appeared)
+        // V2-only row we haven't rendered yet (e.g. new client appeared).
+        // v0.47.10 — a client appearing mid-session (e.g. the practitioner just
+        // confirmed their Stage 1) is the latest activity, so insert it at the
+        // TOP of the list in realtime rather than appending at the bottom. The
+        // one-shot default sort is latest-first, so top is its correct place;
+        // this keeps the newest client first without re-sorting (which would
+        // clobber a manual column-sort). Briefly highlight so the practitioner
+        // sees it arrive.
         if (!state.matched[c.email_hash]) {
           var newRow = buildV2OnlyRow(c);
           newRow.dataset.status = c.status || '';
-          state.tbody.appendChild(newRow);
+          state.tbody.insertBefore(newRow, state.tbody.firstChild);
+          // Brief arrival flash so the practitioner sees it land (self-contained
+          // inline style — no CSS-injection dependency). Honours the filter:
+          // if the new row doesn't match active filters, applyFilters() below
+          // hides it on the same tick.
+          newRow.style.transition = 'background-color 1400ms ease';
+          newRow.style.backgroundColor = '#fffbeb';
+          (function (r) { setTimeout(function () { r.style.backgroundColor = ''; }, 1600); })(newRow);
           state.matched[c.email_hash] = true;
         }
         return;
