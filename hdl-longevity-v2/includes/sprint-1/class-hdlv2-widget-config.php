@@ -1149,6 +1149,12 @@ class HDLV2_Widget_Config {
                 'stage1_data'            => $stage1_data_outbound, // v0.46.21 (QA F4) — sanitized: no _safety/_safety_flags/server_result
                 'form_token'             => $form_token,
                 'callback_url'           => rest_url( 'hdl-v2/v1/form/stage1-callback' ),
+                // v0.47.11 — Make's Stage-1 route POSTs the rendered PDF back to
+                // /form/stage1-callback (Bearer this secret, hash_equals'd by
+                // valid_secret()). Same constant draft/final/flight already send,
+                // so the Make module uses {{1.callback_secret}} identically — no
+                // secret baked into the blueprint. Without this the callback 403s.
+                'callback_secret'        => defined( 'HDLV2_MAKE_CALLBACK_SECRET' ) ? HDLV2_MAKE_CALLBACK_SECRET : '',
                 'timestamp'              => current_time( 'c' ),
                 // v0.30.0 — premium template fields. Plain text from
                 // HDLV2_Stage1_Commentary::build_structured(). Make.com
