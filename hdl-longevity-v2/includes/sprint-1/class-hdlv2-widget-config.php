@@ -29,6 +29,9 @@ class HDLV2_Widget_Config {
         // AJAX — invites
         add_action( 'wp_ajax_hdlv2_create_invite', array( $this, 'ajax_create_invite' ) );
         add_action( 'wp_ajax_hdlv2_get_invites', array( $this, 'ajax_get_invites' ) );
+        // v0.46.20 — let a practitioner clean dead invite rows from the Sent
+        // Invites tab. Hard-delete, scoped to own + expired/revoked only.
+        add_action( 'wp_ajax_hdlv2_delete_invite', array( $this, 'ajax_delete_invite' ) );
         // v0.29.0 — debounced lookup so the Send-Invites form can show a
         // "found prior submission" hint before the practitioner clicks
         // Generate Link, surfacing the email-match contract that drives the
@@ -878,10 +881,23 @@ class HDLV2_Widget_Config {
         $send_notify     = ! empty( $args['send_practitioner_notify'] );
         $send_make_pdf   = ! empty( $args['send_make_pdf'] );
 
+        // v0.46.21 (QA F4) — never ship internal / sensitive keys to external
+        // automation. $stage1_data carries `_safety` (raw self-harm / serious-
+        // symptom ticks — the most sensitive special-category data the funnel
+        // collects), `_safety_flags` (full flag objects incl. practitioner_note
+        // / client_facing_wording / is_crisis), and `server_result` (internal
+        // rate-calc dump). Safety flags already have their own controlled
+        // storage (form_progress.flags) + notify() path, so they do NOT belong
+        // in the Stage-1 PDF payload or in a practitioner-pasted config webhook.
+        // Build a sanitized copy for the two outbound sinks; the working
+        // $stage1_data is left intact for the internal server_result read below.
+        $stage1_data_outbound = $stage1_data;
+        unset( $stage1_data_outbound['_safety'], $stage1_data_outbound['_safety_flags'], $stage1_data_outbound['server_result'] );
+
         // Optional config webhook
         if ( $config && ! empty( $config->webhook_url ) ) {
             wp_remote_post( $config->webhook_url, array(
-                'body'    => wp_json_encode( $stage1_data + array(
+                'body'    => wp_json_encode( $stage1_data_outbound + array(
                     'name'  => $visitor_name,
                     'email' => $visitor_email,
                     'phone' => $visitor_phone,
@@ -1113,7 +1129,7 @@ class HDLV2_Widget_Config {
                 'rate_of_ageing'         => number_format( (float) $rate, 2, '.', '' ),
                 'gauge_url'              => $gauge_for_payload,
                 'report_date'            => current_time( 'Y-m-d' ),
-                'stage1_data'            => $stage1_data,
+                'stage1_data'            => $stage1_data_outbound, // v0.46.21 (QA F4) — sanitized: no _safety/_safety_flags/server_result
                 'form_token'             => $form_token,
                 'timestamp'              => current_time( 'c' ),
                 // v0.30.0 — premium template fields. Plain text from
@@ -1303,6 +1319,50 @@ class HDLV2_Widget_Config {
                 "SELECT client_user_id FROM {$wpdb->prefix}hdlv2_form_progress WHERE id = %d",
                 $existing->id
             ) );
+
+            // v0.46.21 (QA F5) — seed the already-messaged submit-time safety
+            // flags into the REUSED row too. The INSERT branch below does this;
+            // the existing-row UPDATE above did not, so the row's flags lacked
+            // these signatures and the HDLV2_Safety_Screen::process() call at the
+            // end of complete_signup() treated them as new and RE-SENT the
+            // client's crisis / GP-nudge email and the practitioner alert —
+            // duplicate, distressing messaging on the most sensitive content
+            // (e.g. public submit fires the emails → invite link creates this
+            // row → practitioner clicks Confirm on the still-pending lead). Merge
+            // by signature so existing flags are never dropped or duplicated and
+            // their messaged_at stamps are preserved.
+            if ( $seed_flags ) {
+                $cur = json_decode( (string) $wpdb->get_var( $wpdb->prepare(
+                    "SELECT flags FROM {$wpdb->prefix}hdlv2_form_progress WHERE id = %d",
+                    $fp_id
+                ) ), true );
+                if ( ! is_array( $cur ) ) { $cur = array(); }
+                $have = array();
+                foreach ( $cur as $cf ) {
+                    if ( ! empty( $cf['signature'] ) ) { $have[ $cf['signature'] ] = true; }
+                }
+                $added = false;
+                foreach ( $seed_flags as $sf ) {
+                    $sig = $sf['signature'] ?? '';
+                    if ( $sig && empty( $have[ $sig ] ) ) {
+                        $cur[]        = $sf; // carries its submit-time messaged_at
+                        $have[ $sig ] = true;
+                        $added        = true;
+                    }
+                }
+                if ( $added ) {
+                    $wpdb->update(
+                        $wpdb->prefix . 'hdlv2_form_progress',
+                        array(
+                            'flags'             => wp_json_encode( $cur ),
+                            'has_flags'         => 1,
+                            'flags_scanned_at'  => current_time( 'mysql', true ),
+                            'flags_scan_status' => 'ok',
+                        ),
+                        array( 'id' => $fp_id )
+                    );
+                }
+            }
         } else {
             $client_user_id = email_exists( $visitor_email );
             if ( ! $client_user_id ) {
@@ -2721,6 +2781,50 @@ class HDLV2_Widget_Config {
         }
 
         wp_send_json_success( $invites );
+    }
+
+    /**
+     * v0.46.20 — Remove a single invite from the Sent Invites tab.
+     * v0.46.22 — allowlist widened to include 'completed' (practitioner list cleanup).
+     *
+     * Hard delete (no schema change). The WHERE clause IS the security model:
+     *   • practitioner_id = %d                  → ownership / IDOR guard (own only)
+     *   • status IN (expired,revoked,completed) → only NON-ACTIVE invites are
+     *                                             deletable; a forged invite_id at a
+     *                                             pending/opened (still-usable) invite
+     *                                             deletes 0 rows.
+     * Side-effect-free: the token is already dead for these statuses
+     * (get_valid_invite rejects expired/completed/revoked), and nothing references
+     * the invite row — the client's account, assessments and reports live in
+     * users + form_progress, so removing a completed invite drops only the
+     * "sent invite" tracking record, not the client.
+     */
+    public function ajax_delete_invite() {
+        check_ajax_referer( 'hdlv2_widget_config', 'nonce' );
+
+        $user_id = get_current_user_id();
+        if ( ! HDLV2_Compatibility::is_practitioner( $user_id ) ) {
+            wp_send_json_error( 'Not authorized' );
+        }
+
+        $invite_id = absint( $_POST['invite_id'] ?? 0 );
+        if ( ! $invite_id ) {
+            wp_send_json_error( 'Missing invite id.' );
+        }
+
+        global $wpdb;
+        $deleted = $wpdb->query( $wpdb->prepare(
+            "DELETE FROM {$wpdb->prefix}hdlv2_widget_invites
+             WHERE id = %d AND practitioner_id = %d AND status IN ('expired','revoked','completed')",
+            $invite_id,
+            $user_id
+        ) );
+
+        if ( ! $deleted ) {
+            wp_send_json_error( 'Invite not found, not yours, or still active.' );
+        }
+
+        wp_send_json_success();
     }
 
     // ──────────────────────────────────────────────────────────────

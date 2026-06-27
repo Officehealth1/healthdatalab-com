@@ -59,6 +59,11 @@ class HDLV2_Activator {
             // handshake (timeout 0.1s, blocking false). Real-time wakeups via
             // the loopback are still primary; the cron is the safety net.
             'hdlv2_job_queue_worker'        => 'hdlv2_one_minute',
+            // Iridology Phase 2 (v3.19) — off-request-path reconcile: pulls any
+            // result whose callback was lost, off any browser thread, on a real
+            // OS-cron timer (DISABLE_WP_CRON is set + /etc/cron.d/hdlv2-wp-cron),
+            // so durability never depends on traffic. Self-guards on the flag.
+            'hdlv2_iris_reconcile'          => 'hdlv2_one_minute',
         );
         foreach ( $crons as $hook => $recurrence ) {
             if ( ! wp_next_scheduled( $hook ) ) {
@@ -1198,6 +1203,161 @@ class HDLV2_Activator {
                 error_log( '[HDLV2] Phase W migration error: ' . $e->getMessage() . ' — boot continues; verify manually.' );
             }
         }
+
+        // Phase X (DB v3.16) — report/why PDF storage (D-2). PDFMonkey download
+        // URLs expire ~1h, so the report-PDF callback downloads + self-hosts the
+        // file; these columns hold the stored path + a stamp so dashboard
+        // "Download PDF" buttons serve a cached, access-controlled file. Additive,
+        // idempotent (column-exists guarded).
+        if ( version_compare( $current_db_version, '3.16', '<' ) ) {
+            try {
+                $reports_table = $p . 'hdlv2_reports';
+                $why_table     = $p . 'hdlv2_why_profiles';
+                $add_col = function ( $table, $col, $ddl ) use ( $wpdb ) {
+                    $has = (int) $wpdb->get_var( $wpdb->prepare(
+                        "SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+                         WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s AND COLUMN_NAME = %s",
+                        $table, $col
+                    ) );
+                    if ( ! $has ) {
+                        $wpdb->query( "ALTER TABLE $table ADD COLUMN $ddl" );
+                        if ( $wpdb->last_error ) {
+                            error_log( "[HDLV2] Phase X (v3.16) FAILED on $table.$col: " . $wpdb->last_error );
+                        } else {
+                            error_log( "[HDLV2] Phase X (v3.16) migration: added $col to $table." );
+                        }
+                    }
+                };
+                $add_col( $reports_table, 'pdf_stored_path',  'pdf_stored_path VARCHAR(255) DEFAULT NULL AFTER pdf_url' );
+                $add_col( $reports_table, 'pdf_generated_at', 'pdf_generated_at DATETIME DEFAULT NULL AFTER pdf_stored_path' );
+                $add_col( $why_table,     'pdf_url',          'pdf_url VARCHAR(500) DEFAULT NULL' );
+                $add_col( $why_table,     'pdf_stored_path',  'pdf_stored_path VARCHAR(255) DEFAULT NULL' );
+                $add_col( $why_table,     'pdf_generated_at', 'pdf_generated_at DATETIME DEFAULT NULL' );
+            } catch ( \Throwable $e ) {
+                error_log( '[HDLV2] Phase X migration error: ' . $e->getMessage() . ' — boot continues; verify manually.' );
+            }
+        }
+
+        // Phase Y (DB v3.17) — weekly Flight Plan PDF self-hosting (direct
+        // WP→PDFMonkey renderer). Mirrors Phase X's columns on the
+        // flight_plans table: stored path + render stamp alongside the
+        // existing pdf_url/delivered_at the retired Make callback used.
+        // Additive, idempotent (column-exists guarded).
+        if ( version_compare( $current_db_version, '3.17', '<' ) ) {
+            try {
+                $fp_table = $p . 'hdlv2_flight_plans';
+                $add_col = function ( $table, $col, $ddl ) use ( $wpdb ) {
+                    $has = (int) $wpdb->get_var( $wpdb->prepare(
+                        "SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+                         WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s AND COLUMN_NAME = %s",
+                        $table, $col
+                    ) );
+                    if ( ! $has ) {
+                        $wpdb->query( "ALTER TABLE $table ADD COLUMN $ddl" );
+                        if ( $wpdb->last_error ) {
+                            error_log( "[HDLV2] Phase Y (v3.17) FAILED on $table.$col: " . $wpdb->last_error );
+                        } else {
+                            error_log( "[HDLV2] Phase Y (v3.17) migration: added $col to $table." );
+                        }
+                    }
+                };
+                $add_col( $fp_table, 'pdf_stored_path',  'pdf_stored_path VARCHAR(255) DEFAULT NULL AFTER pdf_url' );
+                $add_col( $fp_table, 'pdf_generated_at', 'pdf_generated_at DATETIME DEFAULT NULL AFTER pdf_stored_path' );
+            } catch ( \Throwable $e ) {
+                error_log( '[HDLV2] Phase Y migration error: ' . $e->getMessage() . ' — boot continues; verify manually.' );
+            }
+        }
+
+        // Phase Z (DB v3.18) — pre-send milestone editing on the consultation
+        // page. staged_milestones holds the practitioner-reviewed four-horizon
+        // milestones BEFORE finalise; HDLV2_Final_Report::generate() consumes it
+        // verbatim (flag HDLV2_FF_MILESTONE_PREVIEW / option
+        // hdlv2_ff_milestone_preview) so the client's first PDF/email already
+        // carries the edited text. Additive, idempotent (column-exists guarded).
+        if ( version_compare( $current_db_version, '3.18', '<' ) ) {
+            try {
+                $cn_table = $p . 'hdlv2_consultation_notes';
+                $has = (int) $wpdb->get_var( $wpdb->prepare(
+                    "SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+                     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s AND COLUMN_NAME = 'staged_milestones'",
+                    $cn_table
+                ) );
+                if ( ! $has ) {
+                    $wpdb->query( "ALTER TABLE $cn_table ADD COLUMN staged_milestones LONGTEXT DEFAULT NULL AFTER ai_organised_notes" );
+                    if ( $wpdb->last_error ) {
+                        error_log( '[HDLV2] Phase Z (v3.18) FAILED on ' . $cn_table . '.staged_milestones: ' . $wpdb->last_error );
+                    } else {
+                        error_log( '[HDLV2] Phase Z (v3.18) migration: added staged_milestones to ' . $cn_table . '.' );
+                    }
+                }
+            } catch ( \Throwable $e ) {
+                error_log( '[HDLV2] Phase Z migration error: ' . $e->getMessage() . ' — boot continues; verify manually.' );
+            }
+        }
+
+        // Phase AA (v3.20) — Iridology native-capture re-key.
+        //
+        // The receiver/table pivot from a per-attempt job_id to the
+        // deterministic capture_id (clientId:consultId:irisSetHash). Adds the
+        // capture_id dedupe key (UNIQUE), the finalized draft/final flag, a
+        // source tag, captured_at, and the 'draft' status enum value. dbDelta
+        // cannot reliably modify an ENUM or add a UNIQUE key, so do it here with
+        // information_schema guards (idempotent). The table is empty/dark on
+        // STBY, so this is a pure additive schema bump — no data backfill.
+        if ( version_compare( $current_db_version, '3.20', '<' ) ) {
+            try {
+                $iris_table = $p . 'hdlv2_iris_results';
+                $table_present = (int) $wpdb->get_var( $wpdb->prepare(
+                    "SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES
+                     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s", $iris_table ) );
+                if ( $table_present ) {
+                    // New columns (each column-exists guarded).
+                    $add_cols = array(
+                        'capture_id'  => "ADD COLUMN capture_id VARCHAR(200) DEFAULT NULL AFTER job_id",
+                        'source'      => "ADD COLUMN source VARCHAR(16) NOT NULL DEFAULT 'embedded' AFTER idempotency_key",
+                        'finalized'   => "ADD COLUMN finalized TINYINT(1) NOT NULL DEFAULT 0 AFTER status",
+                        'captured_at' => "ADD COLUMN captured_at DATETIME DEFAULT NULL AFTER analysed_at",
+                    );
+                    foreach ( $add_cols as $col => $ddl ) {
+                        $has = (int) $wpdb->get_var( $wpdb->prepare(
+                            "SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+                             WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s AND COLUMN_NAME = %s",
+                            $iris_table, $col ) );
+                        if ( ! $has ) {
+                            $wpdb->query( "ALTER TABLE $iris_table $ddl" );
+                            if ( $wpdb->last_error ) {
+                                error_log( "[HDLV2] Phase AA (v3.20) FAILED adding $col to $iris_table: " . $wpdb->last_error );
+                            }
+                        }
+                    }
+                    // 'draft' status enum value (column-type guarded).
+                    $col_type = (string) $wpdb->get_var( $wpdb->prepare(
+                        "SELECT COLUMN_TYPE FROM INFORMATION_SCHEMA.COLUMNS
+                         WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s AND COLUMN_NAME = 'status'",
+                        $iris_table ) );
+                    if ( $col_type && strpos( $col_type, "'draft'" ) === false ) {
+                        $wpdb->query( "ALTER TABLE $iris_table MODIFY COLUMN status ENUM('queued','running','draft','done','error','limit','unavailable','archived') NOT NULL DEFAULT 'queued'" );
+                        if ( $wpdb->last_error ) {
+                            error_log( '[HDLV2] Phase AA (v3.20) FAILED adding draft enum: ' . $wpdb->last_error );
+                        }
+                    }
+                    // UNIQUE(capture_id) dedupe key (index-exists guarded).
+                    $has_idx = (int) $wpdb->get_var( $wpdb->prepare(
+                        "SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS
+                         WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s AND INDEX_NAME = 'uniq_capture'",
+                        $iris_table ) );
+                    if ( ! $has_idx ) {
+                        $wpdb->query( "ALTER TABLE $iris_table ADD UNIQUE KEY uniq_capture (capture_id)" );
+                        if ( $wpdb->last_error ) {
+                            error_log( '[HDLV2] Phase AA (v3.20) FAILED adding uniq_capture: ' . $wpdb->last_error );
+                        }
+                    }
+                    error_log( '[HDLV2] Phase AA (v3.20) migration: iris native-capture re-key applied to ' . $iris_table . '.' );
+                }
+            } catch ( \Throwable $e ) {
+                error_log( '[HDLV2] Phase AA migration error: ' . $e->getMessage() . ' — boot continues; verify manually.' );
+            }
+        }
     }
 
     /**
@@ -1362,6 +1522,9 @@ class HDLV2_Activator {
             released_by_practitioner_id BIGINT(20) UNSIGNED DEFAULT NULL,
             last_resent_at DATETIME DEFAULT NULL,
             resend_count INT UNSIGNED DEFAULT 0,
+            pdf_url VARCHAR(500) DEFAULT NULL,
+            pdf_stored_path VARCHAR(255) DEFAULT NULL,
+            pdf_generated_at DATETIME DEFAULT NULL,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
             PRIMARY KEY (id),
@@ -1381,6 +1544,8 @@ class HDLV2_Activator {
             consultation_notes LONGTEXT DEFAULT NULL,
             health_data_changes JSON DEFAULT NULL,
             pdf_url VARCHAR(500) DEFAULT NULL,
+            pdf_stored_path VARCHAR(255) DEFAULT NULL,
+            pdf_generated_at DATETIME DEFAULT NULL,
             status ENUM('generating','ready','error') DEFAULT 'generating',
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -1409,6 +1574,7 @@ class HDLV2_Activator {
             raw_notes LONGTEXT DEFAULT NULL,
             raw_audio_url VARCHAR(500) DEFAULT NULL,
             ai_organised_notes LONGTEXT DEFAULT NULL,
+            staged_milestones LONGTEXT DEFAULT NULL,
             practitioner_approved TINYINT(1) DEFAULT 0,
             approved_at DATETIME DEFAULT NULL,
             started_at DATETIME DEFAULT NULL,
@@ -1428,8 +1594,8 @@ class HDLV2_Activator {
             practitioner_id BIGINT(20) UNSIGNED NOT NULL,
             week_number INT UNSIGNED NOT NULL,
             week_start DATE NOT NULL,
-            raw_input TEXT DEFAULT NULL,
-            raw_transcript TEXT DEFAULT NULL,
+            raw_input LONGTEXT DEFAULT NULL,
+            raw_transcript LONGTEXT DEFAULT NULL,
             audio_id BIGINT(20) UNSIGNED DEFAULT NULL,
             input_method VARCHAR(10) DEFAULT 'text',
             summary JSON DEFAULT NULL,
@@ -1704,6 +1870,82 @@ class HDLV2_Activator {
             KEY idx_status (status)
         ) $charset_collate;";
 
+        // ── Iridology Phase 2 (embedded consult + native-capture) — DB v3.20 ──
+        // Dark behind hdlv2_ff_iris_consult. The heavy clinical record
+        // (NEVER-DELETE): structured AI result + practitioner-edited overlay +
+        // private-dir image refs (never image bytes in the row).
+        //
+        // Two delivery models share this table:
+        //  • EMBEDDED (legacy, dormant): HDL mints job_id; UNIQUE(job_id) is the
+        //    idempotent callback's UPSERT key. source='embedded', capture_id NULL.
+        //  • NATIVE-CAPTURE (Phase-2 pivot): IrisMapper runs the analysis and
+        //    PUSHES a result HDL never minted → INSERT-ON-CALLBACK. HDL keys its
+        //    row + dedupe on the DETERMINISTIC capture_id (clientId:consultId:
+        //    irisSetHash[:vN]); the auto safety-net DRAFT (finalized=0,
+        //    status='draft') and the "Send to HealthDataLab" FINAL (finalized=1,
+        //    status='done') collapse to ONE row (terminal-wins). source='native'.
+        //    job_id is set = capture_id so the NOT-NULL column + the browser
+        //    routes (which key on job_id) keep working unchanged.
+        //
+        // A NEW capture_id (genuine re-shoot / explicit :vN) is a NEW row and
+        // archives the prior (status); the SAME capture_id is an idempotent
+        // in-place UPSERT. Covering KEY (job_id,status) keeps the poll an
+        // index-only read that never touches the LONGTEXT (a separate hot table
+        // is deferred — over-engineering at single-practitioner scale).
+        $table_iris_results = $wpdb->prefix . 'hdlv2_iris_results';
+        $sql_iris_results = "CREATE TABLE $table_iris_results (
+            id BIGINT(20) UNSIGNED NOT NULL AUTO_INCREMENT,
+            client_user_id BIGINT(20) UNSIGNED NOT NULL,
+            practitioner_user_id BIGINT(20) UNSIGNED NOT NULL,
+            form_progress_id BIGINT(20) UNSIGNED NOT NULL,
+            job_id VARCHAR(200) NOT NULL,
+            capture_id VARCHAR(200) DEFAULT NULL,
+            idempotency_key VARCHAR(200) NOT NULL,
+            source VARCHAR(16) NOT NULL DEFAULT 'embedded',
+            status ENUM('queued','running','draft','done','error','limit','unavailable','archived') NOT NULL DEFAULT 'queued',
+            finalized TINYINT(1) NOT NULL DEFAULT 0,
+            map_name VARCHAR(64) DEFAULT NULL,
+            eyes_label VARCHAR(32) DEFAULT NULL,
+            supabase_key_l VARCHAR(255) DEFAULT NULL,
+            supabase_key_r VARCHAR(255) DEFAULT NULL,
+            image_l_path VARCHAR(255) DEFAULT NULL,
+            image_r_path VARCHAR(255) DEFAULT NULL,
+            result_json LONGTEXT DEFAULT NULL,
+            areas_edited_json LONGTEXT DEFAULT NULL,
+            triangulated_overview LONGTEXT DEFAULT NULL,
+            include_in_pdf TINYINT(1) NOT NULL DEFAULT 0,
+            refused TINYINT(1) NOT NULL DEFAULT 0,
+            error_message VARCHAR(500) DEFAULT NULL,
+            cost DECIMAL(10,4) DEFAULT NULL,
+            _revisions LONGTEXT DEFAULT NULL,
+            analysed_at DATETIME DEFAULT NULL,
+            captured_at DATETIME DEFAULT NULL,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            PRIMARY KEY (id),
+            UNIQUE KEY uniq_job (job_id),
+            UNIQUE KEY uniq_capture (capture_id),
+            KEY job_status (job_id, status),
+            KEY client_status (client_user_id, status),
+            KEY progress (form_progress_id)
+        ) $charset_collate;";
+
+        // Circuit-breaker state — a SHARED, atomic, single-row store so the trip
+        // holds across all OLS LSAPI workers (a WP transient under no object
+        // cache is DB-backed and would also be shared, but a dedicated row gives
+        // true atomic UPDATE…WHERE compare-and-set with no autoload ambiguity).
+        // MySQL is sufficient at current scale — NO Redis needed (the IrisMapper
+        // side needed none either); revisit Redis at 20-30 concurrent (Decision 5).
+        $table_iris_breaker = $wpdb->prefix . 'hdlv2_iris_breaker';
+        $sql_iris_breaker = "CREATE TABLE $table_iris_breaker (
+            id TINYINT(3) UNSIGNED NOT NULL,
+            state VARCHAR(16) NOT NULL DEFAULT 'closed',
+            failures INT(10) UNSIGNED NOT NULL DEFAULT 0,
+            opened_at BIGINT(20) UNSIGNED NOT NULL DEFAULT 0,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            PRIMARY KEY (id)
+        ) $charset_collate;";
+
         require_once ABSPATH . 'wp-admin/includes/upgrade.php';
         dbDelta( $sql_widget );
         dbDelta( $sql_leads );
@@ -1722,5 +1964,7 @@ class HDLV2_Activator {
         dbDelta( $sql_audio_extractions );
         dbDelta( $sql_addenda );
         dbDelta( $sql_tokens );
+        dbDelta( $sql_iris_results );
+        dbDelta( $sql_iris_breaker );
     }
 }

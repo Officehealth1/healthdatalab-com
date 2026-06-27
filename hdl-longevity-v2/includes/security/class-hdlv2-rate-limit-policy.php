@@ -81,6 +81,8 @@ class HDLV2_Rate_Limit_Policy {
             // the IP backstop trips. Now capped at the AI-burn 8/hour per
             // token + 30/hour per practitioner.
             array( 'POST', '#^/hdl-v2/v1/consultation/organise$#',              self::TIER_AI_BURN ),
+            // v0.46.62 — pre-send milestone generation is a Claude call.
+            array( 'POST', '#^/hdl-v2/v1/consultation/milestones-generate$#',   self::TIER_AI_BURN ),
             array( 'POST', '#^/hdl-v2/v1/consultation/refresh-brief$#',         self::TIER_AI_BURN ),
             array( 'POST', '#^/hdl-v2/v1/consultation/save-and-regenerate$#',   self::TIER_AI_BURN ),
             // v0.28.0 — Consultation Addenda flow. /save-and-update-plan is
@@ -108,6 +110,11 @@ class HDLV2_Rate_Limit_Policy {
             // ── Bypass (Make.com bearer-authed callbacks + internal loopback) ───
             array( 'POST', '#^/hdl-v2/v1/form/stage2-callback$#',               self::TIER_BYPASS ),
             array( 'POST', '#^/hdl-v2/v1/flight-plan/pdf-callback$#',           self::TIER_BYPASS ),
+            // v0.46.57 (P4) — D-2 final/draft/WHY PDF callback from Make.com.
+            // hash_equals bearer-authed like the flight-plan callback above;
+            // was unmapped → null tier left only the IP backstop between a
+            // legitimate Make POST burst and a 429 on a stored-PDF write.
+            array( 'POST', '#^/hdl-v2/v1/reports/pdf-callback$#',               self::TIER_BYPASS ),
             // v0.30.0 — internal job-queue worker kick. Fired by
             // HDLV2_Job_Queue::trigger_worker_async() over loopback HTTP so
             // a freshly-enqueued audio-transcription job runs in seconds
@@ -135,6 +142,12 @@ class HDLV2_Rate_Limit_Policy {
             array( 'POST', '#^/hdl-v2/v1/flight-plan/[0-9]+/(settings|priorities)$#', self::TIER_WRITE ),
             array( 'POST', '#^/hdl-v2/v1/consultation/(save-notes|add-recommendation|remove-recommendation|edit-field|addendum)$#', self::TIER_WRITE ),
             array( 'POST', '#^/hdl-v2/v1/timeline/add-note$#',                  self::TIER_WRITE ),
+            // v0.46.58 — practitioner flight-plan editor. Cheap DB write; the
+            // PDF re-render it queues is governed by the render service's own
+            // cooldown + daily cap.
+            // v0.46.62 — pre-send staged milestone edit; cheap DB write, no AI.
+            array( 'POST', '#^/hdl-v2/v1/consultation/milestones-stage-edit$#', self::TIER_WRITE ),
+            array( 'POST', '#^/hdl-v2/v1/flight-plan/[0-9]+/edit$#',            self::TIER_WRITE ),
             array( 'POST', '#^/hdl-v2/v1/checkin/submit$#',                     self::TIER_WRITE ),
             array( 'POST', '#^/hdl-v2/v1/audio/client-error$#',                 self::TIER_WRITE ),
             // v0.35.0 (Phase O) — practitioner rejects a widget lead. Silent

@@ -62,12 +62,19 @@ class HDLV2_Compatibility {
         // without destroying assessment data — re-invite (which restores
         // deleted_at = NULL in rest_create_form / dispatch_post_signup_artifacts)
         // brings the client back with full history.
+        // ONLY_FULL_GROUP_BY safe: `SELECT DISTINCT ... ORDER BY id` is illegal
+        // when sql_mode contains ONLY_FULL_GROUP_BY (MySQL 5.7.5+/8.0/9.x default),
+        // because the ORDER BY column (id) is not in the SELECT list — MySQL raises
+        // error 3065 and the whole dashboard returns zero clients. Grouping by
+        // client_user_id and ordering by MAX(id) DESC preserves the same distinct
+        // rows in the same newest-first order while staying strict-mode valid.
         return array_map( 'intval', $wpdb->get_col( $wpdb->prepare(
-            "SELECT DISTINCT client_user_id FROM $table
+            "SELECT client_user_id FROM $table
              WHERE practitioner_user_id = %d
                AND client_user_id IS NOT NULL
                AND deleted_at IS NULL
-             ORDER BY id DESC",
+             GROUP BY client_user_id
+             ORDER BY MAX(id) DESC",
             $practitioner_user_id
         ) ) );
     }
@@ -86,6 +93,63 @@ class HDLV2_Compatibility {
         return in_array( 'um_practitioner', (array) $user->roles, true )
             || in_array( 'practitioner', (array) $user->roles, true )
             || in_array( 'administrator', (array) $user->roles, true );
+    }
+
+    /**
+     * Iridology add-on (IrisMapper) — does this practitioner hold the add-on?
+     *
+     * The dashboard's public predicate. Resolves from the PRACTITIONER's WP
+     * email via the cached, fail-closed entitlement struct below.
+     *
+     * @param int $practitioner_id
+     * @return bool
+     */
+    public static function practitioner_has_iridology_addon( $practitioner_id ) {
+        return self::iris_entitlement( $practitioner_id )['iridologyAddon'] === true;
+    }
+
+    /**
+     * Cached, fail-closed IrisMapper entitlement struct for a practitioner.
+     *
+     * Master-flag guarded (Rule-0). The raw HTTP lives in HDLV2_Iris_Addon —
+     * this class never calls wp_remote_* directly; it only adds a brief
+     * transient cache around the delegated lookup. Errors/timeouts return the
+     * fail-closed default and are NOT cached, so a transient blip self-heals
+     * on the next load. The post-checkout poll busts the transient (?fresh=1)
+     * so the "ready" state appears immediately.
+     *
+     * @param int $practitioner_id
+     * @return array { found, iridologyAddon, hasReportAccess, subscriptionTier, subscriptionStatus }
+     */
+    public static function iris_entitlement( $practitioner_id ) {
+        $fail = array(
+            'found'              => false,
+            'iridologyAddon'     => false,
+            'hasReportAccess'    => false,
+            'subscriptionTier'   => null,
+            'subscriptionStatus' => null,
+        );
+        if ( ! get_option( 'hdlv2_ff_iris_addon', false ) ) {
+            return $fail; // master guard — feature dark
+        }
+        $user = get_userdata( (int) $practitioner_id );
+        if ( ! $user || ! is_email( $user->user_email ) ) {
+            return $fail;
+        }
+
+        $key    = 'hdlv2_irido_addon_' . (int) $practitioner_id;
+        $cached = get_transient( $key );
+        if ( is_array( $cached ) ) {
+            return $cached;
+        }
+
+        $res = HDLV2_Iris_Addon::check_entitlement( $user->user_email );
+        if ( is_wp_error( $res ) ) {
+            return $fail; // FAIL-CLOSED — never cache an error
+        }
+        $out = wp_parse_args( $res, $fail );
+        set_transient( $key, $out, 5 * MINUTE_IN_SECONDS );
+        return $out;
     }
 
     /**

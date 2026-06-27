@@ -84,6 +84,20 @@ class HDLV2_Client_Dashboard {
 
         // Always-available CSS handle for shortcode + theme reuse.
         add_action( 'wp_enqueue_scripts', array( $this, 'register_assets' ), 5 );
+
+        // v0.46.23 — Client chrome cleanup. The Divi header shows V2 clients WP
+        // menu 66 ("Invited Client"), whose items still pointed at V1 forms /
+        // the practitioner roster (Longevity Report → /longevity-form-rate-of-
+        // aging/, Health Report → /health-report/, Dashboard → /clients/). Re-
+        // point them to the client's V2 surfaces and drop the V1 health form.
+        // Scoped to genuine V2 clients (is_v2_client) so V1 consumers who share
+        // the um_client / um_consumer role — and practitioners on menu 31 — are
+        // never touched.
+        add_filter( 'wp_nav_menu_objects', array( $this, 'filter_client_nav' ), 20, 2 );
+
+        // The Divi footer (post 1065) is hardcoded HTML with no menu hook, shown
+        // to every role. Hide its V1 / practitioner links for V2 clients only.
+        add_action( 'wp_head', array( $this, 'inject_client_footer_css' ), 99 );
     }
 
     public function no_cache_dashboard_page() {
@@ -103,6 +117,127 @@ class HDLV2_Client_Dashboard {
             array(),
             HDLV2_VERSION
         );
+    }
+
+    // ──────────────────────────────────────────────────────────────────────
+    //  Client chrome (v0.46.23) — nav + footer cleanup, V2-client-scoped
+    // ──────────────────────────────────────────────────────────────────────
+
+    /**
+     * True only for a genuine V2 client — someone who has a V2 form_progress
+     * row, a V2 widget invite, or a V2-origin user_meta stamp (hdl_source
+     * 'assessment_link' / hdlv2_tier / hdlv2_purchased_via). This deliberately
+     * does NOT key off WP role:
+     * `um_client` / `um_consumer` are shared with V1 free-report + consumer
+     * users who legitimately use the V1 longevity / health forms, and the Divi
+     * header shows them the same "Invited Client" menu. Practitioners and
+     * admins are always excluded. Result cached per request (the nav + footer
+     * filters both call this on every page render).
+     */
+    private function is_v2_client( $user_id ) {
+        static $cache = array();
+        $user_id = (int) $user_id;
+        if ( $user_id <= 0 ) return false;
+        if ( isset( $cache[ $user_id ] ) ) return $cache[ $user_id ];
+
+        if ( user_can( $user_id, 'manage_options' )
+             || ( class_exists( 'HDLV2_Compatibility' ) && HDLV2_Compatibility::is_practitioner( $user_id ) ) ) {
+            return $cache[ $user_id ] = false;
+        }
+
+        global $wpdb;
+        $has_progress = (int) $wpdb->get_var( $wpdb->prepare(
+            "SELECT 1 FROM {$wpdb->prefix}hdlv2_form_progress
+             WHERE client_user_id = %d AND deleted_at IS NULL LIMIT 1",
+            $user_id
+        ) );
+        if ( $has_progress ) return $cache[ $user_id ] = true;
+
+        $user  = get_userdata( $user_id );
+        $email = $user ? (string) $user->user_email : '';
+        $has_invite = 0;
+        if ( $email !== '' ) {
+            $has_invite = (int) $wpdb->get_var( $wpdb->prepare(
+                "SELECT 1 FROM {$wpdb->prefix}hdlv2_widget_invites
+                 WHERE client_email = %s LIMIT 1",
+                $email
+            ) );
+        }
+        if ( $has_invite ) return $cache[ $user_id ] = true;
+
+        // Fallback for genuine V2 clients who are stranded with neither a
+        // form_progress row nor a widget_invites row yet — e.g. a magic-link
+        // invite that was later deleted, or a client provisioned just before
+        // Stage 1. Key off the V2-origin user_meta stamps that ONLY the V2
+        // creation paths write, never V1's practitioner-invite flow (which
+        // stamps hdl_source='practitioner_invite'). This recovers real V2
+        // clients without catching the V1 free-report / consumer / invite
+        // users who share the um_client / um_consumer / um_practitioner-invite
+        // roles (the whole reason this check is data/meta-driven, not role-driven):
+        //   - hdl_source='assessment_link'        : V2 auto-login provisioning (hdl-longevity-v2.php)
+        //   - hdlv2_tier / hdlv2_purchased_via    : V2 paid-report provisioner (class-hdl-paid-report-provisioner.php)
+        if ( get_user_meta( $user_id, 'hdl_source', true ) === 'assessment_link' ) {
+            return $cache[ $user_id ] = true;
+        }
+        if ( (string) get_user_meta( $user_id, 'hdlv2_tier', true ) !== ''
+             || (string) get_user_meta( $user_id, 'hdlv2_purchased_via', true ) !== '' ) {
+            return $cache[ $user_id ] = true;
+        }
+
+        return $cache[ $user_id ] = false;
+    }
+
+    /**
+     * Repoint / prune the client header menu (WP menu 66) for V2 clients.
+     * Matched by URL path so it survives menu-id changes between STBY ↔ LIVE.
+     */
+    public function filter_client_nav( $items, $args ) {
+        if ( is_admin() || ! is_user_logged_in() || empty( $items ) ) return $items;
+        if ( ! $this->is_v2_client( get_current_user_id() ) ) return $items;
+
+        foreach ( $items as $key => $item ) {
+            if ( ! is_object( $item ) || empty( $item->url ) ) continue;
+            $path = wp_parse_url( $item->url, PHP_URL_PATH );
+            $path = $path ? trailingslashit( $path ) : '';
+
+            if ( $path === '/health-report/' ) {
+                // V1 health form — not part of the V2 client journey (and it
+                // throws a JS "Unexpected token '<'" on load). Drop it.
+                unset( $items[ $key ] );
+                continue;
+            }
+            if ( $path === '/longevity-form-rate-of-aging/' ) {
+                // Old V1 longevity form → the client's own V2 report.
+                $item->url   = home_url( '/my-report/' );
+                $item->title = 'My Report';
+                continue;
+            }
+            if ( $path === '/clients/' ) {
+                // Practitioner roster page (clients only land here via a
+                // redirect back to /my-dashboard/). Point straight there.
+                $item->url   = home_url( '/my-dashboard/' );
+                $item->title = 'Dashboard';
+            }
+        }
+        return array_values( $items );
+    }
+
+    /**
+     * Hide the V1 / practitioner links baked into the static Divi footer
+     * (post 1065, class .hdl-footer) for V2 clients only. Targeted by href so
+     * no other role's footer is affected. The wrong-domain "Contact Us" mailto
+     * is corrected in the footer module itself, not here.
+     */
+    public function inject_client_footer_css() {
+        if ( is_admin() || ! is_user_logged_in() ) return;
+        if ( ! $this->is_v2_client( get_current_user_id() ) ) return;
+        echo '<style id="hdlv2-client-footer-fix">'
+           . '.hdl-footer a[href*="/client-tracker/"],'
+           . '.hdl-footer a[href*="/health-report/"],'
+           . '.hdl-footer a[href*="/clients/"],'
+           . '.hdl-footer a[href*="/longevity-form-rate-of-aging/"]'
+           . '{display:none !important;}'
+           . '</style>' . "\n";
     }
 
     /**
@@ -286,7 +421,10 @@ class HDLV2_Client_Dashboard {
         $weekday      = date_i18n( 'l' );
         $today_str    = date_i18n( 'j M' );
         $week_no      = $ctx['flight_plan']['week_number'] ?? null;
-        $checkin_url  = home_url( '/check-in/' );
+        // v0.46.66 (#2) — was '/check-in/' (a 404: the page slug is
+        // 'weekly-check-in'). The check-in shortcode now cookie-resolves the
+        // logged-in client's token, so the CTA needs no ?token in the URL.
+        $checkin_url  = home_url( '/' . trim( apply_filters( 'hdlv2_checkin_slug', 'weekly-check-in' ), '/' ) . '/' );
         $plan_url     = home_url( '/my-flight-plan/' );
 
         $weeks_text = $week_no
@@ -1294,16 +1432,15 @@ class HDLV2_Client_Dashboard {
         }
 
         // Timeline (last 5 client-visible entries).
-        // v0.41.17 — `AND deleted_at IS NULL`. Note: timeline uses
-        // `client_id` not `client_user_id`; this query had a bug where
-        // it always returned zero rows. Keeping the existing column
-        // name to avoid surprising behavior change in this hardening
-        // pass; treat as pre-existing.
+        // v0.41.17 — `AND deleted_at IS NULL`. E2 (v0.46.46) — FIXED the
+        // pre-existing always-empty bug: the table's column is `client_id`
+        // (what HDLV2_Timeline::add_entry writes), not `client_user_id`;
+        // the nonexistent column made the query error → zero rows forever.
         $timeline = array();
         $tl_rows = $wpdb->get_results( $wpdb->prepare(
             "SELECT id, entry_type, title, summary, date
              FROM {$wpdb->prefix}hdlv2_timeline
-             WHERE client_user_id = %d AND ( is_private = 0 OR is_private IS NULL )
+             WHERE client_id = %d AND ( is_private = 0 OR is_private IS NULL )
                AND deleted_at IS NULL
              ORDER BY date DESC, id DESC LIMIT 5",
             $user_id
@@ -1553,12 +1690,27 @@ class HDLV2_Client_Dashboard {
         $h = '<div class="cd-paths">';
 
         if ( $state === 'brand-new' ) {
-            $cta_url = home_url( '/longevity-form-rate-of-aging/' );
+            // v0.46.23 — Send the client to the V2 widget (the 9-question gauge
+            // this card actually describes), NOT the old V1 longevity form.
+            // Carry their assessment-link invite token so the lead attributes
+            // to the inviting practitioner + their own form_progress — the
+            // widget page's bare practitioner_id default (122 on STBY) would
+            // otherwise mis-file the submission.
+            $invite_token = isset( $ctx['invite_token'] ) ? (string) $ctx['invite_token'] : '';
             $h .= '<div class="cd-path cd-path-cta">';
             $h .= '<div class="cd-path-icon" aria-hidden="true">' . $this->icon( 'play' ) . '</div>';
             $h .= '<h3>Take the quick gauge</h3>';
             $h .= '<p>9 questions, ~3 minutes. You&rsquo;ll see your pace-of-ageing result straight after, and your practitioner will be notified.</p>';
-            $h .= '<a href="' . esc_url( $cta_url ) . '" class="cd-btn">Start now &rarr;</a>';
+            if ( $invite_token !== '' ) {
+                $cta_url = add_query_arg( 'invite', $invite_token, home_url( '/rate-of-ageing-widget/' ) );
+                $h .= '<a href="' . esc_url( $cta_url ) . '" class="cd-btn">Start now &rarr;</a>';
+            } else {
+                // No live invite link to attribute the submission against —
+                // sending them to the bare widget would mis-file the lead under
+                // the page's default practitioner. Ask for a fresh link instead
+                // of handing them a broken Start button.
+                $h .= '<p class="cd-note" style="margin:6px 0 0;color:#888;font-size:14px;">Your assessment link isn&rsquo;t active yet &mdash; please ask your practitioner for your invitation link to begin.</p>';
+            }
             $h .= '</div>';
         } elseif ( $state === 'stage1-done' ) {
             $h .= '<div class="cd-path">';
@@ -1611,11 +1763,13 @@ class HDLV2_Client_Dashboard {
         $captured = $ctx['stage1_captured_at'] ? $this->fmt_date( $ctx['stage1_captured_at'] ) : '';
 
         $h  = '<div class="cd-preview">';
-        $h .= '<svg class="cd-gauge-mini" viewBox="0 0 140 80" aria-label="Mini pace-of-ageing gauge">';
-        $h .= '<path d="M 14 70 A 56 56 0 0 1 126 70" fill="none" stroke="#e4e6ea" stroke-width="10" stroke-linecap="round"/>';
-        $h .= '<path d="M 14 70 A 56 56 0 0 1 90 18" fill="none" stroke="#3d8da0" stroke-width="10" stroke-linecap="round"/>';
-        $h .= '<circle cx="90" cy="18" r="7" fill="#3d8da0" stroke="#fff" stroke-width="2"/>';
-        $h .= '</svg>';
+        // v0.46.25 — show the REAL value-driven speedometer (the same QuickChart
+        // gauge used on the Progress tab + the Stage-1 widget), replacing the old
+        // decorative static arc that drew the identical shape for every rate.
+        $gauge_url = $this->chart_url_gauge( $rate );
+        if ( $gauge_url ) {
+            $h .= '<img class="cd-gauge-real" src="' . esc_url( $gauge_url ) . '" width="380" height="340" alt="' . esc_attr( 'Pace of ageing gauge — ' . number_format( $rate, 2 ) . '×' ) . '" loading="lazy">';
+        }
         $h .= '<div class="cd-preview-meta">';
         $h .= '<span class="big">' . esc_html( number_format( $rate, 2 ) ) . '&times;</span>';
         $h .= 'Your pace of ageing &mdash; the starting point for everything that comes next.';
@@ -1653,7 +1807,7 @@ class HDLV2_Client_Dashboard {
         $bodies = array(
             1 => array( 'Stage 1 &middot; Quick insight',     '9 questions, ~3 minutes. You see your pace-of-ageing gauge straight away.' ),
             2 => array( 'Stage 2 &middot; Your WHY',          'Your practitioner releases this when ready. You record what matters most &mdash; speak it or type it.' ),
-            3 => array( 'Stage 3 &middot; Full detail',       '22 measurements across 5 sections. Auto-drafts your Trajectory Plan for your practitioner&rsquo;s review.' ),
+            3 => array( 'Stage 3 &middot; Full detail',       '21 measurements across 5 sections. Auto-drafts your Trajectory Plan for your practitioner&rsquo;s review.' ),
             4 => array( 'Consultation &middot; Trajectory Plan', 'Your practitioner edits, adds notes, finalises. PDF + Flight Plan delivered to you.' ),
         );
 
@@ -1791,10 +1945,36 @@ class HDLV2_Client_Dashboard {
             $display_name = ucwords( strtolower( $display_name ) );
         }
 
+        // v0.46.23 — Brand-new clients reach Stage 1 through the V2 widget, not
+        // the old V1 longevity form. Surface their still-valid assessment-link
+        // invite token so the "Start now" CTA can carry it (mirrors the invite-
+        // email URL site_url('/rate-of-ageing-widget/?invite=TOKEN')). The token
+        // is what makes the widget resolve the *inviting* practitioner and
+        // attribute the lead to this client's own form_progress instead of the
+        // widget page's default practitioner_id. Statuses pending/opened are the
+        // pre-submit, still-usable states (opened is set on magic-link login);
+        // completed/expired/revoked are intentionally excluded.
+        $invite_token = '';
+        $email = $user ? (string) $user->user_email : '';
+        if ( $email !== '' ) {
+            $now = current_time( 'mysql', true ); // GMT — matches gmdate()-stored expires_at
+            $invite = $wpdb->get_row( $wpdb->prepare(
+                "SELECT token FROM {$wpdb->prefix}hdlv2_widget_invites
+                 WHERE client_email = %s AND status IN ('pending','opened')
+                   AND expires_at > %s
+                 ORDER BY id DESC LIMIT 1",
+                $email, $now
+            ) );
+            if ( $invite && $invite->token ) {
+                $invite_token = (string) $invite->token;
+            }
+        }
+
         return array(
             'first_name'         => $first,
             'display_name'       => $display_name,
             'practitioner_name'  => $practitioner_name,
+            'invite_token'       => $invite_token,
             'stage1_rate'        => $stage1_rate,
             'stage1_captured_at' => $stage1_captured_at,
             'why_text'           => $why_text,

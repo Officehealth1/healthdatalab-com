@@ -278,6 +278,14 @@
   height: 80px;
   flex-shrink: 0;
 }
+/* v0.46.25 — real QuickChart speedometer in the new-client preview card
+   (replaces the old decorative cd-gauge-mini static arc). */
+.hdlv2-cd .cd-gauge-real {
+  width: 172px;
+  height: auto;
+  display: block;
+  flex-shrink: 0;
+}
 .hdlv2-cd .cd-preview-meta {
   font-size: 14px;
   color: var(--hdlv2-cd-ink-soft);
@@ -471,6 +479,9 @@
   .hdlv2-cd .cd-gauge-mini {
     width: 120px;
     height: 70px;
+  }
+  .hdlv2-cd .cd-gauge-real {
+    width: 150px;
   }
   .hdlv2-cd .cd-hero {
     padding: 24px 22px;

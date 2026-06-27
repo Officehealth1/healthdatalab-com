@@ -79,11 +79,15 @@ class HDLV2_My_Report {
         }
         $token = $this->get_user_token( get_current_user_id() );
         if ( ! $token ) {
+            // v0.46.23 — Route to the state-aware client dashboard, NOT the old
+            // V1 longevity form. The dashboard shows the right next step for
+            // their stage (the V2 widget "Start now" for brand-new clients,
+            // carrying their invite token; a waiting message otherwise).
             return $this->card(
                 'No report yet',
-                'Complete your longevity assessment to unlock your personalised report.',
-                'Take the assessment',
-                home_url( '/longevity-form-rate-of-aging/' )
+                'Your personalised report appears here once your assessment is complete. Head to your dashboard for your next step.',
+                'Go to my dashboard',
+                home_url( '/my-dashboard/' )
             );
         }
         // Redirect should already have fired at template_redirect. This is a

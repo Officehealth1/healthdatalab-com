@@ -3,7 +3,7 @@
  * Plugin Name: HDL Longevity V2 — Staged Workflow
  * Plugin URI: https://healthdatalab.net
  * Description: V2 longevity workflow: staged intake, WHY profiling, practitioner consultations, weekly flight plans, and AI coaching. Runs alongside the existing Health Data Lab plugin.
- * Version: 0.46.0
+ * Version: 0.47.3
  * Author: Health Data Lab
  * Author URI: https://healthdatalab.net
  * License: Proprietary
@@ -22,8 +22,8 @@ if ( ! defined( 'ABSPATH' ) ) {
 // register_activation_hook callbacks, which fire synchronously during
 // `wp plugin activate`, can reference them. The activator needs
 // HDLV2_DB_VERSION / HDLV2_VERSION at call time to update version options.
-define( 'HDLV2_VERSION', '0.46.16' );
-define( 'HDLV2_DB_VERSION', '3.15' );
+define( 'HDLV2_VERSION', '0.47.3' );
+define( 'HDLV2_DB_VERSION', '3.20' );
 define( 'HDLV2_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'HDLV2_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 define( 'HDLV2_PLUGIN_FILE', __FILE__ );
@@ -540,19 +540,11 @@ add_action( 'plugins_loaded', function () {
     add_action( 'wp_enqueue_scripts', 'hdlv2_register_loading_helpers', 5 );
     add_action( 'admin_enqueue_scripts', 'hdlv2_register_loading_helpers', 5 );
 
-    // ── Transcriber (in-browser Whisper) ──
-    // Register the ES module globally at priority 5 so it's available as a
-    // dependency by the time shortcodes render their own audio enqueues.
-    // Each of the four audio-component consumers adds 'hdlv2-transcriber' to
-    // its audio-component dep array, and WP auto-enqueues the transcriber
-    // alongside. This replaces the earlier wp_script_is() auto-enqueue —
-    // which ran at wp_enqueue_scripts priority 100 (before shortcode render)
-    // and therefore never saw the audio-component as enqueued.
-    add_action( 'wp_enqueue_scripts', 'hdlv2_register_transcriber', 5 );
-    add_action( 'admin_enqueue_scripts', 'hdlv2_register_transcriber', 5 );
-
-    // Emit type="module" on the transcriber script tag so static imports resolve.
-    add_filter( 'script_loader_tag', 'hdlv2_transcriber_module_tag', 10, 3 );
+    // E4 (v0.46.47) — the in-browser Whisper transcriber tier was removed:
+    // every audio surface routes to server-side Deepgram via
+    // /audio/transcribe-async. The hdlv2-transcriber registration, its
+    // ES-module loader filter, and the vendor blobs (transformers.min.js +
+    // ort wasm, ~22.5MB) are gone.
 
 }, 20 );
 
@@ -583,66 +575,6 @@ function hdlv2_register_loading_helpers() {
             true
         );
     }
-}
-
-/**
- * Register (do not enqueue) the transcriber ES module + its localized config.
- * Called at wp_enqueue_scripts priority 5 on both frontend and admin so that
- * any subsequent enqueue naming 'hdlv2-transcriber' as a dep finds it.
- */
-function hdlv2_register_transcriber() {
-    if ( wp_script_is( 'hdlv2-transcriber', 'registered' ) ) {
-        return;
-    }
-
-    wp_register_script(
-        'hdlv2-transcriber',
-        HDLV2_PLUGIN_URL . 'assets/js/hdlv2-transcriber.js',
-        array(),
-        HDLV2_VERSION,
-        true
-    );
-
-    // preloadMaster is a tri-state master override consulted by each consumer:
-    //   'on'   → force preload everywhere, regardless of what the audio
-    //            component was asked to do.
-    //   'off'  → disable preload everywhere, regardless of consumer opt-in.
-    //   null   → no override. Per-consumer preloadOnIdle option wins.
-    // Filter default is null so admins can opt in/out without touching JS.
-    $preload_filter = apply_filters( 'hdlv2_whisper_preload_on_idle', null );
-    $preload_master = null;
-    if ( $preload_filter === true )  { $preload_master = 'on';  }
-    if ( $preload_filter === false ) { $preload_master = 'off'; }
-
-    wp_localize_script( 'hdlv2-transcriber', 'HDLV2_TRANSCRIBER_CFG', array(
-        // whisper-small (~240MB quantised) is the accuracy target for clinical
-        // vocabulary after Matthew flagged whisper-base as too lossy on terms
-        // like SIBO / cortisol / mitochondrial. Override via filter if the
-        // accuracy diff shows we need to upgrade to whisper-large-v3-turbo.
-        'modelName'     => apply_filters( 'hdlv2_whisper_model', 'Xenova/whisper-small' ),
-        // Beam search over greedy decoding — material accuracy gain on
-        // long-form speech with minimal compute overhead at num_beams=5.
-        'numBeams'      => (int) apply_filters( 'hdlv2_whisper_num_beams', 5 ),
-        'workerUrl'     => HDLV2_PLUGIN_URL . 'assets/js/hdlv2-transcriber.worker.js?ver=' . HDLV2_VERSION,
-        'remoteHost'    => apply_filters( 'hdlv2_whisper_remote_host', null ),
-        'errorEndpoint' => esc_url_raw( rest_url( 'hdl-v2/v1/audio/client-error' ) ),
-        'nonce'         => wp_create_nonce( 'wp_rest' ),
-        'preloadMaster' => $preload_master,
-    ) );
-}
-
-/**
- * Add type="module" to the transcriber <script> tag so the browser parses it
- * as an ES module (required for the static import of transformers.min.js).
- */
-function hdlv2_transcriber_module_tag( $tag, $handle, $src ) {
-    if ( 'hdlv2-transcriber' !== $handle ) {
-        return $tag;
-    }
-    if ( false !== strpos( $tag, 'type="module"' ) ) {
-        return $tag;
-    }
-    return str_replace( '<script ', '<script type="module" ', $tag );
 }
 
 /**
@@ -788,6 +720,18 @@ final class HDL_Longevity_V2 {
         // every consumer that surfaces the practitioner's logo)
         require_once HDLV2_PLUGIN_DIR . 'includes/class-hdlv2-practitioner.php';
 
+        // Iridology add-on (IrisMapper) — backend-to-backend HTTP client + 3
+        // REST routes (/iris/checkout|status|login). Dark behind the
+        // hdlv2_ff_iris_addon feature flag (Rule-0). v1 = purchase + launch.
+        require_once HDLV2_PLUGIN_DIR . 'includes/class-hdlv2-iris-addon.php';
+
+        // Iridology Phase 2 (embedded consult) — pure contract helpers + the
+        // WP-coupled consult flow (upload/analyse/poll/callback/edit). Layered
+        // behind a SECOND flag hdlv2_ff_iris_consult (default OFF) ON TOP of
+        // hdlv2_ff_iris_addon, so Phase 1 stays byte-identical when off (Rule-0).
+        require_once HDLV2_PLUGIN_DIR . 'includes/class-hdlv2-iris-support.php';
+        require_once HDLV2_PLUGIN_DIR . 'includes/class-hdlv2-iris-consult.php';
+
         // Security: rate limiter + idempotency (loaded BEFORE feature classes
         // so the middleware can wrap every REST route registered downstream).
         require_once HDLV2_PLUGIN_DIR . 'includes/security/class-hdlv2-rate-limiter.php';
@@ -822,6 +766,7 @@ final class HDL_Longevity_V2 {
         // Sprint 2C: Consultation Interface + Final Report
         require_once HDLV2_PLUGIN_DIR . 'includes/sprint-2c/class-hdlv2-consultation.php';
         require_once HDLV2_PLUGIN_DIR . 'includes/sprint-2c/class-hdlv2-final-report.php';
+        require_once HDLV2_PLUGIN_DIR . 'includes/sprint-2c/class-hdlv2-report-pdf.php'; // D-2: report-PDF callback + authenticated serve
         // v0.46.0 — async Final Report job handlers (queue-backed generation).
         require_once HDLV2_PLUGIN_DIR . 'includes/sprint-2c/class-hdlv2-report-jobs.php';
 
@@ -840,6 +785,10 @@ final class HDL_Longevity_V2 {
         require_once HDLV2_PLUGIN_DIR . 'includes/sprint-2c/class-hdlv2-trajectory-svg.php';
         require_once HDLV2_PLUGIN_DIR . 'includes/sprint-2c/class-hdlv2-flight-notes.php';
         require_once HDLV2_PLUGIN_DIR . 'includes/sprint-2c/class-hdlv2-flight-notes-service.php';
+        // v0.46.58 — direct WP→PDFMonkey renderers (no Make): weekly Flight
+        // Plan PDF + Final Report re-render on milestone edits.
+        require_once HDLV2_PLUGIN_DIR . 'includes/sprint-5/class-hdlv2-flight-plan-pdf-service.php';
+        require_once HDLV2_PLUGIN_DIR . 'includes/sprint-2c/class-hdlv2-final-report-pdf-service.php';
         // v0.46.x — async Flight Notes render job handler (queue-backed, like reports).
         require_once HDLV2_PLUGIN_DIR . 'includes/sprint-2c/class-hdlv2-flight-notes-jobs.php';
 
@@ -933,6 +882,11 @@ final class HDL_Longevity_V2 {
         HDLV2_Flight_Notes_Jobs::register();
         // v0.46.x — manual Flight Plan regeneration now runs on the job queue.
         HDLV2_Flight_Plan_Jobs::register();
+        // v0.46.66 — auto / check-in / finalise generation now runs on the queue
+        // too (robust under DISABLE_WP_CRON on STBY + LIVE; retry + alert).
+        HDLV2_Flight_Plan_Auto_Jobs::register();
+        HDLV2_Flight_Plan_PDF_Service::register();   // v0.46.58 — render_flight_plan_pdf
+        HDLV2_Final_Report_PDF_Service::register();  // v0.46.58 — render_final_report_pdf
         // v0.46.x — client draft-report generation now runs on the job queue.
         HDLV2_Draft_Report_Jobs::register();
 
@@ -945,6 +899,17 @@ final class HDL_Longevity_V2 {
         HDLV2_Client_Status::get_instance()->register_hooks();
         HDLV2_Practitioner_Dashboard::get_instance()->register_hooks();
         HDLV2_Client_Dashboard::get_instance()->register_hooks();
+        // Iridology add-on (IrisMapper) — REST routes for checkout/status/login.
+        // Dark behind hdlv2_ff_iris_addon (require_practitioner() returns false
+        // when the flag is off, so the routes 401 — Rule-0).
+        HDLV2_Iris_Addon::get_instance()->register_hooks();
+        // Iridology Phase 2 (embedded consult) — REST routes (analyse/start/
+        // analysis-status/callback/areas-edit), the ?hdlv2_iris_img serve route,
+        // and the hdlv2_iris_reconcile cron handler. Dark behind
+        // hdlv2_ff_iris_consult (register_routes() returns early when off, so
+        // /iris/analyse* 404s — Rule-0). The callback route registers even when
+        // off? No: it self-guards on the flag too (no flag ⇒ no callback route).
+        HDLV2_Iris_Consult::get_instance()->register_hooks();
         // v0.41.8 (Bug-3) — daily attention digest cron handler.
         HDLV2_Attention_Cron::get_instance()->register_hooks();
         // v0.41.16 — admin restore page (Tools → V2 Restore).

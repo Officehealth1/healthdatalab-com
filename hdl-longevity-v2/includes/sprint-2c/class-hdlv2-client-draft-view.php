@@ -141,8 +141,15 @@ class HDLV2_Client_Draft_View {
         $s3_data    = json_decode( $progress->stage3_data, true ) ?: array();
         $chrono_age = $s1_data['q1_age'] ?? $s1_data['age'] ?? null;
 
-        // Build calc. Final: recompute with edits. Draft: use stage3 server_result.
-        if ( $report_type === 'final' ) {
+        // Build calc. Final: read the frozen generation-time snapshot (matches
+        // the PDF exactly); legacy finals without one fall back to a live
+        // recompute. Draft: use stage3 server_result.
+        if ( $report_type === 'final' && ! empty( $content['calc_snapshot'] ) && is_array( $content['calc_snapshot'] ) ) {
+            // v0.46.28 (A2) — Generation-time numbers, byte-identical to what
+            // HDLV2_Final_Report::fire_webhook sent to the PDF. No recompute →
+            // no screen↔PDF drift even if calculate_full() changes post-generation.
+            $calc_source = $content['calc_snapshot'];
+        } elseif ( $report_type === 'final' ) {
             $calc_data = array_merge( $s1_data, $s3_data );
 
             $health_changes = ( ! empty( $final_row->health_data_changes ) )

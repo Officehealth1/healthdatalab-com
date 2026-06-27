@@ -111,6 +111,13 @@ class HDLV2_Flight_Plan {
             'methods' => 'POST', 'callback' => array( $this, 'rest_priorities' ),
             'permission_callback' => function () { return HDLV2_Compatibility::is_practitioner( get_current_user_id() ); },
         ) );
+        // v0.46.58 — Practitioner edits the CURRENT week's stored plan
+        // (per-section or per-day-action). Additive revisions; re-renders the
+        // direct PDF; zero emails.
+        register_rest_route( 'hdl-v2/v1', '/flight-plan/(?P<client_id>\d+)/edit', array(
+            'methods' => 'POST', 'callback' => array( $this, 'rest_edit_plan' ),
+            'permission_callback' => function () { return HDLV2_Compatibility::is_practitioner( get_current_user_id() ); },
+        ) );
         // Callback from Make.com / PDFMonkey — writes the rendered PDF URL
         // back into the flight plan row. Auth: Bearer HDLV2_MAKE_CALLBACK_SECRET.
         register_rest_route( 'hdl-v2/v1', '/flight-plan/pdf-callback', array(
@@ -219,7 +226,10 @@ class HDLV2_Flight_Plan {
         // Plans generated before HDLV2_MAKE_FLIGHT_PDF was configured never
         // receive a callback, so the 10-minute grace window stops old plans
         // from getting stuck on the preparing state forever.
-        $pipeline_configured = defined( 'HDLV2_MAKE_FLIGHT_PDF' ) && HDLV2_MAKE_FLIGHT_PDF;
+        // v0.46.58 — the direct WP→PDFMonkey renderer supersedes the Make
+        // pipeline (whose scenario branch never existed); either counts.
+        $pipeline_configured = ( class_exists( 'HDLV2_Flight_Plan_PDF_Service' ) && HDLV2_Flight_Plan_PDF_Service::configured() )
+            || ( defined( 'HDLV2_MAKE_FLIGHT_PDF' ) && HDLV2_MAKE_FLIGHT_PDF );
         $plan_age_sec        = $plan->created_at ? ( time() - strtotime( $plan->created_at ) ) : PHP_INT_MAX;
         $pdf_expected        = ( ! $plan->pdf_url ) && $pipeline_configured && ( $plan_age_sec < 600 );
 
@@ -606,12 +616,18 @@ class HDLV2_Flight_Plan {
     }
 
     // ── Core: Generate flight plan ──
-    public function generate( $client_id, $practitioner_id, $trigger = 'auto', $send_email = true, $week_start = null, $force = false ) {
+    public function generate( $client_id, $practitioner_id, $trigger = 'auto', $send_email = true, $week_start = null, $force = false, $prebuilt_context = null ) {
         $api_key = defined( 'HDLV2_ANTHROPIC_API_KEY' ) ? HDLV2_ANTHROPIC_API_KEY : '';
         if ( ! $api_key ) return new WP_Error( 'no_key', 'Anthropic API key not configured.' );
 
-        // 5.1 — Use shared Context Builder (tier 2)
-        $context = HDLV2_Context_Builder::build_context( $client_id, 2 );
+        // 5.1 — Use shared Context Builder (tier 2). Callers that have already
+        // built the identical tier-2 context for this client (e.g. the weekly
+        // cron's zero-engagement gate) may pass it in to avoid rebuilding the
+        // full ~12-query context twice in one tick. Default null = build fresh
+        // (unchanged behaviour for every other caller).
+        $context = is_array( $prebuilt_context )
+            ? $prebuilt_context
+            : HDLV2_Context_Builder::build_context( $client_id, 2 );
         if ( ! $week_start ) {
             $week_start = date( 'Y-m-d', strtotime( 'monday this week' ) );
         }
@@ -694,10 +710,11 @@ class HDLV2_Flight_Plan {
         $context['start_day_of_week'] = $start_day;
 
         $prompt = $this->build_prompt( $context );
-        // v0.36.1 — Sonnet 4.6 (was Sonnet 4 May 2025). Same Messages API,
-        // same anthropic-version header (2023-06-01), same max_tokens
-        // semantics — drop-in replacement.
-        $model  = 'claude-sonnet-4-6';
+        // v0.46.24 — Opus 4.8 (was Sonnet 4.6). Same Messages API, same
+        // anthropic-version header (2023-06-01), same max_tokens semantics.
+        // No temperature/top_p/top_k sent here, so Opus-safe. POST timeout is
+        // already 120s below — adequate for Opus on the 12k-token plan.
+        $model  = 'claude-opus-4-8';
 
         // v0.31.0 — wrap the Claude call in a validated try/retry loop.
         //   1st attempt: standard prompt.
@@ -855,7 +872,16 @@ class HDLV2_Flight_Plan {
         // Fire Make.com webhook (non-blocking) so PDFMonkey can render the
         // printable landscape A4. The callback at /flight-plan/pdf-callback
         // will write the rendered pdf_url back into this row when ready.
-        $this->fire_flight_plan_webhook( $plan_id );
+        // v0.46.58 — direct WP→PDFMonkey render replaces the Make webhook
+        // (HDLV2_MAKE_FLIGHT_PDF fired into a scenario with no matching
+        // branch — the PDF never rendered). The renderer self-hosts the file
+        // and stamps pdf_* on this row; legacy fallback keeps the old fire
+        // if the service is unavailable.
+        if ( class_exists( 'HDLV2_Flight_Plan_PDF_Service' ) && HDLV2_Flight_Plan_PDF_Service::configured() ) {
+            HDLV2_Flight_Plan_PDF_Service::enqueue_render( $plan_id );
+        } else {
+            $this->fire_flight_plan_webhook( $plan_id );
+        }
 
         // Notify client that their flight plan is ready (skip on manual regenerate to avoid inbox spam).
         // PDF URL may already be populated if the Make scenario responded
@@ -925,19 +951,35 @@ class HDLV2_Flight_Plan {
         // v0.41.17 — `AND deleted_at IS NULL`. A soft-deleted plan for the
         // same week must not block a fresh lifecycle's plan generation.
         $existing = $wpdb->get_row( $wpdb->prepare(
-            "SELECT id, status FROM {$wpdb->prefix}hdlv2_flight_plans
+            "SELECT id, status, generation_trigger FROM {$wpdb->prefix}hdlv2_flight_plans
              WHERE client_id = %d AND week_start = %s AND deleted_at IS NULL
              LIMIT 1",
             $client_id, $week_start
         ) );
-        $force = false;
+        $force      = false;
+        $send_email = true;
         if ( $existing ) {
             if ( in_array( $existing->status, array( 'generated', 'delivered', 'active' ), true ) ) {
-                return; // already have a live plan for this week
+                // v0.46.66 (#5) — a check-in must SUPERSEDE a plan the weekly
+                // cron pre-built before the client's reply landed, otherwise
+                // the reply never shapes next week (the default Saturday cron
+                // builds next-Monday's plan; a Sat-night/Sun check-in would
+                // hit this no-op and be silently dropped). Only supersede an
+                // 'auto' (cron) plan — never loop on a checkin/manual one —
+                // and suppress the duplicate "ready" email (the cron already
+                // emailed when it built the plan; the client is mid check-in
+                // and will see the refreshed plan next week).
+                if ( 'next' === $target_week && 'auto' === $existing->generation_trigger ) {
+                    $force      = true;
+                    $send_email = false;
+                } else {
+                    return null; // already have a live plan for this week (no-op = success)
+                }
+            } else {
+                // archived / completed — replace with a fresh plan via $force=true
+                // (delete-then-INSERT path inside ::generate()).
+                $force = true;
             }
-            // archived / completed — replace with a fresh plan via $force=true
-            // (delete-then-INSERT path inside ::generate()).
-            $force = true;
         }
 
         // Get practitioner. v0.41.17 — `AND deleted_at IS NULL`.
@@ -948,8 +990,71 @@ class HDLV2_Flight_Plan {
             $client_id
         ) );
 
+        // v0.46.66 — RETURN the result (int plan_id | null no-op | WP_Error) so
+        // the queue handler can detect a transient failure and retry/alert.
+        // do_action() callers (the legacy hdlv2_generate_single_flight_plan
+        // hook) harmlessly ignore the return.
         $trigger = ( $target_week === 'next' ) ? 'checkin' : 'final_report';
-        $this->generate( (int) $client_id, (int) $prac_id, $trigger, true, $week_start, $force );
+        return $this->generate( (int) $client_id, (int) $prac_id, $trigger, $send_email, $week_start, $force );
+    }
+
+    /**
+     * v0.46.66 (#3/#4) — record a permanently-failed auto/check-in generation
+     * so the practitioner is alerted instead of the client silently ending up
+     * plan-less. Called by HDLV2_Flight_Plan_Auto_Jobs::handle() on the final
+     * (non-retryable) attempt. Mirrors log_zero_engagement_skip(): a timeline
+     * row (visible in the client's Timeline tab) + a user_meta flag the
+     * dashboard can surface + an error_log line. Idempotent per (client, week).
+     *
+     * @param int    $client_id
+     * @param string $target_week   'next' | 'current'
+     * @param string $error_message
+     */
+    public function record_generation_failure( $client_id, $target_week = 'current', $error_message = '' ) {
+        global $wpdb;
+        $client_id  = (int) $client_id;
+        $week_start = ( 'next' === $target_week )
+            ? date( 'Y-m-d', strtotime( 'next monday' ) )
+            : date( 'Y-m-d', strtotime( 'monday this week' ) );
+
+        $prac_id = (int) $wpdb->get_var( $wpdb->prepare(
+            "SELECT practitioner_user_id FROM {$wpdb->prefix}hdlv2_form_progress
+             WHERE client_user_id = %d AND deleted_at IS NULL
+             ORDER BY id DESC LIMIT 1",
+            $client_id
+        ) );
+
+        // Idempotent per (client, week): don't stack rows if both attempts fail.
+        $existing = $wpdb->get_var( $wpdb->prepare(
+            "SELECT id FROM {$wpdb->prefix}hdlv2_timeline
+             WHERE client_id = %d AND entry_type = 'flight_plan_failed' AND date = %s
+               AND deleted_at IS NULL
+             ORDER BY id DESC LIMIT 1",
+            $client_id, $week_start
+        ) );
+        if ( ! $existing ) {
+            $wpdb->insert( $wpdb->prefix . 'hdlv2_timeline', array(
+                'client_id'       => $client_id,
+                'practitioner_id' => $prac_id,
+                'entry_type'      => 'flight_plan_failed',
+                'title'           => 'Flight Plan generation failed',
+                'date'            => $week_start,
+                'temporal_type'   => 'instant',
+                'category'        => 'system',
+                'source'          => 'system',
+                'summary'         => 'Automatic generation of the ' . ( 'next' === $target_week ? 'upcoming' : 'current' )
+                    . " week's Flight Plan failed after an automatic retry. Use \"Regenerate Flight Plan\" on the dashboard to create it manually."
+                    . ( $error_message ? ' (' . substr( (string) $error_message, 0, 160 ) . ')' : '' ),
+                'created_at'      => current_time( 'mysql' ),
+            ) );
+        }
+
+        update_user_meta( $client_id, 'hdlv2_flight_plan_gen_failed', $week_start );
+        update_user_meta( $client_id, 'hdlv2_flight_plan_gen_failed_at', current_time( 'mysql' ) );
+        error_log( sprintf(
+            '[HDLV2 FlightPlan] generation PERMANENTLY FAILED for client %d week %s (%s): %s',
+            $client_id, $week_start, $target_week, $error_message
+        ) );
     }
 
     /**
@@ -997,24 +1102,13 @@ class HDLV2_Flight_Plan {
      * plan ready" email goes out whether the PDF is ready or not; the
      * download button shows up on the plan page once the callback lands.
      */
-    public function fire_flight_plan_webhook( $plan_id ) {
-        $webhook_url = defined( 'HDLV2_MAKE_FLIGHT_PDF' ) ? HDLV2_MAKE_FLIGHT_PDF : '';
-        if ( empty( $webhook_url ) ) {
-            error_log( '[HDLV2] Flight Plan PDF webhook skipped — HDLV2_MAKE_FLIGHT_PDF not configured.' );
-            return;
-        }
-
-        // v0.41.17 — `AND deleted_at IS NULL`. Never fire the PDFMonkey
-        // webhook for an archived plan. Phase T cascade puts plans into
-        // deleted_at when the client was removed.
+    /**
+     * v0.46.58 — The flight-plan PDF field mapping (the retired Make
+     * webhook's payload), extracted so the direct renderer ships the
+     * identical field set. Caller passes the (non-deleted) plan row.
+     */
+    public function build_pdf_payload( $plan ) {
         global $wpdb;
-        $plan = $wpdb->get_row( $wpdb->prepare(
-            "SELECT * FROM {$wpdb->prefix}hdlv2_flight_plans
-             WHERE id = %d AND deleted_at IS NULL",
-            $plan_id
-        ) );
-        if ( ! $plan ) return;
-
         $client_user   = get_userdata( $plan->client_id );
         $prac_user     = get_userdata( $plan->practitioner_id );
 
@@ -1054,11 +1148,33 @@ class HDLV2_Flight_Plan {
             'shopping_list'         => json_decode( $plan->shopping_list, true ) ?: array(),
             'review_prompts'        => $plan_data['review_prompts'] ?? array(),
             'daily_plan'            => $this->clean_daily_plan_actions( $plan_data['daily_plan'] ?? array() ),
-            'callback_url'          => rest_url( 'hdl-v2/v1/flight-plan/pdf-callback' ),
-            'callback_secret'       => defined( 'HDLV2_MAKE_CALLBACK_SECRET' ) ? HDLV2_MAKE_CALLBACK_SECRET : '',
             'plan_url'              => $fp_token ? site_url( '/my-flight-plan/?token=' . $fp_token ) : site_url( '/my-flight-plan/' ),
             'generated_at'          => current_time( 'c' ),
         );
+
+        return $payload;
+    }
+
+    /**
+     * v0.46.58 — legacy Make webhook fire, now a thin wrapper over
+     * build_pdf_payload(). Kept for rollback; the live path is
+     * HDLV2_Flight_Plan_PDF_Service (direct render, no Make).
+     */
+    public function fire_flight_plan_webhook( $plan_id ) {
+        $webhook_url = defined( 'HDLV2_MAKE_FLIGHT_PDF' ) ? HDLV2_MAKE_FLIGHT_PDF : '';
+        if ( empty( $webhook_url ) ) {
+            error_log( '[HDLV2] Flight Plan PDF webhook skipped — HDLV2_MAKE_FLIGHT_PDF not configured.' );
+            return;
+        }
+        global $wpdb;
+        $plan = $wpdb->get_row( $wpdb->prepare(
+            "SELECT * FROM {$wpdb->prefix}hdlv2_flight_plans WHERE id = %d AND deleted_at IS NULL",
+            $plan_id
+        ) );
+        if ( ! $plan ) return;
+        $payload = $this->build_pdf_payload( $plan );
+        $payload['callback_url']    = rest_url( 'hdl-v2/v1/flight-plan/pdf-callback' );
+        $payload['callback_secret'] = defined( 'HDLV2_MAKE_CALLBACK_SECRET' ) ? HDLV2_MAKE_CALLBACK_SECRET : '';
 
         HDLV2_Webhook_Monitor::fire(
             $webhook_url,
@@ -1099,14 +1215,27 @@ class HDLV2_Flight_Plan {
         }
 
         global $wpdb;
-        $updated = $wpdb->update(
-            $wpdb->prefix . 'hdlv2_flight_plans',
-            array( 'pdf_url' => $pdf_url, 'delivered_at' => current_time( 'mysql' ) ),
-            array( 'id' => $plan_id )
-        );
+        // v0.41.17 hardening parity — `AND deleted_at IS NULL` so a callback that
+        // races a client cascade-soft-delete can't stamp a pdf_url/delivered_at
+        // onto an archived/soft-deleted plan. $wpdb->update() can't express the
+        // NULL predicate, so use a prepared UPDATE mirroring
+        // fire_flight_plan_webhook()'s guarded SELECT.
+        $updated = $wpdb->query( $wpdb->prepare(
+            "UPDATE {$wpdb->prefix}hdlv2_flight_plans
+             SET pdf_url = %s, delivered_at = %s
+             WHERE id = %d AND deleted_at IS NULL",
+            $pdf_url, current_time( 'mysql' ), $plan_id
+        ) );
 
         if ( $updated === false ) {
             return new WP_Error( 'db_error', 'Failed to persist pdf_url.', array( 'status' => 500 ) );
+        }
+
+        // 0 rows = the plan doesn't exist or was soft-deleted between the webhook
+        // fire and this callback. Don't report a false success; the read paths
+        // already filter deleted_at IS NULL so there is nothing to surface.
+        if ( $updated === 0 ) {
+            return new WP_Error( 'not_found', 'Flight plan not found or no longer active.', array( 'status' => 404 ) );
         }
 
         return rest_ensure_response( array( 'success' => true, 'plan_id' => $plan_id, 'pdf_url' => $pdf_url ) );
@@ -1290,6 +1419,260 @@ class HDLV2_Flight_Plan {
 
         $plan['daily_plan'] = $normalised;
         return $plan;
+    }
+
+    /**
+     * v0.46.58 — Practitioner edit of the current week's STORED plan.
+     * Additive: every change appends {path, original, new, editor, ts} to
+     * plan_data['_revisions'] (AI original never lost), updates the single
+     * stored copy (plan_data + the extracted column + the tick row's
+     * action_text in lockstep), and queues a direct PDF re-render. The
+     * client view reads the DB live, so edits appear on next load. ZERO
+     * emails on this path by construction.
+     *
+     * Body: { plan_id, field: identity_statement|journey_assistance|
+     *         weekly_target|daily_action, value, [index], [day], [slot] }
+     */
+    public function rest_edit_plan( $request ) {
+        $client_id = absint( $request['client_id'] );
+        $uid       = get_current_user_id();
+        if ( ! current_user_can( 'manage_options' )
+            && ! HDLV2_Compatibility::practitioner_owns_client( $uid, $client_id ) ) {
+            return new WP_Error( 'forbidden', 'You are not linked to this client.', array( 'status' => 403 ) );
+        }
+        $p       = $request->get_json_params() ?: array();
+        $plan_id = absint( $p['plan_id'] ?? 0 );
+        $field   = sanitize_key( $p['field'] ?? '' );
+        $value   = trim( (string) ( $p['value'] ?? '' ) );
+        if ( ! $plan_id || '' === $value ) {
+            return new WP_Error( 'invalid', 'plan_id, field and a non-empty value are required.', array( 'status' => 400 ) );
+        }
+
+        global $wpdb;
+        $plan = $wpdb->get_row( $wpdb->prepare(
+            "SELECT * FROM {$wpdb->prefix}hdlv2_flight_plans
+             WHERE id = %d AND client_id = %d AND deleted_at IS NULL",
+            $plan_id, $client_id
+        ) );
+        if ( ! $plan ) {
+            return new WP_Error( 'not_found', 'Flight plan not found.', array( 'status' => 404 ) );
+        }
+
+        $plan_data = json_decode( $plan->plan_data, true ) ?: array();
+        $cols      = array(); // extracted-column updates applied alongside plan_data
+        $path      = $field;
+        $original  = '';
+
+        switch ( $field ) {
+            case 'identity_statement':
+                $original = (string) $plan->identity_statement;
+                $clean    = sanitize_text_field( $value );
+                $plan_data['identity_statement'] = $clean;
+                $cols['identity_statement']      = $clean;
+                break;
+
+            case 'journey_assistance':
+                $original = (string) $plan->journey_assistance;
+                $clean    = sanitize_textarea_field( $value );
+                $plan_data['journey_assistance'] = $clean;
+                $cols['journey_assistance']      = $clean;
+                break;
+
+            case 'weekly_target':
+                $i       = absint( $p['index'] ?? -1 );
+                $targets = json_decode( $plan->weekly_targets, true ) ?: array();
+                if ( ! isset( $targets[ $i ] ) ) {
+                    return new WP_Error( 'invalid', 'No such target.', array( 'status' => 400 ) );
+                }
+                $path     = "weekly_targets[$i]";
+                $original = is_array( $targets[ $i ] ) ? (string) ( $targets[ $i ]['target'] ?? '' ) : (string) $targets[ $i ];
+                $clean    = sanitize_text_field( $value );
+                if ( is_array( $targets[ $i ] ) ) {
+                    $targets[ $i ]['target'] = $clean;
+                } else {
+                    $targets[ $i ] = $clean;
+                }
+                $plan_data['weekly_targets'] = $targets;
+                $cols['weekly_targets']      = wp_json_encode( $targets );
+                break;
+
+            case 'daily_action':
+                $day  = sanitize_key( $p['day'] ?? '' );
+                $slot = sanitize_key( $p['slot'] ?? '' );
+                $i    = absint( $p['index'] ?? -1 );
+                $valid_days = array( 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday' );
+                if ( ! in_array( $day, $valid_days, true ) || ! isset( $plan_data['daily_plan'][ $day ][ $slot ][ $i ] )
+                    || ! is_array( $plan_data['daily_plan'][ $day ][ $slot ][ $i ] ) ) {
+                    return new WP_Error( 'invalid', 'No such action.', array( 'status' => 400 ) );
+                }
+                $action   =& $plan_data['daily_plan'][ $day ][ $slot ][ $i ];
+                $path     = "daily_plan.{$day}.{$slot}[{$i}]";
+                $original = (string) ( $action['action'] ?? $action['text'] ?? '' );
+                $clean    = sanitize_textarea_field( $value );
+                if ( isset( $action['text'] ) && ! isset( $action['action'] ) ) {
+                    $action['text'] = $clean; // legacy shape
+                } else {
+                    $action['action'] = $clean;
+                }
+                $type = (string) ( $action['type'] ?? $action['category'] ?? 'key_action' );
+                unset( $action );
+                // Tick lockstep — tick action_index counts only TICKABLE
+                // actions (why_anchors are skipped at insert), so map the
+                // plan_data index to the tick index by counting non-why
+                // actions before this one in the same slot.
+                if ( 'why_anchor' !== $type ) {
+                    $tick_idx = 0;
+                    foreach ( $plan_data['daily_plan'][ $day ][ $slot ] as $k => $a2 ) {
+                        if ( $k >= $i ) {
+                            break;
+                        }
+                        $t2 = is_array( $a2 ) ? (string) ( $a2['type'] ?? $a2['category'] ?? 'key_action' ) : 'key_action';
+                        if ( 'why_anchor' !== $t2 ) {
+                            $tick_idx++;
+                        }
+                    }
+                    $wpdb->query( $wpdb->prepare(
+                        "UPDATE {$wpdb->prefix}hdlv2_flight_plan_ticks
+                         SET action_text = %s
+                         WHERE flight_plan_id = %d AND day = %s AND time_slot = %s AND action_index = %d
+                           AND deleted_at IS NULL",
+                        sanitize_text_field( $this->clean_action_prefix( $clean ) ),
+                        $plan_id, $day, $slot, $tick_idx
+                    ) );
+                }
+                break;
+
+            case 'daily_action_by_tick':
+                // v0.46.59 — editor v2: the grid identifies rows by tick id.
+                // Resolve the tick → (day, slot, ordinal) → the plan_data
+                // position (why-anchor-aware inverse of create_tick_rows),
+                // then identical semantics to 'daily_action'.
+                $tick_id = absint( $p['tick_id'] ?? 0 );
+                $tick = $wpdb->get_row( $wpdb->prepare(
+                    "SELECT * FROM {$wpdb->prefix}hdlv2_flight_plan_ticks
+                     WHERE id = %d AND flight_plan_id = %d AND deleted_at IS NULL",
+                    $tick_id, $plan_id
+                ) );
+                if ( ! $tick ) {
+                    return new WP_Error( 'invalid', 'No such action.', array( 'status' => 400 ) );
+                }
+                $day  = (string) $tick->day;
+                $slot = (string) $tick->time_slot;
+                $i    = null;
+                $ord  = 0;
+                foreach ( (array) ( $plan_data['daily_plan'][ $day ][ $slot ] ?? array() ) as $k => $a2 ) {
+                    $t2 = is_array( $a2 ) ? (string) ( $a2['type'] ?? $a2['category'] ?? 'key_action' ) : 'key_action';
+                    if ( 'why_anchor' === $t2 ) {
+                        continue;
+                    }
+                    if ( $ord === (int) $tick->action_index ) {
+                        $i = $k;
+                        break;
+                    }
+                    $ord++;
+                }
+                if ( null === $i ) {
+                    return new WP_Error( 'invalid', 'Plan data and tick rows are out of sync for this action.', array( 'status' => 409 ) );
+                }
+                $action   =& $plan_data['daily_plan'][ $day ][ $slot ][ $i ];
+                $path     = "daily_plan.{$day}.{$slot}[{$i}]";
+                $original = (string) ( $action['action'] ?? $action['text'] ?? '' );
+                $clean    = sanitize_textarea_field( $value );
+                if ( isset( $action['text'] ) && ! isset( $action['action'] ) ) {
+                    $action['text'] = $clean;
+                } else {
+                    $action['action'] = $clean;
+                }
+                unset( $action );
+                $wpdb->query( $wpdb->prepare(
+                    "UPDATE {$wpdb->prefix}hdlv2_flight_plan_ticks
+                     SET action_text = %s WHERE id = %d AND deleted_at IS NULL",
+                    sanitize_text_field( $this->clean_action_prefix( $clean ) ), $tick_id
+                ) );
+                break;
+
+            case 'add_action':
+                // v0.46.59 — editor v2 "+": appends a NEW action to a day's
+                // category group. Same additive-revision semantics; the new
+                // item lands in plan_data AND gets its own tick row so the
+                // client view + adherence + the PDF all pick it up.
+                $day  = sanitize_key( $p['day'] ?? '' );
+                $slot = sanitize_key( $p['slot'] ?? '' );
+                $cat  = sanitize_key( $p['category'] ?? '' );
+                $valid_days  = array( 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday' );
+                $valid_slots = array( 'morning', 'midday', 'afternoon', 'early_evening', 'evening' );
+                if ( ! in_array( $day, $valid_days, true ) || ! in_array( $slot, $valid_slots, true )
+                    || ! in_array( $cat, array( 'nutrition', 'movement', 'key_action' ), true ) ) {
+                    return new WP_Error( 'invalid', 'A valid day, slot and category are required.', array( 'status' => 400 ) );
+                }
+                $clean = sanitize_textarea_field( $value );
+                if ( ! isset( $plan_data['daily_plan'] ) || ! is_array( $plan_data['daily_plan'] ) ) {
+                    $plan_data['daily_plan'] = array();
+                }
+                if ( ! isset( $plan_data['daily_plan'][ $day ] ) || ! is_array( $plan_data['daily_plan'][ $day ] ) ) {
+                    $plan_data['daily_plan'][ $day ] = array();
+                }
+                if ( ! isset( $plan_data['daily_plan'][ $day ][ $slot ] ) || ! is_array( $plan_data['daily_plan'][ $day ][ $slot ] ) ) {
+                    $plan_data['daily_plan'][ $day ][ $slot ] = array();
+                }
+                $plan_data['daily_plan'][ $day ][ $slot ][] = array(
+                    'type'     => $cat,
+                    'action'   => $clean,
+                    'checkbox' => true,
+                );
+                $new_k    = count( $plan_data['daily_plan'][ $day ][ $slot ] ) - 1;
+                $path     = "daily_plan.{$day}.{$slot}[+{$new_k}]";
+                $original = '';
+                $next_idx = (int) $wpdb->get_var( $wpdb->prepare(
+                    "SELECT COALESCE(MAX(action_index) + 1, 0)
+                     FROM {$wpdb->prefix}hdlv2_flight_plan_ticks
+                     WHERE flight_plan_id = %d AND day = %s AND time_slot = %s AND deleted_at IS NULL",
+                    $plan_id, $day, $slot
+                ) );
+                $wpdb->insert( $wpdb->prefix . 'hdlv2_flight_plan_ticks', array(
+                    'flight_plan_id' => $plan_id,
+                    'client_id'      => (int) $plan->client_id,
+                    'day'            => $day,
+                    'time_slot'      => $slot,
+                    'category'       => $cat,
+                    'action_text'    => sanitize_text_field( $this->clean_action_prefix( $clean ) ),
+                    'action_index'   => $next_idx,
+                ) );
+                break;
+
+            default:
+                return new WP_Error( 'invalid', 'Unknown field.', array( 'status' => 400 ) );
+        }
+
+        // Additive revision ledger — the AI original is never deleted.
+        if ( ! isset( $plan_data['_revisions'] ) || ! is_array( $plan_data['_revisions'] ) ) {
+            $plan_data['_revisions'] = array();
+        }
+        $plan_data['_revisions'][] = array(
+            'path'      => $path,
+            'original'  => $original,
+            'new'       => $clean,
+            'editor'    => $uid,
+            'timestamp' => current_time( 'mysql' ),
+        );
+
+        $cols['plan_data'] = wp_json_encode( $plan_data );
+        $updated = $wpdb->update( $wpdb->prefix . 'hdlv2_flight_plans', $cols, array( 'id' => $plan_id ) );
+        if ( false === $updated ) {
+            return new WP_Error( 'db_error', 'Could not save the edit.', array( 'status' => 500 ) );
+        }
+
+        // Fresh PDF with the edited content — direct render, zero emails.
+        $pdf_job = class_exists( 'HDLV2_Flight_Plan_PDF_Service' )
+            ? HDLV2_Flight_Plan_PDF_Service::enqueue_render( $plan_id )
+            : false;
+
+        return rest_ensure_response( array(
+            'success'        => true,
+            'path'           => $path,
+            'revision_count' => count( $plan_data['_revisions'] ),
+            'pdf_job'        => $pdf_job,
+        ) );
     }
 
     private function create_tick_rows( $plan_id, $client_id, $plan ) {
@@ -1655,11 +2038,16 @@ TODAY: " . date( 'Y-m-d' );
 
         // v0.41.17 — `AND fp.deleted_at IS NULL`. Don't generate weekly
         // Flight Plans for soft-deleted clients.
+        // GROUP BY both selected columns (instead of SELECT DISTINCT) so the
+        // query is safe under MySQL ONLY_FULL_GROUP_BY (the default in 5.7.5+,
+        // all 8.0/9.x). Same dedup, same rows; no ORDER BY (the foreach is
+        // order-independent), so nothing depends on row order.
         $clients = $wpdb->get_results(
-            "SELECT DISTINCT fp.client_user_id, fp.practitioner_user_id
+            "SELECT fp.client_user_id, fp.practitioner_user_id
              FROM {$wpdb->prefix}hdlv2_form_progress fp
              WHERE fp.stage3_completed_at IS NOT NULL AND fp.client_user_id IS NOT NULL
-               AND fp.deleted_at IS NULL"
+               AND fp.deleted_at IS NULL
+             GROUP BY fp.client_user_id, fp.practitioner_user_id"
         );
 
         $count   = 0;
@@ -1704,7 +2092,9 @@ TODAY: " . date( 'Y-m-d' );
                 continue;
             }
 
-            $result = $this->generate( $c->client_user_id, $c->practitioner_user_id, 'auto', true, $week_start );
+            // F18 — reuse the context already built for the gate above (same
+            // client, same tier 2) instead of rebuilding it inside generate().
+            $result = $this->generate( $c->client_user_id, $c->practitioner_user_id, 'auto', true, $week_start, false, $context_for_gate );
             if ( ! is_wp_error( $result ) ) $count++;
         }
 

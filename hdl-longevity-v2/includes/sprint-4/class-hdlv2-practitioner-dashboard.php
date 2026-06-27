@@ -179,6 +179,33 @@ class HDLV2_Practitioner_Dashboard {
         $consultation_slug = apply_filters( 'hdlv2_consultation_slug', 'consultation' );
         $flight_plan_slug  = apply_filters( 'hdlv2_flight_plan_slug', 'my-flight-plan' );
 
+        // Iridology add-on (IrisMapper) — entitlement booleans for the enhancer.
+        // One cached (5-min), fail-closed HTTP call per render, ONLY when the
+        // flag is on. Flag off ⇒ keys are false/null ⇒ JS no-ops (Rule-0). No
+        // practitioner_email is localized: the email stays server-side (the 3
+        // REST handlers derive it from the session).
+        $iris_on   = (bool) get_option( 'hdlv2_ff_iris_addon', false );
+        $iris      = $iris_on ? HDLV2_Compatibility::iris_entitlement( $user_id ) : null;
+        $iris_user = $iris_on ? get_userdata( $user_id ) : null;
+        // Phase 2 (embedded consult) — a SECOND flag layered on top of the v1
+        // add-on flag. The consult upload/poll UI shows only when BOTH flags are
+        // on AND this practitioner is entitled. Enqueued (below) only in that
+        // case → true zero-trace for flag-off / non-entitled (Rule-0).
+        $iris_consult_on = ( $iris_on && (bool) get_option( 'hdlv2_ff_iris_consult', false )
+            && $iris && ! empty( $iris['iridologyAddon'] ) );
+        if ( $iris_consult_on ) {
+            wp_enqueue_script(
+                'hdlv2-iris-consult',
+                HDLV2_PLUGIN_URL . 'assets/js/hdlv2-iris-consult.js',
+                array( 'hdlv2-client-list-enhance' ),
+                HDLV2_VERSION,
+                true
+            );
+        }
+        // Public IrisMapper host (for the "Signed in as … · host/app" meta line on
+        // the ready card). Not a secret — just the base host, no path/secret.
+        $iris_host = ( $iris_on && defined( 'IRISMAPPER_BASE' ) ) ? (string) wp_parse_url( IRISMAPPER_BASE, PHP_URL_HOST ) : '';
+
         wp_localize_script( 'hdlv2-client-list-enhance', 'hdlv2_client_enhance', array(
             'api_base'         => rest_url( 'hdl-v2/v1' ),
             'nonce'            => wp_create_nonce( 'wp_rest' ),
@@ -198,6 +225,21 @@ class HDLV2_Practitioner_Dashboard {
             'redflag_scan_enabled'       => (bool) get_option( 'hdlv2_ff_redflag_scan', false ),
             'stalled_filter_enabled'     => (bool) get_option( 'hdlv2_ff_stalled_filter', false ),
             'automation_hold_for_review' => (bool) get_option( 'hdlv2_automation_hold_for_review', false ),
+            // Iridology add-on (IrisMapper) — Rule-0 booleans. No email here.
+            'iris_feature_enabled'       => $iris_on,
+            // Phase 2 embedded consult — drives the upload/poll/result UI in the
+            // Consultation tab. False ⇒ irisConsultationHtml() falls back to the
+            // v1 launch button (or '' when not entitled). The JS is only even
+            // enqueued when this is true (Rule-0 zero-trace).
+            'iris_consult_enabled'       => (bool) $iris_consult_on,
+            'iris_entitled'              => $iris ? (bool) $iris['iridologyAddon'] : false,
+            'iris_subscription_tier'     => $iris ? $iris['subscriptionTier']   : null,
+            'iris_subscription_status'   => $iris ? $iris['subscriptionStatus'] : null,
+            'iris_practitioner_name'     => $iris_user ? $iris_user->display_name : '',
+            'iris_app_host'              => $iris_host,
+            // Real IrisMapper brand MARK — the eye-spiral symbol only (no
+            // wordmark), the official app icon (android-chrome-512). Transparent.
+            'iris_logo_url'              => $iris_on ? HDLV2_PLUGIN_URL . 'assets/images/irismapper-mark.png' : '',
         ) );
     }
 
@@ -373,7 +415,7 @@ class HDLV2_Practitioner_Dashboard {
         $t .= '<ul class="hdlv2-pdt-steps">';
         $t .= '<li><strong>Stage 1 &middot; Quick insight</strong>9 questions, ~3 minutes. Pace-of-ageing gauge sent by email.</li>';
         $t .= '<li><strong>Stage 2 &middot; Their WHY</strong>You release this stage when ready. Client records their motivation; AI distils it.</li>';
-        $t .= '<li><strong>Stage 3 &middot; Full detail</strong>22 measurements, 5 sections. Auto-drafts the Trajectory Plan for your review.</li>';
+        $t .= '<li><strong>Stage 3 &middot; Full detail</strong>21 measurements, 5 sections. Auto-drafts the Trajectory Plan for your review.</li>';
         $t .= '<li><strong>Consultation &middot; Trajectory Plan</strong>You edit, add notes, finalise. PDF + Flight Plan delivered to the client.</li>';
         $t .= '</ul>';
 

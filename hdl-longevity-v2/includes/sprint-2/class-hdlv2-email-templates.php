@@ -213,40 +213,19 @@ class HDLV2_Email_Templates {
      */
     public static function stage3_draft_ready( $data ) {
         $cname    = esc_html( $data['client_name'] ?: ( $data['client_email'] ?? '' ) );
-        $rate     = esc_html( $data['rate'] ?? '' );
-        $bio      = esc_html( $data['bio_age'] ?? '' );
-        $age      = esc_html( $data['age'] ?? '' );
-        $radar    = esc_url( $data['radar_chart_url'] ?? '' );
-        $traject  = esc_url( $data['trajectory_chart_url'] ?? '' );
         // v0.40.16 — Filter-honouring fallback. Default is /clients/ (V2's
         // practitioner dashboard slug). Was /practitioner-dashboard/ — a
         // legacy slug that may not exist on LIVE.
         $url      = esc_url( ( $data['dashboard_url'] ?? '' ) ?: home_url( '/' . trim( apply_filters( 'hdlv2_practitioner_dashboard_slug', 'clients' ), '/' ) . '/' ) );
 
+        // A3 (v0.46.30) — notification only. The numbers + radar/trajectory
+        // charts live in the draft report behind the CTA, not inlined here.
+        // $data['rate']/['bio_age']/['age']/['radar_chart_url']/['trajectory_chart_url'] unused.
         $content = "
             <h2 style='margin:0 0 8px;color:" . self::DARK . ";'>Stage 3 Form Completed</h2>
             <p style='color:" . self::MUTED . ";margin:0 0 24px;line-height:1.5;'>Draft Trajectory Plan is ready. Your client <strong>{$cname}</strong> has completed all three stages. Please review before the consultation.</p>
 
-            <table cellpadding='0' cellspacing='0' border='0' width='100%' style='margin:0 0 20px;'>
-                <tr>
-                    <td style='padding:12px 16px;background:#f8f9fb;border-radius:8px 0 0 8px;text-align:center;'>
-                        <div style='font-size:11px;color:" . self::MUTED . ";margin:0 0 4px;'>Rate</div>
-                        <div style='font-size:22px;font-weight:700;color:" . self::TEAL . ";'>{$rate}</div>
-                    </td>
-                    <td style='padding:12px 16px;background:#f8f9fb;text-align:center;'>
-                        <div style='font-size:11px;color:" . self::MUTED . ";margin:0 0 4px;'>Bio Age</div>
-                        <div style='font-size:22px;font-weight:700;color:" . self::DARK . ";'>{$bio}</div>
-                    </td>
-                    <td style='padding:12px 16px;background:#f8f9fb;border-radius:0 8px 8px 0;text-align:center;'>
-                        <div style='font-size:11px;color:" . self::MUTED . ";margin:0 0 4px;'>Chrono</div>
-                        <div style='font-size:22px;font-weight:700;color:" . self::DARK . ";'>{$age}</div>
-                    </td>
-                </tr>
-            </table>"
-            . ( $radar ? "<div style='text-align:center;margin:0 0 20px;'><img src='{$radar}' alt='21-metric health profile' width='540' style='max-width:100%;height:auto;border-radius:8px;' /></div>" : '' )
-            . ( $traject ? "<div style='text-align:center;margin:0 0 20px;'><img src='{$traject}' alt='Biological age trajectory' width='540' style='max-width:100%;height:auto;border-radius:8px;' /></div>" : '' )
-            . "
-            <p style='color:#444;line-height:1.6;margin:16px 0 24px;'>
+            <p style='color:#444;line-height:1.6;margin:0 0 24px;'>
                 Remember this report is a draft and requires you to adjust and check the data provided by your client during the consultation in order to generate the final report that will be based on their data, your edits where needed and your consultation information.
             </p>"
             . self::cta_button( $url, 'Review Draft Trajectory Plan' );
@@ -468,8 +447,27 @@ class HDLV2_Email_Templates {
         $out .= 'Powered by <strong style="color:' . self::TEAL . ';">HealthDataLab</strong> &nbsp;&middot;&nbsp; ';
         $out .= '<a href="' . esc_url( apply_filters( "hdlv2_email_terms_url", self::TERMS_URL ) ) . '" style="color:#999999;text-decoration:underline;">Terms</a> &nbsp;&middot;&nbsp; ';
         $out .= '<a href="' . esc_url( apply_filters( "hdlv2_email_privacy_url", self::PRIVACY_URL ) ) . '" style="color:#999999;text-decoration:underline;">Privacy</a>';
+        // v0.46.19 — port of the legal disclaimer (per HANDOFF-2026-05-28). Built
+        // on the 0.41 line but never ported to the 0.46/safety line that became
+        // STBY, so V2 emails were missing the NOT-MEDICAL-ADVICE / IRISLAB fine
+        // print. Wiring it into the shared footer means every base_layout email
+        // inherits it from one place.
+        $out .= self::legal_disclaimer_html();
         $out .= '</td></tr>';
         return $out;
+    }
+
+    /**
+     * Confidential / NOT-MEDICAL-ADVICE / IRISLAB registered-entity fine print.
+     * Public so non-base_layout senders (e.g. bespoke provisioning emails) can
+     * reuse the identical wording. "NOT MEDICAL ADVICE" is the only emphasised
+     * phrase so it reads as a disclaimer, not marketing.
+     */
+    public static function legal_disclaimer_html() {
+        return '<div style="margin:12px auto 0;max-width:460px;padding-top:12px;border-top:1px solid #eef0f3;font-size:10px;line-height:1.6;color:#aaaaaa;font-family:Inter,-apple-system,BlinkMacSystemFont,\'Segoe UI\',sans-serif;">'
+            . 'Confidential &mdash; recipient only. <span style="color:#8a9098;font-weight:600;letter-spacing:0.02em;">NOT MEDICAL ADVICE.</span> '
+            . 'Operated by IRISLAB LIMITED, England &amp; Wales Co. No. 8260301, Sussex Innovation Centre, Science Park Square, Brighton BN1 9SB.'
+            . '</div>';
     }
 
     private static function cta_button( $url, $text ) {
@@ -503,7 +501,9 @@ class HDLV2_Email_Templates {
         // truncated first-token).
         $cname   = esc_html( $data['client_name'] ?: $data['client_email'] );
         $cemail  = esc_html( $data['client_email'] ?? '' );
-        $why     = esc_html( $data['distilled_why'] ?: '(WHY extraction still processing)' );
+        // A3 (v0.46.30) — the distilled WHY is no longer inlined in this
+        // notification. It lives in the Stage-2 WHY PDF (Make module 81) and on
+        // the dashboard the CTA opens. $data['distilled_why'] intentionally unused.
         // v0.40.16 — This email is sent to the PRACTITIONER ("Ready to invite
         // your client to Stage 3"), so the dashboard fallback should point at
         // the practitioner dashboard, not /client-dashboard/. The previous
@@ -514,11 +514,6 @@ class HDLV2_Email_Templates {
         $content = "
             <h2 style='margin:0 0 12px;color:" . self::DARK . ";font-family:Poppins,Inter,sans-serif;font-size:20px;font-weight:700;'>Ready to invite your client to Stage 3</h2>
             <p style='color:" . self::MUTED . ";margin:0 0 20px;font-size:14px;line-height:1.6;'>Your client <strong>{$cname}</strong> has submitted their Stage 2 WHY. Review and release the gate to unlock Stage 3.</p>
-
-            <div style='background:#fffbeb;border-left:4px solid " . self::CORAL . ";padding:14px 16px;border-radius:0 8px 8px 0;margin:0 0 20px;'>
-                <div style='font-size:11px;color:" . self::MUTED . ";margin:0 0 6px;text-transform:uppercase;letter-spacing:0.04em;font-weight:600;'>Distilled WHY</div>
-                <p style='font-size:14px;color:#333;line-height:1.6;margin:0;font-style:italic;'>&ldquo;{$why}&rdquo;</p>
-            </div>
 
             <p style='font-size:13px;color:#444;line-height:1.6;margin:0 0 24px;'>
                 Clicking below opens your dashboard with this client highlighted &mdash; you can review the full WHY, add
@@ -798,7 +793,9 @@ class HDLV2_Email_Templates {
         $subject = $crisis ? 'Support is available — HealthDataLab' : 'A note about your HealthDataLab assessment';
 
         $html = self::base_layout( $content, $data['practitioner_id'] ?? null, $banner );
-        wp_mail( $email, $subject, $html, array( 'Content-Type: text/html; charset=UTF-8' ) );
+        // v0.46.21 (QA F3) — return wp_mail()'s boolean so the caller can detect
+        // a failed crisis/GP-nudge send and avoid stamping messaged_at on it.
+        return wp_mail( $email, $subject, $html, array( 'Content-Type: text/html; charset=UTF-8' ) );
     }
 
     /**
@@ -873,7 +870,9 @@ class HDLV2_Email_Templates {
             . self::cta_button( $url, "Open {$first}'s record" );
 
         $html = self::base_layout( $content, $data['practitioner_id'] ?? null, 'Needs attention' );
-        wp_mail( $email, "Needs attention: {$client} — HealthDataLab", $html, array( 'Content-Type: text/html; charset=UTF-8' ) );
+        // v0.46.21 (QA F3) — return wp_mail()'s boolean so the caller can detect
+        // a failed practitioner red-flag alert and avoid stamping messaged_at.
+        return wp_mail( $email, "Needs attention: {$client} — HealthDataLab", $html, array( 'Content-Type: text/html; charset=UTF-8' ) );
     }
 
     // ──────────────────────────────────────────────────────────────
@@ -1011,44 +1010,16 @@ class HDLV2_Email_Templates {
     public static function final_report_generated_practitioner( $data ) {
         $cname = esc_html( $data['client_name'] ?: ( $data['client_email'] ?? 'your client' ) );
         $email = esc_html( $data['client_email'] ?? '' );
-        $rate  = esc_html( $data['rate'] ?? '' );
-        $bio   = esc_html( $data['bio_age'] ?? '' );
-        $age   = esc_html( $data['age'] ?? '' );
         // v0.40.16 — Filter-honouring fallback. Default is /clients/ (V2's
         // practitioner dashboard).
         $url   = esc_url( $data['report_url'] ?? home_url( '/' . trim( apply_filters( 'hdlv2_practitioner_dashboard_slug', 'clients' ), '/' ) . '/' ) );
 
-        $pos_list = self::format_score_list( $data['positives'] ?? array() );
-        $neg_list = self::format_score_list( $data['negatives'] ?? array() );
-
-        // Stats block — render only if all three numbers present. Avoids
-        // half-empty cells if a malformed row misses chronological age.
-        $stats = ( $rate !== '' && $bio !== '' && $age !== '' ) ? "
-            <table cellpadding='0' cellspacing='0' border='0' width='100%' style='margin:0 0 20px;'>
-                <tr>
-                    <td style='padding:14px 16px;background:#f8f9fb;border-radius:8px 0 0 8px;text-align:center;'>
-                        <div style='font-size:11px;color:" . self::MUTED . ";margin:0 0 4px;text-transform:uppercase;letter-spacing:0.04em;'>Rate of Ageing</div>
-                        <div style='font-size:24px;font-weight:700;color:" . self::TEAL . ";'>{$rate}&times;</div>
-                    </td>
-                    <td style='padding:14px 16px;background:#f8f9fb;text-align:center;'>
-                        <div style='font-size:11px;color:" . self::MUTED . ";margin:0 0 4px;text-transform:uppercase;letter-spacing:0.04em;'>Biological Age</div>
-                        <div style='font-size:24px;font-weight:700;color:" . self::DARK . ";'>{$bio}</div>
-                    </td>
-                    <td style='padding:14px 16px;background:#f8f9fb;border-radius:0 8px 8px 0;text-align:center;'>
-                        <div style='font-size:11px;color:" . self::MUTED . ";margin:0 0 4px;text-transform:uppercase;letter-spacing:0.04em;'>Chronological</div>
-                        <div style='font-size:24px;font-weight:700;color:" . self::DARK . ";'>{$age}</div>
-                    </td>
-                </tr>
-            </table>" : '';
-
+        // A3 (v0.46.30) — notification only. The numbers + strengths/focus
+        // lists live in the final report behind the CTA (and the client's PDF),
+        // not inlined here. $data rate/bio_age/age/positives/negatives unused.
         $content = "
             <h2 style='margin:0 0 12px;color:" . self::DARK . ";font-family:Poppins,Inter,sans-serif;font-size:22px;font-weight:700;'>Final report delivered to {$cname}</h2>
             <p style='color:" . self::MUTED . ";margin:0 0 24px;font-size:14px;line-height:1.6;'>You&rsquo;ve finalised the report. A branded PDF has been emailed to your client, and their Week 1 Flight Plan is being prepared.</p>
-            {$stats}
-            <div style='background:#f8f9fb;border-radius:10px;padding:16px 18px;margin:0 0 20px;'>
-                <p style='font-size:13px;margin:0 0 8px;line-height:1.6;'><strong style='color:" . self::GREEN . ";'>Strengths:</strong> <span style='color:#444;'>{$pos_list}</span></p>
-                <p style='font-size:13px;margin:0;line-height:1.6;'><strong style='color:#e74c3c;'>Focus areas:</strong> <span style='color:#444;'>{$neg_list}</span></p>
-            </div>
             <p style='color:#444;line-height:1.7;margin:0 0 8px;font-size:14px;'>Open the final report to preview exactly what {$cname} sees:</p>"
             . self::cta_button( $url, 'Open Trajectory Plan' )
             . "<p style='font-size:12px;color:" . self::MUTED . ";line-height:1.5;margin:20px 0 0;text-align:center;'>Delivered to {$email} &middot; Flight Plan follows shortly</p>";
@@ -1065,28 +1036,15 @@ class HDLV2_Email_Templates {
      */
     public static function final_report_ready_client( $data ) {
         $first = self::derive_first_name( $data['client_name'] ?? '', $data['client_email'] ?? '' );
-        $rate  = esc_html( $data['rate'] ?? '' );
-        $bio   = esc_html( $data['bio_age'] ?? '' );
         $url   = esc_url( $data['report_url'] ?: site_url( '/my-flight-plan/' ) );
 
-        $stats = ( $rate || $bio ) ? "
-            <table cellpadding='0' cellspacing='0' border='0' width='100%' style='margin:0 0 20px;'>
-                <tr>"
-            . ( $rate ? "<td style='padding:14px 16px;background:#f8f9fb;border-radius:8px 0 0 8px;text-align:center;'>
-                        <div style='font-size:11px;color:" . self::MUTED . ";margin:0 0 4px;text-transform:uppercase;letter-spacing:0.04em;'>Rate of Ageing</div>
-                        <div style='font-size:24px;font-weight:700;color:" . self::TEAL . ";'>{$rate}&times;</div>
-                    </td>" : '' )
-            . ( $bio ? "<td style='padding:14px 16px;background:#f8f9fb;border-radius:0 8px 8px 0;text-align:center;'>
-                        <div style='font-size:11px;color:" . self::MUTED . ";margin:0 0 4px;text-transform:uppercase;letter-spacing:0.04em;'>Biological Age</div>
-                        <div style='font-size:24px;font-weight:700;color:" . self::DARK . ";'>{$bio}</div>
-                    </td>" : '' )
-            . "</tr></table>" : '';
-
+        // A3 (v0.46.30) — cover note only. The report numbers (rate / bio-age
+        // stat table) live in the PDF + the online report behind the CTA, not
+        // inlined in the email body. $data['rate']/['bio_age'] intentionally
+        // unused now.
         $content = "
             <h2 style='margin:0 0 12px;color:" . self::DARK . ";font-family:Poppins,Inter,sans-serif;font-size:22px;font-weight:700;'>Hi " . esc_html( $first ) . ", your Trajectory Plan is ready</h2>
-            <p style='color:#2c3e50;line-height:1.7;margin:0 0 20px;font-size:15px;'>Your personalised longevity report has been finalised by your practitioner. It includes your rate of ageing, biological age, and the specific focus areas for your 12-week flight plan.</p>
-            {$stats}
-            <p style='color:#2c3e50;line-height:1.7;margin:0 0 20px;font-size:15px;'>Your PDF copy will arrive in a separate email shortly. In the meantime, you can review your full report online:</p>"
+            <p style='color:#2c3e50;line-height:1.7;margin:0 0 20px;font-size:15px;'>Your personalised longevity report has been finalised by your practitioner. Your PDF copy will arrive in a separate email shortly &mdash; or review your full report online now:</p>"
             . self::cta_button( $url, 'View Your Trajectory Plan' )
             . "<p style='font-size:12px;color:" . self::MUTED . ";line-height:1.5;margin:20px 0 0;text-align:center;'>Questions? Just reply to this email — your practitioner will see it.</p>";
 

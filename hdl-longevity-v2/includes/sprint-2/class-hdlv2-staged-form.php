@@ -24,6 +24,12 @@ class HDLV2_Staged_Form {
         // fired > 30 min ago, no why_profile written). After 2 retries,
         // falls back to local extract_why() via Anthropic direct.
         add_action( 'hdlv2_stage2_extraction_retry', array( __CLASS__, 'run_stage2_extraction_retry' ) );
+        // v0.46.20 (F9) — out-of-band local WHY extraction kicked from the
+        // Stage 2 submit when Make.com is absent, so the practitioner's
+        // "Invite to Stage 3" button appears within seconds instead of waiting
+        // for the daily retry cron's attempt 3 (~3 days). Runs the SAME
+        // guarded upsert the cron uses, so it's idempotent + race-safe.
+        add_action( 'hdlv2_stage2_local_extract', array( __CLASS__, 'run_single_stage2_extraction' ) );
     }
 
     // ──────────────────────────────────────────────────────────────
@@ -244,6 +250,82 @@ class HDLV2_Staged_Form {
                     array( '%s', '%s' ),
                     array( '%d' )
                 );
+            }
+
+            // ── F7/F8/F9 (v0.46.20) — Stage 2 submit side-effects ──────────
+            //
+            // The client submit path (completeStage2 in hdlv2-staged-form.js)
+            // POSTs only /form/save with submitted:true and deliberately does
+            // NOT call /form/complete-stage (that endpoint is the practitioner
+            // gate). On LIVE the Make.com callback (rest_stage2_callback) later
+            // stamps stage2_completed_at, runs the WHY extraction, and Module
+            // 81 emails the practitioner. On STBY (and during any LIVE Make.com
+            // outage) none of that happens, leaving three gaps:
+            //   F7 — stage2_completed_at stays NULL, so a returning client is
+            //        dropped back on the intake form instead of the result page.
+            //   F8 — the practitioner is never told the client submitted.
+            //   F9 — no why_profiles row → no "Invite to Stage 3" button for
+            //        ~3 daily cron passes.
+            //
+            // Atomically claim the completion (NULL → now) so all three side
+            // effects fire exactly once per Stage 2 completion, no matter how
+            // many times the client re-submits (idempotent — re-submits don't
+            // re-stamp, re-email, or re-extract).
+            $completed_now = current_time( 'mysql' );
+            $claimed       = $wpdb->query( $wpdb->prepare(
+                "UPDATE {$wpdb->prefix}hdlv2_form_progress
+                    SET stage2_completed_at = %s
+                  WHERE id = %d
+                    AND (stage2_completed_at IS NULL OR stage2_completed_at = '')",
+                $completed_now, (int) $progress->id
+            ) );
+
+            if ( $claimed === 1 ) {
+                // Reflect the claim locally for downstream reads.
+                $progress->stage2_completed_at = $completed_now;
+
+                // F8 — Practitioner "ready to invite to Stage 3" email. Fires
+                // once on the completion transition. On LIVE this is the same
+                // WP-side belt-and-braces alert send_stage_email() builds; it
+                // de-dupes against Make.com Module 81 because that email is a
+                // best-effort notification, not a state change — a practitioner
+                // seeing one WP alert + (on LIVE) one Make.com alert is benign,
+                // and the one-shot completion claim guarantees the WP side never
+                // sends twice for the same submission.
+                $stage2_data = json_decode( $progress->stage2_data, true ) ?: array();
+                $this->send_stage_email( 2, $progress, $stage2_data, null );
+
+                // F9 — When Make.com is absent (STBY, or a LIVE outage), no
+                // callback will ever write the why_profiles row, so the
+                // practitioner's Release button (gated on why_id) would not
+                // appear until the daily retry cron reaches attempt 3 (~3 days).
+                // Kick the local extraction OUT OF BAND (single cron event + a
+                // non-blocking /wp-cron.php hit, same proven pattern as the
+                // finalise path at final-report.php:614-629) so the why_profiles
+                // row — and the button — appear within seconds without making
+                // the client wait on a multi-second Claude call inside their
+                // submit request. extract_why() fires Claude ONCE per completion
+                // (idempotent + race-safe: local_extract_why_profile() no-ops if
+                // a row already exists, e.g. a late Make.com callback). When
+                // Make.com IS configured we leave extraction to the callback
+                // (its richer payload + Stage 2 PDF) and the daily retry cron
+                // backstop.
+                $make_configured = defined( 'HDLV2_MAKE_STAGE2_WHY' )
+                                   && (string) HDLV2_MAKE_STAGE2_WHY !== '';
+                if ( ! $make_configured && strlen( trim( (string) ( $stage2_data['vision_text'] ?? '' ) ) ) >= 10 ) {
+                    $args = array( (int) $progress->id );
+                    if ( ! wp_next_scheduled( 'hdlv2_stage2_local_extract', $args ) ) {
+                        wp_schedule_single_event( time() + 5, 'hdlv2_stage2_local_extract', $args );
+                        // Kick WP-Cron via non-blocking HTTP so the extraction
+                        // runs within seconds even when cron is traffic-driven
+                        // (STBY) or DISABLE_WP_CRON is set.
+                        wp_remote_post( site_url( '/wp-cron.php?doing_wp_cron=' . microtime( true ) ), array(
+                            'timeout'   => 0.01,
+                            'blocking'  => false,
+                            'sslverify' => apply_filters( 'https_local_ssl_verify', false ),
+                        ) );
+                    }
+                }
             }
         }
 
@@ -726,6 +808,10 @@ class HDLV2_Staged_Form {
         // Runs alongside awaken/lift/thrive (which feeds Make.com PDF). Keeps
         // both shapes in report_content. Non-blocking: null on failure so the
         // existing PDF pipeline is never broken by narrative issues.
+        // A2 (v0.46.28) — DELIBERATE on-screen-only shape (D-3: KEEP). These 5
+        // panels have no awaken/lift/thrive equivalent; the PDF uses only
+        // `opening`. Do not "collapse" into awaken/lift/thrive — see the
+        // generate_client_draft_narrative() docblock + SYSTEM-MAP.md §C.
         $ai_narrative = HDLV2_AI_Service::generate_client_draft_narrative(
             $calc_result,
             $s1_data,
@@ -905,7 +991,7 @@ class HDLV2_Staged_Form {
         wp_enqueue_script(
             'hdlv2-audio-component',
             HDLV2_PLUGIN_URL . 'assets/js/hdlv2-audio-component.js',
-            array( 'hdlv2-transcriber' ),
+            array(), // E4 (v0.46.47) — client-Whisper tier removed; no transcriber dep
             HDLV2_VERSION,
             true
         );
@@ -975,10 +1061,16 @@ class HDLV2_Staged_Form {
      * Auth: Authorization: Bearer <HDLV2_MAKE_CALLBACK_SECRET>
      */
     public function rest_stage2_callback( $request ) {
-        // Verify shared secret
-        $secret = defined( 'HDLV2_MAKE_CALLBACK_SECRET' ) ? HDLV2_MAKE_CALLBACK_SECRET : '';
-        $auth   = $request->get_header( 'authorization' );
-        if ( empty( $secret ) || $auth !== 'Bearer ' . $secret ) {
+        // Verify shared secret. E3 (v0.46.47) — timing-safe hash_equals,
+        // matching the flight-plan callback pattern (rest_pdf_callback), so
+        // timing differences can't leak the secret byte-by-byte.
+        $secret   = defined( 'HDLV2_MAKE_CALLBACK_SECRET' ) ? HDLV2_MAKE_CALLBACK_SECRET : '';
+        $provided = '';
+        $auth     = $request->get_header( 'authorization' );
+        if ( $auth && stripos( $auth, 'Bearer ' ) === 0 ) {
+            $provided = trim( substr( $auth, 7 ) );
+        }
+        if ( empty( $secret ) || ! hash_equals( $secret, $provided ) ) {
             return new WP_Error( 'unauthorized', 'Invalid or missing authorization.', array( 'status' => 403 ) );
         }
 
@@ -1036,6 +1128,14 @@ class HDLV2_Staged_Form {
             $wpdb->update( $table, $profile_data, array( 'id' => $existing_id ) );
         } else {
             $wpdb->insert( $table, $profile_data );
+        }
+
+        // D-2 — persist the Stage-2 WHY PDF (practitioner-only download). Make
+        // sends pdf_url ({{71.download_url}}); WP downloads + self-hosts it.
+        // Non-fatal: a fetch failure must not break WHY processing.
+        $why_pdf = isset( $params['pdf_url'] ) ? esc_url_raw( $params['pdf_url'] ) : '';
+        if ( $why_pdf && class_exists( 'HDLV2_Report_PDF' ) ) {
+            HDLV2_Report_PDF::store_why_pdf( (int) $progress->id, $why_pdf );
         }
 
         // Mark Stage 2 as completed — but do NOT advance current_stage
@@ -1944,6 +2044,18 @@ class HDLV2_Staged_Form {
             'existing_conditions' => (string) ( $s3_data_for_payload['existing_conditions'] ?? '' ),
         );
 
+        // D-2 — report-PDF callback fields (Make downloads the PDF, then POSTs
+        // pdf_url back to /reports/pdf-callback). report_id is re-queried here so
+        // every draft-fire path (incl. self-heal) carries it. URL + secret hold no
+        // chars the html-safe pass below touches.
+        global $wpdb;
+        $payload['report_id']       = (int) $wpdb->get_var( $wpdb->prepare(
+            "SELECT id FROM {$wpdb->prefix}hdlv2_reports WHERE form_progress_id = %d AND report_type = 'draft' ORDER BY id DESC LIMIT 1",
+            $progress->id
+        ) );
+        $payload['callback_url']    = rest_url( 'hdl-v2/v1/reports/pdf-callback' );
+        $payload['callback_secret'] = defined( 'HDLV2_MAKE_CALLBACK_SECRET' ) ? HDLV2_MAKE_CALLBACK_SECRET : '';
+
         // v0.27.2 — Sanitise text fields for Make.com raw JSON template.
         // See class-hdlv2-final-report.php fire_webhook for full rationale.
         $html_safe_fields = array( 'awaken_content', 'lift_content', 'thrive_content' );
@@ -2223,38 +2335,154 @@ class HDLV2_Staged_Form {
                 // Attempt 3: local fallback via HDLV2_AI_Service::extract_why.
                 // Bypasses Make.com entirely so a persistent Make.com outage
                 // can't permanently strip a client's downstream personalisation.
-                $extracted = HDLV2_AI_Service::extract_why( $stage2_data );
-                if ( ! empty( $extracted['distilled_why'] ) ) {
-                    $inserted = $wpdb->insert(
-                        $wpdb->prefix . 'hdlv2_why_profiles',
-                        array(
-                            'form_progress_id' => (int) $row->id,
-                            'client_user_id'   => $row->client_user_id ? (int) $row->client_user_id : null,
-                            'key_people'       => wp_json_encode( $extracted['key_people']  ?? array() ),
-                            'motivations'      => wp_json_encode( $extracted['motivations'] ?? array() ),
-                            'fears'            => wp_json_encode( $extracted['fears']       ?? array() ),
-                            'vision_text'      => sanitize_textarea_field( $vision_text ),
-                            'distilled_why'    => sanitize_textarea_field( $extracted['distilled_why'] ),
-                            'ai_reformulation' => wp_kses_post( $extracted['ai_reformulation'] ?? '' ),
-                            'raw_input'        => wp_json_encode( $stage2_data ),
-                            'released'         => 0,
-                        ),
-                        array( '%d', '%d', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%d' )
-                    );
-                    error_log( sprintf(
-                        '[HDLV2] Stage 2 extraction retry %d/3 — local fallback %s for progress %d',
-                        $next, $inserted ? 'SUCCESS' : 'DB insert FAILED', (int) $row->id
-                    ) );
-                } else {
-                    error_log( sprintf(
-                        '[HDLV2] Stage 2 extraction retry %d/3 — local fallback returned no distilled_why for progress %d',
-                        $next, (int) $row->id
-                    ) );
-                }
+                //
+                // v0.46.20 (F15) — the write goes through the shared guarded
+                // upsert helper, which re-checks for an existing why_profiles
+                // row immediately before INSERT under a row lock. This closes
+                // the race where the Make.com callback (rest_stage2_callback)
+                // lands during the multi-second extract_why() Claude call
+                // between the candidate SELECT (above) and the write here,
+                // which previously produced two rows for one form_progress_id.
+                $result = self::local_extract_why_profile(
+                    (int) $row->id,
+                    $row->client_user_id ? (int) $row->client_user_id : null,
+                    $stage2_data
+                );
+                error_log( sprintf(
+                    '[HDLV2] Stage 2 extraction retry %d/3 — local fallback %s for progress %d',
+                    $next, $result, (int) $row->id
+                ) );
             }
 
             set_transient( $key, $next, 7 * DAY_IN_SECONDS );
         }
+    }
+
+    /**
+     * Single-progress local WHY extraction handler.
+     *
+     * Fired out-of-band via wp_schedule_single_event('hdlv2_stage2_local_extract')
+     * from the Stage 2 submit when Make.com is absent (F9). Loads the row and
+     * delegates to the shared guarded upsert. Idempotent + race-safe by virtue
+     * of local_extract_why_profile(), so a duplicate schedule / a Make.com
+     * callback that landed first both no-op.
+     *
+     * @param int $progress_id
+     * @since 0.46.20
+     */
+    public static function run_single_stage2_extraction( $progress_id ) {
+        if ( ! class_exists( 'HDLV2_AI_Service' ) ) {
+            error_log( '[HDLV2] Stage 2 single extraction: HDLV2_AI_Service missing, aborting.' );
+            return;
+        }
+
+        global $wpdb;
+        $progress_id = (int) $progress_id;
+        $row = $wpdb->get_row( $wpdb->prepare(
+            "SELECT id, client_user_id, stage2_data
+               FROM {$wpdb->prefix}hdlv2_form_progress
+              WHERE id = %d LIMIT 1",
+            $progress_id
+        ) );
+        if ( ! $row ) return;
+
+        $stage2_data = json_decode( $row->stage2_data, true ) ?: array();
+        if ( strlen( trim( (string) ( $stage2_data['vision_text'] ?? '' ) ) ) < 10 ) return;
+
+        $result = self::local_extract_why_profile(
+            $progress_id,
+            $row->client_user_id ? (int) $row->client_user_id : null,
+            $stage2_data
+        );
+        error_log( sprintf(
+            '[HDLV2] Stage 2 submit — out-of-band local extraction (no Make.com) %s for progress %d',
+            $result, $progress_id
+        ) );
+    }
+
+    /**
+     * Run the local Claude WHY extraction for one form_progress and write a
+     * why_profiles row — but only if one does not already exist.
+     *
+     * Shared by the out-of-band submit kick (run_single_stage2_extraction, when
+     * Make.com is absent so the practitioner gets a Release button promptly —
+     * F9) and the daily retry cron's attempt-3 fallback
+     * (run_stage2_extraction_retry).
+     *
+     * v0.46.20 (F9 + F15) — dedup is guaranteed two ways:
+     *   1. Idempotency: an early SELECT short-circuits if a row already exists,
+     *      so a second submit / a cron pass after Make.com already wrote the
+     *      row never fires a duplicate Claude call.
+     *   2. Race safety: extract_why() is a multi-second network call, so the
+     *      Make.com callback (rest_stage2_callback) can land DURING it. We take
+     *      a named GET_LOCK around a re-SELECT + INSERT so the competing writer
+     *      is serialised — only one row per form_progress_id is ever inserted.
+     *      (hdlv2_why_profiles has no UNIQUE(form_progress_id) index; this lock
+     *      gives the same guarantee without a schema change.)
+     *
+     * @param int        $progress_id
+     * @param int|null   $client_user_id
+     * @param array      $stage2_data   Decoded stage2_data (must carry vision_text).
+     * @return string Status word for logging: 'exists', 'SUCCESS', 'no_distilled_why', or 'DB insert FAILED'.
+     */
+    private static function local_extract_why_profile( $progress_id, $client_user_id, $stage2_data ) {
+        global $wpdb;
+        $progress_id = (int) $progress_id;
+        $table       = $wpdb->prefix . 'hdlv2_why_profiles';
+
+        // (1) Idempotency — never extract twice for the same progress.
+        $existing = $wpdb->get_var( $wpdb->prepare(
+            "SELECT id FROM $table WHERE form_progress_id = %d LIMIT 1",
+            $progress_id
+        ) );
+        if ( $existing ) return 'exists';
+
+        $vision_text = (string) ( $stage2_data['vision_text'] ?? '' );
+
+        // Expensive Claude call happens OUTSIDE the lock so we don't hold a
+        // DB lock for multiple seconds. The post-call re-SELECT under the lock
+        // closes the race with the Make.com callback.
+        $extracted = HDLV2_AI_Service::extract_why( $stage2_data );
+        if ( empty( $extracted['distilled_why'] ) ) {
+            return 'no_distilled_why';
+        }
+
+        // (2) Race safety — serialise the re-check + insert against the
+        // Make.com callback writer for this progress.
+        $lock_name = 'hdlv2_why_' . $progress_id;
+        $got_lock  = (int) $wpdb->get_var( $wpdb->prepare( "SELECT GET_LOCK(%s, 5)", $lock_name ) );
+
+        // Re-check existence now that we (may) hold the lock — the callback
+        // could have written the row while extract_why() ran.
+        $existing_now = $wpdb->get_var( $wpdb->prepare(
+            "SELECT id FROM $table WHERE form_progress_id = %d LIMIT 1",
+            $progress_id
+        ) );
+        if ( $existing_now ) {
+            if ( $got_lock ) $wpdb->query( $wpdb->prepare( "SELECT RELEASE_LOCK(%s)", $lock_name ) );
+            return 'exists';
+        }
+
+        $inserted = $wpdb->insert(
+            $table,
+            array(
+                'form_progress_id' => $progress_id,
+                'client_user_id'   => $client_user_id ? (int) $client_user_id : null,
+                'key_people'       => wp_json_encode( $extracted['key_people']  ?? array() ),
+                'motivations'      => wp_json_encode( $extracted['motivations'] ?? array() ),
+                'fears'            => wp_json_encode( $extracted['fears']       ?? array() ),
+                'vision_text'      => sanitize_textarea_field( $vision_text ),
+                'distilled_why'    => sanitize_textarea_field( $extracted['distilled_why'] ),
+                'ai_reformulation' => wp_kses_post( $extracted['ai_reformulation'] ?? '' ),
+                'raw_input'        => wp_json_encode( $stage2_data ),
+                'released'         => 0,
+            ),
+            array( '%d', '%d', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%d' )
+        );
+
+        if ( $got_lock ) $wpdb->query( $wpdb->prepare( "SELECT RELEASE_LOCK(%s)", $lock_name ) );
+
+        return $inserted ? 'SUCCESS' : 'DB insert FAILED';
     }
 
     /**
@@ -2325,8 +2553,14 @@ class HDLV2_Staged_Form {
 
     private function get_progress_by_token( $token ) {
         global $wpdb;
+        // v0.46.19 (W3-2 / BACK-04 / SD-1) — `AND deleted_at IS NULL` so a
+        // soft-deleted (archived) client's saved ?token= URL can no longer
+        // drive their archived assessment (and re-burn Claude/Make). All
+        // callers already treat a null row as 404, so this is behaviourally
+        // transparent for live assessments. Mirrors the same filter on
+        // HDLV2_Job_Queue::permission_read() and check_audio_permission().
         return $wpdb->get_row( $wpdb->prepare(
-            "SELECT * FROM {$wpdb->prefix}hdlv2_form_progress WHERE token = %s LIMIT 1",
+            "SELECT * FROM {$wpdb->prefix}hdlv2_form_progress WHERE token = %s AND deleted_at IS NULL LIMIT 1",
             $token
         ) );
     }

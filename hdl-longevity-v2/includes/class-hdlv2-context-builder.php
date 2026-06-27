@@ -374,7 +374,7 @@ class HDLV2_Context_Builder {
             $response = wp_remote_post( 'https://api.anthropic.com/v1/messages', array(
                 'headers' => array( 'x-api-key' => $api_key, 'anthropic-version' => '2023-06-01', 'content-type' => 'application/json' ),
                 'body'    => wp_json_encode( array(
-                    'model'      => 'claude-sonnet-4-6',
+                    'model'      => 'claude-opus-4-8',
                     'max_tokens' => 500,
                     'system'     => 'Summarise this client\'s last 4 weekly check-ins into a single monthly summary. Preserve: key trends, comfort zone shifts, major obstacles, wins, flag history, adherence pattern. Output: 200-300 words max.',
                     'messages'   => array( array( 'role' => 'user', 'content' => $input ) ),

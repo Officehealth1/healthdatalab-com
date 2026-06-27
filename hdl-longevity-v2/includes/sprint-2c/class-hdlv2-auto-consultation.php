@@ -116,13 +116,10 @@ class HDLV2_Auto_Consultation {
     }
 
     private function enqueue_assets() {
-        // hdlv2-transcriber is registered (not enqueued) at file scope in the
-        // main plugin file at wp_enqueue_scripts priority 5; declaring it as
-        // a dep of the audio component auto-enqueues it.
         wp_enqueue_script(
             'hdlv2-audio-component',
             HDLV2_PLUGIN_URL . 'assets/js/hdlv2-audio-component.js',
-            array( 'hdlv2-transcriber' ),
+            array(), // E4 (v0.46.47) — client-Whisper tier removed; no transcriber dep
             HDLV2_VERSION,
             true
         );
@@ -457,10 +454,10 @@ class HDLV2_Auto_Consultation {
             . "  }\n"
             . "}";
 
-        $parsed = $this->call_claude_json( HDLV2_ANTHROPIC_API_KEY, $system, $user_prompt, 1500, 0.4, 'claude-haiku-4-5-20251001' );
+        $parsed = $this->call_claude_json( HDLV2_ANTHROPIC_API_KEY, $system, $user_prompt, 1500, 0.4, 'claude-opus-4-8' );
         if ( is_wp_error( $parsed ) ) {
             // Retry once.
-            $parsed = $this->call_claude_json( HDLV2_ANTHROPIC_API_KEY, $system, $user_prompt, 1500, 0.4, 'claude-haiku-4-5-20251001' );
+            $parsed = $this->call_claude_json( HDLV2_ANTHROPIC_API_KEY, $system, $user_prompt, 1500, 0.4, 'claude-opus-4-8' );
         }
         if ( is_wp_error( $parsed ) ) {
             return $parsed;
@@ -477,15 +474,17 @@ class HDLV2_Auto_Consultation {
     }
 
     /**
-     * Claude API call with explicit temperature + JSON parse. Self-contained
-     * so we don't have to extend HDLV2_AI_Service::call_claude (which is
-     * private + has no temperature param). 60s timeout matches AI service.
+     * Claude API call with JSON parse. Self-contained so we don't have to
+     * extend HDLV2_AI_Service::call_claude. 120s timeout matches AI service.
+     * v0.46.24 — `temperature` removed from the request body: Opus 4.8 rejects
+     * it (HTTP 400 "temperature is deprecated for this model"). The $temperature
+     * parameter is retained in the signature for call-site compatibility but is
+     * no longer sent. Determinism is now steered by the prompt + low max_tokens.
      */
     private function call_claude_json( $api_key, $system, $user_prompt, $max_tokens, $temperature, $model ) {
         $body = array(
             'model'       => $model,
             'max_tokens'  => $max_tokens,
-            'temperature' => $temperature,
             'system'      => $system,
             'messages'    => array(
                 array( 'role' => 'user', 'content' => $user_prompt ),
@@ -499,7 +498,7 @@ class HDLV2_Auto_Consultation {
                 'content-type'      => 'application/json',
             ),
             'body'    => wp_json_encode( $body ),
-            'timeout' => 60,
+            'timeout' => 120, // v0.46.24 — bumped 60→120 for Opus 4.8.
         ) );
 
         if ( is_wp_error( $response ) ) {

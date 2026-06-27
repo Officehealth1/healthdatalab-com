@@ -465,6 +465,21 @@ class HDLV2_Job_Queue {
             return new WP_Error( 'not_found', 'Job not found.', array( 'status' => 404 ) );
         }
 
+        // v0.46.17 — IDOR gate (BACK-08 / W3-1). transcribe_audio and
+        // organise_consultation are the only job types whose `result` carries
+        // sensitive content (audio transcripts / organised clinical notes).
+        // Every other type returns a minimal status body (success/ready/ids),
+        // so the leak is specifically these two. permission_read() only proves
+        // the caller is *a* practitioner or holds *a* valid token — not that
+        // they own THIS job. Without this check any logged-in practitioner or
+        // any valid client token could read every client's transcript/notes by
+        // walking job IDs. Non-owners get 404 (not 403) so the endpoint never
+        // confirms a job exists (no enumeration).
+        if ( in_array( $job->job_type, array( 'transcribe_audio', 'organise_consultation' ), true )
+             && ! $this->caller_owns_sensitive_job( $job, $request ) ) {
+            return new WP_Error( 'not_found', 'Job not found.', array( 'status' => 404 ) );
+        }
+
         // v0.33.3 — Self-healing kick. If the job is still pending when the
         // client polls status, re-fire trigger_worker_async() so the worker
         // runs immediately. Covers the case where the original kick from
@@ -501,6 +516,97 @@ class HDLV2_Job_Queue {
         $response->header( 'Pragma', 'no-cache' );
         $response->header( 'Expires', '0' );
         return $response;
+    }
+
+    /**
+     * Ownership gate for the two sensitive job types whose result body must
+     * not leak across clients (transcribe_audio / organise_consultation).
+     *
+     * Resolution differs by job type because they bind to different owners:
+     *
+     *  - organise_consultation, and transcribe_audio + context 'consultation_notes':
+     *      RESOURCE-BASED. reference_id (or payload.consultation_id) → the
+     *      hdlv2_consultation_notes row → its practitioner_user_id is the only
+     *      legitimate reader. (organise is created inside the worker when a
+     *      consultation transcript chains it, so it has no request context to
+     *      creator-bind — resource resolution is the only option, and is also
+     *      robust for historical jobs.)
+     *
+     *  - transcribe_audio + context 'why_collection' | 'weekly_checkin'
+     *    | 'consultation_addendum':
+     *      CREATOR-BOUND. These transcripts belong to no persisted row at
+     *      transcribe time (reference_id = 0); the transcript is handed back
+     *      only to whoever recorded it. rest_transcribe_async() stamps the
+     *      creator identity into the payload (_owner_user for a logged-in
+     *      caller, _owner_token_hash = HMAC(token) for a client-token caller).
+     *      The audio component polls with the SAME identity it uploaded with,
+     *      so the owner always matches. Historical jobs predating the stamp
+     *      carry neither field → only admins can read them (fail closed;
+     *      their transcripts were consumed long ago, so nothing legitimate
+     *      breaks).
+     *
+     * @return bool true if the caller owns the job's underlying record.
+     */
+    private function caller_owns_sensitive_job( $job, $request ) {
+        // Admin escape hatch — mirrors the IDOR pattern used elsewhere.
+        if ( current_user_can( 'manage_options' ) ) {
+            return true;
+        }
+
+        global $wpdb;
+        $table = $wpdb->prefix . self::TABLE;
+
+        $uid   = (int) get_current_user_id();
+        $token = (string) $request->get_param( 'token' );
+        if ( ! preg_match( '/^[a-f0-9]{64}$/', $token ) ) {
+            $token = '';
+        }
+
+        $row = $wpdb->get_row( $wpdb->prepare(
+            "SELECT reference_id, payload FROM $table WHERE id = %d LIMIT 1",
+            (int) $job->id
+        ) );
+        if ( ! $row ) {
+            return false;
+        }
+        $payload = $row->payload ? json_decode( $row->payload, true ) : array();
+        if ( ! is_array( $payload ) ) {
+            $payload = array();
+        }
+        $ref     = (int) $row->reference_id;
+        $context = isset( $payload['context_type'] ) ? (string) $payload['context_type'] : '';
+
+        // Resource-based: organise + consultation-notes transcription.
+        $is_consultation = ( $job->job_type === 'organise_consultation' )
+                        || ( $job->job_type === 'transcribe_audio' && $context === 'consultation_notes' );
+        if ( $is_consultation ) {
+            $cid = isset( $payload['consultation_id'] ) ? (int) $payload['consultation_id'] : 0;
+            if ( ! $cid ) {
+                $cid = $ref;
+            }
+            if ( ! $cid || ! $uid ) {
+                return false;
+            }
+            $prac = (int) $wpdb->get_var( $wpdb->prepare(
+                "SELECT practitioner_user_id FROM {$wpdb->prefix}hdlv2_consultation_notes WHERE id = %d LIMIT 1",
+                $cid
+            ) );
+            return ( $prac && $prac === $uid );
+        }
+
+        // Creator-bound: why / weekly check-in / consultation addendum transcripts.
+        $owner_user = isset( $payload['_owner_user'] ) ? (int) $payload['_owner_user'] : 0;
+        $owner_hash = isset( $payload['_owner_token_hash'] ) ? (string) $payload['_owner_token_hash'] : '';
+        if ( $uid && $owner_user && $uid === $owner_user ) {
+            return true;
+        }
+        if ( $token && $owner_hash ) {
+            $calc = hash_hmac( 'sha256', $token, wp_salt( 'auth' ) );
+            if ( hash_equals( $owner_hash, $calc ) ) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**

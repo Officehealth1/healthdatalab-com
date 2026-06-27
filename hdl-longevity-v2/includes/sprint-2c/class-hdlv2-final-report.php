@@ -144,138 +144,15 @@ class HDLV2_Final_Report {
         if ( ! empty( $why_profile['motivations'] ) ) $why_profile['motivations'] = json_decode( $why_profile['motivations'], true );
         if ( ! empty( $why_profile['fears'] ) ) $why_profile['fears'] = json_decode( $why_profile['fears'], true );
 
-        // Consultation data — prefer new AI-organised output (v0.15.0+), with
-        // fallback to the legacy structured recommendations column for any
-        // in-flight rows that predate the cutover. Clean cutover path writes
-        // only to ai_organised_notes going forward.
-        $health_changes  = json_decode( $consult->health_data_changes, true ) ?: array();
-        $organised       = ( isset( $consult->ai_organised_notes ) && $consult->ai_organised_notes )
-            ? ( json_decode( $consult->ai_organised_notes, true ) ?: null )
-            : null;
-
-        // v0.32.5 — Merge ALL recommendation sources: AI-organised notes,
-        // legacy `recommendations` column, addenda (added below). The previous
-        // if/else either-or path silently dropped manual recs from the legacy
-        // column whenever ai_organised_notes had any organised entries, and
-        // dropped AI organised when manual entries were added through the
-        // (since-revived) /add-recommendation endpoint. Now everything merges
-        // with light dedupe by trimmed text, so no source is silently lost.
-        $recommendations = array();
-
-        if ( $organised && ! empty( $organised['recommendations'] ) && is_array( $organised['recommendations'] ) ) {
-            foreach ( $organised['recommendations'] as $r ) {
-                if ( ! is_array( $r ) ) continue;
-                $cat = isset( $r['category'] ) ? (string) $r['category'] : '';
-                if ( ! empty( $r['secondary_category'] ) ) {
-                    $cat .= ' (also ' . (string) $r['secondary_category'] . ')';
-                }
-                $text = isset( $r['text'] ) ? trim( (string) $r['text'] ) : '';
-                if ( $text === '' ) continue;
-                $recommendations[] = array(
-                    'category'  => $cat,
-                    'text'      => $text,
-                    'priority'  => isset( $r['priority'] ) ? (string) $r['priority'] : 'Medium',
-                    'frequency' => isset( $r['frequency'] ) ? (string) $r['frequency'] : 'Not specified',
-                );
-            }
-        }
-
-        // Legacy `recommendations` column — pre-v0.15.0 manual entries OR
-        // any future writes that target this column directly. Merge by
-        // case-insensitive trimmed-text dedupe so identical content from
-        // both sources only appears once.
-        $legacy_recs = json_decode( $consult->recommendations ?? '', true );
-        if ( is_array( $legacy_recs ) ) {
-            foreach ( $legacy_recs as $r ) {
-                if ( ! is_array( $r ) ) continue;
-                $text = isset( $r['text'] ) ? trim( (string) $r['text'] ) : '';
-                if ( $text === '' ) continue;
-                $is_dup = false;
-                foreach ( $recommendations as $existing ) {
-                    if ( strcasecmp( trim( $existing['text'] ), $text ) === 0 ) {
-                        $is_dup = true;
-                        break;
-                    }
-                }
-                if ( $is_dup ) continue;
-                $recommendations[] = array(
-                    'category'  => isset( $r['category'] ) ? (string) $r['category'] : '',
-                    'text'      => $text,
-                    'priority'  => isset( $r['priority'] ) ? (string) $r['priority'] : 'Medium',
-                    'frequency' => isset( $r['frequency'] ) ? (string) $r['frequency'] : 'Not specified',
-                );
-            }
-        }
-
-        // Build the notes string the Final Report prompt sees. If organised JSON
-        // exists, feed its structured sections (health_summary, history,
-        // follow_up_actions, additional_notes) rather than the raw textarea — so
-        // Claude works from the practitioner-approved distillation, not raw audio.
-        if ( $organised ) {
-            $parts = array();
-            if ( ! empty( $organised['health_summary'] ) )    $parts[] = "## Client Health Summary\n" . $organised['health_summary'];
-            if ( ! empty( $organised['health_history'] ) )    $parts[] = "## Health History\n" . $organised['health_history'];
-            if ( ! empty( $organised['follow_up_actions'] ) ) $parts[] = "## Follow-Up Actions\n- " . implode( "\n- ", (array) $organised['follow_up_actions'] );
-            if ( ! empty( $organised['additional_notes'] ) )  $parts[] = "## Additional Notes\n" . $organised['additional_notes'];
-            $typed_notes = implode( "\n\n", $parts );
-            // Fallback: if organised was empty-section-only, still send raw.
-            if ( $typed_notes === '' ) {
-                $typed_notes = $consult->raw_notes ?: $consult->typed_notes ?: '';
-            }
-        } else {
-            $typed_notes = $consult->typed_notes ?: '';
-        }
-
-        // v0.28.0 — Load any practitioner Addenda for this consultation and
-        // merge them into the notes block. No-op when the addenda table is
-        // empty (initial /finalise calls always have zero addenda — they only
-        // appear post-Final). The merge function returns $typed_notes
-        // unchanged in that case, so the legacy generate flow is preserved.
-        // See HDLV2_AI_Service::merge_consultation_with_addenda().
-        $addenda_rows = $wpdb->get_results( $wpdb->prepare(
-            "SELECT id, note_text, occurred_at, priority, source FROM {$wpdb->prefix}hdlv2_consultation_addenda
-             WHERE consultation_id = %d
-             ORDER BY occurred_at ASC, id ASC",
-            $consult_id
-        ), ARRAY_A );
-        if ( ! empty( $addenda_rows ) ) {
-            $typed_notes = HDLV2_AI_Service::merge_consultation_with_addenda( $typed_notes, $addenda_rows );
-
-            // v0.32.2 — Surface each addendum as a structured rec card on Page 13.
-            // v0.32.5 — Dedupe against already-merged sources so a practitioner
-            // who manually added the same text via /add-recommendation and an
-            // addendum doesn't see two identical cards.
-            //
-            // Background: addenda are stored as free-text + priority + occurred_at
-            // in wp_hdlv2_consultation_addenda. Until v0.32.2 they were ONLY
-            // text-merged into the Claude prompt; the structured
-            // $recommendations[] array stayed unchanged. So when a practitioner's
-            // original consultation contained no action items (just praise),
-            // the Final Report's Page 13 rendered empty even after they added
-            // an addendum that was clearly an action. Kim 2026-05-05 hit this.
-            foreach ( $addenda_rows as $a ) {
-                $text = trim( wp_strip_all_tags( $a['note_text'] ?? '' ) );
-                if ( $text === '' ) continue;
-                $is_dup = false;
-                foreach ( $recommendations as $existing ) {
-                    if ( strcasecmp( trim( $existing['text'] ), $text ) === 0 ) {
-                        $is_dup = true;
-                        break;
-                    }
-                }
-                if ( $is_dup ) continue;
-                $pri_raw = strtolower( (string) ( $a['priority'] ?? 'medium' ) );
-                if ( ! in_array( $pri_raw, array( 'low', 'medium', 'high' ), true ) ) {
-                    $pri_raw = 'medium';
-                }
-                $recommendations[] = array(
-                    'category'  => 'Practitioner addendum',
-                    'text'      => $text,
-                    'priority'  => ucfirst( $pri_raw ),
-                    'frequency' => 'Ongoing',
-                );
-            }
-        }
+        // Consultation data — extracted to collect_consult_inputs() (v0.46.58)
+        // so the direct PDF re-render service rebuilds the IDENTICAL
+        // recommendations / notes / health-changes set. Pure move, no
+        // behaviour change.
+        $ci              = self::collect_consult_inputs( $consult, $consult_id );
+        $health_changes  = $ci['health_changes'];
+        $organised       = $ci['organised'];
+        $recommendations = $ci['recommendations'];
+        $typed_notes     = $ci['typed_notes'];
 
         // v0.33.5 — HARD GUARD: do not let an empty Page-13 ship.
         //
@@ -305,8 +182,10 @@ class HDLV2_Final_Report {
             $organised_count = ( is_array( $organised ) && isset( $organised['recommendations'] ) && is_array( $organised['recommendations'] ) )
                 ? count( $organised['recommendations'] )
                 : 0;
-            $legacy_count    = is_array( $legacy_recs ) ? count( $legacy_recs ) : 0;
-            $addenda_count   = is_array( $addenda_rows ) ? count( $addenda_rows ) : 0;
+            // v0.46.58 — counts come from the extracted collect_consult_inputs
+            // diagnostics (the raw source arrays now live inside that method).
+            $legacy_count    = (int) ( $ci['legacy_count'] ?? 0 );
+            $addenda_count   = (int) ( $ci['addenda_count'] ?? 0 );
             error_log( sprintf(
                 '[HDLV2 empty-recs] progress=%d consult=%d organised_recs=%d legacy_recs=%d addenda=%d practitioner=%d',
                 $progress_id, $consult_id, $organised_count, $legacy_count, $addenda_count, $practitioner_id
@@ -453,13 +332,66 @@ class HDLV2_Final_Report {
             ) );
         }
 
-        // ── Step 3: Generate milestones (separate Claude call) ──
-        $milestones = HDLV2_AI_Service::generate_milestones(
+        // ── Step 3: Milestones ──
+        // v0.46.62 — pre-send editing on the consultation page. If the
+        // practitioner generated + reviewed/edited the four-horizon milestones
+        // on the consultation page (stored in consultation_notes.staged_milestones
+        // by /consultation/milestones-generate + /consultation/milestones-stage-edit),
+        // use that human-approved text VERBATIM — the client's first PDF/email
+        // then carries exactly what the practitioner saw. No staged copy (or
+        // flag off) → generate fresh, byte-identical to the prior behaviour.
+        // Gated by HDLV2_FF_MILESTONE_PREVIEW (constant) OR option
+        // hdlv2_ff_milestone_preview so it ships dark and flips per-env.
+        $milestones    = null;
+        $ff_ms_preview = ( defined( 'HDLV2_FF_MILESTONE_PREVIEW' ) && HDLV2_FF_MILESTONE_PREVIEW )
+            || get_option( 'hdlv2_ff_milestone_preview', false );
+        if ( $ff_ms_preview && isset( $consult->staged_milestones ) && '' !== (string) $consult->staged_milestones ) {
+            $staged = json_decode( (string) $consult->staged_milestones, true );
+            if ( is_array( $staged ) ) {
+                $picked = array();
+                foreach ( array( 'six_months', 'two_years', 'five_years', 'ten_plus_years' ) as $h ) {
+                    if ( ! empty( $staged[ $h ] ) && is_array( $staged[ $h ] ) ) {
+                        $picked[ $h ] = array_values( $staged[ $h ] );
+                    }
+                }
+                if ( ! empty( $picked ) ) {
+                    $milestones = $picked;
+                    error_log( sprintf( '[HDLV2 generate] using staged (practitioner-edited) milestones progress=%d consult=%d', (int) $progress_id, (int) $consult_id ) );
+                }
+            }
+        }
+        if ( $milestones === null ) {
+            $milestones = HDLV2_AI_Service::generate_milestones(
+                $calc_result,
+                $why_profile,
+                $recommendations,
+                $age
+            );
+        }
+
+        // ── Step 3.5: Generate the final-report PDF AI sections in WP ──
+        // Phase 3 (v0.46.54 — Dual-AI Unification). WordPress is now the
+        // SINGLE AI writer for the final report: these 16 keys port Make
+        // module [200] verbatim (no temperature, C1-aligned rail). Stored
+        // additively under report_content['pdf_sections'] and shipped in the
+        // webhook below, so Make module [3] reads {{1.*}} instead of {{200.*}}
+        // — the screen, the stored row and the PDF then read ONE brain.
+        // Both finalise and save-and-regenerate inherit (single generate()
+        // path). Failure → empty array; the PDFMonkey template guards hide
+        // any blank section, so the report still ships.
+        $pdf_sections = HDLV2_AI_Service::generate_pdf_sections(
             $calc_result,
             $why_profile,
             $recommendations,
+            $milestones,
+            $s3_data,
+            is_array( $organised ) ? $organised : array(),
+            $typed_notes,
+            $progress->client_name ?: '',
+            $gender,
             $age
         );
+        $report_content['pdf_sections'] = is_array( $pdf_sections ) ? $pdf_sections : array();
 
         // ── Step 4: Store final report ──
         // v0.22.22 — rate_snapshot captures the rate AT THE TIME of generation
@@ -480,6 +412,16 @@ class HDLV2_Final_Report {
         // Both paths check the return value — false → return WP_Error before
         // any side-effect (consult update, addenda stamp, V1 write, webhook,
         // email, Flight Plan schedule) fires. No more silent cascades.
+        //
+        // v0.46.28 (A2) — Freeze the generation-time calc into report_content so
+        // the /my-report/ FINAL view reads the EXACT numbers the PDF was sent
+        // (fire_webhook() below receives this same $calc_result), instead of
+        // live-recomputing calculate_full() at view time. Eliminates silent
+        // screen↔PDF numeric drift if the scoring formula is ever redeployed
+        // after a report was generated. Additive key — PDF/email/webhook are
+        // unaffected (they read $calc_result directly, not report_content).
+        $report_content['calc_snapshot'] = $calc_result;
+
         $report_payload = array(
             'client_user_id'       => $progress->client_user_id ?: null,
             'practitioner_user_id' => $practitioner_id,
@@ -611,22 +553,27 @@ class HDLV2_Final_Report {
                 $progress->client_user_id
             ) );
 
-            wp_schedule_single_event(
-                time() + 5,
-                'hdlv2_generate_single_flight_plan',
-                array( (int) $progress->client_user_id, 'current' )
-            );
-
-            // Kick WP-Cron manually via non-blocking HTTP to /wp-cron.php.
-            // Works even when DISABLE_WP_CRON is true (as on STBY) — the
-            // constant only blocks the auto-trigger on pageviews, not a
-            // direct HTTP call. Ensures the scheduled flight plan fires
-            // within seconds instead of waiting for the next pageview.
-            wp_remote_post( site_url( '/wp-cron.php?doing_wp_cron=' . microtime( true ) ), array(
-                'timeout'   => 0.01,
-                'blocking'  => false,
-                'sslverify' => apply_filters( 'https_local_ssl_verify', false ),
-            ) );
+            // v0.46.66 (#6/#3/#4/#7) — route the first-plan generation through
+            // the robust job queue. enqueue_for() kicks /internal/worker-tick,
+            // a loopback that runs REGARDLESS of DISABLE_WP_CRON (STBY + LIVE),
+            // and the job retries once on a transient Claude failure then
+            // alerts the practitioner. The old wp_schedule_single_event(+5s) +
+            // /wp-cron.php kick sat unfired on a box without a system cron.
+            // Legacy fallback kept if the job class is unavailable.
+            if ( class_exists( 'HDLV2_Flight_Plan_Auto_Jobs' ) ) {
+                HDLV2_Flight_Plan_Auto_Jobs::enqueue_for( (int) $progress->client_user_id, 'current' );
+            } else {
+                wp_schedule_single_event(
+                    time() + 5,
+                    'hdlv2_generate_single_flight_plan',
+                    array( (int) $progress->client_user_id, 'current' )
+                );
+                wp_remote_post( site_url( '/wp-cron.php?doing_wp_cron=' . microtime( true ) ), array(
+                    'timeout'   => 0.01,
+                    'blocking'  => false,
+                    'sslverify' => apply_filters( 'https_local_ssl_verify', false ),
+                ) );
+            }
         }
 
         // ── Return to frontend ──
@@ -683,6 +630,266 @@ class HDLV2_Final_Report {
      *                                 consultation_notes row. Default empty array preserves all prior
      *                                 caller behaviour byte-for-byte.
      */
+    /**
+     * v0.46.58 — Consultation-derived report inputs, extracted VERBATIM from
+     * generate() so the direct PDF re-render path
+     * (HDLV2_Final_Report_PDF_Service) reproduces the identical
+     * recommendations merge (organised + legacy + addenda, v0.46.49
+     * High→Medium→Low sort), notes string, and health-changes set. Pure
+     * reads + deterministic transforms — no AI, no side effects.
+     *
+     * @param object $consult    wp_hdlv2_consultation_notes row
+     * @param int    $consult_id its id (addenda lookup)
+     * @return array { health_changes, organised, recommendations, typed_notes }
+     */
+    public static function collect_consult_inputs( $consult, $consult_id ) {
+        global $wpdb;
+
+        $health_changes  = json_decode( $consult->health_data_changes, true ) ?: array();
+        $organised       = ( isset( $consult->ai_organised_notes ) && $consult->ai_organised_notes )
+            ? ( json_decode( $consult->ai_organised_notes, true ) ?: null )
+            : null;
+        $recommendations = array();
+
+        // v0.32.5 — Merge ALL recommendation sources: AI-organised notes,
+        // legacy `recommendations` column, addenda (added below). The previous
+        // if/else either-or path silently dropped manual recs from the legacy
+        // column whenever ai_organised_notes had any organised entries, and
+        // dropped AI organised when manual entries were added through the
+        // (since-revived) /add-recommendation endpoint. Now everything merges
+        // with light dedupe by trimmed text, so no source is silently lost.
+        $recommendations = array();
+
+        if ( $organised && ! empty( $organised['recommendations'] ) && is_array( $organised['recommendations'] ) ) {
+            foreach ( $organised['recommendations'] as $r ) {
+                if ( ! is_array( $r ) ) continue;
+                $cat = isset( $r['category'] ) ? (string) $r['category'] : '';
+                if ( ! empty( $r['secondary_category'] ) ) {
+                    $cat .= ' (also ' . (string) $r['secondary_category'] . ')';
+                }
+                $text = isset( $r['text'] ) ? trim( (string) $r['text'] ) : '';
+                if ( $text === '' ) continue;
+                $recommendations[] = array(
+                    'category'  => $cat,
+                    'text'      => $text,
+                    'priority'  => isset( $r['priority'] ) ? (string) $r['priority'] : 'Medium',
+                    'frequency' => isset( $r['frequency'] ) ? (string) $r['frequency'] : 'Not specified',
+                );
+            }
+        }
+
+        // Legacy `recommendations` column — pre-v0.15.0 manual entries OR
+        // any future writes that target this column directly. Merge by
+        // case-insensitive trimmed-text dedupe so identical content from
+        // both sources only appears once.
+        $legacy_recs = json_decode( $consult->recommendations ?? '', true );
+        if ( is_array( $legacy_recs ) ) {
+            foreach ( $legacy_recs as $r ) {
+                if ( ! is_array( $r ) ) continue;
+                $text = isset( $r['text'] ) ? trim( (string) $r['text'] ) : '';
+                if ( $text === '' ) continue;
+                $is_dup = false;
+                foreach ( $recommendations as $existing ) {
+                    if ( strcasecmp( trim( $existing['text'] ), $text ) === 0 ) {
+                        $is_dup = true;
+                        break;
+                    }
+                }
+                if ( $is_dup ) continue;
+                $recommendations[] = array(
+                    'category'  => isset( $r['category'] ) ? (string) $r['category'] : '',
+                    'text'      => $text,
+                    'priority'  => isset( $r['priority'] ) ? (string) $r['priority'] : 'Medium',
+                    'frequency' => isset( $r['frequency'] ) ? (string) $r['frequency'] : 'Not specified',
+                );
+            }
+        }
+
+        // Build the notes string the Final Report prompt sees. If organised JSON
+        // exists, feed its structured sections (health_summary, history,
+        // follow_up_actions, additional_notes) rather than the raw textarea — so
+        // Claude works from the practitioner-approved distillation, not raw audio.
+        if ( $organised ) {
+            $parts = array();
+            if ( ! empty( $organised['health_summary'] ) )    $parts[] = "## Client Health Summary\n" . $organised['health_summary'];
+            if ( ! empty( $organised['health_history'] ) )    $parts[] = "## Health History\n" . $organised['health_history'];
+            if ( ! empty( $organised['follow_up_actions'] ) ) $parts[] = "## Follow-Up Actions\n- " . implode( "\n- ", (array) $organised['follow_up_actions'] );
+            if ( ! empty( $organised['additional_notes'] ) )  $parts[] = "## Additional Notes\n" . $organised['additional_notes'];
+            $typed_notes = implode( "\n\n", $parts );
+            // Fallback: if organised was empty-section-only, still send raw.
+            if ( $typed_notes === '' ) {
+                $typed_notes = $consult->raw_notes ?: $consult->typed_notes ?: '';
+            }
+        } else {
+            $typed_notes = $consult->typed_notes ?: '';
+        }
+
+        // v0.28.0 — Load any practitioner Addenda for this consultation and
+        // merge them into the notes block. No-op when the addenda table is
+        // empty (initial /finalise calls always have zero addenda — they only
+        // appear post-Final). The merge function returns $typed_notes
+        // unchanged in that case, so the legacy generate flow is preserved.
+        // See HDLV2_AI_Service::merge_consultation_with_addenda().
+        $addenda_rows = $wpdb->get_results( $wpdb->prepare(
+            "SELECT id, note_text, occurred_at, priority, source FROM {$wpdb->prefix}hdlv2_consultation_addenda
+             WHERE consultation_id = %d
+             ORDER BY occurred_at ASC, id ASC",
+            $consult_id
+        ), ARRAY_A );
+        if ( ! empty( $addenda_rows ) ) {
+            $typed_notes = HDLV2_AI_Service::merge_consultation_with_addenda( $typed_notes, $addenda_rows );
+
+            // v0.32.2 — Surface each addendum as a structured rec card on Page 13.
+            // v0.32.5 — Dedupe against already-merged sources so a practitioner
+            // who manually added the same text via /add-recommendation and an
+            // addendum doesn't see two identical cards.
+            //
+            // Background: addenda are stored as free-text + priority + occurred_at
+            // in wp_hdlv2_consultation_addenda. Until v0.32.2 they were ONLY
+            // text-merged into the Claude prompt; the structured
+            // $recommendations[] array stayed unchanged. So when a practitioner's
+            // original consultation contained no action items (just praise),
+            // the Final Report's Page 13 rendered empty even after they added
+            // an addendum that was clearly an action. Kim 2026-05-05 hit this.
+            foreach ( $addenda_rows as $a ) {
+                $text = trim( wp_strip_all_tags( $a['note_text'] ?? '' ) );
+                if ( $text === '' ) continue;
+                $is_dup = false;
+                foreach ( $recommendations as $existing ) {
+                    if ( strcasecmp( trim( $existing['text'] ), $text ) === 0 ) {
+                        $is_dup = true;
+                        break;
+                    }
+                }
+                if ( $is_dup ) continue;
+                $pri_raw = strtolower( (string) ( $a['priority'] ?? 'medium' ) );
+                if ( ! in_array( $pri_raw, array( 'low', 'medium', 'high' ), true ) ) {
+                    $pri_raw = 'medium';
+                }
+                $recommendations[] = array(
+                    'category'  => 'Practitioner addendum',
+                    'text'      => $text,
+                    'priority'  => ucfirst( $pri_raw ),
+                    'frequency' => 'Ongoing',
+                );
+            }
+        }
+
+        // v0.46.49 — Order recommendations High → Medium → Low before anything
+        // downstream consumes the list. The webhook flattens only the FIRST
+        // FIVE entries into rec_1..5_* (Page 13 renders max 5 cards), so an
+        // unsorted merge could silently drop a High-priority rec while lower
+        // ones rendered (kim's "Protect your existing strengths" — 2026-06-11
+        // PDF audit). usort is stable on PHP 8+, so the practitioner's order
+        // is preserved within each priority level; unknown priorities sort
+        // with Medium.
+        if ( count( $recommendations ) > 1 ) {
+            $pri_rank = array( 'high' => 0, 'medium' => 1, 'low' => 2 );
+            usort( $recommendations, static function ( $a, $b ) use ( $pri_rank ) {
+                $ra = $pri_rank[ strtolower( trim( (string) ( $a['priority'] ?? '' ) ) ) ] ?? 1;
+                $rb = $pri_rank[ strtolower( trim( (string) ( $b['priority'] ?? '' ) ) ) ] ?? 1;
+                return $ra <=> $rb;
+            } );
+        }
+
+        return array(
+            'health_changes'  => $health_changes,
+            'organised'       => $organised,
+            'recommendations' => $recommendations,
+            'typed_notes'     => $typed_notes,
+            // diagnostics for generate()'s empty-recs 422 log line
+            'legacy_count'    => is_array( $legacy_recs ?? null ) ? count( $legacy_recs ) : 0,
+            'addenda_count'   => is_array( $addenda_rows ?? null ) ? count( $addenda_rows ) : 0,
+        );
+    }
+
+    /**
+     * v0.46.62 — Generate the four-horizon milestones for the PRACTITIONER to
+     * review/edit on the consultation page, BEFORE finalise. Assembles the same
+     * inputs generate() uses (post-consultation calc with health changes applied,
+     * merged + priority-sorted recommendations, WHY, age) so the preview matches
+     * what finalise would produce; generate() then consumes the practitioner-
+     * edited copy verbatim (see Step 3). Returns the milestones array
+     * (six_months/two_years/five_years/ten_plus_years) or WP_Error.
+     */
+    public static function generate_milestones_preview( $progress_id, $consult_id, $practitioner_id ) {
+        global $wpdb;
+
+        $progress = $wpdb->get_row( $wpdb->prepare(
+            "SELECT * FROM {$wpdb->prefix}hdlv2_form_progress WHERE id = %d AND deleted_at IS NULL",
+            $progress_id
+        ) );
+        if ( ! $progress ) {
+            return new WP_Error( 'not_found', 'Assessment not found.', array( 'status' => 404 ) );
+        }
+        if ( (int) $progress->practitioner_user_id !== (int) $practitioner_id
+             && ! user_can( (int) $practitioner_id, 'manage_options' ) ) {
+            return new WP_Error( 'forbidden', 'You do not have access to this assessment.', array( 'status' => 403 ) );
+        }
+
+        $consult = $wpdb->get_row( $wpdb->prepare(
+            "SELECT * FROM {$wpdb->prefix}hdlv2_consultation_notes WHERE id = %d", $consult_id
+        ) );
+        if ( ! $consult ) {
+            return new WP_Error( 'not_found', 'Consultation not found.', array( 'status' => 404 ) );
+        }
+
+        $s1_data = json_decode( $progress->stage1_data, true ) ?: array();
+        $s3_data = json_decode( $progress->stage3_data, true ) ?: array();
+
+        // Recommendations + health changes — identical source to generate().
+        $ci              = self::collect_consult_inputs( $consult, $consult_id );
+        $health_changes  = $ci['health_changes'];
+        $recommendations = $ci['recommendations'];
+        if ( empty( $recommendations ) ) {
+            return new WP_Error(
+                'empty_recommendations',
+                'Add at least one recommendation before generating milestones.',
+                array( 'status' => 422 )
+            );
+        }
+
+        // WHY profile (decoded JSON sub-fields), mirrors generate() :138-145.
+        $why_row = $wpdb->get_row( $wpdb->prepare(
+            "SELECT distilled_why, ai_reformulation, key_people, motivations, fears FROM {$wpdb->prefix}hdlv2_why_profiles WHERE form_progress_id = %d LIMIT 1",
+            $progress_id
+        ), ARRAY_A );
+        $why_profile = $why_row ?: array();
+        if ( ! empty( $why_profile['key_people'] ) )  $why_profile['key_people']  = json_decode( $why_profile['key_people'], true );
+        if ( ! empty( $why_profile['motivations'] ) ) $why_profile['motivations'] = json_decode( $why_profile['motivations'], true );
+        if ( ! empty( $why_profile['fears'] ) )       $why_profile['fears']       = json_decode( $why_profile['fears'], true );
+
+        // Recompute calc with practitioner-verified data — same body-comp guard
+        // as generate() :200-241 so the preview is generated from the numbers
+        // finalise would use.
+        $calc_data   = array_merge( $s1_data, $s3_data );
+        $body_inputs = array( 'height', 'weight', 'waist', 'hip', 'bpSystolic', 'bpDiastolic', 'restingHeartRate' );
+        foreach ( $health_changes as $change ) {
+            if ( ! is_array( $change ) || ! isset( $change['field'] ) ) continue;
+            $field    = $change['field'];
+            $new      = $change['new_value'] ?? null;
+            $is_blank = ( $new === '' || $new === 'skip' || $new === null );
+            if ( in_array( $field, $body_inputs, true ) && $is_blank ) {
+                $orig = $change['original'] ?? null;
+                if ( is_numeric( $orig ) ) { $calc_data[ $field ] = $orig; continue; }
+            }
+            $calc_data[ $field ] = $new;
+        }
+        if ( isset( $calc_data['activity'] ) && ! isset( $calc_data['physicalActivity'] ) ) {
+            $calc_data['physicalActivity'] = $calc_data['activity'];
+        }
+        foreach ( $calc_data as $k => $v ) { if ( $v === 'skip' ) $calc_data[ $k ] = null; }
+        $age    = (int) ( $calc_data['q1_age'] ?? $calc_data['age'] ?? 0 );
+        $gender = $calc_data['q1_sex'] ?? $calc_data['gender'] ?? 'other';
+        $calc_result = HDLV2_Rate_Calculator::calculate_full( $age, $calc_data, $gender );
+
+        $milestones = HDLV2_AI_Service::generate_milestones( $calc_result, $why_profile, $recommendations, $age );
+        if ( ! is_array( $milestones ) || empty( $milestones ) ) {
+            return new WP_Error( 'hdlv2_ai_generation_failed', 'Milestone generation failed (AI unavailable). Please retry.', array( 'status' => 503 ) );
+        }
+        return $milestones;
+    }
+
     private static function fire_webhook( $progress, $calc_result, $s1_data, $report, $milestones, $why_profile, $recommendations, $health_changes, $notes, $practitioner_id, $overrides = array() ) {
         global $wpdb;
 
@@ -699,6 +906,31 @@ class HDLV2_Final_Report {
             error_log( '[HDLV2] Final Report webhook skipped — HDLV2_MAKE_FINAL_REPORT not configured.' );
             return;
         }
+
+        $payload = self::build_pdf_payload( $progress, $calc_result, $s1_data, $report, $milestones, $why_profile, $recommendations, $health_changes, $notes, $practitioner_id, $overrides );
+
+        HDLV2_Webhook_Monitor::fire(
+            $webhook_url,
+            array(
+                'body'     => wp_json_encode( $payload ),
+                'headers'  => array( 'Content-Type' => 'application/json' ),
+                'timeout'  => 10,
+                'blocking' => true,
+            ),
+            'final_report'
+        );
+    }
+
+    /**
+     * v0.46.58 — The Final Report PDF payload, extracted VERBATIM from
+     * fire_webhook() so the direct PDFMonkey re-render path
+     * (HDLV2_Final_Report_PDF_Service) ships the IDENTICAL field set Make
+     * module [3] receives — including the v0.27.2 strtr text pass, so a
+     * direct render matches a Make render character-for-character. No
+     * behaviour change for the webhook path.
+     */
+    public static function build_pdf_payload( $progress, $calc_result, $s1_data, $report, $milestones, $why_profile, $recommendations, $health_changes, $notes, $practitioner_id, $overrides = array() ) {
+        global $wpdb;
 
         $prac_user = get_userdata( $practitioner_id );
 
@@ -876,6 +1108,38 @@ class HDLV2_Final_Report {
             'awaken_content'          => $report['awaken_content'] ?? '',
             'lift_content'            => $report['lift_content'] ?? '',
             'thrive_content'          => $report['thrive_content'] ?? '',
+            // Phase 3 (v0.46.54) — the 16 final-report PDF AI sections, now
+            // WP-generated (report_content['pdf_sections'], from
+            // HDLV2_AI_Service::generate_pdf_sections). Make module [3] reads
+            // {{1.<key>}} for these instead of {{200.jsonResponse.<key>}};
+            // module [200] is retired once parity is confirmed. The 4 HTML
+            // fields are added to $html_safe_fields below so their tags survive
+            // the strtr the way awaken/lift/thrive do. key_findings_summary is
+            // intentionally NOT sent (dropped — inert in the live template);
+            // the template's practitioner_health_summary box is remapped in [3]
+            // to {{1.practitioner_health_summary}} (the real consultation notes,
+            // already sent below).
+            'intro_pull_quote'                    => $report['pdf_sections']['intro_pull_quote']                    ?? '',
+            // v0.46.55 (PDF Fix 1) — client-safe 3-bullet digest for the Page-3
+            // "Key findings" box, replacing the verbatim internal note
+            // (practitioner_health_summary) that overflowed the page. HTML →
+            // joins $html_safe_fields below.
+            'client_key_findings'                 => $report['pdf_sections']['client_key_findings']                 ?? '',
+            'results_narrative'                   => $report['pdf_sections']['results_narrative']                   ?? '',
+            'ai_body_composition_analysis'        => $report['pdf_sections']['ai_body_composition_analysis']        ?? '',
+            'ai_longevity_influences_explanation' => $report['pdf_sections']['ai_longevity_influences_explanation'] ?? '',
+            'ai_objectives_how'                   => $report['pdf_sections']['ai_objectives_how']                   ?? '',
+            'ai_objectives_who'                   => $report['pdf_sections']['ai_objectives_who']                   ?? '',
+            'ai_objectives_where'                 => $report['pdf_sections']['ai_objectives_where']                 ?? '',
+            'ai_objectives_when'                  => $report['pdf_sections']['ai_objectives_when']                  ?? '',
+            'ai_results_summary'                  => $report['pdf_sections']['ai_results_summary']                  ?? '',
+            'summary_pull_quote'                  => $report['pdf_sections']['summary_pull_quote']                  ?? '',
+            'summary_nb'                          => $report['pdf_sections']['summary_nb']                          ?? '',
+            'rec_1_lifts'                         => $report['pdf_sections']['rec_1_lifts']                         ?? '',
+            'rec_2_lifts'                         => $report['pdf_sections']['rec_2_lifts']                         ?? '',
+            'rec_3_lifts'                         => $report['pdf_sections']['rec_3_lifts']                         ?? '',
+            'rec_4_lifts'                         => $report['pdf_sections']['rec_4_lifts']                         ?? '',
+            'rec_5_lifts'                         => $report['pdf_sections']['rec_5_lifts']                         ?? '',
             'milestones'              => $milestones,
             'why_profile'             => array(
                 'distilled_why' => $why_profile['distilled_why'] ?? '',
@@ -1020,6 +1284,56 @@ class HDLV2_Final_Report {
             $payload['practitioner_follow_ups'] = implode( "\n", array_filter( array_map( 'strval', $payload['practitioner_follow_ups'] ) ) );
         }
 
+        // v0.46.56 (Matthew — B6 applied to the PDF) — Page-16 "Your
+        // assessment inputs" answer labels. The client's actual selected
+        // answer, in words, for each of the 16 scored Stage-3 dropdowns —
+        // through the same single wording map the consultation Health-Data
+        // editor uses (B6: HDLV2_Flight_Notes::s3_label ← S3_OPTIONS; no
+        // duplicate map). Source = $s3_raw (stage3_data), which consultation
+        // edit-field writes back into before recomputing calculate_full, so
+        // the words always match the stored answer the /5 score pills were
+        // derived from. Numeric value → mapped label; genuine free-text
+        // (older / hand-entered rows) passes verbatim; blank / 'skip' /
+        // unmapped → '' so the template's {% if label_X != blank %} guard
+        // falls back to the pre-v0.46.56 "N/5" rendering. Raw-value tiles
+        // (BMI/WHR/WHtR/HR/BP) are untouched — already real numbers.
+        // label_skin has no Page-16 tile today (score_skin dropped v0.32.0)
+        // — sent for SCORE_FIELDS parity only. Plain strings: the v0.27.2
+        // strtr pass below applies (not in $html_safe_fields).
+        $label_fields = array(
+            'label_activity'    => 'physicalActivity',
+            'label_sit_stand'   => 'sitToStand',
+            'label_breath'      => 'breathHold',
+            'label_balance'     => 'balance',
+            'label_skin'        => 'skinElasticity',
+            'label_sleep_dur'   => 'sleepDuration',
+            'label_sleep_qual'  => 'sleepQuality',
+            'label_stress'      => 'stressLevels',
+            'label_social'      => 'socialConnections',
+            'label_cognitive'   => 'cognitiveActivity',
+            'label_diet'        => 'dietQuality',
+            'label_alcohol'     => 'alcoholConsumption',
+            'label_smoking'     => 'smokingStatus',
+            'label_supplements' => 'supplementIntake',
+            'label_sunlight'    => 'sunlightExposure',
+            'label_hydration'   => 'dailyHydration',
+        );
+        foreach ( $label_fields as $payload_key => $s3_field ) {
+            $raw = $s3_raw[ $s3_field ] ?? '';
+            if ( 'physicalActivity' === $s3_field && '' === trim( (string) $raw ) ) {
+                $raw = $s3_raw['activity'] ?? ''; // legacy key (mirrors HDLV2_Flight_Notes::raw)
+            }
+            $label = '';
+            if ( '' !== trim( (string) $raw ) && 'skip' !== $raw ) {
+                if ( is_numeric( $raw ) && class_exists( 'HDLV2_Flight_Notes' ) ) {
+                    $label = HDLV2_Flight_Notes::s3_label( $s3_field, $raw );
+                } elseif ( ! is_numeric( $raw ) ) {
+                    $label = (string) $raw; // genuine descriptive answer, verbatim
+                }
+            }
+            $payload[ $payload_key ] = $label;
+        }
+
         // v0.27.2 — Pre-sanitise text fields for Make.com PDFMonkey "Generate
         // Document" module. That module's Dynamic Data is a raw JSON template
         // with bare {{1.field}} placeholders; Make.com substitutes the decoded
@@ -1031,12 +1345,33 @@ class HDLV2_Final_Report {
         // Reliable fix: strip problematic chars here. HTML content fields exempt
         // — they need " in tag attributes; Make.com IML's `newline` keyword
         // already escapes embedded LFs in those.
-        $html_safe_fields = array( 'awaken_content', 'lift_content', 'thrive_content' );
+        // v0.46.54 (Phase 3) — the 4 HTML PDF-section fields join the allowlist
+        // so the strtr below leaves their <p>/<strong>/<em>/<ul>/<li> tags +
+        // quotes intact; PDFMonkey's A3b 5-stage escaping chain handles them,
+        // exactly as it already does for awaken/lift/thrive. The other 12 new
+        // fields are plain text and pass through the strtr safely.
+        $html_safe_fields = array(
+            'awaken_content', 'lift_content', 'thrive_content',
+            'client_key_findings', // v0.46.55 (PDF Fix 1) — HTML <ul><li> digest
+            'results_narrative', 'ai_body_composition_analysis',
+            'ai_longevity_influences_explanation', 'ai_results_summary',
+        );
         array_walk_recursive( $payload, function ( &$v, $k ) use ( $html_safe_fields ) {
             if ( is_string( $v ) && ! in_array( $k, $html_safe_fields, true ) ) {
                 $v = strtr( $v, array( '"' => "'", '\\' => '/', "\r" => '', "\t" => '    ' ) );
             }
         } );
+
+        // D-2 — report-PDF callback fields. report_id re-queried so all finalise
+        // / regenerate fire paths carry it. Added after the html-safe pass; the
+        // URL + secret hold no chars that pass touches.
+        global $wpdb;
+        $payload['report_id']       = (int) $wpdb->get_var( $wpdb->prepare(
+            "SELECT id FROM {$wpdb->prefix}hdlv2_reports WHERE form_progress_id = %d AND report_type = 'final' AND status = 'ready' ORDER BY id DESC LIMIT 1",
+            $progress->id
+        ) );
+        $payload['callback_url']    = rest_url( 'hdl-v2/v1/reports/pdf-callback' );
+        $payload['callback_secret'] = defined( 'HDLV2_MAKE_CALLBACK_SECRET' ) ? HDLV2_MAKE_CALLBACK_SECRET : '';
 
         // W9 (v0.41.31) — automation-tier overrides. Applied AFTER the
         // rec_N_* / practitioner_follow_ups joins + html-safe sanitisation so
@@ -1047,16 +1382,7 @@ class HDLV2_Final_Report {
             $payload = array_replace( $payload, $overrides );
         }
 
-        HDLV2_Webhook_Monitor::fire(
-            $webhook_url,
-            array(
-                'body'     => wp_json_encode( $payload ),
-                'headers'  => array( 'Content-Type' => 'application/json' ),
-                'timeout'  => 10,
-                'blocking' => true,
-            ),
-            'final_report'
-        );
+        return $payload;
     }
 
     /**
@@ -1782,7 +2108,7 @@ class HDLV2_Final_Report {
      * block used by the Draft webhook in HDLV2_Staged_Form::fire_make_webhook.
      * Falls back to "HD" when no name is available.
      */
-    private static function derive_initials( $display_name ) {
+    public static function derive_initials( $display_name ) {
         if ( ! $display_name ) return 'HD';
         $parts   = preg_split( '/\s+/', trim( $display_name ) );
         $letters = array();

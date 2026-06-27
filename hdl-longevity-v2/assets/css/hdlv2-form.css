@@ -5,6 +5,14 @@
  * Mobile-first, max-width 620px for the form card.
  */
 
+/* v0.46.21 (QA F26) — actually LOAD the Poppins/Inter web fonts this stylesheet
+   declares. The check-in, flight-plan and timeline pages enqueue this CSS but
+   never enqueued the Google Fonts, so headings silently fell back to whatever
+   the device had (the #1 brand violation). One @import here covers every page
+   that loads this stylesheet; fonts.googleapis.com is already used by the
+   widget/draft/consultation pages so it is CSP-allowed. Must precede all rules. */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@600;700&display=swap');
+
 /* ── ROOT ── */
 .hdlv2-assessment-root {
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -226,7 +234,7 @@
   padding: 10px 12px;
   border: 1px solid #e4e6ea;
   border-radius: 8px;
-  font-size: 14px;
+  font-size: 16px; /* v0.46.21 (QA F14) 14px->16px: <16px makes iOS Safari auto-zoom on focus across the whole client funnel */
   background: #f8f9fb;
   box-sizing: border-box;
   color: #111;
@@ -407,7 +415,7 @@
   padding: 10px 12px;
   border: 1px solid #e4e6ea;
   border-radius: 8px;
-  font-size: 14px;
+  font-size: 16px; /* v0.46.21 (QA F14) 14px->16px: prevent iOS Safari focus auto-zoom */
   background: #f8f9fb;
   box-sizing: border-box;
   color: #111;
@@ -2108,6 +2116,28 @@
 }
 .hdlv2-ty-prac-name-only {
   font-size: 14px;
+}
+
+/* v0.46.29 — practitioner-only thank-you header (HDL logo removed; the
+   page header already brands HDL). Left-aligned attribution with a small
+   teal eyebrow so the lone practitioner name reads as deliberate. */
+.hdlv2-ty-header--prac {
+  justify-content: flex-start;
+}
+.hdlv2-ty-prac-attr {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+}
+.hdlv2-ty-prac-label {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #3d8da0;
+  line-height: 1.3;
 }
 
 .hdlv2-ty-banner {

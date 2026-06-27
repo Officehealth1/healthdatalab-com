@@ -904,3 +904,90 @@
     print-color-adjust: exact;
   }
 }
+
+/* ══ v0.46.59 — WFP UI/UX v2 ══════════════════════════════════════════
+   Download control (printer/window.print retired), pre-start collapse,
+   inline editor affordances. Icons = itshover.com geometry 1:1; hover
+   motion approximated in CSS (no build step on this stack). */
+.fp-btn-download {
+  display: inline-flex; align-items: center; gap: 7px;
+  background: #3d8da0; border: 1px solid #3d8da0; color: #fff;
+  border-radius: 24px; padding: 10px 18px;
+  font-weight: 600; text-decoration: none;
+}
+.fp-btn-download:hover:not([disabled]) { background: #004F59; border-color: #004F59; color: #fff; }
+.fp-btn-download[disabled] { opacity: .6; cursor: default; }
+.fp-ico { width: 15px; height: 15px; flex: 0 0 15px; }
+.fp-btn-download:hover .fp-dl-arrow { animation: fp-dl-drop .7s ease infinite; }
+@keyframes fp-dl-drop {
+  0% { transform: translateY(0); opacity: 1; }
+  45% { transform: translateY(4px); opacity: 0; }
+  55% { transform: translateY(-3px); opacity: 0; }
+  100% { transform: translateY(0); opacity: 1; }
+}
+
+/* Pre-start collapse: slim stub + adaptive column count (desktop; the
+   mobile and print rules later in this file still take precedence). */
+.fp-prestart-stub {
+  display: flex; align-items: center; justify-content: center;
+  border: 1px dashed #d1d5db; border-radius: 8px;
+  color: #9ca3af; font-size: 11px; text-align: center;
+  line-height: 1.5; padding: 8px 4px;
+  writing-mode: vertical-rl; transform: rotate(180deg);
+}
+.fp-prestart-stub strong { color: #6b7280; }
+.fp-week-grid--n1 { grid-template-columns: repeat(1, minmax(120px, 1fr)); }
+.fp-week-grid--n2 { grid-template-columns: repeat(2, minmax(120px, 1fr)); }
+.fp-week-grid--n3 { grid-template-columns: repeat(3, minmax(120px, 1fr)); }
+.fp-week-grid--n4 { grid-template-columns: repeat(4, minmax(120px, 1fr)); }
+.fp-week-grid--n5 { grid-template-columns: repeat(5, minmax(120px, 1fr)); }
+.fp-week-grid--n6 { grid-template-columns: repeat(6, minmax(120px, 1fr)); }
+.fp-week-grid--n7 { grid-template-columns: repeat(7, minmax(120px, 1fr)); }
+.fp-week-grid--stub.fp-week-grid--n1 { grid-template-columns: 34px repeat(1, minmax(120px, 1fr)); }
+.fp-week-grid--stub.fp-week-grid--n2 { grid-template-columns: 34px repeat(2, minmax(120px, 1fr)); }
+.fp-week-grid--stub.fp-week-grid--n3 { grid-template-columns: 34px repeat(3, minmax(120px, 1fr)); }
+.fp-week-grid--stub.fp-week-grid--n4 { grid-template-columns: 34px repeat(4, minmax(120px, 1fr)); }
+.fp-week-grid--stub.fp-week-grid--n5 { grid-template-columns: 34px repeat(5, minmax(120px, 1fr)); }
+.fp-week-grid--stub.fp-week-grid--n6 { grid-template-columns: 34px repeat(6, minmax(120px, 1fr)); }
+
+/* Inline editor affordances (practitioner edit mode only — the client
+   page never renders these elements). */
+.fp-pen, .fp-add {
+  background: none; border: none; cursor: pointer; color: #3d8da0;
+  padding: 2px 4px; border-radius: 6px; line-height: 0;
+  opacity: .55; transition: opacity .15s, background .15s;
+}
+.fp-pen:hover, .fp-add:hover { opacity: 1; background: rgba(61, 141, 160, .12); }
+.fp-pen:hover .fp-ico-pen { animation: fp-pen-wiggle .8s ease infinite; }
+@keyframes fp-pen-wiggle {
+  0%, 100% { transform: rotate(0); }
+  25% { transform: rotate(-6deg) translateY(-1px); }
+  60% { transform: rotate(-4deg); }
+}
+.fp-add { margin-left: auto; }
+.fp-add:hover .fp-ico-plus { animation: fp-plus-pop .5s ease; }
+@keyframes fp-plus-pop {
+  0% { transform: scale(1); } 50% { transform: scale(1.35); } 100% { transform: scale(1); }
+}
+.fp-action .fp-pen { margin-left: auto; flex: 0 0 auto; }
+.fp-identity-statement .fp-pen, .fp-journey-assistance .fp-pen { margin-left: 6px; vertical-align: middle; }
+.fp-targets-list li { display: flex; align-items: flex-start; gap: 4px; }
+.fp-targets-list li .fp-edit-text { flex: 1 1 auto; }
+
+.fp-edit-box { width: 100%; padding: 8px; background: #f0fbfc; border: 1px solid #3d8da0; border-radius: 8px; margin-top: 4px; }
+.fp-edit-input {
+  width: 100%; box-sizing: border-box; font: 400 13px/1.5 Inter, -apple-system, sans-serif;
+  color: #222; border: 1px solid #d6dade; border-radius: 6px; padding: 8px 10px; background: #fff;
+}
+.fp-edit-input:focus { outline: none; border-color: #3d8da0; }
+.fp-edit-slot-label { display: block; font-size: 12px; color: #374151; margin-top: 6px; }
+.fp-edit-slot { margin-left: 6px; font-size: 13px; padding: 4px 8px; border: 1px solid #d6dade; border-radius: 6px; }
+.fp-edit-actions { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+.fp-edit-actions .fp-btn { padding: 7px 14px; font-size: 13px; }
+.fp-edit-msg { font-size: 12px; color: #666; }
+.fp-edit-msg.is-error { color: #c0392b; }
+.fp-edit-notice {
+  margin: 0 24px 10px; padding: 8px 14px; border-radius: 8px;
+  background: #ecfdf5; border: 1px solid #a7f3d0; color: #065f46; font-size: 13px;
+}
+.fp-edit-notice.is-warn { background: #fffbeb; border-color: #fde68a; color: #92400e; }

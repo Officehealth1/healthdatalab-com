@@ -146,7 +146,17 @@ class HDLV2_Transcription_Jobs {
                 array(
                     'reference_id' => $reference_id,
                     'priority'     => 90,
-                    'idem_key'     => 'organise:' . $reference_id,
+                    // v0.47.2 (RF-6) — idem_key varies with the SOURCE FILE
+                    // (each upload gets a unique random path). The old constant
+                    // 'organise:<id>' key + enqueue() honouring a 'completed' row
+                    // meant organise ran ONLY for the first recording — every
+                    // re-record nulled ai_organised_notes but the re-enqueue
+                    // returned the stale completed job. Keying on the file path
+                    // re-organises on EVERY new clip (even two distinct takes that
+                    // transcribe to identical text — which a transcript-hash key
+                    // would wrongly de-dup) while still de-duplicating a true
+                    // re-run of the SAME transcribe job (same path) on retry.
+                    'idem_key'     => 'organise:' . $reference_id . ':' . substr( sha1( (string) $file_path ), 0, 12 ),
                     'max_attempts' => 2,
                 )
             );
@@ -197,30 +207,28 @@ class HDLV2_Transcription_Jobs {
 
         switch ( $context_type ) {
             case 'consultation_notes':
-                // Append to any existing text with a separator — the iconsOnlyMode
-                // JS on the live-record path uses the same pattern.
-                $existing_typed = (string) $wpdb->get_var( $wpdb->prepare(
-                    "SELECT typed_notes FROM {$wpdb->prefix}hdlv2_consultation_notes WHERE id = %d LIMIT 1",
+                // v0.47.2 (RF-8) — ATOMIC append. The old read-then-update
+                // (SELECT typed_notes ... then $wpdb->update) was a lost-update
+                // race: with MAX_CONCURRENT=3, two transcribe jobs for the same
+                // consultation could both read the same typed_notes before either
+                // wrote, dropping one transcript. A single CONCAT UPDATE appends
+                // under the row lock so concurrent clips both land. typed_notes is
+                // appended first (using its OLD value), then raw_notes mirrors the
+                // just-updated typed_notes (MySQL evaluates SET assignments
+                // left-to-right, so raw_notes = typed_notes sees the new value).
+                $ok = $wpdb->query( $wpdb->prepare(
+                    "UPDATE {$wpdb->prefix}hdlv2_consultation_notes
+                        SET typed_notes = TRIM(CONCAT(COALESCE(typed_notes,''), IF(TRIM(COALESCE(typed_notes,''))='', '', CHAR(10,10)), %s)),
+                            raw_notes = typed_notes,
+                            raw_audio_url = %s,
+                            ai_organised_notes = NULL,
+                            practitioner_approved = 0,
+                            approved_at = NULL
+                      WHERE id = %d",
+                    $transcript,
+                    $file_path,
                     $reference_id
                 ) );
-                $combined = trim( $existing_typed );
-                if ( $combined !== '' ) $combined .= "\n\n";
-                $combined .= $transcript;
-
-                $ok = $wpdb->update(
-                    $wpdb->prefix . 'hdlv2_consultation_notes',
-                    array(
-                        'raw_notes'     => $combined,
-                        'typed_notes'   => $combined,
-                        'raw_audio_url' => $file_path,
-                        // Invalidate any prior organised output so the chained
-                        // organise job rebuilds it from the updated raw_notes.
-                        'ai_organised_notes'    => null,
-                        'practitioner_approved' => 0,
-                        'approved_at'           => null,
-                    ),
-                    array( 'id' => $reference_id )
-                );
                 if ( $ok === false ) {
                     return new WP_Error( 'db_error', 'Could not persist transcript: ' . $wpdb->last_error );
                 }

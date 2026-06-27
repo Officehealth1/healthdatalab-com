@@ -41,6 +41,18 @@ class HDLV2_Webhook_Monitor {
     const LOG_OPTION_KEY  = 'hdlv2_webhook_log';
     const LOG_MAX_ENTRIES = 100;
 
+    // v0.46.19 (W3-3 / BACK-05) — "stuck PDF" watchdog. Make.com returns 200
+    // "Accepted" even when its scenario silently drops the job, so a Final
+    // Report / Flight Plan can sit with pdf_url NULL forever and nobody knows.
+    // fire() catches synchronous failures; this catches the never-arriving
+    // callback. STUCK_OPTION_KEY tracks already-alerted rows so the operator
+    // isn't re-pinged every scan (re-alerts at most every STUCK_REALERT_SEC).
+    const STUCK_OPTION_KEY  = 'hdlv2_stuck_pdf_alerted';
+    const STUCK_THROTTLE_SEC = 900;   // run the scan at most every 15 min
+    const STUCK_MIN_AGE_MIN  = 15;    // pdf_url still empty this long after gen = stuck
+    const STUCK_MAX_AGE_HOURS = 24;   // ignore ancient backlog (don't alert forever)
+    const STUCK_REALERT_SEC  = 21600; // re-surface a still-stuck row at most every 6h
+
     /**
      * Fire a Make.com webhook with structured logging + failure tracking.
      *
@@ -181,11 +193,146 @@ class HDLV2_Webhook_Monitor {
     }
 
     /**
+     * Throttled entry point for the stuck-PDF watchdog. Hooked onto the
+     * existing per-minute job-queue cron (no new schedule). A transient lock
+     * limits the actual scan to once per STUCK_THROTTLE_SEC.
+     *
+     * @since 0.46.19
+     */
+    public static function maybe_scan_stuck_pdfs() {
+        if ( get_transient( 'hdlv2_stuck_pdf_scan_lock' ) ) {
+            return;
+        }
+        set_transient( 'hdlv2_stuck_pdf_scan_lock', 1, self::STUCK_THROTTLE_SEC );
+        self::scan_stuck_pdfs();
+    }
+
+    /**
+     * Find Final Report / Flight Plan rows whose PDF callback never arrived
+     * (pdf_url still empty long after generation) and raise a deduped operator
+     * alert via the same admin-notice channel as webhook failures.
+     *
+     * Guards (no false alerts):
+     *  - Only checks a surface when its Make pipeline is configured — so on a
+     *    box with no Make.com (e.g. STBY) it is a pure no-op; an empty pdf_url
+     *    there is expected, not a failure. (Overridable via the
+     *    hdlv2_stuck_pdf_check_{reports,flight} filters — used by tests.)
+     *  - Lower age bound (STUCK_MIN_AGE_MIN) so a PDF that's merely still
+     *    rendering isn't flagged; upper bound (STUCK_MAX_AGE_HOURS) so old
+     *    backlog isn't alerted forever.
+     *  - Per-row dedupe (STUCK_OPTION_KEY) re-surfaces a still-stuck row at
+     *    most every STUCK_REALERT_SEC.
+     *  - Read-only: never mutates the report/plan row (no schema change, no
+     *    risk of corrupting state). Timestamps compared with NOW() because the
+     *    columns are written server-local (CURRENT_TIMESTAMP / current_time).
+     *
+     * @return array { scanned:bool, stuck:int, new_alerts:int }
+     * @since 0.46.19
+     */
+    /**
+     * Has this surface ever produced a PDF here? Used to self-calibrate the
+     * stuck-PDF watchdog so it only fires where the Make→PDFMonkey pipeline is
+     * genuinely functional. $table is built from $wpdb->prefix + a literal, so
+     * it is not user input.
+     */
+    private static function pipeline_has_produced( $table ) {
+        global $wpdb;
+        return 1 === (int) $wpdb->get_var( "SELECT EXISTS( SELECT 1 FROM `{$table}` WHERE pdf_url IS NOT NULL AND pdf_url <> '' )" );
+    }
+
+    public static function scan_stuck_pdfs() {
+        global $wpdb;
+
+        // A surface is watched only when its Make pipeline is configured AND it
+        // has actually produced at least one PDF here. The second clause
+        // self-calibrates: on a box where the webhook URL is defined but Make
+        // is non-functional (e.g. STBY), no row ever gets a pdf_url, so the
+        // watchdog stays silent instead of flagging every plan as "stuck". On
+        // LIVE it activates automatically once the first real PDF lands. Zero
+        // config, no false positives. (Filters let tests force a surface on.)
+        $reports_pipeline = defined( 'HDLV2_MAKE_FINAL_REPORT' ) && (string) HDLV2_MAKE_FINAL_REPORT !== '';
+        $flight_pipeline  = defined( 'HDLV2_MAKE_FLIGHT_PDF' )  && (string) HDLV2_MAKE_FLIGHT_PDF  !== '';
+        $check_reports = apply_filters( 'hdlv2_stuck_pdf_check_reports', $reports_pipeline && self::pipeline_has_produced( $wpdb->prefix . 'hdlv2_reports' ) );
+        $check_flight  = apply_filters( 'hdlv2_stuck_pdf_check_flight',  $flight_pipeline  && self::pipeline_has_produced( $wpdb->prefix . 'hdlv2_flight_plans' ) );
+        if ( ! $check_reports && ! $check_flight ) {
+            return array( 'scanned' => false, 'stuck' => 0, 'new_alerts' => 0 );
+        }
+
+        $now     = time();
+        $alerted = get_option( self::STUCK_OPTION_KEY, array() );
+        if ( ! is_array( $alerted ) ) {
+            $alerted = array();
+        }
+        // Prune entries older than a day so the option stays small.
+        foreach ( $alerted as $k => $ts ) {
+            if ( ! is_int( $ts ) || ( $now - $ts ) > DAY_IN_SECONDS ) {
+                unset( $alerted[ $k ] );
+            }
+        }
+
+        $min   = (int) self::STUCK_MIN_AGE_MIN;
+        $max   = (int) self::STUCK_MAX_AGE_HOURS;
+        $stuck = array();
+
+        if ( $check_reports ) {
+            $rows = $wpdb->get_results( $wpdb->prepare(
+                "SELECT id, client_user_id FROM {$wpdb->prefix}hdlv2_reports
+                 WHERE report_type = 'final' AND status = 'ready'
+                   AND ( pdf_url IS NULL OR pdf_url = '' )
+                   AND updated_at < ( NOW() - INTERVAL %d MINUTE )
+                   AND updated_at > ( NOW() - INTERVAL %d HOUR )",
+                $min, $max
+            ) );
+            foreach ( (array) $rows as $r ) {
+                $stuck[] = array(
+                    'key' => 'report:' . (int) $r->id,
+                    'msg' => sprintf( 'Final Report #%d (client %d): PDF never arrived from Make.com/PDFMonkey (>%d min). The web report is fine — only the downloadable PDF is missing; re-fire the Make scenario or re-finalise.', (int) $r->id, (int) $r->client_user_id, $min ),
+                );
+            }
+        }
+
+        if ( $check_flight ) {
+            $rows = $wpdb->get_results( $wpdb->prepare(
+                "SELECT id, client_id FROM {$wpdb->prefix}hdlv2_flight_plans
+                 WHERE status IN ( 'generated', 'delivered', 'active' ) AND deleted_at IS NULL
+                   AND ( pdf_url IS NULL OR pdf_url = '' )
+                   AND created_at < ( NOW() - INTERVAL %d MINUTE )
+                   AND created_at > ( NOW() - INTERVAL %d HOUR )",
+                $min, $max
+            ) );
+            foreach ( (array) $rows as $r ) {
+                $stuck[] = array(
+                    'key' => 'flight:' . (int) $r->id,
+                    'msg' => sprintf( 'Flight Plan #%d (client %d): PDF never arrived (>%d min). The plan is usable on the web; only the PDF is missing.', (int) $r->id, (int) $r->client_id, $min ),
+                );
+            }
+        }
+
+        $new = 0;
+        foreach ( $stuck as $s ) {
+            $last = isset( $alerted[ $s['key'] ] ) ? (int) $alerted[ $s['key'] ] : 0;
+            if ( $last && ( $now - $last ) < self::STUCK_REALERT_SEC ) {
+                continue; // already alerted recently — don't re-ping
+            }
+            self::record_failure( 'stuck_pdf', 0, $s['msg'], 0 );
+            error_log( '[HDLV2 Webhook][stuck_pdf] ' . $s['msg'] );
+            $alerted[ $s['key'] ] = $now;
+            $new++;
+        }
+        update_option( self::STUCK_OPTION_KEY, $alerted, false );
+
+        return array( 'scanned' => true, 'stuck' => count( $stuck ), 'new_alerts' => $new );
+    }
+
+    /**
      * Wire the admin notice so failures surface to the practitioner-team
      * owner without requiring log access.
      */
     public static function register_hooks() {
         add_action( 'admin_notices', array( __CLASS__, 'render_admin_notice' ) );
+        // v0.46.19 — ride the existing per-minute job-queue cron (no new
+        // schedule); the scan self-throttles to once per STUCK_THROTTLE_SEC.
+        add_action( 'hdlv2_job_queue_worker', array( __CLASS__, 'maybe_scan_stuck_pdfs' ) );
     }
 
     public static function render_admin_notice() {

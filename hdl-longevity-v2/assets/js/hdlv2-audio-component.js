@@ -22,7 +22,7 @@ window.HDLAudioComponent = (function () {
   // the console) to surface diagnostics. Short-circuit evaluation means
   // `false && console.log(...)` skips the call entirely — no eval cost.
   var HDLV2_AC_DEBUG = !!window.HDLV2_AC_DEBUG;
-  try { HDLV2_AC_DEBUG && HDLV2_AC_DEBUG && console.log('[HDL-DEBUG] hdlv2-audio-component.js LOADED', { build: '0.27.1', hasSR: !!window.SpeechRecognition, hasWebkitSR: !!window.webkitSpeechRecognition, isSecureContext: window.isSecureContext, href: location.href }); } catch(e){}
+  try { HDLV2_AC_DEBUG && HDLV2_AC_DEBUG && console.log('[HDL-DEBUG] hdlv2-audio-component.js LOADED', { build: '0.47.3', hasSR: !!window.SpeechRecognition, hasWebkitSR: !!window.webkitSpeechRecognition, isSecureContext: window.isSecureContext, href: location.href }); } catch(e){}
   try { HDLV2_AC_DEBUG && console.log('[HDL-DEBUG] browser info', { userAgent: navigator.userAgent, vendor: navigator.vendor, platform: navigator.platform, hardwareConcurrency: navigator.hardwareConcurrency, hasAudioContext: !!(window.AudioContext || window.webkitAudioContext), hasUserActivation: !!navigator.userActivation }); } catch(e){}
   try {
     if (navigator.mediaDevices && navigator.mediaDevices.enumerateDevices) {
@@ -48,7 +48,7 @@ window.HDLAudioComponent = (function () {
     s.id = 'hdlv2-audio-css';
     s.textContent = [
       '.hdlv2-ac { font-family: Inter, -apple-system, sans-serif; }',
-      '.hdlv2-ac-text { width:100%; min-height:80px; padding:10px 12px; border:1px solid #e4e6ea; border-radius:8px; font-size:14px; font-family:inherit; resize:vertical; box-sizing:border-box; background:#f8f9fb; }',
+      '.hdlv2-ac-text { width:100%; min-height:80px; padding:10px 12px; border:1px solid #e4e6ea; border-radius:8px; font-size:16px; font-family:inherit; resize:vertical; box-sizing:border-box; background:#f8f9fb; }', /* v0.46.21 (QA F14) 14px->16px: <16px makes iOS Safari auto-zoom on focus */
       '.hdlv2-ac-text:focus { border-color:#3d8da0; outline:none; }',
       '.hdlv2-ac-row { display:flex; gap:8px; margin-top:10px; align-items:center; flex-wrap:wrap; }',
       '.hdlv2-ac-btn { display:inline-flex; align-items:center; justify-content:center; gap:6px; border:none; border-radius:48px; font-family:inherit; cursor:pointer; transition:all 0.15s; }',
@@ -75,7 +75,7 @@ window.HDLAudioComponent = (function () {
       '.hdlv2-ac-icon-btn.recording svg { stroke:#dc2626; }',
       '.hdlv2-ac-live-transcript { background:#f8f9fb; border:2px solid #3d8da0; border-radius:10px; padding:14px; min-height:60px; font-size:14px; color:#495057; line-height:1.5; margin-top:10px; animation:hdlv2-listen 2s ease-in-out infinite; }',
       '@keyframes hdlv2-listen { 0%,100%{border-color:#3d8da0;box-shadow:0 0 0 0 rgba(61,141,160,0)} 50%{border-color:#5bb0c4;box-shadow:0 0 0 4px rgba(61,141,160,0.1)} }',
-      '.hdlv2-ac-transcript-textarea { width:100%; min-height:140px; padding:16px; margin-top:4px; border:1px solid #d1d5db; border-radius:10px; font-size:15px; font-family:inherit; resize:vertical; box-sizing:border-box; background:#f9fafb; line-height:1.6; }',
+      '.hdlv2-ac-transcript-textarea { width:100%; min-height:140px; padding:16px; margin-top:4px; border:1px solid #d1d5db; border-radius:10px; font-size:16px; font-family:inherit; resize:vertical; box-sizing:border-box; background:#f9fafb; line-height:1.6; }', /* v0.46.21 (QA F14) 15px->16px: prevent iOS Safari focus auto-zoom */
       '.hdlv2-ac-transcript-textarea:focus { border-color:#3d8da0; outline:none; box-shadow:0 0 0 2px rgba(61,141,160,0.15); }',
       '@keyframes hdlv2-fadeIn { from{opacity:0;transform:translateY(4px)} to{opacity:1;transform:translateY(0)} }',
       '.hdlv2-ac-fade { animation:hdlv2-fadeIn 0.25s ease-out; }',
@@ -119,18 +119,9 @@ window.HDLAudioComponent = (function () {
     this.onError = opts.onError || function () {};
     this.showConsent = !!opts.showConsent;
     this.simpleMode = !!opts.simpleMode;
-    // Consumer opt-in for preloading the Whisper model (~74MB) during idle.
-    // Default OFF — clients on mobile data doing intake shouldn't pay this
-    // cost if they'll never record. Practitioner-facing consumers
-    // (consultation, timeline) opt IN because recording is their primary path.
-    // A PHP admin filter ('hdlv2_whisper_preload_on_idle' → true/false) can
-    // force this on or off everywhere; null = per-consumer value wins.
-    this.preloadOnIdle = !!opts.preloadOnIdle;
-    // Per-consumer Whisper tuning — null/undefined means "use CFG defaults".
-    // Lets us A/B (e.g. practitioner consultation on whisper-large-v3-turbo,
-    // client intake on whisper-small) without a PHP round-trip.
-    this.whisperModel = opts.whisperModel || null;
-    this.whisperNumBeams = Number.isFinite(opts.whisperNumBeams) ? opts.whisperNumBeams : null;
+    // E4 (v0.46.47) — the in-browser Whisper tier was removed: preloadOnIdle /
+    // whisperModel / whisperNumBeams opts are gone; all blob transcription is
+    // server-side Deepgram via /audio/transcribe-async.
 
     // useAsIsOnly — consumer (e.g. consultation UI) wants raw transcript
     // pushed straight back via onConfirm without showing the
@@ -184,24 +175,16 @@ window.HDLAudioComponent = (function () {
     this.asyncUpload = !!opts.asyncUpload;
     this.referenceId = opts.referenceId || null;
 
-    // v0.36.4 — silence-stop watchdog. While Web Speech recognition is hot,
-    // any sustained silence longer than `idleStopMs` will fire stopRecording()
-    // automatically. Reset on every onresult event (interim or final), so
-    // active speakers never trigger it. Only kicks in when the user has stopped
-    // talking AND not clicked stop AND silence persists past threshold.
-    //
-    // Why this matters: Web Speech API auto-restarts recognition on its own
-    // `onend` event so long as `isRecording === true` (line 543-552). With no
-    // user click and no result events, the mic stays hot indefinitely (up to
-    // 50 restarts). Practitioner reported on STBY 2026-05-08 that the browser
-    // tab's red mic indicator stayed lit after he forgot to click stop.
-    //
-    // Default 12s — generous enough to absorb legitimate thinking pauses
-    // mid-dictation. Consumers can override per surface (e.g. check-in 8s
-    // for short answers, consultation 20s for clinical reflection time).
-    // Set to 0 to disable entirely (back to legacy behaviour).
-    this.idleStopMs = (typeof opts.idleStopMs === 'number') ? opts.idleStopMs : 12000;
-    this.idleWatchdog = null;
+    // idleStopMs — AUDIO-DRIVEN silence auto-stop threshold (v0.47.2). The
+    // silence meter (_armSilenceMeter) measures real mic loudness and only
+    // auto-stops after this many ms of genuine ACOUSTIC silence, so it can
+    // never cut off a user who is still talking — unlike the old v0.36.4
+    // watchdog, which keyed off Web Speech onresult and so silently stopped a
+    // talking user whenever Web Speech stalled (the 2026-06-27 report).
+    // Default 20s; consumers override per surface (clinical dictation 30s on
+    // consultation/addendum/timeline). Set to 0 to disable auto-stop (user
+    // stops manually; pagehide backstop + maxRecordingMs cap still apply).
+    this.idleStopMs = (typeof opts.idleStopMs === 'number') ? opts.idleStopMs : 20000;
 
     this.mediaRecorder = null;
     this.audioChunks = [];
@@ -228,43 +211,41 @@ window.HDLAudioComponent = (function () {
     // late onend from the API can't re-acquire the mic after the user stops.
     this.stopping = false;
 
+    // v0.47.2 — DEEPGRAM-AUTHORITATIVE recording. Audio capture (MediaRecorder)
+    // now runs on EVERY recording, in parallel with the optional Web Speech
+    // *preview*. The captured blob -> server Deepgram is the single source of
+    // truth for the final transcript, so Web Speech failing/dying mid-session
+    // (Chrome stall, iOS/incognito no-result, the old 50-restart cap) can no
+    // longer lose data — the blob has everything spoken.
+    this._previewEnabled = false;   // Web Speech preview running this session?
+    this._uploadWanted = false;     // true => mediaRecorder 'stop' ships the blob;
+                                    // false (destroy/page-unload) => discard, just release.
+    // Audio-driven silence auto-stop (replaces the old onresult-driven idle
+    // watchdog, which cut off a talking user whenever Web Speech stalled).
+    // An AnalyserNode measures real mic loudness; we only auto-stop after
+    // `idleStopMs` of genuine ACOUSTIC silence — never while sound is present.
+    this._silenceCtx = null;
+    this._silenceInterval = null;
+    this._lastSoundAt = 0;
+    // Runaway backstop: hard cap on a single take so a forgotten/looping mic
+    // can't grow an unbounded in-RAM blob. 90 min @ 32 kbps opus ~= 21 MB.
+    this.maxRecordingMs = (typeof opts.maxRecordingMs === 'number') ? opts.maxRecordingMs : 90 * 60 * 1000;
+
     // Page-lifecycle cleanup. Without these, navigating away mid-recording
     // (Divi AJAX nav, modal close, tab close) leaves the mic indicator lit.
     var self = this;
     this._onPageHide = function () {
+      // Use the REUSABLE release (not terminal destroy) so a cancelled
+      // navigation / bfcache restore doesn't permanently disable recording.
       if (self.isRecording || self.warmupStream || self.fallbackStream || self.recognition || self.mediaRecorder) {
-        try { self.destroy(); } catch (e) {}
+        try { self._release(); } catch (e) {}
       }
     };
     try { window.addEventListener('pagehide', this._onPageHide); } catch (e) {}
     try { window.addEventListener('beforeunload', this._onPageHide); } catch (e) {}
 
     this.render();
-    this.triggerPreload();
   }
-
-  // Decide whether to preload the Whisper model now. Consults the transcriber's
-  // master override (set from PHP) before falling back to the consumer's opt-in.
-  // Polls briefly for HDLTranscriber because the ESM module loads with defer
-  // semantics and may arrive slightly after the IIFE constructs.
-  AudioComponent.prototype.triggerPreload = function () {
-    var self = this;
-    function attempt() {
-      var T = (typeof window !== 'undefined') ? window.HDLTranscriber : null;
-      if (!T || typeof T.preload !== 'function') return false;
-      var master = T.masterOverride;
-      var should = master === 'on'  ? true
-                 : master === 'off' ? false
-                 : self.preloadOnIdle;
-      if (should) T.preload();
-      return true;
-    }
-    if (attempt()) return;
-    var tries = 0;
-    var iv = setInterval(function () {
-      if (attempt() || ++tries > 10) clearInterval(iv);
-    }, 200);
-  };
 
   // ── State: input ──
   AudioComponent.prototype.bindIconButtons = function () {
@@ -362,583 +343,408 @@ window.HDLAudioComponent = (function () {
 
   AudioComponent.prototype.startRecording = function (btn, keepTranscript) {
     var self = this;
-    try { HDLV2_AC_DEBUG && console.log('[HDL-DEBUG] startRecording called', { simpleMode: this.simpleMode, useAsIsOnly: this.useAsIsOnly, iconsOnlyMode: this.iconsOnlyMode, keepTranscript: !!keepTranscript }); } catch(e){}
-    try {
-      if (navigator.mediaDevices && navigator.mediaDevices.enumerateDevices) {
-        navigator.mediaDevices.enumerateDevices().then(function (devices) {
-          var inputs = devices.filter(function (d) { return d.kind === 'audioinput'; });
-          inputs.forEach(function (d, i) {
-            HDLV2_AC_DEBUG && console.log('[HDL-DEBUG] audioinput ' + i + ':', d.label || '(no label)', (d.deviceId || '').substring(0, 12) + '\u2026');
-          });
-        }).catch(function () {});
-      }
-    } catch(e){}
 
-    // Diagnostic: AudioContext state — if 'suspended', Chrome is blocking
-    // audio access despite permission being granted (no recent user gesture).
-    try {
-      var _acCtor = window.AudioContext || window.webkitAudioContext;
-      if (_acCtor) {
-        var _ac = new _acCtor();
-        HDLV2_AC_DEBUG && console.log('[HDL-DEBUG] AudioContext at startRecording', { state: _ac.state, sampleRate: _ac.sampleRate, baseLatency: _ac.baseLatency });
-        _ac.close();
-      } else {
-        HDLV2_AC_DEBUG && console.log('[HDL-DEBUG] AudioContext not available');
-      }
-    } catch (e) {
-      HDLV2_AC_DEBUG && console.log('[HDL-DEBUG] AudioContext check failed', { name: e && e.name, message: e && e.message });
-    }
-
-    // Diagnostic: fresh permission state check (may differ from module-load check)
-    try {
-      if (navigator.permissions && navigator.permissions.query) {
-        navigator.permissions.query({ name: 'microphone' }).then(function (p) {
-          HDLV2_AC_DEBUG && console.log('[HDL-DEBUG] mic permission at startRecording', p.state);
-        }).catch(function () {});
-      }
-    } catch(e){}
-
-    // Diagnostic: user activation state (needed for Chrome's audio policy)
-    try {
-      if (navigator.userActivation) {
-        HDLV2_AC_DEBUG && console.log('[HDL-DEBUG] userActivation at startRecording', { hasBeenActive: navigator.userActivation.hasBeenActive, isActive: navigator.userActivation.isActive });
-      }
-    } catch(e){}
-
-    // Diagnostic: are we holding any active streams from a previous attempt?
-    try {
-      HDLV2_AC_DEBUG && console.log('[HDL-DEBUG] active-stream check at startRecording', {
-        hasWarmupStream: !!self.warmupStream,
-        hasMediaStream: !!self.mediaStream,
-        hasMediaRecorder: !!self.mediaRecorder,
-        mediaRecorderState: self.mediaRecorder && self.mediaRecorder.state,
-        hasRecognition: !!self.recognition,
-        isRecording: !!self.isRecording,
-        hasRecognitionWatchdog: !!self.recognitionWatchdog
-      });
-    } catch(e){}
-
-    // Microphone requires HTTPS or localhost — check early with a clear message
+    // Microphone requires HTTPS or localhost.
     if (window.isSecureContext === false) {
       this.showError('Microphone requires HTTPS or localhost. Try http://localhost:10008 for local testing, or upload a pre-recorded file.');
       return;
     }
-
-    var SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-
-    // v0.20.13 — Brave exposes `navigator.brave` as an object with an
-    // `isBrave()` method. Brave routinely fires SR `onerror` for privacy
-    // reasons, which forces a fallback to MediaRecorder — the handoff
-    // drops the first ~500ms-1.5s of audio (the "Keep up the..." cutoff
-    // reported 2026-04-23). Detect Brave up front and skip straight to
-    // MediaRecorder so recording starts on the first word.
-    var isBrave = !!(navigator.brave && typeof navigator.brave.isBrave === 'function');
-    try { HDLV2_AC_DEBUG && console.log('[HDL-DEBUG] SR detection', { picked: SpeechRecognition ? SpeechRecognition.name : 'NONE', isWebkit: SpeechRecognition === window.webkitSpeechRecognition, isBrave: isBrave }); } catch(e){}
-
-    if (!SpeechRecognition || isBrave) {
-      this.startRecordingFallback(btn);
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      this.showError('Your browser does not support audio recording. Please use Chrome, Edge, Safari, or Firefox, or upload a file.');
       return;
     }
 
-    // Wrap the recognition setup so we can run it AFTER a warmup getUserMedia
-    // call has populated Chrome's audio pipeline. Invoked below via .call(self)
-    // so `this` inside it stays the AudioComponent instance — existing code
-    // that uses `this.recognition`, `this.transcriptParts`, etc. works unchanged.
-    var _runRecognitionSetup = function () {
-    this.recognition = new SpeechRecognition();
-    try { HDLV2_AC_DEBUG && console.log('[HDL-DEBUG] SR instantiated', { ctorName: this.recognition.constructor && this.recognition.constructor.name }); } catch(e){}
-    this.recognition.continuous = true;
-    this.recognition.interimResults = true;
-    this.recognition.lang = 'en-AU';
+    // v0.47.2 — re-entry guard. isRecording only flips true AFTER getUserMedia
+    // resolves, so a fast second click (or a stray caller) would otherwise
+    // acquire a SECOND stream + recorder and leak the first. Block until this
+    // attempt has begun capture (or failed). Cleared in _beginCapture / _micError
+    // / the destroyed-bail / destroy().
+    if (this._starting || this.isRecording) return;
+    this._starting = true;
 
-    // Only reset transcript if not continuing from a previous recording
+    // Web Speech is preview-only sugar. Brave blocks Google's speech service
+    // and fires spurious errors, so never preview there; Firefox has no SR at
+    // all (no live text, but Deepgram still delivers). _forceNoPreview lets the
+    // legacy "Try local transcription" button skip the preview explicitly.
+    var SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    var isBrave = !!(navigator.brave && typeof navigator.brave.isBrave === 'function');
+    this._previewEnabled = !!(SpeechRecognition && !isBrave && !this._forceNoPreview);
+    this._forceNoPreview = false;
+
+    // Reset live-preview state. The DELIVERED transcript always comes from
+    // Deepgram, so these only seed the on-screen preview.
     if (!keepTranscript) this.transcriptParts = [];
     this.interimTranscript = '';
     this.recognitionRestarts = 0;
 
-    this.recognition.onresult = function (event) {
-      try {
-        var _dbg = [];
-        for (var _k = event.resultIndex; _k < event.results.length; _k++) {
-          var _r = event.results[_k];
-          var _a = _r && _r[0];
-          _dbg.push({ i: _k, isFinal: !!(_r && _r.isFinal), transcript: _a && _a.transcript, transcriptLen: _a && _a.transcript ? _a.transcript.length : 0, confidence: _a && _a.confidence });
-        }
-        HDLV2_AC_DEBUG && console.log('[HDL-DEBUG] onresult FIRED', { resultsLen: event.results.length, resultIndex: event.resultIndex, newResults: _dbg });
-      } catch(e){}
-      // Any result means Web Speech API is alive — kill the silent-failure watchdog.
-      if (self.recognitionWatchdog) {
-        clearTimeout(self.recognitionWatchdog);
-        self.recognitionWatchdog = null;
-      }
-      // v0.36.4 — push the silence-stop watchdog forward by `idleStopMs`.
-      // Active speakers (interim or final results) reset perpetually; only
-      // sustained silence reaches the timer's payload.
-      self._resetIdleStop(true);
-      var final = '';
-      var interim = '';
-      for (var i = event.resultIndex; i < event.results.length; i++) {
-        var transcript = event.results[i][0].transcript;
-        if (event.results[i].isFinal) {
-          final += transcript;
-        } else {
-          interim = transcript;
-        }
-      }
-      try {
-        HDLV2_AC_DEBUG && console.log('[HDL-DEBUG] onresult processing', {
-          finalLen: final.length,
-          finalText: final,
-          interimLen: interim.length,
-          interimText: interim,
-          willPush: !!final,
-          isRecording: self.isRecording,
-          beforePush_transcriptPartsCount: self.transcriptParts.length
-        });
-      } catch(e){}
-      if (final) self.transcriptParts.push(final);
-      self.interimTranscript = interim;
-      self.updateLiveTranscript();
-      try {
-        HDLV2_AC_DEBUG && console.log('[HDL-DEBUG] onresult post-push', {
-          transcriptPartsCount: self.transcriptParts.length,
-          lastPart: self.transcriptParts.length ? self.transcriptParts[self.transcriptParts.length - 1] : null,
-          interimTranscript: self.interimTranscript
-        });
-      } catch(e){}
-    };
-
-    this.recognition.onerror = function (event) {
-      try { HDLV2_AC_DEBUG && console.log('[HDL-DEBUG] onerror FIRED', { error: event.error, message: event.message, transcriptParts: self.transcriptParts.length, interim: !!self.interimTranscript }); } catch(e){}
-      if (event.error === 'no-speech') {
-        // Silence pause — not fatal, recognition will restart via onend
-        return;
-      }
-      if (event.error === 'aborted') {
-        // Self-inflicted (recognition.abort() called by us) — not a real
-        // error and must NOT cascade into another fallback. This was the
-        // bug that caused v0.15.12 to double-trigger the Whisper path.
-        return;
-      }
-
-      // Error path is taking over — kill the silent-failure watchdog.
-      if (self.recognitionWatchdog) {
-        clearTimeout(self.recognitionWatchdog);
-        self.recognitionWatchdog = null;
-      }
-
-      // If Web Speech API fails before producing any results,
-      // fall back to MediaRecorder + server-side Whisper transcription.
-      // Handles Brave (blocks Google speech service), privacy browsers, network issues.
-      if (self.transcriptParts.length === 0 && !self.interimTranscript) {
-        self.isRecording = false;
-        try { self.recognition.abort(); } catch (e) {}
-        self.recognition = null;
-        self.removeLiveTranscript();
-        self.resetRecordBtn(btn);
-        // Stop the warmup stream so the fallback can re-acquire cleanly.
-        if (self.warmupStream) {
-          try { self.warmupStream.getTracks().forEach(function (t) { t.stop(); }); } catch(e){}
-          self.warmupStream = null;
-        }
-        // 500ms release delay — without it, the racing getUserMedia can
-        // return NotFoundError because Chrome hasn't finished releasing
-        // the audio device from the aborted SpeechRecognition instance.
-        setTimeout(function () { self.startRecordingFallback(btn); }, 500);
-        return;
-      }
-
-      // Mid-recording error after results were already received
-      if (event.error === 'not-allowed') {
-        self.isRecording = false;
-        self.removeLiveTranscript();
-        self.resetRecordBtn(btn);
-        self.showError('Microphone access denied. Please allow microphone access and try again.');
-      } else {
-        // Speech recognition error — non-fatal, handled by fallback
-      }
-    };
-
-    // Capture this SR instance so a late onend fired after we've moved on
-    // (stopped + nulled, or transitioned to fallback) doesn't reach in and
-    // restart a replaced instance. This is the mic-leak guard for LEAK 3.
-    var boundRecognition = this.recognition;
-    this.recognition.onend = function () {
-      try { HDLV2_AC_DEBUG && console.log('[HDL-DEBUG] onend FIRED', { isRecording: self.isRecording, stopping: !!self.stopping, sameInstance: self.recognition === boundRecognition, restarts: self.recognitionRestarts, transcriptParts: self.transcriptParts.length, interim: !!self.interimTranscript }); } catch(e){}
-      // Web Speech API stops on silence; restart if user hasn't clicked stop.
-      // Guards: stopping flag (user asked to stop, in grace period) and
-      // instance-match (another startRecording has replaced self.recognition).
-      if (self.isRecording && !self.stopping && self.recognition === boundRecognition && self.recognitionRestarts < 50) {
-        self.recognitionRestarts++;
-        try { self.recognition.start(); } catch (e) { /* already started */ }
-      }
-    };
-
-    this.recognition.onstart = function () { try { HDLV2_AC_DEBUG && console.log('[HDL-DEBUG] onstart FIRED'); } catch(e){} };
-
-    // In simpleMode, capture existing textarea content before recording
+    // simpleMode: remember pre-recording textarea content so the live preview
+    // can be stripped and replaced by the authoritative Deepgram transcript on
+    // stop (prevents preview + final duplication).
     if (this.simpleMode) {
-      var ta = this.el.querySelector('.hdlv2-ac-text');
-      this.textBeforeRecording = ta ? ta.value.trim() : '';
+      var ta0 = this.el.querySelector('.hdlv2-ac-text');
+      this.textBeforeRecording = ta0 ? ta0.value.trim() : '';
     }
 
-    try { HDLV2_AC_DEBUG && console.log('[HDL-DEBUG] calling recognition.start()'); } catch(e){}
-    this.recognition.start();
-    this.isRecording = true;
+    // ONE getUserMedia stream feeds the authoritative MediaRecorder + the
+    // silence meter. Web Speech (when enabled) opens its own capture
+    // concurrently — the same concurrency the old warmup already relied on.
+    this._pickMic().then(function (realMic) {
+      var audioOpts = { echoCancellation: true, noiseSuppression: true, autoGainControl: true };
+      if (realMic && realMic.deviceId) audioOpts.deviceId = { exact: realMic.deviceId };
+      return navigator.mediaDevices.getUserMedia({ audio: audioOpts });
+    }).then(function (stream) {
+      self._starting = false;
+      if (self._destroyed) { try { stream.getTracks().forEach(function (t) { t.stop(); }); } catch (e) {} return; }
+      self._beginCapture(stream, btn);
+      if (self._previewEnabled) { try { self._beginPreview(SpeechRecognition, btn); } catch (e) {} }
+      self._armSilenceMeter(stream, btn);
+    }).catch(function (err) {
+      self._starting = false;
+      if (self._destroyed) return; // torn down while getUserMedia was in flight
+      self._micError(err);
+    });
+  };
 
-    // v0.36.4 — arm the silence-stop watchdog. No-op if idleStopMs <= 0 or
-    // if isRecording somehow ended up false. Resets on every onresult event,
-    // so it only fires when the user has stopped talking AND not clicked stop
-    // for `idleStopMs` (default 12s).
-    this._resetIdleStop(true);
+  // Compat shim: the "Try local transcription" button (showErrorWithFallbackOption)
+  // and any legacy caller land here. Under the Deepgram-authoritative model every
+  // recording already captures audio + ships it to the server, so this is just a
+  // restart that skips the (failed) Web Speech preview.
+  AudioComponent.prototype.startRecordingFallback = function (btn) {
+    this._forceNoPreview = true;
+    this.startRecording(btn);
+  };
 
-    // Watchdog removed in v0.15.13 — its abort-and-fallback cascade was the
-    // root cause of the double-fallback + orphaned-btn DOM-wipe bugs. If
-    // Chrome's Web Speech API silent-fails, the user sees the 'We didn't
-    // catch that' error on stop, with an explicit 'Try local transcription'
-    // action they can choose — no mid-recording surprises.
+  // Smart mic selection — prefer a real microphone over virtual/loopback
+  // devices that feed silence. Labels are visible only after a prior grant;
+  // first run returns null and the browser picks the system default.
+  AudioComponent.prototype._pickMic = function () {
+    try {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) return Promise.resolve(null);
+      return navigator.mediaDevices.enumerateDevices().then(function (devices) {
+        var mics = devices.filter(function (d) { return d.kind === 'audioinput'; });
+        if (mics.length <= 1) return null;
+        for (var i = 0; i < mics.length; i++) {
+          var label = (mics[i].label || '').toLowerCase();
+          if (!label) continue;
+          if (label.indexOf('virtual') !== -1) continue;
+          if (label.indexOf('stereo mix') !== -1) continue;
+          if (label.indexOf('cable') !== -1) continue;
+          if (label.indexOf('loopback') !== -1) continue;
+          return mics[i];
+        }
+        return null;
+      }).catch(function () { return null; });
+    } catch (e) { return Promise.resolve(null); }
+  };
 
-    // UI: show recording state
+  // Authoritative audio capture. Records the mic to a Blob and, on stop,
+  // uploads it to server-side Deepgram (uploadFileAsync). Runs on EVERY
+  // recording regardless of Web Speech, so nothing spoken is ever lost.
+  //
+  // v0.47.2 — every take is SELF-CONTAINED in this closure (its own stream,
+  // chunks, recorder, start time). A stop that fires LATE (user stopped take A
+  // then immediately started take B) must release ONLY take A's stream and
+  // upload ONLY take A's chunks — it must never touch take B's instance state.
+  AudioComponent.prototype._beginCapture = function (stream, btn) {
+    var self = this;
+    var chunks = [];          // per-take, closure-scoped — a newer take cannot wipe it
+    this.fallbackStream = stream;
+    this.audioChunks = chunks;
+
+    var preferred = [
+      'audio/webm;codecs=opus',
+      'audio/webm',
+      'audio/ogg;codecs=opus',
+      'audio/ogg',
+      'audio/mp4;codecs=mp4a.40.2',
+      'audio/mp4'
+    ];
+    var chosenType = '';
+    if (typeof MediaRecorder !== 'undefined' && typeof MediaRecorder.isTypeSupported === 'function') {
+      for (var i = 0; i < preferred.length; i++) {
+        if (MediaRecorder.isTypeSupported(preferred[i])) { chosenType = preferred[i]; break; }
+      }
+    }
+    // 32 kbps opus is ample for ASR and keeps a 1-hour consultation ~14 MB
+    // (well under the server cap). mp4/aac needs a touch more to stay clean.
+    var bps = (chosenType && /mp4|mpeg|aac/.test(chosenType)) ? 64000 : 32000;
+    var mrOpts = chosenType ? { mimeType: chosenType, audioBitsPerSecond: bps } : { audioBitsPerSecond: bps };
+    var recorder = null;
+    try {
+      recorder = new MediaRecorder(stream, mrOpts);
+    } catch (e) {
+      try {
+        recorder = chosenType ? new MediaRecorder(stream, { mimeType: chosenType }) : new MediaRecorder(stream);
+      } catch (e2) {
+        try { recorder = new MediaRecorder(stream); } catch (e3) { recorder = null; }
+      }
+    }
+    if (!recorder) {
+      // Construction failed on every attempt — release the mic we just acquired
+      // so it doesn't stay live until page unload, then surface a clear message.
+      try { stream.getTracks().forEach(function (t) { try { t.stop(); } catch (e) {} }); } catch (e) {}
+      if (this.fallbackStream === stream) this.fallbackStream = null;
+      this.isRecording = false;
+      this.showError('Audio recording is not supported in this browser. Please type your answer or upload an audio file.');
+      return;
+    }
+    self.mediaRecorder = recorder;
+    var startedAt = Date.now();
+
+    recorder.addEventListener('dataavailable', function (e) {
+      if (e.data && e.data.size > 0) chunks.push(e.data);
+    });
+
+    recorder.addEventListener('stop', function () {
+      // Release THIS take's OWN stream — never self.fallbackStream, which a
+      // newer take may already own. Only clear the instance pointer if it still
+      // points at this stream.
+      try { stream.getTracks().forEach(function (t) { try { t.stop(); } catch (e) {} }); } catch (e) {}
+      if (self.fallbackStream === stream) self.fallbackStream = null;
+      var superseded = (self.mediaRecorder !== recorder); // a newer take replaced us
+
+      // Discard path: destroy()/page-unload stopped us — do NOT upload (the
+      // fetch would be aborted on unload anyway) and do not touch the UI.
+      if (!self._uploadWanted) { return; }
+      self._uploadWanted = false;
+
+      var actualType = recorder.mimeType || chosenType || 'audio/webm';
+      var blob = new Blob(chunks, { type: actualType });
+      var durationMs = Date.now() - startedAt; // per-take, immune to a new take resetting recordingSeconds
+      if (!blob.size) {
+        if (!superseded && !self._restoreCarryOnFail()) self.showErrorWithFallbackOption('Recording came back empty. Try again — speak clearly and wait a moment before stopping.');
+        return;
+      }
+      // Minimum-duration/size guard: an accidental tap (start->stop in <1s)
+      // makes a header-only blob that Deepgram returns empty, triggering a
+      // 10-min retry storm. 4 KB / 1 s — real speech at 32 kbps is ~4 KB/s.
+      if (durationMs < 1000 || blob.size < 4 * 1024) {
+        if (!superseded && !self._restoreCarryOnFail()) self.showError('Recording too short. Tap the mic, speak for a moment, then tap again to stop.');
+        return;
+      }
+      var ext = /mpeg|mp3/.test(actualType) ? 'mp3' :
+                /mp4|m4a|aac/.test(actualType) ? 'm4a' :
+                /ogg/.test(actualType) ? 'ogg' :
+                'webm';
+      var file = new File([blob], 'recording.' + ext, { type: actualType });
+      self.uploadFileAsync(file);
+    });
+
+    recorder.start();
+    self.isRecording = true;
+    self.recordingSeconds = 0;
+
     btn.classList.add('recording');
     btn.innerHTML = '<span class="hdlv2-ac-dot"></span>';
     btn.title = 'Stop recording';
 
-    if (!this.simpleMode) {
-      // Insert live transcript display below the textarea
+    self.recordingTimer = setInterval(function () {
+      self.recordingSeconds++;
+      // Runaway backstop — auto-stop + ship if a single take exceeds the cap.
+      if (self.maxRecordingMs > 0 && self.recordingSeconds * 1000 >= self.maxRecordingMs) {
+        var b = self.el.querySelector('[data-action="record"]') || self.el.querySelector('.hdlv2-ac-record') || btn;
+        if (b) { try { self.stopRecording(b); } catch (e) {} }
+      }
+    }, 1000);
+
+    // Non-simpleMode / non-iconsOnly surfaces show the component's own live
+    // box. simpleMode writes into the shared textarea; iconsOnly streams via
+    // onLiveTranscript. (No box when there's no preview — the recording dot +
+    // "Transcribing…" on stop are the feedback.)
+    if (!this.simpleMode && !this.iconsOnlyMode) {
       var wrapper = this.el.querySelector('.hdlv2-ac');
       if (wrapper && !wrapper.querySelector('.hdlv2-ac-live-transcript')) {
         var div = document.createElement('div');
         div.className = 'hdlv2-ac-live-transcript';
-        div.textContent = 'Listening...';
-        var textareaContainer = wrapper.firstElementChild;
-        if (textareaContainer && textareaContainer.nextSibling) {
-          wrapper.insertBefore(div, textareaContainer.nextSibling);
-        } else {
-          wrapper.appendChild(div);
-        }
+        div.textContent = this._previewEnabled ? 'Listening…' : 'Recording…';
+        var firstChild = wrapper.firstElementChild;
+        if (firstChild && firstChild.nextSibling) wrapper.insertBefore(div, firstChild.nextSibling);
+        else wrapper.appendChild(div);
       }
     }
-    };
-
-    // Warmup getUserMedia — some Chrome builds silently fail Web Speech
-    // audio capture when no concurrent MediaStream exists on the origin.
-    // Acquiring a short-lived stream here primes the audio subsystem so
-    // recognition.start() actually receives audio. The stream is held on
-    // self.warmupStream and stopped in stopRecording / onerror-fallback /
-    // watchdog-fallback, so it never outlives the recognition session.
-    navigator.mediaDevices.getUserMedia({
-      audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
-    }).then(function (stream) {
-      self.warmupStream = stream;
-      try {
-        var _track = stream.getAudioTracks()[0];
-        HDLV2_AC_DEBUG && console.log('[HDL-DEBUG] warmup stream acquired', { label: _track && _track.label, settings: _track && _track.getSettings && _track.getSettings() });
-      } catch(e){}
-      _runRecognitionSetup.call(self);
-    }).catch(function (err) {
-      try { HDLV2_AC_DEBUG && console.log('[HDL-DEBUG] warmup FAILED, going straight to fallback', { name: err && err.name, message: err && err.message }); } catch(e){}
-      self.startRecordingFallback(btn);
-    });
   };
 
-  // Fallback for browsers without Web Speech API (Firefox, etc.)
-  AudioComponent.prototype.startRecordingFallback = function (btn) {
+  // Web Speech live PREVIEW only. Never delivers the transcript (Deepgram
+  // does) and never escalates/aborts capture. If it dies, capture is
+  // unaffected — the worst case is the on-screen preview stops updating.
+  AudioComponent.prototype._beginPreview = function (SpeechRecognition, btn) {
     var self = this;
-    try { HDLV2_AC_DEBUG && console.log('[HDL-DEBUG] FALLBACK triggered (MediaRecorder+Whisper path)'); } catch(e){}
-    // v0.36.4 — clear any silence-stop watchdog that the Web Speech path
-    // armed before falling through here. MediaRecorder doesn't fire onresult
-    // events so the watchdog cannot reset itself in this path; if we leave
-    // it armed it would auto-stop a legitimate Brave/Firefox recording
-    // after `idleStopMs` even with the user actively speaking. The Web
-    // Speech path is the protected one; MediaRecorder users keep the legacy
-    // behaviour (user must click stop, with the pagehide/beforeunload
-    // backstop catching navigation cases).
-    this._resetIdleStop(false);
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      this.showError('Your browser does not support audio recording. Please use Chrome, Edge, or Safari, or upload a file.');
-      return;
-    }
+    var rec;
+    try { rec = new SpeechRecognition(); } catch (e) { return; }
+    this.recognition = rec;
+    rec.continuous = true;
+    rec.interimResults = true;
+    rec.lang = 'en-AU';
+    var bound = rec;
 
-    // Smart mic selection — when multiple audioinput devices exist, prefer
-    // a real microphone over virtual/loopback devices that provide silence.
-    // Labels are visible only after at least one prior getUserMedia grant;
-    // if labels are empty (first run) we skip selection and let the browser
-    // pick the system default.
-    var _pickMic = function () {
-      try {
-        if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) return Promise.resolve(null);
-        return navigator.mediaDevices.enumerateDevices().then(function (devices) {
-          var mics = devices.filter(function (d) { return d.kind === 'audioinput'; });
-          if (mics.length <= 1) return null;
-          var real = null;
-          for (var i = 0; i < mics.length; i++) {
-            var label = (mics[i].label || '').toLowerCase();
-            if (!label) continue;
-            if (label.indexOf('virtual') !== -1) continue;
-            if (label.indexOf('stereo mix') !== -1) continue;
-            if (label.indexOf('cable') !== -1) continue;
-            if (label.indexOf('loopback') !== -1) continue;
-            real = mics[i];
-            break;
-          }
-          return real;
-        }).catch(function () { return null; });
-      } catch (e) { return Promise.resolve(null); }
-    };
-
-    _pickMic().then(function (realMic) {
-      var audioOpts = { echoCancellation: true, noiseSuppression: true, autoGainControl: true };
-      if (realMic && realMic.deviceId) {
-        audioOpts.deviceId = { exact: realMic.deviceId };
-        try { HDLV2_AC_DEBUG && console.log('[HDL-DEBUG] fallback picked specific mic', { label: realMic.label, deviceId: realMic.deviceId.substring(0, 12) + '\u2026' }); } catch(e){}
-      } else {
-        try { HDLV2_AC_DEBUG && console.log('[HDL-DEBUG] fallback using system default mic'); } catch(e){}
+    rec.onresult = function (event) {
+      var final = '', interim = '';
+      for (var i = event.resultIndex; i < event.results.length; i++) {
+        var t = event.results[i][0].transcript;
+        if (event.results[i].isFinal) final += t; else interim = t;
       }
-      // Intentionally do NOT constrain sampleRate / channelCount — some
-      // mic+driver combos reject exact values and return NotFoundError
-      // or OverconstrainedError. Let the browser pick whatever the mic
-      // natively supports; Whisper handles any sample rate fine.
-      return navigator.mediaDevices.getUserMedia({ audio: audioOpts });
-    })
-      .then(function (stream) {
-        try { HDLV2_AC_DEBUG && console.log('[HDL-DEBUG] getUserMedia SUCCESS', { tracks: stream.getAudioTracks().length, label: (stream.getAudioTracks()[0]||{}).label }); } catch(e){}
-        // Promote to instance field so stopRecording() / destroy() can
-        // force-release tracks even if MediaRecorder 'stop' never fires.
-        self.fallbackStream = stream;
-        self.audioChunks = [];
+      if (final) self.transcriptParts.push(final);
+      self.interimTranscript = interim;
+      self.updateLiveTranscript();
+    };
+    // Preview errors are non-fatal and never touch capture. 'no-speech' /
+    // 'aborted' are normal; anything else just means no more live text.
+    rec.onerror = function () {};
+    rec.onend = function () {
+      // Web Speech ends on its own silence cycles; restart the PREVIEW while
+      // recording so live text keeps flowing. Capped purely to avoid runaway
+      // churn — hitting the cap only freezes the preview, never the capture.
+      if (self.isRecording && !self.stopping && self.recognition === bound && self.recognitionRestarts < 50) {
+        self.recognitionRestarts++;
+        try { rec.start(); } catch (e) {}
+      }
+    };
+    try { rec.start(); } catch (e) { /* preview unavailable; capture still runs */ }
+  };
 
-        // Cross-browser mimeType picker — Brave/Firefox/Safari don't all
-        // default to the same format. Probe in preference order and fall
-        // back to browser default. Record the chosen type so the final
-        // Blob matches what MediaRecorder actually produced.
-        var preferred = [
-          'audio/webm;codecs=opus',
-          'audio/webm',
-          'audio/ogg;codecs=opus',
-          'audio/ogg',
-          'audio/mp4;codecs=mp4a.40.2',
-          'audio/mp4'
-        ];
-        var chosenType = '';
-        if (typeof MediaRecorder !== 'undefined' && typeof MediaRecorder.isTypeSupported === 'function') {
-          for (var i = 0; i < preferred.length; i++) {
-            if (MediaRecorder.isTypeSupported(preferred[i])) { chosenType = preferred[i]; break; }
-          }
-        }
-        // 128 kbps lifts transcription quality on phone/laptop mics without
-        // bloating the upload size.
-        var mrOpts = chosenType ? { mimeType: chosenType, audioBitsPerSecond: 128000 } : { audioBitsPerSecond: 128000 };
+  // Audio-driven silence auto-stop. Measures real mic loudness via an
+  // AnalyserNode and only stops after `idleStopMs` of genuine ACOUSTIC
+  // silence — so it can never cut off a user who is still talking (the
+  // root cause of the 2026-06-27 "stopped while I was speaking" report).
+  // Degrades gracefully: no AudioContext => no auto-stop (user stops manually;
+  // pagehide backstop + max-duration cap still apply).
+  AudioComponent.prototype._armSilenceMeter = function (stream, btn) {
+    var self = this;
+    this._disarmSilenceMeter();
+    if (!this.idleStopMs || this.idleStopMs <= 0) return;
+    var AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return;
+    try {
+      var ctx = new AC();
+      this._silenceCtx = ctx;
+      if (ctx.state === 'suspended' && ctx.resume) { try { ctx.resume(); } catch (e) {} }
+      var src = ctx.createMediaStreamSource(stream);
+      var analyser = ctx.createAnalyser();
+      analyser.fftSize = 512;
+      src.connect(analyser);
+      var data = new Uint8Array(analyser.fftSize);
+      this._lastSoundAt = Date.now();
+      var THRESH = 0.015; // RMS of normalised samples; ~quiet-room floor
+      this._silenceInterval = setInterval(function () {
+        if (!self.isRecording) { self._disarmSilenceMeter(); return; }
         try {
-          self.mediaRecorder = new MediaRecorder(stream, mrOpts);
-        } catch (e) {
-          try {
-            self.mediaRecorder = chosenType
-              ? new MediaRecorder(stream, { mimeType: chosenType })
-              : new MediaRecorder(stream);
-          } catch (e2) {
-            self.mediaRecorder = new MediaRecorder(stream);
-          }
-        }
-
-        self.mediaRecorder.addEventListener('dataavailable', function (e) {
-          if (e.data.size > 0) self.audioChunks.push(e.data);
-        });
-
-        self.mediaRecorder.addEventListener('stop', function () {
-          // Prefer self.fallbackStream (instance field) so destroy() and
-          // stopRecording() share the same cleanup path. Fall back to the
-          // closure `stream` in case the field was cleared by an earlier call.
-          var releaseStream = self.fallbackStream || stream;
-          try { releaseStream.getTracks().forEach(function (t) { try { t.stop(); } catch(e){} }); } catch(e){}
-          self.fallbackStream = null;
-          // Use the ACTUAL recorded MIME type — not a hardcoded label.
-          // Fixes Brave / Firefox / Safari where the default isn't webm.
-          var actualType = (self.mediaRecorder && self.mediaRecorder.mimeType)
-            ? self.mediaRecorder.mimeType
-            : (chosenType || 'audio/webm');
-          var blob = new Blob(self.audioChunks, { type: actualType });
-          if (!blob.size) {
-            self.showError('Recording came back empty. Try again — speak clearly and wait a moment before stopping.');
+          // v0.47.2 — if the context isn't actually RUNNING (autoplay policy /
+          // backgrounded tab), the analyser returns a flat 128 midpoint => rms 0,
+          // which would FALSELY auto-stop a talking user. Treat "not measuring"
+          // as "keep alive" and keep trying to resume; only a genuinely running
+          // meter may auto-stop. This closes a re-introduction of the exact
+          // "stopped while I was speaking" failure via a different cause.
+          if (ctx.state !== 'running') {
+            if (ctx.resume) { try { ctx.resume(); } catch (e) {} }
+            self._lastSoundAt = Date.now();
             return;
           }
-          // v0.36.10 — minimum-duration + minimum-size pre-flight guard.
-          // An accidental tap (start → stop in <1s) produces a tiny header-only
-          // blob (~3-4 KB of webm/mp4 framing, no actual speech). Without this
-          // guard, the blob sails past blob.size > 0, gets uploaded to Deepgram,
-          // returns empty_transcript, the job-queue retries 4x with 30s/2m/8m
-          // backoff, and the user is stuck on "Retrying transcription." for
-          // ~10 minutes before the permanent fail surfaces. Block these
-          // client-side so the user sees an immediate, actionable message.
-          // 8 KB / 1 sec are conservative thresholds — real speech of 1+ sec
-          // at the 128 kbps we record is ~16 KB.
-          var MIN_AUDIO_BYTES   = 8 * 1024;
-          var MIN_AUDIO_SECONDS = 1;
-          if (self.recordingSeconds < MIN_AUDIO_SECONDS || blob.size < MIN_AUDIO_BYTES) {
-            self.showError('Recording too short. Tap the mic, speak for a moment, then tap again to stop.');
-            return;
+          analyser.getByteTimeDomainData(data);
+          var sum = 0, flat = true;
+          for (var i = 0; i < data.length; i++) { var d = data[i]; if (d !== 128) flat = false; var v = (d - 128) / 128; sum += v * v; }
+          // A perfectly flat 128 buffer means no real samples are flowing yet
+          // (not a silent room — a real mic always has a noise floor). Keep alive.
+          if (flat) { self._lastSoundAt = Date.now(); return; }
+          var rms = Math.sqrt(sum / data.length);
+          if (rms > THRESH) {
+            self._lastSoundAt = Date.now();
+          } else if (Date.now() - self._lastSoundAt > self.idleStopMs) {
+            self._disarmSilenceMeter();
+            var b = self.el.querySelector('[data-action="record"]') || self.el.querySelector('.hdlv2-ac-record') || btn;
+            if (b) { try { self.stopRecording(b); } catch (e) {} }
           }
-          // v0.19.2 — recordings honour asyncUpload same as file picker uploads.
-          // Previously recordings always ran through the in-browser Whisper
-          // pipeline (~75 MB model download in the client). Consumers that set
-          // asyncUpload:true (WHY / check-in / consultation) now route audio
-          // to server-side Deepgram via /audio/transcribe-async.
-          if (self.asyncUpload) {
-            // Wrap the Blob as a File so uploadFileAsync's FormData has a filename.
-            // v0.27.0 — fix #8 (/ultrareview): Safari + iOS record audio/mp4
-            // when audio/webm isn't supported (line 647-648). Without the mp4
-            // branch, the file was uploaded as recording.webm with mp4
-            // contents → server's finfo_file mime check rejected → silent
-            // transcription failure on Safari.
-            var ext = /mpeg|mp3/.test(actualType) ? 'mp3' :
-                      /mp4|m4a|aac/.test(actualType) ? 'm4a' :
-                      /ogg/.test(actualType) ? 'ogg' :
-                      'webm';
-            var file = new File([blob], 'recording.' + ext, { type: actualType });
-            self.uploadFileAsync(file);
-          } else {
-            self.processAudioBlob(blob);
-          }
-        });
+        } catch (e) {}
+      }, 500);
+    } catch (e) {
+      this._disarmSilenceMeter();
+    }
+  };
 
-        self.mediaRecorder.start();
-        self.isRecording = true;
-        self.recordingSeconds = 0;
+  AudioComponent.prototype._disarmSilenceMeter = function () {
+    if (this._silenceInterval) { try { clearInterval(this._silenceInterval); } catch (e) {} this._silenceInterval = null; }
+    if (this._silenceCtx) { try { this._silenceCtx.close(); } catch (e) {} this._silenceCtx = null; }
+  };
 
-        btn.classList.add('recording');
-        btn.innerHTML = '<span class="hdlv2-ac-dot"></span>';
-        btn.title = 'Stop recording';
-
-        self.recordingTimer = setInterval(function () {
-          self.recordingSeconds++;
-        }, 1000);
-      })
-      .catch(function (err) {
-        try { HDLV2_AC_DEBUG && console.log('[HDL-DEBUG] getUserMedia FAILED', { name: err && err.name, message: err && err.message }); } catch(e){}
-        var _name = err && err.name;
-        if (_name === 'NotFoundError') {
-          self.showError('No microphone detected. Check your system audio settings and reload the page.');
-        } else if (_name === 'NotAllowedError') {
-          self.showError('Microphone permission denied. Click the lock icon in the address bar to grant access.');
-        } else if (_name === 'NotReadableError') {
-          self.showError('Microphone is busy. Close other apps using the mic (Zoom, Teams, etc.) and try again.');
-        } else {
-          self.showError('Microphone error: ' + (_name || 'unknown') + '. Try again or type your answer.');
-        }
-      });
+  // getUserMedia failure -> actionable message (same mapping the old fallback used).
+  AudioComponent.prototype._micError = function (err) {
+    var name = err && err.name;
+    if (name === 'NotFoundError') {
+      this.showError('No microphone detected. Check your system audio settings and reload the page.');
+    } else if (name === 'NotAllowedError' || name === 'SecurityError') {
+      this.showError('Microphone permission denied. Click the lock icon in the address bar to grant access.');
+    } else if (name === 'NotReadableError') {
+      this.showError('Microphone is busy. Close other apps using the mic (Zoom, Teams, etc.) and try again.');
+    } else {
+      this.showError('Microphone error: ' + (name || 'unknown') + '. Try again or type your answer.');
+    }
   };
 
   AudioComponent.prototype.stopRecording = function (btn) {
     var self = this;
-    try { HDLV2_AC_DEBUG && console.log('[HDL-DEBUG] stopRecording called', { hasRecognition: !!this.recognition, hasMediaRecorder: !!this.mediaRecorder, transcriptParts: this.transcriptParts && this.transcriptParts.length, interim: !!this.interimTranscript, hasWarmupStream: !!this.warmupStream, hasFallbackStream: !!this.fallbackStream }); } catch(e){}
+    // v0.47.2 — re-entry guard. Only one stop per take: the silence meter, the
+    // max-duration cap, and the user click can all race; the first flips
+    // isRecording false and the rest no-op here. (toggleRecording already keys
+    // off isRecording, so a click after auto-stop starts a fresh take, not a
+    // second stop.)
+    if (!this.isRecording) return;
     this.isRecording = false;
-    this.stopping = true; // Blocks onend auto-restart during grace period
-    // v0.36.4 — silence-stop watchdog must be cleared before any onend handler
-    // can re-enter (otherwise a late tick could call stopRecording a second
-    // time during the 600ms grace window). _resetIdleStop(false) clears the
-    // timer without re-arming.
-    this._resetIdleStop(false);
+    this.stopping = true;
 
-    // Release the warmup stream started in startRecording. Done first so
-    // the mic is fully released before any downstream cleanup touches it.
-    if (this.warmupStream) {
-      try { this.warmupStream.getTracks().forEach(function (t) { t.stop(); }); } catch(e){}
-      this.warmupStream = null;
-    }
+    // Stop the silence meter first so a late tick can't re-enter stopRecording.
+    this._disarmSilenceMeter();
 
-    // User stopped within the watchdog window — cancel it so it doesn't
-    // fire into an already-torn-down recognition instance.
-    if (this.recognitionWatchdog) {
-      clearTimeout(this.recognitionWatchdog);
-      this.recognitionWatchdog = null;
-    }
-
-    // Web Speech API path
+    // Stop the Web Speech PREVIEW. It never delivers the transcript (Deepgram
+    // is authoritative), so there is no grace period to wait for — just abort.
+    // Null self.recognition first so a late onend's instance guard cannot
+    // restart the preview after stop.
     if (this.recognition) {
-      // v0.30.0 — capture the SR instance the grace-timer is responsible
-      // for. Previously the timer read `self.recognition` 600ms later, so
-      // if the user re-clicked record within the grace window, the timer
-      // would abort the BRAND-NEW recognition + null self.recognition out
-      // from under it — silently breaking the second recording and forcing
-      // it onto the slow MediaRecorder→Deepgram fallback.
-      var graceTarget = this.recognition;
-      this.recognition.stop();
-      // Visual feedback immediately — don't wait for grace period
-      this.removeLiveTranscript();
-      this.resetRecordBtn(btn);
+      var rec = this.recognition;
+      this.recognition = null;
+      try { rec.abort(); } catch (e) {}
+      try { rec.stop(); } catch (e) {}
+    }
+    this.removeLiveTranscript();
 
-      // Grace period: let the API fire final onresult events after stop()
-      setTimeout(function () {
-        // v0.20.1 — belt-and-braces abort() after graceful stop. Chrome's
-        // SpeechRecognition.stop() is known to leave the tab-level mic
-        // indicator lit; abort() forces the API to fully release. Safe
-        // because stop() has already fired and any pending onresult events
-        // have been delivered during this 600ms window. The onerror handler
-        // ignores 'aborted' events, so this doesn't cascade.
-        try { if (graceTarget) graceTarget.abort(); } catch (e) {}
-
-        // v0.30.0 — if a new recording started during the grace window,
-        // self.recognition now points at THAT new instance. Bail before
-        // touching shared state: the new recording owns self.recognition,
-        // self.stopping, transcriptParts, and will deliver its own
-        // transcript via onConfirm when its own stopRecording fires.
-        if (self.recognition !== graceTarget) {
-          try { HDLV2_AC_DEBUG && console.log('[HDL-DEBUG] grace-timer skipping cleanup — new recording in progress'); } catch(e){}
-          return;
-        }
-
-        self.recognition = null;
-        self.stopping = false;
-        var fullTranscript = self.transcriptParts.join(' ').trim();
-        try { HDLV2_AC_DEBUG && console.log('[HDL-DEBUG] stopRecording grace-period complete', { transcriptPartsCount: self.transcriptParts.length, fullTranscriptLen: fullTranscript.length, interimLen: (self.interimTranscript||'').length }); } catch(e){}
-
-        // Fall back to interim results if no finals arrived yet
-        if (!fullTranscript && self.interimTranscript) {
-          fullTranscript = self.interimTranscript.trim();
-        }
-
-        if (self.simpleMode) {
-          // Finalize in the existing textarea — no state change
-          var ta = self.el.querySelector('.hdlv2-ac-text');
-          if (ta && fullTranscript) {
-            var base = self.textBeforeRecording;
-            ta.value = base + (base ? ' ' : '') + fullTranscript;
-            if (self.onChange) self.onChange(ta.value);
-          } else if (!fullTranscript) {
-            self.showErrorWithFallbackOption('We didn\'t catch that. Try again, or type directly in the box above.');
-          }
-        } else if (self.useAsIsOnly && fullTranscript) {
-          // Consultation-style UX — push raw transcript straight to consumer
-          // without the Extract-Themes review screen.
-          self.render();
-          self.onConfirm(fullTranscript);
-        } else if (fullTranscript) {
-          self.renderTranscriptReview(fullTranscript);
-        } else {
-          self.showErrorWithFallbackOption('We didn\'t catch that. Try again, or type directly in the box above.');
-        }
-      }, 600);
-      return;
+    // simpleMode: strip the live-preview text so the authoritative Deepgram
+    // transcript (delivered by the poll) replaces it cleanly instead of being
+    // appended after it.
+    if (this.simpleMode) {
+      var ta = this.el.querySelector('.hdlv2-ac-text');
+      if (ta) {
+        ta.value = this.textBeforeRecording || '';
+        if (this.onChange) this.onChange(ta.value);
+      }
     }
 
-    // MediaRecorder fallback path
-    if (this.recordingTimer) {
-      clearInterval(this.recordingTimer);
-      this.recordingTimer = null;
-    }
+    // Stop the recording timer.
+    if (this.recordingTimer) { try { clearInterval(this.recordingTimer); } catch (e) {} this.recordingTimer = null; }
+
+    this.stopping = false;
+
+    // Ship the captured blob: mark upload wanted, then stop the recorder so
+    // its 'stop' handler uploads to Deepgram (it reads mediaRecorder.mimeType,
+    // so do NOT null it here — _beginCapture replaces it on the next take).
+    // v0.47.2 — reset the record button to its idle (grey mic) state now. On
+    // iconsOnly surfaces the button persists through transcription (only the
+    // status div changes), so without this the mic stays red the whole upload+
+    // poll window and stuck red after an error. resetRecordBtn is a no-op for
+    // the non-iconsOnly DOM that showAsyncProcessing is about to replace.
+    if (btn) { try { this.resetRecordBtn(btn); } catch (e) {} }
+
+    // Ship the captured blob: mark upload wanted, then stop the recorder so
+    // its 'stop' handler uploads to Deepgram (it reads mediaRecorder.mimeType,
+    // so do NOT null it here — _beginCapture replaces it on the next take).
     if (this.mediaRecorder) {
-      // v0.20.1 — always attempt stop(); its 'stop' event releases tracks.
-      // Previously gated on state==='recording', so a mediaRecorder in
-      // 'inactive' / 'paused' state would skip cleanup → mic stayed warm.
+      this._uploadWanted = true;
       try { this.mediaRecorder.stop(); } catch (e) {}
+    } else {
+      // No capture (mic never granted / already released) — force-release any
+      // stray stream.
+      if (this.fallbackStream) {
+        try { this.fallbackStream.getTracks().forEach(function (t) { try { t.stop(); } catch (e) {} }); } catch (e) {}
+        this.fallbackStream = null;
+      }
     }
-    // Belt-and-braces: force-release fallback stream regardless of whether
-    // the mediaRecorder 'stop' event fired. Safe to call repeatedly; tracks
-    // that are already stopped are no-ops.
-    if (this.fallbackStream) {
-      try { this.fallbackStream.getTracks().forEach(function (t) { try { t.stop(); } catch(e){} }); } catch(e){}
-      this.fallbackStream = null;
-    }
-    this.resetRecordBtn(btn);
   };
 
   AudioComponent.prototype.resetRecordBtn = function (btn) {
@@ -947,77 +753,42 @@ window.HDLAudioComponent = (function () {
     btn.title = 'Record audio';
   };
 
-  // v0.36.4 — silence-stop watchdog. Pure helper around setTimeout/clearTimeout
-  // so the arm/reset/clear pattern stays in one place.
-  //
-  // Behaviour:
-  //   - When called with `arm=true` and idleStopMs > 0 and isRecording is true,
-  //     sets (or replaces) a single timer. When it fires, stopRecording(btn)
-  //     runs — same code path the user's stop click uses, so all the existing
-  //     graceful-stop semantics (grace period, abort backstop, transcript
-  //     finalisation, fallbackStream cleanup) apply.
-  //   - When called with `arm=false`, just clears the existing timer. Safe to
-  //     call repeatedly (idempotent — clearTimeout on null is a no-op).
-  //
-  // The timer is reset on every `onresult` event (interim AND final), so an
-  // active speaker keeps it perpetually pushed forward. The only path that
-  // reaches the timer's payload is sustained silence past `idleStopMs`.
-  AudioComponent.prototype._resetIdleStop = function (arm) {
-    if (this.idleWatchdog) {
-      try { clearTimeout(this.idleWatchdog); } catch (e) {}
-      this.idleWatchdog = null;
-    }
-    if (!arm || !this.isRecording || !this.idleStopMs || this.idleStopMs <= 0) return;
-    var self = this;
-    this.idleWatchdog = setTimeout(function () {
-      self.idleWatchdog = null;
-      // Re-check isRecording at fire time; user may have just clicked stop in
-      // the millisecond before this tick. Prevents a double-stopRecording call
-      // (which is idempotent anyway, but logs noise we don't need).
-      if (!self.isRecording) return;
-      try { HDLV2_AC_DEBUG && console.log('[HDL-DEBUG] idle watchdog firing — stopping recording after ' + self.idleStopMs + 'ms silence'); } catch (e) {}
-      var btn = self.el.querySelector('[data-action="record"]') || self.el.querySelector('.hdlv2-ac-record');
-      if (btn) {
-        try { self.stopRecording(btn); } catch (e) {}
-      }
-    }, this.idleStopMs);
-  };
-
   // v0.20.1 — hard teardown. Call from consumer code when the component's
   // container is being removed, or when the flow moves past a recording step
   // and you want to guarantee the mic indicator goes dark. Idempotent; safe
   // to call repeatedly. Page-lifecycle events (pagehide/beforeunload) call
   // this automatically via the listener wired in the constructor.
-  AudioComponent.prototype.destroy = function () {
-    try { HDLV2_AC_DEBUG && console.log('[HDL-DEBUG] destroy called', { isRecording: !!this.isRecording, hasWarmup: !!this.warmupStream, hasFallback: !!this.fallbackStream, hasRecognition: !!this.recognition, hasRecorder: !!this.mediaRecorder }); } catch(e){}
+  //
+  // v0.47.2 — sets _uploadWanted=false BEFORE stopping the recorder so a
+  // page-unload teardown DISCARDS the in-flight blob (the upload fetch would
+  // be aborted on unload anyway) instead of firing a doomed request.
+  // v0.47.2 — REUSABLE release. Stops all live capture/recognition/timers and
+  // DISCARDS any in-flight blob, but leaves the instance reusable (listeners
+  // intact, _destroyed NOT set). This is what pagehide/beforeunload call: a real
+  // unload releases the mic, while a CANCELLED navigation or bfcache restore
+  // leaves recording fully usable afterwards (the old code called the terminal
+  // destroy() here, which permanently disabled recording on a cancelled nav).
+  AudioComponent.prototype._release = function () {
     this.isRecording = false;
     this.stopping = true;
+    this._uploadWanted = false; // unload teardown discards the captured blob
+    this._starting = false;
 
-    if (this.recordingTimer) {
-      try { clearInterval(this.recordingTimer); } catch (e) {}
-      this.recordingTimer = null;
-    }
-    if (this.recognitionWatchdog) {
-      try { clearTimeout(this.recognitionWatchdog); } catch (e) {}
-      this.recognitionWatchdog = null;
-    }
-    // v0.36.4 — clear the silence-stop watchdog. _resetIdleStop(false) handles
-    // the null-check internally; safe to call even if the timer never armed.
-    this._resetIdleStop(false);
+    if (this.recordingTimer) { try { clearInterval(this.recordingTimer); } catch (e) {} this.recordingTimer = null; }
+    this._disarmSilenceMeter();
 
     if (this.warmupStream) {
-      try { this.warmupStream.getTracks().forEach(function (t) { try { t.stop(); } catch(e){} }); } catch (e) {}
+      try { this.warmupStream.getTracks().forEach(function (t) { try { t.stop(); } catch (e) {} }); } catch (e) {}
       this.warmupStream = null;
     }
     if (this.fallbackStream) {
-      try { this.fallbackStream.getTracks().forEach(function (t) { try { t.stop(); } catch(e){} }); } catch (e) {}
+      try { this.fallbackStream.getTracks().forEach(function (t) { try { t.stop(); } catch (e) {} }); } catch (e) {}
       this.fallbackStream = null;
     }
 
     if (this.recognition) {
-      // abort() is stronger than stop() — the canonical way to force Chrome
-      // to drop the SR-internal mic immediately. Order matters: abort first,
-      // then stop as safety-net for implementations that prefer graceful path.
+      // abort() is stronger than stop() — forces Chrome to drop the SR-internal
+      // mic immediately. abort first, then stop as a safety-net.
       try { this.recognition.abort(); } catch (e) {}
       try { this.recognition.stop(); } catch (e) {}
       this.recognition = null;
@@ -1028,6 +799,15 @@ window.HDLAudioComponent = (function () {
       this.mediaRecorder = null;
     }
 
+    this.stopping = false; // re-record is not blocked after a cancelled-nav release
+  };
+
+  // Terminal teardown for explicit consumer use (the container is being removed
+  // for good). Releases everything AND removes the page-lifecycle listeners and
+  // marks the instance dead. NOT wired to pagehide (that uses _release()).
+  AudioComponent.prototype.destroy = function () {
+    this._release();
+    this._destroyed = true;
     if (this._onPageHide) {
       try { window.removeEventListener('pagehide', this._onPageHide); } catch (e) {}
       try { window.removeEventListener('beforeunload', this._onPageHide); } catch (e) {}
@@ -1042,17 +822,18 @@ window.HDLAudioComponent = (function () {
 
   // ── Upload / Process Audio ──
   AudioComponent.prototype.uploadFile = function (file) {
-    // Route to server-side Deepgram if the consumer opted in.
-    // Essential for long files (browser Whisper times out after 120s;
-    // a 1-hour consultation needs server-side transcription).
-    // referenceId is optional for client contexts (why_collection /
-    // weekly_checkin) — the transcript comes back via onConfirm and the
-    // form's own submit flow handles persistence.
-    if (this.asyncUpload) {
-      this.uploadFileAsync(file);
+    // v0.47.2 — don't start a file upload while a live recording is in flight:
+    // it would leave the mic + silence meter running and wipe the DOM out from
+    // under the active take (concurrent pipelines). Make the user stop first.
+    if (this.isRecording || this._starting) {
+      this.showError('Please stop the current recording before uploading a file.');
       return;
     }
-    this.processAudioBlob(file);
+    // E4 (v0.46.47) — always server-side Deepgram via /audio/transcribe-async
+    // (the in-browser Whisper tier was removed). referenceId is optional for
+    // client contexts (why_collection / weekly_checkin) — the transcript
+    // comes back via onConfirm and the form's own submit flow persists it.
+    this.uploadFileAsync(file);
   };
 
   // v0.17.0 — async upload path.
@@ -1089,13 +870,13 @@ window.HDLAudioComponent = (function () {
       .then(function (res) {
         if (res.status !== 200 || !res.body || !res.body.job_id) {
           var msg = (res.body && (res.body.message || res.body.code)) || 'Upload failed';
-          self.showError('Upload failed: ' + msg);
+          if (!self._restoreCarryOnFail()) self.showError('Upload failed: ' + msg);
           return;
         }
         self.pollTranscriptionJob(res.body.job_id, MAX_POLL_MS, Date.now());
       })
       .catch(function (err) {
-        self.showError('Upload failed. Please try again.');
+        if (!self._restoreCarryOnFail()) self.showError('Upload failed. Please try again.');
       });
   };
 
@@ -1147,7 +928,12 @@ window.HDLAudioComponent = (function () {
         .then(function (r) { return r.json(); })
         .then(function (job) {
           if (!job || !job.status) {
-            self.showError('Could not check transcription status.');
+            // v0.47.2 — a garbled/transient response (gateway blip, HTML error
+            // page that still parses) must NOT abandon a job whose audio is
+            // already uploaded and likely still running. Keep polling until
+            // maxMs, same as the network .catch below. (Was: showError + stop,
+            // which silently lost the transcript on a single bad poll.)
+            setTimeout(tick, getNextPollInterval(pollAttempts));
             return;
           }
           if (job.status === 'pending' || job.status === 'running') {
@@ -1160,12 +946,21 @@ window.HDLAudioComponent = (function () {
           if (job.status === 'completed') {
             var transcript = job.result && job.result.transcript ? String(job.result.transcript) : '';
             if (!transcript) {
-              self.showError('No speech detected. Try again or type your notes.');
-              return;
+              // v0.47.2 — even an empty new segment must not drop a carried
+              // first segment: if "Continue Recording" carried prior text,
+              // deliver that rather than erroring.
+              if (self._carryText) { transcript = self._carryText; self._carryText = ''; }
+              else { self.showError('No speech detected. Try again or type your notes.'); return; }
             }
-            // Deliver transcript to the consumer — same 3-way branch as
-            // processAudioBlob (the browser-Whisper path) so behaviour is
-            // identical regardless of which pipeline handled it.
+            // v0.47.2 — carry-over from "Continue Recording": the new blob only
+            // holds the SECOND take, so prepend the prior reviewed text or the
+            // first segment is lost under the Deepgram-authoritative model.
+            if (self._carryText) {
+              transcript = self._carryText + '\n\n' + transcript;
+              self._carryText = '';
+            }
+            // Deliver transcript to the consumer — 3-way branch by consumer
+            // mode (simpleMode / iconsOnly+useAsIs / review screen).
             if (self.simpleMode) {
               // Stage 2 WHY flow — paste transcript into the shared textarea.
               // Restore any text the user typed BEFORE the async waveform
@@ -1179,19 +974,26 @@ window.HDLAudioComponent = (function () {
                 if (typeof self.onChange === 'function') self.onChange(ta.value);
               }
             } else if (self.iconsOnlyMode || self.useAsIsOnly) {
-              // Consultation — raw transcript into the practitioner's
-              // own textarea via onConfirm.
-              self.render();
+              // Consultation — raw transcript into the practitioner's own
+              // textarea via onConfirm. v0.47.2 — do NOT re-render (reset the
+              // icons) if a NEW take is already recording (the mic persists on
+              // iconsOnly surfaces); that would wipe the live take's DOM. Still
+              // deliver this take's transcript.
+              if (!self.isRecording && !self._starting) self.render();
               if (typeof self.onConfirm === 'function') self.onConfirm(transcript);
             } else {
-              // Weekly check-in — show the transcript-review screen so the
-              // client can Extract Themes (Claude) or Continue Recording.
-              self.renderTranscriptReview(transcript);
+              // Weekly check-in / timeline — show the transcript-review screen.
+              // v0.47.2 — restore any text the user TYPED before recording
+              // (stashed by showAsyncProcessing) so a type-then-record flow
+              // doesn't silently drop it; mirrors the simpleMode restore above.
+              var typedBefore = ( self._savedTextDuringAsync || '' ).trim();
+              self._savedTextDuringAsync = null;
+              self.renderTranscriptReview(typedBefore ? (typedBefore + '\n\n' + transcript) : transcript);
             }
             return;
           }
           // failed / cancelled
-          self.showError(job.error ? 'Transcription failed: ' + job.error : 'Transcription failed.');
+          if (!self._restoreCarryOnFail()) self.showError(job.error ? 'Transcription failed: ' + job.error : 'Transcription failed.');
         })
         .catch(function () {
           // Transient network error — keep polling until maxMs.
@@ -1202,105 +1004,17 @@ window.HDLAudioComponent = (function () {
     tick();
   };
 
-  // Single unified path: all uploaded blobs + MediaRecorder fallback output
-  // go through the in-browser Whisper pipeline (hdlv2-transcriber). No
-  // server call, no API key. Raw errors from the transcriber are caught here
-  // and replaced with a sanitised user-facing message — the transcriber
-  // module itself reports the raw error text to /audio/client-error for
-  // telemetry, so we never surface provider-level details (e.g. OpenAI
-  // "Incorrect API key" / sk-proj URLs) to the DOM.
-  AudioComponent.prototype.processAudioBlob = function (blob) {
-    var self = this;
-    var T = (typeof window !== 'undefined') ? window.HDLTranscriber : null;
-
-    if (!T || typeof T.transcribeBlob !== 'function') {
-      self.showError('Transcription failed, please try again or type directly.');
-      return;
-    }
-
-    // First-use on this tab triggers the ~75MB model fetch. Show a distinct
-    // label so a 30–60s cold-start doesn't look like a stalled transcription.
-    this.showProcessing(T.isReady()
-      ? 'Transcribing your recording...'
-      : 'Loading transcription model (first time only, ~75 MB)...');
-
-    var transcribeOpts = {
-      language: 'english',
-      onProgress: function (m) {
-        if (m.stage === 'model' && !T.isReady()) {
-          var pct = (m.data && typeof m.data.progress === 'number')
-            ? Math.round(m.data.progress) : null;
-          self.showProcessing(pct !== null
-            ? 'Loading transcription model (' + pct + '%, one-time)...'
-            : 'Loading transcription model (first time only, ~75 MB)...');
-        } else if (m.stage === 'inference') {
-          self.showProcessing('Transcribing your recording...');
-        }
-      },
-    };
-    if (this.whisperModel) transcribeOpts.model = this.whisperModel;
-    if (this.whisperNumBeams !== null) transcribeOpts.numBeams = this.whisperNumBeams;
-
-    // Race the transcribe promise against a hard timeout. Without this,
-    // a stuck WebGPU init or stalled model fetch (seen on Brave's
-    // privacy-default config) leaves the user on an infinite loading
-    // spinner because the promise never resolves OR rejects.
-    var TRANSCRIBE_TIMEOUT_MS = 120000; // 120s covers cold-start model download
-    var timedOut = false;
-    var timeoutId;
-    var timeoutPromise = new Promise(function (_resolve, reject) {
-      timeoutId = setTimeout(function () {
-        timedOut = true;
-        reject(new Error('transcribe_timeout'));
-      }, TRANSCRIBE_TIMEOUT_MS);
-    });
-
-    Promise.race([ T.transcribeBlob(blob, transcribeOpts), timeoutPromise ])
-      .then(function (transcript) {
-        clearTimeout(timeoutId);
-        transcript = (transcript || '').trim();
-        if (!transcript) {
-          self.showError('No speech detected in the recording. Try again or type your response.');
-          return;
-        }
-        if (self.simpleMode) {
-          // Capture existing text BEFORE render() recreates the DOM
-          var prevTa = self.el.querySelector('.hdlv2-ac-text');
-          var savedText = prevTa ? prevTa.value.trim() : '';
-          self.render();
-          var ta = self.el.querySelector('.hdlv2-ac-text');
-          if (ta) {
-            ta.value = savedText + (savedText ? '\n\n' : '') + transcript;
-            if (self.onChange) self.onChange(ta.value);
-          }
-        } else if (self.useAsIsOnly) {
-          // Consumer (consultation UI) wants the raw transcript pushed
-          // straight back — no Extract-Themes review screen.
-          self.render();
-          self.onConfirm(transcript);
-        } else {
-          self.renderTranscriptReview(transcript);
-        }
-      })
-      .catch(function (err) {
-        clearTimeout(timeoutId);
-        // User-initiated abort (stop()) is not an error.
-        if (err && err.message === 'aborted') return;
-        if (timedOut || (err && err.message === 'transcribe_timeout')) {
-          self.showError('Transcription is taking unusually long. Please try again, or type your notes directly.');
-          return;
-        }
-        // Never surface err.message — it may contain model paths, stack
-        // traces, or provider detail. Telemetry already logged by the
-        // transcriber module via /audio/client-error.
-        self.showError('Transcription failed, please try again or type directly.');
-      });
-  };
 
   // ── Submit Text ──
   AudioComponent.prototype.submitText = function () {
     var textarea = this.el.querySelector('.hdlv2-ac-text');
     var text = textarea ? textarea.value.trim() : '';
+    // v0.47.2 — fold in any pending "Continue Recording" carry so typing fresh
+    // notes + Process can't silently drop the carried first segment.
+    if (this._carryText) {
+      text = text ? (this._carryText + '\n\n' + text) : this._carryText;
+      this._carryText = '';
+    }
     if (!text) {
       this.showError('Please type something or record audio.');
       return;
@@ -1558,12 +1272,29 @@ window.HDLAudioComponent = (function () {
     }
   };
 
+  // v0.47.2 — if a "Continue Recording" carry is pending and the new take
+  // failed before delivering, restore the review screen with the carried prior
+  // segment so it stays visible + recoverable instead of vanishing to a blank
+  // input. Returns true if it handled the failure (caller skips its own error).
+  AudioComponent.prototype._restoreCarryOnFail = function () {
+    if (!this._carryText) return false;
+    var carried = this._carryText;
+    this._carryText = '';
+    try { this.renderTranscriptReview(carried); } catch (e) { return false; }
+    return true;
+  };
+
   AudioComponent.prototype.continueRecording = function () {
     // Preserve whatever the user has in the textarea (may have been edited)
     var ta = this.el.querySelector('.hdlv2-ac-transcript-textarea');
     var existingText = ta ? ta.value.trim() : this.rawTranscript;
 
-    // Seed transcriptParts with existing text so new recording appends
+    // v0.47.2 — under the Deepgram-authoritative model the next take's blob
+    // only contains the SECOND segment, so stash the prior reviewed text in
+    // _carryText; the poll-completed delivery prepends it to the new
+    // transcript (so "Continue Recording" appends instead of replacing).
+    // transcriptParts is also seeded so the live preview shows the running text.
+    this._carryText = existingText || '';
     this.transcriptParts = existingText ? [existingText] : [];
 
     // Restore input state and start recording
@@ -1616,7 +1347,7 @@ window.HDLAudioComponent = (function () {
 
   // ── Error display ──
   // After the standard error is displayed, append a small action button that
-  // lets the user try the in-browser Whisper path when Chrome's Web Speech
+  // lets the user try the MediaRecorder→Deepgram path when Chrome's Web Speech
   // silent-fails. User-initiated — no mid-recording auto-switch (that caused
   // the double-fallback + DOM-wipe bugs in v0.15.5 through v0.15.12).
   AudioComponent.prototype.showErrorWithFallbackOption = function (msg) {
@@ -1656,10 +1387,30 @@ window.HDLAudioComponent = (function () {
       return;
     }
     var errEl = this.el.querySelector('[data-role="error"]');
+    var didRender = false;
     if (!errEl) {
       // We're in a non-input state — return to input first
       this.render();
+      didRender = true;
       errEl = this.el.querySelector('[data-role="error"]');
+    }
+    // v0.46.21 (QA F6) — restore any WHY text the client typed before the async
+    // waveform card replaced the DOM. showAsyncProcessing() stashes it in
+    // _savedTextDuringAsync, but ONLY the success branch used to restore it, so
+    // every failure branch (timeout / no-speech / transcription-failed / upload
+    // catch) called showError() which re-rendered an EMPTY textarea and silently
+    // wiped the client's typed answer. Centralised here so no failure branch can
+    // forget it. Gated on didRender (we came from the waveform/non-input state)
+    // + simpleMode (the Stage-2 WHY shared textarea) so it never clobbers live
+    // input on an in-place validation error.
+    if (didRender && this.simpleMode && typeof this._savedTextDuringAsync === 'string') {
+      var savedWhy = this._savedTextDuringAsync;
+      this._savedTextDuringAsync = null;
+      var savedTa = this.el.querySelector('.hdlv2-ac-text');
+      if (savedTa) {
+        savedTa.value = savedWhy;
+        if (typeof this.onChange === 'function') this.onChange(savedTa.value);
+      }
     }
     if (errEl) {
       errEl.textContent = msg;

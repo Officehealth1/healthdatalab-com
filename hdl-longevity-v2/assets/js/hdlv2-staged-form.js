@@ -3,7 +3,7 @@
  *
  * Token-based multi-stage longevity assessment.
  * Stage 1: Quick Insight (6 fields, gauge result)
- * Stage 2: Your WHY (structured key people, motivations, vision text)
+ * Stage 2: Your WHY (free-text — key people, motivations, vision; no multi-select)
  * Stage 3: Full Detail (22 factors, wizard mode, skip options, draft report)
  *
  * Requires: hdlv2-speedometer.js (HDLSpeedometer.buildUrl)
@@ -947,7 +947,7 @@
   // ══════════════════════════════════════════════════════════════
 
   function renderStage2(data) {
-    if (data.stage2_completed_at && data.stage2_data) { renderStage2Result(data.stage2_data); return; }
+    if (data.stage2_completed_at && data.stage2_data) { renderStage2ThankYou(data); return; }
     // v0.40.2 — Stage 2 WHY form widened to 760px. Reading-heavy intro
     // + 3 questions + tall textarea read pinched at the 620px default.
     setRootClasses('is-medium');
@@ -1064,292 +1064,64 @@
     var btn = document.getElementById('hdlv2-complete-s2');
     btn.disabled = true; btn.textContent = 'Saving...';
 
-    // Save only — do NOT call complete-stage (practitioner triggers AI extraction later)
+    // Save with submitted:true — do NOT call /complete-stage (that endpoint is
+    // the practitioner gate; the practitioner triggers the Stage 3 release).
+    // v0.46.20 (F7/F8/F9) — the {stage:2, submitted:true} save now also marks
+    // Stage 2 complete server-side (stamps stage2_completed_at), notifies the
+    // practitioner, and — when Make.com is absent — runs the WHY extraction
+    // inline so the practitioner's Release button appears promptly. All three
+    // are idempotent (one-shot on the completion transition), so re-submitting
+    // is safe. This is what makes a returning client land on the result page
+    // (renderStage2 gate) instead of the blank intake form.
     fetch(CFG.api_base+'/save',{method:'POST',headers:{'Content-Type':'application/json','X-WP-Nonce':CFG.nonce},body:JSON.stringify({token:token,stage:2,data:formData,submitted:true})})
       .then(function(r){return r.json();})
       .then(function(res){
-        if(res.success){ renderStage2Result({ vision_text: formData.vision_text || '' }); }
+        if(res.success){ renderStage2ThankYou(serverData); }
         else{btn.disabled=false;btn.textContent='Submit Your WHY';setSaveStatus('error',res.message||'Could not save. Please try again.');}
       }).catch(function(){btn.disabled=false;btn.textContent='Submit Your WHY';setSaveStatus('error','Connection error');});
   }
 
-  // v0.22.2 — premium Stage 2 result page mirroring Stage 1.
-  // Replaces both the post-submit thank-you card AND the re-visit result view.
-  // Pulls Haiku insight async via /stage2-insight; cached after first call.
-  function renderStage2Result(stageData) {
-    // v0.40.2 — via setRootClasses helper (clears is-medium from the form view).
-    setRootClasses('is-wide');
+  // v0.46.26 — Stage 2 now shows a thank-you card (mirrors the Stage 3
+  // renderThankYou) instead of the on-screen "Your Why" result. The WHY
+  // distillation still runs server-side — Make module [67], or the inline
+  // extract_why fallback when Make.com is absent — for the practitioner brief
+  // and the Stage-2 PDF; it is simply no longer surfaced to the client here.
+  function renderStage2ThankYou(data) {
+    var s1        = data || serverData || {};
+    var fullName  = s1.client_name || (s1.stage1_data && s1.stage1_data.name) || '';
+    var email     = s1.client_email || (s1.stage1_data && s1.stage1_data.email) || '';
+    var firstName = deriveFirstName(fullName, email);
 
-    stageData = stageData || {};
-    var why    = stageData.distilled_why    || '';
-    var reform = stageData.ai_reformulation || '';
-    var mots   = (stageData.what_do && stageData.what_do.length) ? stageData.what_do
-               : (stageData.motivations || []);
-    var vision = stageData.vision_text || '';
+    var pracName  = s1.practitioner_name || 'your practitioner';
+    var pracEmail = s1.practitioner_email || '';
+    var pracLogo  = s1.practitioner_logo_url || '';
 
-    var firstName = '';
-    if (serverData && serverData.client_name) firstName = String(serverData.client_name).split(' ')[0];
-    else if (stageData.name) firstName = String(stageData.name).split(' ')[0];
-    var greet = firstName ? ('Hi ' + esc(firstName) + ' —') : 'Hi there —';
-    // v0.22.50 — practitioner name for the closing message inside the
-    // "What Happens Next" card. Falls back to a generic phrasing when no
-    // practitioner is attached (defensive — should never happen since
-    // every Stage 2 client is bound to a practitioner_id).
-    var pracName = (serverData && serverData.practitioner_name) ? String(serverData.practitioner_name) : '';
+    // Content-narrow single card, same as the Stage 3 thank-you.
+    setRootClasses('');
 
-    var html = '<div class="hdlv2-s1-result">' + progressBar(2);
-    html += '<section class="hdlv2-s1-hero">'
-      +    '<div class="hdlv2-s1-hero-row">'
-      +      '<div>'
-      +        '<p class="hdlv2-s1-hero-greeting">' + greet + '</p>'
-      +        '<h1 class="hdlv2-s1-hero-title">Your Why</h1>'
-      +      '</div>'
-      +      '<span class="hdlv2-s1-hero-pill">Stage 2</span>'
-      +    '</div>'
-      +    '<p class="hdlv2-s1-hero-body">You just shared something real. From here, every part of your plan — your report, your weekly Flight Plan, every conversation — gets built around what truly matters to you.</p>'
-      +  '</section>';
+    // v0.46.57 (P4 — A1 reword) — copy now mirrors the Make [84] client
+    // email ("Answers Stage 2: Your Why") so screen and inbox say the same
+    // thing. The old copy promised a "WHY summary" email — [84] carries no
+    // summary (the brief is practitioner-only), so that promise is gone.
+    var pracFirst = s1.practitioner_name ? s1.practitioner_name.split(/\s+/)[0] : '';
+    var leadLine  = 'What you shared is now saved with your assessment. Your practitioner'
+      + (s1.practitioner_name ? ', ' + esc(s1.practitioner_name) + ',' : '')
+      + ' will read it with care and unlock your next step shortly.';
+    var noteLine  = pracEmail
+      ? 'Questions? Email <a href="mailto:' + esc(pracEmail) + '" class="hdlv2-ty-link">'
+        + esc(pracEmail) + '</a> — ' + (pracFirst ? esc(pracFirst) : 'your practitioner') + ' will see it.'
+      : '';
 
-    // v0.22.50 — 2-column page layout below hero, mirroring Stage 1 result.
-    //   LEFT col: Distilled WHY + What Matters Most + (optional) full transcript
-    //             — the artefacts of what the client shared.
-    //   RIGHT col: ✦ Awaken ("Why This Matters to You") + What Happens Next
-    //              with a new practitioner closing message at the bottom of the
-    //              card — the interpretation of what was shared and the
-    //              forward-looking pointer to the next stage.
-    //   Collapses to single column at <=900px viewport, LEFT first in source
-    //   order so the artefacts show first when stacked.
-    //   Async injection IDs preserved unchanged: #hdlv2-s2-why-card,
-    //   #hdlv2-s2-reform, #hdlv2-s2-chips — fetchStage2Insight() targets
-    //   them by id so the new wrapper structure is invisible to it.
-    html += '<div class="hdlv2-s2-result-twocol">';
-
-    // LEFT col
-    html += '<div class="hdlv2-s2-result-left">';
-    html += '<div id="hdlv2-s2-why-card" class="hdlv2-s2-quote-card">'
-      +    '<span class="hdlv2-s1-eyebrow">✦ Your Distilled WHY</span>'
-      +    (why
-            ? '<blockquote>' + esc(why) + '</blockquote>'
-            // v0.40.6 — Skeleton shaped like the eventual 2-3-line blockquote.
-            // Shimmer (.hdlv2-skel) is the calm "content forming here" signal —
-            // no spinner, no progress bar. Pre-allocates roughly the height the
-            // real quote will occupy, so the layout doesn't jolt on arrival.
-            // Tells the user "your words are about to appear here" by shape.
-            : '<div class="hdlv2-s2-quote-loading">'
-              +   '<div class="hdlv2-skel hdlv2-skel-line l"></div>'
-              +   '<div class="hdlv2-skel hdlv2-skel-line l"></div>'
-              +   '<div class="hdlv2-skel hdlv2-skel-line m"></div>'
-              + '</div>')
-      +  '</div>';
-
-    html += '<div class="hdlv2-s1-card">'
-      +    '<h2>What Matters Most</h2>'
-      +    '<p class="hdlv2-s1-lede">The key themes from your reflection.</p>'
-      +    '<div id="hdlv2-s2-chips" class="hdlv2-s2-chips">'
-      +      (mots.length
-            ? mots.map(function(m){ return '<span class="hdlv2-s2-chip">' + esc(m) + '</span>'; }).join('')
-            : '<span style="color:#888;font-size:13px;font-style:italic;">Themes will appear here once analysis completes (about a minute).</span>')
-      +    '</div>'
-      +  '</div>';
-
-    if (vision) {
-      html += '<div class="hdlv2-s1-card">'
-        +    '<h2>Your Why in Your Own Words</h2>'
-        +    '<p class="hdlv2-s1-lede">The full transcript of what you shared. Always available to revisit.</p>'
-        +    '<details class="hdlv2-s2-collapse">'
-        +      '<summary>Read the full transcript</summary>'
-        +      '<blockquote>' + esc(vision) + '</blockquote>'
-        +    '</details>'
-        +  '</div>';
-    }
-    html += '</div>'; // end LEFT col
-
-    // RIGHT col
-    html += '<div class="hdlv2-s2-result-right">';
-    html += '<div class="hdlv2-s1-card">'
-      +    '<span class="hdlv2-s1-eyebrow">✦ Awaken</span>'
-      +    '<h2>Why This Matters to You</h2>'
-      +    '<p class="hdlv2-s1-lede">How we read what you shared.</p>'
-      +    '<div id="hdlv2-s2-reform" class="hdlv2-s2-reform">'
-      +      (reform
-            ? reform
-            // v0.40.6 — Skeleton shaped like the eventual reformulation prose
-            // (typically 1-2 paragraphs). Same shimmer language as the WHY
-            // card so the two empty halves read as a coherent pair while
-            // Make.com extraction finishes in the background.
-            : '<div class="hdlv2-s1-commentary-loading">'
-              +   '<div class="hdlv2-skel hdlv2-skel-line l"></div>'
-              +   '<div class="hdlv2-skel hdlv2-skel-line l"></div>'
-              +   '<div class="hdlv2-skel hdlv2-skel-line m"></div>'
-              +   '<div class="hdlv2-skel hdlv2-skel-line l"></div>'
-              +   '<div class="hdlv2-skel hdlv2-skel-line s"></div>'
-              + '</div>')
-      +    '</div>'
-      +  '</div>';
-
-    // What Happens Next card now carries the practitioner closing message
-    // as its final paragraph (separated by a top border via CSS).
-    html += '<div class="hdlv2-s1-card">'
-      +    '<h2>What Happens Next</h2>'
-      +    '<p class="hdlv2-s1-lede">Your WHY is the foundation. Here’s what comes after.</p>'
-      // v0.22.54 — dropped the first list item ("Your practitioner reviews
-      // your WHY") because the new closing message immediately below this
-      // list says the same thing more personally and forward-looking
-      // ("Your practitioner Bob 9000 will review and send you a message
-      // shortly"). Audit C2: list shrinks from 3 to 2 items, no information
-      // lost — the practitioner-review step is now communicated by the
-      // closing line which carries the practitioner name + the warm sign-off.
-      +    '<ol class="hdlv2-s1-next-list">'
-      +      '<li><strong>Stage 3 unlocks — Full Health Detail.</strong> Real measurements: body, fitness, sleep, lifestyle. You’ll get an email when it’s ready for you.</li>'
-      +      '<li><strong>Your Trajectory Plan arrives.</strong> Built around the WHY you just shared, with a weekly Flight Plan to follow.</li>'
-      +    '</ol>'
-      +    '<p class="hdlv2-s2-closing-msg">'
-      +      (pracName
-              ? 'Your practitioner <strong>' + esc(pracName) + '</strong> will review and send you a message shortly. Have a great day.'
-              : 'Your practitioner will review and send you a message shortly. Have a great day.')
-      +    '</p>'
-      +  '</div>';
-    html += '</div>'; // end RIGHT col
-
-    html += '</div>'; // end .hdlv2-s2-result-twocol
-
-    html += footer() + '</div>';
-    root.innerHTML = html;
-
-    // v0.40.6 — Stage 2 result uses skeleton shimmer instead of a progress
-    // bar. Skeleton is purely CSS (rendered inline above via .hdlv2-skel
-    // primitives) so there's nothing to mount here. The polling logic in
-    // fetchStage2Insight() still drives content replacement; it just swaps
-    // the skeleton DOM for the real blockquote / reformulation paragraphs.
-    if (!why || !reform || !mots.length) fetchStage2Insight();
-  }
-
-  // v0.22.52 — Status-aware fetch with polling.
-  //
-  // Backend now returns `extraction_status: 'real' | 'pending'`:
-  //   - 'real'    → Make.com Anthropic Sonnet has completed and the
-  //                 wp_hdlv2_why_profiles row has real distilled_why /
-  //                 ai_reformulation / motivations. Swap into the DOM.
-  //   - 'pending' → Extraction hasn't completed yet (Make.com is still
-  //                 processing, OR the callback hasn't arrived). Schedule
-  //                 the next poll in 8 seconds. Cap at ~5 minutes total
-  //                 (37 attempts × 8s = 296s).
-  //
-  // Module-level guard `s2InsightPolling` prevents overlap if
-  // renderStage2Result() somehow gets called twice in one session.
-  // Each successful 'real' response or final timeout releases the guard.
-  //
-  // Why polling instead of WebSocket / SSE: simplest possible mechanism
-  // that survives a refresh, requires no new server infra, and degrades
-  // cleanly when the user closes the tab.
-  var s2InsightPolling = false;
-
-  function fetchStage2Insight() {
-    if (s2InsightPolling) return;
-    s2InsightPolling = true;
-
-    var pollAttempt   = 0;
-    var POLL_MAX      = 37;       // ~5 minutes at 8s intervals
-    var POLL_INTERVAL = 8000;     // milliseconds
-
-    function injectRealContent(res) {
-      // Distilled WHY blockquote — REPLACE existing content (the v0.22.50
-      // append-if-no-blockquote guard is dropped; we always swap in fresh
-      // real data, removing any prior loader / pending state / blockquote).
-      // v0.40.6 — the loader is now a skeleton (pure CSS shimmer), so no
-      // controller to tear down. The skeleton DOM is part of card.children
-      // and gets removed by the loop below alongside any other non-eyebrow
-      // siblings.
-      var card = document.getElementById('hdlv2-s2-why-card');
-      if (card && res.distilled_why) {
-        // Remove the eyebrow's siblings (skeleton, prior blockquote, pending msg)
-        // but keep the eyebrow itself.
-        var children = Array.prototype.slice.call(card.children);
-        children.forEach(function (el) {
-          if (!el.classList.contains('hdlv2-s1-eyebrow')) {
-            el.remove();
-          }
-        });
-        card.insertAdjacentHTML('beforeend', '<blockquote>' + esc(res.distilled_why) + '</blockquote>');
-      }
-
-      // Awaken reformulation — replace innerHTML (innerHTML overwrite kills the skeleton shimmer DOM automatically)
-      if (res.ai_reformulation) {
-        var box = document.getElementById('hdlv2-s2-reform');
-        if (box) box.innerHTML = res.ai_reformulation;
-      }
-
-      // Motivation chips — replace innerHTML (kills the "Themes will appear
-      // here…" placeholder once real chips arrive)
-      if (res.motivations && res.motivations.length) {
-        var chipsEl = document.getElementById('hdlv2-s2-chips');
-        if (chipsEl) {
-          chipsEl.innerHTML = res.motivations.map(function (m) {
-            return '<span class="hdlv2-s2-chip">' + esc(m) + '</span>';
-          }).join('');
-        }
-      }
-    }
-
-    function showTimeout() {
-      // After ~5 minutes of polling with no extraction, give up gracefully.
-      // v0.40.6 — the loader is now a pure-CSS skeleton (no JS controller to
-      // tear down); replacing loader.innerHTML below kills the shimmer DOM
-      // automatically.
-      var card = document.getElementById('hdlv2-s2-why-card');
-      if (card) {
-        var loader = card.querySelector('.hdlv2-s2-quote-loading');
-        if (loader) {
-          loader.innerHTML = '<p style="text-align:center;color:#888;font-size:13px;margin:0;line-height:1.6;">' +
-            'Analysis is taking longer than expected. Please refresh this page in a few minutes — if it still doesn’t appear, contact your practitioner.' +
-            '</p>';
-        }
-      }
-      var reform = document.getElementById('hdlv2-s2-reform');
-      if (reform) {
-        var rLoader = reform.querySelector('.hdlv2-s1-commentary-loading');
-        if (rLoader) {
-          rLoader.innerHTML = '<p style="text-align:center;color:#888;font-size:13px;margin:0;line-height:1.6;">Refresh this page when the distilled WHY arrives above and the rest of the read will appear here.</p>';
-        }
-      }
-    }
-
-    function doFetch() {
-      pollAttempt++;
-      fetch(CFG.api_base + '/stage2-insight', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': CFG.nonce },
-        body: JSON.stringify({ token: token })
-      })
-        .then(function (r) { return r.json(); })
-        .then(function (res) {
-          if (!res) {
-            s2InsightPolling = false;
-            return;
-          }
-          if (res.extraction_status === 'real') {
-            injectRealContent(res);
-            s2InsightPolling = false;
-            return;
-          }
-          // Status === 'pending' (or missing — defensive). Schedule next poll.
-          if (pollAttempt < POLL_MAX) {
-            setTimeout(doFetch, POLL_INTERVAL);
-          } else {
-            showTimeout();
-            s2InsightPolling = false;
-          }
-        })
-        .catch(function () {
-          // Network error — retry up to the cap, then give up.
-          if (pollAttempt < POLL_MAX) {
-            setTimeout(doFetch, POLL_INTERVAL);
-          } else {
-            s2InsightPolling = false;
-          }
-        });
-    }
-
-    doFetch();
+    root.innerHTML = '<div class="hdlv2-card hdlv2-ty-card">'
+      + thankYouHeader(pracName, pracLogo)
+      + '<div class="hdlv2-ty-banner"><h1>Stage&nbsp;2&nbsp;·&nbsp;Your&nbsp;WHY</h1></div>'
+      + '<div class="hdlv2-ty-body">'
+      +   '<h2 class="hdlv2-ty-h1">Thank you for sharing, ' + esc(firstName) + '.</h2>'
+      +   '<p class="hdlv2-ty-lead">' + leadLine + '</p>'
+      +   (noteLine ? '<p class="hdlv2-ty-note">' + noteLine + '</p>' : '')
+      + '</div>'
+      + thankYouFooter()
+      + '</div>';
   }
 
   // ══════════════════════════════════════════════════════════════
@@ -1641,7 +1413,7 @@
       + thankYouHeader(pracName, pracLogo)
       + '<div class="hdlv2-ty-banner"><h1>Stage&nbsp;3&nbsp;complete</h1></div>'
       + '<div class="hdlv2-ty-body">'
-      +   '<h2 class="hdlv2-ty-h1">Thanks, ' + esc(firstName) + ' — that’s Stage&nbsp;3 complete.</h2>'
+      +   '<h2 class="hdlv2-ty-h1">Thanks, ' + esc(firstName) + ' — your assessment is in.</h2>'
       +   '<p class="hdlv2-ty-lead">We’ve just sent your draft report to your email. It should arrive within a few minutes.</p>'
       +   '<p class="hdlv2-ty-subhead">What happens next</p>'
       +   '<ol class="hdlv2-ty-list">'
@@ -1655,12 +1427,15 @@
       + '</div>';
   }
 
-  // Header that mirrors the canonical email shell:
-  //   HDL logo left · practitioner logo+name right (logo-only when present
-  //   and not the HDL fallback; name-only otherwise).
+  // v0.46.29 — Thank-you card header now carries the practitioner attribution
+  // ONLY. The redundant in-card HealthDataLab logo was removed: the page
+  // (Divi site header) already brands HDL, so a second logo here merely
+  // duplicated it. Left-aligned with a small "Your practitioner" eyebrow so
+  // the lone name reads as deliberate attribution. A practitioner's own
+  // custom logo (when set, and not the HDL fallback) still renders above
+  // their name. Shared by both renderStage2ThankYou and renderThankYou.
   function thankYouHeader(pracName, logoUrl) {
-    var HDL_LOGO = 'https://healthdatalab.net/wp-content/uploads/2023/09/HDL-Logo-2309-4-d-sss.png';
-    var rightSlot;
+    var attr;
     // Mirror the Make.com IML conditional: if the URL is a real http(s)
     // address AND is not the HDL fallback PNG, render the practitioner's
     // own logo above their name. Otherwise render the name only.
@@ -1668,16 +1443,16 @@
       && logoUrl.indexOf('://') !== -1
       && logoUrl.indexOf('HDL-Logo-2309') === -1;
     if (hasCustom) {
-      rightSlot = '<div class="hdlv2-ty-prac">'
-        +   '<img src="' + esc(logoUrl) + '" alt="' + esc(pracName) + '" class="hdlv2-ty-prac-logo" />'
-        +   '<span class="hdlv2-ty-prac-name">' + esc(pracName) + '</span>'
-        + '</div>';
+      attr = '<img src="' + esc(logoUrl) + '" alt="' + esc(pracName) + '" class="hdlv2-ty-prac-logo" />'
+        +    '<span class="hdlv2-ty-prac-name">' + esc(pracName) + '</span>';
     } else {
-      rightSlot = '<span class="hdlv2-ty-prac-name-only">' + esc(pracName) + '</span>';
+      attr = '<span class="hdlv2-ty-prac-name-only">' + esc(pracName) + '</span>';
     }
-    return '<div class="hdlv2-ty-header">'
-      +   '<img src="' + HDL_LOGO + '" alt="Health Data Lab" class="hdlv2-ty-hdl-logo" />'
-      +   rightSlot
+    return '<div class="hdlv2-ty-header hdlv2-ty-header--prac">'
+      +   '<div class="hdlv2-ty-prac-attr">'
+      +     '<span class="hdlv2-ty-prac-label">Your practitioner</span>'
+      +     attr
+      +   '</div>'
       + '</div>';
   }
 
@@ -1703,160 +1478,6 @@
     return first || 'there';
   }
 
-  // v0.22.4 \u2014 Premium Stage 3 result page. Mirrors Stage 1 + Stage 2 design.
-  function renderStage3Result(stage3, stage1, stage2) {
-    // v0.40.2 — via setRootClasses helper (clears is-medium from wizard view).
-    setRootClasses('is-wide');
-    stage3 = stage3 || {}; stage1 = stage1 || {}; stage2 = stage2 || {};
-
-    var result   = stage3.server_result || {};
-    var rateNow  = parseFloat(result.rate) || 1.0;
-    var age      = parseInt(stage1.q1_age, 10) || 0;
-    var bioAge   = parseFloat(result.bio_age) || (rateNow * age);
-    var diff     = (age > 0) ? Math.round((bioAge - age) * 10) / 10 : null;
-    var rateS1   = (stage1.server_result && stage1.server_result.rate) ? parseFloat(stage1.server_result.rate) : null;
-
-    var bandLabel, bandClass;
-    if (rateNow <= 0.95)      { bandLabel = 'Slower than average';    bandClass = 'good'; }
-    else if (rateNow <= 1.05) { bandLabel = 'On pace with average';   bandClass = 'avg'; }
-    else                       { bandLabel = 'Faster \u2014 focus needed'; bandClass = 'warn'; }
-
-    var diffLabel = '';
-    if (diff !== null) diffLabel = (diff > 0 ? '+' + diff : diff) + ' yrs vs chronological';
-
-    var stage1Note = '';
-    if (rateS1 !== null) {
-      var delta = Math.round((rateNow - rateS1) * 100) / 100;
-      if (Math.abs(delta) >= 0.02) {
-        var sign = delta > 0 ? '+' : '';
-        stage1Note = 'Stage 1 estimate was ' + rateS1.toFixed(2) + 'x (' + sign + delta.toFixed(2) + ' change)';
-      } else {
-        stage1Note = 'Matches your Stage 1 estimate of ' + rateS1.toFixed(2) + 'x';
-      }
-    }
-
-    var humanNames = {
-      physicalActivity:'Physical Activity', sitToStand:'Sit-to-Stand', breathHold:'Breath Hold',
-      balance:'Balance', sleepDuration:'Sleep Duration', sleepQuality:'Sleep Quality',
-      stressLevels:'Stress Levels', socialConnections:'Social Connections', dietQuality:'Diet Quality',
-      alcoholConsumption:'Alcohol', smokingStatus:'Smoking', cognitiveActivity:'Cognitive Activity',
-      sunlightExposure:'Sunlight Exposure', supplementIntake:'Supplements', dailyHydration:'Hydration',
-      skinElasticity:'Skin Elasticity', bmiScore:'BMI', whrScore:'Waist-Hip Ratio',
-      whtrScore:'Waist-Height Ratio', bloodPressureScore:'Blood Pressure',
-      heartRateScore:'Resting Heart Rate'
-    };
-    var strengths = [], focus = [];
-    var scores = result.scores || {};
-    Object.keys(scores).forEach(function(k){
-      var v = scores[k];
-      if (typeof v !== 'number') return;
-      var label = humanNames[k] || k;
-      if (v >= 4) strengths.push({ label: label, value: v });
-      if (v <= 2) focus.push({ label: label, value: v });
-    });
-    strengths.sort(function(a,b){return b.value - a.value;}); strengths = strengths.slice(0, 5);
-    focus.sort(function(a,b){return a.value - b.value;});     focus     = focus.slice(0, 5);
-
-    var firstName = '';
-    if (serverData && serverData.client_name) firstName = String(serverData.client_name).split(' ')[0];
-    else if (stage1.name) firstName = String(stage1.name).split(' ')[0];
-    var greet = firstName ? ('Hi ' + esc(firstName) + ' \u2014') : 'Hi there \u2014';
-
-    var html = '<div class="hdlv2-s1-result">' + progressBar(3);
-
-    html += '<section class="hdlv2-s1-hero">'
-      +    '<div class="hdlv2-s1-hero-row">'
-      +      '<div>'
-      +        '<p class="hdlv2-s1-hero-greeting">' + greet + '</p>'
-      +        '<h1 class="hdlv2-s1-hero-title">Your Health Detail</h1>'
-      +      '</div>'
-      +      '<span class="hdlv2-s1-hero-pill">Stage 3</span>'
-      +    '</div>'
-      +    '<p class="hdlv2-s1-hero-body">All three stages complete. Your Draft Trajectory Plan is being prepared in the background \u2014 your practitioner will review it before walking you through it.</p>'
-      +  '</section>';
-
-    html += '<section class="hdlv2-s1-stat-strip">'
-      +    '<div class="hdlv2-s1-stat">'
-      +      '<p class="hdlv2-s1-stat-label">Rate of Ageing</p>'
-      +      '<p class="hdlv2-s1-stat-value">' + rateNow.toFixed(2) + '\u00d7</p>'
-      +      '<p class="hdlv2-s1-stat-note ' + bandClass + '">' + bandLabel + '</p>'
-      +    '</div>'
-      +    '<div class="hdlv2-s1-stat">'
-      +      '<p class="hdlv2-s1-stat-label">Biological Age</p>'
-      +      '<p class="hdlv2-s1-stat-value">' + bioAge.toFixed(1) + ' yrs</p>'
-      +      '<p class="hdlv2-s1-stat-note ' + bandClass + '">' + esc(diffLabel) + '</p>'
-      +    '</div>'
-      +    '<div class="hdlv2-s1-stat">'
-      +      '<p class="hdlv2-s1-stat-label">Chronological Age</p>'
-      +      '<p class="hdlv2-s1-stat-value">' + (age > 0 ? age + ' yrs' : '\u2014') + '</p>'
-      +      '<p class="hdlv2-s1-stat-note">Your real age</p>'
-      +    '</div>'
-      +  '</section>';
-
-    if (stage1Note) {
-      html += '<p style="text-align:center;font-size:13px;color:#888;margin:-8px 0 16px;font-style:italic;">' + esc(stage1Note) + '</p>';
-    }
-
-    var stChips = strengths.length
-      ? strengths.map(function(s){ return '<span class="hdlv2-s2-chip">' + esc(s.label) + ' (' + s.value + '/5)</span>'; }).join('')
-      : '<span style="color:#888;font-size:13px;font-style:italic;">No metrics in the strength band yet \u2014 every focus area is a place to grow.</span>';
-    var fcChips = focus.length
-      ? focus.map(function(f){ return '<span class="hdlv2-s2-chip" style="background:#fef3c7;color:#92400e;border-color:#fcd34d;">' + esc(f.label) + ' (' + f.value + '/5)</span>'; }).join('')
-      : '<span style="color:#888;font-size:13px;font-style:italic;">No major focus areas \u2014 your foundation is strong.</span>';
-
-    html += '<div class="hdlv2-s1-card">'
-      +    '<h2>Your Score Snapshot</h2>'
-      +    '<p class="hdlv2-s1-lede">21 metrics, two ends of the picture.</p>'
-      +    '<p style="font-size:11px;color:#3d8da0;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;margin:14px 0 8px;">Top strengths</p>'
-      +    '<div class="hdlv2-s2-chips">' + stChips + '</div>'
-      +    '<p style="font-size:11px;color:#92400e;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;margin:18px 0 8px;">Focus areas</p>'
-      +    '<div class="hdlv2-s2-chips">' + fcChips + '</div>'
-      +  '</div>';
-
-    html += '<div class="hdlv2-s1-card">'
-      +    '<span class="hdlv2-s1-eyebrow">\u2726 Awaken</span>'
-      +    '<h2>What This Tells Us</h2>'
-      +    '<p class="hdlv2-s1-lede">A plain-English read of your full assessment.</p>'
-      +    '<div id="hdlv2-s3-commentary" class="hdlv2-s1-commentary hdlv2-s1-commentary-loading">'
-      +      '<div class="hdlv2-spinner" style="margin:0 auto 14px;"></div>'
-      +      '<p style="text-align:center;color:#888;font-size:13px;margin:0;">Reading your full health detail\u2026</p>'
-      +    '</div>'
-      +  '</div>';
-
-    html += '<div class="hdlv2-s1-card">'
-      +    '<h2>What Happens Next</h2>'
-      +    '<p class="hdlv2-s1-lede">Your Draft Trajectory Plan is being prepared right now.</p>'
-      +    '<ol class="hdlv2-s1-next-list">'
-      +      '<li><strong>Your practitioner reviews the draft.</strong> They check the numbers, your WHY, and shape the recommendations.</li>'
-      +      '<li><strong>You meet for your consultation.</strong> They walk you through the report and you align on next steps together.</li>'
-      +      '<li><strong>You receive your Trajectory Plan + weekly Flight Plan.</strong> Personalised, practitioner-approved, ready to act on.</li>'
-      +    '</ol>'
-      +    '<a id="hdlv2-view-draft" href="/longevity-draft-report/?t=' + encodeURIComponent(token) + '" class="hdlv2-btn" style="display:inline-block;margin-top:18px;text-decoration:none;text-align:center;">View your Draft Trajectory Plan \u2192</a>'
-      +  '</div>';
-
-    html += footer() + '</div>';
-    root.innerHTML = html;
-
-    fetchStage3Commentary();
-  }
-
-  function fetchStage3Commentary() {
-    var box = document.getElementById('hdlv2-s3-commentary');
-    if (!box) return;
-    fetch(CFG.api_base + '/stage3-commentary', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': CFG.nonce },
-      body: JSON.stringify({ token: token })
-    })
-      .then(function (r) { return r.json(); })
-      .then(function (res) {
-        if (res && res.commentary_html) {
-          box.classList.remove('hdlv2-s1-commentary-loading');
-          box.innerHTML = res.commentary_html;
-        }
-      })
-      .catch(function () { /* leave loading state */ });
-  }
 
     // v0.20.7 \u2014 renderDraftReport() and renderStage3Result() removed.
   // Both were legacy inline renderers for the post-Stage-3 state. Stage 3

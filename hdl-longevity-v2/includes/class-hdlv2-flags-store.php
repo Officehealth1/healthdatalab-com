@@ -85,9 +85,23 @@ class HDLV2_Flags_Store {
 
 		$webhook = defined( 'HDLV2_MAKE_REDFLAG' ) ? HDLV2_MAKE_REDFLAG : '';
 		if ( $webhook ) {
-			self::fire_make( $webhook, $progress, $prac_email, $dashboard_url, $crisis, $findings, $prac_flags_html, $to_message );
+			$sent_ok = self::fire_make( $webhook, $progress, $prac_email, $dashboard_url, $crisis, $findings, $prac_flags_html, $to_message );
 		} else {
-			self::fire_wp_mail( $progress, $prac_email, $dashboard_url, $crisis, $finding_flags, $prac_flags_html );
+			$sent_ok = self::fire_wp_mail( $progress, $prac_email, $dashboard_url, $crisis, $finding_flags, $prac_flags_html );
+		}
+
+		// v0.46.21 (QA F3) — only stamp messaged_at when the send actually
+		// succeeded. A failed crisis / GP-nudge send must stay UN-messaged so a
+		// later red-flag rescan re-attempts it. Previously messaged_at was
+		// stamped unconditionally, so one transient SMTP error or one dropped
+		// (non-blocking) Make POST permanently dropped a self-harm client's
+		// 999/Samaritans email — no retry, no surfaced error.
+		if ( ! $sent_ok ) {
+			error_log( sprintf(
+				'[HDLV2 SAFETY] flag notification send FAILED — messaged_at left unset for retry (client_user_id=%d, flags=%d)',
+				(int) ( $progress->client_user_id ?? 0 ), count( $to_message )
+			) );
+			return;
 		}
 
 		// Stamp messaged_at so a later scan never re-messages these flags.
@@ -144,12 +158,21 @@ class HDLV2_Flags_Store {
 			'submitted_at'            => current_time( 'c' ),
 		);
 
-		wp_remote_post( $webhook, array(
+		// v0.46.21 (QA F3) — blocking + return success. Safety/crisis sends must
+		// confirm delivery; a non-blocking fire-and-forget can't tell a 500 /
+		// dropped POST from a success, which previously let notify() stamp
+		// messaged_at on a send that never reached the client.
+		$res = wp_remote_post( $webhook, array(
 			'body'     => wp_json_encode( $payload ),
 			'headers'  => array( 'Content-Type' => 'application/json' ),
 			'timeout'  => 5,
-			'blocking' => false,
+			'blocking' => true,
 		) );
+		if ( is_wp_error( $res ) ) {
+			return false;
+		}
+		$code = (int) wp_remote_retrieve_response_code( $res );
+		return ( $code >= 200 && $code < 300 );
 	}
 
 	/**
@@ -160,33 +183,38 @@ class HDLV2_Flags_Store {
 	 */
 	private static function fire_wp_mail( $progress, $prac_email, $dashboard_url, $crisis, $finding_flags, $prac_flags_html ) {
 		if ( ! class_exists( 'HDLV2_Email_Templates' ) ) {
-			return;
+			return false; // v0.46.21 (QA F3) — could not send → not a success
 		}
 		$prac_id = $progress->practitioner_user_id ?? null;
+		$ok      = true; // v0.46.21 (QA F3) — track delivery; notify() stamps only on success
 
 		// ONE combined client safety email — crisis support on top (when a
 		// self-harm flag is present) + a card per symptom/mood finding. Replaces
 		// the previous two separate sends (crisis + GP-nudge) so a flagged client
 		// never receives more than one safety email.
 		if ( ! empty( $crisis ) || ! empty( $finding_flags ) ) {
-			HDLV2_Email_Templates::client_safety_alert( array(
+			$sent = HDLV2_Email_Templates::client_safety_alert( array(
 				'client_email'    => $progress->client_email,
 				'client_name'     => $progress->client_name,
 				'practitioner_id' => $prac_id,
 				'crisis'          => ! empty( $crisis ),
 				'findings'        => $finding_flags,
 			) );
+			if ( false === $sent ) { $ok = false; }
 		}
 
 		if ( $prac_email ) {
-			HDLV2_Email_Templates::practitioner_redflag_alert( array(
+			$sent = HDLV2_Email_Templates::practitioner_redflag_alert( array(
 				'practitioner_email' => $prac_email,
 				'practitioner_id'    => $prac_id,
 				'client_name'        => $progress->client_name,
 				'dashboard_url'      => $dashboard_url,
 				'flags_html'         => $prac_flags_html,
 			) );
+			if ( false === $sent ) { $ok = false; }
 		}
+
+		return $ok;
 	}
 
 	/**

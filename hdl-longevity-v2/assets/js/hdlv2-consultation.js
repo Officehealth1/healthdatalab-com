@@ -186,7 +186,20 @@
     // mapping required — the renderer fetches its own canonical payload.
     var draftRoot = document.getElementById('hdlv2-draft-report-root');
     if (draftRoot && window.HDLV2DraftRenderer && data.token) {
-      window.HDLV2DraftRenderer.start(draftRoot, data.token);
+      // v0.46.63 — pre-Final: mount the milestone timeline as EDITABLE in place
+      // (practitioner edits the milestones they see; finalise ships them →
+      // webhook → PDF). Post-Final / flag off → read-only, as the client sees it.
+      var editOpts = (data.ff_milestone_preview && !data.final_report)
+        ? {
+            editableMilestones: true,
+            consultId: state.consultId,
+            progressId: state.progressId,
+            apiBase: CFG.api_base,
+            nonce: CFG.nonce,
+            stagedMilestones: (data.consultation && data.consultation.staged_milestones) || null
+          }
+        : null;
+      window.HDLV2DraftRenderer.start(draftRoot, data.token, editOpts);
     }
 
     // Initialize audio component for consultation recording
@@ -214,6 +227,9 @@
         // would hit the 120s browser-Whisper timeout. Live recording
         // (via mic) is unaffected — it still uses the browser Speech API.
         asyncUpload: true,
+        // v0.47.2 — clinical dictation pauses are long; auto-stop only after
+        // 30s of real acoustic silence (audio-driven, never cuts off speech).
+        idleStopMs: 30000,
         referenceId: state.consultId,
         onLiveTranscript: function(combined) {
           // Real-time streaming from Web Speech API (Chrome/Safari/sometimes Brave).
@@ -392,6 +408,10 @@
     // single "Save & Update Plan" CTA at the bottom of the Addenda section
     // is the unambiguous regen action. AI summary above stays editable +
     // auto-saves silently — those edits get picked up by the next regen.
+    // v0.46.63 — milestone editing now lives IN the draft-report milestone
+    // timeline (left panel), editable in place — see HDLV2DraftRenderer mount
+    // with editableMilestones. No separate section here.
+
     if (!state.data || !state.data.final_report) {
       html += '<div class="hdlv2-review-actions">'
         +   '<button id="hdlv2-finalise-btn" class="hdlv2-btn hdlv2-consult-generate-btn" type="button">Looks good — Generate Report</button>'
@@ -1194,6 +1214,17 @@
       ]}
     ];
 
+    // B6 \u2014 scored fields display the client's actual answer in words via
+    // data.score_labels (server-built from HDLV2_Flight_Notes::s3_label).
+    // The SAVED value stays the numeric code: every row carries data-raw
+    // and the edit flow reads that, never the displayed word.
+    var scoreLabels = data.score_labels || {};
+    function labelFor(key, v) {
+      var lmap = scoreLabels[key];
+      if (!lmap || v === '' || v == null) return null;
+      return lmap[String(parseInt(v, 10))] || null;
+    }
+
     var h = '';
     groups.forEach(function (g) {
       h += '<div class="hdlv2-field-group">';
@@ -1203,13 +1234,17 @@
         var changed = changedFields[f.key];
         var val     = changed ? changed.new_value : raw;
         var isEmpty = (val === '' || val == null || val === 'skip' || (typeof val === 'string' && val.trim() === ''));
-        var display = isEmpty ? '\u2014' : val;
+        var word    = isEmpty ? null : labelFor(f.key, val);
+        var display = isEmpty ? '\u2014' : (word || val);
+        var valTitle = word ? ' title="Saved as ' + esc(val) + '/5"' : '';
         var cls     = changed ? ' hdlv2-consult-field-changed' : (isEmpty ? ' hdlv2-consult-field-empty' : '');
-        h += '<div class="hdlv2-consult-field-row' + cls + '" data-field-key="' + f.key + '">'
+        var noteFrom = changed ? (labelFor(f.key, changed.original)  || changed.original)  : '';
+        var noteTo   = changed ? (labelFor(f.key, changed.new_value) || changed.new_value) : '';
+        h += '<div class="hdlv2-consult-field-row' + cls + '" data-field-key="' + f.key + '" data-raw="' + esc(isEmpty ? '' : val) + '">'
           + '<span class="hdlv2-consult-field-label">' + esc(f.label) + '</span>'
-          + '<span class="hdlv2-consult-field-value">' + esc(display) + '</span>'
+          + '<span class="hdlv2-consult-field-value"' + valTitle + '>' + esc(display) + '</span>'
           + '<button type="button" class="hdlv2-consult-edit-btn" data-field="' + f.key + '" title="Edit">\u270F\uFE0F</button>'
-          + (changed ? '<small class="hdlv2-consult-change-note">' + esc(changed.original) + ' \u2192 ' + esc(changed.new_value) + '</small>' : '')
+          + (changed ? '<small class="hdlv2-consult-change-note">' + esc(noteFrom) + ' \u2192 ' + esc(noteTo) + '</small>' : '')
           + '</div>';
       });
       h += '</div>';
@@ -1253,16 +1288,52 @@
     root.querySelectorAll('.hdlv2-consult-edit-btn').forEach(function (btn) {
       btn.addEventListener('click', function () {
         var field = btn.getAttribute('data-field');
+        // B6.2 \u2014 one editor at a time: if another row is open (unsaved by
+        // definition), re-render the panel to close it, then re-open this
+        // field's editor on the fresh DOM via its rebound button.
+        var wrap = document.getElementById('hdlv2-health-fields');
+        if (wrap && wrap.querySelector('.hdlv2-consult-field-row.is-editing') && !btn.closest('.is-editing')) {
+          wrap.innerHTML = renderHealthFields(state.data);
+          bindHealthFieldEdits();
+          var freshBtn = wrap.querySelector('.hdlv2-consult-edit-btn[data-field="' + field + '"]');
+          if (freshBtn) freshBtn.click();
+          return;
+        }
         var row = btn.closest('.hdlv2-consult-field-row');
-        var valSpan = row.querySelector('.hdlv2-consult-field-value');
-        var currentVal = valSpan.textContent.trim();
-        if (currentVal === '\u2014') currentVal = '';
+        row.classList.add('is-editing');
+        // B6 \u2014 seed the editor from the raw stored code (data-raw), never the
+        // displayed text: scored fields now display words, but edits and saves
+        // stay in the numeric 0-5 code the server validates and stores.
+        var currentVal = (row.getAttribute('data-raw') || '').trim();
 
+        // B6.1 \u2014 scored fields edit via a dropdown of the client's actual
+        // answer vocabulary, each option labelled "N \u2014 Word" (code + word).
+        // The select carries the SAME .hdlv2-consult-field-input class, so
+        // the save handler below reads .value (the bare code) unchanged.
+        // Fields without a score_labels entry keep the free-text input.
+        var lmap = (state.data && state.data.score_labels) ? state.data.score_labels[field] : null;
+        var editorHtml;
+        if (lmap) {
+          var curCode = currentVal === '' ? '' : String(parseInt(currentVal, 10));
+          var opts = '<option value=""' + (curCode === '' ? ' selected' : '') + '>\u2014 select \u2014</option>';
+          for (var code = 0; code <= 5; code++) {
+            var w = lmap[String(code)];
+            if (!w) continue;
+            opts += '<option value="' + code + '"' + (curCode === String(code) ? ' selected' : '') + '>'
+              + code + ' \u2014 ' + esc(w) + '</option>';
+          }
+          editorHtml = '<select class="hdlv2-consult-field-input hdlv2-consult-field-editor">' + opts + '</select>';
+        } else {
+          editorHtml = '<input type="text" class="hdlv2-consult-field-input hdlv2-consult-field-editor" value="' + esc(currentVal) + '">';
+        }
+
+        // B6.2 — controls are styled by hdlv2-consultation.css (themed pills,
+        // teal-bordered editor, responsive wrap) — no inline styles.
         row.innerHTML = '<span class="hdlv2-consult-field-label">' + esc(row.querySelector('.hdlv2-consult-field-label').textContent) + '</span>'
-          + '<input type="text" class="hdlv2-consult-field-input" value="' + esc(currentVal) + '" style="width:80px;padding:4px 8px;border:1px solid #3d8da0;border-radius:6px;font-size:13px;">'
-          + '<input type="text" class="hdlv2-consult-reason-input" placeholder="Reason (optional)" style="width:120px;padding:4px 8px;border:1px solid #e4e6ea;border-radius:6px;font-size:12px;margin-left:4px;">'
-          + '<button type="button" class="hdlv2-consult-save-edit" style="margin-left:4px;padding:4px 10px;background:#3d8da0;color:#fff;border:none;border-radius:6px;font-size:12px;cursor:pointer;">Save</button>'
-          + '<button type="button" class="hdlv2-consult-cancel-edit" style="margin-left:2px;padding:4px 10px;background:#eee;border:none;border-radius:6px;font-size:12px;cursor:pointer;">Cancel</button>';
+          + editorHtml
+          + '<input type="text" class="hdlv2-consult-reason-input" placeholder="Reason (optional)">'
+          + '<button type="button" class="hdlv2-consult-save-edit">Save</button>'
+          + '<button type="button" class="hdlv2-consult-cancel-edit">Cancel</button>';
 
         row.querySelector('.hdlv2-consult-save-edit').addEventListener('click', function () {
           var newVal = row.querySelector('.hdlv2-consult-field-input').value.trim();
@@ -2199,6 +2270,7 @@
         iconsOnlyMode: true,
         useAsIsOnly: true,
         asyncUpload: true,
+        idleStopMs: 30000, // v0.47.2 — long clinical pauses; silence-stop after 30s real silence
         referenceId: state.consultId,
         onLiveTranscript: function (combined) {
           var ta = document.getElementById('hdlv2-addendum-text');

@@ -19,6 +19,14 @@
     { key: 'key_action', label: 'Lifestyle', icon: '\u2b50',        cls: 'lifestyle' }
   ];
 
+  // v0.46.59 — itshover.com icon geometry, 1:1 (pen-icon, user-plus-icon's
+  // plus sub-element via a cropped viewBox, download-icon). The set ships as
+  // React/Motion components; this stack has no build step, so the hover
+  // motion is approximated in CSS keyframes (approved 2026-06-12).
+  var ICON_PEN = '<svg class="fp-ico fp-ico-pen" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m10.5,27.5l-8,2 2-8L22.257,3.743c1.657-1.657,4.343-1.657,6,0s1.657,4.343,0,6L10.5,27.5Z"/></svg>';
+  var ICON_PLUS = '<svg class="fp-ico fp-ico-plus" viewBox="13.5 13.5 11 11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 19h6"/><path d="M19 16v6"/></svg>';
+  var ICON_DL = '<svg class="fp-ico fp-ico-dl" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><g class="fp-dl-arrow"><path d="M12 15V3"/><path d="m7 10 5 5 5-5"/></g></svg>';
+
   // mount() embeds an interactive flight-plan into the supplied root.
   // The /my-flight-plan/ shortcode auto-mounts via the bottom of this file;
   // the practitioner /clients/ expand-panel mounts manually via
@@ -33,6 +41,14 @@
     var root = rootEl;
     var clientId = opts.client_id || CFG.client_id || new URLSearchParams(window.location.search).get('client_id') || '';
     var token = opts.token || new URLSearchParams(window.location.search).get('token') || '';
+    // v0.46.59 — editor v2 + download control flags. editable_controls is
+    // passed ONLY by the practitioner dashboard; the client page never sets
+    // it (and the /edit endpoint is practitioner-IDOR-gated regardless).
+    var canEdit = !!opts.editable_controls;
+    var suppressDownload = !!opts.suppress_download;
+    var editMode = false;
+    var lastPlan = null;
+    var lastTicks = null;
     var tickTimer = null;
     var pendingTicks = {};
     // v0.24.6 — realtime sync state. Tick poll fetches /current every 20s
@@ -132,6 +148,7 @@
   }
 
   function renderPlan(plan, ticks) {
+    lastPlan = plan; lastTicks = ticks || [];
     currentPlanId = plan.id;
     var planData = plan.plan_data || {};
     var dailyPlan = planData.daily_plan || planData;
@@ -151,8 +168,10 @@
     // raw value so we never end up with double-wrapped text.
     if (plan.identity_statement) {
       var identity = String(plan.identity_statement).replace(/^[\u201c\u201d"\s]+|[\u201c\u201d"\s]+$/g, '');
-      html += '<div class="fp-identity-statement">'
-        + '\u201c' + esc(identity) + '\u201d</div>';
+      html += '<div class="fp-identity-statement" data-editable-wrap="identity_statement">'
+        + '<span class="fp-edit-text">\u201c' + esc(identity) + '\u201d</span>'
+        + (canEdit && editMode ? '<button type="button" class="fp-pen" data-edit-field="identity_statement" aria-label="Edit identity statement">' + ICON_PEN + '</button>' : '')
+        + '</div>';
     }
 
     // Flexibility note
@@ -178,25 +197,25 @@
     }
 
     // Transfer from paper UX
+    // v0.46.60 \u2014 single Tick-All / Untick-All toggle (Matthew): one button
+    // that flips its label + style based on whether every action is ticked.
+    var _allTicked = !!(ticks && ticks.length) && ticks.every(function (t) { return !!t.ticked; });
     html += '<div class="fp-transfer-box hdlv2-fp-noprint">'
       + '<div class="fp-transfer-title">Transferring from your printed plan?</div>'
       + '<p class="fp-transfer-desc">Tick All, then tap items you didn\u2019t do. Done in seconds.</p>'
       + '<div class="fp-transfer-actions">'
-      + '<button id="hdlv2-fp-tickall" class="fp-btn fp-btn-primary">\u2705 Tick All Days</button>'
-      + '<button id="hdlv2-fp-untickall" class="fp-btn fp-btn-secondary">\u274c Untick All</button>'
+      + '<button id="hdlv2-fp-tickall" type="button" class="fp-btn ' + (_allTicked ? 'fp-btn-secondary' : 'fp-btn-primary') + '" aria-pressed="' + (_allTicked ? 'true' : 'false') + '">' + (_allTicked ? 'Untick All' : '\u2705 Tick All Days') + '</button>'
       + '<button id="hdlv2-fp-calc" class="fp-btn fp-btn-outline">Calculate My Adherence</button>'
-      // Three-state Print control driven by the server:
-      //   pdf_url present     → live PDFMonkey link (preferred)
-      //   pdf_expected=true   → "preparing" + poll (fresh plan on a wired site)
-      //   otherwise           → browser print fallback (old plan / unwired site)
-      // The server sets pdf_expected only when HDLV2_MAKE_FLIGHT_PDF is defined
-      // AND the plan is <10 min old — so plans generated before the Make.com
-      // scenario existed no longer hang in "preparing" forever.
-      + (plan.pdf_url
-          ? '<a href="' + esc(plan.pdf_url) + '" target="_blank" rel="noopener" class="fp-btn fp-btn-secondary fp-btn-print">\ud83d\udda8 Print / Download PDF</a>'
+      // v0.46.59 — window.print() retired everywhere (Matthew, 2026-06-12).
+      // Two-state Download control: pdf_url → live self-hosted link;
+      // pdf_expected → "preparing" + poll. Legacy plans with neither show
+      // nothing. The practitioner dashboard suppresses this entirely — its
+      // head-card pill is the single download affordance there.
+      + (suppressDownload ? '' : (plan.pdf_url
+          ? '<a href="' + esc(plan.pdf_url) + '" target="_blank" rel="noopener" class="fp-btn fp-btn-download">' + ICON_DL + '<span>Download PDF</span></a>'
           : (plan.pdf_expected
-              ? '<button id="hdlv2-fp-pdf-pending" type="button" class="fp-btn fp-btn-secondary fp-btn-print" disabled aria-live="polite">\u231b PDF preparing\u2026</button>'
-              : '<button type="button" onclick="window.print()" class="fp-btn fp-btn-secondary fp-btn-print">\ud83d\udda8 Print</button>'))
+              ? '<button id="hdlv2-fp-pdf-pending" type="button" class="fp-btn fp-btn-download" disabled aria-live="polite">PDF preparing\u2026</button>'
+              : '')))
       + '</div></div>';
 
     // Build tick lookup by day
@@ -219,7 +238,16 @@
     // We enrich each column with data-full-date and a per-day WHY anchor
     // (extracted from plan_data.daily_plan) so the print stylesheet has
     // everything it needs without another round-trip.
-    html += '<div class="fp-grid-wrap"><div class="fp-week-grid">';
+    // v0.46.59 — pre-start days collapse to ONE slim stub; the grid only
+    // gets columns for active days (class drives the column template).
+    var _effStartIdxEarly = DAYS.indexOf((plan.effective_start_day || 'monday').toLowerCase());
+    if (_effStartIdxEarly < 0) _effStartIdxEarly = 0;
+    var _activeDays = 7 - _effStartIdxEarly;
+    html += '<div class="fp-grid-wrap"><div class="fp-week-grid fp-week-grid--n' + _activeDays
+      + (_effStartIdxEarly > 0 ? ' fp-week-grid--stub' : '') + '">';
+    if (_effStartIdxEarly > 0) {
+      html += '<div class="fp-prestart-stub"><span>Week starts<br><strong>' + esc(['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'][_effStartIdxEarly]) + '</strong></span></div>';
+    }
     var _m = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
     var _fullDayLabels = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
 
@@ -237,7 +265,7 @@
     var _effStartIdx = DAYS.indexOf(_effStart);
     if (_effStartIdx < 0) _effStartIdx = 0;
 
-    for (var d = 0; d < 7; d++) {
+    for (var d = _effStartIdxEarly; d < 7; d++) {
       var dayName = DAYS[d];
       var dayTicks = ticksByDay[dayName] || [];
 
@@ -297,8 +325,9 @@
         + '</div>';
 
       if (_isPreStart) {
+        // unreachable post-v0.46.59 (loop starts at the effective start day)
         html += '<div class="fp-day-empty fp-day-empty--prestart">Plan starts ' + esc(_fullDayLabels[_effStartIdx]) + '</div>';
-      } else if (!dayTicks.length) {
+      } else if (!dayTicks.length && !(canEdit && editMode)) {
         html += '<div class="fp-day-empty">No actions</div>';
       } else {
         // Bucket ticks by category so each day renders as 3 ordered bands.
@@ -311,17 +340,21 @@
         });
 
         BANDS.forEach(function (band) {
-          var items = bucket[band.key];
-          if (!items || !items.length) return; // collapse empty bands
+          var items = bucket[band.key] || [];
+          var showEmpty = canEdit && editMode; // "+" needs the band header even when empty
+          if (!items.length && !showEmpty) return; // collapse empty bands (read mode)
           html += '<div class="fp-band fp-band--' + band.cls + '">'
             + '<div class="fp-band-header">'
             + '<span class="fp-band-icon" aria-hidden="true">' + band.icon + '</span>'
             + '<span class="fp-band-label">' + band.label + '</span>'
+            + (canEdit && editMode ? '<button type="button" class="fp-add" data-add-day="' + dayName + '" data-add-cat="' + band.key + '" aria-label="Add ' + band.label + ' action to ' + dayName + '">' + ICON_PLUS + '</button>' : '')
             + '</div>';
           items.forEach(function (t) {
             var state = t.ticked ? 'done' : 'default';
             html += '<div class="fp-action" data-tick-id="' + t.id + '" data-state="' + state + '" data-day="' + dayName + '" data-category="' + (t.category || '') + '">'
-              + '<span>' + esc(cleanActionText(t.action_text)) + '</span></div>';
+              + '<span class="fp-edit-text">' + esc(cleanActionText(t.action_text)) + '</span>'
+              + (canEdit && editMode ? '<button type="button" class="fp-pen" data-edit-tick="' + t.id + '" aria-label="Edit this action">' + ICON_PEN + '</button>' : '')
+              + '</div>';
           });
           html += '</div>';
         });
@@ -344,7 +377,12 @@
     // Weekly targets
     if (plan.weekly_targets && plan.weekly_targets.length) {
       html += '<div class="fp-section"><h4 class="fp-section-header">\ud83c\udfaf Weekly Targets</h4><ul class="fp-targets-list">';
-      plan.weekly_targets.forEach(function (t) { html += '<li>' + esc(typeof t === 'string' ? t : t.text || t.target || '') + '</li>'; });
+      plan.weekly_targets.forEach(function (t, ti) {
+        html += '<li data-editable-wrap="weekly_target" data-target-index="' + ti + '">'
+          + '<span class="fp-edit-text">' + esc(typeof t === 'string' ? t : t.text || t.target || '') + '</span>'
+          + (canEdit && editMode ? '<button type="button" class="fp-pen" data-edit-target="' + ti + '" aria-label="Edit this target">' + ICON_PEN + '</button>' : '')
+          + '</li>';
+      });
       html += '</ul></div>';
     }
 
@@ -361,8 +399,10 @@
     // onto a page on its own, leaving an orphan heading behind).
     if (plan.journey_assistance) {
       html += '<div class="fp-section"><h4 class="fp-section-header">\ud83d\udca1 Journey Assistance</h4>'
-        + '<div class="fp-journey-assistance">' + esc(plan.journey_assistance) + '</div>'
-        + '</div>';
+        + '<div class="fp-journey-assistance" data-editable-wrap="journey_assistance">'
+        + '<span class="fp-edit-text">' + esc(plan.journey_assistance) + '</span>'
+        + (canEdit && editMode ? '<button type="button" class="fp-pen" data-edit-field="journey_assistance" aria-label="Edit the practitioner note">' + ICON_PEN + '</button>' : '')
+        + '</div></div>';
     }
 
     // Review prompts
@@ -383,21 +423,16 @@
       });
     });
 
-    // Tick All Days
+    // Tick All Days / Untick All — single toggle (v0.46.60). Flips every
+    // action; updateAdherence() -> syncTickAllBtn() relabels the button.
     root.querySelector('#hdlv2-fp-tickall').addEventListener('click', function () {
-      root.querySelectorAll('.fp-action[data-tick-id]').forEach(function (el) {
-        el.setAttribute('data-state', 'done');
-      });
-      bulkTick(plan.id, true);
-      updateAdherence();
-    });
-
-    // Untick All
-    root.querySelector('#hdlv2-fp-untickall').addEventListener('click', function () {
-      root.querySelectorAll('.fp-action[data-tick-id]').forEach(function (el) {
-        el.setAttribute('data-state', 'default');
-      });
-      bulkTick(plan.id, false);
+      var rows = root.querySelectorAll('.fp-action[data-tick-id]');
+      if (!rows.length) return;
+      var allDone = true;
+      rows.forEach(function (el) { if (el.getAttribute('data-state') !== 'done') allDone = false; });
+      var makeDone = !allDone;
+      rows.forEach(function (el) { el.setAttribute('data-state', makeDone ? 'done' : 'default'); });
+      bulkTick(plan.id, makeDone);
       updateAdherence();
     });
 
@@ -424,6 +459,10 @@
     });
 
     updateAdherence();
+
+    // ── v0.46.59 — editor v2 bindings (practitioner edit mode only) ──
+    if (canEdit && editMode) bindEditAffordances();
+    flashEditNotice();
 
     // ── PDF readiness poll ──
     // Only polls when the server told us a PDF is genuinely expected
@@ -452,8 +491,8 @@
                 link.href = url;
                 link.target = '_blank';
                 link.rel = 'noopener';
-                link.className = 'fp-btn fp-btn-secondary fp-btn-print';
-                link.innerHTML = '\ud83d\udda8 Print / Download PDF';
+                link.className = 'fp-btn fp-btn-download';
+                link.innerHTML = ICON_DL + '<span>Download PDF</span>';
                 btn.replaceWith(link);
               }
             } else if (pollAttempts >= maxAttempts) {
@@ -515,6 +554,27 @@
       headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': CFG.nonce },
       body: JSON.stringify(body)
     }).catch(function () {});
+  }
+
+  // ── Single Tick-All toggle label sync (v0.46.60) ──
+  // One button replaces the old Tick-All + Untick-All pair. Mirrors the
+  // live row state so single taps, per-day toggles and the realtime poll
+  // all keep the label/style correct.
+  function syncTickAllBtn() {
+    var btn = root.querySelector('#hdlv2-fp-tickall');
+    if (!btn) return;
+    var rows = root.querySelectorAll('.fp-action[data-tick-id]');
+    var allDone = rows.length > 0;
+    rows.forEach(function (el) { if (el.getAttribute('data-state') !== 'done') allDone = false; });
+    if (allDone) {
+      btn.textContent = 'Untick All';
+      btn.setAttribute('aria-pressed', 'true');
+      btn.classList.remove('fp-btn-primary'); btn.classList.add('fp-btn-secondary');
+    } else {
+      btn.textContent = '✅ Tick All Days';
+      btn.setAttribute('aria-pressed', 'false');
+      btn.classList.remove('fp-btn-secondary'); btn.classList.add('fp-btn-primary');
+    }
   }
 
   // ── Adherence display ──
@@ -583,6 +643,7 @@
 
     var el = root.querySelector('#hdlv2-fp-adherence');
     if (el) el.innerHTML = html;
+    syncTickAllBtn();
   }
 
     // ── Realtime tick poll (v0.24.6) ──
@@ -648,7 +709,153 @@
       window.addEventListener('focus', tickFocusHandler);
     }
 
+    // ── v0.46.59 — Editor v2: inline pencils + per-band "+" ──────────
+    // Every save POSTs /flight-plan/{client_id}/edit (practitioner-IDOR-
+    // gated server side): same additive-revision storage, live client
+    // propagation and direct PDF re-render as 0.46.58. Zero emails.
+    function bindEditAffordances() {
+      root.querySelectorAll('.fp-pen[data-edit-tick]').forEach(function (btn) {
+        btn.addEventListener('click', function (e) {
+          e.stopPropagation();
+          var row = btn.closest('.fp-action');
+          openEditor(row, row.querySelector('.fp-edit-text').textContent, {
+            field: 'daily_action_by_tick', tick_id: parseInt(btn.getAttribute('data-edit-tick'), 10)
+          });
+        });
+      });
+      root.querySelectorAll('.fp-pen[data-edit-field]').forEach(function (btn) {
+        btn.addEventListener('click', function (e) {
+          e.stopPropagation();
+          var wrap = btn.closest('[data-editable-wrap]');
+          var raw = wrap.querySelector('.fp-edit-text').textContent.replace(/^[\u201c]|[\u201d]$/g, '');
+          openEditor(wrap, raw, { field: btn.getAttribute('data-edit-field') });
+        });
+      });
+      root.querySelectorAll('.fp-pen[data-edit-target]').forEach(function (btn) {
+        btn.addEventListener('click', function (e) {
+          e.stopPropagation();
+          var wrap = btn.closest('[data-editable-wrap]');
+          openEditor(wrap, wrap.querySelector('.fp-edit-text').textContent, {
+            field: 'weekly_target', index: parseInt(btn.getAttribute('data-edit-target'), 10)
+          });
+        });
+      });
+      root.querySelectorAll('.fp-add').forEach(function (btn) {
+        btn.addEventListener('click', function (e) {
+          e.stopPropagation();
+          openAddForm(btn.closest('.fp-band'), btn.getAttribute('data-add-day'), btn.getAttribute('data-add-cat'));
+        });
+      });
+    }
+
+    function editorBox(initial, withSlot) {
+      var box = document.createElement('div');
+      box.className = 'fp-edit-box';
+      box.innerHTML = '<textarea class="fp-edit-input" rows="3">' + esc(initial) + '</textarea>'
+        + (withSlot
+            ? '<label class="fp-edit-slot-label">When? <select class="fp-edit-slot">'
+              + '<option value="morning">Morning</option>'
+              + '<option value="afternoon">Afternoon</option>'
+              + '<option value="early_evening">Early evening</option>'
+              + '</select></label>'
+            : '')
+        + '<div class="fp-edit-actions">'
+        + '<button type="button" class="fp-btn fp-btn-primary fp-edit-save">' + (withSlot ? 'Add' : 'Save') + '</button>'
+        + '<button type="button" class="fp-btn fp-btn-secondary fp-edit-cancel">Cancel</button>'
+        + '<span class="fp-edit-msg" aria-live="polite"></span>'
+        + '</div>';
+      return box;
+    }
+
+    function openEditor(container, initial, bodyBase) {
+      if (root.querySelector('.fp-edit-box')) return; // one editor at a time
+      var saved = container.innerHTML;
+      var box = editorBox(initial, false);
+      container.innerHTML = '';
+      container.appendChild(box);
+      box.querySelector('.fp-edit-cancel').addEventListener('click', function (e) {
+        e.stopPropagation(); container.innerHTML = saved;
+        if (canEdit && editMode) bindEditAffordances();
+      });
+      box.addEventListener('click', function (e) { e.stopPropagation(); });
+      box.querySelector('.fp-edit-save').addEventListener('click', function (e) {
+        e.stopPropagation();
+        submitEdit(box, Object.assign({}, bodyBase, { value: box.querySelector('.fp-edit-input').value }));
+      });
+    }
+
+    function openAddForm(bandEl, day, cat) {
+      if (root.querySelector('.fp-edit-box')) return;
+      var box = editorBox('', true);
+      bandEl.appendChild(box);
+      box.querySelector('.fp-edit-cancel').addEventListener('click', function (e) {
+        e.stopPropagation(); box.remove();
+      });
+      box.addEventListener('click', function (e) { e.stopPropagation(); });
+      box.querySelector('.fp-edit-save').addEventListener('click', function (e) {
+        e.stopPropagation();
+        submitEdit(box, {
+          field: 'add_action', day: day, category: cat,
+          slot: box.querySelector('.fp-edit-slot').value,
+          value: box.querySelector('.fp-edit-input').value
+        });
+      });
+    }
+
+    function submitEdit(box, body) {
+      var msg = box.querySelector('.fp-edit-msg');
+      var save = box.querySelector('.fp-edit-save');
+      if (!body.value || !body.value.trim()) { msg.textContent = 'Text required.'; return; }
+      save.disabled = true; msg.textContent = 'Saving\u2026'; msg.className = 'fp-edit-msg';
+      body.plan_id = currentPlanId;
+      fetch(CFG.api_base + '/' + clientId + '/edit', {
+        method: 'POST', credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': CFG.nonce },
+        body: JSON.stringify(body)
+      }).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+        .then(function (res) {
+          if (!res.ok || !res.j || !res.j.success) {
+            save.disabled = false;
+            msg.textContent = (res.j && res.j.message) || 'Could not save.';
+            msg.className = 'fp-edit-msg is-error';
+            return;
+          }
+          if (res.j.warnings && res.j.warnings.length) {
+            pendingEditNotice = '\u26a0 Saved, with care flags: ' + res.j.warnings.join(' ');
+          } else {
+            pendingEditNotice = 'Saved \u2014 the client sees this on their next visit; the PDF is regenerating.';
+          }
+          loadCurrent(); // fresh data + re-render (edit mode persists)
+        })
+        .catch(function () {
+          save.disabled = false;
+          msg.textContent = 'Connection error.'; msg.className = 'fp-edit-msg is-error';
+        });
+    }
+
+    var pendingEditNotice = '';
+    function flashEditNotice() {
+      if (!pendingEditNotice) return;
+      var n = document.createElement('div');
+      n.className = 'fp-edit-notice' + (pendingEditNotice.indexOf('\u26a0') === 0 ? ' is-warn' : '');
+      n.textContent = pendingEditNotice;
+      pendingEditNotice = '';
+      var anchor = root.querySelector('.fp-grid-wrap');
+      if (anchor) { anchor.parentNode.insertBefore(n, anchor); setTimeout(function () { n.remove(); }, 6000); }
+    }
+
+    function setEditMode(on) {
+      editMode = !!on && canEdit;
+      if (lastPlan) renderPlan(lastPlan, lastTicks);
+      return editMode;
+    }
+
     init();
+
+    // v0.46.60 — expose refresh() so the dashboard digest poll can sync
+    // ticks in place instead of a destructive full re-mount (kills the
+    // "twitching" blink + stops the edit toggle resetting every 4s).
+    return { setEditMode: setEditMode, isEditMode: function () { return editMode; }, refresh: refresh };
   }
 
   window.HDLV2_FlightPlan = { mount: mount };

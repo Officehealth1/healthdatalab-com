@@ -577,22 +577,38 @@ var HDLTrajectoryChart = (function () {
     }));
 
     // ── RATE BADGE (wrapped in <g> for animation) ────────────
-    var isUnhealthy = currentRate >= 1.0;
-    var badgeBg = currentRate >= 1.15 ? '#d94f4f' : currentRate >= 1.0 ? '#e67e22' : '#0d7377';
-    var badgeIcon = isUnhealthy ? '\u26A0' : '\u2713';
-    var badgeLabel = isUnhealthy ? 'Accelerated' : 'Slower';
-    var badgeX = sx(effectiveAge) - 149;
+    // 4-band logic aligned with derive_rate_band() (class-hdlv2-final-report.php)
+    // and the server-side PDF/SVG (class-hdlv2-trajectory-svg.php:448-468).
+    // Previously `>= 1.0` triggered "Accelerated" + amber, which made an
+    // on-pace rate of 1.00x render "Accelerated Aging" here while the stat
+    // card said "On pace with average" and the PDF said "Average" \u2014 three
+    // contradictory verdicts on one page. Bands now match the brand status
+    // palette (success/warning/error) used everywhere else.
+    var badgeBg, badgeIcon, badgeLabel;
+    if (currentRate <= 0.95) {
+      badgeBg = '#10b981'; badgeIcon = '\u2713'; badgeLabel = 'Slower';          // success green
+    } else if (currentRate <= 1.05) {
+      badgeBg = '#3d8da0'; badgeIcon = '\u00B7'; badgeLabel = 'Average';         // brand teal
+    } else if (currentRate <= 1.15) {
+      badgeBg = '#d97706'; badgeIcon = '\u26A0'; badgeLabel = 'Accelerated';     // warning amber
+    } else {
+      badgeBg = '#dc2626'; badgeIcon = '\u26A0'; badgeLabel = 'Significantly Accelerated'; // error red
+    }
+    // Wider badge for the longer "Significantly Accelerated" label (mirrors
+    // class-hdlv2-trajectory-svg.php:475-481).
+    var badgeW = currentRate > 1.15 ? 220 : 135;
+    var badgeX = sx(effectiveAge) - (currentRate > 1.15 ? 234 : 149);
     var badgeY = Math.min(sy(currentHealth) + 50, CH - MARGIN.bottom - 42);
 
     var badgeG = svgEl('g', { 'data-hdl': 'badge' });
     badgeG.appendChild(svgEl('line', {
       x1: sx(effectiveAge), y1: sy(currentHealth) + 7,
-      x2: badgeX + 68, y2: badgeY,
+      x2: badgeX + Math.round(badgeW / 2), y2: badgeY,
       stroke: badgeBg, 'stroke-width': 0.7, opacity: '0.35',
       'stroke-dasharray': '3,2'
     }));
     badgeG.appendChild(svgEl('rect', {
-      x: badgeX, y: badgeY, width: 135, height: 36, rx: 5, fill: badgeBg
+      x: badgeX, y: badgeY, width: badgeW, height: 36, rx: 5, fill: badgeBg
     }));
     badgeG.appendChild(svgEl('text', {
       x: badgeX + 7, y: badgeY + 14,

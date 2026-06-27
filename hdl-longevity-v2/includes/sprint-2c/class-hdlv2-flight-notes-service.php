@@ -311,8 +311,26 @@ class HDLV2_Flight_Notes_Service {
 			return new WP_Error( 'hdlv2_fn_daily', 'Daily Flight Notes limit reached — please try again tomorrow.', array( 'status' => 429 ) );
 		}
 
-		// AI text (Phase 2) — the expensive call, ONLY on a genuine fresh render.
-		$ai      = HDLV2_AI_Service::generate_flight_consult_notes( $in['s1'], $in['s3'], $in['calc'], $in['why'], $in['addenda'] );
+		// F19 — Claude is the paid side effect. Cache the parsed AI output keyed
+		// by the SAME input hash so that if the downstream PDFMonkey POST/render
+		// fails and the practitioner retries, the retry reuses the already-paid
+		// Claude text instead of re-charging. The cache busts automatically when
+		// the underlying data changes (the hash changes). Cooldown alone wouldn't
+		// cover this: the document-create POST step runs BEFORE the cooldown is
+		// stamped, so a POST failure there left no protection.
+		$ai_cache_key = 'hdlv2_fn_ai_' . $pid;
+		$ai_cached    = get_transient( $ai_cache_key );
+		if ( is_array( $ai_cached ) && ! empty( $ai_cached['hash'] ) && $ai_cached['hash'] === $hash && array_key_exists( 'ai', $ai_cached ) ) {
+			$ai = $ai_cached['ai'];
+		} else {
+			// AI text (Phase 2) — the expensive call, ONLY on a genuine fresh render.
+			$ai = HDLV2_AI_Service::generate_flight_consult_notes( $in['s1'], $in['s3'], $in['calc'], $in['why'], $in['addenda'] );
+			// Stamp the AI cache right after a successful Claude call (before the
+			// PDFMonkey POST) so a render-side failure + retry doesn't re-charge.
+			if ( ! is_wp_error( $ai ) ) {
+				set_transient( $ai_cache_key, array( 'hash' => $hash, 'ai' => $ai ), self::CACHE_TTL );
+			}
+		}
 		$payload = array_merge( $flat, self::render_ai_fragments( $ai ) );
 
 		// Create the PDFMonkey document (queued render).
@@ -337,7 +355,8 @@ class HDLV2_Flight_Notes_Service {
 		// Stamp the spend guards immediately (before the poll) so a concurrent /
 		// duplicate fire can't also slip a second render through.
 		set_transient( $cooldown_key, time(), self::COOLDOWN );
-		set_transient( $daily_key, $daily + 1, DAY_IN_SECONDS );
+		// F20 — atomic per-practitioner daily increment (see below).
+		self::bump_daily_cap( $daily_key );
 
 		// Poll the lightweight card endpoint (avoids the heavy document JSON).
 		for ( $i = 0; $i < self::POLL_TRIES; $i++ ) {
@@ -362,6 +381,34 @@ class HDLV2_Flight_Notes_Service {
 			}
 		}
 		return new WP_Error( 'hdlv2_fn_timeout', 'PDF is taking longer than expected — try again in a moment.', array( 'status' => 504 ) );
+	}
+
+	/**
+	 * F20 — atomically increment the per-practitioner daily render counter.
+	 *
+	 * The bare get_transient()→set_transient(+1) pattern is a non-atomic
+	 * read-modify-write: two concurrent flight-notes worker ticks (job-queue
+	 * MAX_CONCURRENT=3) for two different clients of the SAME practitioner can
+	 * both read the same value and both write value+1, losing one increment and
+	 * letting the 50/day spend ceiling drift over.
+	 *
+	 * Serialise the read+write with the same short DB GET_LOCK pattern used for
+	 * enqueue (rest_generate_pdf) and the flight-plan force path. Fail-open: if
+	 * the lock can't be taken we still increment (the cap is a soft money-safety
+	 * ceiling, not a correctness boundary — a lost increment under contention is
+	 * a far smaller risk than blocking a legitimate render).
+	 *
+	 * @param string $daily_key transient key 'hdlv2_fn_daily_<uid>'
+	 */
+	private static function bump_daily_cap( $daily_key ) {
+		global $wpdb;
+		$lock_name = substr( 'hdlv2_fndaily_' . $daily_key, 0, 64 );
+		$got_lock  = (bool) $wpdb->get_var( $wpdb->prepare( 'SELECT GET_LOCK(%s, 5)', $lock_name ) );
+		$current   = (int) get_transient( $daily_key );
+		set_transient( $daily_key, $current + 1, DAY_IN_SECONDS );
+		if ( $got_lock ) {
+			$wpdb->query( $wpdb->prepare( 'SELECT RELEASE_LOCK(%s)', $lock_name ) );
+		}
 	}
 
 	/**

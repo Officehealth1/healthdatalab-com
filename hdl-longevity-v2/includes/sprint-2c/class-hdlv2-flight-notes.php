@@ -382,12 +382,18 @@ class HDLV2_Flight_Notes {
 	 * Stage-3 answer value ('0'–'5') → concise human-readable label. MIRRORS the
 	 * `S3_OPTIONS` option wording in assets/js/hdlv2-staged-form.js (the form's
 	 * single source of truth) — the parenthetical gloss is dropped for the
-	 * snapshot. Only the fields shown on the sheet are ported (YAGNI); if the
-	 * form's options change, update both. Returns '' for blank / unknown values.
+	 * snapshot. B6: now covers ALL 16 scored fields (was 6) and is public —
+	 * the consultation page's Health Data editor labels its 0-5 codes through
+	 * this same map (HDLV2_Consultation payload `score_labels`). If the form's
+	 * options change, update both. Returns '' for blank / unknown values.
+	 * sleepQuality delegates to sleep_quality_short() (the existing map).
 	 */
-	private static function s3_label( $field, $value ) {
+	public static function s3_label( $field, $value ) {
 		if ( ! is_numeric( $value ) ) {
 			return '';
+		}
+		if ( 'sleepQuality' === $field ) {
+			return ucfirst( self::sleep_quality_short( $value ) );
 		}
 		static $map = array(
 			'sleepDuration'      => array(
@@ -413,6 +419,42 @@ class HDLV2_Flight_Notes {
 			'dailyHydration'     => array(
 				'0' => 'Less than 1 litre', '1' => '1–1.5 litres', '2' => '1.5–2 litres',
 				'3' => '2–2.5 litres', '4' => '2.5–3 litres', '5' => '3+ litres',
+			),
+			'sitToStand'         => array(
+				'0' => '0 reps in 30 seconds', '1' => '1–7 reps in 30 seconds', '2' => '8–12 reps in 30 seconds',
+				'3' => '13–17 reps in 30 seconds', '4' => '18–24 reps in 30 seconds', '5' => '25+ reps in 30 seconds',
+			),
+			'breathHold'         => array(
+				'0' => 'Held for less than 15 seconds', '1' => 'Held for 15–29 seconds', '2' => 'Held for 30–45 seconds',
+				'3' => 'Held for 46–60 seconds', '4' => 'Held for 61–90 seconds', '5' => 'Held for 90+ seconds',
+			),
+			'balance'            => array(
+				'0' => 'Less than 10 seconds on one leg', '1' => '10–19 seconds on one leg', '2' => '20–29 seconds on one leg',
+				'3' => '30–39 seconds on one leg', '4' => '40–59 seconds on one leg', '5' => '60+ seconds on one leg',
+			),
+			'skinElasticity'     => array(
+				'0' => 'Skin takes 30+ seconds to return', '1' => 'Skin takes 16–30 seconds to return', '2' => 'Skin takes 10–15 seconds to return',
+				'3' => 'Skin takes 5–9 seconds to return', '4' => 'Skin takes 3–4 seconds to return', '5' => 'Skin takes 1–2 seconds to return',
+			),
+			'dietQuality'        => array(
+				'0' => 'Very poor', '1' => 'Poor', '2' => 'Below average',
+				'3' => 'Average', '4' => 'Good', '5' => 'Excellent',
+			),
+			'supplementIntake'   => array(
+				'0' => 'Never', '1' => 'Rarely', '2' => 'Sometimes',
+				'3' => 'Regularly', '4' => 'Often', '5' => 'Daily',
+			),
+			'sunlightExposure'   => array(
+				'0' => 'Rarely — mostly indoors', '1' => 'Irregular exposure', '2' => 'Midday only',
+				'3' => 'Extended midday sun', '4' => 'Morning or evening', '5' => 'Morning and evening daily',
+			),
+			'cognitiveActivity'  => array(
+				'0' => 'Never — don\'t challenge my brain', '1' => 'Rarely', '2' => 'Sometimes',
+				'3' => 'Regularly', '4' => 'Often', '5' => 'Daily — consistent practice',
+			),
+			'socialConnections'  => array(
+				'0' => 'None', '1' => 'Rarely', '2' => 'Occasionally',
+				'3' => 'Regularly', '4' => 'Often', '5' => 'Daily',
 			),
 		);
 		if ( ! isset( $map[ $field ] ) ) {

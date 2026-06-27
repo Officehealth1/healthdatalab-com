@@ -80,6 +80,7 @@
   function init() {
     injectStyles();
     mountActionQueueShell();
+    mountIrisCard();   // Iridology add-on (IrisMapper) — self-guards on the flag (Rule-0)
     bindDeleteV2Client();
     // v0.35.1 — fetch pending leads in parallel with /dashboard/clients
     // so the action queue can render both pre-existing client work AND
@@ -216,9 +217,19 @@
       if (!fresh) return;
       var content = panel.querySelector('[data-tab-content]');
       if (!content) return;
-      // loadFlightPlan re-mounts; HDLV2_FlightPlan.mount handles its own
-      // teardown of the previous mount so we don't leak event handlers.
-      loadFlightPlan(fresh, content);
+      // v0.46.60 — was a full loadFlightPlan() re-mount on every 4s digest
+      // advance. That tore down + re-fetched + re-rendered the whole tab,
+      // which flashed the content (practitioner-reported "twitching") and
+      // reset the inline edit toggle. The renderer already syncs ticks in
+      // place (applyTickDiff), so refresh the live instance instead — only
+      // re-mount if the instance is gone (first open / detached node).
+      var inst = content._hdlv2FpInstance;
+      var fpMount = content.querySelector('#hdlv2-flight-plan');
+      if (inst && typeof inst.refresh === 'function' && fpMount && fpMount.isConnected) {
+        inst.refresh();
+      } else {
+        loadFlightPlan(fresh, content);
+      }
     });
   }
 
@@ -374,6 +385,411 @@
         toggleActionQueue();
       }
     });
+  }
+
+  // ──────────────────────────────────────────────────────────────────────
+  //  Iridology add-on (IrisMapper) — purchase + launch. v1.
+  //
+  //  Rule-0: every entry self-guards on CFG.iris_feature_enabled, so with the
+  //  flag off there is ZERO trace — no card, no tab, no styles, no network.
+  //  Entitlement (CFG.iris_entitled) is resolved server-side and passed via the
+  //  localize; the browser never sees the shared secret. All three IrisMapper
+  //  calls go through our REST routes (backend-to-backend).
+  //
+  //  Post-checkout return: create-checkout-simple appends ?email=…&session_id=…
+  //  to our query-string-free dashboard successUrl with a literal "?", so we
+  //  detect the return by the session_id param (NOT a ?iris=success flag) and
+  //  poll /iris/status until the add-on is provisioned. A plain cancel returns
+  //  to the bare dashboard URL → reads as a normal load → upsell stays.
+  // ──────────────────────────────────────────────────────────────────────
+
+  var _irisMounted = false;
+  var _irisStyled  = false;
+  var _irisPolling = false;
+
+  function irisReturning() {
+    try { return new URLSearchParams(window.location.search).has('session_id'); }
+    catch (e) { return false; }
+  }
+
+  // Strip the IrisMapper-appended ?email=&session_id= from the address bar so
+  // the practitioner's own email doesn't linger in browser history.
+  function irisCleanUrl() {
+    try {
+      if (window.history && window.history.replaceState) {
+        window.history.replaceState({}, document.title, window.location.pathname);
+      }
+    } catch (e) {}
+  }
+
+  // Edge-A double-sub guard: practitioner already pays IrisMapper directly
+  // (Practitioner subscription, not the add-on). Offer "already subscribed",
+  // never a second add-on checkout.
+  function irisAlreadySubscribed() {
+    var tier = CFG.iris_subscription_tier;
+    var st   = CFG.iris_subscription_status;
+    return tier === 'practitioner' && (st === 'active' || st === 'trialing');
+  }
+
+  // Real IrisMapper brand logo (bundled PNG; never a drawn approximation).
+  function irisLogo(extra) {
+    var src = CFG.iris_logo_url || '';
+    if (!src) return '';
+    return '<img class="hdlv2-iris-logo' + (extra ? ' ' + extra : '') + '" src="' + esc(src) + '" alt="IrisMapper" decoding="async" />';
+  }
+
+  // ── Generic (non-brand) motif icons — sourced from itshover.com
+  //    (github.com/itshover/itshover), inlined as static SVG with a small CSS
+  //    hover animation (see ensureIrisStyles) to keep the motion feel. ──
+  function iconSparkles() {
+    return '<svg class="hdlv2-ico hdlv2-ico-sparkles" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">'
+      + '<path class="spark spark-b" d="M16 18a2 2 0 0 1 2 2a2 2 0 0 1 2 -2a2 2 0 0 1 -2 -2a2 2 0 0 1 -2 2z"/>'
+      + '<path class="spark spark-t" d="M16 6a2 2 0 0 1 2 2a2 2 0 0 1 2 -2a2 2 0 0 1 -2 -2a2 2 0 0 1 -2 2z"/>'
+      + '<path class="spark spark-m" d="M9 18a6 6 0 0 1 6 -6a6 6 0 0 1 -6 -6a6 6 0 0 1 -6 6a6 6 0 0 1 6 6z"/></svg>';
+  }
+  function iconEye() {
+    return '<svg class="hdlv2-ico hdlv2-ico-eye" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">'
+      + '<path class="eye-shape" d="M21 12c-2.4 4 -5.4 6 -9 6c-3.6 0 -6.6 -2 -9 -6c2.4 -4 5.4 -6 9 -6c3.6 0 6.6 2 9 6"/>'
+      + '<path class="eye-pupil" d="M10 12a2 2 0 1 0 4 0a2 2 0 0 0 -4 0"/></svg>';
+  }
+  function iconRosette() {
+    return '<svg class="hdlv2-ico hdlv2-ico-rosette" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">'
+      + '<path class="rosette-badge" d="M5 7.2a2.2 2.2 0 0 1 2.2 -2.2h1a2.2 2.2 0 0 0 1.55 -.64l.7 -.7a2.2 2.2 0 0 1 3.12 0l.7 .7c.412 .41 .97 .64 1.55 .64h1a2.2 2.2 0 0 1 2.2 2.2v1c0 .58 .23 1.138 .64 1.55l.7 .7a2.2 2.2 0 0 1 0 3.12l-.7 .7a2.2 2.2 0 0 0 -.64 1.55v1a2.2 2.2 0 0 1 -2.2 2.2h-1a2.2 2.2 0 0 0 -1.55 .64l-.7 .7a2.2 2.2 0 0 1 -3.12 0l-.7 -.7a2.2 2.2 0 0 0 -1.55 -.64h-1a2.2 2.2 0 0 1 -2.2 -2.2v-1a2.2 2.2 0 0 0 -.64 -1.55l-.7 -.7a2.2 2.2 0 0 1 0 -3.12l.7 -.7a2.2 2.2 0 0 0 .64 -1.55v-1z"/>'
+      + '<path class="rosette-check" d="M9 12l2 2l4 -4"/></svg>';
+  }
+  function iconExternal() {
+    return '<svg class="hdlv2-ico hdlv2-ico-external" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">'
+      + '<path class="ext-box" d="M12 6h-6a2 2 0 0 0 -2 2v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-6"/>'
+      + '<g class="ext-arrow"><path d="M11 13l9 -9"/><path d="M15 4h5v5"/></g></svg>';
+  }
+  function iconGear() {
+    return '<svg class="hdlv2-ico hdlv2-ico-gear" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square" stroke-miterlimit="10" aria-hidden="true" focusable="false">'
+      + '<g class="gear-rot"><circle cx="16" cy="16" r="5"/>'
+      + '<path d="m30,17.5v-3l-3.388-1.355c-.25-.933-.617-1.815-1.089-2.633l1.436-3.351-2.121-2.121-3.351,1.436c-.817-.472-1.7-.838-2.633-1.089l-1.355-3.388h-3l-1.355,3.388c-.933.25-1.815.617-2.633,1.089l-3.351-1.436-2.121,2.121 1.436,3.351c-.472.817-.838,1.7-1.089,2.633l-3.388,1.355v3l3.388,1.355c.25.933.617,1.815,1.089,2.633l-1.436,3.351 2.121,2.121 3.351-1.436c.817.472 1.7.838 2.633,1.089l1.355,3.388h3l1.355-3.388c.933-.25 1.815-.617 2.633-1.089l3.351,1.436 2.121-2.121-1.436-3.351c.472-.817.838-1.7 1.089-2.633l3.388-1.355Z"/></g></svg>';
+  }
+
+  function ensureIrisStyles() {
+    if (_irisStyled) return; _irisStyled = true;
+    var css = ''
+      // ── Add-on card (above the roster) — teal practice surface (mockup .pd-iris-front) ──
+      + '.hdlv2-iris-card{display:flex;align-items:center;gap:22px;flex-wrap:wrap;margin:0 0 16px;padding:20px 26px;border:1px solid #e6f3f5;border-radius:14px;background:linear-gradient(120deg,#f0fbfc 0%,#fff 62%);font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;}'
+      + '.hdlv2-iris-card.hdlv2-iris-ready{background:linear-gradient(120deg,#ecfdf5 0%,#fff 62%);border-color:#a7f3d0;}'
+      // Real IrisMapper brand MARK — eye-spiral symbol only (square, transparent).
+      + '.hdlv2-iris-logo{flex:0 0 auto;width:52px;height:52px;display:block;object-fit:contain;}'
+      + '.hdlv2-iris-logo.launch{width:48px;height:48px;}'
+      + '.hdlv2-iris-main{flex:1 1 320px;min-width:0;}'
+      + '.hdlv2-iris-eyebrow{display:inline-flex;align-items:center;gap:7px;margin:0 0 5px;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#3d8da0;}'
+      + '.hdlv2-iris-eyebrow--active{color:#047857;}'
+      + '.hdlv2-iris-title{font-family:Poppins,Inter,sans-serif;font-size:18px;font-weight:600;color:#111;margin:0 0 5px;line-height:1.3;letter-spacing:-.005em;}'
+      + '.hdlv2-iris-pitch{margin:0;font-size:13px;color:#555;line-height:1.55;max-width:560px;}'
+      + '.hdlv2-iris-pitch strong{color:#004F59;font-weight:600;}'
+      + '.hdlv2-iris-meta{margin:9px 0 0;font-size:12px;color:#888;}'
+      + '.hdlv2-iris-meta code{background:#fff;border:1px solid #e4e6ea;padding:1px 6px;border-radius:5px;color:#004F59;font-size:11.5px;}'
+      + '.hdlv2-iris-buy{flex:0 0 auto;display:flex;flex-direction:column;align-items:flex-end;gap:8px;text-align:right;}'
+      + '.hdlv2-iris-price{font-family:Poppins,Inter,sans-serif;font-size:26px;font-weight:600;color:#111;margin:0;line-height:1;}'
+      + '.hdlv2-iris-price span{font-family:Inter,sans-serif;font-size:13px;color:#888;font-weight:400;}'
+      + '.hdlv2-iris-fine{margin:0;font-size:11px;color:#888;}'
+      + '.hdlv2-iris-btn{display:inline-flex;align-items:center;gap:8px;border:none;border-radius:8px;padding:11px 22px;font-family:Poppins,Inter,sans-serif;font-size:14px;font-weight:600;cursor:pointer;transition:background .15s,opacity .15s;}'
+      + '.hdlv2-iris-btn:disabled{opacity:.6;cursor:default;}'
+      + '.hdlv2-iris-btn--primary{background:#3d8da0;color:#fff;}'
+      + '.hdlv2-iris-btn--primary:hover{background:#357887;}'
+      + '.hdlv2-iris-btn svg{width:15px;height:15px;}'
+      + '.hdlv2-iris-manage{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:#3d8da0;background:none;border:none;cursor:pointer;padding:0;font-family:Inter,sans-serif;}'
+      + '.hdlv2-iris-manage:hover{text-decoration:underline;}'
+      + '.hdlv2-iris-msg{font-size:12px;color:#dc2626;}'
+      + '.hdlv2-iris-spin{display:inline-block;width:15px;height:15px;border:2px solid #cfeaf0;border-top-color:#3d8da0;border-radius:50%;margin-right:8px;vertical-align:-2px;animation:hdlv2IrisSpin .8s linear infinite;}'
+      + '@keyframes hdlv2IrisSpin{to{transform:rotate(360deg)}}'
+      // ── itshover-sourced motif icons (github.com/itshover/itshover) + CSS hover motion ──
+      + '.hdlv2-ico{width:16px;height:16px;display:inline-block;vertical-align:-2px;overflow:visible;flex:0 0 auto;}'
+      + '.hdlv2-ico path,.hdlv2-ico g,.hdlv2-ico circle{transform-box:fill-box;transform-origin:center;transition:transform .35s ease;}'
+      + '.hdlv2-ico-sparkles{width:13px;height:13px;color:#3d8da0;}'
+      + '.hdlv2-iris-card:hover .hdlv2-ico-sparkles .spark-m{transform:rotate(180deg);}'
+      + '.hdlv2-iris-card:hover .hdlv2-ico-sparkles .spark-t{transform:scale(1.18);}'
+      + '.hdlv2-iris-card:hover .hdlv2-ico-sparkles .spark-b{transform:scale(.82);}'
+      + '.hdlv2-ico-rosette{width:16px;height:16px;color:#10b981;}'
+      + '.hdlv2-iris-panel-eyebrow .hdlv2-ico-rosette{color:#5b48b8;}'
+      + '.hdlv2-iris-card:hover .hdlv2-ico-rosette .rosette-badge,.hdlv2-iris-consult:hover .hdlv2-ico-rosette .rosette-badge{transform:scale(1.12) rotate(6deg);}'
+      + '.hdlv2-ico-external .ext-arrow,.hdlv2-ico-external .ext-box{transition:transform .25s ease;}'
+      + '.hdlv2-iris-btn:hover .hdlv2-ico-external .ext-arrow,.hdlv2-iris-open:hover .hdlv2-ico-external .ext-arrow{transform:translate(2px,-2px) scale(1.1);}'
+      + '.hdlv2-iris-btn:hover .hdlv2-ico-external .ext-box,.hdlv2-iris-open:hover .hdlv2-ico-external .ext-box{transform:scale(.92);}'
+      + '.hdlv2-ico-gear{width:14px;height:14px;}'
+      + '.hdlv2-ico-gear .gear-rot{transition:transform .7s ease;}'
+      + '.hdlv2-iris-manage:hover .hdlv2-ico-gear .gear-rot{transform:rotate(180deg);}'
+      + '.hdlv2-ico-eye{width:100%;height:100%;color:#5b48b8;}'
+      + '.hdlv2-iris-launch:hover .hdlv2-ico-eye .eye-pupil{transform:scale(.7);}'
+      + '.hdlv2-iris-launch:hover .hdlv2-ico-eye .eye-shape{transform:scaleY(.88);}'
+      // ── Consultation-tab violet launch panel (mockup .pd-iris-panel / .pd-iris-launch) ──
+      + '.hdlv2-iris-consult{margin:0 0 20px;padding:0 0 18px;border-bottom:1px solid #ece9f8;}'
+      + '.hdlv2-iris-panel-eyebrow{display:inline-flex;align-items:center;gap:7px;font-size:11px;color:#5b48b8;font-weight:700;text-transform:uppercase;letter-spacing:.08em;margin:0 0 6px;}'
+      + '.hdlv2-iris-panel-title{font-family:Poppins,Inter,sans-serif;font-size:18px;font-weight:600;color:#111;margin:0 0 6px;letter-spacing:-.005em;}'
+      + '.hdlv2-iris-panel-headline{font-size:13px;color:#555;line-height:1.55;margin:0 0 18px;max-width:580px;}'
+      + '.hdlv2-iris-launch{display:flex;align-items:center;gap:18px;flex-wrap:wrap;background:#fff;border:1px solid #d9d2f5;border-radius:10px;padding:20px 22px;}'
+      + '.hdlv2-iris-launch-logo{flex:0 0 auto;display:flex;align-items:center;}'
+      + '.hdlv2-iris-launch-body{flex:1 1 240px;min-width:0;}'
+      + '.hdlv2-iris-launch-body h4{margin:0 0 4px;font-family:Inter,sans-serif;font-size:14px;font-weight:600;color:#111;}'
+      + '.hdlv2-iris-launch-body p{margin:0;font-size:13px;color:#555;line-height:1.55;}'
+      + '.hdlv2-iris-eyes{display:flex;gap:24px;margin:14px 0 0;}'
+      + '.hdlv2-iris-eyes .col{text-align:center;font-size:10px;color:#888;text-transform:uppercase;letter-spacing:.07em;font-weight:700;}'
+      + '.hdlv2-iris-eyes .eye{display:block;width:42px;height:42px;margin:0 auto 6px;}'
+      + '.hdlv2-iris-open{flex:0 0 auto;display:inline-flex;align-items:center;gap:8px;background:#2a1d63;color:#fff;border:none;border-radius:8px;font-family:Inter,sans-serif;font-size:13px;font-weight:600;padding:11px 18px;cursor:pointer;transition:background .15s,opacity .15s;}'
+      + '.hdlv2-iris-open:hover{background:#160f33;}'
+      + '.hdlv2-iris-open:disabled{opacity:.6;cursor:default;}'
+      + '.hdlv2-iris-open svg{width:15px;height:15px;}'
+      // ── Toast ──
+      + '.hdlv2-iris-toast{position:fixed;left:50%;bottom:28px;transform:translateX(-50%) translateY(12px);max-width:460px;background:#2c3e50;color:#fff;font-family:Inter,sans-serif;font-size:13px;line-height:1.45;padding:13px 18px;border-radius:10px;box-shadow:0 8px 30px rgba(0,0,0,.22);opacity:0;transition:opacity .3s,transform .3s;z-index:99999;}'
+      + '.hdlv2-iris-toast.show{opacity:1;transform:translateX(-50%) translateY(0);}'
+      // ── Responsive: stack the price/buy block under the copy on narrow widths ──
+      + '@media(max-width:640px){.hdlv2-iris-card{align-items:flex-start;}.hdlv2-iris-buy{align-items:stretch;text-align:left;width:100%;}.hdlv2-iris-buy .hdlv2-iris-btn{justify-content:center;}}';
+    var s = document.createElement('style');
+    s.id = 'hdlv2-iris-styles';
+    s.textContent = css;
+    document.head.appendChild(s);
+  }
+
+  function mountIrisCard() {
+    if (!CFG.iris_feature_enabled) return;   // Rule-0 — flag off ⇒ no trace
+    if (_irisMounted) return;
+    if (!state.table) return;
+    ensureIrisStyles();
+    var wrap = document.createElement('div');
+    wrap.className = 'hdlv2-iris-card';
+    wrap.setAttribute('role', 'region');
+    wrap.setAttribute('aria-label', 'Iris Analysis add-on');
+    // Mount above the table (below the action queue), same anchor strategy as
+    // mountActionQueueShell. Because both insertBefore the table wrapper and the
+    // action queue mounts first, this card lands between it and the roster.
+    var dash    = state.table.closest('.dashboard-container');
+    var tblWrap = state.table.closest('.clients-table-container') || state.table;
+    if (dash && tblWrap.parentNode === dash) {
+      dash.insertBefore(wrap, tblWrap);
+    } else {
+      tblWrap.parentNode.insertBefore(wrap, tblWrap);
+    }
+    _irisMounted = true;
+    state.irisCardEl = wrap;
+    renderIrisCard();
+    // Returning from a completed checkout → "setting up…" + poll immediately.
+    if (irisReturning()) {
+      irisCleanUrl();
+      renderIrisSettingUp(wrap);
+      irisPollStatus();
+    }
+  }
+
+  function renderIrisCard() {
+    var wrap = state.irisCardEl;
+    if (!wrap) return;
+    if (CFG.iris_entitled)        { renderIrisReady(wrap, false); return; }
+    if (irisAlreadySubscribed())  { renderIrisReady(wrap, true);  return; }
+    renderIrisUpsell(wrap);
+  }
+
+  function renderIrisUpsell(wrap) {
+    wrap.className = 'hdlv2-iris-card hdlv2-iris-upsell';
+    wrap.innerHTML = ''
+      + irisLogo()
+      + '<div class="hdlv2-iris-main">'
+      +   '<p class="hdlv2-iris-eyebrow">' + iconSparkles() + 'New add-on</p>'
+      +   '<h3 class="hdlv2-iris-title">Add Iris Analysis to your practice</h3>'
+      +   '<p class="hdlv2-iris-pitch">Capture a client’s iris photo and get an AI-assisted iridology report in minutes — powered by <strong>IrisMapper</strong>. We set up your full account automatically; it then appears on every client’s record below.</p>'
+      + '</div>'
+      + '<div class="hdlv2-iris-buy">'
+      +   '<p class="hdlv2-iris-price">£29<span>/mo</span></p>'
+      +   '<button type="button" class="hdlv2-iris-btn hdlv2-iris-btn--primary" data-role="add">Add it</button>'
+      +   '<p class="hdlv2-iris-fine">Cancel anytime</p>'
+      +   '<span class="hdlv2-iris-msg" data-role="msg" hidden></span>'
+      + '</div>';
+    wrap.querySelector('[data-role="add"]').addEventListener('click', irisCheckout);
+  }
+
+  function renderIrisReady(wrap, alreadySub) {
+    wrap.className = 'hdlv2-iris-card hdlv2-iris-ready';
+    var title = alreadySub ? 'You already have an IrisMapper subscription' : 'Iris Analysis is ready';
+    var pitch = alreadySub
+      ? 'Your IrisMapper subscription is active. Open it to capture iris photos and generate reports — or launch it from a client’s Consultation tab.'
+      : 'Your IrisMapper account is set up. Open it to capture iris photos and generate reports — or launch it from a client’s Consultation tab.';
+    var name = CFG.iris_practitioner_name || '';
+    var host = CFG.iris_app_host || 'irismapper.com';
+    var meta = '<p class="hdlv2-iris-meta">'
+      + (name ? 'Signed in as <strong>' + esc(name) + '</strong> &middot; ' : 'Opens at ')
+      + '<code>' + esc(host) + '/app</code></p>';
+    wrap.innerHTML = ''
+      + irisLogo()
+      + '<div class="hdlv2-iris-main">'
+      +   '<p class="hdlv2-iris-eyebrow hdlv2-iris-eyebrow--active">' + iconRosette() + 'Iris Analysis active</p>'
+      +   '<h3 class="hdlv2-iris-title">' + esc(title) + '</h3>'
+      +   '<p class="hdlv2-iris-pitch">' + pitch + '</p>'
+      +   meta
+      + '</div>'
+      + '<div class="hdlv2-iris-buy">'
+      +   '<button type="button" class="hdlv2-iris-btn hdlv2-iris-btn--primary" data-role="open">' + iconExternal() + '<span>Open Iris Analysis</span></button>'
+      +   '<button type="button" class="hdlv2-iris-manage" data-role="manage">' + iconGear() + '<span>Manage subscription</span></button>'
+      +   '<span class="hdlv2-iris-msg" data-role="msg" hidden></span>'
+      + '</div>';
+    wrap.querySelector('[data-role="open"]').addEventListener('click', function () { irisOpenApp(this); });
+    // Q6 — no billing-portal endpoint yet; interim "Manage subscription" =
+    // auto-login into /app (the IrisMapper account/billing page).
+    wrap.querySelector('[data-role="manage"]').addEventListener('click', function () { irisOpenApp(this); });
+  }
+
+  function renderIrisSettingUp(wrap, msg) {
+    wrap.className = 'hdlv2-iris-card hdlv2-iris-setup';
+    wrap.innerHTML = ''
+      + irisLogo()
+      + '<div class="hdlv2-iris-main">'
+      +   '<p class="hdlv2-iris-eyebrow">Setting up</p>'
+      +   '<h3 class="hdlv2-iris-title"><span class="hdlv2-iris-spin" aria-hidden="true"></span>Setting up your Iris Analysis…</h3>'
+      +   '<p class="hdlv2-iris-pitch" data-role="msg">' + esc(msg || 'This usually takes a few seconds.') + '</p>'
+      + '</div>';
+  }
+
+  function irisCheckout() {
+    var wrap = state.irisCardEl;
+    var btn  = wrap ? wrap.querySelector('[data-role="add"]') : null;
+    var msg  = wrap ? wrap.querySelector('[data-role="msg"]') : null;
+    if (msg) { msg.hidden = true; }
+    if (btn) { btn.disabled = true; btn.textContent = 'Starting…'; }
+    fetch(CFG.api_base + '/iris/checkout', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': CFG.nonce },
+      body: '{}'
+    }).then(function (r) { return r.ok ? r.json() : Promise.reject(); })
+      .then(function (res) {
+        if (res && res.url) { window.location.href = res.url; return; }
+        return Promise.reject();
+      })
+      .catch(function () {
+        if (btn) { btn.disabled = false; btn.textContent = 'Add it'; }
+        if (msg) { msg.hidden = false; msg.textContent = 'Couldn’t start checkout — please try again.'; }
+      });
+  }
+
+  function irisPollStatus() {
+    if (_irisPolling) return;
+    _irisPolling = true;
+    var tries = 0, MAX = 8;
+    // Not entitled before this poll began ⇒ this is a fresh purchase, so the
+    // buyer may be brand-new on IrisMapper → surface the "set your password"
+    // nudge once we see them provisioned.
+    var freshBuyer = !CFG.iris_entitled;
+    var timer = setInterval(function () {
+      tries++;
+      fetch(CFG.api_base + '/iris/status?fresh=1', {
+        credentials: 'same-origin',
+        headers: { 'X-WP-Nonce': CFG.nonce },
+        cache: 'no-store'
+      }).then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (res) {
+          if (res && res.entitled) {
+            clearInterval(timer); _irisPolling = false;
+            CFG.iris_entitled = true;   // newly-opened detail panels now get the Iris tab
+            if (state.irisCardEl) renderIrisReady(state.irisCardEl, false);
+            irisToast(freshBuyer
+              ? 'Your IrisMapper account is ready. Check your email to set your password — you can open Iris Analysis right now too.'
+              : 'Your IrisMapper account is ready.');
+            return;
+          }
+          if (tries >= MAX) {
+            clearInterval(timer); _irisPolling = false;
+            var wrap = state.irisCardEl;
+            var m = wrap ? wrap.querySelector('[data-role="msg"]') : null;
+            if (m) { m.textContent = 'Still setting up — refresh in a minute to open Iris Analysis.'; }
+          }
+        })
+        .catch(function () {
+          if (tries >= MAX) { clearInterval(timer); _irisPolling = false; }
+        });
+    }, 2500);
+  }
+
+  function irisOpenApp(btn) {
+    // Open the tab synchronously (inside the user gesture) so the auto-login
+    // POST that follows can't trip the popup blocker; we point it at the
+    // single-use loginUrl once the POST resolves. (noopener can't be used here
+    // because it makes window.open() return null, defeating the handle — the
+    // loginUrl is our own trusted IrisMapper origin.)
+    var tab = window.open('about:blank', '_blank');
+    if (btn) { btn.disabled = true; }
+    fetch(CFG.api_base + '/iris/login', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': CFG.nonce },
+      body: '{}'
+    }).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+      .then(function (out) {
+        if (btn) { btn.disabled = false; }
+        if (out.ok && out.j && out.j.loginUrl) {
+          if (tab) { tab.location = out.j.loginUrl; } else { window.open(out.j.loginUrl, '_blank'); }
+          return;
+        }
+        if (tab) { tab.close(); }
+        irisToast((out.j && out.j.message) ? out.j.message : 'Couldn’t open Iris Analysis — please try again.');
+      })
+      .catch(function () {
+        if (btn) { btn.disabled = false; }
+        if (tab) { tab.close(); }
+        irisToast('Couldn’t open Iris Analysis — please try again.');
+      });
+  }
+
+  // Iris launch section for the Consultation tab. Returns '' when the feature
+  // is off OR the practitioner is not entitled (Rule-0 — no iris trace). v1:
+  // opens the PRACTITIONER's IrisMapper workspace signed-in (no client context
+  // passed yet — embedded per-client capture is Phase 2). `c` is accepted for
+  // future use but deliberately unused for the launch call.
+  function irisConsultationHtml(c) {
+    if (!CFG.iris_feature_enabled || !CFG.iris_entitled) return ''; // Rule-0
+    // Phase 2 (embedded consult): when the second flag is on and the module is
+    // loaded, hand the iris section to it (upload/analyse/poll/result). Falls
+    // through to the v1 launch button when the Phase-2 flag is off.
+    if (CFG.iris_consult_enabled && window.HDLV2IrisConsult) {
+      return window.HDLV2IrisConsult.placeholderHtml(c);
+    }
+    return ''
+      + '<section class="hdlv2-iris-consult">'
+      +   '<p class="hdlv2-iris-panel-eyebrow">' + iconRosette() + 'Iris Analysis &middot; IrisMapper</p>'
+      +   '<h3 class="hdlv2-iris-panel-title">Iridology for this client</h3>'
+      +   '<p class="hdlv2-iris-panel-headline">Capture the client’s left and right iris photos and generate an AI-assisted iridology report. Opens in IrisMapper — your account is already linked, so there’s nothing to set up.</p>'
+      +   '<div class="hdlv2-iris-launch">'
+      +     '<span class="hdlv2-iris-launch-logo">' + irisLogo('launch') + '</span>'
+      +     '<div class="hdlv2-iris-launch-body">'
+      +       '<h4>Open this client in IrisMapper</h4>'
+      +       '<p>You’ll be signed straight in. Capture or upload iris photos, then the report saves to your IrisMapper library.</p>'
+      +       '<div class="hdlv2-iris-eyes">'
+      +         '<div class="col"><span class="eye">' + iconEye() + '</span>Left</div>'
+      +         '<div class="col"><span class="eye">' + iconEye() + '</span>Right</div>'
+      +       '</div>'
+      +     '</div>'
+      +     '<button type="button" class="hdlv2-iris-open" data-role="iris-open">' + iconExternal() + '<span>Open Iris Analysis</span></button>'
+      +   '</div>'
+      + '</section>';
+  }
+
+  // Bind the Consultation-tab iris launch button (if the section is present).
+  function bindIrisConsultOpen(target) {
+    // Phase 2: hand off to the embedded consult module (reads client/progress
+    // from the placeholder's data-* attributes; no-op if the flag is off).
+    if (CFG.iris_consult_enabled && window.HDLV2IrisConsult) {
+      window.HDLV2IrisConsult.mount(target);
+    }
+    var b = target.querySelector('[data-role="iris-open"]');
+    if (b) { b.addEventListener('click', function () { irisOpenApp(b); }); }
+  }
+
+  function irisToast(msg) {
+    ensureIrisStyles();
+    var t = document.createElement('div');
+    t.className = 'hdlv2-iris-toast';
+    t.setAttribute('role', 'status');
+    t.textContent = msg;
+    document.body.appendChild(t);
+    void t.offsetWidth; // force reflow so the transition runs
+    t.classList.add('show');
+    setTimeout(function () {
+      t.classList.remove('show');
+      setTimeout(function () { if (t.parentNode) t.parentNode.removeChild(t); }, 400);
+    }, 6000);
   }
 
   function todayLocal() {
@@ -1035,7 +1451,7 @@
     var dots = deriveJourneyState(c);
     var wrap = document.createElement('span');
     wrap.className = 'hdlv2-mini-stages';
-    wrap.title = 'Stage 1 · Stage 2 · Stage 3 · Consultation · Final · Flight Plan';
+    wrap.title = 'Stage 1 · Stage 2 · Stage 3 · Consultation · Final · Weekly Flight Plan';
     // Hash for reconcileRows() so idle polls don't re-render the strip.
     wrap.setAttribute('data-state-hash', (c.status || '') + '|' + (c.has_final_report ? '1' : '0'));
     var html = '';
@@ -1126,6 +1542,7 @@
       next.parentNode.removeChild(next);
       btn.setAttribute('aria-expanded', 'false');
       btn.classList.remove('open');
+      row.classList.remove('hdlv2-row-active');
       return;
     }
     var detail = document.createElement('tr');
@@ -1137,6 +1554,7 @@
     row.parentNode.insertBefore(detail, row.nextSibling);
     btn.setAttribute('aria-expanded', 'true');
     btn.classList.add('open');
+    row.classList.add('hdlv2-row-active');
   }
 
   // -- Flight Consultation Notes -- per-client download (Phase 4) --
@@ -1149,16 +1567,15 @@
       + '<path class="fn-ico-head" d="m7 10 5 5 5-5"></path>'
       + '</svg>';
   }
-  // Gated, labelled download button. Only shown once Stage 3 is complete
-  // (Matthew: the sheet generates once after Stage 3, for the consultation).
-  function flightNotesButtonHtml(c) {
-    if (deriveJourneyState(c)[2] !== 'done') return '';
-    return '<button type="button" class="hdlv2-fn-btn" title="Download this client\'s FLIGHT consultation notes (PDF)" aria-label="Download ' + esc(c.name) + ' flight consultation notes">'
-      + '<span class="hdlv2-fn-content">' + flightNotesIconSVG() + '<span class="hdlv2-fn-label">Flight Notes</span></span>'
-      + '<span class="hdlv2-fn-loading"><span class="hdlv2-fn-ring" aria-hidden="true"></span><span>Preparing\u2026</span></span>'
-      + '</button>';
+  // v0.46.50 — document glyph for the PDF download cards (Final tab Trajectory
+  // Plan + Stage-3 Draft Report). One source so the tabs can't drift.
+  function docIconSVG() {
+    return '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+      + '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>'
+      + '<polyline points="14 2 14 8 20 8"/>'
+      + '<line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>'
+      + '</svg>';
   }
-
   // v0.46.x — Flight Notes render now runs on the async job queue (so a ~30-90s
   // Claude+PDFMonkey render never holds a PHP worker). The click either gets an
   // instant cached URL, or a { queued, job_id } we poll until the render lands,
@@ -1176,7 +1593,11 @@
 
   function fnTriggerDownload(j) {
     var a = document.createElement('a');
-    a.href = j.pdf_url; a.rel = 'noopener';
+    // v0.46.52 — target=_blank so a cross-origin PDF served inline (where
+    // the download attribute is ignored) opens a new tab instead of
+    // navigating the practitioner dashboard away. Same contract as the
+    // static .hdlv2-dl-btn anchors; rel=noopener already set.
+    a.href = j.pdf_url; a.rel = 'noopener'; a.target = '_blank';
     if (j.filename) { a.download = j.filename; }
     document.body.appendChild(a); a.click(); a.remove();
   }
@@ -1264,11 +1685,10 @@
     // a single source of truth governs every visual stage indicator.
     var dots          = deriveJourneyState(c);
     var headPill      = '<span class="hdlv2-detail-status-pill" style="color:' + (c.color || '#94a3b8') + ';background:' + hexToRgba(c.color || '#94a3b8', 0.12) + ';border:1px solid ' + hexToRgba(c.color || '#94a3b8', 0.35) + ';">' + esc(c.label || c.status || '') + '</span>';
-    var journeyRibbon = renderJourneyRibbon(dots);
     var snapshotShell = renderSnapshotShell();
 
     panel.innerHTML = [
-      // Head — name, email, status pill, 6-step journey ribbon on one line.
+      // Head — name, email, status pill, Flight Notes button on one line.
       '<div class="hdlv2-detail-head">',
       '<div class="hdlv2-detail-head-id">',
       '<strong>' + esc(c.name) + '</strong>',
@@ -1276,8 +1696,6 @@
       '</div>',
       '<div class="hdlv2-detail-head-meta">',
       headPill,
-      journeyRibbon,
-      flightNotesButtonHtml(c),
       '</div>',
       '</div>',
       actionBanner,
@@ -1289,15 +1707,20 @@
       // v0.41.19 — each tab carries a tiny status dot (done/active/pending)
       // so the journey is readable without clicking.
       '<nav class="hdlv2-detail-tabs" role="tablist">',
-      tabHtml('progress',     'Progress',      'active'),
+      tabHtml('progress',     'Progress',      ''),
       '<span class="hdlv2-detail-tab-sep" aria-hidden="true"></span>',
       tabHtml('stage1',       'Stage 1',       dots[0]),
       tabHtml('stage2',       'Stage 2',       dots[1]),
       tabHtml('stage3',       'Stage 3',       dots[2]),
       '<span class="hdlv2-detail-tab-sep" aria-hidden="true"></span>',
+      // B10 — Flight Notes is a journey tab BEFORE Consultation (was a head
+      // button). v0.46.48 — its dot mirrors the Stage-3 gate that
+      // loadFlightNotes + GET /flight-notes/pdf already enforce: teal check
+      // once Stage 3 is done (notes available), empty pending circle before.
+      tabHtml('flight-notes', 'Flight Notes',  dots[2] === 'done' ? 'done' : 'pending'),
       tabHtml('consultation', 'Consultation',  dots[3]),
       tabHtml('final',        'Final',         dots[4]),
-      tabHtml('flight-plan',  'Flight Plan',   dots[5]),
+      tabHtml('flight-plan',  'Weekly Flight Plan',   dots[5]),
       '</nav>',
       '<div class="hdlv2-detail-content" data-tab-content></div>',
     ].join('');
@@ -1321,11 +1744,6 @@
       releaseBtn.addEventListener('click', function () { releaseWhy(c, releaseBtn, panel); });
     }
 
-    var fnBtn = panel.querySelector('.hdlv2-fn-btn');
-    if (fnBtn) {
-      fnBtn.addEventListener('click', function () { downloadFlightNotes(c, fnBtn); });
-    }
-
     // v0.24.0 — default landing tab is Progress (was Flight Plan).
     loadTab('progress', c, content);
     // v0.41.19 — fire-and-forget snapshot hydration. Both fetches are cached
@@ -1339,34 +1757,26 @@
   // of 'active' (current selected tab), 'done', 'pending' (journey state), or
   // 'active-stage' (the workflow's current step — amber pulse).
   function tabHtml(tabKey, label, journeyState) {
+    // B-series — per-tab status indicator is now the SINGLE progress display
+    // (the head journey ribbon was removed). State comes from deriveJourneyState
+    // → c.status → calculate_status. Icon + aria-label, never colour alone:
+    // ✓ done · ● current step · empty pending. The Progress analytics tab
+    // passes '' and carries no status glyph.
     var dotClass = 'hdlv2-tab-dot';
-    if (journeyState === 'done')   dotClass += ' done';
-    if (journeyState === 'active') dotClass += ' active-stage';
-    // The 'active' value for the Progress tab is the journeyState arg from
-    // buildDetailPanel — translate to the 'current' selection class via the
-    // outer code that runs after innerHTML. Keep dot class for visual hint.
-    return '<button type="button" class="hdlv2-detail-tab" data-tab="' + tabKey + '">'
-      + '<span class="' + dotClass + '" aria-hidden="true"></span>'
+    var glyph = '', statusWord = '';
+    // v0.46.48 — inline SVGs replace the text glyphs &#10003;/&#9679;:
+    // font-dependent metrics drew them slightly off optical centre at 9px.
+    var svgCheck = '<svg viewBox="0 0 10 10" width="8" height="8" focusable="false" aria-hidden="true"><path d="M1.6 5.4l2.2 2.3 4.6-5.2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+    var svgDot   = '<svg viewBox="0 0 10 10" width="6" height="6" focusable="false" aria-hidden="true"><circle cx="5" cy="5" r="4" fill="currentColor"/></svg>';
+    if (journeyState === 'done')         { dotClass += ' done';         glyph = svgCheck; statusWord = 'done'; }
+    else if (journeyState === 'active')  { dotClass += ' active-stage'; glyph = svgDot;   statusWord = 'current step'; }
+    else if (journeyState === 'pending') { statusWord = 'pending'; }
+    var aria = statusWord ? esc(label + ', ' + statusWord) : esc(label);
+    var dot  = statusWord ? '<span class="' + dotClass + '" aria-hidden="true">' + glyph + '</span>' : '';
+    return '<button type="button" class="hdlv2-detail-tab" data-tab="' + tabKey + '" title="' + aria + '" aria-label="' + aria + '">'
+      + dot
       + esc(label)
       + '</button>';
-  }
-
-  function renderJourneyRibbon(dots) {
-    var labels = ['Stage 1', 'Stage 2', 'Stage 3', 'Consult', 'Final', 'Flight Plan'];
-    var parts  = ['<div class="hdlv2-detail-journey" aria-label="Client journey">'];
-    for (var i = 0; i < dots.length; i++) {
-      if (i > 0) parts.push('<span class="hdlv2-detail-journey-sep" aria-hidden="true"></span>');
-      var state = dots[i];
-      var mark  = state === 'done' ? '&#10003;' : (state === 'active' ? '&#9679;' : '');
-      parts.push(
-        '<span class="hdlv2-detail-journey-item state-' + state + '">'
-          + '<span class="hdlv2-detail-journey-mark" aria-hidden="true">' + mark + '</span>'
-          + esc(labels[i])
-        + '</span>'
-      );
-    }
-    parts.push('</div>');
-    return parts.join('');
   }
 
   // v0.42.2 — Red-flag banner for the client detail panel. Rendered from
@@ -1606,6 +2016,7 @@
     if (tab === 'stage1')        return loadStage1(c, target);
     if (tab === 'stage2')        return loadStage2(c, target);
     if (tab === 'stage3')        return loadStage3(c, target);
+    if (tab === 'flight-notes')  return loadFlightNotes(c, target);
     if (tab === 'consultation')  return loadConsultation(c, target);
     if (tab === 'final')         return loadFinal(c, target);
     if (tab === 'flight-plan')   return loadFlightPlan(c, target);
@@ -1658,15 +2069,16 @@
         +   '<div class="hdlv2-st-stat"><strong>' + esc(capSex) + '</strong><span>Sex</span></div>'
         + '</div>';
 
-      // v0.41.23 — per-row score pill mirroring Stage 3 (1-2 red, 3 amber,
-      // 4-5 green) so the practitioner sees the score the client earned
-      // on each answer without leaving the panel.
-      function s1Pill(n) {
+      // v0.41.23 pills → v0.46.52 — Stage-1 rows now match Stage 3: the
+      // answer text IS the data, coloured by the same severity bands the
+      // old "N/5" pill used (≥4 green · 3 amber · ≤2 red), no numeric code.
+      // A row whose score is missing/invalid renders plain #111 — the
+      // panel never invents a severity.
+      function s1Sev(n) {
         if (n == null) return '';
         var v = parseInt(n, 10);
         if (isNaN(v) || v < 1 || v > 5) return '';
-        var cls = v >= 4 ? 'high' : (v === 3 ? 'mid' : 'low');
-        return ' <span class="hdlv2-score-pill ' + cls + '">' + v + '<span class="hdlv2-score-pill-max">/5</span></span>';
+        return v >= 4 ? 'high' : (v === 3 ? 'mid' : 'low');
       }
 
       var rows = [];
@@ -1696,7 +2108,8 @@
         ? '<div class="hdlv2-fp-block-label">9-question answers</div>'
           + '<ul class="hdlv2-st-list">'
           + rows.map(function (r) {
-              return '<li><span>' + esc(r[0]) + '</span><span>' + esc(r[1]) + s1Pill(r[2]) + '</span></li>';
+              var sev = s1Sev(r[2]);
+              return '<li><span>' + esc(r[0]) + '</span><span' + (sev ? ' class="sev-' + sev + '"' : '') + '>' + esc(r[1]) + '</span></li>';
             }).join('')
           + '</ul>'
         : '';
@@ -1709,7 +2122,7 @@
         : '<div class="hdlv2-st-gauge-card"><div class="hdlv2-detail-empty">Gauge image unavailable.</div></div>';
 
       target.innerHTML = '<div class="hdlv2-st-card">'
-        + '<div class="hdlv2-st-meta">Stage 1 &middot; Quick insight &middot; Completed ' + esc(formatDate(s1.completed_at)) + '</div>'
+        + '<div class="hdlv2-st-meta">Quick insight &middot; Completed ' + esc(formatDate(s1.completed_at)) + '</div>'
         + '<div class="hdlv2-s1-grid">'
         +   '<div>' + leftStats + leftList + '</div>'
         +   '<div>' + rightGauge + '</div>'
@@ -1730,61 +2143,47 @@
         return;
       }
 
-      // v0.41.19 — hero WHY quote → 3-col profile (Key People / Motivations /
-      // Fears) → vision card full-width. Same data as before, organised by
-      // category instead of stacked single-column lists.
+      // B4 — trimmed Stage-2 panel: show only the two short WHY summaries
+      // (distilled_why + ai_reformulation, both already AI-generated → no new
+      // AI call). The structured detail (key people / motivations / fears /
+      // vision) now lives in the WHY PDF + the consultation page.
       var releaseTag = s2.released
         ? ' &middot; <span style="color:#047857;font-weight:600">released</span>'
         : ' &middot; <span style="color:#d97706;font-weight:600">awaiting WHY release</span>';
-
-      // Normalisers — items can be plain strings or shaped {name|label|text|relationship}.
-      function normItem(it) {
-        if (!it) return '';
-        if (typeof it === 'string') return it;
-        return it.name || it.label || it.text || it.relationship || '';
-      }
-      function listOf(arr) {
-        return Array.isArray(arr)
-          ? arr.map(normItem).filter(function (v) { return v; })
-          : [];
-      }
-      var people = listOf(s2.key_people);
-      var motiv  = listOf(s2.motivations);
-      var fears  = listOf(s2.fears);
-
-      function whyCard(title, items, iconSvg, emptyMsg) {
-        var body = items.length
-          ? '<ul>' + items.map(function (x) { return '<li>' + esc(x) + '</li>'; }).join('') + '</ul>'
-          : '<div class="hdlv2-why-card-empty">' + esc(emptyMsg) + '</div>';
-        return '<div class="hdlv2-why-card">'
-          + '<h4>' + iconSvg + '<span>' + esc(title) + '</span></h4>'
-          + body
-          + '</div>';
-      }
-
-      var iconPeople = '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>';
-      var iconMotiv  = '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15 8 22 9 17 14 18 21 12 18 6 21 7 14 2 9 9 8 12 2"/></svg>';
-      var iconFears  = '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>';
 
       var hero = s2.distilled_why
         ? '<div class="hdlv2-why-hero">&ldquo;' + esc(s2.distilled_why) + '&rdquo;</div>'
         : '<div class="hdlv2-detail-empty">No distilled WHY recorded.</div>';
 
-      var grid = '<div class="hdlv2-why-grid">'
-        + whyCard('Key people',  people, iconPeople, 'No key people noted')
-        + whyCard('Motivations', motiv,  iconMotiv,  'No motivations noted')
-        + whyCard('Fears',       fears,  iconFears,  'No fears noted')
-        + '</div>';
-
-      var vision = s2.vision_text
-        ? '<div class="hdlv2-vision-card"><div class="hdlv2-vision-card-label">Vision &middot; free-text</div>' + esc(s2.vision_text) + '</div>'
+      var reform = s2.ai_reformulation
+        ? '<div class="hdlv2-vision-card"><div class="hdlv2-vision-card-label">WHY &middot; summary</div>' + esc(s2.ai_reformulation) + '</div>'
         : '';
 
+      // Working link, never a dead button: the real WHY PDF once the D-2
+      // callback has stored one — v0.46.51, presented as the same document
+      // card as the Stage-3/Final tabs so every tab's PDF action reads
+      // identically. Otherwise a link to the consultation page (the
+      // on-screen surface that shows the full WHY detail).
+      var detailLink = s2.pdf_url
+        ? '<div class="hdlv2-dl-doc hdlv2-dl-doc--stack">'
+          +   '<div class="hdlv2-dl-doc-ico">' + docIconSVG() + '</div>'
+          +   '<div class="hdlv2-dl-doc-body">'
+          +     '<span class="hdlv2-dl-doc-title">WHY Profile</span>'
+          +     '<span class="hdlv2-dl-doc-meta">Stage-2 WHY &middot; practitioner copy &mdash; not sent to the client</span>'
+          +   '</div>'
+          +   '<a class="hdlv2-dl-btn" href="' + esc(s2.pdf_url) + '" target="_blank" rel="noopener" download>' + flightNotesIconSVG() + '<span>Download PDF</span></a>'
+          + '</div>'
+        : (CFG.consultation_url
+            // v0.46.52 — same destination as the Consultation tab's links, so
+            // same convention: new tab + "↗" + title (was same-tab "→").
+            ? '<a class="hdlv2-detail-deeplink" href="' + esc(CFG.consultation_url + '?progress_id=' + c.progress_id) + '" target="_blank" rel="noopener" title="Opens in a new tab">View full WHY in consultation &#8599;</a>'
+            : '');
+
       target.innerHTML = '<div class="hdlv2-st-card">'
-        + '<div class="hdlv2-st-meta">Stage 2 &middot; WHY profile &middot; Completed ' + esc(formatDate(s2.completed_at)) + releaseTag + '</div>'
+        + '<div class="hdlv2-st-meta">WHY profile &middot; Completed ' + esc(formatDate(s2.completed_at)) + releaseTag + '</div>'
         + hero
-        + grid
-        + vision
+        + reform
+        + detailLink
         + '</div>';
     });
   }
@@ -1801,12 +2200,13 @@
         return;
       }
 
-      // v0.41.19 — top stat strip, 2-col body composition, scores grouped
-      // into 4 functional categories (Activity & Body / Sleep, Stress &
-      // Social / Diet & Lifestyle / Vitals), then Section 6 Health
+      // B5 — top stat strip, then the six row-data groups (2 body lists +
+      // 4 score categories: Activity & Body / Sleep, Stress & Social /
+      // Diet & Lifestyle / Vitals) packed into a 4-column grid so the
+      // panel fits a laptop without scrolling (2-col tablet, 1-col
+      // mobile, never horizontal scroll). Then Section 6 Health
       // Background block (v0.38.0 — family_history, medications,
-      // existing_conditions — surfaced via /dashboard/client-record now
-      // that the backend exposes those three keys).
+      // existing_conditions — surfaced via /dashboard/client-record).
       var topStats = '<div class="hdlv2-s3-stats">'
         +   '<div class="hdlv2-st-stat"><strong>' + esc(s3.rate    != null ? s3.rate    + '×' : '—') + '</strong><span>Rate of ageing</span></div>'
         +   '<div class="hdlv2-st-stat"><strong>' + esc(s3.bio_age != null ? s3.bio_age      : '—') + '</strong><span>Biological age</span></div>'
@@ -1823,16 +2223,31 @@
       if (s3.bp_systolic && s3.bp_diastolic) bodyRight.push(['Blood pressure', s3.bp_systolic + '/' + s3.bp_diastolic + ' mmHg']);
       if (s3.resting_hr != null) bodyRight.push(['Resting heart rate', s3.resting_hr + ' bpm']);
 
-      function kvList(rows) {
+      // Raw-measurement group — same card shape as scoreGroup() so all six
+      // groups read uniformly in the grid; values are plain (no /5 pill).
+      function kvGroup(title, rows) {
         if (!rows.length) return '';
-        return '<ul class="hdlv2-st-list">'
-          + rows.map(function (r) { return '<li><span>' + esc(r[0]) + '</span><span>' + esc(r[1]) + '</span></li>'; }).join('')
-          + '</ul>';
+        return '<div class="hdlv2-score-group">'
+          + '<h4>' + esc(title) + '</h4>'
+          + rows.map(function (r) {
+              return '<div class="hdlv2-score-row"><span>' + esc(r[0]) + '</span><span class="hdlv2-score-val">' + esc(r[1]) + '</span></div>';
+            }).join('')
+          + '</div>';
       }
-      var bodyBlock = (bodyLeft.length || bodyRight.length)
-        ? '<div class="hdlv2-fp-block-label">Body composition &amp; vitals</div>'
-          + '<div class="hdlv2-s3-body">' + kvList(bodyLeft) + kvList(bodyRight) + '</div>'
-        : '';
+      // Pack groups into explicit column wrappers. A group that sits BELOW
+      // another in the same column (the 6-groups-into-4-columns overflow)
+      // gets .is-stacked → bold heading so the boundary is unmistakable.
+      function packCols(colDefs) {
+        return colDefs.map(function (groups) {
+          var present = groups.filter(Boolean);
+          if (!present.length) return '';
+          return '<div class="hdlv2-s3-col">'
+            + present.map(function (g, i) {
+                return i === 0 ? g : g.replace('"hdlv2-score-group"', '"hdlv2-score-group is-stacked"');
+              }).join('')
+            + '</div>';
+        }).filter(Boolean).join('');
+      }
 
       // Score groups — pulled from server scores map. Each group renders
       // only the rows whose score is present, so older clients (pre-v0.38)
@@ -1846,11 +2261,23 @@
       //   5/5 green · 4/5 green · 3/5 amber · 2/5 red · 1/5 red.
       // Display includes the "/5" suffix so the scale is explicit —
       // matches the Final PDF, Claude prompts, and AI service convention.
-      function sevPill(n) {
+      function sevCls(n) {
         var v = Math.round(n);
-        var cls = v >= 4 ? 'high' : (v === 3 ? 'mid' : 'low');
-        return '<span class="hdlv2-score-pill ' + cls + '">' + v + '<span class="hdlv2-score-pill-max">/5</span></span>';
+        return v >= 4 ? 'high' : (v === 3 ? 'mid' : 'low');
       }
+      function sevPill(n) {
+        return '<span class="hdlv2-score-pill ' + sevCls(n) + '">' + Math.round(n) + '<span class="hdlv2-score-pill-max">/5</span></span>';
+      }
+      // v0.46.50 — derived metrics (BMI/WHR/WHtR/BP/HR scores) have no chosen
+      // answer; their row shows the client's real measured value instead, so
+      // every row reads as actual data, never an abstract code.
+      var derivedVals = {
+        bmiScore:           s3.bmi  != null ? String(s3.bmi)  : '',
+        whrScore:           s3.whr  != null ? String(s3.whr)  : '',
+        whtrScore:          s3.whtr != null ? String(s3.whtr) : '',
+        bloodPressureScore: (s3.bp_systolic && s3.bp_diastolic) ? s3.bp_systolic + '/' + s3.bp_diastolic : '',
+        heartRateScore:     s3.resting_hr != null ? s3.resting_hr + ' bpm' : ''
+      };
       function scoreGroup(title, pairs) {
         var rows = [];
         if (s3.scores && typeof s3.scores === 'object') {
@@ -1859,7 +2286,21 @@
             if (v == null) return;
             var n = parseFloat(v);
             if (isNaN(n)) return;
-            rows.push('<div class="hdlv2-score-row"><span>' + esc(pair[1]) + '</span>' + sevPill(n) + '</div>');
+            // v0.46.50 — the row's data IS the client's actual answer (server
+            // `score_words`, resolved through the shared s3_label/S3_OPTIONS
+            // map), coloured by the same severity bands the old pill used
+            // (≥4 green · 3 amber · ≤2 red — Final Report key, class-hdlv2-
+            // final-report.php:1227) so good/bad reads at a glance with no
+            // 0-5 code in sight (Quim 2026-06-11: "show the text and don't
+            // show the value"). Derived metrics show the measured value via
+            // derivedVals. A legacy/skipped row with neither falls back to
+            // the numeric pill rather than rendering empty.
+            var word = (s3.score_words && s3.score_words[pair[0]]) || derivedVals[pair[0]] || '';
+            rows.push('<div class="hdlv2-score-row"><span>' + esc(pair[1]) + '</span>'
+              + (word
+                  ? '<span class="hdlv2-score-answer sev-' + sevCls(n) + '">' + esc(word) + '</span>'
+                  : sevPill(n))
+              + '</div>');
           });
         }
         if (!rows.length) return '';
@@ -1868,8 +2309,13 @@
           + rows.join('')
           + '</div>';
       }
-      var scoreGroups = ''
-        + scoreGroup('Activity & body', [
+      // B5 — six groups → 4 height-balanced columns. Body first (reading
+      // order preserved); the two short groups (Ratios & vitals, Vitals)
+      // stack at the bottom of cols 1 and 3 with bold headings.
+      var cols = packCols([
+        [ kvGroup('Body measurements', bodyLeft),
+          kvGroup('Ratios & vitals',   bodyRight) ],
+        [ scoreGroup('Activity & body', [
             ['physicalActivity',   'Physical activity'],
             ['sitToStand',         'Sit-to-stand'],
             ['breathHold',         'Breath hold'],
@@ -1878,30 +2324,31 @@
             ['bmiScore',           'BMI'],
             ['whrScore',           'WHR'],
             ['whtrScore',          'WHtR'],
-          ])
-        + scoreGroup('Sleep, stress & social', [
+          ]) ],
+        [ scoreGroup('Sleep, stress & social', [
             ['sleepDuration',      'Sleep duration'],
             ['sleepQuality',       'Sleep quality'],
             ['stressLevels',       'Stress levels'],
             ['socialConnections',  'Social connections'],
             ['cognitiveActivity',  'Cognitive activity'],
-          ])
-        + scoreGroup('Diet & lifestyle', [
+          ]),
+          scoreGroup('Vitals', [
+            ['bloodPressureScore', 'Blood pressure'],
+            ['heartRateScore',     'Heart rate'],
+          ]) ],
+        [ scoreGroup('Diet & lifestyle', [
             ['dietQuality',        'Diet quality'],
             ['alcoholConsumption', 'Alcohol'],
             ['smokingStatus',      'Smoking'],
             ['sunlightExposure',   'Sunlight'],
             ['supplementIntake',   'Supplements'],
             ['dailyHydration',     'Hydration'],
-          ])
-        + scoreGroup('Vitals', [
-            ['bloodPressureScore', 'Blood pressure'],
-            ['heartRateScore',     'Heart rate'],
-          ]);
+          ]) ],
+      ]);
 
-      var scoresBlock = scoreGroups
-        ? '<div class="hdlv2-fp-block-label">21-metric score breakdown &middot; grouped</div>'
-          + '<div class="hdlv2-score-groups">' + scoreGroups + '</div>'
+      var gridBlock = cols
+        ? '<div class="hdlv2-fp-block-label">Body composition, vitals &amp; 21-metric scores &middot; grouped</div>'
+          + '<div class="hdlv2-s3-grid">' + cols + '</div>'
         : '';
 
       // Section 6 — Health Background (v0.38.0). Three optional free-text
@@ -1932,12 +2379,27 @@
           + '</div>'
         : '';
 
+      // D-2 — draft-report PDF download (the post-Stage-3 draft, same file
+      // emailed to the client). Renders only when the callback has stored one
+      // (honest pointer — no dead button). v0.46.50 — presented as the same
+      // document card the Final tab uses, so the action sits inside the panel
+      // layout instead of floating under the grid as a bare ghost pill.
+      var draftPdf = s3.pdf_url
+        ? '<div class="hdlv2-dl-doc hdlv2-dl-doc--stack">'
+          +   '<div class="hdlv2-dl-doc-ico">' + docIconSVG() + '</div>'
+          +   '<div class="hdlv2-dl-doc-body">'
+          +     '<span class="hdlv2-dl-doc-title">Draft Report</span>'
+          +     '<span class="hdlv2-dl-doc-meta">Post-Stage-3 draft &middot; the same PDF emailed to the client</span>'
+          +   '</div>'
+          +   '<a class="hdlv2-dl-btn" href="' + esc(s3.pdf_url) + '" target="_blank" rel="noopener" download>' + flightNotesIconSVG() + '<span>Download PDF</span></a>'
+          + '</div>'
+        : '';
       target.innerHTML = '<div class="hdlv2-st-card">'
-        + '<div class="hdlv2-st-meta">Stage 3 &middot; Full detail &middot; 22 measurements across 5 sections &middot; Completed ' + esc(formatDate(s3.completed_at)) + '</div>'
+        + '<div class="hdlv2-st-meta">Full detail &middot; 21 measurements across 5 sections &middot; Completed ' + esc(formatDate(s3.completed_at)) + '</div>'
         + topStats
-        + bodyBlock
-        + scoresBlock
+        + gridBlock
         + hbBlock
+        + draftPdf
         + '</div>';
     });
   }
@@ -1955,17 +2417,116 @@
           + '</div>';
         return;
       }
+      // v0.46.31 (A4, UI-only) — the Final tab offers the PDF, not the on-screen
+      // report. Matthew clicked "Final" expecting a PDF and got the cached
+      // on-screen report (the old `f.view_url` deep-link below), which confused
+      // him. We drop that deep-link and the verbose blurb. "Download PDF" renders
+      // ONLY when a real PDF URL exists. Today `reports.pdf_url` is never written
+      // (no report-PDF callback exists — only the Flight Plan has one), so
+      // `f.pdf_url` is absent and we show a short honest pointer instead of a
+      // dead button (decision D-2 = (b)). If/when a Make→WP report-PDF callback
+      // is added (D-2 = (a)), the server simply includes `pdf_url` in the
+      // /dashboard/client-record `final` payload and this button lights up with
+      // no further change here.
+      // v0.46.49 — present the report as a document card (Poppins title +
+      // meta + primary teal download action) instead of a bare ghost link
+      // that read unfinished. The honest-pointer rule is unchanged: the
+      // button renders ONLY when a real PDF exists (D-2(b)); otherwise the
+      // card carries the emailed-PDF pointer with no dead button.
       var html = '<div class="hdlv2-st-card">'
-        + '<div class="hdlv2-st-meta">Generated ' + esc(formatDate(f.generated_at)) + '</div>'
-        + '<p style="margin:0 0 12px;font-size:13px;color:#444;line-height:1.55;">'
-        + 'The final report has been generated and emailed to ' + esc(c.name || 'the client') + ' and to you. The PDF includes cover &amp; pace, trajectory &amp; body composition, health profile, score breakdown, why &amp; milestones, and your plan.'
-        + '</p>';
-      if (f.view_url) {
-        html += '<a class="hdlv2-detail-deeplink" href="' + esc(f.view_url) + '" target="_blank" rel="noopener">View final report →</a>';
-      }
-      html += '</div>';
+        + '<div class="hdlv2-dl-doc">'
+        +   '<div class="hdlv2-dl-doc-ico">' + docIconSVG() + '</div>'
+        +   '<div class="hdlv2-dl-doc-body">'
+        +     '<span class="hdlv2-dl-doc-title">Trajectory Plan</span>'
+        +     '<span class="hdlv2-dl-doc-meta">Final client report &middot; Generated ' + esc(formatDate(f.generated_at)) + '</span>'
+        +     (f.pdf_url ? '' : '<span class="hdlv2-dl-doc-meta">The PDF has been emailed to ' + esc(c.name || 'the client') + ' and to you.</span>')
+        +   '</div>'
+        +   (f.pdf_url
+              ? '<a class="hdlv2-dl-btn" href="' + esc(f.pdf_url) + '" target="_blank" rel="noopener" download>' + flightNotesIconSVG() + '<span>Download PDF</span></a>'
+              : '')
+        + '</div>'
+        + '</div>';
       target.innerHTML = html;
     });
+  }
+
+  // B10+B11 — Flight Notes journey tab (replaces the old head button). The
+  // button re-uses downloadFlightNotes() → GET /flight-notes/pdf: instant
+  // cached PDFMonkey URL on a transient hit (md5 of payload + AI inputs),
+  // job + poll only on a genuine data change. No new generation logic, no
+  // new Claude path. fnPollJob stops cleanly if the tab is switched away
+  // mid-poll (btn.isConnected).
+  function loadFlightNotes(c, target) {
+    if (deriveJourneyState(c)[2] !== 'done') {
+      target.innerHTML = '<div class="hdlv2-detail-empty">Flight Notes are prepared once Stage 3 is complete.</div>';
+      return;
+    }
+    // B11.1 → v0.46.51 — same document card as the Stage-2/3/Final download
+    // surfaces (icon tile + title + meta + solid teal action) so every tab's
+    // PDF action reads identically. The button keeps the .hdlv2-fn-btn
+    // loading machinery (content/spinner swap + downloadFlightNotes wiring);
+    // --solid restyles it to match the cards' primary download button.
+    target.innerHTML = '<div class="hdlv2-st-card">'
+      + '<div class="hdlv2-dl-doc">'
+      +   '<div class="hdlv2-dl-doc-ico">' + docIconSVG() + '</div>'
+      +   '<div class="hdlv2-dl-doc-body">'
+      +     '<span class="hdlv2-dl-doc-title">Flight Consultation Notes</span>'
+      +     '<span class="hdlv2-dl-doc-meta">5-page print aid for your consultation &middot; re-uses the prepared PDF, regenerates only if the client&rsquo;s data changed</span>'
+      +   '</div>'
+      +   '<button type="button" class="hdlv2-fn-btn hdlv2-fn-btn--solid" title="Download this client\'s FLIGHT consultation notes (PDF)" aria-label="Download ' + esc(c.name) + ' flight consultation notes">'
+      +     '<span class="hdlv2-fn-content">' + flightNotesIconSVG() + '<span class="hdlv2-fn-label">Download PDF</span></span>'
+      +     '<span class="hdlv2-fn-loading"><span class="hdlv2-fn-ring" aria-hidden="true"></span><span>Preparing&hellip;</span></span>'
+      +   '</button>'
+      + '</div>'
+      + '</div>';
+    var btn = target.querySelector('.hdlv2-fn-btn');
+    if (btn) {
+      btn.addEventListener('click', function () { downloadFlightNotes(c, btn); });
+    }
+  }
+
+  // v0.46.59 — WFP-tab head card. The stacked-textarea editor panel is
+  // GONE (editor v2 lives inline on the grid — hdlv2-flight-plan.js
+  // editable mode). "Edit plan" toggles the renderer's pencils/+ on and
+  // off via the mount instance. Download pill = the single download
+  // affordance on this tab (the renderer's own control is suppressed).
+  function renderFlightPlanToolbar(c, bar, getInstance) {
+    fetch(CFG.api_base + '/flight-plan/' + c.user_id + '/preview', {
+      credentials: 'same-origin',
+      headers: { 'X-WP-Nonce': CFG.nonce }
+    }).then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (res) {
+        var plan = res && res.plan;
+        if (!plan) return;
+        bar.innerHTML = '<div class="hdlv2-st-card"><div class="hdlv2-dl-doc">'
+          + '<div class="hdlv2-dl-doc-ico">' + docIconSVG() + '</div>'
+          + '<div class="hdlv2-dl-doc-body">'
+          +   '<span class="hdlv2-dl-doc-title">Weekly Flight Plan &middot; Week ' + esc(String(plan.week_number || '')) + '</span>'
+          +   '<span class="hdlv2-dl-doc-meta">' + esc(formatDate(plan.week_start)) + ' &ndash; ' + esc(formatDate(plan.date_range_end)) + ' &middot; edits update the client\u2019s view and regenerate the PDF (no email)</span>'
+          + '</div>'
+          + (plan.pdf_url
+              ? '<a class="hdlv2-dl-btn" href="' + esc(plan.pdf_url) + '" target="_blank" rel="noopener" download>' + itshoverDownloadSVG() + '<span>Download PDF</span></a>'
+              : '<span class="hdlv2-dl-doc-meta">PDF preparing\u2026 it appears here after the next render.</span>')
+          + '<button type="button" class="hdlv2-dl-btn hdlv2-fpe-toggle" aria-pressed="false">Edit plan</button>'
+          + '</div></div>';
+        var toggle = bar.querySelector('.hdlv2-fpe-toggle');
+        toggle.addEventListener('click', function () {
+          var inst = getInstance();
+          if (!inst) return;
+          var on = inst.setEditMode(!inst.isEditMode());
+          toggle.setAttribute('aria-pressed', on ? 'true' : 'false');
+          toggle.textContent = on ? 'Done editing' : 'Edit plan';
+          toggle.classList.toggle('is-on', on);
+        });
+      })
+      .catch(function () { /* toolbar is best-effort; the renderer still mounts */ });
+  }
+
+  // v0.46.59 — itshover download-icon geometry (1:1; CSS-approximated motion).
+  function itshoverDownloadSVG() {
+    return '<svg class="hdlv2-iho-dl" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+      + '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>'
+      + '<g class="hdlv2-iho-dl-arrow"><path d="M12 15V3"/><path d="m7 10 5 5 5-5"/></g></svg>';
   }
 
   function loadFlightPlan(c, target) {
@@ -1980,17 +2541,33 @@
       return;
     }
     target.innerHTML = '';
+    target.classList.add('hdlv2-wfp-dash'); // v0.46.59 — B-series reskin scope
+
+    // v0.46.59 — head card above the shared renderer; inline editor v2
+    // (pencils + per-band "+") lives IN the grid via editable_controls.
+    // suppress_download: the head-card pill is this tab's single download
+    // affordance. Same additive-revision / live-client / direct-re-render
+    // semantics; zero emails on any edit path by construction.
+    var fpeBar = document.createElement('div');
+    target.appendChild(fpeBar);
+
     var mountEl = document.createElement('div');
     mountEl.id = 'hdlv2-flight-plan';
     mountEl.className = 'hdlv2-assessment-root';
     target.appendChild(mountEl);
-    window.HDLV2_FlightPlan.mount(mountEl, {
+    var fpInstance = window.HDLV2_FlightPlan.mount(mountEl, {
+      editable_controls: true,
+      suppress_download: true,
       cfg: {
         api_base: CFG.api_base + '/flight-plan',
         nonce: CFG.nonce,
         client_id: c.user_id
       }
     });
+    // v0.46.60 — keep a handle so the digest poll can refresh in place
+    // (see maybeRefreshActiveFlightPlanTabs) rather than re-mounting.
+    target._hdlv2FpInstance = fpInstance;
+    renderFlightPlanToolbar(c, fpeBar, function () { return fpInstance; });
   }
 
   function loadCheckins(c, target) {
@@ -2044,27 +2621,53 @@
     if (CFG.automation_tier_enabled && c.tier === 'automation') {
       return loadAutoConsultation(c, target);
     }
+    // Iris add-on: launch section at the TOP of the Consultation tab,
+    // entitlement-gated. Returns '' when the flag is off OR the practitioner
+    // is not entitled, so a non-add-on practitioner sees no iris trace here
+    // (Rule-0). v1 = launch-link only (embedded capture is Phase 2).
+    var iris = irisConsultationHtml(c);
+    var html;
     if (!c.progress_id) {
-      target.innerHTML = '<div class="hdlv2-detail-empty">No consultation record yet. The client needs to complete Stage 3 of the assessment first.</div>';
-      return;
+      html = '<div class="hdlv2-detail-empty">No consultation record yet. The client needs to complete Stage 3 of the assessment first.</div>';
+    } else {
+      var url = CFG.consultation_url + '?progress_id=' + c.progress_id;
+      // v0.24.3 — the post-Final read-only fork is gone. Both states
+      // (pre-Final and post-Final) deeplink to the editable consultation
+      // page. Practitioner can re-enter post-Final to edit health data,
+      // regenerate the Final report, and reset the Flight Plan to Week 1
+      // (edit-as-reset rule).
+      // B7+B8 → v0.46.53 — same document card as every other tab action (icon
+      // tile + Poppins title + meta + solid teal button right), replacing the
+      // lone ghost pill in an empty box. Still opens in a new tab (keeps
+      // /clients/ open); the "↗" in the label signals that. The edit-as-reset
+      // side effect is too important for hover-only (no hover on touch) → it
+      // lives in the meta line, always visible.
+      if (c.has_final_report) {
+        html = '<div class="hdlv2-st-card">'
+          + '<div class="hdlv2-dl-doc">'
+          +   '<div class="hdlv2-dl-doc-ico">' + docIconSVG() + '</div>'
+          +   '<div class="hdlv2-dl-doc-body">'
+          +     '<span class="hdlv2-dl-doc-title">Consultation Notes</span>'
+          +     '<span class="hdlv2-dl-doc-meta">Edit health data or notes &middot; saving regenerates the report &amp; Flight Plan</span>'
+          +   '</div>'
+          +   '<a class="hdlv2-dl-btn" href="' + esc(url) + '" target="_blank" rel="noopener" title="Opens in a new tab"><span>Edit consultation&nbsp;&#8599;</span></a>'
+          + '</div>'
+          + '</div>';
+      } else {
+        html = '<div class="hdlv2-st-card">'
+          + '<div class="hdlv2-dl-doc">'
+          +   '<div class="hdlv2-dl-doc-ico">' + docIconSVG() + '</div>'
+          +   '<div class="hdlv2-dl-doc-body">'
+          +     '<span class="hdlv2-dl-doc-title">Consultation Notes</span>'
+          +     '<span class="hdlv2-dl-doc-meta">Record your consultation &middot; opens the editor in a new tab</span>'
+          +   '</div>'
+          +   '<a class="hdlv2-dl-btn" href="' + esc(url) + '" target="_blank" rel="noopener" title="Opens in a new tab"><span>Record consultation&nbsp;&#8599;</span></a>'
+          + '</div>'
+          + '</div>';
+      }
     }
-    var url = CFG.consultation_url + '?progress_id=' + c.progress_id;
-    // v0.24.3 — the post-Final read-only fork is gone. Both states
-    // (pre-Final and post-Final) deeplink to the editable consultation
-    // page. Practitioner can re-enter post-Final to edit health data,
-    // regenerate the Final report, and reset the Flight Plan to Week 1
-    // (edit-as-reset rule).
-    if (c.has_final_report) {
-      target.innerHTML = '<div class="hdlv2-consult-card">'
-        + '<p>Final report generated for ' + esc(c.name) + '. You can edit the consultation any time — saving will regenerate the Final report and reset the Flight Plan to Week 1.</p>'
-        + '<a class="hdlv2-detail-deeplink" href="' + esc(url) + '">Edit consultation →</a>'
-        + '</div>';
-      return;
-    }
-    target.innerHTML = '<div class="hdlv2-consult-card">'
-      + '<p>Record your consultation with ' + esc(c.name) + ' — audio recording, typed notes, AI-organised output. You\'ll also review the draft report and finalise recommendations here.</p>'
-      + '<a class="hdlv2-detail-deeplink" href="' + esc(url) + '">Record consultation →</a>'
-      + '</div>';
+    target.innerHTML = iris + html;
+    bindIrisConsultOpen(target);
   }
 
   // ── W11 — Automation-tier Consultation tab ──
@@ -2831,6 +3434,12 @@
       '.hdlv2-expand-btn svg { transition: transform 0.2s ease; display:block; }',
       '.hdlv2-expand-btn.open svg { transform: rotate(180deg); }',
       '.hdlv2-detail-row > td { padding: 0 !important; background: #fafbfc; border-bottom: 1px solid #e4e6ea !important; }',
+      // B-series — active/expanded client row: slightly darker grey + subtle teal
+      // accent stripe so the open client reads as the active part of the page.
+      // Existing HDL tokens only (#f0f0f0 grey, #3d8da0 teal); not colour-alone
+      // (bold leading cell + already-rotated chevron). !important beats V1 zebra.
+      '.client-row.hdlv2-row-active > td { background:#f0f0f0 !important; }',
+      '.client-row.hdlv2-row-active > td:first-child { box-shadow: inset 3px 0 0 #3d8da0; font-weight:600; }',
       '.hdlv2-detail-panel { font-family: Inter, -apple-system, BlinkMacSystemFont, sans-serif; padding: 22px 28px 24px; color: #111; }',
       '.hdlv2-detail-head { display:flex; align-items:baseline; gap:10px; margin-bottom:14px; flex-wrap:wrap; }',
       '.hdlv2-detail-head strong { font-family: Poppins, Inter, sans-serif; font-size:15px; color:#111; }',
@@ -2841,8 +3450,55 @@
       '.hdlv2-detail-tab.active { color:#3d8da0; border-bottom-color:#3d8da0; }',
       '.hdlv2-detail-content { min-height: 120px; font-size: 13px; line-height: 1.6; color: #333; }',
       '.hdlv2-detail-loading, .hdlv2-detail-empty { padding: 24px; text-align: center; color: #888; font-size: 13px; }',
-      '.hdlv2-detail-deeplink { display:inline-block; margin-top:14px; padding:8px 18px; border:1px solid #3d8da0; border-radius:24px; color:#3d8da0; text-decoration:none; font: 500 13px/1 Inter, -apple-system, sans-serif; transition: all 0.15s; }',
+      '.hdlv2-detail-deeplink { display:inline-flex; align-items:center; gap:7px; margin-top:14px; padding:8px 18px; border:1px solid #3d8da0; border-radius:24px; color:#3d8da0; text-decoration:none; font: 500 13px/1 Inter, -apple-system, sans-serif; transition: all 0.15s; }',
       '.hdlv2-detail-deeplink:hover { background:#3d8da0; color:#fff; }',
+      // v0.46.49 — download pills carry the shared download icon (same glyph
+      // as the Flight Notes button) sized to the 13px label; arrow bounces on
+      // hover via the existing hdlv2-fn-bounce keyframes.
+      '.hdlv2-detail-deeplink .hdlv2-fn-ico { width:14px; height:14px; flex:0 0 14px; }',
+      '.hdlv2-detail-deeplink:hover .fn-ico-stem, .hdlv2-detail-deeplink:hover .fn-ico-head { animation: hdlv2-fn-bounce 0.7s ease infinite; }',
+      // v0.46.49 — Final tab document card: icon tile + Poppins title + meta
+      // left, primary teal download button right. Wraps cleanly on mobile.
+      '.hdlv2-dl-doc { display:flex; align-items:center; gap:14px; padding:16px 18px; background:#fff; border:1px solid #e4e6ea; border-radius:12px; flex-wrap:wrap; }',
+      // v0.46.50 — when the card sits below other panel content (Stage-3 tab,
+      // after the score grid / health background) give it breathing room.
+      '.hdlv2-dl-doc--stack { margin-top:16px; }',
+      '.hdlv2-dl-doc-ico { width:42px; height:42px; border-radius:10px; background:#e3eef1; color:#004F59; display:flex; align-items:center; justify-content:center; flex:0 0 42px; }',
+      '.hdlv2-dl-doc-body { display:flex; flex-direction:column; gap:3px; min-width:0; flex:1 1 200px; }',
+      '.hdlv2-dl-doc-title { font-family: Poppins, Inter, sans-serif; font-size:14.5px; font-weight:600; color:#111; }',
+      '.hdlv2-dl-doc-meta { font-size:12px; color:#666; line-height:1.5; }',
+      '.hdlv2-dl-btn { display:inline-flex; align-items:center; gap:7px; padding:10px 18px; border-radius:24px; background:#3d8da0; border:1px solid #3d8da0; color:#fff; text-decoration:none; font: 600 13px/1 Inter, -apple-system, sans-serif; transition: background .15s, border-color .15s; flex:0 0 auto; }',
+      '.hdlv2-dl-btn:hover { background:#004F59; border-color:#004F59; color:#fff; }',
+      '.hdlv2-dl-btn .hdlv2-fn-ico { width:15px; height:15px; flex:0 0 15px; }',
+      '.hdlv2-dl-btn:hover .fn-ico-stem, .hdlv2-dl-btn:hover .fn-ico-head { animation: hdlv2-fn-bounce 0.7s ease infinite; }',
+      // v0.46.67 — flight-plan editor (WFP tab) disabled-Save styling
+      '.hdlv2-fpe-save[disabled] { opacity:.45; cursor:default; pointer-events:none; }',
+      // v0.46.59 — WFP tab: Edit toggle + itshover download motion + the
+      // B-series reskin of the embedded renderer (SCOPED to the dashboard
+      // wrapper — the client page look is untouched).
+      '.hdlv2-fpe-toggle.is-on { background:#004F59; border-color:#004F59; }',
+      '.hdlv2-dl-btn:hover .hdlv2-iho-dl-arrow { animation: hdlv2-iho-drop .7s ease infinite; }',
+      '@keyframes hdlv2-iho-drop { 0% { transform:translateY(0); opacity:1; } 45% { transform:translateY(4px); opacity:0; } 55% { transform:translateY(-3px); opacity:0; } 100% { transform:translateY(0); opacity:1; } }',
+      '.hdlv2-wfp-dash .hdlv2-card { background:#fff; border:1px solid #e4e6ea; border-radius:12px; box-shadow:none; margin-top:12px; }',
+      // v0.46.61 — hide the redundant "Week N Flight Plan" h2 on the dashboard
+      // only: the head card above already shows "Weekly Flight Plan · Week N"
+      // (Matthew). The date line stays. The client /my-flight-plan/ page has no
+      // head card, so it keeps its h2 — this rule is scoped to .hdlv2-wfp-dash.
+      '.hdlv2-wfp-dash .hdlv2-header h2 { display:none; }',
+      '.hdlv2-wfp-dash .hdlv2-header p { font-size:12px; color:#666; margin:0; }',
+      '.hdlv2-wfp-dash .hdlv2-header { padding:14px 24px 4px; }',
+      '.hdlv2-wfp-dash .fp-transfer-actions { gap:10px; margin-top:10px; }',
+      '.hdlv2-wfp-dash .fp-btn { padding:9px 18px; }',
+      '.hdlv2-wfp-dash .fp-section-header { font:600 12px/1.4 Inter, sans-serif; letter-spacing:.04em; text-transform:uppercase; color:#3d8da0; }',
+      '.hdlv2-wfp-dash .fp-transfer-box { background:#fff; border:1px solid #e4e6ea; border-radius:12px; }',
+      '.hdlv2-wfp-dash .fp-transfer-title { font-family:Poppins, Inter, sans-serif; font-weight:600; color:#111; }',
+      '.hdlv2-wfp-dash .fp-btn { border-radius:24px; font:600 13px/1 Inter, -apple-system, sans-serif; }',
+      '.hdlv2-wfp-dash .fp-btn-primary { background:#3d8da0; border:1px solid #3d8da0; color:#fff; }',
+      '.hdlv2-wfp-dash .fp-btn-primary:hover { background:#004F59; border-color:#004F59; }',
+      '.hdlv2-wfp-dash .fp-btn-secondary, .hdlv2-wfp-dash .fp-btn-outline { background:#fff; border:1px solid #3d8da0; color:#3d8da0; }',
+      '.hdlv2-wfp-dash .fp-btn-secondary:hover, .hdlv2-wfp-dash .fp-btn-outline:hover { background:#f0fbfc; }',
+      '.hdlv2-wfp-dash .fp-identity-statement { background:#f8f9fb; border-left:3px solid #3d8da0; border-radius:8px; font-family:Poppins, Inter, sans-serif; }',
+      '.hdlv2-wfp-dash .fp-adherence-card { background:#fff; border:1px solid #e4e6ea; border-radius:12px; }',
       // v0.24.9 — dead CSS removed. .hdlv2-fp-week, .hdlv2-fp-targets,
       // .hdlv2-fp-adh were used by the legacy loadFlightPlan summary
       // renderer that v0.24.5 replaced with a full-grid mount. Kept the
@@ -2856,7 +3512,9 @@
       '.hdlv2-checkin-date, .hdlv2-timeline-meta { font-size: 10px; color: #888; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.04em; }',
       '.hdlv2-timeline-type { color: #3d8da0; font-weight: 600; }',
       '.hdlv2-consult-card { max-width: 540px; padding: 18px 20px; background: #fff; border: 1px solid #e4e6ea; border-radius: 10px; }',
-      '.hdlv2-consult-card p { margin: 0 0 12px; font-size: 13px; color: #444; line-height: 1.6; }',
+      // B8 — the wordy <p> is gone; the one load-bearing fact (edit-as-reset)
+      // survives as a 6-word caption under the button.
+      '.hdlv2-consult-caption { margin-top: 8px; font-size: 11px; color: #666; font-family: Inter, -apple-system, sans-serif; }',
       '.hdlv2-tab-new { display:inline-block; background:#e3eef1; color:#2d7082; font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:0.04em; padding:2px 6px; border-radius:4px; margin-left:6px; vertical-align:middle; }',
       // ── v0.24.0 — Stage 1 / Stage 2 / Stage 3 / Final tab cards ──
       '.hdlv2-st-card { display:block; }',
@@ -2883,6 +3541,13 @@
       // text-align right + min-width 0 lets long strings wrap on a second
       // line right-aligned without pushing the label out of the row.
       '.hdlv2-st-list li > span:last-child { font-weight:600; color:#111; flex:1 1 auto; min-width:0; text-align:right; word-break:normal; overflow-wrap:anywhere; }',
+      // v0.46.52 — Stage-1 answer severity colours (same bands + hexes as
+      // Stage 3\'s .hdlv2-score-answer). Scoped under .hdlv2-st-list and
+      // placed after the base rule above so they win the colour at equal
+      // specificity; unscored rows keep the #111 base.
+      '.hdlv2-st-list li > span.sev-high { color:#047857; }',
+      '.hdlv2-st-list li > span.sev-mid { color:#92400e; }',
+      '.hdlv2-st-list li > span.sev-low { color:#991b1b; }',
       '.hdlv2-st-bullets { list-style:none !important; padding-left:0 !important; margin:0 0 8px !important; font-family: Inter, -apple-system, sans-serif; }',
       '.hdlv2-st-bullets li { list-style:none !important; padding:5px 0 5px 18px; position:relative; font-size:13px; color:#333; line-height:1.5; }',
       '.hdlv2-st-bullets li::marker { content:none !important; }',
@@ -2981,14 +3646,23 @@
       '.hdlv2-detail-head-id strong { font-family: Poppins, Inter, sans-serif; font-size:16px; font-weight:600; color:#111; }',
       '.hdlv2-detail-head-meta { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }',
       '.hdlv2-detail-status-pill { display:inline-flex; align-items:center; padding:4px 10px; border-radius:24px; font-size:10.5px; font-weight:600; text-transform:uppercase; letter-spacing:0.04em; white-space:nowrap; font-family: Inter, -apple-system, sans-serif; }',
-      '.hdlv2-detail-journey { display:inline-flex; align-items:center; gap:0; background:#fff; border:1px solid #e4e6ea; border-radius:999px; padding:4px 6px; max-width:100%; flex-wrap:wrap; }',
-      '.hdlv2-detail-journey-item { display:inline-flex; align-items:center; gap:5px; padding:4px 9px; font-size:11px; font-weight:600; color:#666; letter-spacing:0.02em; border-radius:999px; font-family: Inter, -apple-system, sans-serif; white-space:nowrap; }',
-      '.hdlv2-detail-journey-item.state-done { color:#004F59; }',
-      '.hdlv2-detail-journey-item.state-active { background:#fffbeb; color:#92400e; }',
-      '.hdlv2-detail-journey-item.state-pending { color:#94a3b8; }',
       '.hdlv2-fn-btn { display:inline-flex; align-items:center; gap:6px; height:30px; padding:0 13px 0 10px; border-radius:999px; border:1px solid #3d8da0; background:#fff; color:#3d8da0; cursor:pointer; flex-shrink:0; font-family: Inter, -apple-system, sans-serif; font-size:11px; font-weight:600; letter-spacing:0.01em; transition:background .15s; }',
+      // B11.1 — in the Flight Notes tab card, size the button like the other
+      // Download PDF pills (.hdlv2-detail-deeplink metrics + solid-fill
+      // hover). Icon + loading ring use currentColor → invert correctly.
+      '.hdlv2-consult-card .hdlv2-fn-btn { height:auto; padding:8px 16px 8px 13px; border-radius:24px; font: 500 13px/1 Inter, -apple-system, sans-serif; letter-spacing:0; margin-top:14px; transition: all 0.15s; }',
+      '.hdlv2-consult-card .hdlv2-fn-btn:hover:not(:disabled) { background:#3d8da0; color:#fff; }',
+      '.hdlv2-consult-card .hdlv2-fn-btn:hover:not(:disabled) .hdlv2-fn-ring { border-color:rgba(255,255,255,0.35); border-top-color:#fff; }',
       '.hdlv2-fn-btn:hover { background:rgba(61,141,160,0.08); }',
       '.hdlv2-fn-btn:disabled { cursor:default; opacity:0.85; }',
+      // v0.46.51 — Flight Notes button inside the document card: solid teal
+      // primary, matching .hdlv2-dl-btn exactly. Keeps the .hdlv2-fn-btn
+      // loading machinery (content/spinner swap); ring inverts to white on
+      // the solid fill. Placed after the base rules so the modifier wins.
+      '.hdlv2-fn-btn--solid { height:auto; padding:10px 18px; border-radius:24px; background:#3d8da0; border-color:#3d8da0; color:#fff; font: 600 13px/1 Inter, -apple-system, sans-serif; letter-spacing:0; gap:7px; transition: background .15s, border-color .15s; }',
+      '.hdlv2-fn-btn--solid:hover:not(:disabled) { background:#004F59; border-color:#004F59; color:#fff; }',
+      '.hdlv2-fn-btn--solid .hdlv2-fn-ico { width:15px; height:15px; }',
+      '.hdlv2-fn-btn--solid .hdlv2-fn-ring, .hdlv2-fn-btn--solid:hover:not(:disabled) .hdlv2-fn-ring { border-color:rgba(255,255,255,0.35); border-top-color:#fff; }',
       '.hdlv2-fn-content, .hdlv2-fn-loading { display:inline-flex; align-items:center; gap:6px; }',
       '.hdlv2-fn-loading { display:none; }',
       '.hdlv2-fn-btn.is-loading .hdlv2-fn-content { display:none; }',
@@ -2999,10 +3673,6 @@
       '.hdlv2-fn-ring { width:13px; height:13px; border-radius:50%; border:2px solid rgba(61,141,160,0.25); border-top-color:#3d8da0; animation: hdlv2-fn-spin 0.7s linear infinite; }',
       '@keyframes hdlv2-fn-bounce { 0%,80%,100%{transform:translateY(0)} 40%{transform:translateY(3px)} }',
       '@keyframes hdlv2-fn-spin { to { transform: rotate(360deg) } }',
-      '.hdlv2-detail-journey-mark { width:14px; height:14px; border-radius:50%; background:#e4e6ea; color:#fff; display:inline-flex; align-items:center; justify-content:center; font-size:9px; flex:0 0 14px; line-height:1; }',
-      '.hdlv2-detail-journey-item.state-done .hdlv2-detail-journey-mark { background:#3d8da0; }',
-      '.hdlv2-detail-journey-item.state-active .hdlv2-detail-journey-mark { background:#d97706; }',
-      '.hdlv2-detail-journey-sep { width:8px; height:1px; background:#e4e6ea; flex:0 0 8px; }',
 
       // ─────────────────────────────────────────────────────────────
       // v0.41.19 — Snapshot strip (4 KPI tiles) above the tab strip
@@ -3030,8 +3700,8 @@
       // ─────────────────────────────────────────────────────────────
       '.hdlv2-detail-tab { display:inline-flex; align-items:center; gap:7px; }',
       '.hdlv2-detail-tab.current { color:#3d8da0; border-bottom-color:#3d8da0; }',
-      '.hdlv2-detail-tab.current .hdlv2-tab-dot { background:#3d8da0; }',
-      '.hdlv2-tab-dot { display:inline-block; width:6px; height:6px; border-radius:50%; background:#e4e6ea; flex:0 0 6px; }',
+      '.hdlv2-tab-dot { display:inline-flex; align-items:center; justify-content:center; width:14px; height:14px; border-radius:50%; background:#e4e6ea; color:#fff; font-size:9px; line-height:1; flex:0 0 14px; }',
+      '.hdlv2-tab-dot svg { display:block; }',
       '.hdlv2-tab-dot.done { background:#3d8da0; }',
       '.hdlv2-tab-dot.active-stage { background:#d97706; box-shadow:0 0 0 2px rgba(217,119,6,0.18); }',
       '.hdlv2-detail-tab-sep { display:inline-block; width:1px; height:18px; background:#e4e6ea; margin:0 6px; align-self:center; flex:0 0 1px; }',
@@ -3055,7 +3725,9 @@
       '.hdlv2-metric-tile-value { font-family: Poppins, Inter, sans-serif; font-size:18px; font-weight:700; color:#004F59; line-height:1.1; font-variant-numeric:tabular-nums; }',
       '.hdlv2-metric-tile-unit { font-size:12px; font-weight:500; color:#666; margin-left:1px; }',
       '.hdlv2-metric-tile-label { font-size:10px; text-transform:uppercase; letter-spacing:0.05em; color:#666; margin-top:4px; font-weight:600; }',
-      '.hdlv2-metric-tile.lo .hdlv2-metric-tile-value { color:#92400e; }',
+      // v0.46.52 — <50% steps to red (was amber, same as .mid): completes the
+      // three-step severity ramp used by every other scored surface.
+      '.hdlv2-metric-tile.lo .hdlv2-metric-tile-value { color:#991b1b; }',
       '.hdlv2-metric-tile.mid .hdlv2-metric-tile-value { color:#92400e; }',
       '.hdlv2-progress-baseline-row { display:flex; align-items:baseline; gap:10px; margin-bottom:6px; }',
       '.hdlv2-progress-baseline-value { font-family: Poppins, Inter, sans-serif; font-size:32px; font-weight:700; color:#004F59; letter-spacing:-0.5px; line-height:1; font-variant-numeric:tabular-nums; }',
@@ -3080,16 +3752,6 @@
       // v0.41.19 — Stage 2 — hero WHY + 3-col profile + vision card
       // ─────────────────────────────────────────────────────────────
       '.hdlv2-why-hero { padding:18px 22px; background:#fff; border:1px solid #e4e6ea; border-left:4px solid #3d8da0; border-radius:0 12px 12px 0; font-size:15px; font-style:italic; color:#111; line-height:1.55; font-weight:500; margin-bottom:14px; }',
-      '.hdlv2-why-grid { display:grid; grid-template-columns:repeat(3, 1fr); gap:12px; }',
-      '@media (max-width: 820px) { .hdlv2-why-grid { grid-template-columns:1fr; } }',
-      '.hdlv2-why-card { background:#fff; border:1px solid #e4e6ea; border-radius:10px; padding:14px 16px; }',
-      '.hdlv2-why-card h4 { font-family: Poppins, Inter, sans-serif; font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:0.05em; color:#666; margin:0 0 8px; display:flex; align-items:center; gap:6px; }',
-      '.hdlv2-why-card h4 .ico { width:14px; height:14px; color:#3d8da0; flex:0 0 14px; }',
-      '.hdlv2-why-card ul { list-style:none !important; margin:0 !important; padding:0 !important; }',
-      '.hdlv2-why-card li { list-style:none !important; padding:6px 0 6px 14px; position:relative; font-size:13px; color:#2c3e50; line-height:1.5; }',
-      '.hdlv2-why-card li::marker { content:none !important; }',
-      '.hdlv2-why-card li::before { content:""; position:absolute; left:0; top:13px; width:5px; height:5px; border-radius:50%; background:#3d8da0; }',
-      '.hdlv2-why-card-empty { font-size:12px; color:#888; font-style:italic; padding:4px 0; }',
       '.hdlv2-vision-card { margin-top:14px; padding:14px 18px; background:#fafbfc; border:1px solid #e4e6ea; border-left:3px solid #3d8da0; border-radius:0 10px 10px 0; font-size:13px; color:#2c3e50; line-height:1.55; }',
       '.hdlv2-vision-card-label { font-size:10.5px; font-weight:600; text-transform:uppercase; letter-spacing:0.05em; color:#666; margin-bottom:6px; }',
 
@@ -3098,13 +3760,28 @@
       // Section 6 Health Background block (v0.38.0).
       // ─────────────────────────────────────────────────────────────
       '.hdlv2-s3-stats { display:grid; grid-template-columns:repeat(3, 1fr); gap:8px; margin-bottom:16px; }',
-      '.hdlv2-s3-body { display:grid; grid-template-columns:repeat(2, 1fr); gap:8px; margin-bottom:18px; }',
-      '@media (max-width: 700px) { .hdlv2-s3-stats { grid-template-columns:1fr; } .hdlv2-s3-body { grid-template-columns:1fr; } }',
-      '.hdlv2-score-groups { display:grid; grid-template-columns:repeat(2, 1fr); gap:12px; }',
-      '@media (max-width: 820px) { .hdlv2-score-groups { grid-template-columns:1fr; } }',
+      '@media (max-width: 700px) { .hdlv2-s3-stats { grid-template-columns:1fr; } }',
+      // B5 — six row-data groups in 4 explicit columns; minmax(0,1fr) stops
+      // content blowout so the grid can never horizontal-scroll. Stacked
+      // (overflow) groups get a bold heading via .is-stacked.
+      '.hdlv2-s3-grid { display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:12px; align-items:start; margin-bottom:18px; }',
+      '@media (max-width: 1100px) { .hdlv2-s3-grid { grid-template-columns:repeat(2, minmax(0,1fr)); } }',
+      '@media (max-width: 700px) { .hdlv2-s3-grid { grid-template-columns:1fr; } }',
+      '.hdlv2-s3-col { display:flex; flex-direction:column; gap:12px; min-width:0; }',
+      '.hdlv2-score-group.is-stacked h4 { font-weight:700; color:#111; border-bottom-color:#e4e6ea; }',
+      '.hdlv2-score-val { font-weight:600; color:#111; font-size:12px; text-align:right; overflow-wrap:anywhere; }',
       '.hdlv2-score-group { background:#fff; border:1px solid #e4e6ea; border-radius:10px; padding:12px 14px; }',
       '.hdlv2-score-group h4 { font-family: Poppins, Inter, sans-serif; font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:0.05em; color:#666; margin:0 0 8px; padding-bottom:6px; border-bottom:1px solid #f0f0f0; }',
       '.hdlv2-score-row { display:flex; justify-content:space-between; align-items:center; padding:4px 0; font-size:12px; color:#333; }',
+      // v0.46.50 — the row\'s data is the client\'s actual answer (or the real
+      // measured value for derived metrics), right-aligned like the kv rows
+      // and coloured by the same severity bands the old 0-5 pill used, so
+      // good/bad reads at a glance with no abstract code. Colours match the
+      // pill text colours exactly (status palette, AA on the white card).
+      '.hdlv2-score-answer { font-weight:600; font-size:12px; text-align:right; overflow-wrap:anywhere; max-width:62%; line-height:1.4; }',
+      '.hdlv2-score-answer.sev-high { color:#047857; }',
+      '.hdlv2-score-answer.sev-mid { color:#92400e; }',
+      '.hdlv2-score-answer.sev-low { color:#991b1b; }',
       '.hdlv2-score-pill { display:inline-block; min-width:36px; padding:2px 9px; background:#fafbfc; border:1px solid #f0f0f0; border-radius:6px; color:#111; font-family: Poppins, Inter, sans-serif; font-weight:700; font-size:11.5px; text-align:center; font-variant-numeric:tabular-nums; }',
       '.hdlv2-score-pill.high { color:#047857; border-color:#a7f3d0; background:#ecfdf5; }',
       '.hdlv2-score-pill.mid { color:#92400e; border-color:#fde68a; background:#fffbeb; }',

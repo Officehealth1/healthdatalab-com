@@ -21,15 +21,24 @@
   var ROOT = null;
   var token = '';
   var attempts = 0;
+  // v0.46.63 — edit config passed by the consultation page so the milestone
+  // timeline becomes editable in place (practitioner only). null on the
+  // client-facing report page (read-only, unchanged).
+  var editCfg = null;
+  var msEditMode = false;
+  var msWorking = null; // the working milestone copy (staged-if-present, else shown)
   // v0.37.0 — progress-illusion controller for the Claude wait. Created
   // on start(), torn down inside renderReport / renderError. The bar
   // caps asymptotically at 92% until finish() snaps it to 100%, so the
   // user always sees movement during the 20-60s draft generation.
   var progressCtl = null;
 
-  function start(rootEl, overrideToken) {
+  function start(rootEl, overrideToken, opts) {
     ROOT = rootEl;
     if (!ROOT) return;
+    editCfg = (opts && opts.editableMilestones) ? opts : null;
+    msEditMode = false;
+    msWorking = null;
 
     // ── Token resolution ──
     // Priority: explicit override > ?t= URL > ?token= URL.
@@ -123,6 +132,10 @@
 
         if (data.status === 'ready') {
           renderReport(data);
+          // v0.46.62 — live refresh on the CLIENT view only. On the
+          // consultation mount (editCfg) the practitioner edits milestones in
+          // place, so a background re-render must not clobber the editor.
+          if (!editCfg) startLiveRefresh(data);
           return;
         }
 
@@ -144,6 +157,55 @@
           console.warn('[HDLV2 Draft] fetch failed', err);
         }
       });
+  }
+
+  // ── v0.46.62 — Live refresh ──
+  // Once the report is ready, keep a light background poll so practitioner
+  // edits to milestones (and any post-send content edit) appear without the
+  // client reloading — mirroring the always-current flight-plan view. Polls
+  // only while the tab is visible; refreshes immediately when it regains focus.
+  var liveSig = null;
+  var liveStarted = false;
+
+  function contentSig(data) {
+    try {
+      return JSON.stringify({
+        m: data.milestones || null,
+        a: data.awaken_content || '',
+        l: data.lift_content || '',
+        t: data.thrive_content || '',
+        p: data.practitioner_notes || null
+      });
+    } catch (e) { return null; }
+  }
+
+  function liveFetch() {
+    if (document.visibilityState === 'hidden') return;
+    fetch(CONFIG.rest_url + '?token=' + encodeURIComponent(token), {
+      headers: { 'Accept': 'application/json', 'X-WP-Nonce': CONFIG.nonce || '' },
+      credentials: 'same-origin'
+    })
+      .then(function (res) { return res.ok ? res.json() : null; })
+      .then(function (data) {
+        if (!data || data.status !== 'ready') return;
+        var sig = contentSig(data);
+        if (sig !== null && sig !== liveSig) {
+          liveSig = sig;
+          renderReport(data);
+        }
+      })
+      .catch(function () { /* transient — try again next tick */ });
+  }
+
+  function startLiveRefresh(data) {
+    if (liveStarted) return;
+    liveStarted = true;
+    liveSig = contentSig(data);
+    setInterval(liveFetch, 25000);
+    document.addEventListener('visibilitychange', function () {
+      if (document.visibilityState === 'visible') liveFetch();
+    });
+    window.addEventListener('focus', liveFetch);
   }
 
   // ── States ──
@@ -378,47 +440,14 @@
         '</section>';
     }
 
-    // Milestone Timeline  (v0.20.6)
+    // Milestone Timeline  (v0.20.6; v0.46.63 editable-in-place)
     // AI-generated milestones bucketed into 6mo / 2yr / 5yr / 10+yr. Rendered
-    // on both draft and final when present in the report row. Colour tiers
-    // match the existing practitioner-side preview (teal → green → amber →
-    // softer red) so the visual language is consistent across the platform.
-    var milestones = data.milestones || {};
-    var msIntervals = [
-      { key: 'six_months',      label: '6 Months',  color: '#3d8da0', tintClass: 'hdlv2-dr-ms-teal' },
-      { key: 'two_years',       label: '2 Years',   color: '#10b981', tintClass: 'hdlv2-dr-ms-green' },
-      { key: 'five_years',      label: '5 Years',   color: '#f59e0b', tintClass: 'hdlv2-dr-ms-amber' },
-      { key: 'ten_plus_years',  label: '10+ Years', color: '#be5a4a', tintClass: 'hdlv2-dr-ms-ruby' }
-    ];
-    var msHasAny = false;
-    for (var mi = 0; mi < msIntervals.length; mi++) {
-      if (Array.isArray(milestones[msIntervals[mi].key]) && milestones[msIntervals[mi].key].length) { msHasAny = true; break; }
-    }
-    if (msHasAny) {
-      var msHtml = '';
-      for (var i = 0; i < msIntervals.length; i++) {
-        var iv = msIntervals[i];
-        var items = milestones[iv.key] || [];
-        if (!items.length) continue;
-        msHtml +=
-          '<div class="hdlv2-dr-ms-interval ' + iv.tintClass + '">' +
-            '<div class="hdlv2-dr-ms-label">' + iv.label + '</div>' +
-            '<ul class="hdlv2-dr-ms-list">' +
-              items.map(function (m) {
-                var text = (m && typeof m === 'object') ? (m.milestone || m.text || '') : String(m);
-                return '<li>' + escape(String(text)) + '</li>';
-              }).join('') +
-            '</ul>' +
-          '</div>';
-      }
-      html +=
-        '<section class="hdlv2-dr-section hdlv2-dr-milestones">' +
-          '<div class="hdlv2-dr-ai-label">Milestone timeline</div>' +
-          '<h2>What you’re aiming for</h2>' +
-          '<p class="hdlv2-dr-section-sub">Personalised milestones generated from your data and your Stage 2 WHY — what progress could look like over time.</p>' +
-          msHtml +
-        '</section>';
-    }
+    // on both draft and final when present in the report row. When the
+    // consultation page mounts this renderer with an edit config
+    // (editCfg.editableMilestones), the practitioner can edit each horizon in
+    // place — the same timeline they see becomes the editable source that
+    // finalise ships. Client view (no editCfg) is byte-identical to before.
+    html += renderMilestonesSection(data);
 
     // What's next
     html +=
@@ -443,6 +472,142 @@
       renderRadar(calc);
       renderMetabolicSignal(calc.metabolic);
     }, 50);
+
+    // v0.46.63 — wire the in-place milestone editor (consultation mount only).
+    if (editCfg) bindMilestoneEditing(data);
+  }
+
+  // ── v0.46.63 — Milestone timeline (read-only + in-place editable) ──
+  var MS_INTERVALS = [
+    { key: 'six_months',     label: '6 Months',  tintClass: 'hdlv2-dr-ms-teal' },
+    { key: 'two_years',      label: '2 Years',   tintClass: 'hdlv2-dr-ms-green' },
+    { key: 'five_years',     label: '5 Years',   tintClass: 'hdlv2-dr-ms-amber' },
+    { key: 'ten_plus_years', label: '10+ Years', tintClass: 'hdlv2-dr-ms-ruby' }
+  ];
+
+  function msItemsToLines(items) {
+    if (!Array.isArray(items)) return [];
+    return items.map(function (m) {
+      return (m && typeof m === 'object') ? (m.milestone || m.text || '') : String(m);
+    }).filter(Boolean);
+  }
+
+  // Source of truth for what the editor shows: the working copy (seeded from
+  // existing staged edits if present, else the milestones on display).
+  function msSource(data) {
+    if (msWorking) return msWorking;
+    var seed = (editCfg && editCfg.stagedMilestones && typeof editCfg.stagedMilestones === 'object'
+                && (editCfg.stagedMilestones.six_months || editCfg.stagedMilestones.two_years
+                    || editCfg.stagedMilestones.five_years || editCfg.stagedMilestones.ten_plus_years))
+      ? editCfg.stagedMilestones
+      : (data.milestones || {});
+    msWorking = {};
+    MS_INTERVALS.forEach(function (iv) { msWorking[iv.key] = (seed[iv.key] || []).slice(); });
+    return msWorking;
+  }
+
+  function renderMilestonesSection(data) {
+    var editable = !!editCfg;
+    var src = editable ? msSource(data) : (data.milestones || {});
+    var hasAny = MS_INTERVALS.some(function (iv) { return Array.isArray(src[iv.key]) && src[iv.key].length; });
+    if (!hasAny && !editable) return '';
+
+    var body = '';
+    MS_INTERVALS.forEach(function (iv) {
+      var lines = msItemsToLines(src[iv.key]);
+      var inner;
+      if (editable && msEditMode) {
+        inner = '<textarea class="hdlv2-dr-ms-edit" data-horizon="' + iv.key + '" rows="4" '
+          + 'placeholder="One milestone per line">' + escape(lines.join('\n')) + '</textarea>'
+          + '<div class="hdlv2-dr-ms-flags" data-horizon="' + iv.key + '" aria-live="polite"></div>';
+      } else {
+        inner = '<ul class="hdlv2-dr-ms-list">'
+          + (lines.length ? lines.map(function (t) { return '<li>' + escape(String(t)) + '</li>'; }).join('')
+                          : '<li class="hdlv2-dr-ms-empty">—</li>')
+          + '</ul>';
+      }
+      body += '<div class="hdlv2-dr-ms-interval ' + iv.tintClass + '">'
+        + '<div class="hdlv2-dr-ms-label">' + iv.label + '</div>'
+        + inner
+        + '</div>';
+    });
+
+    var toolbar = '';
+    if (editable) {
+      toolbar = '<div class="hdlv2-dr-ms-toolbar">'
+        + '<button type="button" id="hdlv2-dr-ms-toggle" class="hdlv2-dr-ms-btn">'
+        + (msEditMode ? 'Done editing' : '✎ Edit milestones') + '</button>'
+        + '<span id="hdlv2-dr-ms-status" class="hdlv2-dr-ms-savestatus" aria-live="polite"></span>'
+        + '</div>';
+    }
+    var sub = editable
+      ? 'Edit any milestone below — what you set here is what your client receives in the final report. No extra email, no extra cost.'
+      : 'Personalised milestones generated from your data and your Stage 2 WHY — what progress could look like over time.';
+
+    return '<section class="hdlv2-dr-section hdlv2-dr-milestones' + (editable ? ' hdlv2-dr-ms-editable' : '') + '" id="hdlv2-dr-ms-section">'
+      + '<div class="hdlv2-dr-ai-label">Milestone timeline</div>'
+      + '<h2>What you’re aiming for</h2>'
+      + '<p class="hdlv2-dr-section-sub">' + sub + '</p>'
+      + toolbar
+      + body
+      + '</section>';
+  }
+
+  function rerenderMilestones(data) {
+    var sec = document.getElementById('hdlv2-dr-ms-section');
+    if (!sec) return;
+    var tmp = document.createElement('div');
+    tmp.innerHTML = renderMilestonesSection(data);
+    var fresh = tmp.firstChild;
+    if (fresh) { sec.parentNode.replaceChild(fresh, sec); bindMilestoneEditing(data); }
+  }
+
+  function msSaveHorizon(horizon, value, data) {
+    var status = document.getElementById('hdlv2-dr-ms-status');
+    if (status) status.textContent = 'Saving…';
+    fetch(editCfg.apiBase + '/milestones-stage-edit', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': editCfg.nonce || '' },
+      credentials: 'same-origin',
+      body: JSON.stringify({ progress_id: editCfg.progressId, consultation_id: editCfg.consultId, horizon: horizon, value: value })
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (res) {
+        if (res && res.success) {
+          // staged is the full canonical copy now — adopt it as the working copy.
+          msWorking = {};
+          MS_INTERVALS.forEach(function (iv) { msWorking[iv.key] = (res.milestones && res.milestones[iv.key]) ? res.milestones[iv.key].slice() : []; });
+          var flagsEl = document.querySelector('.hdlv2-dr-ms-flags[data-horizon="' + horizon + '"]');
+          if (flagsEl) {
+            flagsEl.innerHTML = (res.warnings && res.warnings.length)
+              ? res.warnings.map(function (w) { return '<span class="hdlv2-dr-ms-flag">⚠ ' + escape(w) + '</span>'; }).join('')
+              : '';
+          }
+          if (status) status.textContent = 'Saved';
+        } else {
+          if (status) status.textContent = (res && res.message) || 'Save failed';
+        }
+      })
+      .catch(function () { if (status) status.textContent = 'Connection error'; });
+  }
+
+  function bindMilestoneEditing(data) {
+    if (!editCfg) return;
+    var toggle = document.getElementById('hdlv2-dr-ms-toggle');
+    if (toggle) {
+      toggle.addEventListener('click', function () { msEditMode = !msEditMode; rerenderMilestones(data); });
+    }
+    if (!msEditMode) return;
+    var timers = {};
+    Array.prototype.forEach.call(document.querySelectorAll('.hdlv2-dr-ms-edit'), function (ta) {
+      ta.addEventListener('input', function () {
+        var horizon = ta.getAttribute('data-horizon');
+        clearTimeout(timers[horizon]);
+        var status = document.getElementById('hdlv2-dr-ms-status');
+        if (status) status.textContent = 'Editing…';
+        timers[horizon] = setTimeout(function () { msSaveHorizon(horizon, ta.value, data); }, 1100);
+      });
+    });
   }
 
   // ── Pace of Ageing section ──
@@ -459,10 +624,16 @@
 
     var rateDelta = '';
     var rateClass = '';
+    // 4-band thresholds (≤0.95 / ≤1.05 / ≤1.15 / >1.15) aligned with the
+    // canonical derive_rate_band() (class-hdlv2-final-report.php:1820-1825)
+    // and the trajectory SVG/PDF badge (class-hdlv2-trajectory-svg.php:448-468)
+    // so the stat card, on-page chart, and PDF tell one story. Previously a
+    // single >1.05 "warn" band collapsed 1.05–1.15 and >1.15 into the same copy.
     if (typeof rate === 'number') {
-      if (rate < 0.95)      { rateDelta = 'Ageing slower than average'; rateClass = 'good'; }
-      else if (rate > 1.05) { rateDelta = 'Accelerated — let\'s work on this'; rateClass = 'warn'; }
-      else                   { rateDelta = 'On pace with average'; rateClass = ''; }
+      if (rate <= 0.95)      { rateDelta = 'Ageing slower than average'; rateClass = 'good'; }
+      else if (rate <= 1.05) { rateDelta = 'On pace with average'; rateClass = ''; }
+      else if (rate <= 1.15) { rateDelta = 'Accelerated — let\'s work on this'; rateClass = 'warn'; }
+      else                    { rateDelta = 'Significantly accelerated — let\'s work on this'; rateClass = 'warn'; }
     }
 
     var bioDelta = '';
@@ -599,7 +770,13 @@
         '<p class="hdlv2-dr-prac-role">Your longevity practitioner</p></div>' +
       '</div>' +
       '<div class="hdlv2-dr-mark">Powered by <strong>HealthDataLab</strong></div>' +
-    '</footer>';
+    '</footer>' +
+    // v0.46.57 (P4 safety bundle) — on-screen legal line, mirrors the email
+    // footer wording (HDLV2_Email_Templates::legal_footer) verbatim; the PDF
+    // already carries its own caption. Static copy, no client data.
+    '<p class="hdlv2-dr-legal">Confidential &mdash; recipient only. <strong>NOT MEDICAL ADVICE.</strong> ' +
+      'Operated by IRISLAB LIMITED, England &amp; Wales Co. No. 8260301, ' +
+      'Sussex Innovation Centre, Science Park Square, Brighton BN1 9SB.</p>';
   }
 
   // ── Trajectory chart ──

@@ -16,13 +16,15 @@ if ( ! defined( 'ABSPATH' ) ) {
 class HDLV2_AI_Service {
 
     const API_URL    = 'https://api.anthropic.com/v1/messages';
-    // v0.36.1 — unified to Sonnet 4.6 across every AI surface (Stage 2 WHY,
-    // draft report, final report, consultation organise/refresh/regenerate,
-    // Stage 3 commentary helper). MODEL_HAIKU kept as a separate const so the
-    // Stage 3 commentary surface can be flipped back to Haiku independently
-    // (cost optimisation) without touching every other caller of MODEL.
-    const MODEL       = 'claude-sonnet-4-6';
-    const MODEL_HAIKU = 'claude-sonnet-4-6';
+    // v0.46.24 — switched every AI surface to Opus 4.8 (Stage 2 WHY, draft
+    // report, final report, consultation organise/refresh/regenerate, Stage 3
+    // commentary helper). MODEL_HAIKU retained as a named alias (now also Opus
+    // 4.8) so a future cost-optimisation can flip the Stage 3 commentary
+    // surface to a cheaper model without touching every other caller of MODEL.
+    // NOTE: Opus 4.8 rejects `temperature`/`top_p`/`top_k` (HTTP 400). call_claude
+    // sends none of them, so it is Opus-safe as-is.
+    const MODEL       = 'claude-opus-4-8';
+    const MODEL_HAIKU = 'claude-opus-4-8';
 
     // ──────────────────────────────────────────────────────────────
     //  PUBLIC: WHY EXTRACTION
@@ -238,6 +240,15 @@ class HDLV2_AI_Service {
      * draft report portal. Separate from generate_draft_report() which
      * produces awaken/lift/thrive HTML for the Make.com PDF. Same inputs,
      * different output shape — runs alongside the PDF call at Stage 3.
+     *
+     * A2 (v0.46.28) — DELIBERATE on-screen-only shape, NOT redundant with
+     * awaken/lift/thrive. The five outputs (opening, trajectory_commentary,
+     * radar_commentary, goals_linkage, recs_preview) are structured panels the
+     * client-draft-report renderer binds to the trajectory/radar charts and the
+     * Stage-2 WHY — there is no awaken/lift/thrive equivalent for them. The PDF
+     * uses ONLY `opening` (bound as `ai_opening`); the rest are screen-only.
+     * Decision D-3 (2026-06-09): KEEP — collapsing into awaken/lift/thrive would
+     * delete those five client sections, not dedupe them. See SYSTEM-MAP.md §C.
      *
      * Non-blocking: returns null on any failure so the existing PDF
      * pipeline is never broken by client-narrative issues.
@@ -800,19 +811,28 @@ class HDLV2_AI_Service {
 
         $user_prompt = sprintf(
             "Generate personalised health milestones at 4 intervals: 6 months, 2 years, 5 years, 10+ years.\n\n"
-            . "v0.34.0 — MEASURABILITY RULE (Matthew Pass-3 brief — every milestone is testable):\n"
-            . "- EVERY milestone MUST contain a measurable target (number + unit).\n"
-            . "  GOOD: 'Walk 30 minutes daily without fatigue, tracking 8,000+ steps per day'\n"
-            . "  GOOD: 'Hike 8km with 500m total ascent, no stops, maintaining conversation'\n"
-            . "  GOOD: 'Maintain RHR <60 bpm and BP <120/80'\n"
+            . "C1 — FRAMING RULE (this rule WINS whenever rules collide):\n"
+            . "- Every milestone is CONDITIONAL and ASPIRATIONAL, never a promise or a prescription.\n"
+            . "  Frame as 'If you stay on track, by ~2 years it may be possible to…', 'you could be…',\n"
+            . "  'your fitness may allow…'. Vary the phrasing naturally; British English.\n"
+            . "- Biomarkers (blood pressure, resting heart rate) are DIRECTIONAL with the number KEPT\n"
+            . "  as an indicative reference, plus a brief caveat:\n"
+            . "  GOOD: 'Your blood pressure may move toward 120/80 — individual results vary'\n"
+            . "  GOOD: 'Your resting heart rate could trend below 60 bpm — results vary'\n"
+            . "  BAD:  'Maintain RHR <60 bpm and BP <120/80' (prescriptive clinical target)\n"
+            . "  BAD:  'Achieve blood pressure <120/80 consistently' (promised clinical outcome)\n"
+            . "- NEVER set blood-test targets (vitamin D, cholesterol, glucose…) — no bloods are taken.\n\n"
+            . "v0.34.0 — MEASURABILITY RULE (applies WITHIN the framing above — the conditional\n"
+            . "wrapper surrounds the number, it never replaces it):\n"
+            . "- EVERY milestone still contains a measurable reference (number + unit).\n"
+            . "  GOOD: 'If you stay on track, by 6 months you could be walking 30 minutes daily, tracking 8,000+ steps'\n"
+            . "  GOOD: 'Your fitness may allow an 8km hike with 500m ascent, maintaining conversation'\n"
             . "  BAD:  'Maintain consistent supplement routine with 95%% adherence' (meta-goal, not health outcome)\n"
             . "  BAD:  'Teach and demonstrate healthy habits to family for 12 months' (vague, unassessable)\n"
             . "  BAD:  'Hike 8km on varied terrain' (terrain undefined — could be flat or 1000m climb)\n"
-            . "- 10+ year goal: ALSO measurable. Replace narrative paragraphs with 3-4 measurable\n"
-            . "  targets that capture the WHY. NOT 'be the energetic active presence who can keep up\n"
-            . "  with grandchildren on adventures' — instead 'At 65: complete 20km hike with 800m\n"
-            . "  ascent · perform 30 grandchild-pickup squats · maintain RHR <60 bpm · sleep 7.5+\n"
-            . "  hours nightly without alarm'.\n"
+            . "- 10+ year goal: ALSO measurable AND conditional — 3-4 targets that capture the WHY,\n"
+            . "  e.g. 'At 65 it may be possible to complete a 20km hike with 800m ascent'. The WHY\n"
+            . "  comes through in the metric choice, never as the entire milestone.\n"
             . "- NO meta-goals (adherence percentages, teaching others, demonstrating habits).\n"
             . "- NO vague qualifiers (varied terrain, regularly, consistent — define the number).\n"
             . "- Earlier milestones build toward later ones; mix physical capability, health markers,\n"
@@ -828,24 +848,39 @@ class HDLV2_AI_Service {
             . "  \"five_years\": [...],\n"
             . "  \"ten_plus_years\": [{ \"milestone\": \"...\", \"category\": \"...\", \"measurable\": true }]\n"
             . "}\n"
-            . "3-4 milestones per interval (10+ years: 3-4 measurable targets, NOT a single narrative\n"
-            . "paragraph). Every measurable=true. No markdown fences.",
+            . "3-4 milestones per interval, EACH no more than 22 words (PDF space is fixed; 10+ years:\n"
+            . "3-4 measurable targets, NOT a single narrative paragraph). Every measurable=true.\n"
+            . "No markdown fences.",
             $age, $rate,
             implode( ', ', $weak ) ?: 'none identified',
             $why_profile['distilled_why'] ?? 'Not provided',
             implode( ', ', array_unique( $rec_cats ) ) ?: 'general health'
         );
 
+        // C1 — safety rail first (reuses the final-report "Do NOT make medical
+        // diagnoses" + red-flag "NOT a diagnostic tool / never name a disease"
+        // wording), then the conditional framing, then the v0.34.0
+        // measurability rule explicitly subordinated so the two never fight.
         $system = 'You are generating personalised health milestones for a longevity client. '
-            . 'v0.34.0 RULE: every milestone — including the 10+ year goal — MUST contain a '
-            . 'measurable target with a number and a unit. No meta-goals. No vague qualifiers. '
-            . 'No narrative paragraphs as milestones. The WHY shapes WHICH metrics to target, not '
-            . 'whether to be measurable. If they mention grandchildren, the milestone might be '
-            . '"perform 30 grandchild-pickup squats at 65" — the grandchild reference comes through '
-            . 'in the metric choice, never as the entire milestone. '
+            . 'SAFETY RAIL (overrides every other rule): you are NOT a diagnostic tool. Do NOT make '
+            . 'medical diagnoses. Never state or imply the person "has" a condition; never name a '
+            . 'disease in client-facing text. Milestones are aspirational lifestyle goals — not '
+            . 'medical advice, prescriptions, or treatment targets. Never set blood-test values. '
+            . 'FRAMING: every milestone is conditional and aspirational ("if you stay on track, it '
+            . 'may be possible to…"); biomarkers are directional with the number kept and a brief '
+            . 'caveat ("may move toward 120/80 — individual results vary"), never promised. '
+            . 'v0.34.0 RULE (within that framing): every milestone — including the 10+ year goal — '
+            . 'still contains a measurable reference with a number and a unit; the conditional '
+            . 'wrapper surrounds the number, it never replaces it. No meta-goals. No vague '
+            . 'qualifiers. No narrative paragraphs as milestones. The WHY shapes WHICH metrics to '
+            . 'target, not whether to be measurable. If they mention grandchildren, the milestone '
+            . 'might be "at 65 it may be possible to perform 30 grandchild-pickup squats" — the '
+            . 'grandchild reference comes through in the metric choice, never as the entire milestone. '
             . 'Always return valid JSON only — no markdown, no code fences.';
 
-        $response = self::call_claude( $key, $system, $user_prompt, 1200 );
+        // C1 — 1200→1500: the conditional framing adds ~6-10 words per
+        // milestone; headroom prevents truncated JSON → placeholder fallback.
+        $response = self::call_claude( $key, $system, $user_prompt, 1500 );
         if ( is_wp_error( $response ) ) {
             error_log( '[HDLV2 AI] Milestones failed: ' . $response->get_error_message() );
             return self::milestones_placeholder();
@@ -858,6 +893,268 @@ class HDLV2_AI_Service {
         }
 
         return $parsed;
+    }
+
+    /**
+     * Generate the final-report PDF AI sections (Phase 3 — Dual-AI Unification,
+     * v0.46.54). WordPress is now the SINGLE AI writer for the final report:
+     * this ports Make module [200]'s "holistic-naturopath report writer" prompt
+     * verbatim (system + 16-key user contract), so the screen, the stored row
+     * and the PDF read ONE brain.
+     *
+     * Differences from [200], by design:
+     *   - key_findings_summary is NOT generated (inert in the live template; the
+     *     practitioner_health_summary box is remapped to WP's real consultation
+     *     notes in Make module [3]). 17 [200] keys → 16 here.
+     *   - NO temperature param (Opus 4.8 400s on it; call_claude sends none).
+     *   - Safety rail aligned with C1 milestones: never name a disease in
+     *     client-facing text, never invent a risk the client did not state.
+     *
+     * Word caps are [200]'s verbatim — they are tuned to the PDFMonkey
+     * template's fixed-height containers; exceeding them overlaps the footer.
+     *
+     * @param array  $calc_result     { rate, bio_age, bmi, whr, whtr, scores }
+     * @param array  $why_profile     { distilled_why, key_people[], motivations[] }
+     * @param array  $recommendations [ { text, category, priority, frequency } ]
+     * @param array  $milestones      { six_months, two_years, five_years, ten_plus_years }
+     * @param array  $s3_raw          decoded stage3_data (bp/hr/body-comp + Section-6 free text)
+     * @param array  $organised_notes ai_organised_notes (health_summary, etc.)
+     * @param string $typed_notes     practitioner free-typed consultation notes
+     * @param string $client_name
+     * @param string $client_sex
+     * @param int    $age
+     * @return array 16 keys (empty array on failure — caller stores {}, template guards hide sections)
+     */
+    public static function generate_pdf_sections( $calc_result, $why_profile, $recommendations, $milestones, $s3_raw, $organised_notes, $typed_notes, $client_name = '', $client_sex = '', $age = 0 ) {
+        $key = self::get_api_key();
+        if ( ! $key ) {
+            return array();
+        }
+
+        $rate    = $calc_result['rate'] ?? 1.0;
+        $bio_age = $calc_result['bio_age'] ?? $age;
+        $scores  = $calc_result['scores'] ?? array();
+
+        // Map internal score keys → [200]'s score_* labels (mirrors fire_webhook).
+        $sc = function ( $k ) use ( $scores ) {
+            $v = $scores[ $k ] ?? '';
+            return ( $v === '' || $v === null ) ? 'n/a' : $v;
+        };
+        $score_lines =
+              "- Physical Activity: {$sc('physicalActivity')}/5\n"
+            . "- Sit-to-Stand: {$sc('sitToStand')}/5\n"
+            . "- Breath Hold: {$sc('breathHold')}/5\n"
+            . "- Balance: {$sc('balance')}/5\n"
+            . "- Sleep Duration: {$sc('sleepDuration')}/5\n"
+            . "- Sleep Quality: {$sc('sleepQuality')}/5\n"
+            . "- Stress Levels: {$sc('stressLevels')}/5\n"
+            . "- Social Connections: {$sc('socialConnections')}/5\n"
+            . "- Diet Quality: {$sc('dietQuality')}/5\n"
+            . "- Alcohol Consumption: {$sc('alcoholConsumption')}/5\n"
+            . "- Smoking Status: {$sc('smokingStatus')}/5\n"
+            . "- Cognitive Activity: {$sc('cognitiveActivity')}/5\n"
+            . "- Sunlight Exposure: {$sc('sunlightExposure')}/5\n"
+            . "- Supplement Intake: {$sc('supplementIntake')}/5\n"
+            . "- Daily Hydration: {$sc('dailyHydration')}/5\n"
+            . "- BMI Score: {$sc('bmiScore')}/5\n"
+            . "- WHR Score: {$sc('whrScore')}/5\n"
+            . "- WHtR Score: {$sc('whtrScore')}/5\n"
+            . "- Blood Pressure: {$sc('bloodPressureScore')}/5\n"
+            . "- Heart Rate: {$sc('heartRateScore')}/5";
+
+        $bp_sys = isset( $s3_raw['bpSystolic'] )       ? (int) $s3_raw['bpSystolic']       : '';
+        $bp_dia = isset( $s3_raw['bpDiastolic'] )      ? (int) $s3_raw['bpDiastolic']      : '';
+        $hr_bpm = isset( $s3_raw['restingHeartRate'] ) ? (int) $s3_raw['restingHeartRate'] : '';
+
+        $key_people  = ( ! empty( $why_profile['key_people'] ) && is_array( $why_profile['key_people'] ) )
+            ? implode( ', ', array_map( 'strval', $why_profile['key_people'] ) ) : '';
+        $motivations = ( ! empty( $why_profile['motivations'] ) && is_array( $why_profile['motivations'] ) )
+            ? implode( ', ', array_map( 'strval', $why_profile['motivations'] ) ) : '';
+
+        $health_summary = isset( $organised_notes['health_summary'] ) ? (string) $organised_notes['health_summary'] : '';
+        $consult_summary = mb_substr( trim( wp_strip_all_tags( (string) $typed_notes ) ), 0, 500 );
+
+        // Recommendations 1..5 (text + category) — same first-5 the PDF cards use.
+        $recs = array_values( $recommendations );
+        $rec_line = function ( $i ) use ( $recs ) {
+            $r = $recs[ $i ] ?? array();
+            $t = trim( (string) ( $r['text'] ?? '' ) );
+            return $t === '' ? '(none)' : $t . ' — category ' . (string) ( $r['category'] ?? '' );
+        };
+
+        $fmt_ms = array( 'HDLV2_Staged_Form', 'format_milestones' );
+        $ms_6mo  = is_callable( $fmt_ms ) ? HDLV2_Staged_Form::format_milestones( $milestones['six_months']     ?? array() ) : '';
+        $ms_2yr  = is_callable( $fmt_ms ) ? HDLV2_Staged_Form::format_milestones( $milestones['two_years']      ?? array() ) : '';
+        $ms_5yr  = is_callable( $fmt_ms ) ? HDLV2_Staged_Form::format_milestones( $milestones['five_years']     ?? array() ) : '';
+        $ms_10yr = is_callable( $fmt_ms ) ? HDLV2_Staged_Form::format_milestones( $milestones['ten_plus_years'] ?? array() ) : '';
+
+        // ── SYSTEM PROMPT — ported verbatim from Make [200], C1-aligned ──
+        $system =
+              "You are a holistic-naturopath longevity report writer for HealthDataLab. The\n"
+            . "practitioner has finalised the consultation; you write the AI-personalised\n"
+            . "sections of a 19-page PDF report for ONE specific client.\n\n"
+            . "OUTPUT CONTRACT — non-negotiable\n"
+            . "1. Output ONLY a single JSON object with exactly the 17 keys listed at the\n"
+            . "   end of the user message — no preamble, no explanation, no chain-of-thought.\n"
+            . "2. Do NOT wrap the JSON in any markdown code fence. Do NOT prefix with the\n"
+            . "   word \"json\" or with any backticks. The first character of your output must\n"
+            . "   be the open-brace character. The last character of your output must be\n"
+            . "   the close-brace character. Any character before the open-brace or after\n"
+            . "   the close-brace breaks the downstream JSON parser.\n"
+            . "3. Word caps in each field's spec are HARD LIMITS, not suggestions. The PDF\n"
+            . "   layout has fixed-height containers — when a field exceeds its cap, the\n"
+            . "   text overlaps the page footer and renders broken. If you have more to\n"
+            . "   say, cut adjectives. Never extend past a cap.\n"
+            . "4. Where a field specifies \"paragraph 1: max X words, paragraph 2: max Y\n"
+            . "   words\", treat both numbers as hard caps independently — do not redistribute.\n"
+            . "5. Where a field specifies a structural shape (e.g. \"EXACTLY 3 list-item\n"
+            . "   bullets\", \"MAX 3 metrics\"), the count is part of the contract.\n\n"
+            . "VOICE & STYLE\n"
+            . "1. Holistic naturopath: encouraging, specific, considered. Never\n"
+            . "   clinical-cold, never wellness-influencer cheesy. Avoid platitudes\n"
+            . "   (\"listen to your body\", \"everything in moderation\", \"small steps lead\n"
+            . "   to big changes\").\n"
+            . "2. British English: optimise, behaviour, favourable, organisation, ageing,\n"
+            . "   programme. Single quotation marks for inner quotes.\n"
+            . "3. Reference the client's own WHY, named relationships and named long-term\n"
+            . "   goals VERBATIM when relevant (if their distilled WHY mentions\n"
+            . "   \"grandchildren\", use that exact word in the appropriate fields).\n"
+            . "4. Use the client's actual numbers — not generic ranges. Round to 1 decimal\n"
+            . "   for rate, 1 for BMI, 2 for WHR/WHtR.\n"
+            . "5. Respect score severity bands: 5 = excellent / strong, 4 = solid, 3 =\n"
+            . "   moderate / average, 2 = lift / below average, 1 = urgent / critical.\n"
+            . "   Reserve dramatic language for 1/5. Most clients sit at 3.\n"
+            . "6. ONLY reference the 20 whitelisted health metrics — no HRV, no cortisol,\n"
+            . "   no VO2max, no microbiome, no telomere length, no skin elasticity.\n"
+            . "7. Metric system primary, imperial in brackets only when imperial reads\n"
+            . "   naturally for a UK client (e.g. weight loss in stone). Distance always km.\n"
+            . "8. SAFETY RAIL (C1-consistent, overrides voice rules): you are NOT a\n"
+            . "   diagnostic tool. NEVER make medical diagnoses; never state or imply the\n"
+            . "   person \"has\" a condition; never name a disease in client-facing text;\n"
+            . "   never invent a risk the client did not state. Frame as \"what the data\n"
+            . "   suggests\" / \"patterns observed\" / \"what to discuss with your practitioner\".\n"
+            . "9. NEVER restate headline numbers (chrono / bio age, BMI, rate) in\n"
+            . "   ai_results_summary paragraph 2 — Page 5 and Page 6 already showed those.\n"
+            . "10. HTML fields use the p, strong, em, ul, li tags only. No br, no div, no\n"
+            . "    inline styles. Each p on its own line.\n\n"
+            . "PRIORITISATION RULE\n"
+            . "For every field, surface the SINGLE most-impactful insight. Do not enumerate.\n"
+            . "A reader who only reads one sentence per field should still walk away with\n"
+            . "the most important thing. Choose; do not list.";
+
+        // ── USER MESSAGE — data block (sprintf) + the 16-key JSON spec ──
+        $data_block = sprintf(
+              "Generate the 17 personalised sections for this client.\n\n"
+            . "CLIENT DATA\n"
+            . "Name: %s\n"
+            . "Sex: %s\n"
+            . "Age: %s chronological / %s biological\n"
+            . "Rate of ageing: %s× (1.0 = average; lower = slower; 0.5-2.0 range)\n"
+            . "Body composition: BMI %s, WHR %s, WHtR %s\n"
+            . "Resting HR: %s bpm (range 50-70)\n"
+            . "Blood pressure: %s/%s mmHg (target <120/80)\n\n"
+            . "20 Health Scores (1-5; higher = better)\n%s\n\n"
+            . "WHY & CONTEXT\n"
+            . "Distilled WHY: %s\n"
+            . "Key people from WHY: %s\n"
+            . "Motivations: %s\n"
+            . "Practitioner notes (full, free-typed — may be long): %s\n"
+            . "Consultation summary (500 char): %s\n\n"
+            . "STAGE 3 HEALTH BACKGROUND (client-typed, optional, NOT scored)\n"
+            . "Family history: %s\n"
+            . "Current medications: %s\n"
+            . "Existing conditions / diagnoses: %s\n"
+            . "GUARDRAILS for the above:\n"
+            . "- These are short, off-the-top-of-head notes from the client at Stage 3.\n"
+            . "- They are NOT scored metrics — never list them as numerical findings.\n"
+            . "- Reference them gently where they raise the priority of an existing focus area\n"
+            . "  (e.g. family history of heart disease shifts cardio cluster up the priority list)\n"
+            . "  or shape what to recommend (existing medications may interact with supplements).\n"
+            . "- Do NOT diagnose, contradict medical advice, or invent risks not stated by the client.\n"
+            . "- If a field is empty, ignore it silently — do not say \"no family history reported\" etc.\n"
+            . "- Practitioner will confirm everything at the consultation; you are surfacing context, not prescribing.\n\n"
+            . "RECOMMENDATIONS (so you can compute which scores each one lifts)\n"
+            . "1. %s\n2. %s\n3. %s\n4. %s\n5. %s\n\n"
+            . "MILESTONES (for tonal context only — do not restate)\n"
+            . "6mo: %s\n2yr: %s\n5yr: %s\n10yr+: %s\n\n",
+            $client_name ?: '(unknown)',
+            $client_sex ?: '(unknown)',
+            (string) $age, (string) $bio_age,
+            is_numeric( $rate ) ? round( (float) $rate, 1 ) : $rate,
+            $calc_result['bmi'] ?? 'n/a', $calc_result['whr'] ?? 'n/a', $calc_result['whtr'] ?? 'n/a',
+            $hr_bpm === '' ? 'n/a' : $hr_bpm,
+            $bp_sys === '' ? 'n/a' : $bp_sys, $bp_dia === '' ? 'n/a' : $bp_dia,
+            $score_lines,
+            $why_profile['distilled_why'] ?? 'Not provided',
+            $key_people ?: '(none named)',
+            $motivations ?: '(none named)',
+            $health_summary ?: '(no organised notes)',
+            $consult_summary ?: '(none)',
+            trim( (string) ( $s3_raw['family_history'] ?? '' ) ) ?: '(none provided)',
+            trim( (string) ( $s3_raw['medications'] ?? '' ) ) ?: '(none provided)',
+            trim( (string) ( $s3_raw['existing_conditions'] ?? '' ) ) ?: '(none provided)',
+            $rec_line( 0 ), $rec_line( 1 ), $rec_line( 2 ), $rec_line( 3 ), $rec_line( 4 ),
+            $ms_6mo ?: '(none)', $ms_2yr ?: '(none)', $ms_5yr ?: '(none)', $ms_10yr ?: '(none)'
+        );
+
+        // The 16-key JSON spec — verbatim from [200] minus key_findings_summary.
+        $json_spec =
+              "RETURN ONLY THIS JSON OBJECT (17 keys, no other text, no markdown fence,\n"
+            . "first char must be open-brace, last char must be close-brace):\n\n"
+            . "{\n"
+            . "  \"intro_pull_quote\": \"MAX 22 words. Single sentence, plain text. Forward-looking image grounded in the client's specific WHY or named long-term goal. Italic-worthy. For Page 3. GOOD: 'Picture yourself at the summit of Mont Blanc in five years — not just completing the climb, but truly enjoying every step.' BAD: 'Your health journey starts today.'\",\n\n"
+            . "  \"client_key_findings\": \"EXACTLY 3 HTML list items for the Page 3 'Key findings' box, written TO the client (warm, encouraging, British English). Output exactly: <ul><li>...</li><li>...</li><li>...</li></ul> and nothing else. Each bullet MAX 20 words. Distil the practitioner's consultation summary together with the client's strongest scores and biggest lifts into: bullet 1 = body-composition / anthropometric story; bullet 2 = a lifestyle strength to protect; bullet 3 = the single highest-priority lifestyle lift. Put the <strong> tag on the metric or number anchor of each bullet. SAFETY RAIL (overrides): NEVER name a disease or condition, NO clinical impressions, NO family-history specifics unless reframed as the client's OWN stated motivation, NO raw internal practitioner phrasing — this is the client-facing digest, the full note stays in the practitioner's record.\",\n\n"
+            . "  \"results_narrative\": \"MAX 90 words across 2 paragraphs. Paragraph 1 (max 45 words): factual observation of the chrono-vs-bio gap using the actual numbers — e.g. 'At 67 chronological the model places you at 60 biologically — a 7-year shift driven by your cardio scores and a long smoke-free history.' Cite which 1-2 metric clusters drove the gap. Paragraph 2 (max 45 words): one-sentence methodology note explaining what biological age is computed from + one sentence on what would move the next reading. NO identity statements. NO 'you are becoming someone who…'. NO aspirational copy about family/partners/grandchildren — that lives only in Page 12 (Objectives) and Page 15 (Summary). HTML, p tags. For Page 5.\",\n\n"
+            . "  \"ai_body_composition_analysis\": \"MAX 130 words total across 2 paragraphs. Paragraph 1: max 70 words — BMI, WHR, WHtR with strong tags + clinical thresholds. Paragraph 2: max 60 words — 'what to protect / what to watch' framing; call out the smallest margin to the next clinical band and what behaviour could erode it. HTML, p tags. For Page 11.\",\n\n"
+            . "  \"ai_longevity_influences_explanation\": \"MAX 150 words total across 2 paragraphs. Paragraph 1: max 75 words — identify the SINGLE strongest preventable longevity influence (smoke-free if score_smoking is 5; cardio if HR and BP both >=4); name only one. Paragraph 2: max 75 words — compounding maths using actual rate value; IF rate sustained, project bio age at 70; IF lifestyle cluster lifts to 4/5 average, project the improved trajectory. HTML, p tags. For Page 11.\",\n\n"
+            . "  \"ai_objectives_how\": \"MAX 70 words, 2 sentences, plain text. For Page 12 anchor 02. Identity-based change. Reference one specific behaviour swap drawn from practitioner notes. End with a concrete cadence ('three times a week', 'most evenings').\",\n\n"
+            . "  \"ai_objectives_who\": \"MAX 70 words, 2 sentences, plain text. For Page 12 anchor 03. Social environment. Reference any named partner or family from WHY or notes. Mention class-based or group settings if score_activity <=3 or score_social <=3.\",\n\n"
+            . "  \"ai_objectives_where\": \"MAX 70 words, 2 sentences, plain text. For Page 12 anchor 04. Physical environment design. Name 2 highly specific environmental changes drawn from practitioner notes (e.g. 'move snacks out of the living room', 'walking shoes by the front door').\",\n\n"
+            . "  \"ai_objectives_when\": \"MAX 70 words, 2 sentences, plain text. For Page 12 anchor 05. Cadence. Reference 6-month / 2-year / 5-year horizons specifically. Connect to the client's named long-term goal if present.\",\n\n"
+            . "  \"ai_results_summary\": \"MAX 150 words total across 2 paragraphs. Paragraph 1: max 75 words — acknowledge the step taken (completing the assessment), recap chronological + biological age ONCE with strong tags. Paragraph 2: max 75 words — frame body composition as foundation for change NOT raw numbers (Pages 5/6 already showed those — refer by interpretation only, e.g. 'your body composition is working in your favour'). HTML, p tags. For Page 15.\",\n\n"
+            . "  \"summary_pull_quote\": \"MAX 32 words. Single sentence, plain text. For Page 15 pull quote ONLY — never repeat or paraphrase this on any other page. Closing thought about identity and presence rather than achievement. Mirrors intro_pull_quote tone. This identity-statement framing must NOT appear in results_narrative (Page 5) or anywhere else — uniqueness is the whole point of a pull quote.\",\n\n"
+            . "  \"summary_nb\": \"MAX 75 words. Single paragraph, plain text. For Page 15 NB callout. Practitioner-voice closing note. MUST identify the BOTTOM 3 LIFESTYLE SCORES BY METRIC NAME and frame them as the 'first quarter targets' so the 90-day retake invitation feels evidence-based. Warm momentum-building tone.\",\n\n"
+            . "  \"rec_1_lifts\": \"MAX 3 metric names joined by ' · ' (space-bullet-space). For Page 13 card 1. Which of the 20 scores does recommendation 1 lift. Pick the 3 most-affected metrics; if the rec genuinely only moves 2, output 2. Examples: 'BMI · WHR · Stress' or 'Sleep duration · Sleep quality'. Plain text only.\",\n"
+            . "  \"rec_2_lifts\": \"Same format as rec_1_lifts but for recommendation 2.\",\n"
+            . "  \"rec_3_lifts\": \"Same format as rec_1_lifts but for recommendation 3.\",\n"
+            . "  \"rec_4_lifts\": \"Same format as rec_1_lifts but for recommendation 4.\",\n"
+            . "  \"rec_5_lifts\": \"Same format as rec_1_lifts but for recommendation 5.\"\n"
+            . "}";
+
+        $user_prompt = $data_block . $json_spec;
+
+        // max_tokens 3000 = [200]'s proven budget for these 16 sections. No temperature.
+        $response = self::call_claude( $key, $system, $user_prompt, 3000 );
+        if ( is_wp_error( $response ) ) {
+            error_log( '[HDLV2 AI] PDF sections failed: ' . $response->get_error_message() );
+            return array();
+        }
+
+        $clean = trim( (string) $response );
+        $clean = preg_replace( '/^```(?:json)?\s*/', '', $clean );
+        $clean = preg_replace( '/\s*```$/', '', $clean );
+        $parsed = json_decode( $clean, true );
+        if ( ! is_array( $parsed ) || empty( $parsed['intro_pull_quote'] ) ) {
+            error_log( '[HDLV2 AI] PDF sections: invalid JSON — ' . substr( (string) $response, 0, 300 ) );
+            return array();
+        }
+
+        // Light sanitisation. HTML fields → wp_kses_post (same as awaken/lift/thrive);
+        // plain fields → strip tags + trim. Missing keys default to '' (template guards).
+        $html_keys  = array( 'client_key_findings', 'results_narrative', 'ai_body_composition_analysis', 'ai_longevity_influences_explanation', 'ai_results_summary' );
+        $plain_keys = array(
+            'intro_pull_quote', 'ai_objectives_how', 'ai_objectives_who', 'ai_objectives_where',
+            'ai_objectives_when', 'summary_pull_quote', 'summary_nb',
+            'rec_1_lifts', 'rec_2_lifts', 'rec_3_lifts', 'rec_4_lifts', 'rec_5_lifts',
+        );
+        $out = array();
+        foreach ( $html_keys as $k ) {
+            $out[ $k ] = isset( $parsed[ $k ] ) ? wp_kses_post( (string) $parsed[ $k ] ) : '';
+        }
+        foreach ( $plain_keys as $k ) {
+            $out[ $k ] = isset( $parsed[ $k ] ) ? trim( wp_strip_all_tags( (string) $parsed[ $k ] ) ) : '';
+        }
+        return $out;
     }
 
     // ──────────────────────────────────────────────────────────────
@@ -1551,7 +1848,7 @@ PROMPT;
                 'content-type'       => 'application/json',
             ),
             'body'    => wp_json_encode( $body ),
-            'timeout' => 60,
+            'timeout' => 120, // v0.46.24 — bumped 60→120; Opus 4.8 is slower on 2.5k–4.5k-token reports.
         ) );
 
         if ( is_wp_error( $response ) ) {

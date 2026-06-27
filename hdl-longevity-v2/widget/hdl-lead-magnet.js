@@ -312,7 +312,7 @@
       + '.hdlw-fields{padding:4px 28px 22px;}'
       + '.hdlw-field{margin-bottom:16px;}'
       + '.hdlw-field-label{font-family:' + B.body + ';font-size:10.5px;color:' + B.muted + ';letter-spacing:0.1em;text-transform:uppercase;margin:0 0 8px;display:block;font-weight:600;}'
-      + '.hdlw-field-input{width:100%;padding:12px 14px;background:' + B.surface + ';border:1px solid ' + B.border + ';border-radius:2px;font-family:' + B.body + ';font-size:14px;color:' + B.dark + ';box-sizing:border-box;transition:border-color 0.15s;}'
+      + '.hdlw-field-input{width:100%;padding:12px 14px;background:' + B.surface + ';border:1px solid ' + B.border + ';border-radius:2px;font-family:' + B.body + ';font-size:16px;color:' + B.dark + ';box-sizing:border-box;transition:border-color 0.15s;}' /* v0.46.21 (QA F14) 14px->16px: <16px makes iOS Safari auto-zoom on focus */
       + '.hdlw-field-input:focus{outline:none;border-color:var(--hdl-accent,#3d8da0);}'
       + '.hdlw-field-foot{font-family:' + B.body + ';font-size:11px;color:' + B.muted + ';margin:4px 0 0;}'
       + '.hdlw-field-locked{display:block;padding:12px 14px;background:' + B.creamDeep + ';border:1px solid ' + B.border + ';border-radius:2px;font-family:' + B.body + ';font-size:13.5px;color:' + B.muted + ';}'

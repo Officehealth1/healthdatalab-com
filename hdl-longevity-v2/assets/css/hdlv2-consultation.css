@@ -684,10 +684,13 @@ body.hdlv2-wide-page .hdlv2-consult-layout {
 .hdlv2-consult-field-row {
   display: flex;
   align-items: center;
+  /* B6.2 — wrap so the change-note gets its own line and the edit
+     controls reflow on narrow screens instead of overflowing. */
+  flex-wrap: wrap;
   padding: 6px 8px;
   border-radius: 6px;
   font-size: 13px;
-  gap: 8px;
+  gap: 4px 8px;
   transition: background 0.2s;
 }
 
@@ -707,6 +710,11 @@ body.hdlv2-wide-page .hdlv2-consult-layout {
 
 .hdlv2-consult-field-value {
   min-width: 50px;
+  /* B6.2 — long answer words ("60+ seconds on one leg") wrap tidily
+     instead of stretching or breaking the row. */
+  max-width: 60%;
+  overflow-wrap: anywhere;
+  line-height: 1.35;
   text-align: right;
   font-weight: 600;
   color: #111;
@@ -732,6 +740,81 @@ body.hdlv2-wide-page .hdlv2-consult-layout {
   font-size: 11px;
   color: #d97706;
   margin-top: 2px;
+}
+
+/* ── B6.2 — themed, responsive edit mode (replaces the old inline-styled
+      system controls). The editor keeps .hdlv2-consult-field-input for the
+      save handler; .hdlv2-consult-field-editor is styling only. ── */
+.hdlv2-consult-field-row.is-editing,
+.hdlv2-consult-field-row.is-editing:hover {
+  background: #f0fbfc;
+}
+
+.hdlv2-consult-field-editor {
+  flex: 1 1 160px;
+  min-width: 0;
+  max-width: 280px;
+  padding: 6px 10px;
+  border: 1px solid #3d8da0;
+  border-radius: 8px;
+  font: 500 13px/1.4 Inter, -apple-system, sans-serif;
+  color: #111;
+  background: #fff;
+}
+
+.hdlv2-consult-reason-input {
+  flex: 1 1 120px;
+  min-width: 0;
+  max-width: 200px;
+  padding: 6px 10px;
+  border: 1px solid #e4e6ea;
+  border-radius: 8px;
+  font: 400 12px/1.4 Inter, -apple-system, sans-serif;
+  color: #333;
+  background: #fff;
+}
+
+.hdlv2-consult-save-edit,
+.hdlv2-consult-cancel-edit {
+  appearance: none;
+  padding: 6px 14px;
+  border-radius: 999px;
+  font: 600 12px/1.2 Inter, -apple-system, sans-serif;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+
+.hdlv2-consult-save-edit {
+  background: #3d8da0;
+  border: 1px solid #3d8da0;
+  color: #fff;
+}
+
+.hdlv2-consult-save-edit:hover {
+  background: #327686;
+  border-color: #327686;
+}
+
+.hdlv2-consult-cancel-edit {
+  background: #fff;
+  border: 1px solid #e4e6ea;
+  color: #666;
+}
+
+.hdlv2-consult-cancel-edit:hover {
+  border-color: #3d8da0;
+  color: #3d8da0;
+}
+
+@media (max-width: 560px) {
+  .hdlv2-consult-field-row.is-editing .hdlv2-consult-field-label {
+    flex: 1 1 100%;
+  }
+  .hdlv2-consult-field-editor,
+  .hdlv2-consult-reason-input {
+    max-width: none;
+  }
 }
 
 /* ── NOTES TEXTAREA ── */

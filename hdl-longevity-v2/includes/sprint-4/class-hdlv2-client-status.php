@@ -407,7 +407,7 @@ class HDLV2_Client_Status {
         // an `audio_summary` column (that was an assumption on my part);
         // actual columns surface vision_text + fears as free-text fields.
         $why = $wpdb->get_row( $wpdb->prepare(
-            "SELECT distilled_why, key_people, motivations, fears, vision_text, ai_reformulation, released, created_at
+            "SELECT distilled_why, key_people, motivations, fears, vision_text, ai_reformulation, released, created_at, pdf_url
              FROM {$prefix}hdlv2_why_profiles WHERE form_progress_id = %d ORDER BY id DESC LIMIT 1",
             $progress_id
         ) );
@@ -418,12 +418,20 @@ class HDLV2_Client_Status {
             'motivations'   => json_decode( $why->motivations, true ) ?: array(),
             'fears'         => json_decode( $why->fears, true ) ?: array(),
             'vision_text'   => (string) ( $why->vision_text ?? '' ),
+            'ai_reformulation' => (string) ( $why->ai_reformulation ?? '' ), // B4 — second WHY summary (already generated; no new AI)
             'released'      => (int) ( $why->released ?? 0 ) === 1,
+            'pdf_url'       => (string) ( $why->pdf_url ?? '' ), // D-2 — practitioner-only WHY PDF
         ) : null;
 
         // ── Stage 3 ─────────────────────────────────────────────
+        // D-2 — draft-report PDF for the practitioner Stage-3 tab download.
+        $draft_pdf = (string) $wpdb->get_var( $wpdb->prepare(
+            "SELECT pdf_url FROM {$prefix}hdlv2_reports WHERE form_progress_id = %d AND report_type = 'draft' ORDER BY id DESC LIMIT 1",
+            $progress_id
+        ) );
         $stage3 = array(
             'completed_at'   => $progress->stage3_completed_at,
+            'pdf_url'        => $draft_pdf,
             'rate'           => isset( $s3_calc['rate'] )    ? round( (float) $s3_calc['rate'], 2 )    : null,
             'bio_age'        => isset( $s3_calc['bio_age'] ) ? round( (float) $s3_calc['bio_age'], 1 ) : null,
             'bmi'            => isset( $s3_calc['bmi'] )     ? round( (float) $s3_calc['bmi'], 1 )     : null,
@@ -437,6 +445,10 @@ class HDLV2_Client_Status {
             'bp_diastolic'   => isset( $s3['bpDiastolic'] )      && is_numeric( $s3['bpDiastolic'] )      ? (int) $s3['bpDiastolic']      : null,
             'resting_hr'     => isset( $s3['restingHeartRate'] ) && is_numeric( $s3['restingHeartRate'] ) ? (int) $s3['restingHeartRate'] : null,
             'scores'         => isset( $s3_calc['scores'] ) && is_array( $s3_calc['scores'] ) ? $s3_calc['scores'] : array(),
+            // v0.46.49 — the client's ACTUAL answer wording per scored field,
+            // so the practitioner panel can show what was chosen ("7–8 hours")
+            // rather than just the 0-5 code. See build_score_words() below.
+            'score_words'    => self::build_score_words( $s3 ),
             // v0.41.19 — Stage 3 Section 6 (Health Background, v0.38.0).
             // Three optional client free-text fields. Not consumed by the
             // rate calculator (zero impact on scores). Already fed into the
@@ -451,7 +463,7 @@ class HDLV2_Client_Status {
 
         // ── Final report ────────────────────────────────────────
         $final = $wpdb->get_row( $wpdb->prepare(
-            "SELECT id, created_at, status FROM {$prefix}hdlv2_reports
+            "SELECT id, created_at, status, pdf_url, milestones FROM {$prefix}hdlv2_reports
              WHERE form_progress_id = %d AND report_type = 'final' AND status = 'ready'
              ORDER BY id DESC LIMIT 1",
             $progress_id
@@ -463,6 +475,11 @@ class HDLV2_Client_Status {
                 'has_report'   => true,
                 'generated_at' => (string) $final->created_at,
                 'view_url'     => $progress->token ? home_url( '/' . trim( $report_slug, '/' ) . '/?t=' . rawurlencode( $progress->token ) ) : '',
+                'pdf_url'      => (string) ( $final->pdf_url ?? '' ), // D-2 — serves the cached final PDF
+                // v0.46.58 — current milestones (the single stored copy) for
+                // the Final-tab editor's initial values.
+                'report_id'    => (int) $final->id,
+                'milestones'   => json_decode( (string) ( $final->milestones ?? '' ), true ) ?: array(),
             )
             : array( 'has_report' => false );
 
@@ -557,6 +574,35 @@ class HDLV2_Client_Status {
         }
 
         return isset( $table[ $q_key ][ $letter ] ) ? $table[ $q_key ][ $letter ] : '';
+    }
+
+    /**
+     * v0.46.49 — { field: answer-word } for the 16 scored Stage-3 dropdown
+     * questions, resolved from the client's raw stage3_data answer (what they
+     * actually chose, including any consultation-editor correction — those
+     * saves write the same 0-5 codes back to stage3_data). Single wording
+     * source: HDLV2_Flight_Notes::s3_label — the same S3_OPTIONS mirror the
+     * consultation Health Data editor (B6) and the Flight Notes snapshot use,
+     * so the three surfaces can never drift. A skipped/legacy answer (not
+     * numeric) gets no entry — the panel then renders the score pill alone
+     * rather than implying the client answered. Returns array() when either
+     * class is unavailable; the JS falls back gracefully the same way.
+     */
+    private static function build_score_words( $s3 ) {
+        if ( ! is_array( $s3 ) || ! class_exists( 'HDLV2_Flight_Notes' ) || ! class_exists( 'HDLV2_Consultation' ) ) {
+            return array();
+        }
+        $words = array();
+        foreach ( HDLV2_Consultation::SCORE_FIELDS as $field ) {
+            if ( ! isset( $s3[ $field ] ) || ! is_numeric( $s3[ $field ] ) ) {
+                continue;
+            }
+            $label = HDLV2_Flight_Notes::s3_label( $field, $s3[ $field ] );
+            if ( '' !== $label ) {
+                $words[ $field ] = $label;
+            }
+        }
+        return $words;
     }
 
     /**

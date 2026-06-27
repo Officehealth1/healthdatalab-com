@@ -9,7 +9,9 @@
  *   3. Renders an SVG speedometer showing the result
  *   4. POSTs contact details to HDL REST API (and optionally a practitioner webhook)
  *
- * NOT connected to the HDL form/report pipeline. Fully standalone.
+ * Wired into the HDL pipeline: submissions flow through complete_signup()
+ * into form_progress + the Stage-1 emails (E4 — the old "NOT connected /
+ * fully standalone" header predated that wiring and was wrong).
  *
  * @package HDL_Longevity_V2
  * @since 0.1.0

@@ -14,6 +14,10 @@
 
   var token = '';
   try { token = new URLSearchParams(window.location.search).get('token') || ''; } catch (e) {}
+  // v0.46.66 (#2) — cookie-auth fallback: a logged-in client reaching the
+  // check-in without a ?token (e.g. the dashboard "Begin →" button) receives
+  // their own token via the server-localised config instead of the URL.
+  if (!token && CFG.token) { token = CFG.token; }
   if (!token || !/^[a-f0-9]{64}$/.test(token)) {
     root.innerHTML = '<div class="hdlv2-card"><div class="hdlv2-error"><h3>Invalid link</h3><p>Please check your check-in URL.</p></div></div>';
     return;

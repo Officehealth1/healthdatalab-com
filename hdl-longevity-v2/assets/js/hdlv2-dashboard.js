@@ -1525,10 +1525,26 @@
       var badge = inviteStatusBadge(displayStatus);
 
       var action = '<span style="color:#cbd5e1;padding-left:6px;">—</span>';
+      // v0.46.22 — the × (permanent delete) shows on any NON-ACTIVE invite:
+      // expired, revoked, OR completed. Only Pending/Opened are still usable by
+      // the client, so they stay protected (Copy only). Matches the server
+      // allowlist in hdlv2_delete_invite. Removing a completed invite drops only
+      // the "sent invite" record — the client's account/reports are untouched.
+      var canDelete = ( inv.status === 'expired' || inv.status === 'revoked' || inv.status === 'completed' );
+      var deleteBtn = canDelete
+        ? '<button data-delete-invite="' + inv.id + '" title="Remove this invite" aria-label="Remove this invite" style="background:none;border:none;color:#9ca3af;cursor:pointer;font-size:16px;line-height:1;padding:2px 5px;font-family:inherit;">&times;</button>'
+        : '';
       if (rowExpired) {
-        action = '<button data-resend-email="' + escAttr(inv.client_email) + '" data-resend-name="' + escAttr(inv.client_name) + '" style="' + S.btnBase + 'background:' + S.amber + ';padding:4px 10px;font-size:11px;">Resend</button>';
+        // Effectively-expired (incl. completed past its date) → Resend + (× if deletable).
+        action = '<span style="display:inline-flex;align-items:center;gap:6px;">'
+          + '<button data-resend-email="' + escAttr(inv.client_email) + '" data-resend-name="' + escAttr(inv.client_name) + '" style="' + S.btnBase + 'background:' + S.amber + ';padding:4px 10px;font-size:11px;">Resend</button>'
+          + deleteBtn
+          + '</span>';
       } else if (inv.status === 'pending' || inv.status === 'opened') {
         action = '<button data-copy-url="' + escAttr(inv.url) + '" style="' + S.btnBase + 'background:' + S.teal + ';padding:4px 10px;font-size:11px;">Copy</button>';
+      } else if (deleteBtn) {
+        // e.g. completed but not yet past its expiry date → × only (no Resend).
+        action = '<span style="display:inline-flex;align-items:center;gap:6px;">' + deleteBtn + '</span>';
       }
 
       var expiresCell = renderExpiresCell(inv, rowExpired);
@@ -1554,6 +1570,12 @@
     });
     list.querySelectorAll('[data-resend-email]').forEach(function (btn) {
       btn.addEventListener('click', function () { resendInvite(btn, btn.getAttribute('data-resend-name'), btn.getAttribute('data-resend-email')); });
+    });
+    list.querySelectorAll('[data-delete-invite]').forEach(function (btn) {
+      btn.addEventListener('click', function () { deleteInvite(btn, btn.getAttribute('data-delete-invite')); });
+      // Hover tint via JS (inline :hover isn't possible) — muted grey → red.
+      btn.addEventListener('mouseenter', function () { if (!btn.disabled) btn.style.color = S.red; });
+      btn.addEventListener('mouseleave', function () { if (!btn.disabled) btn.style.color = '#9ca3af'; });
     });
   }
 
@@ -1665,6 +1687,87 @@
         else { btnEl.disabled = false; btnEl.textContent = 'Failed'; btnEl.style.background = S.red; setTimeout(function () { btnEl.textContent = 'Resend'; btnEl.style.background = S.amber; }, 2000); }
       })
       .catch(function () { btnEl.disabled = false; btnEl.textContent = 'Error'; btnEl.style.background = S.red; });
+  }
+
+  // In-flight delete guard, keyed by inviteId — mirrors _pendingLeadActioning.
+  // A 30s poll / visibilitychange re-render could otherwise re-render the
+  // in-flight × as an enabled button and let a second click double-submit
+  // (harmless server-side — the 2nd DELETE matches 0 rows — but this keeps the
+  // UX honest and prevents the spurious "try again" toast).
+  var _deletingInvite = {};
+
+  // v0.46.20 — permanently remove a dead (expired/revoked) invite row. Server
+  // hard-deletes, scoped to own + expired/revoked only, so this can never touch
+  // an active or completed invite. On success we re-fetch the now-shorter list
+  // (mirrors resendInvite's refresh — no manual DOM splice, no dedupe drift).
+  function deleteInvite(btnEl, inviteId) {
+    if (_deletingInvite[inviteId]) return;
+    _deletingInvite[inviteId] = true;
+
+    btnEl.disabled = true;
+    btnEl.setAttribute('aria-busy', 'true');
+    btnEl.style.cursor = 'default';
+    btnEl.style.color = '#cbd5e1';
+    btnEl.textContent = '…';
+
+    function fail() {
+      delete _deletingInvite[inviteId];
+      btnEl.disabled = false;
+      btnEl.removeAttribute('aria-busy');
+      btnEl.style.cursor = 'pointer';
+      btnEl.style.color = S.red;
+      btnEl.textContent = '×';
+      btnEl.title = 'Couldn’t remove — try again';
+    }
+
+    var data = new FormData();
+    data.append('action', 'hdlv2_delete_invite');
+    data.append('nonce', CFG.nonce);
+    data.append('invite_id', inviteId);
+
+    fetch(CFG.ajax_url, { method: 'POST', body: data })
+      .then(function (r) { return r.json(); })
+      .then(function (res) {
+        if (res.success) {
+          delete _deletingInvite[inviteId];
+          // v0.46.22 — animate the row out instead of reloading the whole list
+          // (the old loadInvites() flashed "Loading…" — the "page open/close").
+          var tr = btnEl.closest ? btnEl.closest('tr') : null;
+          fadeOutInviteRow(tr);
+        } else {
+          fail();
+        }
+      })
+      .catch(fail);
+  }
+
+  // v0.46.22 — smooth row removal: fade the row, collapse its cells so the rows
+  // below slide up, then drop it from the DOM. No list reload (which caused the
+  // "Loading…" flash). invitesLastHash is reset so the next silent 30s poll
+  // reconciles without a visible re-render; if the list is now empty we do one
+  // silent refresh to surface the empty-state card.
+  function fadeOutInviteRow(tr) {
+    if (!tr || !tr.parentNode) { invitesLastHash = ''; loadInvites(true); return; }
+    tr.style.transition = 'opacity 200ms ease';
+    tr.style.opacity = '0';
+    setTimeout(function () {
+      var cells = tr.querySelectorAll('td');
+      for (var i = 0; i < cells.length; i++) {
+        var td = cells[i];
+        td.style.transition = 'padding 160ms ease, font-size 160ms ease, line-height 160ms ease, border 160ms ease';
+        td.style.paddingTop = '0';
+        td.style.paddingBottom = '0';
+        td.style.fontSize = '0';
+        td.style.lineHeight = '0';
+        td.style.borderBottom = '0 none';
+      }
+      setTimeout(function () {
+        var list = document.getElementById('hdlv2-invite-list');
+        if (tr.parentNode) { tr.parentNode.removeChild(tr); }
+        invitesLastHash = '';
+        if (list && !list.querySelector('tbody tr')) { loadInvites(true); }
+      }, 170);
+    }, 210);
   }
 
   // ──────────────────────────────────────────────────────────────

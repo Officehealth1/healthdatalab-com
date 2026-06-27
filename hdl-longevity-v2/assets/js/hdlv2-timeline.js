@@ -111,12 +111,19 @@
         noteForm.style.display = noteForm.style.display === 'none' ? 'block' : 'none';
         if (noteForm.style.display === 'block' && window.HDLAudioComponent) {
           noteForm.innerHTML = '';
+          // E4 (v0.46.47) — server-side Deepgram via transcribe-async (the
+          // in-browser Whisper tier was removed; this was its last consumer).
+          // Context 'consultation_addendum': practitioner-side, no
+          // reference_id required, transcript returns via the job result →
+          // onConfirm. ('consultation_notes' without a reference_id is
+          // rejected by the W3-4 IDOR guard.)
           HDLAudioComponent.create(noteForm, {
-            contextType: 'consultation_notes',
+            contextType: 'consultation_addendum',
             apiBase: CFG.api_base.replace('/timeline', '/audio'),
             nonce: CFG.nonce,
             showConsent: true,
-            preloadOnIdle: true,
+            asyncUpload: true,
+            idleStopMs: 30000, // v0.47.2 — practitioner dictation; silence-stop after 30s real silence
             onConfirm: function (summary) { addNote(summary); }
           });
         }

@@ -242,16 +242,46 @@ class HDLV2_Checkin {
         global $wpdb;
         $checkin_table = $wpdb->prefix . 'hdlv2_checkins';
 
-        // Set confirmed
-        $wpdb->update(
-            $checkin_table,
-            array( 'status' => 'confirmed', 'confirmed_at' => current_time( 'mysql' ) ),
-            array( 'id' => $checkin_id, 'client_id' => $progress->client_user_id )
-        );
+        // v0.46.21 (QA F1/F2/F11) — atomic, owner-scoped confirm.
+        // The UPDATE is scoped to the CALLER's own client_id AND flips only a
+        // not-yet-confirmed row to 'confirmed', so:
+        //   (a) a foreign / guessed checkin_id belonging to another client
+        //       matches 0 rows  → IDOR closed (was: id-only reload ran the
+        //       timeline insert, flag re-eval + practitioner email, and a
+        //       Claude flight-plan burn against the VICTIM's record); and
+        //   (b) a re-click / retry on an already-confirmed row matches 0 rows
+        //       → idempotent no-op (was: duplicate timeline rows + repeated
+        //       flag/flight-plan work, since hdlv2_timeline has no unique key).
+        // Because the WHERE excludes already-confirmed rows and the SET always
+        // changes status+confirmed_at, a matched row is always an affected row,
+        // so rows_affected === 1 unambiguously means "this request won the
+        // confirm" and may run the side effects exactly once.
+        $updated = $wpdb->query( $wpdb->prepare(
+            "UPDATE $checkin_table SET status = 'confirmed', confirmed_at = %s
+             WHERE id = %d AND client_id = %d AND status != 'confirmed' AND deleted_at IS NULL",
+            current_time( 'mysql' ), $checkin_id, (int) $progress->client_user_id
+        ) );
 
-        // Reload the confirmed checkin
+        if ( 1 !== (int) $updated ) {
+            // 0 rows changed: either the caller does not own this check-in
+            // (foreign/forged id) or it is already confirmed. Re-read scoped
+            // to the owner to tell the two apart.
+            $own = $wpdb->get_row( $wpdb->prepare(
+                "SELECT id, status FROM $checkin_table
+                 WHERE id = %d AND client_id = %d AND deleted_at IS NULL",
+                $checkin_id, (int) $progress->client_user_id
+            ) );
+            if ( ! $own ) {
+                return new WP_Error( 'not_found', 'Check-in not found.', array( 'status' => 404 ) );
+            }
+            // Owned and already confirmed → idempotent success, no side effects.
+            return rest_ensure_response( array( 'success' => true, 'already_confirmed' => true ) );
+        }
+
+        // Reload the freshly-confirmed checkin (guaranteed owned by the caller).
         $checkin = $wpdb->get_row( $wpdb->prepare(
-            "SELECT * FROM $checkin_table WHERE id = %d", $checkin_id
+            "SELECT * FROM $checkin_table WHERE id = %d AND client_id = %d AND deleted_at IS NULL",
+            $checkin_id, (int) $progress->client_user_id
         ) );
         if ( ! $checkin ) {
             return new WP_Error( 'not_found', 'Check-in not found.', array( 'status' => 404 ) );
@@ -287,13 +317,26 @@ class HDLV2_Checkin {
         // NEXT week's plan — so target 'next'. Without this we would try to write
         // into a current-week slot that already has a plan and get blocked by
         // duplicate prevention, and the client would never see a new plan.
-        $args = array( (int) $checkin->client_id, 'next' );
-        if ( ! wp_next_scheduled( 'hdlv2_generate_single_flight_plan', $args ) ) {
-            wp_schedule_single_event(
-                time() + 30,
-                'hdlv2_generate_single_flight_plan',
-                $args
-            );
+        // v0.46.66 (#6/#3/#4/#7) — route next-week generation through the robust
+        // job queue. enqueue_for() kicks /internal/worker-tick — a loopback that
+        // runs REGARDLESS of DISABLE_WP_CRON (STBY and LIVE alike) — and the job
+        // retries once on a transient Claude failure, then alerts the
+        // practitioner on permanent failure. The old wp_schedule_single_event(
+        // +30s) + /wp-cron.php kick sat unfired on a box without a system cron
+        // (the loopback fires before the +30s event is due, so it ran nothing).
+        // Legacy fallback kept for safety if the job class is unavailable.
+        if ( class_exists( 'HDLV2_Flight_Plan_Auto_Jobs' ) ) {
+            HDLV2_Flight_Plan_Auto_Jobs::enqueue_for( (int) $checkin->client_id, 'next' );
+        } else {
+            $args = array( (int) $checkin->client_id, 'next' );
+            if ( ! wp_next_scheduled( 'hdlv2_generate_single_flight_plan', $args ) ) {
+                wp_schedule_single_event( time() + 30, 'hdlv2_generate_single_flight_plan', $args );
+                wp_remote_post( site_url( '/wp-cron.php?doing_wp_cron=' . microtime( true ) ), array(
+                    'timeout'   => 0.01,
+                    'blocking'  => false,
+                    'sslverify' => apply_filters( 'https_local_ssl_verify', false ),
+                ) );
+            }
         }
 
         return rest_ensure_response( array( 'success' => true ) );
@@ -433,7 +476,7 @@ class HDLV2_Checkin {
 
     // ── Shortcode ──
     public function render_shortcode( $atts ) {
-        wp_enqueue_script( 'hdlv2-audio-component', HDLV2_PLUGIN_URL . 'assets/js/hdlv2-audio-component.js', array( 'hdlv2-transcriber' ), HDLV2_VERSION, true );
+        wp_enqueue_script( 'hdlv2-audio-component', HDLV2_PLUGIN_URL . 'assets/js/hdlv2-audio-component.js', array(), HDLV2_VERSION, true ); // E4 — Whisper tier removed
         wp_enqueue_script( 'hdlv2-checkin', HDLV2_PLUGIN_URL . 'assets/js/hdlv2-checkin.js', array( 'hdlv2-audio-component', 'hdlv2-loading' ), HDLV2_VERSION, true );
         wp_enqueue_style( 'hdlv2-form', HDLV2_PLUGIN_URL . 'assets/css/hdlv2-form.css', array( 'hdlv2-loading-css' ), HDLV2_VERSION );
 
@@ -443,7 +486,30 @@ class HDLV2_Checkin {
         // weekly data without one. Render a friendly card pointing the user
         // back to the email instead of a blank container.
         $raw_token = isset( $_GET['token'] ) ? sanitize_text_field( wp_unslash( $_GET['token'] ) ) : '';
-        if ( ! $raw_token || ! preg_match( '/^[a-f0-9]{64}$/', $raw_token ) ) {
+        $effective_token = ( $raw_token && preg_match( '/^[a-f0-9]{64}$/', $raw_token ) ) ? $raw_token : '';
+
+        // v0.46.66 (#2) — cookie-auth fallback. A logged-in client landing here
+        // WITHOUT a ?token (e.g. the dashboard "Begin →" button, or a bookmark)
+        // resolves their OWN form_progress token server-side, so the in-app
+        // check-in works without digging out the weekly email. The token is
+        // injected into the page's inline config (same exposure as the email
+        // link, but never placed in the URL/history); every downstream REST
+        // call still validates it via get_progress_from_token(), so there is no
+        // new auth surface and no IDOR (the token belongs to the caller).
+        if ( ! $effective_token && is_user_logged_in() ) {
+            global $wpdb;
+            $own_token = $wpdb->get_var( $wpdb->prepare(
+                "SELECT token FROM {$wpdb->prefix}hdlv2_form_progress
+                 WHERE client_user_id = %d AND deleted_at IS NULL
+                 ORDER BY id DESC LIMIT 1",
+                get_current_user_id()
+            ) );
+            if ( $own_token && preg_match( '/^[a-f0-9]{64}$/', $own_token ) ) {
+                $effective_token = $own_token;
+            }
+        }
+
+        if ( ! $effective_token ) {
             $dashboard_slug = apply_filters( 'hdlv2_client_dashboard_slug', 'my-dashboard' );
             return '<div style="max-width:560px;margin:60px auto;padding:40px 32px;background:#fff;border:1px solid #e4e6ea;border-radius:14px;box-shadow:0 4px 24px rgba(0,0,0,0.04);text-align:center;font-family:Inter,-apple-system,sans-serif;">'
                  . '<h2 style="font-family:Poppins,Inter,sans-serif;font-size:22px;font-weight:600;color:#111;margin:0 0 10px;">Please open this page from your weekly email</h2>'
@@ -459,6 +525,7 @@ class HDLV2_Checkin {
             'api_base'        => rest_url( 'hdl-v2/v1/checkin' ),
             'nonce'           => wp_create_nonce( 'wp_rest' ),
             'flight_plan_url' => home_url( '/' . trim( $flight_plan_slug, '/' ) . '/' ),
+            'token'           => $effective_token, // v0.46.66 (#2) — URL token, or cookie-resolved for a logged-in client
         ) );
         return '<div id="hdlv2-checkin" class="hdlv2-assessment-root"></div>';
     }

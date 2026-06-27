@@ -16,6 +16,41 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 class HDLV2_Consultation {
 
+    // B6 — the 16 Stage-3 0-5 score dropdown fields. Single list shared by
+    // the edit-field validator AND the score_labels payload (words via
+    // HDLV2_Flight_Notes::s3_label) so the two can never drift apart.
+    const SCORE_FIELDS = array(
+        'physicalActivity', 'sitToStand', 'breathHold', 'balance', 'skinElasticity',
+        'sleepDuration', 'sleepQuality', 'stressLevels', 'socialConnections',
+        'cognitiveActivity', 'dietQuality', 'alcoholConsumption', 'smokingStatus',
+        'supplementIntake', 'sunlightExposure', 'dailyHydration',
+    );
+
+    /**
+     * B6 — { field: { '0'..'5': answer-word } } for every SCORE_FIELDS key.
+     * Words come from HDLV2_Flight_Notes::s3_label() (one map, no duplicate).
+     * Returns array() if the class is unavailable — the JS falls back to raw codes.
+     */
+    private static function build_score_labels() {
+        if ( ! class_exists( 'HDLV2_Flight_Notes' ) ) {
+            return array();
+        }
+        $labels = array();
+        foreach ( self::SCORE_FIELDS as $field ) {
+            $row = array();
+            for ( $v = 0; $v <= 5; $v++ ) {
+                $label = HDLV2_Flight_Notes::s3_label( $field, $v );
+                if ( '' !== $label ) {
+                    $row[ (string) $v ] = $label;
+                }
+            }
+            if ( $row ) {
+                $labels[ $field ] = $row;
+            }
+        }
+        return $labels;
+    }
+
     public function register_hooks() {
         add_action( 'rest_api_init', array( $this, 'register_rest_routes' ) );
         add_shortcode( 'hdlv2_consultation', array( $this, 'render_shortcode' ) );
@@ -287,6 +322,25 @@ class HDLV2_Consultation {
         register_rest_route( $ns, '/consultation/edit-field', array(
             'methods'             => 'POST',
             'callback'            => array( $this, 'rest_edit_field' ),
+            'permission_callback' => array( $this, 'check_practitioner_auth' ),
+        ) );
+
+        // v0.46.62 — Pre-send milestone editing on the consultation page.
+        // milestones-generate: AI-writes the four horizons (Claude on WP) from
+        // the approved recommendations and stores them in
+        // consultation_notes.staged_milestones so the practitioner can review/
+        // edit BEFORE finalise. milestones-stage-edit: saves a practitioner edit
+        // to one horizon (additive revisions + C1 soft-rail, no PDF/Claude/email
+        // — there is no report row yet). generate() then consumes the staged copy
+        // verbatim so the client's first PDF carries the edited text.
+        register_rest_route( $ns, '/consultation/milestones-generate', array(
+            'methods'             => 'POST',
+            'callback'            => array( $this, 'rest_milestones_generate' ),
+            'permission_callback' => array( $this, 'check_practitioner_auth' ),
+        ) );
+        register_rest_route( $ns, '/consultation/milestones-stage-edit', array(
+            'methods'             => 'POST',
+            'callback'            => array( $this, 'rest_milestones_stage_edit' ),
             'permission_callback' => array( $this, 'check_practitioner_auth' ),
         ) );
 
@@ -601,14 +655,9 @@ class HDLV2_Consultation {
             return true;
         }
 
-        // 0-5 score dropdowns (Stage 3 lifestyle / fitness / sleep / mental)
-        $score_fields = array(
-            'physicalActivity', 'sitToStand', 'breathHold', 'balance', 'skinElasticity',
-            'sleepDuration', 'sleepQuality', 'stressLevels', 'socialConnections',
-            'cognitiveActivity', 'dietQuality', 'alcoholConsumption', 'smokingStatus',
-            'supplementIntake', 'sunlightExposure', 'dailyHydration',
-        );
-        if ( in_array( $field, $score_fields, true ) ) {
+        // 0-5 score dropdowns (Stage 3 lifestyle / fitness / sleep / mental).
+        // B6 — list hoisted to self::SCORE_FIELDS (shared with score_labels).
+        if ( in_array( $field, self::SCORE_FIELDS, true ) ) {
             if ( ! is_numeric( $value ) ) {
                 return new WP_Error( 'invalid_value', sprintf( 'Field "%s" must be a 0-5 score.', $field ), array( 'status' => 400 ) );
             }
@@ -788,6 +837,11 @@ class HDLV2_Consultation {
 
         return rest_ensure_response( array(
             'progress_id'        => $progress_id,
+            // v0.46.62 — pre-send milestone editing feature flag (constant or
+            // option). Drives whether the consultation review panel shows the
+            // "Generate milestones" block.
+            'ff_milestone_preview' => ( defined( 'HDLV2_FF_MILESTONE_PREVIEW' ) && HDLV2_FF_MILESTONE_PREVIEW )
+                || (bool) get_option( 'hdlv2_ff_milestone_preview', false ),
             // v0.20.7 — expose the client token so the practitioner UI can
             // iframe the client's /longevity-draft-report/?t=<token> page
             // (the new Final Report layout) instead of rendering its own
@@ -797,6 +851,10 @@ class HDLV2_Consultation {
             'client_email'       => $progress->client_email ?: '',
             'stage1_data'        => $s1_data,
             'stage3_data'        => $s3_data,
+            // B6 — per-field '0'..'5' → answer-word maps for the Health Data
+            // editor. Single source: HDLV2_Flight_Notes::s3_label (which
+            // mirrors the form's S3_OPTIONS). Display-only — saves stay codes.
+            'score_labels'       => self::build_score_labels(),
             'calc_result'        => $calc_result,
             'pre_consult_summary'    => self::get_or_build_pre_consult_summary( $progress ),
             // v0.33.0 — surface the cache timestamp so the Brief panel can show
@@ -827,6 +885,11 @@ class HDLV2_Consultation {
                 'recommendations'        => json_decode( $consult->recommendations, true ) ?: array(),
                 'health_data_changes'    => json_decode( $consult->health_data_changes, true ) ?: array(),
                 'status'                 => $consult->status,
+                // v0.46.62 — staged (pre-send) milestones for the consultation-page
+                // editor. Null until the practitioner clicks Generate milestones.
+                'staged_milestones'      => ( isset( $consult->staged_milestones ) && $consult->staged_milestones )
+                    ? ( json_decode( $consult->staged_milestones, true ) ?: null )
+                    : null,
             ),
             // v0.28.0 — Addenda timeline. Chronological (oldest first); the
             // frontend renders newest-on-top by reversing client-side. Each
@@ -868,16 +931,39 @@ class HDLV2_Consultation {
         }
 
         global $wpdb;
+        // Ownership check FIRST — mirrors rest_save_organised_notes / rest_save_brief.
+        // Without it, a non-owner's UPDATE silently matches 0 rows yet we still
+        // returned success — so an admin (whose read access is the explicit
+        // read-only escape hatch in rest_load_consultation) types notes, sees
+        // "Saved", and loses them. Admin is rejected here (write path), unlike
+        // the sibling save endpoints, because the consultation load is read-only
+        // for admins; a 0-row UPDATE under their id would otherwise report a
+        // false success. We resolve the owner so unchanged-text saves by the real
+        // owner still succeed (the $wpdb->update return is unreliable for a no-op
+        // identical write — it reports 0 affected rows even though the WHERE matched).
+        $owner = (int) $wpdb->get_var( $wpdb->prepare(
+            "SELECT practitioner_user_id FROM {$wpdb->prefix}hdlv2_consultation_notes WHERE id = %d",
+            $consult_id
+        ) );
+        if ( ! $owner ) {
+            return new WP_Error( 'not_found', 'Consultation not found.', array( 'status' => 404 ) );
+        }
+        if ( $owner !== get_current_user_id() ) {
+            return new WP_Error( 'forbidden', 'You do not have access to this consultation.', array( 'status' => 403 ) );
+        }
+
         // Write to BOTH typed_notes (legacy column, still read by some paths)
         // AND raw_notes (the new field consumed by the AI organiser). Keeping
         // typed_notes in sync avoids breaking the existing /finalise fallback.
+        // Ownership is already verified above, so scope the UPDATE by id only;
+        // the WHERE is guaranteed to match the owner's row.
         $wpdb->update(
             $wpdb->prefix . 'hdlv2_consultation_notes',
             array(
                 'typed_notes' => $typed_notes,
                 'raw_notes'   => $typed_notes,
             ),
-            array( 'id' => $consult_id, 'practitioner_user_id' => get_current_user_id() )
+            array( 'id' => $consult_id )
         );
 
         return rest_ensure_response( array( 'success' => true ) );
@@ -1227,6 +1313,230 @@ class HDLV2_Consultation {
     // ──────────────────────────────────────────────────────────────
     //  REST: EDIT HEALTH DATA FIELD
     // ──────────────────────────────────────────────────────────────
+
+    /**
+     * v0.46.62 — Generate the four-horizon milestones for pre-send review ON
+     * the consultation page. Calls HDLV2_Final_Report::generate_milestones_preview
+     * (Claude on WP) and stores the result in consultation_notes.staged_milestones
+     * (preserving any prior _revisions). generate() consumes the staged copy
+     * verbatim at finalise. AI-burn → idempotency-wrapped.
+     *
+     * Body: { progress_id, consultation_id }
+     */
+    public function rest_milestones_generate( $request ) {
+        global $wpdb;
+        $p           = $request->get_json_params() ?: array();
+        $progress_id = absint( $p['progress_id'] ?? 0 );
+        $consult_id  = absint( $p['consultation_id'] ?? 0 );
+        if ( ! $progress_id || ! $consult_id ) {
+            return new WP_Error( 'invalid', 'progress_id and consultation_id are required.', array( 'status' => 400 ) );
+        }
+
+        // Ownership — practitioner must own this client (IDOR guard).
+        $progress = $wpdb->get_row( $wpdb->prepare(
+            "SELECT id, practitioner_user_id FROM {$wpdb->prefix}hdlv2_form_progress
+             WHERE id = %d AND deleted_at IS NULL",
+            $progress_id
+        ) );
+        if ( ! $progress ) {
+            return new WP_Error( 'not_found', 'Assessment not found.', array( 'status' => 404 ) );
+        }
+        if ( (int) $progress->practitioner_user_id !== get_current_user_id()
+            && ! current_user_can( 'manage_options' ) ) {
+            return new WP_Error( 'forbidden', 'You are not linked to this client.', array( 'status' => 403 ) );
+        }
+
+        // Confirm the consultation belongs to this progress (IDOR belt-and-braces).
+        $owns = (int) $wpdb->get_var( $wpdb->prepare(
+            "SELECT COUNT(*) FROM {$wpdb->prefix}hdlv2_consultation_notes WHERE id = %d AND form_progress_id = %d",
+            $consult_id, $progress_id
+        ) );
+        if ( ! $owns ) {
+            return new WP_Error( 'not_found', 'Consultation not found for this assessment.', array( 'status' => 404 ) );
+        }
+
+        $worker = function () use ( $progress_id, $consult_id, $wpdb ) {
+            $milestones = HDLV2_Final_Report::generate_milestones_preview( $progress_id, $consult_id, get_current_user_id() );
+            if ( is_wp_error( $milestones ) ) {
+                return $milestones;
+            }
+
+            // Persist as the staging copy, preserving prior _revisions.
+            $row    = $wpdb->get_row( $wpdb->prepare(
+                "SELECT staged_milestones FROM {$wpdb->prefix}hdlv2_consultation_notes WHERE id = %d",
+                $consult_id
+            ) );
+            $prev   = ( $row && $row->staged_milestones ) ? ( json_decode( $row->staged_milestones, true ) ?: array() ) : array();
+            $staged = array();
+            foreach ( array( 'six_months', 'two_years', 'five_years', 'ten_plus_years' ) as $h ) {
+                $staged[ $h ] = ( isset( $milestones[ $h ] ) && is_array( $milestones[ $h ] ) ) ? array_values( $milestones[ $h ] ) : array();
+            }
+            $staged['_revisions']    = ( isset( $prev['_revisions'] ) && is_array( $prev['_revisions'] ) ) ? $prev['_revisions'] : array();
+            $staged['_generated_at'] = current_time( 'mysql' );
+
+            $updated = $wpdb->update(
+                $wpdb->prefix . 'hdlv2_consultation_notes',
+                array( 'staged_milestones' => wp_json_encode( $staged ) ),
+                array( 'id' => $consult_id ),
+                array( '%s' ), array( '%d' )
+            );
+            if ( false === $updated ) {
+                return new WP_Error( 'db_error', 'Could not save milestones.', array( 'status' => 500 ) );
+            }
+            return rest_ensure_response( array(
+                'success'      => true,
+                'milestones'   => $staged,
+                'generated_at' => $staged['_generated_at'],
+            ) );
+        };
+
+        if ( class_exists( 'HDLV2_Idempotency' ) ) {
+            return HDLV2_Idempotency::wrap_ai( $request, 'msgen:' . $consult_id, $worker );
+        }
+        return $worker();
+    }
+
+    /**
+     * v0.46.62 — Save a practitioner edit to ONE staged milestone horizon,
+     * BEFORE finalise. Writes consultation_notes.staged_milestones[$horizon],
+     * appends an additive _revisions entry (AI original retained), runs the C1
+     * soft-rail (flag, never block). No report row exists yet → no PDF render,
+     * no Claude, no email. generate() consumes the staged copy verbatim.
+     *
+     * Body: { progress_id, consultation_id, horizon, value }
+     */
+    public function rest_milestones_stage_edit( $request ) {
+        global $wpdb;
+        $p           = $request->get_json_params() ?: array();
+        $progress_id = absint( $p['progress_id'] ?? 0 );
+        $consult_id  = absint( $p['consultation_id'] ?? 0 );
+        $horizon     = sanitize_key( $p['horizon'] ?? '' );
+        $value       = trim( (string) ( $p['value'] ?? '' ) );
+        $valid       = array( 'six_months', 'two_years', 'five_years', 'ten_plus_years' );
+        if ( ! $progress_id || ! $consult_id || ! in_array( $horizon, $valid, true ) || '' === $value ) {
+            return new WP_Error( 'invalid', 'progress_id, consultation_id, a valid horizon and a non-empty value are required.', array( 'status' => 400 ) );
+        }
+
+        // Ownership — practitioner must own this client (IDOR guard).
+        $progress = $wpdb->get_row( $wpdb->prepare(
+            "SELECT id, practitioner_user_id FROM {$wpdb->prefix}hdlv2_form_progress
+             WHERE id = %d AND deleted_at IS NULL",
+            $progress_id
+        ) );
+        if ( ! $progress ) {
+            return new WP_Error( 'not_found', 'Assessment not found.', array( 'status' => 404 ) );
+        }
+        if ( (int) $progress->practitioner_user_id !== get_current_user_id()
+            && ! current_user_can( 'manage_options' ) ) {
+            return new WP_Error( 'forbidden', 'You are not linked to this client.', array( 'status' => 403 ) );
+        }
+
+        $row = $wpdb->get_row( $wpdb->prepare(
+            "SELECT id, staged_milestones FROM {$wpdb->prefix}hdlv2_consultation_notes
+             WHERE id = %d AND form_progress_id = %d",
+            $consult_id, $progress_id
+        ) );
+        if ( ! $row ) {
+            return new WP_Error( 'not_found', 'Consultation not found for this assessment.', array( 'status' => 404 ) );
+        }
+        $staged = ( $row->staged_milestones ) ? ( json_decode( $row->staged_milestones, true ) ?: array() ) : array();
+        // v0.46.63 — Edit-in-place: when the practitioner edits the milestone
+        // timeline shown on the consultation page and there is no staged copy
+        // yet, SEED staged from the report milestones currently on display
+        // (final-if-ready, else draft) — the same source the draft-report
+        // renderer shows. So "what you see is what you edit is what ships", and
+        // the horizons the practitioner did NOT touch keep their shown text.
+        if ( empty( $staged ) || ! is_array( $staged ) ) {
+            $staged   = array();
+            $seed_row = $wpdb->get_row( $wpdb->prepare(
+                "SELECT milestones FROM {$wpdb->prefix}hdlv2_reports
+                 WHERE form_progress_id = %d AND report_type IN ('final','draft')
+                 ORDER BY ( report_type = 'final' AND status = 'ready' ) DESC, id DESC LIMIT 1",
+                $progress_id
+            ) );
+            $seed = ( $seed_row && $seed_row->milestones ) ? ( json_decode( $seed_row->milestones, true ) ?: array() ) : array();
+            foreach ( array( 'six_months', 'two_years', 'five_years', 'ten_plus_years' ) as $h ) {
+                $staged[ $h ] = ( isset( $seed[ $h ] ) && is_array( $seed[ $h ] ) ) ? array_values( $seed[ $h ] ) : array();
+            }
+            $staged['_revisions'] = array();
+        }
+
+        // One milestone per line → { milestone: "..." } items (same shape
+        // generate_milestones stores).
+        $lines = array_values( array_filter( array_map( static function ( $l ) {
+            return trim( wp_strip_all_tags( $l ) );
+        }, preg_split( '/\r\n|\r|\n/', $value ) ) ) );
+        if ( empty( $lines ) || count( $lines ) > 8 ) {
+            return new WP_Error( 'invalid', 'Between 1 and 8 milestone lines, please.', array( 'status' => 400 ) );
+        }
+        $new_items = array_map( static function ( $l ) {
+            return array( 'milestone' => $l );
+        }, $lines );
+
+        // C1 soft-rail — flag, never block (same method the post-send editor uses).
+        $warnings = self::c1_soft_flags( implode( ' ', $lines ) );
+
+        $original          = isset( $staged[ $horizon ] ) ? $staged[ $horizon ] : array();
+        $staged[ $horizon ] = $new_items;
+        if ( ! isset( $staged['_revisions'] ) || ! is_array( $staged['_revisions'] ) ) {
+            $staged['_revisions'] = array();
+        }
+        $staged['_revisions'][] = array(
+            'horizon'   => $horizon,
+            'original'  => $original,
+            'new'       => $new_items,
+            'editor'    => get_current_user_id(),
+            'timestamp' => current_time( 'mysql' ),
+            'c1_flags'  => $warnings,
+        );
+
+        $updated = $wpdb->update(
+            $wpdb->prefix . 'hdlv2_consultation_notes',
+            array( 'staged_milestones' => wp_json_encode( $staged ) ),
+            array( 'id' => (int) $row->id ),
+            array( '%s' ), array( '%d' )
+        );
+        if ( false === $updated ) {
+            return new WP_Error( 'db_error', 'Could not save the milestone edit.', array( 'status' => 500 ) );
+        }
+
+        return rest_ensure_response( array(
+            'success'        => true,
+            'horizon'        => $horizon,
+            'milestones'     => $staged,
+            'warnings'       => $warnings,
+            'revision_count' => count( $staged['_revisions'] ),
+        ) );
+    }
+
+    /**
+     * v0.46.58 — C1 soft-validation flags for human milestone edits.
+     * Pattern classes mirror the generate_milestones prompt rail. Returns
+     * plain-English warning strings; an empty array means no flags.
+     */
+    private static function c1_soft_flags( $text ) {
+        $warnings = array();
+        $diseases = array(
+            'diabetes', 'cancer', 'dementia', 'alzheimer', 'stroke', 'heart disease',
+            'hypertension', 'osteoporosis', 'arthritis', 'depression', 'obesity',
+            'insulin resistance', 'metabolic syndrome',
+        );
+        foreach ( $diseases as $d ) {
+            if ( false !== stripos( $text, $d ) ) {
+                $warnings[] = "Names a condition (\"$d\") — keep milestones directional, not diagnostic.";
+            }
+        }
+        if ( preg_match( '/\b(diagnos\w*|prognos\w*|cure[sd]?|reverse[sd]?|treat(?:s|ed|ment)?)\b/i', $text, $m ) ) {
+            $warnings[] = "Diagnostic/treatment phrasing (\"{$m[1]}\") — describe direction of travel instead.";
+        }
+        if ( preg_match( '/\bwill\s+(?:reach|hit|achieve|drop(?:\s+to)?|fall(?:\s+to)?|be(?:\s+at)?|normali[sz]e)\b[^.]{0,40}\d/i', $text ) ) {
+            $warnings[] = 'Hard numeric promise — prefer "may move toward …; individual results vary".';
+        }
+        if ( preg_match( '/\bguarantee\w*/i', $text ) ) {
+            $warnings[] = 'Avoid guarantees — outcomes vary between individuals.';
+        }
+        return $warnings;
+    }
 
     public function rest_edit_field( $request ) {
         $params      = $request->get_json_params();
@@ -1733,7 +2043,7 @@ class HDLV2_Consultation {
         wp_enqueue_script(
             'hdlv2-audio-component',
             HDLV2_PLUGIN_URL . 'assets/js/hdlv2-audio-component.js',
-            array( 'hdlv2-transcriber' ),
+            array(), // E4 (v0.46.47) — client-Whisper tier removed; no transcriber dep
             HDLV2_VERSION,
             true
         );

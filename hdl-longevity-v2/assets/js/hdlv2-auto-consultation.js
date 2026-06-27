@@ -48,6 +48,12 @@
         showConsent: false,
         asyncUpload: true,
         useAsIsOnly: true,
+        // v0.47.2 — iconsOnlyMode so onLiveTranscript actually fires (the live
+        // gate requires it) and the component renders only mic+upload icons into
+        // #hdlv2-auto-audio instead of a second stray textarea + Process button.
+        // Live preview now streams into #hdlv2-auto-text via appendTranscript,
+        // matching the consultation/addendum surfaces.
+        iconsOnlyMode: true,
         onLiveTranscript: function (combined) {
           appendTranscript(combined, true);
           updateSubmitState();
