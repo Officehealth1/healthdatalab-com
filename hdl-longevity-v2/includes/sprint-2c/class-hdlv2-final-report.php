@@ -1089,16 +1089,13 @@ class HDLV2_Final_Report {
             'practitioner_email'      => $prac_user ? $prac_user->user_email : '',
             'practitioner_logo_url'   => self::get_practitioner_logo( $practitioner_id ),
             'chronological_age'       => $s1_data['q1_age'] ?? $s1_data['age'] ?? null,
-            'biological_age'          => $calc_result['bio_age'] ?? null,
-            // v0.34.4 — Force at-least-1-decimal precision so whole-number rates
-            // render as "1.0×" not "1×". Float→JSON coerced "1.0" to numeric 1,
-            // which Liquid's {{rate_of_ageing}} then printed as bare "1". Sent
-            // as STRING here; Liquid's `rate_n = rate_of_ageing | plus: 0`
-            // coerces back to number for band-math comparisons (still works).
+            'biological_age'          => isset( $calc_result['bio_age'] ) ? number_format( (float) $calc_result['bio_age'], 1, '.', '' ) : null,
+            // v0.34.4 / v0.47.5 — Always 2-dp STRING so PDF/email match the
+            // on-screen rate.toFixed(2) exactly ("1.00x"/"1.20x", not "1.0"/"1.2"/"1").
+            // Float-to-JSON drops trailing zeros; a fixed-precision string prevents that.
+            // Liquid's rate_n = rate_of_ageing | plus: 0 still coerces to number for band math.
             'rate_of_ageing'          => isset( $calc_result['rate'] )
-                ? ( fmod( (float) $calc_result['rate'], 1 ) == 0
-                    ? number_format( (float) $calc_result['rate'], 1, '.', '' )
-                    : number_format( (float) $calc_result['rate'], 2, '.', '' ) )
+                ? number_format( (float) $calc_result['rate'], 2, '.', '' )
                 : null,
             // v0.28.6 — client_sex drives gender-aware imagery on the new
             // PDFMonkey template (Two Trajectories block on Intro page).

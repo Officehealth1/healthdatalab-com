@@ -304,6 +304,7 @@ class HDLV2_Client_Status {
         $progress = $wpdb->get_row( $wpdb->prepare(
             "SELECT id, token, client_user_id, practitioner_user_id, client_email, client_name,
                     stage1_data, stage3_data, stage1_completed_at, stage3_completed_at, created_at,
+                    stage1_pdf_url,
                     has_flags, flags, flags_scan_status
              FROM {$prefix}hdlv2_form_progress
              WHERE id = %d AND deleted_at IS NULL",
@@ -362,6 +363,7 @@ class HDLV2_Client_Status {
 
         $stage1 = array(
             'completed_at'   => $progress->stage1_completed_at ?: $progress->created_at,
+            'pdf_url'        => (string) ( $progress->stage1_pdf_url ?? '' ),
             'rate'           => $s1_rate !== null ? round( $s1_rate, 2 ) : null,
             'bio_age_est'    => $s1_bio_age_est,
             'gauge_url'      => $s1_gauge_url,

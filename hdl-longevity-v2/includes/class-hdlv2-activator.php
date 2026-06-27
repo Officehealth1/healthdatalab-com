@@ -1358,6 +1358,111 @@ class HDLV2_Activator {
                 error_log( '[HDLV2] Phase AA migration error: ' . $e->getMessage() . ' — boot continues; verify manually.' );
             }
         }
+
+        // Phase AB (DB v3.21) — Stage 1 PDF self-hosting. Mirrors Phase X/Y's
+        // pattern (PDFMonkey download URLs expire ~1h, so the stage1-callback
+        // downloads + self-hosts the file). These columns on form_progress hold
+        // the PDFMonkey source URL, the stored path, and a render stamp so the
+        // dashboard serves a cached, access-controlled Stage 1 PDF via
+        // ?hdlv2_stage1_pdf=<form_progress_id>. Additive, idempotent
+        // (column-exists guarded).
+        if ( version_compare( $current_db_version, '3.21', '<' ) ) {
+            try {
+                $progress_table = $p . 'hdlv2_form_progress';
+                $add_col = function ( $table, $col, $ddl ) use ( $wpdb ) {
+                    $has = (int) $wpdb->get_var( $wpdb->prepare(
+                        "SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+                         WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s AND COLUMN_NAME = %s",
+                        $table, $col
+                    ) );
+                    if ( ! $has ) {
+                        $wpdb->query( "ALTER TABLE $table ADD COLUMN $ddl" );
+                        if ( $wpdb->last_error ) {
+                            error_log( "[HDLV2] Phase AB (v3.21) FAILED on $table.$col: " . $wpdb->last_error );
+                        } else {
+                            error_log( "[HDLV2] Phase AB (v3.21) migration: added $col to $table." );
+                        }
+                    }
+                };
+                $add_col( $progress_table, 'stage1_pdf_url',          'stage1_pdf_url VARCHAR(500) DEFAULT NULL AFTER stage1_completed_at' );
+                $add_col( $progress_table, 'stage1_pdf_stored_path',  'stage1_pdf_stored_path VARCHAR(255) DEFAULT NULL AFTER stage1_pdf_url' );
+                $add_col( $progress_table, 'stage1_pdf_generated_at', 'stage1_pdf_generated_at DATETIME DEFAULT NULL AFTER stage1_pdf_stored_path' );
+            } catch ( \Throwable $e ) {
+                error_log( '[HDLV2] Phase AB migration error: ' . $e->getMessage() . ' — boot continues; verify manually.' );
+            }
+        }
+
+        // Phase AC (DB v3.22) — backfill form_progress.client_user_id so a
+        // client whose wp_user already exists becomes visible in the
+        // practitioner main list. Only the widget-Confirm path (complete_signup)
+        // ever wrote client_user_id; the direct rest_create_form path left it
+        // NULL and nothing healed it, so such clients were permanently invisible
+        // (HDLV2_Compatibility roster gates on client_user_id IS NOT NULL).
+        // user_email is unique in wp_users so the JOIN is 1:1; fills only NULLs
+        // on non-deleted rows — never overwrites an existing link, never touches
+        // soft-deleted rows. Pairs with the forward stamp in
+        // HDLV2_Staged_Form::complete_stage. Pre-migration STBY audit (2026-06-27):
+        // 0 rows with stage3_completed_at would link → triggers no check-in /
+        // flight-plan / attention automation.
+        if ( version_compare( $current_db_version, '3.22', '<' ) ) {
+            try {
+                $fp_table = $p . 'hdlv2_form_progress';
+                $users    = $wpdb->users;
+                $n = $wpdb->query(
+                    "UPDATE $fp_table fp
+                     JOIN $users u ON u.user_email = fp.client_email
+                     SET fp.client_user_id = u.ID
+                     WHERE fp.client_user_id IS NULL
+                       AND fp.client_email IS NOT NULL
+                       AND fp.client_email <> ''
+                       AND fp.deleted_at IS NULL"
+                );
+                if ( $wpdb->last_error ) {
+                    error_log( '[HDLV2] Phase AC (v3.22) client_user_id backfill FAILED: ' . $wpdb->last_error );
+                } else {
+                    error_log( '[HDLV2] Phase AC (v3.22) migration: backfilled client_user_id on ' . (int) $n . ' form_progress row(s).' );
+                }
+                // Feature flag for "pending leads in the main list", default OFF.
+                // add_option is a no-op if already set.
+                add_option( 'hdlv2_ff_pending_in_list', false );
+            } catch ( \Throwable $e ) {
+                error_log( '[HDLV2] Phase AC migration error: ' . $e->getMessage() . ' — boot continues; verify manually.' );
+            }
+        }
+
+        // Phase AD (DB v3.23) — Stage 1 PDF capture on the public widget path.
+        // The public widget fires the Stage 1 PDF at SUBMIT with a synthetic
+        // cache token before any form_progress row exists (created later on
+        // Confirm), so the stage1-callback can't resolve form_progress and 404s
+        // for public signups. These columns let the callback capture the stored
+        // PDF onto the widget_lead at submit; the file is migrated to
+        // form_progress on Confirm (same physical file — stored once, never
+        // re-fetched). Additive, idempotent (column-exists guarded).
+        if ( version_compare( $current_db_version, '3.23', '<' ) ) {
+            try {
+                $leads_table = $p . 'hdlv2_widget_leads';
+                $add_col = function ( $table, $col, $ddl ) use ( $wpdb ) {
+                    $has = (int) $wpdb->get_var( $wpdb->prepare(
+                        "SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+                         WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s AND COLUMN_NAME = %s",
+                        $table, $col
+                    ) );
+                    if ( ! $has ) {
+                        $wpdb->query( "ALTER TABLE $table ADD COLUMN $ddl" );
+                        if ( $wpdb->last_error ) {
+                            error_log( "[HDLV2] Phase AD (v3.23) FAILED on $table.$col: " . $wpdb->last_error );
+                        } else {
+                            error_log( "[HDLV2] Phase AD (v3.23) migration: added $col to $table." );
+                        }
+                    }
+                };
+                $add_col( $leads_table, 'stage1_pdf_stored_path',  'stage1_pdf_stored_path VARCHAR(255) DEFAULT NULL AFTER rejected_at' );
+                $add_col( $leads_table, 'stage1_pdf_generated_at', 'stage1_pdf_generated_at DATETIME DEFAULT NULL AFTER stage1_pdf_stored_path' );
+                $add_col( $leads_table, 'stage1_cache_token',      'stage1_cache_token VARCHAR(64) DEFAULT NULL AFTER stage1_pdf_generated_at' );
+            } catch ( \Throwable $e ) {
+                error_log( '[HDLV2] Phase AD migration error: ' . $e->getMessage() . ' — boot continues; verify manually.' );
+            }
+        }
     }
 
     /**
@@ -1436,6 +1541,9 @@ class HDLV2_Activator {
             status ENUM('pending','confirmed','rejected') DEFAULT 'pending',
             confirmed_at DATETIME DEFAULT NULL,
             rejected_at DATETIME DEFAULT NULL,
+            stage1_pdf_stored_path VARCHAR(255) DEFAULT NULL,
+            stage1_pdf_generated_at DATETIME DEFAULT NULL,
+            stage1_cache_token VARCHAR(64) DEFAULT NULL,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             PRIMARY KEY (id),
             KEY practitioner_user_id (practitioner_user_id),
@@ -1480,6 +1588,9 @@ class HDLV2_Activator {
             token_expires_at DATETIME DEFAULT NULL,
             stage1_data JSON DEFAULT NULL,
             stage1_completed_at DATETIME DEFAULT NULL,
+            stage1_pdf_url VARCHAR(500) DEFAULT NULL,
+            stage1_pdf_stored_path VARCHAR(255) DEFAULT NULL,
+            stage1_pdf_generated_at DATETIME DEFAULT NULL,
             stage2_data JSON DEFAULT NULL,
             stage2_completed_at DATETIME DEFAULT NULL,
             stage2_webhook_fired_at DATETIME DEFAULT NULL,

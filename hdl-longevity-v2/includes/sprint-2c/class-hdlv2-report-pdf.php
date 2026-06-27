@@ -51,6 +51,11 @@ class HDLV2_Report_PDF {
             'callback'            => array( $this, 'rest_pdf_callback' ),
             'permission_callback' => '__return_true', // Bearer secret checked inside (hash_equals)
         ) );
+        register_rest_route( 'hdl-v2/v1', '/form/stage1-callback', array(
+            'methods'             => 'POST',
+            'callback'            => array( $this, 'rest_stage1_callback' ),
+            'permission_callback' => '__return_true', // Bearer secret checked inside (hash_equals)
+        ) );
     }
 
     private function valid_secret( $request ) {
@@ -103,6 +108,94 @@ class HDLV2_Report_PDF {
         return rest_ensure_response( array( 'success' => true, 'report_id' => $report_id ) );
     }
 
+    /** POST /form/stage1-callback  Body: { stage:'stage1', token, pdf_url, generated_at } — keyed on TOKEN, not report_id. */
+    public function rest_stage1_callback( $request ) {
+        if ( ! $this->valid_secret( $request ) ) {
+            return new WP_Error( 'forbidden', 'Invalid callback secret.', array( 'status' => 403 ) );
+        }
+        $p       = $request->get_json_params();
+        $token   = sanitize_text_field( $p['token'] ?? '' );
+        $src_url = esc_url_raw( $p['pdf_url'] ?? '' );
+        if ( ! preg_match( '/^[a-f0-9]{64}$/', $token ) ) {
+            return new WP_Error( 'invalid', 'token (64 hex) required.', array( 'status' => 400 ) );
+        }
+        if ( ! $src_url ) {
+            return new WP_Error( 'invalid', 'pdf_url required.', array( 'status' => 400 ) );
+        }
+
+        global $wpdb;
+
+        // STEP 1 (existing): confirmed client — form_progress keyed by its real token.
+        $pid = (int) $wpdb->get_var( $wpdb->prepare(
+            "SELECT id FROM {$wpdb->prefix}hdlv2_form_progress WHERE token = %s AND deleted_at IS NULL LIMIT 1",
+            $token
+        ) );
+        if ( $pid ) {
+            $ok = self::store_stage1_pdf( $pid, $src_url );
+            if ( ! $ok ) {
+                // NON-CLOBBER: leave any existing pdf intact. Soft error → Make ignores (non-blocking).
+                return new WP_Error( 'fetch_failed', 'Could not fetch/store Stage-1 PDF.', array( 'status' => 502 ) );
+            }
+            return rest_ensure_response( array( 'success' => true, 'form_progress_id' => $pid ) );
+        }
+
+        // STEP 2 (fallback): public widget signup fires the Stage-1 PDF at SUBMIT with a
+        // synthetic cache token, BEFORE any form_progress row exists (that row is created
+        // later on Confirm, which does NOT re-fire). Capture onto the widget_lead, then
+        // forward to form_progress if Confirm has already landed.
+        $lead = $wpdb->get_row( $wpdb->prepare(
+            "SELECT id, practitioner_user_id, visitor_email
+               FROM {$wpdb->prefix}hdlv2_widget_leads WHERE stage1_cache_token = %s ORDER BY id DESC LIMIT 1",
+            $token
+        ) );
+        if ( ! $lead ) return new WP_Error( 'not_found', 'Lead not found or inactive.', array( 'status' => 404 ) );
+
+        $stored = self::fetch_and_store( $src_url, 'stage1lead-' . absint( $lead->id ) );
+        if ( is_wp_error( $stored ) ) {
+            // NON-CLOBBER: leave any existing pdf intact. Soft error → Make ignores (non-blocking).
+            return new WP_Error( 'fetch_failed', $stored->get_error_message(), array( 'status' => 502 ) );
+        }
+        $rel = $stored['relpath'];
+        $now = current_time( 'mysql', true );
+
+        $wpdb->update(
+            $wpdb->prefix . 'hdlv2_widget_leads',
+            array(
+                'stage1_pdf_stored_path'  => $rel,
+                'stage1_pdf_generated_at' => $now,
+            ),
+            array( 'id' => (int) $lead->id ),
+            array( '%s', '%s' ), array( '%d' )
+        );
+
+        // FORWARD (covers callback-arrives-after-Confirm): reuse the SAME stored file —
+        // never re-download. Serve stays form_progress-only, so populate the served URL.
+        $fp_id = (int) $wpdb->get_var( $wpdb->prepare(
+            "SELECT id FROM {$wpdb->prefix}hdlv2_form_progress
+              WHERE client_email = %s AND practitioner_user_id = %d AND deleted_at IS NULL
+              ORDER BY id DESC LIMIT 1",
+            $lead->visitor_email, (int) $lead->practitioner_user_id
+        ) );
+        if ( $fp_id ) {
+            $wpdb->update(
+                $wpdb->prefix . 'hdlv2_form_progress',
+                array(
+                    'stage1_pdf_stored_path'  => $rel,
+                    'stage1_pdf_url'          => home_url( '/?hdlv2_stage1_pdf=' . $fp_id ),
+                    'stage1_pdf_generated_at' => $now,
+                ),
+                array( 'id' => $fp_id ),
+                array( '%s', '%s', '%s' ), array( '%d' )
+            );
+        }
+
+        return rest_ensure_response( array(
+            'success'          => true,
+            'widget_lead_id'   => (int) $lead->id,
+            'form_progress_id' => $fp_id ?: null,
+        ) );
+    }
+
     /** Download a remote PDF into the protected uploads dir. Timestamped filename → additive, never overwrites prior files. */
     public static function fetch_and_store( $src_url, $slug ) {
         $resp = wp_remote_get( $src_url, array( 'timeout' => 20, 'redirection' => 3 ) );
@@ -150,12 +243,31 @@ class HDLV2_Report_PDF {
         return $stored;
     }
 
+    /** Persist a Stage-1 quick-insight PDF against form_progress (called by the stage-1 callback). Non-fatal. Returns bool. */
+    public static function store_stage1_pdf( $form_progress_id, $src_url ) {
+        $stored = self::fetch_and_store( $src_url, 'stage1-' . absint( $form_progress_id ) );
+        if ( is_wp_error( $stored ) ) return false; // NON-CLOBBER: leave columns untouched.
+        global $wpdb;
+        $wpdb->update(
+            $wpdb->prefix . 'hdlv2_form_progress',
+            array(
+                'stage1_pdf_stored_path'  => $stored['relpath'],
+                'stage1_pdf_url'          => home_url( '/?hdlv2_stage1_pdf=' . absint( $form_progress_id ) ),
+                'stage1_pdf_generated_at' => current_time( 'mysql', true ),
+            ),
+            array( 'id' => absint( $form_progress_id ) ),
+            array( '%s', '%s', '%s' ), array( '%d' )
+        );
+        return true;
+    }
+
     /** Authenticated, ownership-checked streaming download (cookie auth — works from a bare <a href>). */
     public function maybe_serve_pdf() {
         $rid = isset( $_GET['hdlv2_report_pdf'] ) ? absint( $_GET['hdlv2_report_pdf'] ) : 0;
         $wid = isset( $_GET['hdlv2_why_pdf'] )    ? absint( $_GET['hdlv2_why_pdf'] )    : 0;
         $fid = isset( $_GET['hdlv2_fp_pdf'] )     ? absint( $_GET['hdlv2_fp_pdf'] )     : 0;
-        if ( ! $rid && ! $wid && ! $fid ) return;
+        $sid = isset( $_GET['hdlv2_stage1_pdf'] ) ? absint( $_GET['hdlv2_stage1_pdf'] ) : 0;
+        if ( ! $rid && ! $wid && ! $fid && ! $sid ) return;
         if ( ! is_user_logged_in() ) { auth_redirect(); exit; }
         global $wpdb;
         $uid = get_current_user_id();
@@ -185,6 +297,19 @@ class HDLV2_Report_PDF {
                || ( class_exists( 'HDLV2_Compatibility' ) && HDLV2_Compatibility::practitioner_owns_client( $uid, (int) $row->client_user_id ) );
             if ( ! $ok ) { status_header( 403 ); exit; }
             self::stream( $row->pdf_stored_path, 'HDL-' . $row->report_type . '-report.pdf' );
+        }
+
+        // Stage-1 quick-insight PDF (self-hosted): owning client OR owning practitioner.
+        if ( $sid ) {
+            $row = $wpdb->get_row( $wpdb->prepare(
+                "SELECT client_user_id, stage1_pdf_stored_path
+                   FROM {$wpdb->prefix}hdlv2_form_progress
+                  WHERE id = %d AND deleted_at IS NULL LIMIT 1", $sid ) );
+            if ( ! $row || empty( $row->stage1_pdf_stored_path ) ) { status_header( 404 ); exit; }
+            $ok = ( (int) $row->client_user_id === $uid )
+               || ( class_exists( 'HDLV2_Compatibility' ) && HDLV2_Compatibility::practitioner_owns_client( $uid, (int) $row->client_user_id ) );
+            if ( ! $ok ) { status_header( 403 ); exit; }
+            self::stream( $row->stage1_pdf_stored_path, 'HDL-stage1-quick-insight.pdf' );
         }
 
         // Stage-2 WHY: PRACTITIONER ONLY (not client-safe — carries practitioner_brief).

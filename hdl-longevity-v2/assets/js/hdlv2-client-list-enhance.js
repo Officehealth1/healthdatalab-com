@@ -2121,12 +2121,28 @@
           + '</div>'
         : '<div class="hdlv2-st-gauge-card"><div class="hdlv2-detail-empty">Gauge image unavailable.</div></div>';
 
+      // Stage-1 quick-insight PDF download (the same file emailed to the
+      // client once the stage1-callback has stored one). Renders only when a
+      // pdf_url is present — presented as the same document card the Stage-3
+      // Draft Report + Final tabs use, so every tab's PDF action reads alike.
+      var s1Pdf = s1.pdf_url
+        ? '<div class="hdlv2-dl-doc hdlv2-dl-doc--stack">'
+          +   '<div class="hdlv2-dl-doc-ico">' + docIconSVG() + '</div>'
+          +   '<div class="hdlv2-dl-doc-body">'
+          +     '<span class="hdlv2-dl-doc-title">Quick Insight Report</span>'
+          +     '<span class="hdlv2-dl-doc-meta">Stage-1 quick insight &middot; the same PDF emailed to the client</span>'
+          +   '</div>'
+          +   '<a class="hdlv2-dl-btn" href="' + esc(s1.pdf_url) + '" target="_blank" rel="noopener" download>' + flightNotesIconSVG() + '<span>Download PDF</span></a>'
+          + '</div>'
+        : '';
+
       target.innerHTML = '<div class="hdlv2-st-card">'
         + '<div class="hdlv2-st-meta">Quick insight &middot; Completed ' + esc(formatDate(s1.completed_at)) + '</div>'
         + '<div class="hdlv2-s1-grid">'
         +   '<div>' + leftStats + leftList + '</div>'
         +   '<div>' + rightGauge + '</div>'
         + '</div>'
+        + s1Pdf
         + '</div>';
     });
   }
@@ -2937,6 +2953,13 @@
   //   3. Trend — at least 2 weeks of adherence OR 2+ outcome points
   //              (real chart with both series)
   function loadProgress(c, target) {
+    // v0.47.9 — Stage-1-only / pre-Stage-3 clients aren't in the weekly
+    // programme yet, so the Effort-vs-Outcomes chart doesn't apply. Show a
+    // journey-state message that reflects where they actually are (Matthew
+    // 2026-06-27 — surface Stage-1-only clients in the EXISTING dropdown, with
+    // a Progress message like any incomplete client; no separate interface).
+    var journey = renderProgressJourneyState(c);
+    if (journey) { target.innerHTML = journey; return; }
     if (typeof window.Chart === 'undefined') {
       target.innerHTML = '<div class="hdlv2-detail-empty">Chart library failed to load. Please refresh the page.</div>';
       return;
@@ -2967,6 +2990,45 @@
 
         renderProgressChartView(target, adherence, outcomes, data.baseline_rate);
       });
+  }
+
+  // v0.47.9 — Pre-programme journey message for the Progress tab. A client who
+  // has only completed Stage 1 (or hasn't finished it) isn't in the weekly
+  // Flight Plan yet, so the Effort-vs-Outcomes chart is meaningless for them.
+  // Mirror how Progress should read for an incomplete client: say where they
+  // are and point at the Stage 1 tab (their answers/gauge already render there
+  // via loadStage1). Returns '' for clients far enough along to use the chart.
+  function renderProgressJourneyState(c) {
+    var st = c && c.status;
+    if (st === 'not_started') {
+      return progressJourneyCard(
+        'Stage 1 not completed yet',
+        'This client opened their assessment but hasn’t finished the Stage 1 quick insight. Once they complete it, their pace-of-ageing result and 9-question answers appear in the Stage 1 tab.',
+        'Stage 1 · in progress'
+      );
+    }
+    if (st === 'low_data') {
+      return progressJourneyCard(
+        'Completed Stage 1 · Stage 2 not started',
+        'This client finished their Stage 1 quick insight — their pace-of-ageing result and 9-question answers are in the Stage 1 tab. They haven’t started Stage 2 (Your WHY) yet. Effort-vs-outcomes tracking begins once they complete Stage 3 and receive their first Weekly Flight Plan.',
+        'Stage 1 ✓ · awaiting Stage 2'
+      );
+    }
+    return '';
+  }
+
+  // Themed single-card layout, reusing the existing .hdlv2-progress-* classes.
+  function progressJourneyCard(title, body, chip) {
+    return ''
+      + '<div class="hdlv2-progress-eyebrow">Progress</div>'
+      + '<div class="hdlv2-progress-grid" style="grid-template-columns:1fr;">'
+      +   '<div class="hdlv2-progress-card" style="max-width:660px;">'
+      +     '<div class="hdlv2-progress-card-title"><span>' + esc(title) + '</span>'
+      +       (chip ? '<span class="hdlv2-progress-card-meta">' + esc(chip) + '</span>' : '')
+      +     '</div>'
+      +     '<p style="margin:8px 0 0;font-size:13.5px;line-height:1.65;color:#2c3e50;">' + esc(body) + '</p>'
+      +   '</div>'
+      + '</div>';
   }
 
   // Early state — text card. A single dot in a chart misreads as a bug

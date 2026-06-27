@@ -108,6 +108,7 @@ class HDLV2_Rate_Limit_Policy {
             array( 'POST', '#^/hdl-v2/v1/widget/leads/confirm$#',               self::TIER_AI_BURN ),
 
             // ── Bypass (Make.com bearer-authed callbacks + internal loopback) ───
+            array( 'POST', '#^/hdl-v2/v1/form/stage1-callback$#',               self::TIER_BYPASS ),
             array( 'POST', '#^/hdl-v2/v1/form/stage2-callback$#',               self::TIER_BYPASS ),
             array( 'POST', '#^/hdl-v2/v1/flight-plan/pdf-callback$#',           self::TIER_BYPASS ),
             // v0.46.57 (P4) — D-2 final/draft/WHY PDF callback from Make.com.

@@ -1100,7 +1100,11 @@ class HDLV2_Client_Dashboard {
      */
     private function chart_url_gauge( $rate ) {
         if ( ! $rate ) return '';
-        $r = max( 0.8, min( 1.4, round( (float) $rate, 2 ) ) );
+        // Stage-3 rates can fall outside the Stage-1 0.8–1.4 band; widen the
+        // gauge scale to 0.5–2.0 (mirrors the my-report stage3 gauge) so the
+        // needle stays faithful instead of pinning at the rail while the
+        // printed value is correct.
+        $r = max( 0.5, min( 2.0, round( (float) $rate, 2 ) ) );
 
         if ( $r <= 0.9 )      { $sub_text = 'Slower';  $sub_color = 'rgba(67, 191, 85, 1)'; }
         elseif ( $r <= 1.1 )  { $sub_text = 'Average'; $sub_color = 'rgba(65, 165, 238, 1)'; }
@@ -1111,9 +1115,9 @@ class HDLV2_Client_Dashboard {
             'data' => array(
                 'labels' => array( 'Slower', 'Average', 'Faster' ),
                 'datasets' => array( array(
-                    'data' => array( 0.9, 1.1, 1.4 ),
+                    'data' => array( 0.9, 1.1, 2.0 ),
                     'value' => $r,
-                    'minValue' => 0.8, 'maxValue' => 1.4,
+                    'minValue' => 0.5, 'maxValue' => 2.0,
                     'backgroundColor' => array(
                         'rgba(67,191,85,0.95)',   // green — slower (good)
                         'rgba(65,165,238,0.95)',  // blue  — average
@@ -1492,6 +1496,29 @@ class HDLV2_Client_Dashboard {
                 // the three priorities on the dashboard My Report tab. Source of
                 // truth is the same JSON the PDF renders from.
                 $priorities = $this->extract_priorities( (string) $report->report_content );
+
+                // Source parity (Progress tab vs delivered report/PDF):
+                // once a FINAL report is frozen, the my-report client view and
+                // the PDF both read the generation-time calc_snapshot baked into
+                // report_content (v0.46.28 / A2). The Progress-tab hero numbers
+                // above default to the LIVE stage3 server_result, which is
+                // recomputed on /edit-field — so editing a health field after
+                // finalisation silently drifts the dashboard away from the
+                // report the client was sent. Prefer the frozen snapshot when a
+                // FINAL exists and carries one; fall back to server_result
+                // otherwise (drafts, legacy finals without a snapshot).
+                if ( $report_type === 'final' && ! empty( $report->report_content ) ) {
+                    $rc_snap = json_decode( (string) $report->report_content, true );
+                    if ( is_array( $rc_snap ) && ! empty( $rc_snap['calc_snapshot'] ) && is_array( $rc_snap['calc_snapshot'] ) ) {
+                        $snap = $rc_snap['calc_snapshot'];
+                        if ( isset( $snap['rate'] ) )    $stage3_rate    = (float) $snap['rate'];
+                        if ( isset( $snap['bio_age'] ) ) $stage3_bio_age = (float) $snap['bio_age'];
+                        if ( isset( $snap['bmi'] ) )     $stage3_bmi     = (float) $snap['bmi'];
+                        if ( isset( $snap['whr'] ) )     $stage3_whr     = (float) $snap['whr'];
+                        if ( isset( $snap['whtr'] ) )    $stage3_whtr    = (float) $snap['whtr'];
+                        if ( isset( $snap['scores'] ) && is_array( $snap['scores'] ) ) $stage3_scores = $snap['scores'];
+                    }
+                }
             }
         }
 

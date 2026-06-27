@@ -114,7 +114,7 @@ class HDLV2_Stage1_Commentary {
         }
 
         $bio_phrase = $bio_age !== null
-            ? sprintf( 'biological age around %d versus chronological %d', (int) round( $bio_age ), $age )
+            ? sprintf( 'biological age around %s versus chronological %d', $bio_age, $age )
             : 'rate-of-ageing in line with the population baseline';
 
         // 5 rate bands, soft/neutral tone per the brief.
@@ -502,7 +502,7 @@ class HDLV2_Stage1_Commentary {
      * @param string $client_name Full name; first name extracted internally.
      * @return array {
      *     @type string $headline_text   Rate-banded personalised paragraph (plain).
-     *     @type int    $biological_age  round(rate × age) or 0 when age unknown.
+     *     @type float  $biological_age  round(rate × age, 1) — 1 dp to match the on-screen figure; 0 when age unknown.
      *     @type string $strongest_topic Short topic label (e.g., "Sleep") or ''.
      *     @type string $strongest_text  Plain-text strength narrative or fallback.
      *     @type string $priority_topic  Short topic label or ''.
@@ -532,7 +532,7 @@ class HDLV2_Stage1_Commentary {
 
         return array(
             'headline_text'   => $headline_text,
-            'biological_age'  => $age > 0 ? (int) round( $rate * $age ) : 0,
+            'biological_age'  => $age > 0 ? round( $rate * $age, 1 ) : 0,
             'strongest_topic' => self::topic_for_factor( $strongest ),
             'strongest_text'  => self::library_text_plain( $strongest, 'strength' ),
             'priority_topic'  => self::topic_for_factor( $weakest ),

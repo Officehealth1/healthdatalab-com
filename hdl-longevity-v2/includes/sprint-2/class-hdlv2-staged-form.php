@@ -488,6 +488,23 @@ class HDLV2_Staged_Form {
             }
         }
 
+        // v0.47.7 — forward-stamp client_user_id so the client appears in the
+        // practitioner's main list. Some creation paths (rest_create_form) leave
+        // it NULL and nothing healed it (the roster gates on client_user_id IS
+        // NOT NULL). Only fill when a logged-in user's email matches this row,
+        // and NEVER overwrite an existing link. Additive + guarded — can't
+        // regress. Pairs with the one-time backfill (activator Phase AC, v3.22).
+        if ( empty( $progress->client_user_id ) ) {
+            $uid = get_current_user_id();
+            if ( $uid ) {
+                $u         = get_userdata( $uid );
+                $row_email = ! empty( $updates['client_email'] ) ? $updates['client_email'] : $progress->client_email;
+                if ( $u && $row_email && strtolower( $u->user_email ) === strtolower( (string) $row_email ) ) {
+                    $updates['client_user_id'] = (int) $uid;
+                }
+            }
+        }
+
         global $wpdb;
 
         // Persist JSON stage_data column FIRST with explicit %s format. Doing
@@ -1983,8 +2000,8 @@ class HDLV2_Staged_Form {
             'practitioner_email'       => $prac_user ? $prac_user->user_email : '',
             'practitioner_initials'    => $practitioner_initials,                        // v0.23.6
             'practitioner_logo_url'    => $prac_logo_url,                                // v0.30.2
-            'rate_of_ageing'           => $calc_result['rate'] ?? null,
-            'biological_age'           => $calc_result['bio_age'] ?? null,
+            'rate_of_ageing'           => isset( $calc_result['rate'] ) ? number_format( (float) $calc_result['rate'], 2, '.', '' ) : null,
+            'biological_age'           => isset( $calc_result['bio_age'] ) ? number_format( (float) $calc_result['bio_age'], 1, '.', '' ) : null,
             'chronological_age'        => $s1_data['q1_age'] ?? $s1_data['age'] ?? null,
             'bio_chrono_advantage'     => $bio_chrono_advantage,                         // v0.23.6
             // v0.23.6 — gauge bounds widened to 0.5-2.0 to match calculate_full's

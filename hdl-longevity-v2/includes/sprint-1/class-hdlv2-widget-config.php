@@ -621,6 +621,23 @@ class HDLV2_Widget_Config {
         // token, never exposed in URLs, never stored.
         $cache_token = bin2hex( hash( 'sha256', $practitioner_id . '|' . $visitor_email, true ) );
 
+        // v0.47.x (Option B) — stamp the synthetic cache token on the lead so
+        // the Stage-1 PDF callback (POST /form/stage1-callback) can resolve
+        // this public submission. The public path has no form_progress row yet
+        // (created later on Confirm), so the callback would otherwise 404.
+        // store_stage1_pdf() lands the file on the lead; complete_signup()
+        // migrates the stored path onto form_progress at Confirm.
+        if ( $lead_id ) {
+            global $wpdb;
+            $wpdb->update(
+                $wpdb->prefix . 'hdlv2_widget_leads',
+                array( 'stage1_cache_token' => $cache_token ),
+                array( 'id' => (int) $lead_id ),
+                array( '%s' ),
+                array( '%d' )
+            );
+        }
+
         self::dispatch_post_signup_artifacts( array(
             'practitioner_id'           => $practitioner_id,
             'visitor_name'              => $visitor_name,
@@ -1131,6 +1148,7 @@ class HDLV2_Widget_Config {
                 'report_date'            => current_time( 'Y-m-d' ),
                 'stage1_data'            => $stage1_data_outbound, // v0.46.21 (QA F4) — sanitized: no _safety/_safety_flags/server_result
                 'form_token'             => $form_token,
+                'callback_url'           => rest_url( 'hdl-v2/v1/form/stage1-callback' ),
                 'timestamp'              => current_time( 'c' ),
                 // v0.30.0 — premium template fields. Plain text from
                 // HDLV2_Stage1_Commentary::build_structured(). Make.com
@@ -1210,8 +1228,11 @@ class HDLV2_Widget_Config {
         // PNGs (every existing client kept seeing the duplicate value
         // text baked into the pixels). See class-hdlv2-staged-form.php
         // build_gauge_url for the current settings.
-        $cache_version = 'v4';   // bump on any gauge_url config change (v0.32.0: HDL status palette — green/amber/red, was green/blue-teal/orange)
-        $filename = $token . '-' . $suffix . '-' . $cache_version . '.png';
+        $cache_version = 'v5';   // bump on any gauge_url config change (v0.47.4: rate-sensitive key — was keyed only on practitioner|email, served stale needle on rate change; v0.32.0 HDL status palette)
+        // Fingerprint the actual gauge URL (encodes rate + colours) so a changed rate
+        // for the same practitioner|email re-renders instead of serving a stale needle.
+        $url_fp   = substr( hash( 'sha256', (string) $remote_url ), 0, 12 );
+        $filename = $token . '-' . $suffix . '-' . $cache_version . '-' . $url_fp . '.png';
         $path = $dir . '/' . $filename;
         $url  = trailingslashit( $uploads['baseurl'] ) . 'hdlv2-gauges/' . $filename;
 
@@ -1500,6 +1521,45 @@ class HDLV2_Widget_Config {
                 HDLV2_Safety_Screen::process( $fp_id, $stage1_data['_safety'] );
             } catch ( \Throwable $e ) {
                 error_log( '[HDLV2 safety-screen] process failed for fp=' . $fp_id . ': ' . $e->getMessage() );
+            }
+        }
+
+        // v0.47.x (Option B) — migrate the public-path Stage-1 PDF onto
+        // form_progress. The public widget fires the Stage-1 PDF at SUBMIT
+        // against a synthetic cache token and the callback stores the file on
+        // the widget_lead (no form_progress row exists yet). At Confirm/invite
+        // we now have a form_progress row ($fp_id), so copy the SAME stored
+        // file across (store/download once — never re-fetch) and point the
+        // serve URL at this row. Serve stays form_progress-only.
+        if ( ! empty( $fp_id ) ) {
+            $lead_pdf = $wpdb->get_row( $wpdb->prepare(
+                "SELECT stage1_pdf_stored_path, stage1_pdf_generated_at
+                   FROM {$wpdb->prefix}hdlv2_widget_leads
+                  WHERE practitioner_user_id = %d
+                    AND visitor_email = %s
+                    AND stage1_pdf_stored_path IS NOT NULL
+                    AND stage1_pdf_stored_path <> ''
+                  ORDER BY id DESC LIMIT 1",
+                $practitioner_id, $visitor_email
+            ) );
+            if ( $lead_pdf && ! empty( $lead_pdf->stage1_pdf_stored_path ) ) {
+                $existing_fp_pdf = (string) $wpdb->get_var( $wpdb->prepare(
+                    "SELECT stage1_pdf_stored_path FROM {$wpdb->prefix}hdlv2_form_progress WHERE id = %d",
+                    absint( $fp_id )
+                ) );
+                if ( $existing_fp_pdf === '' ) {
+                    $wpdb->update(
+                        $wpdb->prefix . 'hdlv2_form_progress',
+                        array(
+                            'stage1_pdf_stored_path'  => $lead_pdf->stage1_pdf_stored_path,
+                            'stage1_pdf_url'          => home_url( '/?hdlv2_stage1_pdf=' . absint( $fp_id ) ),
+                            'stage1_pdf_generated_at' => $lead_pdf->stage1_pdf_generated_at,
+                        ),
+                        array( 'id' => absint( $fp_id ) ),
+                        array( '%s', '%s', '%s' ),
+                        array( '%d' )
+                    );
+                }
             }
         }
 
