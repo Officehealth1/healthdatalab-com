@@ -28,5 +28,9 @@ class HDLV2_Deactivator {
         wp_clear_scheduled_hook( 'hdlv2_stuck_release_reminder' );
         // v0.40.19 — Stage 2 extraction retry safety net.
         wp_clear_scheduled_hook( 'hdlv2_stage2_extraction_retry' );
+        // B.7 (§4.6/§4.8) — these two were registered in schedule_crons() but
+        // never cleared here, so they survived deactivation and kept firing.
+        wp_clear_scheduled_hook( 'hdlv2_attention_email_cron' ); // v0.41.8 daily needs-attention digest
+        wp_clear_scheduled_hook( 'hdlv2_iris_reconcile' );        // v3.19 Iris OS-cron reconcile backstop
     }
 }
