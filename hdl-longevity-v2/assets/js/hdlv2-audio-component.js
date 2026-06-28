@@ -22,7 +22,7 @@ window.HDLAudioComponent = (function () {
   // the console) to surface diagnostics. Short-circuit evaluation means
   // `false && console.log(...)` skips the call entirely — no eval cost.
   var HDLV2_AC_DEBUG = !!window.HDLV2_AC_DEBUG;
-  try { HDLV2_AC_DEBUG && HDLV2_AC_DEBUG && console.log('[HDL-DEBUG] hdlv2-audio-component.js LOADED', { build: '0.47.21', hasSR: !!window.SpeechRecognition, hasWebkitSR: !!window.webkitSpeechRecognition, isSecureContext: window.isSecureContext, href: location.href }); } catch(e){}
+  try { HDLV2_AC_DEBUG && HDLV2_AC_DEBUG && console.log('[HDL-DEBUG] hdlv2-audio-component.js LOADED', { build: '0.47.22', hasSR: !!window.SpeechRecognition, hasWebkitSR: !!window.webkitSpeechRecognition, isSecureContext: window.isSecureContext, href: location.href }); } catch(e){}
   try { HDLV2_AC_DEBUG && console.log('[HDL-DEBUG] browser info', { userAgent: navigator.userAgent, vendor: navigator.vendor, platform: navigator.platform, hardwareConcurrency: navigator.hardwareConcurrency, hasAudioContext: !!(window.AudioContext || window.webkitAudioContext), hasUserActivation: !!navigator.userActivation }); } catch(e){}
   try {
     if (navigator.mediaDevices && navigator.mediaDevices.enumerateDevices) {
@@ -550,6 +550,24 @@ window.HDLAudioComponent = (function () {
     self.isRecording = true;
     self.recordingSeconds = 0;
 
+    // v0.47.22 (A2) — detect a mid-session mic loss (user/OS revokes permission,
+    // USB mic unplugged, device grabbed by another app). The audio track fires
+    // 'ended'; without this the silence meter reads the dead track's flat-128
+    // buffer as "keep alive" (see _armSilenceMeter) and NEVER auto-stops, so the
+    // UI sits on "recording" until the 90-min cap with nothing captured. On loss
+    // we stop THIS take — flushing whatever was captured so far to Deepgram so
+    // nothing already spoken is lost — and surface an honest, actionable message.
+    // A late 'ended' from our own stop is ignored: stopRecording flips
+    // isRecording=false BEFORE stopping tracks, and we re-check mediaRecorder.
+    try {
+      stream.getAudioTracks().forEach(function (track) {
+        track.addEventListener('ended', function () {
+          if (!self.isRecording || self.mediaRecorder !== recorder) return;
+          self._onMicLost(btn);
+        });
+      });
+    } catch (e) {}
+
     btn.classList.add('recording');
     btn.innerHTML = '<span class="hdlv2-ac-dot"></span>';
     btn.title = 'Stop recording';
@@ -693,6 +711,24 @@ window.HDLAudioComponent = (function () {
     } else {
       this.showError('Microphone error: ' + (name || 'unknown') + '. Try again or type your answer.');
     }
+  };
+
+  // v0.47.22 (A2) — mic/track lost mid-recording. Flush the partial take to
+  // Deepgram via stopRecording (which ships the captured blob — NOT _release,
+  // which would discard it), then tell the user what happened so they can
+  // record the rest. Guarded so one loss yields one message.
+  AudioComponent.prototype._onMicLost = function (btn) {
+    if (this._micLostHandling) return;
+    this._micLostHandling = true;
+    var self = this;
+    var b = btn || this.el.querySelector('[data-action="record"]') || this.el.querySelector('.hdlv2-ac-record');
+    try { this.stopRecording(b); } catch (e) {}
+    // stopRecording ships the captured audio (upload → poll) and resets the
+    // button; layer an honest notice on top. If the take was too short to
+    // upload, the too-short error from the stop handler shows instead — either
+    // way the user is no longer stuck on a dead "recording" state.
+    this.showError('Microphone disconnected. We saved what we captured — tap the mic to record the rest.');
+    setTimeout(function () { self._micLostHandling = false; }, 1500);
   };
 
   AudioComponent.prototype.stopRecording = function (btn) {
