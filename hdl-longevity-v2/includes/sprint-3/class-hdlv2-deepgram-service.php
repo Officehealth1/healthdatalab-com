@@ -132,7 +132,7 @@ class HDLV2_Deepgram_Service {
         //   metadata.request_id (string)
         $alt = $data['results']['channels'][0]['alternatives'][0] ?? null;
         if ( ! $alt || ! isset( $alt['transcript'] ) ) {
-            error_log( '[HDLV2 Deepgram] Unexpected response shape: ' . substr( $raw, 0, 500 ) );
+            error_log( '[HDLV2 Deepgram] Unexpected response shape — sha256=' . hash( 'sha256', (string) $raw ) . ' len=' . strlen( (string) $raw ) . ' reason=missing_transcript' ); // B.2 — the raw body embeds the client's verbatim transcript; log a fingerprint only
             return new WP_Error( 'parse_failed', 'Deepgram returned an unexpected response shape.' );
         }
 

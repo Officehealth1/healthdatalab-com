@@ -82,11 +82,15 @@ class HDLV2_Webhook_Monitor {
         }
 
         $code = (int) wp_remote_retrieve_response_code( $resp );
-        // v0.40.19 — capture the response body on success too, not just on
-        // failure. Make.com returns 200 "Accepted" even when its scenario
-        // internally errors; logging the body lets ops see at-a-glance
-        // whether the downstream actually processed the call.
-        $body_excerpt = substr( (string) wp_remote_retrieve_body( $resp ), 0, 200 );
+        // v0.40.19 — capture the response on success too, not just on failure.
+        // Make.com returns 200 "Accepted" even when its scenario internally errors.
+        // B.2 (§8.9 #7) — the response body can echo the posted report (PII), so
+        // record a non-reversible FINGERPRINT (sha256 + length), never the body
+        // text. Keeps the $body_excerpt variable name so the downstream logging +
+        // option storage are unchanged; ops can still correlate identical
+        // responses by hash.
+        $body_raw     = (string) wp_remote_retrieve_body( $resp );
+        $body_excerpt = 'sha256=' . hash( 'sha256', $body_raw ) . ' len=' . strlen( $body_raw );
 
         if ( $code >= 200 && $code < 300 ) {
             error_log( sprintf(

@@ -87,7 +87,7 @@ class HDLV2_AI_Service {
 
         $parsed = json_decode( $clean, true );
         if ( ! $parsed || empty( $parsed['distilled_why'] ) ) {
-            error_log( '[HDLV2 AI] WHY extraction: invalid JSON response — ' . substr( $response, 0, 300 ) );
+            error_log( '[HDLV2 AI] WHY extraction: invalid JSON — sha256=' . hash( 'sha256', (string) $response ) . ' len=' . strlen( (string) $response ) . ' json_err=' . json_last_error_msg() ); // B.2 — fingerprint, no client PII
             return self::why_placeholder();
         }
 
@@ -448,7 +448,7 @@ class HDLV2_AI_Service {
 
         $parsed = json_decode( $clean, true );
         if ( ! is_array( $parsed ) || empty( $parsed['opening'] ) ) {
-            error_log( '[HDLV2 AI] Client draft narrative: invalid JSON — ' . substr( (string) $response, 0, 300 ) );
+            error_log( '[HDLV2 AI] Client draft narrative: invalid JSON — sha256=' . hash( 'sha256', (string) $response ) . ' len=' . strlen( (string) $response ) . ' json_err=' . json_last_error_msg() ); // B.2 — fingerprint, no client PII
             return null;
         }
 
@@ -1135,7 +1135,7 @@ class HDLV2_AI_Service {
         $clean = preg_replace( '/\s*```$/', '', $clean );
         $parsed = json_decode( $clean, true );
         if ( ! is_array( $parsed ) || empty( $parsed['intro_pull_quote'] ) ) {
-            error_log( '[HDLV2 AI] PDF sections: invalid JSON — ' . substr( (string) $response, 0, 300 ) );
+            error_log( '[HDLV2 AI] PDF sections: invalid JSON — sha256=' . hash( 'sha256', (string) $response ) . ' len=' . strlen( (string) $response ) . ' json_err=' . json_last_error_msg() ); // B.2 — fingerprint, no client PII
             return array();
         }
 
@@ -1232,7 +1232,7 @@ class HDLV2_AI_Service {
 
         $parsed = json_decode( $raw, true );
         if ( ! is_array( $parsed ) ) {
-            error_log( '[HDLV2] organise_consultation_notes: Claude returned non-JSON. Raw: ' . substr( $raw, 0, 500 ) );
+            error_log( '[HDLV2] organise_consultation_notes: non-JSON — sha256=' . hash( 'sha256', (string) $raw ) . ' len=' . strlen( (string) $raw ) . ' json_err=' . json_last_error_msg() ); // B.2 — fingerprint, no client PII
             return new WP_Error( 'parse_failed', 'AI returned an unparseable response. Please try again.' );
         }
 
@@ -1453,7 +1453,7 @@ class HDLV2_AI_Service {
 
         $parsed = json_decode( $raw, true );
         if ( ! is_array( $parsed ) ) {
-            error_log( '[HDLV2] integrate_addenda_into_organised: Claude returned non-JSON. Raw: ' . substr( $raw, 0, 500 ) );
+            error_log( '[HDLV2] integrate_addenda_into_organised: non-JSON — sha256=' . hash( 'sha256', (string) $raw ) . ' len=' . strlen( (string) $raw ) . ' json_err=' . json_last_error_msg() ); // B.2 — fingerprint, no client PII
             return new WP_Error( 'parse_failed', 'AI returned an unparseable response. Please try again.' );
         }
 
@@ -1580,7 +1580,7 @@ class HDLV2_AI_Service {
 
         $parsed = json_decode( $raw, true );
         if ( ! is_array( $parsed ) ) {
-            error_log( '[HDLV2] generate_pre_consultation_summary: non-JSON. Raw: ' . substr( $raw, 0, 300 ) );
+            error_log( '[HDLV2] generate_pre_consultation_summary: non-JSON — sha256=' . hash( 'sha256', (string) $raw ) . ' len=' . strlen( (string) $raw ) . ' json_err=' . json_last_error_msg() ); // B.2 — fingerprint, no client PII
             return new WP_Error( 'parse_failed', 'Could not parse the client brief.' );
         }
         $parsed['health_summary']    = isset( $parsed['health_summary'] )    ? (string) $parsed['health_summary']    : '';
@@ -1728,7 +1728,7 @@ class HDLV2_AI_Service {
         $parsed = json_decode( $clean, true );
 
         if ( ! is_array( $parsed ) || empty( $parsed['commentary_html'] ) ) {
-            error_log( '[HDLV2 AI] Stage 3 commentary: invalid JSON — ' . substr( (string) $response, 0, 300 ) );
+            error_log( '[HDLV2 AI] Stage 3 commentary: invalid JSON — sha256=' . hash( 'sha256', (string) $response ) . ' len=' . strlen( (string) $response ) . ' json_err=' . json_last_error_msg() ); // B.2 — fingerprint, no client PII
             return null;
         }
 
@@ -2059,7 +2059,7 @@ PROMPT;
     private static function parse_flight_notes( $raw ) {
         $parsed = json_decode( (string) $raw, true );
         if ( ! is_array( $parsed ) ) {
-            error_log( '[HDLV2] parse_flight_notes: non-JSON. Raw: ' . substr( (string) $raw, 0, 300 ) );
+            error_log( '[HDLV2] parse_flight_notes: non-JSON — sha256=' . hash( 'sha256', (string) $raw ) . ' len=' . strlen( (string) $raw ) . ' json_err=' . json_last_error_msg() ); // B.2 — fingerprint, no client PII
             return self::flight_notes_empty();
         }
 
