@@ -1082,6 +1082,14 @@
         asyncUpload: true,
         onChange: function(text) {
           formData.vision_text = text;
+          // v0.47.23 (A3) — the Deepgram transcript is delivered via this
+          // callback (and the stop-strip / error-restore paths). Persist it
+          // promptly (debounced) so a client who records then closes the tab
+          // before tapping Submit/blur doesn't lose the transcript. submitted is
+          // omitted → merges into stage2_data only: no Make webhook, no
+          // stage2_completed_at stamp (those fire only on Submit's submitted:true).
+          if (saveTimer) clearTimeout(saveTimer);
+          saveTimer = setTimeout(function(){ autoSave(2); }, 1500);
         },
         onConfirm: function(summary) {
           formData.vision_text = summary;
