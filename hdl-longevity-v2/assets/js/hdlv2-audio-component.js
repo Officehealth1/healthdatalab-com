@@ -22,7 +22,7 @@ window.HDLAudioComponent = (function () {
   // the console) to surface diagnostics. Short-circuit evaluation means
   // `false && console.log(...)` skips the call entirely — no eval cost.
   var HDLV2_AC_DEBUG = !!window.HDLV2_AC_DEBUG;
-  try { HDLV2_AC_DEBUG && HDLV2_AC_DEBUG && console.log('[HDL-DEBUG] hdlv2-audio-component.js LOADED', { build: '0.47.25', hasSR: !!window.SpeechRecognition, hasWebkitSR: !!window.webkitSpeechRecognition, isSecureContext: window.isSecureContext, href: location.href }); } catch(e){}
+  try { HDLV2_AC_DEBUG && HDLV2_AC_DEBUG && console.log('[HDL-DEBUG] hdlv2-audio-component.js LOADED', { build: '0.47.26', hasSR: !!window.SpeechRecognition, hasWebkitSR: !!window.webkitSpeechRecognition, isSecureContext: window.isSecureContext, href: location.href }); } catch(e){}
   try { HDLV2_AC_DEBUG && console.log('[HDL-DEBUG] browser info', { userAgent: navigator.userAgent, vendor: navigator.vendor, platform: navigator.platform, hardwareConcurrency: navigator.hardwareConcurrency, hasAudioContext: !!(window.AudioContext || window.webkitAudioContext), hasUserActivation: !!navigator.userActivation }); } catch(e){}
   try {
     if (navigator.mediaDevices && navigator.mediaDevices.enumerateDevices) {
@@ -1506,10 +1506,10 @@ window.HDLAudioComponent = (function () {
     var btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'hdlv2-ac-fallback-btn';
-    btn.textContent = 'Try local transcription';
+    btn.textContent = 'Try again'; // v0.47.26 (A6) — was 'Try local transcription'; the in-browser Whisper tier was removed (E4 v0.46.47), this just restarts capture with the Web Speech preview off (still server Deepgram)
     btn.style.cssText = 'display:inline-block;margin:8px 0 0;padding:6px 12px;background:#3d8da0;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:500;cursor:pointer;';
     btn.addEventListener('click', function () {
-      try { HDLV2_AC_DEBUG && console.log('[HDL-DEBUG] user chose Try local transcription'); } catch(e){}
+      try { HDLV2_AC_DEBUG && console.log('[HDL-DEBUG] user chose Try again (restart capture, preview off)'); } catch(e){}
       // Find the current mic button (may have been re-rendered since the
       // error was shown). startRecordingFallback re-initialises fully.
       var recBtn = self.el.querySelector('[data-action="record"]') || self.el.querySelector('.hdlv2-ac-record');

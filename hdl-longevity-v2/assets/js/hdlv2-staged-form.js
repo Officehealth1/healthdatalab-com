@@ -1091,13 +1091,11 @@
           // stage2_completed_at stamp (those fire only on Submit's submitted:true).
           if (saveTimer) clearTimeout(saveTimer);
           saveTimer = setTimeout(function(){ autoSave(2); }, 1500);
-        },
-        onConfirm: function(summary) {
-          formData.vision_text = summary;
-          formData.audio_summary = summary;
-          if(saveTimer) clearTimeout(saveTimer);
-          autoSave(2);
         }
+        // v0.47.26 (A6) — onConfirm removed: Stage-2 simpleMode renders no
+        // "Process with AI" action row, so the component never calls onConfirm
+        // on this surface. The transcript arrives via onChange (which now
+        // autosaves — A3). Dead wiring removed to avoid confusion.
       });
       // Sync textarea directly to formData so typing works without clicking Process
       var acTextarea = audioContainer.querySelector('.hdlv2-ac-text');
