@@ -721,9 +721,9 @@ class HDLV2_Flight_Plan {
         //   If daily_plan is missing days (or any day has zero actions), we
         //   retry ONCE with an appended "STRICT" instruction reiterating the
         //   exact shape requirement. Most failures are first-attempt only —
-        //   Sonnet honours the explicit shape on the second pass.
+        //   Opus 4.8 honours the explicit shape on the second pass.
         // max_tokens bumped 8000 → 12000 — heavier WHY/Addenda contexts
-        // were observed clipping at 8000. 12000 still well under Sonnet's
+        // were observed clipping at 8000. 12000 still well under Opus 4.8's
         // hard cap (16384 implicit) and adds <0.5s latency in practice.
         $token_usage = array( 'prompt_tokens' => 0, 'completion_tokens' => 0, 'total_tokens' => 0 );
         $plan        = null;
@@ -1350,7 +1350,7 @@ class HDLV2_Flight_Plan {
      * "Recovery focus" card so the frontend never renders "No actions".
      *
      * Only fires AFTER the retry loop has accepted Claude's response. Its
-     * job is purely defensive: if Sonnet still produces a thin day on the
+     * job is purely defensive: if Opus 4.8 still produces a thin day on the
      * second attempt, the client sees three sensible items instead of an
      * empty column. Never overwrites existing actions on populated days.
      */

@@ -369,8 +369,8 @@ class HDLV2_Context_Builder {
                 $input .= "Week of {$ci->week_start}: " . $ci->summary . " | Adherence: " . $ci->adherence_scores . " | Comfort: {$ci->comfort_zone}\n\n";
             }
 
-            // v0.36.1 — Sonnet 4.6 (was Haiku 4.5). Promoted per
-            // "all AI analyzation on Sonnet 4.6" directive (2026-05-07).
+            // v0.46.24 — Opus 4.8 (claude-opus-4-8) (was Sonnet 4.6, was Haiku 4.5).
+            // Promoted per "all AI analyzation on one model" directive.
             $response = wp_remote_post( 'https://api.anthropic.com/v1/messages', array(
                 'headers' => array( 'x-api-key' => $api_key, 'anthropic-version' => '2023-06-01', 'content-type' => 'application/json' ),
                 'body'    => wp_json_encode( array(

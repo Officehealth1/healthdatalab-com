@@ -402,7 +402,7 @@ class HDLV2_Auto_Consultation {
     }
 
     /**
-     * Claude Haiku 4.5 call — generates 5 recommendations + 4 milestones.
+     * Claude Opus 4.8 (claude-opus-4-8) call — generates 5 recommendations + 4 milestones.
      * Returns WP_Error on transport / parse failure (caller falls back to
      * heuristic). On success returns array(recommendations[], milestones{}).
      */

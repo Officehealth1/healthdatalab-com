@@ -1,6 +1,6 @@
 <?php
 /**
- * AI Service — Claude Sonnet 4 API wrapper.
+ * AI Service — Claude Opus 4.8 (claude-opus-4-8) API wrapper.
  *
  * Handles WHY extraction (Stage 2) and draft report generation (Stage 3).
  * API key: define HDLV2_ANTHROPIC_API_KEY in wp-config.php.
@@ -1632,7 +1632,7 @@ class HDLV2_AI_Service {
         $why = trim( (string) ( $stage2_data['distilled_why'] ?? '' ) );
 
         // Sort scores into strengths (>=4) + focus areas (<=2). Names get
-        // humanised so Haiku doesn't write things like "physicalActivity".
+        // humanised so Opus 4.8 doesn't write things like "physicalActivity".
         $human_names = array(
             'physicalActivity'   => 'Physical Activity',
             'sitToStand'         => 'Sit-to-Stand',

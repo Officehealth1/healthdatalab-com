@@ -86,21 +86,21 @@ class HDLV2_Staged_Form {
             'permission_callback' => '__return_true',
         ) );
 
-        // Stage 1 "What This Means For You" AI commentary (Haiku, cached) — v0.22.0
+        // Stage 1 "What This Means For You" commentary (deterministic static builder, no AI) — v0.22.0
         register_rest_route( 'hdl-v2/v1', '/form/stage1-commentary', array(
             'methods'             => 'POST',
             'callback'            => array( $this, 'rest_stage1_commentary' ),
             'permission_callback' => '__return_true',
         ) );
 
-        // Stage 2 immediate-insight AI (Haiku, cached) — v0.22.2
+        // Stage 2 immediate-insight (deterministic static builder, no AI) — v0.22.2
         register_rest_route( 'hdl-v2/v1', '/form/stage2-insight', array(
             'methods'             => 'POST',
             'callback'            => array( $this, 'rest_stage2_insight' ),
             'permission_callback' => '__return_true',
         ) );
 
-        // Stage 3 immediate-commentary AI (Haiku, cached) — v0.22.4
+        // Stage 3 immediate-commentary (deterministic static builder, no AI) — v0.22.4
         register_rest_route( 'hdl-v2/v1', '/form/stage3-commentary', array(
             'methods'             => 'POST',
             'callback'            => array( $this, 'rest_stage3_commentary' ),
@@ -1270,7 +1270,7 @@ class HDLV2_Staged_Form {
     //
     //  Body: { token: <64-hex> }
     //  Returns: { success, distilled_why, ai_reformulation, motivations[], cached }
-    //  Read from stage2_data if cached, else generates via Haiku and writes back.
+    //  Read from stage2_data if present, else built by a deterministic static builder (no AI) and written back.
     //  Make.com's later release-WHY extraction may overwrite these fields with
     //  richer data — that's intentional and fine.
     // ──────────────────────────────────────────────────────────────
@@ -1421,8 +1421,8 @@ class HDLV2_Staged_Form {
     //  Body: { token: <64-hex> }
     //  Returns: { success, commentary_html, cached }
     //  Cached in stage3_data.commentary_html so refreshes are free.
-    //  Falls back to a deterministic paragraph if Haiku fails so the
-    //  result page never renders blank.
+    //  Uses a deterministic static builder (no AI) so the result page
+    //  never renders blank.
     // ──────────────────────────────────────────────────────────────
 
     public function rest_stage3_commentary( $request ) {

@@ -989,7 +989,7 @@ class HDLV2_Consultation {
             return new WP_Error( 'missing_id', 'Consultation ID required.', array( 'status' => 400 ) );
         }
 
-        // AI-burn idempotency: this endpoint calls Claude (Sonnet 4) to
+        // AI-burn idempotency: this endpoint calls Claude (Opus 4.8) to
         // organise free-form practitioner notes. A double-click without
         // wrap_ai charges Claude twice. Scope is per consultation row.
         $idem_scope = 'org:' . $consult_id . ':' . get_current_user_id();

@@ -102,7 +102,7 @@ class HDLV2_Checkin {
         $progress = $this->get_progress_from_token( $params['token'] ?? '' );
         if ( is_wp_error( $progress ) ) return $progress;
 
-        // AI-burn idempotency: rest_submit calls Claude (Haiku 4.5) for the
+        // AI-burn idempotency: rest_submit calls Claude (Opus 4.8) for the
         // weekly check-in extraction. Without wrapping, a duplicate submission
         // (network retry, double-click) charges Claude twice. Scope is per
         // (token, week_start) so submissions in different weeks don't collide.

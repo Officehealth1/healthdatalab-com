@@ -4,7 +4,7 @@
  *
  * Triggered after practitioner consultation. Steps:
  * 1. Recalculate rate with practitioner-verified data
- * 2. Generate final report content (Claude Sonnet 4)
+ * 2. Generate final report content (Claude Opus 4.8 — claude-opus-4-8)
  * 3. Generate milestones (separate Claude call)
  * 4. Store final report in wp_hdlv2_reports
  * 5. Write to V1 progress tracker

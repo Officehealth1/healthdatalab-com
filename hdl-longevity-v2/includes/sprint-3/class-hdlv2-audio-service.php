@@ -34,9 +34,8 @@ class HDLV2_Audio_Service {
     const MAX_FILE_SIZE = 60 * 1024 * 1024; // 60MB upload cap
 
     /** Claude model per context type.
-     *  v0.36.1 — unified to Sonnet 4.6. weekly_checkin previously ran on
-     *  Haiku 4.5; promoted to Sonnet 4.6 alongside everything else per
-     *  "all AI analyzation on Sonnet 4.6" directive (2026-05-07).
+     *  v0.46.24 — unified to Opus 4.8 (claude-opus-4-8) (was Sonnet 4.6). weekly_checkin was Haiku
+     *  4.5 before the 2026-05-07 promotion; now Opus 4.8 like everything else.
      */
     const MODELS = array(
         'why_collection'     => 'claude-opus-4-8',

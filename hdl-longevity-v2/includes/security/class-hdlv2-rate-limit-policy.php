@@ -95,7 +95,7 @@ class HDLV2_Rate_Limit_Policy {
             array( 'GET',  '#^/hdl-v2/v1/flight-notes/pdf$#',                   self::TIER_AI_BURN ),
 
             // W9 (v0.41.31) — automation-tier self-reported consultation
-            // submit. Runs ONE Claude Haiku call + fires Make.com Route 1
+            // submit. Runs ONE Claude (Opus 4.8) call + fires Make.com Route 1
             // webhook + marks the user's automation token completed.
             // TIER_AI_BURN so a malicious double-tap can't cost burn.
             array( 'POST', '#^/hdl-v2/v1/auto-consultation/submit$#',           self::TIER_AI_BURN ),
