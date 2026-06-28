@@ -157,11 +157,14 @@ class HDLV2_Flight_Notes {
 			'chronological_age'  => self::dash( $chrono_age ),
 
 			// Snapshot — Body composition (number + provisional band word)
-			'bmi'                => null !== $bmi  ? number_format( $bmi, 1 )  : self::DASH,
+			// v0.47.x parity — self::num drops trailing zeros (27.0→"27", 0.9, 0.5)
+			// so the Flight Notes PDF matches the practitioner dashboard + draft/final
+			// PDFs exactly. number_format padded to "27.0"/"0.90"/"0.50" and diverged.
+			'bmi'                => self::num( $bmi ),
 			'bmi_band'           => self::band_word( $scores['bmiScore']  ?? null ),
-			'whr'                => null !== $whr  ? number_format( $whr, 2 )  : self::DASH,
+			'whr'                => self::num( $whr ),
 			'whr_band'           => self::band_word( $scores['whrScore']  ?? null ),
-			'whtr'               => null !== $whtr ? number_format( $whtr, 2 ) : self::DASH,
+			'whtr'               => self::num( $whtr ),
 			'whtr_band'          => self::band_word( $scores['whtrScore'] ?? null ),
 
 			// Snapshot — Metabolic (single honest composite)

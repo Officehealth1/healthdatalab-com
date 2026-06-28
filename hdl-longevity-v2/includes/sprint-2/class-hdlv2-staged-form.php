@@ -1518,7 +1518,16 @@ class HDLV2_Staged_Form {
         if ( $stage === 1 ) {
             $rate    = $result_data['rate'] ?? 1.0;
             $age     = $stage_data['q1_age'] ?? $stage_data['age'] ?? '?';
-            $bio_age = $result_data['bio_age'] ?? $age;
+            // v0.47.17 parity — Stage 1 runs calculate_quick(), which returns NO
+            // 'bio_age' key, so the old `?? $age` fallback silently printed the
+            // CHRONOLOGICAL age (e.g. 45) in the email's Biological Age tile and
+            // broke rate_message() to "0.0 years younger" (abs(45-45)). Stage-1
+            // biological age is rate × chronological age to 1dp — the same formula
+            // the result screen, practitioner dashboard and PDF already use.
+            $bio_age = $result_data['bio_age']
+                ?? ( ( is_numeric( $age ) && (float) $age > 0 )
+                     ? round( (float) $rate * (float) $age, 1 )
+                     : $age );
 
             // v0.36.23 — Skip the WP-side Stage 1 client email when the
             // Make.com Stage 1 PDF scenario is configured (LIVE). Make.com
@@ -1642,7 +1651,7 @@ class HDLV2_Staged_Form {
                     'practitioner_id' => $progress->practitioner_user_id ?? null,
                     'draft_url'       => $draft_url,
                 ) );
-                wp_mail( $client_email, 'Your Draft Trajectory Plan is Ready', $html,
+                wp_mail( $client_email, 'Your Draft Report is Ready', $html,
                     array( 'Content-Type: text/html; charset=UTF-8' ) );
             }
 
@@ -1958,7 +1967,7 @@ class HDLV2_Staged_Form {
         // Bio-vs-chrono diff text for the small line under "Your Pace of Ageing"
         $diff = round( (float) $age_int - $bio_age_num, 1 );
         if ( $diff > 0 ) {
-            $bio_chrono_advantage = sprintf( '%s year advantage', $diff );
+            $bio_chrono_advantage = sprintf( '%s-year advantage', $diff );
         } elseif ( $diff < 0 ) {
             $bio_chrono_advantage = sprintf( '%s years older than chronological', abs( $diff ) );
         } else {

@@ -142,7 +142,9 @@ class HDLV2_Email_Templates {
     public static function stage1_results( $data ) {
         $first    = self::derive_first_name( $data['client_name'] ?? '', $data['client_email'] ?? '' );
         $rate     = esc_html( ( $data['rate'] !== '' && $data['rate'] !== null ) ? number_format( (float) $data['rate'], 2 ) : '' );
-        $bio_age  = esc_html( $data['bio_age'] );
+        // v0.47.17 parity — pad whole-number bios to 1dp ("46.0") so the email
+        // matches the screen/dashboard/PDF (all 1dp). Non-numeric (e.g. "?") passes through.
+        $bio_age  = esc_html( is_numeric( $data['bio_age'] ) ? number_format( (float) $data['bio_age'], 1 ) : (string) $data['bio_age'] );
         $age      = esc_html( $data['age'] );
         $gauge    = esc_url( $data['gauge_url'] );
         $url      = esc_url( $data['token_url'] );
@@ -252,7 +254,7 @@ class HDLV2_Email_Templates {
             <p style='font-size:15px;color:#2c3e50;line-height:1.7;margin:0 0 18px;'>You've finished all three stages of your longevity assessment. Here's what's next.</p>
             {$cta_block}";
 
-        return self::base_layout( $content, $data['practitioner_id'] ?? null, 'Your Draft Trajectory Plan' );
+        return self::base_layout( $content, $data['practitioner_id'] ?? null, 'Your Draft Report' );
     }
 
     // ──────────────────────────────────────────────────────────────

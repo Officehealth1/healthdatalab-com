@@ -441,6 +441,81 @@
   margin-top: 4px;
 }
 
+/* ── FIELD FOOT: "None (to my knowledge)" toggle (left) + char-count (right) ──
+   v0.47.15 — paired control under Stage 3 Section 6 textareas. */
+.hdlv2-field-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 8px;
+}
+.hdlv2-field-foot .hdlv2-char-count { margin-top: 0; }
+
+/* "None (to my knowledge)" — bespoke teal checkbox. appearance:none + an
+   explicit reset of border/padding/background so the generic `.hdlv2-field
+   input` text-input styling can't bleed onto it (that bleed was the boxy,
+   off-theme look). Drawn checkmark via clip-path so it reads as a designed
+   control, not a raw browser checkbox. */
+/* Scoped under .hdlv2-field so it beats `.hdlv2-field label { display:block;
+   margin-bottom:5px }` — otherwise the toggle label stacks above its text. */
+.hdlv2-field .hdlv2-none-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  margin-bottom: 0;
+  font-size: 13px;
+  font-weight: 500;
+  color: #5b6573;
+  cursor: pointer;
+  user-select: none;
+  line-height: 1.2;
+}
+.hdlv2-none-toggle input[type="checkbox"] {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  padding: 0;
+  flex: none;
+  border: 1.5px solid #cbd5e1;
+  border-radius: 5px;
+  background: #fff;
+  box-shadow: none;
+  box-sizing: border-box;
+  cursor: pointer;
+  display: grid;
+  place-content: center;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.hdlv2-none-toggle input[type="checkbox"]::before {
+  content: "";
+  width: 10px;
+  height: 10px;
+  transform: scale(0);
+  transition: transform 0.12s ease-in-out;
+  box-shadow: inset 1em 1em #fff;
+  clip-path: polygon(14% 44%, 0 65%, 40% 100%, 100% 22%, 84% 8%, 38% 70%);
+}
+.hdlv2-none-toggle input[type="checkbox"]:checked {
+  background: #3d8da0;
+  border-color: #3d8da0;
+}
+.hdlv2-none-toggle input[type="checkbox"]:checked::before { transform: scale(1); }
+.hdlv2-none-toggle input[type="checkbox"]:focus { outline: none; box-shadow: none; }
+.hdlv2-none-toggle input[type="checkbox"]:focus-visible { box-shadow: 0 0 0 3px rgba(61, 141, 160, 0.25); }
+.hdlv2-none-toggle:hover input[type="checkbox"]:not(:checked) { border-color: #3d8da0; }
+.hdlv2-none-toggle:hover,
+.hdlv2-none-toggle input[type="checkbox"]:checked ~ span { color: #004F59; }
+
+.hdlv2-field textarea:disabled {
+  background: #eef0f3;
+  color: #9aa3ad;
+  cursor: not-allowed;
+  resize: none;
+}
+
 /* ── CHECKBOX GRID ── */
 .hdlv2-checkbox-grid {
   display: flex;

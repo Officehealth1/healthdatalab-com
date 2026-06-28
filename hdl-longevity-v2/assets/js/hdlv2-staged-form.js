@@ -1472,7 +1472,7 @@
       +   '<p class="hdlv2-ty-lead">We’ve just sent your draft report to your email. It should arrive within a few minutes.</p>'
       +   '<p class="hdlv2-ty-subhead">What happens next</p>'
       +   '<ol class="hdlv2-ty-list">'
-      +     '<li>Check your inbox for your Draft Trajectory Plan.</li>'
+      +     '<li>Check your inbox for your Draft Report.</li>'
       +     '<li>If you haven’t already done so, please book your consultation with your practitioner.</li>'
       +     '<li>Your final personalised report follows after that consultation.</li>'
       +   '</ol>'
