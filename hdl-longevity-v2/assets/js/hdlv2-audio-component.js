@@ -22,7 +22,7 @@ window.HDLAudioComponent = (function () {
   // the console) to surface diagnostics. Short-circuit evaluation means
   // `false && console.log(...)` skips the call entirely — no eval cost.
   var HDLV2_AC_DEBUG = !!window.HDLV2_AC_DEBUG;
-  try { HDLV2_AC_DEBUG && HDLV2_AC_DEBUG && console.log('[HDL-DEBUG] hdlv2-audio-component.js LOADED', { build: '0.47.3', hasSR: !!window.SpeechRecognition, hasWebkitSR: !!window.webkitSpeechRecognition, isSecureContext: window.isSecureContext, href: location.href }); } catch(e){}
+  try { HDLV2_AC_DEBUG && HDLV2_AC_DEBUG && console.log('[HDL-DEBUG] hdlv2-audio-component.js LOADED', { build: '0.47.21', hasSR: !!window.SpeechRecognition, hasWebkitSR: !!window.webkitSpeechRecognition, isSecureContext: window.isSecureContext, href: location.href }); } catch(e){}
   try { HDLV2_AC_DEBUG && console.log('[HDL-DEBUG] browser info', { userAgent: navigator.userAgent, vendor: navigator.vendor, platform: navigator.platform, hardwareConcurrency: navigator.hardwareConcurrency, hasAudioContext: !!(window.AudioContext || window.webkitAudioContext), hasUserActivation: !!navigator.userActivation }); } catch(e){}
   try {
     if (navigator.mediaDevices && navigator.mediaDevices.enumerateDevices) {
@@ -220,6 +220,13 @@ window.HDLAudioComponent = (function () {
     this._previewEnabled = false;   // Web Speech preview running this session?
     this._uploadWanted = false;     // true => mediaRecorder 'stop' ships the blob;
                                     // false (destroy/page-unload) => discard, just release.
+    // v0.47.21 (A1) — true from the moment a stop ships a take until the server
+    // Deepgram transcript lands (or the job terminally fails). Lets consumers
+    // (Stage-2 Submit) block submission via isBusy() so the user can't submit
+    // the stale pre-recording text while the authoritative transcript is still
+    // uploading/polling — which would fire the Make WHY webhook + mark Stage 2
+    // complete on a truncated/empty answer and silently drop the transcript.
+    this._jobInFlight = false;
     // Audio-driven silence auto-stop (replaces the old onresult-driven idle
     // watchdog, which cut off a talking user whenever Web Speech stalled).
     // An AnalyserNode measures real mic loudness; we only auto-stop after
@@ -339,6 +346,13 @@ window.HDLAudioComponent = (function () {
     } else {
       this.startRecording(btn);
     }
+  };
+
+  // v0.47.21 (A1) — true while a recording is live (or starting) OR a captured
+  // take is still uploading/transcribing. Consumers gate submission on this so
+  // the authoritative Deepgram transcript is never lost to an early Submit.
+  AudioComponent.prototype.isBusy = function () {
+    return !!(this.isRecording || this._starting || this._jobInFlight);
   };
 
   AudioComponent.prototype.startRecording = function (btn, keepTranscript) {
@@ -512,6 +526,7 @@ window.HDLAudioComponent = (function () {
       var blob = new Blob(chunks, { type: actualType });
       var durationMs = Date.now() - startedAt; // per-take, immune to a new take resetting recordingSeconds
       if (!blob.size) {
+        self._jobInFlight = false; // (A1) nothing to upload — clear busy or Submit stays blocked
         if (!superseded && !self._restoreCarryOnFail()) self.showErrorWithFallbackOption('Recording came back empty. Try again — speak clearly and wait a moment before stopping.');
         return;
       }
@@ -519,6 +534,7 @@ window.HDLAudioComponent = (function () {
       // makes a header-only blob that Deepgram returns empty, triggering a
       // 10-min retry storm. 4 KB / 1 s — real speech at 32 kbps is ~4 KB/s.
       if (durationMs < 1000 || blob.size < 4 * 1024) {
+        self._jobInFlight = false; // (A1) too short to upload — clear busy
         if (!superseded && !self._restoreCarryOnFail()) self.showError('Recording too short. Tap the mic, speak for a moment, then tap again to stop.');
         return;
       }
@@ -736,6 +752,7 @@ window.HDLAudioComponent = (function () {
     // so do NOT null it here — _beginCapture replaces it on the next take).
     if (this.mediaRecorder) {
       this._uploadWanted = true;
+      this._jobInFlight = true; // (A1) busy from stop until the transcript lands (closes the stop→upload gap)
       try { this.mediaRecorder.stop(); } catch (e) {}
     } else {
       // No capture (mic never granted / already released) — force-release any
@@ -773,6 +790,7 @@ window.HDLAudioComponent = (function () {
     this.stopping = true;
     this._uploadWanted = false; // unload teardown discards the captured blob
     this._starting = false;
+    this._jobInFlight = false; // (A1) teardown abandons any in-flight upload/poll
 
     if (this.recordingTimer) { try { clearInterval(this.recordingTimer); } catch (e) {} this.recordingTimer = null; }
     this._disarmSilenceMeter();
@@ -849,6 +867,7 @@ window.HDLAudioComponent = (function () {
     var MAX_POLL_MS = 8 * 60 * 1000; // 8 minutes — covers 1-hour audio
 
     this.showAsyncProcessing( 'uploading' );
+    this._jobInFlight = true; // (A1) busy until the transcript lands or the job terminally fails
 
     var fd = new FormData();
     fd.append('audio', file);
@@ -869,6 +888,7 @@ window.HDLAudioComponent = (function () {
       .then(function (r) { return r.json().then(function (j) { return { status: r.status, body: j }; }); })
       .then(function (res) {
         if (res.status !== 200 || !res.body || !res.body.job_id) {
+          self._jobInFlight = false; // (A1) upload rejected — clear busy
           var msg = (res.body && (res.body.message || res.body.code)) || 'Upload failed';
           if (!self._restoreCarryOnFail()) self.showError('Upload failed: ' + msg);
           return;
@@ -876,6 +896,7 @@ window.HDLAudioComponent = (function () {
         self.pollTranscriptionJob(res.body.job_id, MAX_POLL_MS, Date.now());
       })
       .catch(function (err) {
+        self._jobInFlight = false; // (A1) upload network error — clear busy
         if (!self._restoreCarryOnFail()) self.showError('Upload failed. Please try again.');
       });
   };
@@ -911,6 +932,7 @@ window.HDLAudioComponent = (function () {
 
     var tick = function () {
       if (Date.now() - startedAt > maxMs) {
+        self._jobInFlight = false; // (A1) gave up polling — clear busy
         self.showError('Transcription is taking longer than expected. Check back in a few minutes.');
         return;
       }
@@ -944,6 +966,7 @@ window.HDLAudioComponent = (function () {
             return;
           }
           if (job.status === 'completed') {
+            self._jobInFlight = false; // (A1) transcript has arrived — no longer busy
             var transcript = job.result && job.result.transcript ? String(job.result.transcript) : '';
             if (!transcript) {
               // v0.47.2 — even an empty new segment must not drop a carried
@@ -993,6 +1016,7 @@ window.HDLAudioComponent = (function () {
             return;
           }
           // failed / cancelled
+          self._jobInFlight = false; // (A1) terminal failure — clear busy
           if (!self._restoreCarryOnFail()) self.showError(job.error ? 'Transcription failed: ' + job.error : 'Transcription failed.');
         })
         .catch(function () {

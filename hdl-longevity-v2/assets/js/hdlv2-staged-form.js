@@ -1001,6 +1001,11 @@
   //  STAGE 2: YOUR WHY
   // ══════════════════════════════════════════════════════════════
 
+  // v0.47.21 (A1) — handle to the Stage-2 audio component so completeStage2()
+  // can block Submit while a recording is live or a transcription job is still
+  // uploading/processing (otherwise Submit fires on the stale pre-recording text).
+  var s2Audio = null;
+
   function renderStage2(data) {
     if (data.stage2_completed_at && data.stage2_data) { renderStage2ThankYou(data); return; }
     // v0.40.2 — Stage 2 WHY form widened to 760px. Reading-heavy intro
@@ -1062,7 +1067,7 @@
     // Initialize audio component for open-ended WHY input
     var audioContainer = document.getElementById('hdlv2-s2-audio');
     if (audioContainer && window.HDLAudioComponent) {
-      HDLAudioComponent.create(audioContainer, {
+      s2Audio = HDLAudioComponent.create(audioContainer, {
         contextType: 'why_collection',
         apiBase: CFG.api_base.replace('/form', '/audio'),
         nonce: CFG.nonce,
@@ -1105,6 +1110,17 @@
   }
 
   function completeStage2() {
+    // v0.47.21 (A1) — block Submit while a recording is live or its Deepgram
+    // transcription is still uploading/processing. During async the shared
+    // textarea is replaced by the waveform card, so the backup read below is
+    // null and formData.vision_text still holds the PRE-recording text —
+    // submitting now would fire the Make WHY webhook + mark Stage 2 complete on
+    // a truncated/empty answer and silently drop the in-flight transcript.
+    if (s2Audio && typeof s2Audio.isBusy === 'function' && s2Audio.isBusy()) {
+      setSaveStatus('error', 'Hang on — we’re still saving your recording. This only takes a few seconds.');
+      return;
+    }
+
     // Read from visible textarea as backup (covers transcript review state)
     var visibleTa = document.querySelector('.hdlv2-ac-text');
     if (visibleTa && visibleTa.value.trim()) {
