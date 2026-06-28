@@ -22,7 +22,7 @@ window.HDLAudioComponent = (function () {
   // the console) to surface diagnostics. Short-circuit evaluation means
   // `false && console.log(...)` skips the call entirely — no eval cost.
   var HDLV2_AC_DEBUG = !!window.HDLV2_AC_DEBUG;
-  try { HDLV2_AC_DEBUG && HDLV2_AC_DEBUG && console.log('[HDL-DEBUG] hdlv2-audio-component.js LOADED', { build: '0.47.22', hasSR: !!window.SpeechRecognition, hasWebkitSR: !!window.webkitSpeechRecognition, isSecureContext: window.isSecureContext, href: location.href }); } catch(e){}
+  try { HDLV2_AC_DEBUG && HDLV2_AC_DEBUG && console.log('[HDL-DEBUG] hdlv2-audio-component.js LOADED', { build: '0.47.24', hasSR: !!window.SpeechRecognition, hasWebkitSR: !!window.webkitSpeechRecognition, isSecureContext: window.isSecureContext, href: location.href }); } catch(e){}
   try { HDLV2_AC_DEBUG && console.log('[HDL-DEBUG] browser info', { userAgent: navigator.userAgent, vendor: navigator.vendor, platform: navigator.platform, hardwareConcurrency: navigator.hardwareConcurrency, hasAudioContext: !!(window.AudioContext || window.webkitAudioContext), hasUserActivation: !!navigator.userActivation }); } catch(e){}
   try {
     if (navigator.mediaDevices && navigator.mediaDevices.enumerateDevices) {
@@ -905,36 +905,85 @@ window.HDLAudioComponent = (function () {
     this.showAsyncProcessing( 'uploading' );
     this._jobInFlight = true; // (A1) busy until the transcript lands or the job terminally fails
 
-    var fd = new FormData();
-    fd.append('audio', file);
-    fd.append('context_type', this.contextType);
-    fd.append('reference_id', String(this.referenceId || 0));
-    if (this.token) fd.append('token', this.token);
-
     // apiBase for the async endpoint — audio component's apiBase is
     // .../hdl-v2/v1/audio; transcribe-async lives at .../hdl-v2/v1/audio/transcribe-async.
     var base = this.apiBase.replace(/\/$/, '');
     var uploadUrl = base + '/transcribe-async';
 
-    fetch(uploadUrl, {
-      method: 'POST',
-      headers: this.nonce ? { 'X-WP-Nonce': this.nonce } : {},
-      body: fd,
-    })
-      .then(function (r) { return r.json().then(function (j) { return { status: r.status, body: j }; }); })
-      .then(function (res) {
-        if (res.status !== 200 || !res.body || !res.body.job_id) {
-          self._jobInFlight = false; // (A1) upload rejected — clear busy
-          var msg = (res.body && (res.body.message || res.body.code)) || 'Upload failed';
-          if (!self._restoreCarryOnFail()) self.showError('Upload failed: ' + msg);
-          return;
-        }
-        self.pollTranscriptionJob(res.body.job_id, MAX_POLL_MS, Date.now());
+    // v0.47.24 (A4) — ONE stable idempotency key for the whole upload, shared by
+    // every retry below. rest_transcribe_async is idempotency-wrapped (scoped per
+    // token), so if a retried POST was in fact already processed server-side
+    // (its response lost in transit) the server REPLAYS the first result instead
+    // of storing a second file + charging Deepgram again. Sent as both the
+    // Idempotency-Key header and an idempotency_key form field (the server reads
+    // header first, then param) so the dedupe lands regardless of header casing.
+    var idemKey = 'up_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 12);
+
+    function buildForm() {
+      var fd = new FormData();
+      fd.append('audio', file);
+      fd.append('context_type', self.contextType);
+      fd.append('reference_id', String(self.referenceId || 0));
+      fd.append('idempotency_key', idemKey);
+      if (self.token) fd.append('token', self.token);
+      return fd;
+    }
+
+    function fail(msg) {
+      self._jobInFlight = false; // (A1) terminal upload failure — clear busy
+      if (!self._restoreCarryOnFail()) self.showError(msg);
+    }
+
+    // v0.47.24 (A4) — bounded retry with offline-awareness. A single dropped
+    // POST used to force the user to re-record. Now: if the device is offline we
+    // WAIT for it to come back (no wasted attempt), and we retry transient
+    // failures (network error / 5xx) a couple of times with backoff. 4xx
+    // (413 too large / 429 rate-limited / 400) surface immediately — retrying
+    // those is pointless or harmful. Idempotency (above) keeps retries safe.
+    var MAX_UPLOAD_RETRIES = 2;
+
+    function attempt(triesLeft) {
+      if (navigator && navigator.onLine === false) {
+        self.showAsyncProcessing('retrying', 'Waiting for your connection');
+        var onBack = function () {
+          try { window.removeEventListener('online', onBack); } catch (e) {}
+          attempt(triesLeft);
+        };
+        try { window.addEventListener('online', onBack); }
+        catch (e) { setTimeout(function () { attempt(triesLeft); }, 3000); }
+        return;
+      }
+      var backoff = (MAX_UPLOAD_RETRIES - triesLeft + 1) * 1500;
+      fetch(uploadUrl, {
+        method: 'POST',
+        headers: Object.assign({ 'Idempotency-Key': idemKey }, self.nonce ? { 'X-WP-Nonce': self.nonce } : {}),
+        body: buildForm(),
       })
-      .catch(function (err) {
-        self._jobInFlight = false; // (A1) upload network error — clear busy
-        if (!self._restoreCarryOnFail()) self.showError('Upload failed. Please try again.');
-      });
+        .then(function (r) { return r.json().then(function (j) { return { status: r.status, body: j }; }); })
+        .then(function (res) {
+          if (res.status === 200 && res.body && res.body.job_id) {
+            self.pollTranscriptionJob(res.body.job_id, MAX_POLL_MS, Date.now());
+            return;
+          }
+          if (res.status >= 500 && triesLeft > 0) {
+            self.showAsyncProcessing('retrying');
+            setTimeout(function () { attempt(triesLeft - 1); }, backoff);
+            return;
+          }
+          var msg = (res.body && (res.body.message || res.body.code)) || 'Upload failed';
+          fail('Upload failed: ' + msg);
+        })
+        .catch(function () {
+          if (triesLeft > 0) {
+            self.showAsyncProcessing('retrying');
+            setTimeout(function () { attempt(triesLeft - 1); }, backoff);
+            return;
+          }
+          fail('Upload failed. Please check your connection and try again.');
+        });
+    }
+
+    attempt(MAX_UPLOAD_RETRIES);
   };
 
   // Poll a transcription job. Follow `chain_job_id` if the server queued
