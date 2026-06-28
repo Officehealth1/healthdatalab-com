@@ -3,7 +3,7 @@
  * Plugin Name: HDL Longevity V2 — Staged Workflow
  * Plugin URI: https://healthdatalab.net
  * Description: V2 longevity workflow: staged intake, WHY profiling, practitioner consultations, weekly flight plans, and AI coaching. Runs alongside the existing Health Data Lab plugin.
- * Version: 0.47.31
+ * Version: 0.47.32
  * Author: Health Data Lab
  * Author URI: https://healthdatalab.net
  * License: Proprietary
@@ -22,7 +22,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 // register_activation_hook callbacks, which fire synchronously during
 // `wp plugin activate`, can reference them. The activator needs
 // HDLV2_DB_VERSION / HDLV2_VERSION at call time to update version options.
-define( 'HDLV2_VERSION', '0.47.31' );
+define( 'HDLV2_VERSION', '0.47.32' );
 define( 'HDLV2_DB_VERSION', '3.23' );
 define( 'HDLV2_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'HDLV2_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
@@ -740,7 +740,7 @@ final class HDL_Longevity_V2 {
         require_once HDLV2_PLUGIN_DIR . 'includes/security/class-hdlv2-rate-limit-status.php';
         require_once HDLV2_PLUGIN_DIR . 'includes/security/class-hdlv2-idempotency.php';
         require_once HDLV2_PLUGIN_DIR . 'includes/security/class-hdlv2-webhook-monitor.php';
-        require_once HDLV2_PLUGIN_DIR . 'includes/security/class-hdlv2-webhook-retry.php';
+        // B.5 — class-hdlv2-webhook-retry.php removed (dead code; see init() note).
         // v0.41.26 (W4) — Altituding Stripe → HDL automation tier endpoint.
         // V1-style class name (HDL_*) because it registers under V1's
         // hdl/v1 REST namespace; file lives here because the downstream
@@ -834,16 +834,16 @@ final class HDL_Longevity_V2 {
         ( new HDLV2_Rate_Limit_Status() )->register_hooks();
         HDLV2_Webhook_Monitor::register_hooks();
 
-        // v0.40.20 — Webhook retry mechanism. Each fire helper that has a
-        // re-fire path (Draft Report / Final Report / Flight Plan PDF)
-        // registers itself below so HDLV2_Webhook_Retry::run_scheduled_retry
-        // can dispatch to it. Cron hooks are registered eagerly so the
-        // scheduled events fire even if the registering class hasn't been
-        // instantiated yet on the cron-tick request.
-        HDLV2_Webhook_Retry::register_cron_hooks();
-        HDLV2_Webhook_Retry::register_handler( 'draft', array( 'HDLV2_Staged_Form', 'refire_draft_webhook' ) );
-        HDLV2_Webhook_Retry::register_handler( 'final', array( 'HDLV2_Final_Report', 'refire_final_webhook' ) );
-        HDLV2_Webhook_Retry::register_handler( 'flight_pdf', array( 'HDLV2_Flight_Plan', 'refire_flight_plan_webhook' ) );
+        // B.5 (§5b / §9.3) — the webhook-retry subsystem was DEAD CODE and is
+        // removed: HDLV2_Webhook_Retry::maybe_retry() had zero callers and the
+        // three refire_* handlers it registered were never defined, so nothing
+        // was ever re-sent. Failed Make fires are surfaced by Webhook_Monitor's
+        // 24h failure ledger + wp-admin notice and its stuck-PDF watchdog.
+        // Re-firing was also unsafe: Make has no idempotency on these report/PDF
+        // webhooks (a retry double-sends the client email + re-charges PDFMonkey)
+        // and returns HTTP 200 even when its scenario silently errors, so a
+        // transport-level retry would miss the dominant failure while risking a
+        // double-send. A real auto-recovery needs Make-side dedupe (Q5).
 
         // v0.41.26 (W4) — Paid-flow REST endpoint (Altituding Stripe →
         // automation tier). Dark behind hdlv2_automation_tier_enabled
