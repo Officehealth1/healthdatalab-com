@@ -1422,9 +1422,9 @@ class HDLV2_Activator {
                 } else {
                     error_log( '[HDLV2] Phase AC (v3.22) migration: backfilled client_user_id on ' . (int) $n . ' form_progress row(s).' );
                 }
-                // Feature flag for "pending leads in the main list", default OFF.
-                // add_option is a no-op if already set.
-                add_option( 'hdlv2_ff_pending_in_list', false );
+                // B.9 (§7.2/§7.6) — removed the stray add_option('hdlv2_ff_pending_in_list')
+                // seed: the pending-leads-in-list feature ships unconditionally and
+                // nothing ever read the flag (project-wide grep = 0 readers).
             } catch ( \Throwable $e ) {
                 error_log( '[HDLV2] Phase AC migration error: ' . $e->getMessage() . ' — boot continues; verify manually.' );
             }
