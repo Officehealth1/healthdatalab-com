@@ -708,13 +708,41 @@ Client input:
         return true;
     }
 
+    /**
+     * Private storage base for voice recordings — OUTSIDE the web root, mirroring
+     * the PDF pipeline (class-hdlv2-report-pdf.php::private_dir). Voice recordings
+     * are Art. 9 health data; storing them under wp-content/uploads protected only
+     * by an unguessable filename is insufficient — OpenLiteSpeed ignores Apache
+     * .htaccess deny rules, so the file is URL-downloadable regardless (verified:
+     * a real recording returned HTTP 200 at its public URL). There is no audio
+     * retrieval route — the file is read only server-side by Deepgram via its
+     * absolute path — so no serve route is needed, just out-of-docroot storage +
+     * a belt-and-braces deny guard. Override with HDLV2_PRIVATE_DIR in wp-config.
+     * Default: a sibling of the WP root (e.g. /var/www/hdlv2-private/hdlv2-audio/).
+     */
+    private static function private_audio_base() {
+        $base = defined( 'HDLV2_PRIVATE_DIR' )
+            ? rtrim( HDLV2_PRIVATE_DIR, '/' )
+            : dirname( rtrim( ABSPATH, '/' ) ) . '/hdlv2-private';
+        return $base . '/hdlv2-audio';
+    }
+
+    /** Belt-and-braces deny guard on an audio dir (mirrors report-pdf::protect_dir). */
+    private static function protect_audio_dir( $dir ) {
+        @chmod( $dir, 0700 );
+        @file_put_contents( trailingslashit( $dir ) . '.htaccess',
+            "Require all denied\n<IfModule !mod_authz_core.c>\nDeny from all\n</IfModule>\n" );
+        @file_put_contents( trailingslashit( $dir ) . 'index.html', '' );
+    }
+
     private function store_audio_file( $file ) {
-        $upload_dir = wp_upload_dir();
-        $audio_dir  = $upload_dir['basedir'] . '/hdlv2-audio/' . date( 'Y' ) . '/' . date( 'm' );
+        $base      = self::private_audio_base();
+        $audio_dir = $base . '/' . date( 'Y' ) . '/' . date( 'm' );
 
         if ( ! wp_mkdir_p( $audio_dir ) ) {
             return new WP_Error( 'dir_error', 'Could not create audio storage directory.' );
         }
+        self::protect_audio_dir( $base ); // idempotent
 
         $ext      = strtolower( pathinfo( $file['name'], PATHINFO_EXTENSION ) );
         $filename = 'hdlv2_' . bin2hex( random_bytes( 8 ) ) . '_' . time() . '.' . $ext;
@@ -723,8 +751,9 @@ Client input:
         if ( ! move_uploaded_file( $file['tmp_name'], $dest ) ) {
             return new WP_Error( 'move_error', 'Could not save audio file.' );
         }
+        @chmod( $dest, 0600 );
 
-        return $dest;
+        return $dest; // absolute path — the Deepgram read path is unchanged
     }
 
     /**
@@ -733,36 +762,104 @@ Client input:
      */
     public function cleanup_old_audio() {
         $upload_dir = wp_upload_dir();
-        $audio_base = $upload_dir['basedir'] . '/hdlv2-audio';
-
-        if ( ! is_dir( $audio_base ) ) {
-            return;
-        }
-
-        $cutoff = time() - ( 90 * DAY_IN_SECONDS );
-        $iterator = new RecursiveIteratorIterator(
-            new RecursiveDirectoryIterator( $audio_base, RecursiveDirectoryIterator::SKIP_DOTS ),
-            RecursiveIteratorIterator::CHILD_FIRST
+        // Sweep BOTH the current private base AND the legacy public base, so any
+        // pre-relocation files still drain at 90 days even if the one-off
+        // relocate_legacy_audio() migration has not been run on this environment.
+        $bases = array(
+            self::private_audio_base(),
+            $upload_dir['basedir'] . '/hdlv2-audio',
         );
 
+        $cutoff  = time() - ( 90 * DAY_IN_SECONDS );
         $deleted = 0;
-        foreach ( $iterator as $item ) {
-            if ( $item->isFile() && $item->getMTime() < $cutoff ) {
-                @unlink( $item->getPathname() );
-                $deleted++;
-            }
-        }
 
-        // Remove empty directories
-        foreach ( $iterator as $item ) {
-            if ( $item->isDir() ) {
-                @rmdir( $item->getPathname() );
+        foreach ( $bases as $audio_base ) {
+            if ( ! is_dir( $audio_base ) ) {
+                continue;
+            }
+            $iterator = new RecursiveIteratorIterator(
+                new RecursiveDirectoryIterator( $audio_base, RecursiveDirectoryIterator::SKIP_DOTS ),
+                RecursiveIteratorIterator::CHILD_FIRST
+            );
+
+            foreach ( $iterator as $item ) {
+                if ( $item->isFile() && $item->getMTime() < $cutoff ) {
+                    $bn = $item->getFilename();
+                    if ( $bn === '.htaccess' || $bn === 'index.html' ) {
+                        continue; // never delete our own deny guard
+                    }
+                    @unlink( $item->getPathname() );
+                    $deleted++;
+                }
+            }
+
+            // Remove empty directories
+            foreach ( $iterator as $item ) {
+                if ( $item->isDir() ) {
+                    @rmdir( $item->getPathname() );
+                }
             }
         }
 
         if ( $deleted > 0 ) {
             error_log( "[HDLV2 Audio] Cleanup: deleted {$deleted} files older than 90 days." );
         }
+    }
+
+    /**
+     * One-off relocation of legacy recordings from the public uploads dir
+     * (wp-content/uploads/hdlv2-audio) into the private base, preserving the Y/m
+     * structure, then lock down the old dir as belt-and-braces. Idempotent and
+     * safe to re-run (skips files already present at the destination). Invoke via:
+     *   wp eval 'echo HDLV2_Audio_Service::relocate_legacy_audio();' --allow-root
+     * Returns the number of files moved. No DB change; no schema bump.
+     */
+    public static function relocate_legacy_audio() {
+        $upload_dir = wp_upload_dir();
+        $old_base   = $upload_dir['basedir'] . '/hdlv2-audio';
+        $new_base   = self::private_audio_base();
+
+        if ( ! is_dir( $old_base ) ) {
+            return 0;
+        }
+        if ( ! wp_mkdir_p( $new_base ) ) {
+            return 0;
+        }
+        self::protect_audio_dir( $new_base );
+
+        $moved    = 0;
+        $iterator = new RecursiveIteratorIterator(
+            new RecursiveDirectoryIterator( $old_base, RecursiveDirectoryIterator::SKIP_DOTS )
+        );
+        foreach ( $iterator as $item ) {
+            if ( ! $item->isFile() ) {
+                continue;
+            }
+            $bn = $item->getFilename();
+            if ( $bn === '.htaccess' || $bn === 'index.html' ) {
+                continue;
+            }
+            // Relative path under the old base, e.g. "2026/06/hdlv2_xxx.webm".
+            $rel  = ltrim( str_replace( $old_base, '', $item->getPathname() ), '/\\' );
+            $dest = $new_base . '/' . $rel;
+            if ( file_exists( $dest ) ) {
+                continue; // already migrated
+            }
+            wp_mkdir_p( dirname( $dest ) );
+            if ( @rename( $item->getPathname(), $dest ) ) {
+                @chmod( $dest, 0600 );
+                $moved++;
+            }
+        }
+
+        // Lock down whatever remains in the old public dir (OLS ignores .htaccess,
+        // which is exactly why we moved the files; the guard still helps elsewhere).
+        self::protect_audio_dir( $old_base );
+
+        if ( $moved > 0 ) {
+            error_log( "[HDLV2 Audio] Relocated {$moved} legacy recordings to the private dir." );
+        }
+        return $moved;
     }
 
 }
