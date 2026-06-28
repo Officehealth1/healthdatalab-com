@@ -38,6 +38,11 @@
   var formData = {};
   var currentStage = 1;
   var saveTimer = null;
+  // v0.47.15 — sentinel stored in a Stage-3 Section-6 text field when the client
+  // ticks "None (to my knowledge)". Lets the value round-trip (reload / section
+  // re-render) and read clearly in the practitioner consultation + Claude draft
+  // instead of an ambiguous blank (blank = "skipped", sentinel = "nothing to report").
+  var NONE_SENTINEL = 'None (to my knowledge)';
   var saving = false;
   var serverData = {};
   var wizardSection = 0;
@@ -453,6 +458,56 @@
       el.addEventListener('change', onFieldChange);
       el.addEventListener('blur', onFieldChange);
     });
+    // v0.47.15 — textareas were NEVER bound here (the selector above only takes
+    // input + select), so Stage 3 Section 6 (Health Background) free-text was
+    // silently dropped from formData and the char counter never moved. Bind
+    // 'input' for live capture + counter, plus change/blur for the autosave debounce.
+    root.querySelectorAll('.hdlv2-form-body textarea[data-field]').forEach(function(el){
+      el.addEventListener('input', onTextareaInput);
+      el.addEventListener('change', onFieldChange);
+      el.addEventListener('blur', onFieldChange);
+    });
+    // "None (to my knowledge)" toggles — disable the paired textarea + store the
+    // sentinel so the field reads clearly downstream (consultation + Claude draft).
+    root.querySelectorAll('.hdlv2-form-body .hdlv2-none-check').forEach(function(el){
+      el.addEventListener('change', onNoneToggle);
+    });
+  }
+
+  function onTextareaInput(e) {
+    var name = e.target.getAttribute('data-field');
+    if (!name) return;
+    formData[name] = e.target.value;
+    updateCharCount(name, e.target.value.length);
+    if (saveTimer) clearTimeout(saveTimer);
+    saveTimer = setTimeout(function(){ autoSave(currentStage); }, 2000);
+  }
+
+  function onNoneToggle(e) {
+    var name = e.target.getAttribute('data-none-for');
+    if (!name) return;
+    var ta = document.getElementById('hdlv2-f-' + name);
+    if (!ta) return;
+    if (e.target.checked) {
+      ta.value = '';
+      ta.disabled = true;
+      formData[name] = NONE_SENTINEL;
+    } else {
+      ta.disabled = false;
+      formData[name] = '';
+      ta.focus();
+    }
+    updateCharCount(name, 0);
+    if (saveTimer) clearTimeout(saveTimer);
+    saveTimer = setTimeout(function(){ autoSave(currentStage); }, 800);
+  }
+
+  function updateCharCount(name, len) {
+    var el = document.getElementById('hdlv2-charcount-' + name);
+    if (!el) return;
+    var ta  = document.getElementById('hdlv2-f-' + name);
+    var max = ta ? ta.getAttribute('maxlength') : null;
+    el.textContent = len + ' / ' + (max || '∞');
   }
 
   // v0.36.20 — added Terms of Service link to the staged-form footer
@@ -825,7 +880,7 @@
       +     '</div>'
       +     '<div class="hdlv2-s1-stat">'
       +       '<p class="hdlv2-s1-stat-label">Biological Age</p>'
-      +       '<p class="hdlv2-s1-stat-value">' + (bio !== null ? bio + ' yrs' : '\u2014') + '</p>'
+      +       '<p class="hdlv2-s1-stat-value">' + (bio !== null ? bio.toFixed(1) + ' yrs' : '\u2014') + '</p>'
       +       '<p class="hdlv2-s1-stat-note ' + bandClass + '">' + esc(diffLabel) + '</p>'
       +     '</div>'
       +     '<div class="hdlv2-s1-stat">'
@@ -1537,10 +1592,18 @@
   }
 
   function fieldTextarea(name, label, value, placeholder, maxlength) {
+    // v0.47.15 \u2014 a ticked "None (to my knowledge)" stores NONE_SENTINEL as the
+    // field value; render that as the checkbox checked + an empty, disabled
+    // textarea so the state round-trips on reload / section re-render.
+    var isNone = (value === NONE_SENTINEL);
+    var taVal  = isNone ? '' : (value || '');
     return '<div class="hdlv2-field"><label for="hdlv2-f-'+name+'">'+label+'</label>'
       +'<textarea id="hdlv2-f-'+name+'" data-field="'+name+'" placeholder="'+esc(placeholder||'')+'"'
-      +(maxlength?' maxlength="'+maxlength+'"':'')+' rows="4">'+esc(value||'')+'</textarea>'
-      +'<div class="hdlv2-char-count" id="hdlv2-charcount-'+name+'">'+(value?value.length:0)+' / '+(maxlength||'\u221E')+'</div></div>';
+      +(maxlength?' maxlength="'+maxlength+'"':'')+' rows="4"'+(isNone?' disabled':'')+'>'+esc(taVal)+'</textarea>'
+      +'<div class="hdlv2-field-foot">'
+      +'<label class="hdlv2-none-toggle"><input type="checkbox" class="hdlv2-none-check" data-none-for="'+name+'"'+(isNone?' checked':'')+'><span>None (to my knowledge)</span></label>'
+      +'<div class="hdlv2-char-count" id="hdlv2-charcount-'+name+'">'+(taVal?taVal.length:0)+' / '+(maxlength||'\u221E')+'</div>'
+      +'</div></div>';
   }
 
   function fieldCheckboxGroup(name, label, options, selectedValues) {

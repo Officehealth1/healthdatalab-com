@@ -1437,6 +1437,16 @@
       }
       row.dataset.status = c.status || '';
       stampStalledAttrs(row, c);
+      // v0.47.14 — matched rows (V1 server-rendered + a live V2 record) were
+      // left with ONLY V1's .delete-client-btn, whose AJAX handler soft-deletes
+      // the V1 link table but never stamps hdlv2_form_progress.deleted_at. The
+      // dashboard roster is V2-first (get_clients_for_practitioner reads
+      // form_progress WHERE deleted_at IS NULL), so such a client reappeared via
+      // appendV2OnlyRows on the next page load. Swap V1's delete control for the
+      // V2 trash so the click routes through doDeleteClient ->
+      // POST /dashboard/client/{user_id}/delete, which DOES stamp
+      // form_progress.deleted_at and cascades.
+      swapMatchedRowDelete(row, c);
     });
     // W11 — mount the source-filter chips once per render after rows are
     // tagged. mountSourceFilter is a no-op when the flag is off or no
@@ -1448,6 +1458,38 @@
     mountStatusFilter();
     // Stalled-leads targeting filter — self-guards on CFG.stalled_filter_enabled + idempotent.
     mountStalledFilter();
+  }
+
+  // v0.47.14 — fix for the V1+V2 matched-client incomplete-delete bug. A
+  // "matched" row is a V1 server-rendered tr.client-row that also resolves to a
+  // V2 client (c = state.byHash[hash]). V1 renders its own .delete-client-btn on
+  // that row; clicking it runs wp_ajax_health_tracker_delete_client which only
+  // soft-deletes the V1 link table and never touches form_progress, so the
+  // V2-first dashboard roster keeps returning the client and appendV2OnlyRows
+  // re-adds it on reload. We REPLACE V1's button with the V2 trash
+  // (.hdlv2-delete-client-btn) so the already-bound delegated V2 handler runs
+  // doDeleteClient -> the cascade endpoint that stamps form_progress.deleted_at.
+  // Guards:
+  //  - only act on clients with a V2 user_id (the cascade endpoint is keyed by
+  //    user_id; renderV2DeleteButton returns '' without it, which would leave
+  //    the row with NO delete control if we'd already stripped V1's button);
+  //  - no-op when the row has no .delete-client-btn (e.g. invite-rows) so we
+  //    never remove an affordance we cannot replace.
+  // REPLACE, never ADD: two delete controls would let V1's buggy handler still
+  // fire. enhanceMatchedRows runs once per load and the V2 button's class is
+  // distinct from V1's, so a second pass finds no .delete-client-btn — naturally
+  // idempotent.
+  function swapMatchedRowDelete(row, c) {
+    if (!c || !c.user_id) return;
+    var v1Btn = row.querySelector('.delete-client-btn');
+    if (!v1Btn) return;
+    var html = renderV2DeleteButton(c);
+    if (!html) return;
+    var tmp = document.createElement('div');
+    tmp.innerHTML = html;
+    var v2Btn = tmp.firstElementChild;
+    if (!v2Btn) return;
+    v1Btn.parentNode.replaceChild(v2Btn, v1Btn);
   }
 
   function appendV2OnlyRows(list) {
@@ -2129,8 +2171,8 @@
       // their Stage 1 PDF. Chronological age moves to a sub-line so the
       // practitioner can still cross-reference.
       var leftStats = '<div class="hdlv2-st-row">'
-        +   '<div class="hdlv2-st-stat"><strong>' + esc(s1.rate != null ? s1.rate + '×' : '—') + '</strong><span>Rate of ageing</span></div>'
-        +   '<div class="hdlv2-st-stat"><strong>' + esc(s1.bio_age_est != null ? s1.bio_age_est : '—') + '</strong><span>Bio age (est.)</span>'
+        +   '<div class="hdlv2-st-stat"><strong>' + esc(s1.rate != null ? Number(s1.rate).toFixed(2) + '×' : '—') + '</strong><span>Rate of ageing</span></div>'
+        +   '<div class="hdlv2-st-stat"><strong>' + esc(s1.bio_age_est != null ? Number(s1.bio_age_est).toFixed(1) : '—') + '</strong><span>Bio age (est.)</span>'
         +     (s1.age != null ? '<small>vs. ' + esc(s1.age) + ' actual</small>' : '')
         +   '</div>'
         +   '<div class="hdlv2-st-stat"><strong>' + esc(capSex) + '</strong><span>Sex</span></div>'
@@ -2183,8 +2225,8 @@
 
       var rightGauge = s1.gauge_url
         ? '<div class="hdlv2-st-gauge-card">'
-          +   '<img class="hdlv2-st-gauge-img" src="' + esc(s1.gauge_url) + '" alt="Pace of ageing gauge · ' + esc((s1.rate != null ? s1.rate + 'x' : '')) + '">'
-          +   '<div class="hdlv2-st-gauge-caption">Pace of ageing &middot; ' + esc(s1.rate != null ? s1.rate + '× chronological' : 'pending') + '</div>'
+          +   '<img class="hdlv2-st-gauge-img" src="' + esc(s1.gauge_url) + '" alt="Pace of ageing gauge · ' + esc((s1.rate != null ? Number(s1.rate).toFixed(2) + 'x' : '')) + '">'
+          +   '<div class="hdlv2-st-gauge-caption">Pace of ageing &middot; ' + esc(s1.rate != null ? Number(s1.rate).toFixed(2) + '× chronological' : 'pending') + '</div>'
           + '</div>'
         : '<div class="hdlv2-st-gauge-card"><div class="hdlv2-detail-empty">Gauge image unavailable.</div></div>';
 
@@ -2291,8 +2333,8 @@
       // Background block (v0.38.0 — family_history, medications,
       // existing_conditions — surfaced via /dashboard/client-record).
       var topStats = '<div class="hdlv2-s3-stats">'
-        +   '<div class="hdlv2-st-stat"><strong>' + esc(s3.rate    != null ? s3.rate    + '×' : '—') + '</strong><span>Rate of ageing</span></div>'
-        +   '<div class="hdlv2-st-stat"><strong>' + esc(s3.bio_age != null ? s3.bio_age      : '—') + '</strong><span>Biological age</span></div>'
+        +   '<div class="hdlv2-st-stat"><strong>' + esc(s3.rate != null ? Number(s3.rate).toFixed(2) + '×' : '—') + '</strong><span>Rate of ageing</span></div>'
+        +   '<div class="hdlv2-st-stat"><strong>' + esc(s3.bio_age != null ? Number(s3.bio_age).toFixed(1) : '—') + '</strong><span>Biological age</span></div>'
         +   '<div class="hdlv2-st-stat"><strong>' + esc(s3.bmi     != null ? s3.bmi          : '—') + '</strong><span>BMI</span></div>'
         + '</div>';
 

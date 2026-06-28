@@ -358,7 +358,7 @@ class HDLV2_Client_Status {
         // client sees in their Stage 1 PDF.
         $s1_age = isset( $s1['q1_age'] ) ? (int) $s1['q1_age'] : null;
         $s1_bio_age_est = ( $s1_rate !== null && $s1_age && $s1_age > 0 )
-            ? (int) round( $s1_rate * $s1_age )
+            ? round( $s1_rate * $s1_age, 1 ) /* v0.47.15: 1-dp parity with PDF/email/screen (was (int)) */
             : null;
 
         $stage1 = array(

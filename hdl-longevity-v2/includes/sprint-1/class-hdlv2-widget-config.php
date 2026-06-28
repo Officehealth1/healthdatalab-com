@@ -829,9 +829,10 @@ class HDLV2_Widget_Config {
      */
     private static function interpret_rate( $rate ) {
         if ( ! $rate )              return array( 'label' => '', 'message' => '' );
-        if ( $rate <= 0.95 )        return array( 'label' => 'Slower than average', 'message' => 'Your pace of ageing is ' . $rate . '× — you\'re ageing slower than average. Your lifestyle factors are working in your favour.' );
-        if ( $rate <= 1.05 )        return array( 'label' => 'Average',             'message' => 'Your pace of ageing is ' . $rate . '× — roughly at the population average. Small changes could shift this significantly.' );
-        return array( 'label' => 'Faster than average', 'message' => 'Your pace of ageing is ' . $rate . '× — you\'re ageing faster than average. Targeted changes can bring this down.' );
+        $rate_disp = number_format( (float) $rate, 2 ); // v0.47.15 2-dp parity
+        if ( $rate <= 0.95 )        return array( 'label' => 'Slower than average', 'message' => 'Your pace of ageing is ' . $rate_disp . '× — you\'re ageing slower than average. Your lifestyle factors are working in your favour.' );
+        if ( $rate <= 1.05 )        return array( 'label' => 'Average',             'message' => 'Your pace of ageing is ' . $rate_disp . '× — roughly at the population average. Small changes could shift this significantly.' );
+        return array( 'label' => 'Faster than average', 'message' => 'Your pace of ageing is ' . $rate_disp . '× — you\'re ageing faster than average. Targeted changes can bring this down.' );
     }
 
     /**

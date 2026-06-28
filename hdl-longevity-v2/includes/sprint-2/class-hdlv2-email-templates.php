@@ -141,7 +141,7 @@ class HDLV2_Email_Templates {
      */
     public static function stage1_results( $data ) {
         $first    = self::derive_first_name( $data['client_name'] ?? '', $data['client_email'] ?? '' );
-        $rate     = esc_html( $data['rate'] );
+        $rate     = esc_html( ( $data['rate'] !== '' && $data['rate'] !== null ) ? number_format( (float) $data['rate'], 2 ) : '' );
         $bio_age  = esc_html( $data['bio_age'] );
         $age      = esc_html( $data['age'] );
         $gauge    = esc_url( $data['gauge_url'] );
