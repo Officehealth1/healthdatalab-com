@@ -22,7 +22,7 @@ window.HDLAudioComponent = (function () {
   // the console) to surface diagnostics. Short-circuit evaluation means
   // `false && console.log(...)` skips the call entirely — no eval cost.
   var HDLV2_AC_DEBUG = !!window.HDLV2_AC_DEBUG;
-  try { HDLV2_AC_DEBUG && HDLV2_AC_DEBUG && console.log('[HDL-DEBUG] hdlv2-audio-component.js LOADED', { build: '0.47.26', hasSR: !!window.SpeechRecognition, hasWebkitSR: !!window.webkitSpeechRecognition, isSecureContext: window.isSecureContext, href: location.href }); } catch(e){}
+  try { HDLV2_AC_DEBUG && HDLV2_AC_DEBUG && console.log('[HDL-DEBUG] hdlv2-audio-component.js LOADED', { build: '0.47.27', hasSR: !!window.SpeechRecognition, hasWebkitSR: !!window.webkitSpeechRecognition, isSecureContext: window.isSecureContext, href: location.href }); } catch(e){}
   try { HDLV2_AC_DEBUG && console.log('[HDL-DEBUG] browser info', { userAgent: navigator.userAgent, vendor: navigator.vendor, platform: navigator.platform, hardwareConcurrency: navigator.hardwareConcurrency, hasAudioContext: !!(window.AudioContext || window.webkitAudioContext), hasUserActivation: !!navigator.userActivation }); } catch(e){}
   try {
     if (navigator.mediaDevices && navigator.mediaDevices.enumerateDevices) {
@@ -734,7 +734,11 @@ window.HDLAudioComponent = (function () {
     // button; layer an honest notice on top. If the take was too short to
     // upload, the too-short error from the stop handler shows instead — either
     // way the user is no longer stuck on a dead "recording" state.
-    this.showError('Microphone disconnected. We saved what we captured — tap the mic to record the rest.');
+    // v0.47.27 (MED-1) — neutral wording: in the common ordering stopRecording
+    // ships the captured audio, but in a browser race where the recorder
+    // auto-stopped first the partial may already be gone, so do not assert it
+    // was saved. The upload/transcript flow (if a blob shipped) supersedes this.
+    this.showError('Microphone disconnected. Tap the mic to continue recording your answer.');
     setTimeout(function () { self._micLostHandling = false; }, 1500);
   };
 
@@ -799,9 +803,20 @@ window.HDLAudioComponent = (function () {
     // its 'stop' handler uploads to Deepgram (it reads mediaRecorder.mimeType,
     // so do NOT null it here — _beginCapture replaces it on the next take).
     if (this.mediaRecorder) {
-      this._uploadWanted = true;
-      this._jobInFlight = true; // (A1) busy from stop until the transcript lands (closes the stop→upload gap)
-      try { this.mediaRecorder.stop(); } catch (e) {}
+      // v0.47.27 (MED-1) — if the recorder has already auto-stopped (e.g. the mic
+      // track died and stopped it BEFORE we got here, a spec-permitted race on a
+      // mid-session mic loss), calling stop() throws InvalidStateError and no
+      // 'stop' event fires — which would never upload AND never clear _jobInFlight,
+      // permanently blocking Submit. Detect that and clear busy here; otherwise
+      // arm the upload and clear busy if stop() throws for any other reason.
+      if (this.mediaRecorder.state === 'inactive') {
+        this._jobInFlight = false;
+      } else {
+        this._uploadWanted = true;
+        this._jobInFlight = true; // (A1) busy from stop until the transcript lands (closes the stop→upload gap)
+        try { this.mediaRecorder.stop(); }
+        catch (e) { this._jobInFlight = false; this._uploadWanted = false; }
+      }
     } else {
       // No capture (mic never granted / already released) — force-release any
       // stray stream.
@@ -976,16 +991,34 @@ window.HDLAudioComponent = (function () {
     // (413 too large / 429 rate-limited / 400) surface immediately — retrying
     // those is pointless or harmful. Idempotency (above) keeps retries safe.
     var MAX_UPLOAD_RETRIES = 2;
+    // v0.47.27 (MED-2/LOW-3) — the server idempotency cache (replay window) is
+    // 30s. Bound the WHOLE upload (offline waits + retries) to under that so a
+    // late retry always replays the first result rather than re-storing the file
+    // and re-charging Deepgram — and so an offline device can never strand
+    // _jobInFlight=true forever (navigator.onLine has known false-negatives).
+    var UPLOAD_DEADLINE_MS = 25000;
+    var uploadStartedAt = Date.now();
 
     function attempt(triesLeft) {
+      if (self._destroyed) { self._jobInFlight = false; return; } // (LOW-5) torn down mid-upload — abandon, don't leak work
+      if (Date.now() - uploadStartedAt > UPLOAD_DEADLINE_MS) {
+        // Past the dedup-safe window — stop retrying/waiting (never re-process
+        // server-side, never strand busy). fail() clears _jobInFlight.
+        fail('Upload failed. Please check your connection and try again.');
+        return;
+      }
       if (navigator && navigator.onLine === false) {
         self.showAsyncProcessing('retrying', 'Waiting for your connection');
+        var resumed = false;
         var onBack = function () {
+          if (resumed) return; resumed = true;
           try { window.removeEventListener('online', onBack); } catch (e) {}
           attempt(triesLeft);
         };
-        try { window.addEventListener('online', onBack); }
-        catch (e) { setTimeout(function () { attempt(triesLeft); }, 3000); }
+        try { window.addEventListener('online', onBack); } catch (e) {}
+        // Also re-check on a timer in case the 'online' event never arrives
+        // (onLine false-negative); the deadline guard above ends the loop.
+        setTimeout(onBack, 4000);
         return;
       }
       var backoff = (MAX_UPLOAD_RETRIES - triesLeft + 1) * 1500;
