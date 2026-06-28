@@ -913,8 +913,15 @@ class HDLV2_Widget_Config {
         unset( $stage1_data_outbound['_safety'], $stage1_data_outbound['_safety_flags'], $stage1_data_outbound['server_result'] );
 
         // Optional config webhook
-        if ( $config && ! empty( $config->webhook_url ) ) {
-            wp_remote_post( $config->webhook_url, array(
+        if ( $config && ! empty( $config->webhook_url )
+             && ! HDLV2_Report_PDF::url_targets_reserved_ip( $config->webhook_url ) ) {
+            // B.4 (§8.7 #5) — wp_safe_remote_post re-runs wp_http_validate_url at
+            // FIRE time (rejects private/reserved/loopback IPs), closing the
+            // TOCTOU / DNS-rebind window left by the save-time-only validation in
+            // sanitize_config(); the url_targets_reserved_ip() pre-check also blocks
+            // link-local/metadata that the safe wrapper misses. A practitioner's
+            // real public webhook is unaffected.
+            wp_safe_remote_post( $config->webhook_url, array(
                 'body'    => wp_json_encode( $stage1_data_outbound + array(
                     'name'  => $visitor_name,
                     'email' => $visitor_email,

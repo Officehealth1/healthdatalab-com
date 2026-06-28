@@ -197,8 +197,65 @@ class HDLV2_Report_PDF {
     }
 
     /** Download a remote PDF into the protected uploads dir. Timestamped filename → additive, never overwrites prior files. */
+    /**
+     * SSRF guard (B.4 / §8.7) — true if the URL is non-http(s) or its host
+     * resolves to ANY private, reserved, loopback or link-local IP (incl.
+     * 169.254.169.254 cloud metadata), or can't be resolved. wp_safe_remote_*
+     * blocks RFC-1918 + loopback but NOT link-local (a wp_http_validate_url
+     * limitation — verified: 169.254.169.254 reached HTTP 200 through it), so
+     * this closes the metadata-endpoint vector. Legit public http(s) hosts → false.
+     */
+    public static function url_targets_reserved_ip( $url ) {
+        $parts = wp_parse_url( (string) $url );
+        if ( empty( $parts['scheme'] ) || ! in_array( strtolower( $parts['scheme'] ), array( 'http', 'https' ), true ) ) {
+            return true;
+        }
+        if ( empty( $parts['host'] ) ) {
+            return true;
+        }
+        $host = $parts['host'];
+        $ips  = array();
+        if ( filter_var( $host, FILTER_VALIDATE_IP ) ) {
+            $ips[] = $host;
+        } else {
+            $a = @gethostbynamel( $host ); // all IPv4 A records
+            if ( is_array( $a ) ) {
+                $ips = array_merge( $ips, $a );
+            }
+            if ( function_exists( 'dns_get_record' ) && defined( 'DNS_AAAA' ) ) {
+                $aaaa = @dns_get_record( $host, DNS_AAAA );
+                if ( is_array( $aaaa ) ) {
+                    foreach ( $aaaa as $rec ) {
+                        if ( ! empty( $rec['ipv6'] ) ) {
+                            $ips[] = $rec['ipv6'];
+                        }
+                    }
+                }
+            }
+        }
+        if ( empty( $ips ) ) {
+            return true; // unresolvable → treat as unsafe
+        }
+        foreach ( $ips as $ip ) {
+            // NO_PRIV_RANGE + NO_RES_RANGE reject 10/8, 172.16/12, 192.168/16,
+            // 127/8, 169.254/16, 0.0.0.0/8, 240/4, ::1, fc00::/7, fe80::/10, …
+            if ( ! filter_var( $ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE ) ) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     public static function fetch_and_store( $src_url, $slug ) {
-        $resp = wp_remote_get( $src_url, array( 'timeout' => 20, 'redirection' => 3 ) );
+        // B.4 (§8.7 #6) — defence in depth: (1) explicit reserved-IP block on the
+        // initial host (catches link-local/metadata that wp_safe_remote_get misses),
+        // (2) wp_safe_remote_get re-validates each redirect hop for RFC-1918/loopback,
+        // (3) the %PDF-/content-type check below blocks exfil of non-PDF bodies.
+        // Presigned S3/PDFMonkey URLs are public HTTPS and pass unchanged.
+        if ( self::url_targets_reserved_ip( $src_url ) ) {
+            return new WP_Error( 'blocked_url', 'Refusing to fetch a non-public address.' );
+        }
+        $resp = wp_safe_remote_get( $src_url, array( 'timeout' => 20, 'redirection' => 3 ) );
         if ( is_wp_error( $resp ) ) return $resp;
         $code  = wp_remote_retrieve_response_code( $resp );
         $body  = wp_remote_retrieve_body( $resp );
