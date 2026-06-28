@@ -1073,6 +1073,7 @@
         nonce: CFG.nonce,
         token: token,
         simpleMode: true,
+        stopCue: true, // v0.47.25 (A5) — beep + buzz when recording stops (client may be looking away)
         // v0.17.0 — uploads go server-side via Deepgram (handles 20+ min
         // audio without the 120s browser-Whisper timeout). Live mic recording
         // still uses the browser Speech API for real-time streaming.

@@ -22,7 +22,7 @@ window.HDLAudioComponent = (function () {
   // the console) to surface diagnostics. Short-circuit evaluation means
   // `false && console.log(...)` skips the call entirely — no eval cost.
   var HDLV2_AC_DEBUG = !!window.HDLV2_AC_DEBUG;
-  try { HDLV2_AC_DEBUG && HDLV2_AC_DEBUG && console.log('[HDL-DEBUG] hdlv2-audio-component.js LOADED', { build: '0.47.24', hasSR: !!window.SpeechRecognition, hasWebkitSR: !!window.webkitSpeechRecognition, isSecureContext: window.isSecureContext, href: location.href }); } catch(e){}
+  try { HDLV2_AC_DEBUG && HDLV2_AC_DEBUG && console.log('[HDL-DEBUG] hdlv2-audio-component.js LOADED', { build: '0.47.25', hasSR: !!window.SpeechRecognition, hasWebkitSR: !!window.webkitSpeechRecognition, isSecureContext: window.isSecureContext, href: location.href }); } catch(e){}
   try { HDLV2_AC_DEBUG && console.log('[HDL-DEBUG] browser info', { userAgent: navigator.userAgent, vendor: navigator.vendor, platform: navigator.platform, hardwareConcurrency: navigator.hardwareConcurrency, hasAudioContext: !!(window.AudioContext || window.webkitAudioContext), hasUserActivation: !!navigator.userActivation }); } catch(e){}
   try {
     if (navigator.mediaDevices && navigator.mediaDevices.enumerateDevices) {
@@ -237,6 +237,13 @@ window.HDLAudioComponent = (function () {
     // Runaway backstop: hard cap on a single take so a forgotten/looping mic
     // can't grow an unbounded in-RAM blob. 90 min @ 32 kbps opus ~= 21 MB.
     this.maxRecordingMs = (typeof opts.maxRecordingMs === 'number') ? opts.maxRecordingMs : 90 * 60 * 1000;
+
+    // v0.47.25 (A5) — stopCue: play a subtle beep + haptic buzz when recording
+    // actually stops, so a user who has looked away from the screen (the
+    // 2026-06-27 report: "I wasn't looking at the screen") knows capture ended
+    // (manual stop, silence auto-stop, the max-duration cap, or a mic drop).
+    // Opt-in so clinical/practitioner dictation surfaces stay silent unless asked.
+    this.stopCue = !!opts.stopCue;
 
     // Page-lifecycle cleanup. Without these, navigating away mid-recording
     // (Divi AJAX nav, modal close, tab close) leaves the mic indicator lit.
@@ -773,6 +780,11 @@ window.HDLAudioComponent = (function () {
 
     this.stopping = false;
 
+    // v0.47.25 (A5) — recording has genuinely stopped; cue the user (may be
+    // looking away). Fires for manual stop, silence auto-stop, the cap, and
+    // mic-loss (all funnel through here); NOT for page-unload (_release).
+    this._playStopCue();
+
     // Ship the captured blob: mark upload wanted, then stop the recorder so
     // its 'stop' handler uploads to Deepgram (it reads mediaRecorder.mimeType,
     // so do NOT null it here — _beginCapture replaces it on the next take).
@@ -804,6 +816,29 @@ window.HDLAudioComponent = (function () {
     btn.classList.remove('recording');
     btn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#888" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/></svg>';
     btn.title = 'Record audio';
+  };
+
+  // v0.47.25 (A5) — subtle audible + haptic cue that recording has stopped.
+  // Opt-in (stopCue). Fully wrapped in try/catch and degrades silently where
+  // the WebAudio API or vibration is unavailable (e.g. iOS has no vibrate).
+  AudioComponent.prototype._playStopCue = function () {
+    if (!this.stopCue) return;
+    try { if (navigator.vibrate) navigator.vibrate(60); } catch (e) {}
+    try {
+      var AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return;
+      var ctx = new AC();
+      var osc = ctx.createOscillator();
+      var gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.value = 660;
+      gain.gain.value = 0.04; // quiet — a soft confirmation, not an alarm
+      osc.connect(gain); gain.connect(ctx.destination);
+      osc.start();
+      try { gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.18); } catch (e) {}
+      osc.stop(ctx.currentTime + 0.2);
+      setTimeout(function () { try { ctx.close(); } catch (e) {} }, 450);
+    } catch (e) {}
   };
 
   // v0.20.1 — hard teardown. Call from consumer code when the component's
