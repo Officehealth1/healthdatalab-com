@@ -421,18 +421,12 @@ class HDLV2_Job_Queue {
      * we return status without exposing job_type/payload internals — just
      * status, progress hint, result (if completed), error (if failed).
      *
-     * KNOWN IDOR (tracked, P2): any practitioner can poll any job_id and
-     * receive its result content (transcript / organised notes JSON), and
-     * any valid client token can do the same. Tightening this requires a
-     * per-job_type ownership dispatcher because reference_id resolves
-     * against three different tables depending on (job_type, context_type):
-     *   - organise_consultation       → hdlv2_consultation_notes.id
-     *   - transcribe_audio + cons     → hdlv2_consultation_notes.id
-     *   - transcribe_audio + why      → hdlv2_why_profiles.id
-     *   - transcribe_audio + checkin  → hdlv2_checkins.id
-     * A naive "join to consultation_notes" fix breaks the why/checkin
-     * client paths. Out of scope for the 2026-04-26 IDOR batch — see
-     * Change Log + .planning follow-up for the targeted fix.
+     * This is the COARSE gate (is the caller a practitioner / a valid token at
+     * all). The fine, fail-closed PER-JOB ownership check now lives in
+     * rest_status() via caller_owns_job() — resolved per job_type against the
+     * record reference_id binds to (B.3 / §8.4). The previous "KNOWN IDOR (P2)"
+     * where any practitioner/token could read any non-sensitive job by walking
+     * IDs is closed: every type is gated, unknown types deny by default.
      */
     public function permission_read( $request ) {
         // Practitioner always allowed
@@ -465,18 +459,17 @@ class HDLV2_Job_Queue {
             return new WP_Error( 'not_found', 'Job not found.', array( 'status' => 404 ) );
         }
 
-        // v0.46.17 — IDOR gate (BACK-08 / W3-1). transcribe_audio and
-        // organise_consultation are the only job types whose `result` carries
-        // sensitive content (audio transcripts / organised clinical notes).
-        // Every other type returns a minimal status body (success/ready/ids),
-        // so the leak is specifically these two. permission_read() only proves
-        // the caller is *a* practitioner or holds *a* valid token — not that
-        // they own THIS job. Without this check any logged-in practitioner or
-        // any valid client token could read every client's transcript/notes by
-        // walking job IDs. Non-owners get 404 (not 403) so the endpoint never
-        // confirms a job exists (no enumeration).
-        if ( in_array( $job->job_type, array( 'transcribe_audio', 'organise_consultation' ), true )
-             && ! $this->caller_owns_sensitive_job( $job, $request ) ) {
+        // B.3 (§8.4 / finding #3) — UNCONDITIONAL, fail-closed ownership gate.
+        // permission_read() only proves the caller is *a* practitioner or holds
+        // *a* valid token — not that they own THIS job. Previously only the two
+        // result-bearing types (transcribe_audio / organise_consultation) were
+        // gated, so the other 9 types leaked status/result to any authenticated
+        // caller walking job IDs. caller_owns_job() now resolves ownership per
+        // job_type and denies unknown/future types by default. Non-owners get
+        // 404 (not 403) so the endpoint never confirms a job exists. Kept ABOVE
+        // the self-healing worker kick below so a non-owner poll can't nudge the
+        // queue (AUDIT §9 same-file coupling).
+        if ( ! $this->caller_owns_job( $job, $request ) ) {
             return new WP_Error( 'not_found', 'Job not found.', array( 'status' => 404 ) );
         }
 
@@ -519,35 +512,32 @@ class HDLV2_Job_Queue {
     }
 
     /**
-     * Ownership gate for the two sensitive job types whose result body must
-     * not leak across clients (transcribe_audio / organise_consultation).
+     * B.3 (§8.4 / finding #3) — UNCONDITIONAL, fail-closed ownership gate for
+     * EVERY job type. Bindings were verified against each enqueue() call-site +
+     * the live table columns (form_progress/reports/flight_plans all carry the
+     * owner ids). Unknown/future types deny by default (secure-by-default).
      *
-     * Resolution differs by job type because they bind to different owners:
-     *
-     *  - organise_consultation, and transcribe_audio + context 'consultation_notes':
-     *      RESOURCE-BASED. reference_id (or payload.consultation_id) → the
-     *      hdlv2_consultation_notes row → its practitioner_user_id is the only
-     *      legitimate reader. (organise is created inside the worker when a
-     *      consultation transcript chains it, so it has no request context to
-     *      creator-bind — resource resolution is the only option, and is also
-     *      robust for historical jobs.)
-     *
-     *  - transcribe_audio + context 'why_collection' | 'weekly_checkin'
-     *    | 'consultation_addendum':
-     *      CREATOR-BOUND. These transcripts belong to no persisted row at
-     *      transcribe time (reference_id = 0); the transcript is handed back
-     *      only to whoever recorded it. rest_transcribe_async() stamps the
-     *      creator identity into the payload (_owner_user for a logged-in
-     *      caller, _owner_token_hash = HMAC(token) for a client-token caller).
-     *      The audio component polls with the SAME identity it uploaded with,
-     *      so the owner always matches. Historical jobs predating the stamp
-     *      carry neither field → only admins can read them (fail closed;
-     *      their transcripts were consumed long ago, so nothing legitimate
-     *      breaks).
+     * Ownership resolves per job_type because reference_id binds to different
+     * tables:
+     *  - transcribe_audio (consultation_notes ctx) / organise_consultation:
+     *      RESOURCE — consultation_notes.practitioner_user_id.
+     *  - transcribe_audio (why/checkin/addendum ctx):
+     *      CREATOR-BOUND — payload _owner_user / _owner_token_hash (HMAC),
+     *      stamped at upload; the poller carries the same identity. Historical
+     *      jobs without the stamp fail closed (admin-only).
+     *  - generate_final_report / regenerate_final_report / generate_flight_notes_pdf
+     *    / redflag_scan: ref = form_progress.id → practitioner owner.
+     *  - generate_draft_report: ref = form_progress.id → the CLIENT (token or
+     *      client_user_id) OR the practitioner (the Stage-3 poller is the client).
+     *  - render_final_report_pdf: ref = reports.id → reports practitioner/client.
+     *  - render_flight_plan_pdf: ref = flight_plans.id → flight_plans
+     *      practitioner_id / client_id.
+     *  - generate_flight_plan_manual / generate_flight_plan_auto: ref = client_id
+     *      → practitioner-owns-client (or the client themselves).
      *
      * @return bool true if the caller owns the job's underlying record.
      */
-    private function caller_owns_sensitive_job( $job, $request ) {
+    private function caller_owns_job( $job, $request ) {
         // Admin escape hatch — mirrors the IDOR pattern used elsewhere.
         if ( current_user_can( 'manage_options' ) ) {
             return true;
@@ -576,25 +566,93 @@ class HDLV2_Job_Queue {
         $ref     = (int) $row->reference_id;
         $context = isset( $payload['context_type'] ) ? (string) $payload['context_type'] : '';
 
-        // Resource-based: organise + consultation-notes transcription.
-        $is_consultation = ( $job->job_type === 'organise_consultation' )
-                        || ( $job->job_type === 'transcribe_audio' && $context === 'consultation_notes' );
-        if ( $is_consultation ) {
-            $cid = isset( $payload['consultation_id'] ) ? (int) $payload['consultation_id'] : 0;
-            if ( ! $cid ) {
-                $cid = $ref;
-            }
-            if ( ! $cid || ! $uid ) {
-                return false;
-            }
-            $prac = (int) $wpdb->get_var( $wpdb->prepare(
-                "SELECT practitioner_user_id FROM {$wpdb->prefix}hdlv2_consultation_notes WHERE id = %d LIMIT 1",
-                $cid
-            ) );
-            return ( $prac && $prac === $uid );
-        }
+        switch ( $job->job_type ) {
 
-        // Creator-bound: why / weekly check-in / consultation addendum transcripts.
+            // Audio transcripts — preserve the v0.46.17 logic exactly.
+            case 'transcribe_audio':
+                if ( $context === 'consultation_notes' ) {
+                    $cid = isset( $payload['consultation_id'] ) ? (int) $payload['consultation_id'] : $ref;
+                    return self::owns_consultation( $wpdb, $uid, $cid );
+                }
+                return self::caller_is_job_creator( $payload, $uid, $token );
+
+            case 'organise_consultation':
+                $cid = isset( $payload['consultation_id'] ) ? (int) $payload['consultation_id'] : $ref;
+                return self::owns_consultation( $wpdb, $uid, $cid );
+
+            // Practitioner-owned, ref = form_progress.id.
+            case 'generate_final_report':
+            case 'regenerate_final_report':
+            case 'generate_flight_notes_pdf':
+            case 'redflag_scan':
+                return self::practitioner_owns_progress( $wpdb, $uid, $ref );
+
+            // Draft report poll is the CLIENT (token, no session) OR practitioner.
+            case 'generate_draft_report':
+                return self::owns_progress_client_or_practitioner( $wpdb, $uid, $token, $ref );
+
+            // PDF render bound to reports.id (carries owner ids directly).
+            case 'render_final_report_pdf':
+                if ( ! $uid || ! $ref ) {
+                    return false;
+                }
+                $r = $wpdb->get_row( $wpdb->prepare(
+                    "SELECT practitioner_user_id, client_user_id FROM {$wpdb->prefix}hdlv2_reports WHERE id = %d LIMIT 1",
+                    $ref
+                ) );
+                if ( ! $r ) {
+                    return false;
+                }
+                return ( (int) $r->practitioner_user_id === $uid )
+                    || HDLV2_Compatibility::practitioner_owns_client( $uid, (int) $r->client_user_id );
+
+            // PDF render bound to flight_plans.id (carries owner ids directly).
+            case 'render_flight_plan_pdf':
+                if ( ! $uid || ! $ref ) {
+                    return false;
+                }
+                $fp = $wpdb->get_row( $wpdb->prepare(
+                    "SELECT practitioner_id, client_id FROM {$wpdb->prefix}hdlv2_flight_plans WHERE id = %d LIMIT 1",
+                    $ref
+                ) );
+                if ( ! $fp ) {
+                    return false;
+                }
+                return ( (int) $fp->practitioner_id === $uid )
+                    || HDLV2_Compatibility::practitioner_owns_client( $uid, (int) $fp->client_id );
+
+            // Flight-plan generation — ref = client_id (manual: practitioner;
+            // auto: worker-created, resource-only).
+            case 'generate_flight_plan_manual':
+            case 'generate_flight_plan_auto':
+                if ( ! $uid || ! $ref ) {
+                    return false;
+                }
+                if ( $uid === $ref ) {
+                    return true; // the client polling their own plan
+                }
+                return HDLV2_Compatibility::practitioner_owns_client( $uid, $ref );
+
+            // Unknown / future job types — deny by default (secure-by-default).
+            default:
+                return false;
+        }
+    }
+
+    /** Resource owner: a consultation_notes row's practitioner. */
+    private static function owns_consultation( $wpdb, $uid, $cid ) {
+        if ( ! $cid || ! $uid ) {
+            return false;
+        }
+        $prac = (int) $wpdb->get_var( $wpdb->prepare(
+            "SELECT practitioner_user_id FROM {$wpdb->prefix}hdlv2_consultation_notes WHERE id = %d LIMIT 1",
+            $cid
+        ) );
+        return ( $prac && $prac === $uid );
+    }
+
+    /** Creator-bound: payload _owner_user (logged-in) or _owner_token_hash (HMAC of the client token). */
+    private static function caller_is_job_creator( $payload, $uid, $token ) {
         $owner_user = isset( $payload['_owner_user'] ) ? (int) $payload['_owner_user'] : 0;
         $owner_hash = isset( $payload['_owner_token_hash'] ) ? (string) $payload['_owner_token_hash'] : '';
         if ( $uid && $owner_user && $uid === $owner_user ) {
@@ -605,6 +663,53 @@ class HDLV2_Job_Queue {
             if ( hash_equals( $owner_hash, $calc ) ) {
                 return true;
             }
+        }
+        return false;
+    }
+
+    /** Practitioner owner of a form_progress row (direct owner OR linked client). */
+    private static function practitioner_owns_progress( $wpdb, $uid, $progress_id ) {
+        if ( ! $progress_id || ! $uid ) {
+            return false;
+        }
+        $fp = $wpdb->get_row( $wpdb->prepare(
+            "SELECT practitioner_user_id, client_user_id FROM {$wpdb->prefix}hdlv2_form_progress WHERE id = %d LIMIT 1",
+            $progress_id
+        ) );
+        if ( ! $fp ) {
+            return false;
+        }
+        if ( (int) $fp->practitioner_user_id === $uid ) {
+            return true;
+        }
+        return HDLV2_Compatibility::practitioner_owns_client( $uid, (int) $fp->client_user_id );
+    }
+
+    /** Draft-report owner: the client (token or client_user_id) OR the practitioner. */
+    private static function owns_progress_client_or_practitioner( $wpdb, $uid, $token, $progress_id ) {
+        if ( ! $progress_id ) {
+            return false;
+        }
+        $fp = $wpdb->get_row( $wpdb->prepare(
+            "SELECT practitioner_user_id, client_user_id, token FROM {$wpdb->prefix}hdlv2_form_progress WHERE id = %d LIMIT 1",
+            $progress_id
+        ) );
+        if ( ! $fp ) {
+            return false;
+        }
+        // Client polling with their own token (no logged-in session) — the
+        // Stage-3 draft poll path. form_progress.token is plaintext + UNIQUE.
+        if ( $token && ! empty( $fp->token ) && hash_equals( (string) $fp->token, $token ) ) {
+            return true;
+        }
+        if ( $uid && (int) $fp->client_user_id === $uid ) {
+            return true;
+        }
+        if ( $uid && (int) $fp->practitioner_user_id === $uid ) {
+            return true;
+        }
+        if ( $uid ) {
+            return HDLV2_Compatibility::practitioner_owns_client( $uid, (int) $fp->client_user_id );
         }
         return false;
     }
