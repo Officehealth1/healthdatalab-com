@@ -1347,11 +1347,26 @@ class HDLV2_Final_Report {
         // quotes intact; PDFMonkey's A3b 5-stage escaping chain handles them,
         // exactly as it already does for awaken/lift/thrive. The other 12 new
         // fields are plain text and pass through the strtr safely.
+        // Iridology — CAPTURE-ONLY conditional section. pdf_section_for_progress()
+        // returns null (⇒ NO keys added) unless the iris feature is on AND a
+        // captured result for THIS consultation is flagged include_in_pdf — so a
+        // non-iris report's payload is byte-identical (the Make scenario + the
+        // PDFMonkey Final template are SHARED with LIVE; the iris section renders
+        // only when iris_included is present). On LIVE the flag is off + the iris
+        // table is absent ⇒ always null ⇒ nothing is ever emitted.
+        if ( class_exists( 'HDLV2_Iris_Consult' ) ) {
+            $iris_pdf = HDLV2_Iris_Consult::pdf_section_for_progress( (int) $progress->id );
+            if ( is_array( $iris_pdf ) ) {
+                $payload = array_merge( $payload, $iris_pdf );
+            }
+        }
+
         $html_safe_fields = array(
             'awaken_content', 'lift_content', 'thrive_content',
             'client_key_findings', // v0.46.55 (PDF Fix 1) — HTML <ul><li> digest
             'results_narrative', 'ai_body_composition_analysis',
             'ai_longevity_influences_explanation', 'ai_results_summary',
+            'iris_analysis_html', // capture-only iris section (HTML; tags must survive strtr)
         );
         array_walk_recursive( $payload, function ( &$v, $k ) use ( $html_safe_fields ) {
             if ( is_string( $v ) && ! in_array( $k, $html_safe_fields, true ) ) {

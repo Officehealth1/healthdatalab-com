@@ -665,7 +665,7 @@ class HDLV2_Iris_Consult {
         return '';
     }
 
-    /** ?hdlv2_iris_img=<row id>&eye=L|R&kind=iris|map — cookie-auth, IDOR-checked stream. */
+    /** ?hdlv2_iris_img=<row id>&eye=L|R&kind=iris|map[&exp&sig] — cookie-auth OR signed. */
     public function maybe_serve_image() {
         if ( ! isset( $_GET['hdlv2_iris_img'] ) ) { return; }
         if ( ! self::enabled() ) { status_header( 404 ); exit; }
@@ -679,19 +679,119 @@ class HDLV2_Iris_Consult {
                FROM " . self::table() . " WHERE id = %d LIMIT 1", $id ) );
         if ( ! $row ) { status_header( 404 ); exit; }
 
-        // AUTH: a logged-in owning practitioner or the client (cookie). [Part 5
-        // adds a signed, login-less URL for the external PDF fetcher.]
-        if ( ! is_user_logged_in() ) { auth_redirect(); exit; }
-        $uid = get_current_user_id();
-        $ok  = ( (int) $row->client_user_id === $uid )
-            || ( class_exists( 'HDLV2_Compatibility' ) && HDLV2_Compatibility::practitioner_owns_client( $uid, (int) $row->client_user_id ) );
-        if ( ! $ok ) { status_header( 403 ); exit; }
+        // AUTH: either a valid SIGNED token (login-less — for the external
+        // PDFMonkey fetcher, bound to id|eye|kind|exp + unexpired) OR a logged-in
+        // owning practitioner / the client (cookie, in-app view).
+        $exp = isset( $_GET['exp'] ) ? (int) $_GET['exp'] : 0;
+        $sig = isset( $_GET['sig'] ) ? (string) $_GET['sig'] : '';
+        $signed_ok = false;
+        if ( $exp > 0 && '' !== $sig ) {
+            $secret = self::callback_secret();
+            if ( '' !== $secret && $exp >= time() ) {
+                $signed_ok = hash_equals( self::image_sig( $id, $eye, $kind, $exp ), $sig );
+            }
+        }
+        if ( ! $signed_ok ) {
+            if ( ! is_user_logged_in() ) { auth_redirect(); exit; }
+            $uid = get_current_user_id();
+            $ok  = ( (int) $row->client_user_id === $uid )
+                || ( class_exists( 'HDLV2_Compatibility' ) && HDLV2_Compatibility::practitioner_owns_client( $uid, (int) $row->client_user_id ) );
+            if ( ! $ok ) { status_header( 403 ); exit; }
+        }
 
         $rel = ( 'map' === $kind )
             ? ( $eye === 'R' ? $row->map_r_path   : $row->map_l_path )
             : ( $eye === 'R' ? $row->image_r_path : $row->image_l_path );
         if ( ! $rel ) { status_header( 404 ); exit; }
         $this->stream_private_image( $rel );
+    }
+
+    // ── Signed, login-less image URL (for the external PDFMonkey fetcher) ──
+    //  HMAC over id|eye|kind|exp with the callback secret. Short-lived; binds the
+    //  exact image, so it cannot be tampered to reach another row/eye/kind.
+    private static function image_sig( $id, $eye, $kind, $exp ) {
+        return hash_hmac( 'sha256', (int) $id . '|' . $eye . '|' . $kind . '|' . (int) $exp, self::callback_secret() );
+    }
+    public static function signed_image_url( $row_id, $eye, $kind, $ttl = 1800 ) {
+        $eye  = ( strtoupper( (string) $eye ) === 'R' ) ? 'R' : 'L';
+        $kind = ( strtolower( (string) $kind ) === 'map' ) ? 'map' : 'iris';
+        $exp  = time() + (int) $ttl;
+        return home_url( '/?hdlv2_iris_img=' . (int) $row_id . '&eye=' . $eye . '&kind=' . $kind
+            . '&exp=' . $exp . '&sig=' . self::image_sig( (int) $row_id, $eye, $kind, $exp ) );
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
+    //  Final-report PDF section (capture-only). Returns null UNLESS the iris
+    //  feature is on AND a live (draft|done) result for this consultation is
+    //  flagged include_in_pdf — so a non-iris report emits NOTHING (the shared
+    //  Make/PDFMonkey payload stays byte-identical). The included text is the
+    //  EDITED overlay if present, else the AI original. Image URLs are signed
+    //  (login-less) so the external PDFMonkey fetcher can read them.
+    // ─────────────────────────────────────────────────────────────────────
+    public static function pdf_section_for_progress( $form_progress_id ) {
+        if ( ! self::enabled() ) { return null; }
+        global $wpdb;
+        $row = $wpdb->get_row( $wpdb->prepare(
+            "SELECT * FROM " . self::table() . "
+              WHERE form_progress_id = %d AND include_in_pdf = 1 AND status IN ('draft','done')
+              ORDER BY id DESC LIMIT 1", (int) $form_progress_id ) );
+        if ( ! $row ) { return null; }
+        $result = null;
+        if ( ! empty( $row->areas_edited_json ) ) { $result = json_decode( $row->areas_edited_json, true ); }
+        if ( ! is_array( $result ) && ! empty( $row->result_json ) ) { $result = json_decode( $row->result_json, true ); }
+        if ( ! is_array( $result ) ) { return null; }
+        $html = self::render_pdf_html( $result );
+        if ( '' === $html ) { return null; }
+        $out = array( 'iris_included' => '1', 'iris_analysis_html' => $html );
+        if ( $row->image_l_path ) { $out['iris_image_l_url'] = self::signed_image_url( $row->id, 'L', 'iris' ); }
+        if ( $row->image_r_path ) { $out['iris_image_r_url'] = self::signed_image_url( $row->id, 'R', 'iris' ); }
+        if ( $row->map_l_path )   { $out['iris_map_l_url']   = self::signed_image_url( $row->id, 'L', 'map' ); }
+        if ( $row->map_r_path )   { $out['iris_map_r_url']   = self::signed_image_url( $row->id, 'R', 'map' ); }
+        return $out;
+    }
+
+    /** Render the result (edited-or-original) to a self-contained HTML block. */
+    private static function render_pdf_html( $result ) {
+        $eyes = ( isset( $result['eyes'] ) && is_array( $result['eyes'] ) ) ? $result['eyes'] : array();
+        if ( ! $eyes ) { return ''; }
+        $list = function ( $arr ) {
+            $arr = is_array( $arr ) ? array_filter( array_map( 'strval', $arr ) ) : array();
+            if ( ! $arr ) { return ''; }
+            return '<ul>' . implode( '', array_map( function ( $x ) { return '<li>' . esc_html( $x ) . '</li>'; }, $arr ) ) . '</ul>';
+        };
+        $html = '';
+        foreach ( $eyes as $eye ) {
+            if ( ! is_array( $eye ) ) { continue; }
+            $code  = isset( $eye['eye'] ) ? $eye['eye'] : '';
+            $label = ( 'R' === $code ) ? 'Right eye' : ( ( 'L' === $code ) ? 'Left eye' : 'Eye' );
+            $cs    = ( isset( $eye['constitution_summary'] ) && is_array( $eye['constitution_summary'] ) ) ? $eye['constitution_summary'] : array();
+            $meta  = array_filter( array(
+                isset( $cs['constitution'] ) ? $cs['constitution'] : '',
+                isset( $cs['colour_type'] ) ? $cs['colour_type'] : '',
+                isset( $cs['structure_grade'] ) ? $cs['structure_grade'] : '',
+            ) );
+            $html .= '<h3>' . esc_html( $label );
+            if ( ! empty( $eye['overall_confidence'] ) ) { $html .= ' &middot; confidence: ' . esc_html( $eye['overall_confidence'] ); }
+            $html .= '</h3>';
+            if ( $meta ) { $html .= '<p><strong>Constitution:</strong> ' . esc_html( implode( ' · ', $meta ) ) . '</p>'; }
+            if ( ! empty( $cs['note'] ) ) { $html .= '<p>' . esc_html( $cs['note'] ) . '</p>'; }
+            if ( ! empty( $eye['visible_observations'] ) && is_array( $eye['visible_observations'] ) ) {
+                $obs = array();
+                foreach ( $eye['visible_observations'] as $o ) {
+                    if ( ! is_array( $o ) ) { continue; }
+                    $line = isset( $o['feature'] ) ? $o['feature'] : '';
+                    if ( ! empty( $o['zone'] ) ) { $line .= ' — ' . $o['zone']; }
+                    if ( ! empty( $o['location'] ) ) { $line .= ' (' . $o['location'] . ')'; }
+                    if ( ! empty( $o['confidence'] ) ) { $line .= ' · ' . $o['confidence']; }
+                    if ( '' !== $line ) { $obs[] = $line; }
+                }
+                if ( $obs ) { $html .= '<p><strong>Visible observations</strong></p>' . $list( $obs ); }
+            }
+            if ( ! empty( $eye['suggested_questions'] ) ) { $html .= '<p><strong>Areas to check</strong></p>' . $list( $eye['suggested_questions'] ); }
+            if ( ! empty( $eye['map_zone_notes'] ) ) { $html .= '<p><strong>Map-zone notes</strong></p>' . $list( $eye['map_zone_notes'] ); }
+        }
+        if ( ! empty( $result['bilateral_notes'] ) ) { $html .= '<h3>Both eyes</h3>' . $list( $result['bilateral_notes'] ); }
+        return $html;
     }
 
     /** Realpath-validate the relpath is inside the private dir and stream it. */

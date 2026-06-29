@@ -255,6 +255,34 @@ ok( $inc->get_status() === 200, 'include toggle saves (200)' );
 $r_inc = co_row( $cap4 );
 ok( (int) $r_inc->include_in_pdf === 1, 'include_in_pdf flipped to 1' );
 ok( $r_inc->result_json === $orig_json, 'include toggle did NOT touch result_json' );
+
+// ─────────────────────────────────────────────────────────────────────────
+//  PDF section — emitted ONLY when include_in_pdf=1 (so a non-iris report's
+//  payload is byte-identical) + signed login-less image URLs for PDFMonkey.
+// ─────────────────────────────────────────────────────────────────────────
+sec( 'PDF section — conditional emit (LIVE-safe: nothing unless flagged)' );
+$psec = HDLV2_Iris_Consult::pdf_section_for_progress( $pA1 ); // cap4: include=1, EDITED overlay
+ok( is_array( $psec ) && isset( $psec['iris_included'] ) && $psec['iris_included'] === '1', 'iris_included emitted for a flagged result' );
+ok( ! empty( $psec['iris_analysis_html'] ) && strpos( $psec['iris_analysis_html'], 'EDITED_Q_ONE' ) !== false, 'iris_analysis_html uses the EDITED overlay (edited-or-original)' );
+ok( strpos( (string) $psec['iris_analysis_html'], '<h3>' ) !== false, 'iris_analysis_html is an HTML block (tags preserved)' );
+areas_edit( array( 'job' => $cap4, 'include_in_pdf' => false ) );
+ok( HDLV2_Iris_Consult::pdf_section_for_progress( $pA1 ) === null, 'include_in_pdf=0 ⇒ NULL (non-iris payload byte-identical)' );
+ok( HDLV2_Iris_Consult::pdf_section_for_progress( $pB1 ) === null, 'a consultation with no iris result ⇒ NULL' );
+
+sec( 'PDF section — signed login-less image URLs (tamper-proof, unexpired)' );
+$cap5 = HDLV2_Iris_Support::build_capture_id( $a_cli1, $pA1, hash( 'sha256', $MARK . '-set5' ) );
+dispatch_cap( array(
+    'captureId' => $cap5, 'status' => 'done', 'finalized' => true, 'result' => co_result( 's5' ),
+    'images' => array( 'iris' => array( 'L' => $IMG . '5il.jpg', 'R' => $IMG . '5ir.jpg' ),
+                       'map'  => array( 'L' => $IMG . '5ml.jpg', 'R' => $IMG . '5mr.jpg' ) ),
+), $CB );
+areas_edit( array( 'job' => $cap5, 'include_in_pdf' => true ) );
+$psec = HDLV2_Iris_Consult::pdf_section_for_progress( $pA1 );
+ok( is_array( $psec ) && ! empty( $psec['iris_image_l_url'] ) && ! empty( $psec['iris_map_r_url'] ), 'signed iris + map image URLs present' );
+$q = array(); parse_str( (string) parse_url( $psec['iris_map_r_url'], PHP_URL_QUERY ), $q );
+$expect = hash_hmac( 'sha256', (int) $q['hdlv2_iris_img'] . '|R|map|' . (int) $q['exp'], $CB );
+ok( isset( $q['sig'] ) && hash_equals( $expect, $q['sig'] ) && ( $q['kind'] ?? '' ) === 'map' && ( $q['eye'] ?? '' ) === 'R', 'signed URL HMAC binds id|eye|kind|exp (tamper-proof)' );
+ok( (int) ( $q['exp'] ?? 0 ) > time(), 'signed URL not already expired' );
 wp_set_current_user( 0 );
 
 sec( 'Rule-0 — flag OFF ⇒ /iris/clients 404s' );
