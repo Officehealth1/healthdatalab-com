@@ -247,9 +247,15 @@ class HDLV2_Iris_Consult {
         // fall back to the job_id (so the browser always has a stable handle).
         $mapped['captureId']     = ! empty( $row->capture_id ) ? $row->capture_id : $job_id;
         $mapped['include_in_pdf'] = (bool) $row->include_in_pdf;
-        // Image thumbnails (only once persisted to the private dir).
-        if ( $row->image_l_path ) { $mapped['image_l'] = home_url( '/?hdlv2_iris_img=' . (int) $row->id . '&eye=L' ); }
-        if ( $row->image_r_path ) { $mapped['image_r'] = home_url( '/?hdlv2_iris_img=' . (int) $row->id . '&eye=R' ); }
+        // Iris photo + map composite thumbnails (cookie-auth serve; only once
+        // persisted to the private dir). The consult render shows both per eye.
+        $img = function ( $eye, $kind ) use ( $row ) {
+            return home_url( '/?hdlv2_iris_img=' . (int) $row->id . '&eye=' . $eye . '&kind=' . $kind );
+        };
+        if ( $row->image_l_path ) { $mapped['image_l'] = $img( 'L', 'iris' ); }
+        if ( $row->image_r_path ) { $mapped['image_r'] = $img( 'R', 'iris' ); }
+        if ( $row->map_l_path )   { $mapped['map_l']   = $img( 'L', 'map' ); }
+        if ( $row->map_r_path )   { $mapped['map_r']   = $img( 'R', 'map' ); }
 
         $resp = rest_ensure_response( $mapped );
         $resp->header( 'Cache-Control', 'no-store' );

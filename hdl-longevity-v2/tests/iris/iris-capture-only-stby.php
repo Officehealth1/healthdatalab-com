@@ -64,6 +64,11 @@ $b_cli1 = mk_user( $MARK . '_b1', $MARK . '_b1@example.test', 'subscriber' );
 ok( ! is_wp_error( $pracA ) && ! is_wp_error( $pracB ) && ! is_wp_error( $a_cli1 ) && ! is_wp_error( $a_cli2 ) && ! is_wp_error( $b_cli1 ), 'temp users created' );
 ( new WP_User( $pracA ) )->set_role( 'um_practitioner' );
 ( new WP_User( $pracB ) )->set_role( 'um_practitioner' );
+// Entitlement transient so require_practitioner() passes for the cookie-auth
+// areas-edit route (the picker endpoint uses the secret, not this).
+$ent = array( 'found' => true, 'iridologyAddon' => true, 'hasReportAccess' => true, 'subscriptionTier' => 'practitioner', 'subscriptionStatus' => 'active' );
+set_transient( 'hdlv2_irido_addon_' . $pracA, $ent, 300 );
+set_transient( 'hdlv2_irido_addon_' . $pracB, $ent, 300 );
 
 $emailA = get_userdata( $pracA )->user_email;
 $emailB = get_userdata( $pracB )->user_email;
@@ -218,6 +223,39 @@ $cap4 = HDLV2_Iris_Support::build_capture_id( $a_cli1, $pA1, hash( 'sha256', $MA
 $res = dispatch_cap( array( 'captureId' => $cap4, 'status' => 'done', 'finalized' => true, 'result' => co_result( 's4' ) ), $CB );
 $r4 = co_row( $cap4 );
 ok( $res->get_status() === 200 && $r4 && $r4->image_l_path === null && $r4->map_l_path === null, 'no images → all image columns NULL (unchanged)' );
+
+// ─────────────────────────────────────────────────────────────────────────
+//  Results edit — the practitioner overlay is a SEPARATE layer; the AI
+//  original (result_json) is immutable + recoverable via _revisions.
+// ─────────────────────────────────────────────────────────────────────────
+function areas_edit( $body ) {
+    $req = new WP_REST_Request( 'POST', '/hdl-v2/v1/iris/areas-edit' );
+    $req->set_header( 'content-type', 'application/json' );
+    $req->set_body( wp_json_encode( $body ) );
+    return rest_do_request( $req );
+}
+sec( 'edit overlay — AI original immutable, edits stored separately, _revisions grows' );
+wp_set_current_user( $pracA );
+$before = co_row( $cap4 ); // the latest still-'done' row
+$orig_json = $before->result_json;
+$overlay = json_decode( (string) $orig_json, true );
+$overlay['eyes'][0]['suggested_questions'] = array( 'EDITED_Q_ONE', 'EDITED_Q_TWO' );
+$ed = areas_edit( array( 'job' => $cap4, 'areas' => $overlay ) );
+ok( $ed->get_status() === 200, 'areas-edit saves (200)' );
+$after = co_row( $cap4 );
+ok( $after->result_json === $orig_json, 'result_json (AI original) UNCHANGED after edit' );
+ok( strpos( (string) $orig_json, 'EDITED_Q_ONE' ) === false, 'the edit never leaked into result_json' );
+ok( $after->areas_edited_json && strpos( $after->areas_edited_json, 'EDITED_Q_ONE' ) !== false, 'edits stored in areas_edited_json (separate overlay layer)' );
+$revs = json_decode( (string) $after->_revisions, true );
+ok( is_array( $revs ) && count( $revs ) >= 1, '_revisions archived the prior copy (original recoverable)' );
+
+sec( 'include-in-PDF toggle — flips the flag, leaves result/overlay untouched' );
+$inc = areas_edit( array( 'job' => $cap4, 'include_in_pdf' => true ) );
+ok( $inc->get_status() === 200, 'include toggle saves (200)' );
+$r_inc = co_row( $cap4 );
+ok( (int) $r_inc->include_in_pdf === 1, 'include_in_pdf flipped to 1' );
+ok( $r_inc->result_json === $orig_json, 'include toggle did NOT touch result_json' );
+wp_set_current_user( 0 );
 
 sec( 'Rule-0 — flag OFF ⇒ /iris/clients 404s' );
 update_option( 'hdlv2_ff_iris_consult', 0 );
