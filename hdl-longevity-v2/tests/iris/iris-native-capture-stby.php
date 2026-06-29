@@ -72,8 +72,8 @@ function dispatch_capture( $body, $secret, $sign_secret = null ) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────
-sec( 'schema — native-capture columns / enum / unique key present (DB v3.20)' );
-ok( get_option( 'hdlv2_db_version' ) === '3.20', 'db_version == 3.20' );
+sec( 'schema — native-capture columns / enum / unique key present (DB in sync)' );
+ok( get_option( 'hdlv2_db_version' ) === HDLV2_DB_VERSION, 'db_version == HDLV2_DB_VERSION (' . HDLV2_DB_VERSION . ')' );
 $cols = $wpdb->get_col( "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = '$IRIS_TBL'" );
 ok( in_array( 'capture_id', $cols, true ), 'capture_id column exists' );
 ok( in_array( 'finalized', $cols, true ), 'finalized column exists' );

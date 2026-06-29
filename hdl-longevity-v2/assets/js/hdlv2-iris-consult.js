@@ -1,6 +1,12 @@
 /**
- * hdlv2-iris-consult.js — Phase 2 embedded iridology consult (upload → analyse
- * → poll → result), mounted inside the practitioner Consultation tab.
+ * hdlv2-iris-consult.js — Phase 2 CAPTURE-ONLY iridology consult, mounted inside
+ * the practitioner Consultation tab.
+ *
+ * ALL iris work (upload, mapping, analysis) happens on irismapper.com. This file
+ * NEVER uploads photos and NEVER triggers an analysis — it READS HDL's own local
+ * status route, DISPLAYS the result IrisMapper pushed (rendered to match the
+ * IrisMapper report), lets the practitioner EDIT the text (saved as a separate
+ * overlay; the AI original is immutable), and toggles "Include in report PDF".
  *
  * Loaded ONLY when hdlv2_ff_iris_consult is on AND the practitioner is entitled
  * (the PHP enqueue self-guards — Rule-0 zero-trace otherwise). Exposes
@@ -8,10 +14,10 @@
  * + mount() when it renders the consult tab.
  *
  * Non-negotiables honoured here:
- *  - Images go BROWSER → SUPABASE DIRECT (signed PUT). PHP never carries bytes.
- *  - The browser polls HDL's OWN status route (local MySQL). Never IrisMapper.
- *  - Every failure collapses to a non-blocking banner; the consult is never
- *    blocked and nothing here is on the consult-save critical path.
+ *  - HDL makes ZERO outbound analysis calls. The browser reads HDL's OWN status
+ *    route (local MySQL) only — never IrisMapper, never Opus.
+ *  - Practitioner edits are saved separately (areas_edited_json); result_json
+ *    (the AI original) is never overwritten and is always recoverable.
  */
 (function () {
   'use strict';
@@ -23,10 +29,10 @@
     return !!(CFG.iris_feature_enabled && CFG.iris_consult_enabled && CFG.iris_entitled);
   }
 
-  // Per-consultation runtime state (keyed by progress_id): in-memory photos for
-  // instant thumbnails, the active poll timer, and the current jobId.
+  // Per-consultation runtime state (keyed by progress_id): the current jobId
+  // (capture handle) only. No photos, no poll timer — capture-only is passive.
   var STATE = {};
-  function st(pid) { return (STATE[pid] = STATE[pid] || { photos: {}, timer: null, deadline: 0 }); }
+  function st(pid) { return (STATE[pid] = STATE[pid] || { jobId: null }); }
 
   // ── tiny DOM/util helpers (this file is standalone — no shared closure) ──
   function esc(s) {
@@ -54,40 +60,6 @@
     });
   }
 
-  // Downscale a File to <=1568px JPEG q0.92 → { blob, dataUrl }.
-  function downscale(file) {
-    return new Promise(function (resolve, reject) {
-      var img = new Image();
-      var url = URL.createObjectURL(file);
-      img.onload = function () {
-        URL.revokeObjectURL(url);
-        var max = 1568, w = img.naturalWidth, h = img.naturalHeight;
-        if (w > max || h > max) {
-          if (w >= h) { h = Math.round(h * max / w); w = max; }
-          else { w = Math.round(w * max / h); h = max; }
-        }
-        var cv = document.createElement('canvas');
-        cv.width = w; cv.height = h;
-        cv.getContext('2d').drawImage(img, 0, 0, w, h);
-        var dataUrl = cv.toDataURL('image/jpeg', 0.92);
-        cv.toBlob(function (blob) {
-          if (!blob) { reject(new Error('encode failed')); return; }
-          resolve({ blob: blob, dataUrl: dataUrl });
-        }, 'image/jpeg', 0.92);
-      };
-      img.onerror = function () { URL.revokeObjectURL(url); reject(new Error('not an image')); };
-      img.src = url;
-    });
-  }
-
-  function putToSupabase(uploadUrl, blob) {
-    return fetch(uploadUrl, {
-      method: 'PUT',
-      body: blob,
-      headers: { 'content-type': 'image/jpeg', 'x-upsert': 'true' },
-    }).then(function (r) { return r.ok; }).catch(function () { return false; });
-  }
-
   // ── styles (injected once) — HDL teal/status tokens ──
   var _styled = false;
   function ensureStyles() {
@@ -97,11 +69,6 @@
       + '.hdlv2-irc-eyebrow{display:inline-flex;align-items:center;gap:7px;margin:0 0 4px;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#3d8da0;}'
       + '.hdlv2-irc-title{font-family:Poppins,Inter,sans-serif;font-size:17px;font-weight:600;color:#111;margin:0 0 4px;}'
       + '.hdlv2-irc-sub{margin:0 0 14px;font-size:13px;color:#555;line-height:1.5;}'
-      + '.hdlv2-irc-eyes{display:flex;gap:14px;flex-wrap:wrap;margin:0 0 14px;}'
-      + '.hdlv2-irc-eye{flex:1 1 200px;min-width:180px;border:1px dashed #c9e3e8;border-radius:11px;padding:12px;background:#fff;text-align:center;}'
-      + '.hdlv2-irc-eye label{display:block;font-size:12px;font-weight:600;color:#004F59;margin:0 0 8px;}'
-      + '.hdlv2-irc-thumb{width:100%;max-width:160px;aspect-ratio:1/1;object-fit:cover;border-radius:9px;border:1px solid #e4e6ea;margin:0 auto 8px;display:block;background:#f8f9fb;}'
-      + '.hdlv2-irc-file{font-size:12px;width:100%;}'
       + '.hdlv2-irc-btn{display:inline-flex;align-items:center;gap:8px;border:0;border-radius:9px;background:#3d8da0;color:#fff;font:600 14px/1 Inter,sans-serif;padding:11px 18px;cursor:pointer;}'
       + '.hdlv2-irc-btn:hover{background:#004F59;}'
       + '.hdlv2-irc-btn:disabled{background:#b9c6cb;cursor:not-allowed;}'
@@ -117,11 +84,17 @@
       + '.hdlv2-irc-res-eye{border:1px solid #e4e6ea;border-radius:11px;padding:14px;margin:0 0 12px;background:#fff;}'
       + '.hdlv2-irc-res-eye h4{font-family:Poppins,Inter,sans-serif;font-size:14px;color:#004F59;margin:0 0 8px;}'
       + '.hdlv2-irc-res-imgs{display:flex;gap:12px;flex-wrap:wrap;margin:0 0 12px;}'
-      + '.hdlv2-irc-res-imgs img{width:140px;height:140px;object-fit:cover;border-radius:9px;border:1px solid #e4e6ea;}'
+      + '.hdlv2-irc-res-imgs figure{margin:0;text-align:center;}'
+      + '.hdlv2-irc-res-imgs img{width:148px;height:148px;object-fit:cover;border-radius:9px;border:1px solid #e4e6ea;cursor:zoom-in;background:#f8f9fb;display:block;}'
+      + '.hdlv2-irc-res-imgs figcaption{font-size:11px;color:#888;margin-top:4px;}'
+      + '.hdlv2-irc-csum{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;margin:0 0 10px;}'
+      + '.hdlv2-irc-csum div{background:#f8f9fb;border:1px solid #eef1f4;border-radius:8px;padding:8px 10px;}'
+      + '.hdlv2-irc-csum dt{font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:#3d8da0;margin:0 0 2px;}'
+      + '.hdlv2-irc-csum dd{margin:0;font-size:13px;color:#2c3e50;}'
       + '.hdlv2-irc-field{margin:0 0 10px;}'
       + '.hdlv2-irc-field label{display:block;font-size:12px;font-weight:600;color:#2c3e50;margin:0 0 4px;}'
       + '.hdlv2-irc-field textarea{width:100%;min-height:64px;border:1px solid #e4e6ea;border-radius:8px;padding:8px 10px;font:13px/1.5 Inter,sans-serif;color:#2c3e50;resize:vertical;box-sizing:border-box;}'
-      + '.hdlv2-irc-meta{font-size:12px;color:#888;margin:0 0 10px;}'
+      + '.hdlv2-irc-meta{font-size:12px;color:#888;margin:0 0 6px;font-weight:600;}'
       + '.hdlv2-irc-ro{font-size:13px;color:#555;line-height:1.5;margin:0 0 8px;}'
       + '.hdlv2-irc-actions{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:8px 0 0;}'
       + '.hdlv2-irc-inc{display:flex;align-items:center;gap:7px;font-size:13px;color:#2c3e50;}'
@@ -148,12 +121,12 @@
     var cid = parseInt(host.getAttribute('data-client'), 10) || 0;
     if (!pid) { host.innerHTML = shell('<p class="hdlv2-irc-note">Complete Stage 3 first to capture iris photos for this client.</p>'); return; }
     ensureStyles();
-    // Discover any existing analysis for this consultation.
-    host.innerHTML = shell('<p class="hdlv2-irc-note"><span class="hdlv2-irc-spin"></span>Checking iris analysis…</p>');
+    // Read any captured analysis for this consultation (PURE local read).
+    host.innerHTML = shell('<p class="hdlv2-irc-note"><span class="hdlv2-irc-spin"></span>Checking iris analysis&hellip;</p>');
     api('/iris/analysis-status?progress_id=' + pid + '&client_id=' + cid).then(function (r) {
-      if (!r.ok) { renderUpload(host, cid, pid); return; }
+      if (!r.ok) { renderEmpty(host, cid, pid); return; }
       route(host, cid, pid, r.json);
-    }).catch(function () { renderUpload(host, cid, pid); });
+    }).catch(function () { renderEmpty(host, cid, pid); });
   }
 
   function shell(inner) {
@@ -169,174 +142,76 @@
     // Native-capture: an auto safety-net DRAFT has landed but the practitioner
     // has not finalised it in IrisMapper yet → "not yet captured" placeholder.
     if (state === 'draft') { renderNotCaptured(host, cid, pid); return; }
-    if (state === 'queued' || state === 'running') { renderInflight(host, cid, pid, data.jobId); startPoll(host, cid, pid, data.jobId); return; }
-    if (state === 'limit') { renderBanner(host, cid, pid, 'warn', "You've reached today's iris-analysis limit. It resets at 00:00 UTC.", true); return; }
-    if (state === 'unavailable') { renderBanner(host, cid, pid, 'warn', 'Iris analysis is temporarily unavailable. Your consultation is unaffected — you can try again shortly.', true); return; }
-    if (state === 'error') { renderBanner(host, cid, pid, 'err', data.refused ? 'The analysis was declined for these images. You can try different photos.' : 'The analysis failed. You can try again.', true); return; }
-    renderUpload(host, cid, pid); // 'none'
+    // A captured FAILED/declined analysis (terminal). Capture-only never retries
+    // from HDL — the practitioner re-runs in IrisMapper.
+    if (state === 'error') {
+      renderBanner(host, cid, pid, 'err', data && data.refused
+        ? 'IrisMapper declined the analysis for these images. Re-run it in IrisMapper with clearer photos and finalise to capture the result here.'
+        : 'The last iris analysis failed. Re-run it in IrisMapper and finalise to capture the result here.');
+      return;
+    }
+    renderEmpty(host, cid, pid); // 'none' (and any unexpected legacy state)
   }
 
-  // ── state: upload ──
-  function renderUpload(host, cid, pid) {
+  // ── state: nothing captured yet — capture happens in IrisMapper ──
+  function renderEmpty(host, cid, pid) {
     ensureStyles();
-    var s = st(pid); s.jobId = null; s.photos = {};
+    st(pid).jobId = null;
     host.innerHTML = shell(''
-      + '<p class="hdlv2-irc-sub">Upload the client&rsquo;s left and right iris photos. They are analysed by IrisMapper and the suggested areas to check appear here for you to review and edit — nothing is shared with the client unless you add it to the report.</p>'
-      + '<div class="hdlv2-irc-eyes">'
-      +   eyeInput('L', 'Left eye') + eyeInput('R', 'Right eye')
-      + '</div>'
-      + '<button type="button" class="hdlv2-irc-btn" data-act="analyse" disabled>&#128065;&nbsp;Analyse irises</button>'
-      + '<p class="hdlv2-irc-note">JPEG/PNG/WebP, up to 8&nbsp;MB each. Photos upload securely and are not stored in the media library.</p>'
+      + '<p class="hdlv2-irc-sub">No iris analysis has been captured for this client yet. Open IrisMapper, run the analysis for this client, and choose &ldquo;Send to HealthDataLab&rdquo; — the reviewed result and images appear here automatically.</p>'
+      + '<div class="hdlv2-irc-actions"><button type="button" class="hdlv2-irc-btn hdlv2-irc-btn-ghost" data-act="refresh">Refresh</button></div>'
     );
-    bindUpload(host, cid, pid);
-  }
-  function eyeInput(eye, label) {
-    return '<div class="hdlv2-irc-eye">'
-      + '<label>' + esc(label) + '</label>'
-      + '<img class="hdlv2-irc-thumb" data-thumb="' + eye + '" alt="" />'
-      + '<input class="hdlv2-irc-file" type="file" accept="image/jpeg,image/png,image/webp" data-file="' + eye + '" />'
-      + '</div>';
-  }
-  function bindUpload(host, cid, pid) {
-    var s = st(pid);
-    var btn = host.querySelector('[data-act="analyse"]');
-    function refresh() { btn.disabled = !(s.photos.L && s.photos.R); }
-    ['L', 'R'].forEach(function (eye) {
-      var input = host.querySelector('[data-file="' + eye + '"]');
-      input.addEventListener('change', function () {
-        var f = input.files && input.files[0];
-        if (!f) { s.photos[eye] = null; refresh(); return; }
-        if (!/^image\/(jpeg|png|webp)$/.test(f.type) || f.size > 8 * 1024 * 1024) {
-          alert('Please choose a JPEG, PNG or WebP under 8 MB.');
-          input.value = ''; s.photos[eye] = null; refresh(); return;
-        }
-        downscale(f).then(function (out) {
-          s.photos[eye] = out;
-          var th = host.querySelector('[data-thumb="' + eye + '"]');
-          if (th) { th.src = out.dataUrl; }
-          refresh();
-        }).catch(function () { alert('That image could not be read.'); input.value = ''; s.photos[eye] = null; refresh(); });
-      });
-    });
-    btn.addEventListener('click', function () { doAnalyse(host, cid, pid); });
-  }
-
-  function doAnalyse(host, cid, pid) {
-    var s = st(pid);
-    if (!(s.photos.L && s.photos.R)) return;
-    var btn = host.querySelector('[data-act="analyse"]');
-    btn.disabled = true; btn.innerHTML = '<span class="hdlv2-irc-spin"></span>Preparing…';
-
-    api('/iris/analyse', { method: 'POST', body: { client_id: cid, progress_id: pid } }).then(function (r) {
-      if (!r.ok || !r.json || !r.json.jobId) { renderBanner(host, cid, pid, 'err', 'Could not start the analysis. Please try again.', true); return; }
-      var d = r.json;
-      if (d.state === 'limit') { renderBanner(host, cid, pid, 'warn', "You've reached today's iris-analysis limit. It resets at 00:00 UTC.", true); return; }
-      if (d.state === 'unavailable' || !d.uploadUrls || !d.uploadUrls.L || !d.uploadUrls.R) {
-        renderBanner(host, cid, pid, 'warn', 'Iris analysis is temporarily unavailable. Your consultation is unaffected — please try again shortly.', true); return;
-      }
-      s.jobId = d.jobId;
-      btn.innerHTML = '<span class="hdlv2-irc-spin"></span>Uploading…';
-      return Promise.all([
-        putToSupabase(d.uploadUrls.L.uploadUrl, s.photos.L.blob),
-        putToSupabase(d.uploadUrls.R.uploadUrl, s.photos.R.blob),
-      ]).then(function (oks) {
-        if (!oks[0] || !oks[1]) {
-          renderBanner(host, cid, pid, 'warn', 'The photos could not be uploaded. Please check your connection and try again.', true);
-          return;
-        }
-        btn.innerHTML = '<span class="hdlv2-irc-spin"></span>Starting analysis…';
-        return api('/iris/start', { method: 'POST', body: { job: s.jobId } }).then(function (sr) {
-          if (!sr.ok) { renderBanner(host, cid, pid, 'warn', 'Iris analysis is temporarily unavailable. Please try again shortly.', true); return; }
-          var ss = sr.json || {};
-          if (ss.state === 'limit') { renderBanner(host, cid, pid, 'warn', "You've reached today's iris-analysis limit.", true); return; }
-          if (ss.state === 'unavailable') { renderBanner(host, cid, pid, 'warn', 'Iris analysis is temporarily unavailable. Please try again shortly.', true); return; }
-          renderInflight(host, cid, pid, s.jobId);
-          startPoll(host, cid, pid, s.jobId);
-        });
-      });
-    }).catch(function () { renderBanner(host, cid, pid, 'err', 'Something went wrong starting the analysis. Please try again.', true); });
-  }
-
-  // ── state: in-flight ──
-  function renderInflight(host, cid, pid, jobId) {
-    ensureStyles();
-    st(pid).jobId = jobId;
-    host.innerHTML = shell(''
-      + '<p class="hdlv2-irc-sub"><span class="hdlv2-irc-spin"></span>Analysing the irises&hellip; this usually takes under a couple of minutes. You can keep working — the result appears here automatically and is saved even if you close this tab.</p>'
-    );
+    bindRefresh(host, cid, pid);
   }
 
   // ── state: native-capture DRAFT landed, not yet finalised ("not yet captured") ──
   function renderNotCaptured(host, cid, pid) {
     ensureStyles();
-    var s = st(pid); if (s.timer) { clearTimeout(s.timer); s.timer = null; }
+    st(pid).jobId = null;
     host.innerHTML = shell(''
       + '<p class="hdlv2-irc-banner info">An iris analysis is in progress for this client but has not been captured yet. '
       +   'Finalise it in IrisMapper (&ldquo;Send to HealthDataLab&rdquo;) and the reviewed result will appear here.</p>'
       + '<div class="hdlv2-irc-actions"><button type="button" class="hdlv2-irc-btn hdlv2-irc-btn-ghost" data-act="refresh">Refresh</button></div>'
     );
+    bindRefresh(host, cid, pid);
+  }
+
+  // Manual re-check of HDL's local status (NO IrisMapper call, NO polling loop).
+  function bindRefresh(host, cid, pid) {
     var rb = host.querySelector('[data-act="refresh"]');
-    if (rb) {
-      rb.addEventListener('click', function () {
-        host.innerHTML = shell('<p class="hdlv2-irc-note"><span class="hdlv2-irc-spin"></span>Checking iris analysis&hellip;</p>');
-        api('/iris/analysis-status?progress_id=' + pid + '&client_id=' + cid).then(function (r) {
-          if (!r.ok) { renderNotCaptured(host, cid, pid); return; }
-          route(host, cid, pid, r.json);
-        }).catch(function () { renderNotCaptured(host, cid, pid); });
-      });
-    }
+    if (!rb) return;
+    rb.addEventListener('click', function () {
+      host.innerHTML = shell('<p class="hdlv2-irc-note"><span class="hdlv2-irc-spin"></span>Checking iris analysis&hellip;</p>');
+      api('/iris/analysis-status?progress_id=' + pid + '&client_id=' + cid).then(function (r) {
+        if (!r.ok) { renderEmpty(host, cid, pid); return; }
+        route(host, cid, pid, r.json);
+      }).catch(function () { renderEmpty(host, cid, pid); });
+    });
   }
 
-  // ── poll HDL's local status (visibility-gated backoff, ~3min deadline) ──
-  function startPoll(host, cid, pid, jobId) {
-    var s = st(pid);
-    if (s.timer) { clearTimeout(s.timer); s.timer = null; }
-    s.jobId = jobId;
-    s.deadline = Date.now() + 3 * 60 * 1000; // foreground deadline (callback/cron lands late ones)
-    var delay = 5000;
-    function tick() {
-      if (st(pid).jobId !== jobId) return; // superseded (re-analyse / unmount)
-      if (Date.now() > s.deadline) {
-        renderBanner(host, cid, pid, 'info', 'Still working&hellip; this is taking longer than usual. You can reopen this client later — the result will be here.', true);
-        return;
-      }
-      if (document.visibilityState === 'hidden') { s.timer = setTimeout(tick, 5000); return; }
-      api('/iris/analysis-status?job=' + encodeURIComponent(jobId)).then(function (r) {
-        if (st(pid).jobId !== jobId) return;
-        var d = (r && r.json) || {};
-        if (r.ok && d.state === 'done') { renderDone(host, cid, pid, d); return; }
-        if (r.ok && d.state === 'error') { route(host, cid, pid, d); return; }
-        if (r.ok && (d.state === 'unavailable' || d.state === 'limit')) { route(host, cid, pid, d); return; }
-        delay = Math.min(Math.round(delay * 2), 30000); // 5→10→20→cap 30
-        s.timer = setTimeout(tick, delay);
-      }).catch(function () { s.timer = setTimeout(tick, Math.min(Math.round(delay * 2), 30000)); });
-    }
-    s.timer = setTimeout(tick, delay);
-  }
-
-  // ── state: done — editable areas-to-check + thumbnails ──
+  // ── state: done — IrisMapper-matched result + images + editable overlay ──
   function renderDone(host, cid, pid, data) {
     ensureStyles();
-    var s = st(pid); s.jobId = data.jobId; if (s.timer) { clearTimeout(s.timer); s.timer = null; }
+    st(pid).jobId = data.jobId;
     var result = data.result || {};
     var eyes = Array.isArray(result.eyes) ? result.eyes : [];
+    var pq = result.photo_quality || {};
     var html = ''
-      + '<p class="hdlv2-irc-sub">Review the AI-suggested observations and edit the areas to check before they go anywhere. Your edits are saved separately — the original AI text is always kept.</p>';
+      + '<p class="hdlv2-irc-sub">This is the IrisMapper reading for this client. Review the observations and edit the areas to check before they go into the report — your edits are saved separately and the original AI text is always kept.</p>';
 
-    if (data.eyes_label || result.bilateral_notes) {
-      // (eyes_label is set server-side; show a small meta line)
+    if (pq && pq.usable === false && pq.suggestion) {
+      html += '<p class="hdlv2-irc-banner warn">Photo quality: ' + esc(pq.suggestion) + '</p>';
     }
 
     eyes.forEach(function (eye, idx) {
       var label = eye.eye === 'R' ? 'Right eye' : (eye.eye === 'L' ? 'Left eye' : 'Eye ' + (idx + 1));
       var cs = eye.constitution_summary || {};
-      var img = '';
-      if (eye.eye === 'L' && (data.image_l || (s.photos.L && s.photos.L.dataUrl))) { img = data.image_l || s.photos.L.dataUrl; }
-      if (eye.eye === 'R' && (data.image_r || (s.photos.R && s.photos.R.dataUrl))) { img = data.image_r || s.photos.R.dataUrl; }
+      var irisUrl = eye.eye === 'R' ? data.image_r : data.image_l;
+      var mapUrl  = eye.eye === 'R' ? data.map_r   : data.map_l;
       html += '<div class="hdlv2-irc-res-eye" data-eye="' + esc(eye.eye || idx) + '">'
-        + '<h4>' + esc(label) + '</h4>'
-        + (img ? '<div class="hdlv2-irc-res-imgs"><img src="' + esc(img) + '" alt="' + esc(label) + '" /></div>' : '')
-        + '<p class="hdlv2-irc-meta">' + esc([cs.constitution, cs.colour_type, cs.structure_grade].filter(Boolean).join(' · ')) + (eye.overall_confidence ? ' · confidence: ' + esc(eye.overall_confidence) : '') + '</p>'
+        + '<h4>' + esc(label) + (eye.overall_confidence ? ' &middot; confidence: ' + esc(eye.overall_confidence) : '') + '</h4>'
+        + imagesHtml(irisUrl, mapUrl, label)
+        + constitutionHtml(cs)
         + (cs.note ? '<p class="hdlv2-irc-ro">' + esc(cs.note) + '</p>' : '')
         + renderObservations(eye.visible_observations)
         + field('Areas to check / questions', 'questions', lines(eye.suggested_questions))
@@ -347,18 +222,40 @@
     });
 
     if (Array.isArray(result.bilateral_notes) && result.bilateral_notes.length) {
-      html += '<div class="hdlv2-irc-res-eye"><h4>Both eyes</h4><p class="hdlv2-irc-ro">' + esc(result.bilateral_notes.join(' ')) + '</p></div>';
+      html += '<div class="hdlv2-irc-res-eye"><h4>Both eyes</h4>'
+        + field('Bilateral notes', 'bilateral', lines(result.bilateral_notes)) + '</div>';
     }
 
     html += '<div class="hdlv2-irc-actions">'
       + '<button type="button" class="hdlv2-irc-btn" data-act="save">Save changes</button>'
       + '<label class="hdlv2-irc-inc"><input type="checkbox" data-act="inc"' + (data.include_in_pdf ? ' checked' : '') + ' /> Include in the report PDF</label>'
-      + '<button type="button" class="hdlv2-irc-btn hdlv2-irc-btn-ghost" data-act="reanalyse">Re-analyse</button>'
+      + '<button type="button" class="hdlv2-irc-btn hdlv2-irc-btn-ghost" data-act="refresh">Refresh</button>'
       + '<span class="hdlv2-irc-saved" data-saved hidden>Saved &#10003;</span>'
       + '</div>';
 
     host.innerHTML = shell(html);
     bindDone(host, cid, pid, result);
+    bindRefresh(host, cid, pid);
+  }
+
+  function imagesHtml(irisUrl, mapUrl, label) {
+    if (!irisUrl && !mapUrl) return '';
+    var fig = function (url, cap) {
+      return url ? '<figure><img src="' + esc(url) + '" alt="' + esc(label + ' ' + cap) + '" data-zoom="' + esc(url) + '" /><figcaption>' + esc(cap) + '</figcaption></figure>' : '';
+    };
+    return '<div class="hdlv2-irc-res-imgs">' + fig(irisUrl, 'Iris') + fig(mapUrl, 'Map') + '</div>';
+  }
+
+  function constitutionHtml(cs) {
+    var cells = [
+      ['Base type', cs.constitution],
+      ['Colour type', cs.colour_type],
+      ['Structure grade', cs.structure_grade],
+    ].filter(function (p) { return p[1]; });
+    if (!cells.length) return '';
+    return '<dl class="hdlv2-irc-csum">' + cells.map(function (p) {
+      return '<div><dt>' + esc(p[0]) + '</dt><dd>' + esc(p[1]) + '</dd></div>';
+    }).join('') + '</dl>';
   }
 
   function renderObservations(obs) {
@@ -377,21 +274,29 @@
   function bindDone(host, cid, pid, result) {
     var s = st(pid);
     var savedEl = host.querySelector('[data-saved]');
-    host.querySelector('[data-act="reanalyse"]').addEventListener('click', function () {
-      if (confirm('Start a new iris analysis? The current one is kept in the client history.')) { renderUpload(host, cid, pid); }
+    // Click an image to open it full-size in a new tab (cookie-auth serve).
+    host.querySelectorAll('[data-zoom]').forEach(function (img) {
+      img.addEventListener('click', function () { window.open(img.getAttribute('data-zoom'), '_blank', 'noopener'); });
     });
-    host.querySelector('[data-act="inc"]').addEventListener('change', function (e) {
-      api('/iris/areas-edit', { method: 'POST', body: { job: s.jobId, include_in_pdf: !!e.target.checked } });
-    });
-    host.querySelector('[data-act="save"]').addEventListener('click', function () {
-      var overlay = buildOverlay(host, result);
-      api('/iris/areas-edit', { method: 'POST', body: { job: s.jobId, areas: overlay } }).then(function (r) {
-        if (r.ok && savedEl) { savedEl.hidden = false; setTimeout(function () { savedEl.hidden = true; }, 2500); }
+    var inc = host.querySelector('[data-act="inc"]');
+    if (inc) {
+      inc.addEventListener('change', function (e) {
+        api('/iris/areas-edit', { method: 'POST', body: { job: s.jobId, include_in_pdf: !!e.target.checked } });
       });
-    });
+    }
+    var save = host.querySelector('[data-act="save"]');
+    if (save) {
+      save.addEventListener('click', function () {
+        var overlay = buildOverlay(host, result);
+        api('/iris/areas-edit', { method: 'POST', body: { job: s.jobId, areas: overlay } }).then(function (r) {
+          if (r.ok && savedEl) { savedEl.hidden = false; setTimeout(function () { savedEl.hidden = true; }, 2500); }
+        });
+      });
+    }
   }
 
-  // Deep-clone the AI result and replace the edited fields (seed-from-shown).
+  // Deep-clone the AI result and replace ONLY the edited fields (seed-from-shown).
+  // The clone is the overlay (areas_edited_json); result_json stays untouched.
   function buildOverlay(host, result) {
     var overlay = JSON.parse(JSON.stringify(result || {}));
     var eyes = Array.isArray(overlay.eyes) ? overlay.eyes : [];
@@ -404,19 +309,20 @@
       if (q) { eye.suggested_questions = splitLines(q.value); }
       if (m) { eye.map_zone_notes = splitLines(m.value); }
     });
+    var bil = host.querySelector('[data-field="bilateral"]');
+    if (bil) { overlay.bilateral_notes = splitLines(bil.value); }
     return overlay;
   }
 
-  // ── terminal banner (limit / unavailable / error / deadline) ──
-  function renderBanner(host, cid, pid, kind, msg, withRetry) {
+  // ── terminal banner (captured error / declined) — no upload, no retry-from-HDL ──
+  function renderBanner(host, cid, pid, kind, msg) {
     ensureStyles();
-    var s = st(pid); if (s.timer) { clearTimeout(s.timer); s.timer = null; }
+    st(pid).jobId = null;
     host.innerHTML = shell(''
-      + '<p class="hdlv2-irc-banner ' + kind + '">' + msg + '</p>'
-      + (withRetry ? '<div class="hdlv2-irc-actions"><button type="button" class="hdlv2-irc-btn hdlv2-irc-btn-ghost" data-act="retry">Try again</button></div>' : '')
+      + '<p class="hdlv2-irc-banner ' + kind + '">' + esc(msg) + '</p>'
+      + '<div class="hdlv2-irc-actions"><button type="button" class="hdlv2-irc-btn hdlv2-irc-btn-ghost" data-act="refresh">Refresh</button></div>'
     );
-    var rb = host.querySelector('[data-act="retry"]');
-    if (rb) { rb.addEventListener('click', function () { renderUpload(host, cid, pid); }); }
+    bindRefresh(host, cid, pid);
   }
 
   window.HDLV2IrisConsult = { placeholderHtml: placeholderHtml, mount: mount, active: active };

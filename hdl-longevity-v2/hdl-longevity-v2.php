@@ -3,7 +3,7 @@
  * Plugin Name: HDL Longevity V2 — Staged Workflow
  * Plugin URI: https://healthdatalab.net
  * Description: V2 longevity workflow: staged intake, WHY profiling, practitioner consultations, weekly flight plans, and AI coaching. Runs alongside the existing Health Data Lab plugin.
- * Version: 0.47.38
+ * Version: 0.47.39
  * Author: Health Data Lab
  * Author URI: https://healthdatalab.net
  * License: Proprietary
@@ -22,7 +22,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 // register_activation_hook callbacks, which fire synchronously during
 // `wp plugin activate`, can reference them. The activator needs
 // HDLV2_DB_VERSION / HDLV2_VERSION at call time to update version options.
-define( 'HDLV2_VERSION', '0.47.38' );
+define( 'HDLV2_VERSION', '0.47.39' );
 define( 'HDLV2_DB_VERSION', '3.23' );
 define( 'HDLV2_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'HDLV2_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
@@ -903,12 +903,11 @@ final class HDL_Longevity_V2 {
         // Dark behind hdlv2_ff_iris_addon (require_practitioner() returns false
         // when the flag is off, so the routes 401 — Rule-0).
         HDLV2_Iris_Addon::get_instance()->register_hooks();
-        // Iridology Phase 2 (embedded consult) — REST routes (analyse/start/
-        // analysis-status/callback/areas-edit), the ?hdlv2_iris_img serve route,
-        // and the hdlv2_iris_reconcile cron handler. Dark behind
-        // hdlv2_ff_iris_consult (register_routes() returns early when off, so
-        // /iris/analyse* 404s — Rule-0). The callback route registers even when
-        // off? No: it self-guards on the flag too (no flag ⇒ no callback route).
+        // Iridology Phase 2 (CAPTURE-ONLY consult) — REST routes (analysis-status,
+        // areas-edit, analyse/callback, clients) + the ?hdlv2_iris_img serve route.
+        // HDL never triggers an analysis. Dark behind hdlv2_ff_iris_consult
+        // (register_routes() returns early when off, so every /iris/* route 404s
+        // — Rule-0, no REST-index trace, no serve route).
         HDLV2_Iris_Consult::get_instance()->register_hooks();
         // v0.41.8 (Bug-3) — daily attention digest cron handler.
         HDLV2_Attention_Cron::get_instance()->register_hooks();

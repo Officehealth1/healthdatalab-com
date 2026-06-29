@@ -59,11 +59,10 @@ class HDLV2_Activator {
             // handshake (timeout 0.1s, blocking false). Real-time wakeups via
             // the loopback are still primary; the cron is the safety net.
             'hdlv2_job_queue_worker'        => 'hdlv2_one_minute',
-            // Iridology Phase 2 (v3.19) — off-request-path reconcile: pulls any
-            // result whose callback was lost, off any browser thread, on a real
-            // OS-cron timer (DISABLE_WP_CRON is set + /etc/cron.d/hdlv2-wp-cron),
-            // so durability never depends on traffic. Self-guards on the flag.
-            'hdlv2_iris_reconcile'          => 'hdlv2_one_minute',
+            // Iridology is CAPTURE-ONLY: IrisMapper analyses + PUSHes the result
+            // (its own watchdog re-fires a lost push). HDL never pulls, so there
+            // is no iris reconcile cron — the prior hdlv2_iris_reconcile event is
+            // cleared on deploy + by the deactivator.
         );
         foreach ( $crons as $hook => $recurrence ) {
             if ( ! wp_next_scheduled( $hook ) ) {

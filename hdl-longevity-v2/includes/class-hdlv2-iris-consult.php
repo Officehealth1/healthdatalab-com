@@ -1,29 +1,30 @@
 <?php
 /**
- * Iridology Phase 2 — embedded consult flow (WP-coupled wiring).
+ * Iridology Phase 2 — CAPTURE-ONLY consult flow (WP-coupled wiring).
  *
- * SCOPE (this build): upload → analyse → result shown in the Consultation tab.
- * The longevity-PDF iridology page is a LATER build (this class persists the
- * data + photos it will need, but renders no PDF).
+ * ALL iris work (upload, mapping, analysis) happens on irismapper.com. HDL NEVER
+ * triggers an analysis and NEVER calls Opus — it only CAPTURES, RECORDS and
+ * DISPLAYS the result IrisMapper pushes, and feeds the Final-Report PDF.
  *
- * Architecture (see /Volumes/Media/irismapper-live/docs/IRIS-PHASE2-*.md):
- *   1. Browser POST /iris/analyse {client_id, progress_id} → HDL mints jobId,
- *      inserts a queued row, makes ONE short (≤5 s, breaker-guarded) call to
- *      IrisMapper iris-analyse-upload-url, returns {jobId, uploadUrls}. PHP
- *      NEVER carries image bytes and NEVER blocks on the analysis.
- *   2. Browser PUTs L+R DIRECT to Supabase signed URLs.
- *   3. Browser POST /iris/start {job} → HDL calls iris-analyse (confirm+enqueue)
- *      → 202 queued. Row → running.
- *   4. Browser polls GET /iris/analysis-status?job=… — a PURE local MySQL read,
- *      ZERO outbound IrisMapper call on the request path.
- *   5. IrisMapper PUSHes the result to POST /iris/analyse/callback (HMAC +
- *      jobId-idempotent UPSERT). A real-OS-cron reconcile is the backstop.
- *   6. Browser render → editable areas-to-check (POST /iris/areas-edit).
+ * Architecture (see /Volumes/Media/irismapper-live/docs/IRIS-PHASE2-NATIVE-CAPTURE-DESIGN.md):
+ *   1. The practitioner runs the analysis inside IrisMapper for an HDL client
+ *      (bound to clientId:consultationId via the picker / launch context).
+ *   2. IrisMapper PUSHes the finished result to POST /iris/analyse/callback
+ *      (separate callback secret + HMAC over the raw body), keyed on the
+ *      deterministic captureId — insert-on-callback, terminal-wins UPSERT. An
+ *      optional `images` object carries short-lived signed download URLs for the
+ *      iris photo(s) + map composite, which HDL downloads to its private dir.
+ *   3. Browser GET /iris/analysis-status — a PURE local MySQL read (no outbound
+ *      IrisMapper call) — drives the consult display + a manual Refresh.
+ *   4. Browser render → editable areas overlay (POST /iris/areas-edit); the
+ *      original AI text stays immutable. "Include in report PDF" opt-in.
+ *   5. GET /iris/clients — IrisMapper's picker pulls the calling practitioner's
+ *      OWN clients (signed shared-secret + HMAC).
  *
  * Dark behind hdlv2_ff_iris_consult (layered ON TOP of hdlv2_ff_iris_addon):
- * when off, register_routes() returns early ⇒ every /iris/analyse* 404s, no
- * REST-index trace, no serve route, no cron work (Rule-0). Entitlement is
- * re-checked fail-closed inside every handler.
+ * when off, register_routes() returns early ⇒ every /iris/* route 404s, no
+ * REST-index trace, no serve route (Rule-0). Entitlement is re-checked
+ * fail-closed inside every handler. HDL makes ZERO outbound *analysis* calls.
  *
  * @package HDL_Longevity_V2
  */
@@ -36,10 +37,6 @@ class HDLV2_Iris_Consult {
 
     private static $instance = null;
 
-    const MAP_DEFAULT  = 'Jensen';
-    const HTTP_TIMEOUT = 5;          // ≤5 s — never near PHP max_execution_time (§7.6)
-    const POLL_MIN_MS  = 3000;       // server-side poll throttle (Retry-After to fast pollers)
-    const RECONCILE_GRACE_S = 180;   // > p99 read; reconcile only acts past this (§8)
     const REVISIONS_CAP = 20;        // capped _revisions archive
 
     public static function get_instance() {
@@ -51,8 +48,7 @@ class HDLV2_Iris_Consult {
 
     public function register_hooks() {
         add_action( 'rest_api_init', array( $this, 'register_routes' ) );
-        add_action( 'init', array( $this, 'maybe_serve_image' ) );      // cookie-auth image serve
-        add_action( 'hdlv2_iris_reconcile', array( $this, 'cron_reconcile' ) ); // OS-cron backstop
+        add_action( 'init', array( $this, 'maybe_serve_image' ) );      // cookie-auth / signed image serve
     }
 
     // ── Flag (Rule-0): BOTH the v1 add-on flag AND the Phase-2 flag ──
@@ -61,9 +57,8 @@ class HDLV2_Iris_Consult {
     }
 
     // ── Config readers (wp-config constants; server-side only) ──
-    private static function base() {
-        return defined( 'IRISMAPPER_BASE' ) ? rtrim( IRISMAPPER_BASE, '/' ) : '';
-    }
+    // The shared secret guards the inbound GET /iris/clients (picker pull). HDL
+    // makes NO outbound *analysis* call, so there is no IRISMAPPER_BASE reader here.
     private static function secret() {
         return defined( 'HDL_SHARED_SECRET' ) ? HDL_SHARED_SECRET : '';
     }
@@ -94,16 +89,6 @@ class HDLV2_Iris_Consult {
         $ns   = 'hdl-v2/v1';
         $perm = array( $this, 'require_practitioner' );
 
-        register_rest_route( $ns, '/iris/analyse', array(
-            'methods'             => 'POST',
-            'callback'            => array( $this, 'rest_analyse' ),
-            'permission_callback' => $perm,
-        ) );
-        register_rest_route( $ns, '/iris/start', array(
-            'methods'             => 'POST',
-            'callback'            => array( $this, 'rest_start' ),
-            'permission_callback' => $perm,
-        ) );
         register_rest_route( $ns, '/iris/analysis-status', array(
             'methods'             => 'GET',
             'callback'            => array( $this, 'rest_status' ),
@@ -164,97 +149,6 @@ class HDLV2_Iris_Consult {
               WHERE id = %d AND practitioner_user_id = %d AND client_user_id = %d AND deleted_at IS NULL LIMIT 1",
             $progress_id, $pid, $client_id ) );
         return (bool) $linked;
-    }
-
-    // ── POST /iris/analyse — mint job, ONE upload-url call, return signed URLs ──
-    public function rest_analyse( $request ) {
-        $client_id   = absint( $request->get_param( 'client_id' ) );
-        $progress_id = absint( $request->get_param( 'progress_id' ) );
-        $map_name    = sanitize_text_field( (string) $request->get_param( 'map_name' ) );
-        if ( $map_name === '' ) { $map_name = self::MAP_DEFAULT; }
-
-        if ( ! $this->authorise_consult( $client_id, $progress_id ) ) {
-            return new WP_Error( 'forbidden', 'Not your client.', array( 'status' => 403 ) );
-        }
-        $email = $this->current_email();
-        if ( ! is_email( $email ) ) {
-            return new WP_Error( 'no_email', 'No practitioner email.', array( 'status' => 400 ) );
-        }
-
-        $job_id = HDLV2_Iris_Support::build_job_id( $client_id, $progress_id, wp_generate_uuid4() );
-        if ( null === $job_id ) {
-            return new WP_Error( 'bad_job', 'Could not mint a job id.', array( 'status' => 500 ) );
-        }
-
-        // Never-delete: a fresh analysis archives any prior live row for this
-        // (client, consultation) before inserting the new one.
-        $this->archive_prior( $client_id, $progress_id );
-
-        global $wpdb;
-        $wpdb->insert( self::table(), array(
-            'client_user_id'       => $client_id,
-            'practitioner_user_id' => get_current_user_id(),
-            'form_progress_id'     => $progress_id,
-            'job_id'               => $job_id,
-            'idempotency_key'      => $job_id,
-            'status'               => 'queued',
-            'map_name'             => $map_name,
-            'eyes_label'           => 'Left + Right',
-        ), array( '%d', '%d', '%d', '%s', '%s', '%s', '%s', '%s' ) );
-
-        // ONE short, breaker-guarded call. Reserves NO usage on IrisMapper.
-        $res = $this->post_iris( 'iris-analyse-upload-url', array(
-            'email'     => $email,
-            'jobId'     => $job_id,
-            'eyes'      => array( 'L', 'R' ),
-            'mediaType' => 'image/jpeg',
-        ) );
-
-        if ( is_wp_error( $res ) ) {
-            $state = $this->classify_upstream_error( $res );
-            $this->set_status( $job_id, $state );
-            // Fail-closed: 200 with a soft state so the consult save + UI proceed.
-            return rest_ensure_response( array( 'jobId' => $job_id, 'state' => $state ) );
-        }
-
-        $urls = isset( $res['uploadUrls'] ) && is_array( $res['uploadUrls'] ) ? $res['uploadUrls'] : array();
-        // Persist the Supabase keys (refs only — never bytes) for reconcile/debug.
-        $wpdb->update( self::table(), array(
-            'supabase_key_l' => isset( $urls['L']['key'] ) ? (string) $urls['L']['key'] : null,
-            'supabase_key_r' => isset( $urls['R']['key'] ) ? (string) $urls['R']['key'] : null,
-        ), array( 'job_id' => $job_id ), array( '%s', '%s' ), array( '%s' ) );
-
-        return rest_ensure_response( array(
-            'jobId'      => $job_id,
-            'state'      => 'queued',
-            'uploadUrls' => $urls, // {L:{uploadUrl,token,key}, R:{...}} — browser PUTs direct
-        ) );
-    }
-
-    // ── POST /iris/start — confirm upload + enqueue the analysis (202) ──
-    public function rest_start( $request ) {
-        $job_id = (string) $request->get_param( 'job' );
-        $row    = $this->own_job_or_null( $job_id );
-        if ( ! $row ) {
-            return new WP_Error( 'forbidden', 'Unknown or not-your job.', array( 'status' => 403 ) );
-        }
-
-        $callback = rest_url( 'hdl-v2/v1/iris/analyse/callback' );
-        $res = $this->post_iris( 'iris-analyse', array(
-            'jobId'       => $job_id,
-            'callbackUrl' => $callback,
-            'mapName'     => $row->map_name ? $row->map_name : self::MAP_DEFAULT,
-        ) );
-
-        if ( is_wp_error( $res ) ) {
-            $state = $this->classify_upstream_error( $res );
-            $this->set_status( $job_id, $state );
-            return rest_ensure_response( array( 'jobId' => $job_id, 'state' => $state ) );
-        }
-
-        // 202 queued / 200 deduped — either way the analysis is running upstream.
-        $this->set_status( $job_id, 'running' );
-        return rest_ensure_response( array( 'jobId' => $job_id, 'state' => 'running' ) );
     }
 
     // ── GET /iris/analysis-status — PURE local read (no IrisMapper call) ──
@@ -385,9 +279,11 @@ class HDLV2_Iris_Consult {
     }
 
     // ─────────────────────────────────────────────────────────────────────
-    //  Terminal apply (callback + reconcile share this)
+    //  Terminal apply (callback path) — CAPTURE-ONLY
     //   • NATIVE-CAPTURE (captureId): insert-on-callback + terminal-wins UPSERT.
-    //   • LEGACY EMBEDDED (jobId): HDL minted the row first → find-or-404 update.
+    //   • A legacy jobId-only push has no embedded row (HDL no longer mints
+    //     them) → 404 (visible misroute). parse_callback_body still understands
+    //     the jobId shape for back-compat, but only a captureId is ever applied.
     // ─────────────────────────────────────────────────────────────────────
 
     private function apply_terminal( $parsed ) {
@@ -395,53 +291,9 @@ class HDLV2_Iris_Consult {
         if ( isset( $parsed['captureId'] ) ) {
             return $this->apply_terminal_capture( $parsed );
         }
-
-        global $wpdb;
-        $job_id = $parsed['jobId'];
-        $row    = $this->row_by_job( $job_id );
-        if ( ! $row ) {
-            // Never minted here (or a stray) — 404 so a misrouted push is visible,
-            // but a re-push for an existing-but-archived job still finds its row.
-            return new WP_Error( 'not_found', 'Unknown job.', array( 'status' => 404 ) );
-        }
-        // Terminal status wins: a 'done' row is never downgraded by a later error.
-        if ( $row->status === 'done' && $parsed['status'] === 'error' ) {
-            return true;
-        }
-        if ( $row->status === 'archived' ) {
-            return true; // superseded by a newer analysis — ignore late delivery
-        }
-
-        if ( $parsed['status'] === 'done' ) {
-            $result = $parsed['result'];
-            $update = array(
-                'status'      => 'done',
-                'result_json' => wp_json_encode( $result ),
-                'cost'        => isset( $parsed['cost'] ) ? (float) $parsed['cost'] : null,
-                'refused'     => 0,
-                'eyes_label'  => $this->eyes_label_from_result( $result ),
-                'analysed_at' => current_time( 'mysql' ),
-            );
-            $wpdb->update( self::table(), $update, array( 'job_id' => $job_id ),
-                array( '%s', '%s', '%f', '%d', '%s', '%s' ), array( '%s' ) );
-
-            // Persist photos to the private dir IF the callback carried them
-            // (forward-compat — see the photo-persistence note at the foot of
-            // this file). Best-effort, never fatal.
-            if ( ! empty( $parsed['images'] ) ) {
-                $this->persist_images( $job_id, $parsed['images'] );
-            }
-            return true;
-        }
-
-        // error / refused
-        $wpdb->update( self::table(), array(
-            'status'        => 'error',
-            'refused'       => ! empty( $parsed['refused'] ) ? 1 : 0,
-            'error_message' => isset( $parsed['error'] ) ? substr( (string) $parsed['error'], 0, 500 ) : 'Analysis failed',
-            'analysed_at'   => current_time( 'mysql' ),
-        ), array( 'job_id' => $job_id ), array( '%s', '%d', '%s', '%s' ), array( '%s' ) );
-        return true;
+        // Capture-only: HDL never mints a jobId row, so a jobId-keyed push has
+        // nothing to update. Surface it as a 404 (misrouted/legacy delivery).
+        return new WP_Error( 'not_found', 'Unknown capture (capture-only).', array( 'status' => 404 ) );
     }
 
     // ─────────────────────────────────────────────────────────────────────
@@ -689,174 +541,9 @@ class HDLV2_Iris_Consult {
     }
 
     // ─────────────────────────────────────────────────────────────────────
-    //  Reconcile cron — backstop for a lost callback (off the request path)
-    // ─────────────────────────────────────────────────────────────────────
-
-    public function cron_reconcile() {
-        if ( ! self::enabled() ) { return; }
-        if ( '' === self::base() || '' === self::secret() ) { return; }
-        global $wpdb;
-        $cutoff = gmdate( 'Y-m-d H:i:s', time() - self::RECONCILE_GRACE_S );
-        $rows = $wpdb->get_results( $wpdb->prepare(
-            "SELECT job_id, practitioner_user_id FROM " . self::table() . "
-              WHERE status IN ('queued','running') AND updated_at < %s
-              ORDER BY updated_at ASC LIMIT 10", $cutoff ) );
-        if ( ! $rows ) { return; }
-        foreach ( $rows as $r ) {
-            // iris-analyse-status now enforces ownership: pass the owning
-            // practitioner's email (the join key) that this row already records.
-            $email = '';
-            if ( ! empty( $r->practitioner_user_id ) ) {
-                $u = get_userdata( (int) $r->practitioner_user_id );
-                if ( $u ) { $email = $u->user_email; }
-            }
-            $res = $this->get_iris( 'iris-analyse-status', HDLV2_Iris_Support::build_status_query( $r->job_id, $email ) );
-            if ( is_wp_error( $res ) ) { continue; } // breaker/timeout — try next tick
-            $status = isset( $res['status'] ) ? $res['status'] : '';
-            if ( $status === 'done' || $status === 'error' ) {
-                $this->apply_terminal( HDLV2_Iris_Support::parse_callback_body( array(
-                    'jobId'   => $r->job_id,
-                    'status'  => $status,
-                    'result'  => isset( $res['result'] ) ? $res['result'] : array(),
-                    'error'   => isset( $res['message'] ) ? $res['message'] : 'Analysis failed',
-                    'refused' => ! empty( $res['refused'] ),
-                    'cost'    => isset( $res['cost'] ) ? $res['cost'] : null,
-                ) ) );
-            } elseif ( $status === 'expired' ) {
-                $this->set_status( $r->job_id, 'unavailable' );
-            }
-        }
-    }
-
-    // ─────────────────────────────────────────────────────────────────────
-    //  Outbound HTTP — breaker-guarded, ≤5 s (protects the OLS LSAPI pool)
-    // ─────────────────────────────────────────────────────────────────────
-
-    private function post_iris( $fn, $body ) {
-        $base = self::base();
-        if ( '' === $base ) {
-            return new WP_Error( 'iris_no_base', 'IRISMAPPER_BASE not set', array( 'status' => 500 ) );
-        }
-        if ( ! $this->breaker_allow() ) {
-            return new WP_Error( 'iris_breaker_open', 'Iris analysis temporarily unavailable', array( 'status' => 503 ) );
-        }
-        $raw = wp_json_encode( $body );
-        $headers = array( 'Content-Type' => 'application/json', 'x-hdl-secret' => self::secret() );
-        // Replay hardening (optional on staging; harmless to always send — the
-        // IrisMapper gate verifies only when IRIS_HMAC_REQUIRED or a sig is set).
-        foreach ( HDLV2_Iris_Support::sign_headers( self::secret(), $raw ) as $k => $v ) {
-            $headers[ $k ] = $v;
-        }
-        $resp = wp_remote_post( $base . '/.netlify/functions/' . $fn, array(
-            'timeout'     => self::HTTP_TIMEOUT,
-            'redirection' => 0,
-            'headers'     => $headers,
-            'body'        => $raw,
-        ) );
-        return $this->finish_call( $fn, $resp );
-    }
-
-    private function get_iris( $fn, $query ) {
-        $base = self::base();
-        if ( '' === $base ) { return new WP_Error( 'iris_no_base', 'IRISMAPPER_BASE not set', array( 'status' => 500 ) ); }
-        if ( ! $this->breaker_allow() ) {
-            return new WP_Error( 'iris_breaker_open', 'unavailable', array( 'status' => 503 ) );
-        }
-        $url = $base . '/.netlify/functions/' . $fn . '?' . http_build_query( $query );
-        $resp = wp_remote_get( $url, array(
-            'timeout'     => self::HTTP_TIMEOUT,
-            'redirection' => 0,
-            'headers'     => array( 'x-hdl-secret' => self::secret() ),
-        ) );
-        return $this->finish_call( $fn, $resp );
-    }
-
-    /** Map a wp_remote_* result to decoded JSON|WP_Error AND update the breaker. */
-    private function finish_call( $fn, $resp ) {
-        if ( is_wp_error( $resp ) ) {
-            $this->breaker_record( false ); // network error / timeout = unreachable
-            return $resp;
-        }
-        $code = (int) wp_remote_retrieve_response_code( $resp );
-        $json = json_decode( wp_remote_retrieve_body( $resp ), true );
-        // Reachability breaker: a timeout (is_wp_error, handled above) or a 5xx
-        // counts as a failure; any other HTTP response (incl. 4xx business codes)
-        // proves the upstream is alive → close the breaker (§7.6: 401/404/429 do
-        // NOT count). EXCEPT 503 — IrisMapper returns 503 BUSY_GLOBAL as a
-        // deliberate, fast self-throttle; the upstream is healthy, so it must not
-        // trip the pool-protection breaker during a legitimate burst.
-        if ( $code >= 500 && $code !== 503 ) {
-            $this->breaker_record( false );
-        } else {
-            $this->breaker_record( true );
-        }
-        if ( $code < 200 || $code >= 300 ) {
-            return new WP_Error( 'iris_http', 'IrisMapper ' . $fn . ' ' . $code,
-                array( 'status' => $code, 'body' => $json ) );
-        }
-        return is_array( $json ) ? $json : array();
-    }
-
-    /** Soft-state classifier for a failed upstream call (fail-closed). */
-    private function classify_upstream_error( $err ) {
-        $data = $err->get_error_data();
-        $status = is_array( $data ) && isset( $data['status'] ) ? (int) $data['status'] : 0;
-        $body   = is_array( $data ) && isset( $data['body'] ) ? $data['body'] : array();
-        $code   = is_array( $body ) && isset( $body['code'] ) ? $body['code'] : '';
-        if ( $status === 429 && $code === 'LIMIT_REACHED' ) {
-            return 'limit';
-        }
-        return 'unavailable';
-    }
-
-    // ── Circuit breaker — shared single MySQL row, atomic UPDATE…WHERE ──
-    private function breaker_row() {
-        global $wpdb;
-        $t = $wpdb->prefix . 'hdlv2_iris_breaker';
-        $row = $wpdb->get_row( "SELECT state, failures, opened_at FROM $t WHERE id = 1", ARRAY_A );
-        if ( ! $row ) {
-            $wpdb->query( "INSERT IGNORE INTO $t (id, state, failures, opened_at) VALUES (1, 'closed', 0, 0)" );
-            $row = array( 'state' => 'closed', 'failures' => 0, 'opened_at' => 0 );
-        }
-        return $row;
-    }
-    private function breaker_allow() {
-        $row = $this->breaker_row();
-        $d = HDLV2_Iris_Support::breaker_decide( array(
-            'state' => $row['state'], 'failures' => (int) $row['failures'], 'opened_at' => (int) $row['opened_at'],
-        ), $this->now_ms() );
-        return ! empty( $d['allow'] );
-    }
-    private function breaker_record( $reachable ) {
-        global $wpdb;
-        $t = $wpdb->prefix . 'hdlv2_iris_breaker';
-        $this->breaker_row(); // ensure the row exists
-        if ( $reachable ) {
-            $wpdb->query( "UPDATE $t SET state='closed', failures=0, opened_at=0 WHERE id=1" );
-            return;
-        }
-        $now  = $this->now_ms();
-        $thr  = HDLV2_Iris_Support::BREAKER_THRESHOLD;
-        // Atomic increment + conditional trip in ONE statement (no read race).
-        $wpdb->query( $wpdb->prepare(
-            "UPDATE $t SET
-                opened_at = IF(failures + 1 >= %d, %d, opened_at),
-                state     = IF(failures + 1 >= %d, 'open', state),
-                failures  = failures + 1
-             WHERE id = 1", $thr, $now, $thr ) );
-    }
-
-    // ─────────────────────────────────────────────────────────────────────
     //  Small helpers
     // ─────────────────────────────────────────────────────────────────────
 
-    private function current_email() {
-        $u = wp_get_current_user();
-        return ( $u && $u->ID ) ? $u->user_email : '';
-    }
-    private function now_ms() {
-        return (int) round( microtime( true ) * 1000 );
-    }
     private function row_by_job( $job_id ) {
         global $wpdb;
         if ( ! HDLV2_Iris_Support::is_valid_job_id( $job_id ) ) { return null; }
@@ -887,23 +574,6 @@ class HDLV2_Iris_Consult {
             return null;
         }
         return $row;
-    }
-    private function set_status( $job_id, $status ) {
-        global $wpdb;
-        // Never move a row OUT of a terminal/archived state — a late /start
-        // replay or a deduped upstream response must not clobber a result the
-        // callback already wrote (apply_terminal owns terminal transitions).
-        $wpdb->query( $wpdb->prepare(
-            "UPDATE " . self::table() . " SET status = %s
-              WHERE job_id = %s AND status NOT IN ('done','error','archived')",
-            $status, $job_id ) );
-    }
-    private function archive_prior( $client_id, $progress_id ) {
-        global $wpdb;
-        $wpdb->query( $wpdb->prepare(
-            "UPDATE " . self::table() . " SET status='archived'
-              WHERE client_user_id = %d AND form_progress_id = %d AND status <> 'archived'",
-            $client_id, $progress_id ) );
     }
     /**
      * Archive every live row for the consultation EXCEPT the given capture_id
