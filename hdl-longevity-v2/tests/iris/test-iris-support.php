@@ -196,6 +196,38 @@ $st2 = $S::breaker_on_success($st);
 eq($st2['state'], 'closed', 'success resets to closed');
 eq($st2['failures'], 0, 'success zeroes the failure counter');
 
+// ─────────────────────────────────────────────────────────────────────────
+//  CONTRACT CHANGE 1 — create-checkout-simple may now answer ALREADY_SUBSCRIBED
+//  (200 { alreadySubscribed:true, code:'ALREADY_SUBSCRIBED' }) instead of a
+//  checkout url, when the practitioner already has an active IrisMapper sub.
+//  parse_checkout_response normalises BOTH wire shapes so the caller can branch
+//  without a fragile isset($r['url']) check that would 502 a subscriber.
+// ─────────────────────────────────────────────────────────────────────────
+section('parse_checkout_response (url | ALREADY_SUBSCRIBED | bad)');
+$r = $S::parse_checkout_response(array('url' => 'https://checkout.stripe.com/c/sess_123'));
+ok($r['ok'] === true && empty($r['alreadySubscribed']) && $r['url'] === 'https://checkout.stripe.com/c/sess_123', 'url response → ok, not alreadySubscribed, carries the url');
+$r = $S::parse_checkout_response(array('alreadySubscribed' => true, 'code' => 'ALREADY_SUBSCRIBED'));
+ok($r['ok'] === true && $r['alreadySubscribed'] === true && !isset($r['url']), 'alreadySubscribed:true → ok + alreadySubscribed, no url');
+$r = $S::parse_checkout_response(array('code' => 'ALREADY_SUBSCRIBED'));
+ok($r['ok'] === true && $r['alreadySubscribed'] === true, 'code ALREADY_SUBSCRIBED alone → alreadySubscribed (robust to a missing boolean)');
+$r = $S::parse_checkout_response(array('alreadySubscribed' => true, 'url' => 'https://x'));
+ok($r['ok'] === true && $r['alreadySubscribed'] === true && !isset($r['url']), 'alreadySubscribed wins even if a url is also present (never redirect a subscriber)');
+$r = $S::parse_checkout_response(array());
+ok($r['ok'] === false, 'empty response → not ok (no url, not subscribed)');
+$r = $S::parse_checkout_response('not-an-array');
+ok($r['ok'] === false, 'non-array → not ok');
+$r = $S::parse_checkout_response(array('url' => ''));
+ok($r['ok'] === false, 'empty url string → not ok');
+
+// ─────────────────────────────────────────────────────────────────────────
+//  CONTRACT CHANGE 2 — iris-analyse-status now requires the owning practitioner
+//  email (ownership). build_status_query is the pure query builder the reconcile
+//  cron uses so the email it already knows per job rides along.
+// ─────────────────────────────────────────────────────────────────────────
+section('build_status_query (reconcile poll carries the owner email)');
+eq($S::build_status_query('118:105:abc', 'prac@example.com'), array('jobId' => '118:105:abc', 'email' => 'prac@example.com'), 'includes jobId + owner email');
+eq($S::build_status_query('118:105:abc', ''), array('jobId' => '118:105:abc'), 'omits email when none is known (graceful)');
+
 // ─── summary ───
 echo "\n────────────────────────────────────\n";
 echo "  tests: {$GLOBALS['__tests']}   failures: {$GLOBALS['__fail']}\n";

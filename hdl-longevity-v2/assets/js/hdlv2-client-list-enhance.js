@@ -703,6 +703,10 @@
       body: '{}'
     }).then(function (r) { return r.ok ? r.json() : Promise.reject(); })
       .then(function (res) {
+        // IrisMapper now answers { alreadySubscribed:true } (no checkout url)
+        // when the practitioner already has a sub → show the ready/already-
+        // subscribed state instead of a broken redirect to an absent url.
+        if (res && res.alreadySubscribed) { renderIrisReady(wrap, true); return; }
         if (res && res.url) { window.location.href = res.url; return; }
         return Promise.reject();
       })

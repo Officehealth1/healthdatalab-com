@@ -105,7 +105,11 @@ class HDLV2_Iris_Addon {
      * no `?iris=success` flag. A plain cancel returns to the bare dashboard
      * URL, which the JS reads as a normal load (upsell stays).
      *
-     * @return string|WP_Error  Stripe Checkout URL, or WP_Error.
+     * create-checkout-simple now answers EITHER a checkout url (new buyer) OR an
+     * active-subscription signal ({ alreadySubscribed:true,
+     * code:'ALREADY_SUBSCRIBED' }) when this practitioner already has a sub.
+     *
+     * @return array|WP_Error  { ok:true, alreadySubscribed:bool, url?:string }, or WP_Error.
      */
     public static function create_checkout( $email, $success, $cancel ) {
         $r = self::call( 'create-checkout-simple', array(
@@ -119,7 +123,14 @@ class HDLV2_Iris_Addon {
         if ( is_wp_error( $r ) ) {
             return $r;
         }
-        return isset( $r['url'] ) ? $r['url'] : new WP_Error( 'iris_no_url', 'no checkout url', array( 'status' => 502 ) );
+        // Normalise both wire shapes so the caller branches (alreadySubscribed
+        // wins over url) instead of a brittle isset($r['url']) that would 502 a
+        // practitioner who already subscribed.
+        $parsed = HDLV2_Iris_Support::parse_checkout_response( $r );
+        if ( empty( $parsed['ok'] ) ) {
+            return new WP_Error( 'iris_no_url', 'no checkout url', array( 'status' => 502 ) );
+        }
+        return $parsed;
     }
 
     /** Contract #3 — single-use auto-login URL into /app (carries the shared secret). */
@@ -186,11 +197,16 @@ class HDLV2_Iris_Addon {
         }
         $slug = apply_filters( 'hdlv2_practitioner_dashboard_slug', 'clients' );
         $dash = home_url( '/' . trim( $slug, '/' ) . '/' ); // query-string-free (see create_checkout note)
-        $url  = self::create_checkout( $email, $dash, $dash );
-        if ( is_wp_error( $url ) ) {
-            return $url;
+        $r    = self::create_checkout( $email, $dash, $dash );
+        if ( is_wp_error( $r ) ) {
+            return $r;
         }
-        return rest_ensure_response( array( 'url' => $url ) );
+        // Already subscribed → tell the browser to render the "ready / already
+        // subscribed" state, NOT redirect into a (now-absent) checkout url.
+        if ( ! empty( $r['alreadySubscribed'] ) ) {
+            return rest_ensure_response( array( 'alreadySubscribed' => true ) );
+        }
+        return rest_ensure_response( array( 'url' => $r['url'] ) );
     }
 
     /**

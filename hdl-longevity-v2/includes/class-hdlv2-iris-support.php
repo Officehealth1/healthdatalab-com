@@ -286,6 +286,55 @@ class HDLV2_Iris_Support {
     }
 
     // ─────────────────────────────────────────────────────────────────────
+    //  Add-on checkout response (create-checkout-simple): url | ALREADY_SUBSCRIBED
+    // ─────────────────────────────────────────────────────────────────────
+
+    /**
+     * Normalise the IrisMapper create-checkout-simple response. It now answers an
+     * active-subscription signal INSTEAD of minting a duplicate checkout when the
+     * practitioner already has an IrisMapper subscription:
+     *
+     *   subscribed → { alreadySubscribed:true, code:'ALREADY_SUBSCRIBED' }
+     *   new buyer  → { url:'https://checkout.stripe.com/…' }
+     *
+     * `alreadySubscribed` wins over a url so a subscriber is NEVER redirected
+     * into a second checkout. Returning a normalised array lets the WP caller
+     * branch without a brittle isset($r['url']) that would 502 a subscriber.
+     *
+     * @return array { ok:bool, alreadySubscribed?:bool, url?:string }
+     */
+    public static function parse_checkout_response( $arr ) {
+        if ( ! is_array( $arr ) ) {
+            return array( 'ok' => false );
+        }
+        $already = ! empty( $arr['alreadySubscribed'] )
+            || ( isset( $arr['code'] ) && 'ALREADY_SUBSCRIBED' === $arr['code'] );
+        if ( $already ) {
+            return array( 'ok' => true, 'alreadySubscribed' => true );
+        }
+        if ( isset( $arr['url'] ) && is_string( $arr['url'] ) && '' !== $arr['url'] ) {
+            return array( 'ok' => true, 'alreadySubscribed' => false, 'url' => $arr['url'] );
+        }
+        return array( 'ok' => false );
+    }
+
+    /**
+     * Build the iris-analyse-status query for the reconcile cron. IrisMapper now
+     * requires the owning practitioner email (ownership), so the email the cron
+     * already knows per job rides along with the jobId. Omitted only when none is
+     * known (graceful — upstream rejects and the cron's WP_Error/continue copes).
+     *
+     * @return array { jobId:string, email?:string }
+     */
+    public static function build_status_query( $job_id, $email ) {
+        $q = array( 'jobId' => (string) $job_id );
+        if ( is_string( $email ) && '' !== $email ) {
+            $q['email'] = $email;
+        }
+        return $q;
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
     //  Poll-state mapping — DB row → browser contract (never leaks the raw row)
     // ─────────────────────────────────────────────────────────────────────
 

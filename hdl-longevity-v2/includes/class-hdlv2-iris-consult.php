@@ -698,12 +698,19 @@ class HDLV2_Iris_Consult {
         global $wpdb;
         $cutoff = gmdate( 'Y-m-d H:i:s', time() - self::RECONCILE_GRACE_S );
         $rows = $wpdb->get_results( $wpdb->prepare(
-            "SELECT job_id FROM " . self::table() . "
+            "SELECT job_id, practitioner_user_id FROM " . self::table() . "
               WHERE status IN ('queued','running') AND updated_at < %s
               ORDER BY updated_at ASC LIMIT 10", $cutoff ) );
         if ( ! $rows ) { return; }
         foreach ( $rows as $r ) {
-            $res = $this->get_iris( 'iris-analyse-status', array( 'jobId' => $r->job_id ) );
+            // iris-analyse-status now enforces ownership: pass the owning
+            // practitioner's email (the join key) that this row already records.
+            $email = '';
+            if ( ! empty( $r->practitioner_user_id ) ) {
+                $u = get_userdata( (int) $r->practitioner_user_id );
+                if ( $u ) { $email = $u->user_email; }
+            }
+            $res = $this->get_iris( 'iris-analyse-status', HDLV2_Iris_Support::build_status_query( $r->job_id, $email ) );
             if ( is_wp_error( $res ) ) { continue; } // breaker/timeout — try next tick
             $status = isset( $res['status'] ) ? $res['status'] : '';
             if ( $status === 'done' || $status === 'error' ) {
