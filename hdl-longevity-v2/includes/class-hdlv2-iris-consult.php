@@ -107,6 +107,65 @@ class HDLV2_Iris_Consult {
             'callback'            => array( $this, 'rest_callback' ),
             'permission_callback' => '__return_true',
         ) );
+        // Clients picker: IrisMapper → HDL (server-to-server). Shared secret
+        // (HDL_SHARED_SECRET) + HMAC over the email, checked inside the handler.
+        // Returns ONLY the calling practitioner's own clients (no health data).
+        register_rest_route( $ns, '/iris/clients', array(
+            'methods'             => 'GET',
+            'callback'            => array( $this, 'rest_clients' ),
+            'permission_callback' => '__return_true',
+        ) );
+    }
+
+    // ── GET /iris/clients — IrisMapper picker pulls the practitioner's clients ──
+    //  Auth: x-hdl-secret == HDL_SHARED_SECRET (constant-time) + HMAC over the
+    //  email (binds the request to ONE practitioner — no cross-practitioner
+    //  replay). Returns ONLY that practitioner's own clients, name+email+the
+    //  consultation id to attach to + a coarse stage status. NO health data.
+    public function rest_clients( $request ) {
+        if ( ! self::enabled() ) {
+            return new WP_Error( 'not_found', 'Not found.', array( 'status' => 404 ) );
+        }
+        $secret = self::secret(); // HDL_SHARED_SECRET (shared with IrisMapper)
+        // 1) shared secret — x-hdl-secret, or Authorization: Bearer <secret>.
+        $given = (string) $request->get_header( 'x-hdl-secret' );
+        if ( '' === $given ) {
+            $auth = (string) $request->get_header( 'authorization' );
+            if ( 0 === stripos( $auth, 'Bearer ' ) ) { $given = trim( substr( $auth, 7 ) ); }
+        }
+        if ( '' === $given ) {
+            return new WP_Error( 'unauthorized', 'Missing credentials.', array( 'status' => 401 ) );
+        }
+        if ( '' === $secret || ! hash_equals( $secret, $given ) ) {
+            return new WP_Error( 'forbidden', 'Invalid credentials.', array( 'status' => 403 ) );
+        }
+        // 2) the email being requested (signed over, so it cannot be swapped).
+        $email_raw = (string) $request->get_param( 'email' );
+        if ( '' === trim( $email_raw ) ) {
+            return new WP_Error( 'bad_request', 'email is required.', array( 'status' => 400 ) );
+        }
+        // 3) HMAC over the raw email param (replay-hardened, ±5 min).
+        $v = HDLV2_Iris_Support::verify_clients_request(
+            $secret,
+            $request->get_header( 'x-hdl-timestamp' ),
+            $request->get_header( 'x-hdl-signature' ),
+            $email_raw
+        );
+        if ( empty( $v['ok'] ) ) {
+            return new WP_Error( 'forbidden', 'Bad signature.', array( 'status' => 403 ) );
+        }
+        // 4) resolve the practitioner. Don't leak which emails exist / are
+        //    practitioners — a non-practitioner (or unknown) email is a 404.
+        $email = strtolower( sanitize_email( $email_raw ) );
+        $user  = $email ? get_user_by( 'email', $email ) : false;
+        if ( ! $user || ! HDLV2_Compatibility::is_practitioner( (int) $user->ID ) ) {
+            return new WP_Error( 'not_found', 'No such practitioner.', array( 'status' => 404 ) );
+        }
+        // 5) own clients only — strictly scoped to this practitioner_user_id.
+        $rows = HDLV2_Compatibility::get_client_rows_for_practitioner( (int) $user->ID );
+        $resp = rest_ensure_response( array_values( $rows ) );
+        $resp->header( 'Cache-Control', 'no-store' );
+        return $resp;
     }
 
     /**

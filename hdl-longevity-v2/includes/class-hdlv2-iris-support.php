@@ -204,6 +204,30 @@ class HDLV2_Iris_Support {
     }
 
     // ─────────────────────────────────────────────────────────────────────
+    //  GET /iris/clients — signed shared-secret (IrisMapper picker → HDL)
+    //  The picker SIGNS over the practitioner email it is requesting, so the
+    //  signature both authenticates IrisMapper (shared secret) AND binds the
+    //  request to ONE practitioner — a captured request cannot be replayed for a
+    //  DIFFERENT practitioner's clients. Same HMAC primitive as the callback,
+    //  keyed on HDL_SHARED_SECRET (not the callback secret).
+    // ─────────────────────────────────────────────────────────────────────
+
+    /** Build x-hdl-timestamp + x-hdl-signature for a signed GET /iris/clients?email=. */
+    public static function sign_clients_query( $secret, $email, $now_ms = null ) {
+        return self::sign_headers( $secret, (string) $email, $now_ms );
+    }
+
+    /**
+     * Verify a signed GET /iris/clients request. Fail-closed; the signature is
+     * over `${timestamp}.${email}`.
+     *
+     * @return array { ok:bool, reason?: 'misconfigured'|'stale_timestamp'|'bad_signature' }
+     */
+    public static function verify_clients_request( $secret, $timestamp, $signature, $email, $now_ms = null, $skew_ms = self::SKEW_MS ) {
+        return self::verify_callback( $secret, $timestamp, $signature, (string) $email, $now_ms, $skew_ms );
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
     //  Callback envelope validation
     // ─────────────────────────────────────────────────────────────────────
 

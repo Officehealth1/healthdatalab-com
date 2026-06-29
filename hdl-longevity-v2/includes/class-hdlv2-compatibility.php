@@ -80,6 +80,59 @@ class HDLV2_Compatibility {
     }
 
     /**
+     * Rich client rows for the IrisMapper picker (GET /iris/clients). Returns ONE
+     * row per client — their LATEST consultation (the form_progress row an iris
+     * result attaches to) — STRICTLY scoped to this practitioner. Name/email fall
+     * back to the WP user record. Returns NO health data.
+     *
+     * @param int $practitioner_user_id
+     * @return array<int,array{clientId:int,name:string,email:string,consultationId:int,consultationStatus:string}>
+     */
+    public static function get_client_rows_for_practitioner( $practitioner_user_id ) {
+        global $wpdb;
+        $fp    = $wpdb->prefix . 'hdlv2_form_progress';
+        $users = $wpdb->users;
+        if ( ! self::table_exists( $fp ) ) {
+            return array();
+        }
+        // One row per client = their LATEST form_progress. The MAX(id) self-join
+        // keeps this ONLY_FULL_GROUP_BY-safe (see get_clients_for_practitioner).
+        $rows = $wpdb->get_results( $wpdb->prepare(
+            "SELECT fp.id AS consultation_id, fp.client_user_id, fp.client_name,
+                    fp.client_email, fp.current_stage, u.display_name, u.user_email
+               FROM $fp fp
+               INNER JOIN (
+                    SELECT client_user_id, MAX(id) AS max_id
+                      FROM $fp
+                     WHERE practitioner_user_id = %d
+                       AND client_user_id IS NOT NULL
+                       AND deleted_at IS NULL
+                     GROUP BY client_user_id
+               ) latest ON fp.id = latest.max_id
+               LEFT JOIN $users u ON u.ID = fp.client_user_id
+              ORDER BY fp.id DESC",
+            $practitioner_user_id ) );
+        if ( ! $rows ) {
+            return array();
+        }
+        $labels = array( 1 => 'Stage 1', 2 => 'Stage 2', 3 => 'Stage 3' );
+        $out = array();
+        foreach ( $rows as $r ) {
+            $name  = ( $r->client_name !== null && $r->client_name !== '' ) ? $r->client_name : (string) $r->display_name;
+            $email = ( $r->client_email !== null && $r->client_email !== '' ) ? $r->client_email : (string) $r->user_email;
+            $stage = (int) $r->current_stage;
+            $out[] = array(
+                'clientId'           => (int) $r->client_user_id,
+                'name'               => (string) $name,
+                'email'              => (string) $email,
+                'consultationId'     => (int) $r->consultation_id,
+                'consultationStatus' => isset( $labels[ $stage ] ) ? $labels[ $stage ] : ( 'Stage ' . max( 1, $stage ) ),
+            );
+        }
+        return $out;
+    }
+
+    /**
      * Check if a user is a practitioner.
      *
      * @param int $user_id WordPress user ID.

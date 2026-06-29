@@ -228,6 +228,30 @@ section('build_status_query (reconcile poll carries the owner email)');
 eq($S::build_status_query('118:105:abc', 'prac@example.com'), array('jobId' => '118:105:abc', 'email' => 'prac@example.com'), 'includes jobId + owner email');
 eq($S::build_status_query('118:105:abc', ''), array('jobId' => '118:105:abc'), 'omits email when none is known (graceful)');
 
+// ─────────────────────────────────────────────────────────────────────────
+//  GET /iris/clients — signed shared-secret (IrisMapper picker → HDL). The
+//  signature is over `${ts}.${email}`, so it authenticates IrisMapper AND binds
+//  the request to ONE practitioner (no replay for another practitioner's list).
+// ─────────────────────────────────────────────────────────────────────────
+section('clients endpoint — signed shared-secret (sign/verify over email)');
+$NOW    = 1700000000000;
+$secret = 'shared-secret-xyz';
+$email  = 'prac@example.com';
+$h = $S::sign_clients_query($secret, $email, $NOW);
+ok(isset($h['x-hdl-timestamp'], $h['x-hdl-signature']) && $h['x-hdl-timestamp'] === (string) $NOW,
+   'sign_clients_query returns x-hdl-timestamp + x-hdl-signature');
+$v = $S::verify_clients_request($secret, $h['x-hdl-timestamp'], $h['x-hdl-signature'], $email, $NOW);
+ok($v['ok'] === true, 'valid signed request verifies ok');
+$v = $S::verify_clients_request($secret, $h['x-hdl-timestamp'], $h['x-hdl-signature'], 'other@example.com', $NOW);
+ok($v['ok'] === false && $v['reason'] === 'bad_signature',
+   'swapping the email fails — the signature binds the email (no cross-practitioner replay)');
+$v = $S::verify_clients_request('wrong-secret', $h['x-hdl-timestamp'], $h['x-hdl-signature'], $email, $NOW);
+ok($v['ok'] === false && $v['reason'] === 'bad_signature', 'wrong shared secret fails');
+$v = $S::verify_clients_request($secret, $h['x-hdl-timestamp'], $h['x-hdl-signature'], $email, $NOW + 6 * 60 * 1000);
+ok($v['ok'] === false && $v['reason'] === 'stale_timestamp', 'a >5min-old request is stale (replay window closed)');
+$v = $S::verify_clients_request($secret, '', '', $email, $NOW);
+ok($v['ok'] === false && $v['reason'] === 'misconfigured', 'missing timestamp/signature → misconfigured');
+
 // ─── summary ───
 echo "\n────────────────────────────────────\n";
 echo "  tests: {$GLOBALS['__tests']}   failures: {$GLOBALS['__fail']}\n";

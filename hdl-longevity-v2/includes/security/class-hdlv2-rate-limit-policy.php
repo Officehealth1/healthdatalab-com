@@ -180,6 +180,11 @@ class HDLV2_Rate_Limit_Policy {
 
             // ── Self-status (always allowed but counted as read) ────────
             array( 'GET',  '#^/hdl-v2/v1/rate-limit/status$#',                  self::TIER_READ ),
+
+            // Iridology picker — IrisMapper pulls the practitioner's own clients
+            // (server-to-server, shared-secret + HMAC). Counted as a read; the
+            // IP backstop also applies (no WP user on this s2s call).
+            array( 'GET',  '#^/hdl-v2/v1/iris/clients$#',                       self::TIER_READ ),
         );
     }
 
