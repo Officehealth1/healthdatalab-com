@@ -535,30 +535,51 @@ class HDLV2_Iris_Consult {
     }
 
     // ─────────────────────────────────────────────────────────────────────
-    //  Photo persistence (raw downscaled photos → private dir; PDF source)
-    //  DECISION: RAW photos, not a map composite — HDL has no map-overlay
-    //  renderer and the IrisMapper callback returns JSON only. The brief needs
-    //  only "two small photos". See the foot-of-file note for the contract gap.
+    //  Image persistence — download the iris photo(s) + map composite to the
+    //  PRIVATE dir (outside the webroot) and record the per-eye relpaths.
+    //
+    //  Capture-only contract: the IrisMapper callback's optional `images` object
+    //  carries SHORT-LIVED SIGNED DOWNLOAD URLs — { iris:{L,R}, map:{L,R} } —
+    //  which HDL fetches server-side (SSRF-guarded, size-capped) at capture, so
+    //  the practitioner + the report PDF always render HDL's own copy (the
+    //  upstream URLs expire). Back-compat: a base64 `data:` value OR a flat
+    //  { L, R } base64 shape is still accepted. Best-effort — a failed image
+    //  NEVER fails the callback (the result row is the durable record).
     // ─────────────────────────────────────────────────────────────────────
 
     private function persist_images( $job_id, $images ) {
         global $wpdb;
+        if ( ! is_array( $images ) ) { return; }
         $row = $this->row_by_job( $job_id );
         if ( ! $row ) { return; }
         $dir = self::private_dir();
-        if ( ! file_exists( $dir ) ) { wp_mkdir_p( $dir ); @chmod( dirname( rtrim( $dir, '/' ) ), 0700 ); @chmod( rtrim( $dir, '/' ), 0700 ); }
-        if ( ! is_writable( $dir ) ) { return; }
+        if ( ! file_exists( $dir ) ) {
+            wp_mkdir_p( $dir );
+            @chmod( dirname( rtrim( $dir, '/' ) ), 0750 );
+            @chmod( rtrim( $dir, '/' ), 0750 );
+        }
+        if ( ! is_writable( $dir ) ) {
+            // Diagnostic (NOT a silent return): on a fresh VPS the iris dir is
+            // often root:root — chown it to the web user (see the deploy runbook).
+            error_log( '[HDLV2][iris] image dir not writable, skipping persist: ' . $dir );
+            return;
+        }
 
-        $map = array( 'L' => 'image_l_path', 'R' => 'image_r_path' );
+        $work = $this->normalise_images( $images ); // { db_column => source-string }
+        if ( ! $work ) { return; }
+
+        $tags = array(
+            'image_l_path' => 'iris-l', 'image_r_path' => 'iris-r',
+            'map_l_path'   => 'map-l',  'map_r_path'   => 'map-r',
+        );
         $fields = array();
         $formats = array();
-        foreach ( $map as $eye => $col ) {
-            if ( empty( $images[ $eye ] ) || ! is_string( $images[ $eye ] ) ) { continue; }
-            $b64 = preg_replace( '#^data:image/[a-z]+;base64,#i', '', $images[ $eye ] );
-            $bytes = base64_decode( $b64, true );
-            if ( false === $bytes || strlen( $bytes ) < 64 ) { continue; }
-            $fname = sanitize_file_name( 'iris-' . (int) $row->id . '-' . strtolower( $eye ) . '-' . gmdate( 'Ymd-His' ) . '-' . wp_generate_password( 6, false ) . '.jpg' );
-            if ( file_put_contents( $dir . $fname, $bytes ) !== false ) {
+        foreach ( $work as $col => $src ) {
+            $img = $this->fetch_image_bytes( $src );
+            if ( ! $img ) { continue; }
+            $tag   = isset( $tags[ $col ] ) ? $tags[ $col ] : 'img';
+            $fname = sanitize_file_name( 'iris-' . (int) $row->id . '-' . $tag . '-' . gmdate( 'Ymd-His' ) . '-' . wp_generate_password( 6, false ) . '.' . $img['ext'] );
+            if ( false !== file_put_contents( $dir . $fname, $img['bytes'] ) ) {
                 @chmod( $dir . $fname, 0640 );
                 $fields[ $col ] = $fname;
                 $formats[] = '%s';
@@ -569,31 +590,114 @@ class HDLV2_Iris_Consult {
         }
     }
 
-    /** ?hdlv2_iris_img=<row id>&eye=L|R — cookie-auth, ownership-checked stream. */
+    /**
+     * Map the callback `images` object to { db_column => source }. Accepts the
+     * capture-only nested shape { iris:{L,R}, map:{L,R} } and the legacy flat
+     * base64 shape { L, R } (raw iris photos only).
+     */
+    private function normalise_images( $images ) {
+        $work   = array();
+        $nested = ( isset( $images['iris'] ) && is_array( $images['iris'] ) )
+               || ( isset( $images['map'] )  && is_array( $images['map'] ) );
+        if ( $nested ) {
+            $iris = ( isset( $images['iris'] ) && is_array( $images['iris'] ) ) ? $images['iris'] : array();
+            $mapc = ( isset( $images['map'] )  && is_array( $images['map'] ) )  ? $images['map']  : array();
+            if ( ! empty( $iris['L'] ) ) { $work['image_l_path'] = $iris['L']; }
+            if ( ! empty( $iris['R'] ) ) { $work['image_r_path'] = $iris['R']; }
+            if ( ! empty( $mapc['L'] ) ) { $work['map_l_path']   = $mapc['L']; }
+            if ( ! empty( $mapc['R'] ) ) { $work['map_r_path']   = $mapc['R']; }
+            return $work;
+        }
+        if ( ! empty( $images['L'] ) ) { $work['image_l_path'] = $images['L']; }
+        if ( ! empty( $images['R'] ) ) { $work['image_r_path'] = $images['R']; }
+        return $work;
+    }
+
+    /** Resolve a source (signed https URL OR base64) → { bytes, ext } | false. */
+    private function fetch_image_bytes( $src ) {
+        if ( ! is_string( $src ) || '' === $src ) { return false; }
+        if ( preg_match( '#^https?://#i', $src ) ) {
+            return $this->download_image( $src );
+        }
+        $b64   = preg_replace( '#^data:image/[a-z0-9.+-]+;base64,#i', '', $src );
+        $bytes = base64_decode( $b64, true );
+        if ( false === $bytes || strlen( $bytes ) < 64 ) { return false; }
+        $ext = $this->image_ext( $bytes );
+        return $ext ? array( 'bytes' => $bytes, 'ext' => $ext ) : false;
+    }
+
+    /** Download a signed image URL server-side (SSRF-guarded, ≤8 MB). */
+    private function download_image( $url ) {
+        // SSRF: reject non-http(s) + private/reserved/link-local/metadata hosts
+        // (the report-pdf guard catches what wp_safe_remote_get's check misses).
+        if ( ! class_exists( 'HDLV2_Report_PDF' ) || HDLV2_Report_PDF::url_targets_reserved_ip( $url ) ) {
+            error_log( '[HDLV2][iris] refused unsafe image URL: ' . substr( (string) $url, 0, 120 ) );
+            return false;
+        }
+        $resp = wp_safe_remote_get( $url, array(
+            'timeout'             => 15,
+            'redirection'         => 2,
+            'limit_response_size' => 8 * 1024 * 1024,
+        ) );
+        if ( is_wp_error( $resp ) ) { return false; }
+        $code = (int) wp_remote_retrieve_response_code( $resp );
+        if ( $code < 200 || $code >= 300 ) { return false; }
+        $ct = strtolower( (string) wp_remote_retrieve_header( $resp, 'content-type' ) );
+        if ( '' !== $ct && 0 !== strpos( $ct, 'image/' ) ) { return false; }
+        $bytes = wp_remote_retrieve_body( $resp );
+        if ( ! is_string( $bytes ) || strlen( $bytes ) < 64 || strlen( $bytes ) > 8 * 1024 * 1024 ) { return false; }
+        $ext = $this->image_ext( $bytes );
+        return $ext ? array( 'bytes' => $bytes, 'ext' => $ext ) : false;
+    }
+
+    /** Magic-byte sniff → jpg|png|webp, or '' if not a supported image. */
+    private function image_ext( $bytes ) {
+        $sig = substr( (string) $bytes, 0, 12 );
+        if ( 0 === strncmp( $sig, "\xFF\xD8\xFF", 3 ) ) { return 'jpg'; }
+        if ( 0 === strncmp( $sig, "\x89PNG\r\n\x1a\n", 8 ) ) { return 'png'; }
+        if ( 0 === strncmp( $sig, 'RIFF', 4 ) && 'WEBP' === substr( $sig, 8, 4 ) ) { return 'webp'; }
+        return '';
+    }
+
+    /** ?hdlv2_iris_img=<row id>&eye=L|R&kind=iris|map — cookie-auth, IDOR-checked stream. */
     public function maybe_serve_image() {
         if ( ! isset( $_GET['hdlv2_iris_img'] ) ) { return; }
         if ( ! self::enabled() ) { status_header( 404 ); exit; }
-        if ( ! is_user_logged_in() ) { auth_redirect(); exit; }
-        $id  = absint( $_GET['hdlv2_iris_img'] );
-        $eye = ( isset( $_GET['eye'] ) && strtoupper( $_GET['eye'] ) === 'R' ) ? 'R' : 'L';
+        $id   = absint( $_GET['hdlv2_iris_img'] );
+        $eye  = ( isset( $_GET['eye'] ) && strtoupper( $_GET['eye'] ) === 'R' ) ? 'R' : 'L';
+        $kind = ( isset( $_GET['kind'] ) && strtolower( $_GET['kind'] ) === 'map' ) ? 'map' : 'iris';
 
         global $wpdb;
         $row = $wpdb->get_row( $wpdb->prepare(
-            "SELECT id, client_user_id, image_l_path, image_r_path FROM " . self::table() . " WHERE id = %d LIMIT 1", $id ) );
+            "SELECT id, client_user_id, image_l_path, image_r_path, map_l_path, map_r_path
+               FROM " . self::table() . " WHERE id = %d LIMIT 1", $id ) );
         if ( ! $row ) { status_header( 404 ); exit; }
+
+        // AUTH: a logged-in owning practitioner or the client (cookie). [Part 5
+        // adds a signed, login-less URL for the external PDF fetcher.]
+        if ( ! is_user_logged_in() ) { auth_redirect(); exit; }
         $uid = get_current_user_id();
         $ok  = ( (int) $row->client_user_id === $uid )
             || ( class_exists( 'HDLV2_Compatibility' ) && HDLV2_Compatibility::practitioner_owns_client( $uid, (int) $row->client_user_id ) );
         if ( ! $ok ) { status_header( 403 ); exit; }
 
-        $rel = ( $eye === 'R' ) ? $row->image_r_path : $row->image_l_path;
+        $rel = ( 'map' === $kind )
+            ? ( $eye === 'R' ? $row->map_r_path   : $row->map_l_path )
+            : ( $eye === 'R' ? $row->image_r_path : $row->image_l_path );
         if ( ! $rel ) { status_header( 404 ); exit; }
+        $this->stream_private_image( $rel );
+    }
+
+    /** Realpath-validate the relpath is inside the private dir and stream it. */
+    private function stream_private_image( $rel ) {
         $base = realpath( rtrim( self::private_dir(), '/' ) );
         $real = realpath( self::private_dir() . $rel );
         if ( ! $real || ! $base || strpos( $real, $base ) !== 0 || ! is_file( $real ) ) { status_header( 404 ); exit; }
+        $ext = strtolower( pathinfo( $real, PATHINFO_EXTENSION ) );
+        $ct  = ( 'png' === $ext ) ? 'image/png' : ( 'webp' === $ext ? 'image/webp' : 'image/jpeg' );
         while ( ob_get_level() > 0 ) { ob_end_clean(); }
         nocache_headers();
-        header( 'Content-Type: image/jpeg' );
+        header( 'Content-Type: ' . $ct );
         header( 'Content-Length: ' . filesize( $real ) );
         readfile( $real );
         exit;
@@ -676,19 +780,19 @@ class HDLV2_Iris_Consult {
 }
 
 /*
- * ── PHOTO-PERSISTENCE CONTRACT GAP (flagged for the PDF session) ──
- * The PDF iridology page needs "two small photos". HDL cannot render the
- * IrisMapper map overlay, so the DECISION is to persist the RAW downscaled
- * photos. BUT the real IrisMapper worker DELETES the Supabase blobs on the
- * terminal transition and the callback (buildCallbackBody) carries JSON only —
- * no image bytes, no download URL. So at callback time the photos are already
- * gone and HDL has no way to fetch them. persist_images() above is wired +
- * tested against a callback that DOES carry base64 photos (forward-compat), so
- * the moment IrisMapper adds one of:
- *   (a) photos (base64) in the callback body, OR
- *   (b) signed DOWNLOAD URLs in the callback, OR
- *   (c) retains the blobs until HDL acks,
- * persistence works with no HDL change. Until then the consult tab shows the
- * browser's in-memory copies (this session's scope is the consult E2E; the PDF
- * is the next session). This is the single E2E prerequisite on the photo path.
+ * ── IMAGE PERSISTENCE CONTRACT (capture-only) ──
+ * The callback's optional `images` object carries SHORT-LIVED SIGNED DOWNLOAD
+ * URLs for the iris photo(s) + the map composite:
+ *     images: { iris: { L: <url>, R: <url> }, map: { L: <url>, R: <url> } }
+ * persist_images() downloads them server-side (SSRF-guarded, ≤8 MB, magic-byte
+ * checked) into the PRIVATE dir (outside the webroot) and records the per-eye
+ * relpaths (image_l/r_path = raw iris, map_l/r_path = overlay). Back-compat: a
+ * base64 `data:` value OR the legacy flat { L, R } base64 shape still works.
+ *
+ * HDL-side is fully built + tested (against a pre_http_request mock). The
+ * end-to-end IMAGE render still depends on IrisMapper's emit side actually
+ * SENDING the `images` object (its worker historically deleted the blobs on the
+ * terminal transition); until then the row/result text is the durable record
+ * and the consult/PDF render the text. The dir must be web-user-writable
+ * (chown the hdlv2-iris dir off root:root — see the deploy runbook).
  */

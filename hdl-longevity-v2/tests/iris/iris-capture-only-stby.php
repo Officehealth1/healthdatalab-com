@@ -131,6 +131,94 @@ ok( $res->get_status() === 404, 'a non-practitioner email → 404 (does not leak
 $res = dispatch_clients( array( 'email' => 'nobody-' . $MARK . '@example.test', 'header_secret' => $SHARED ) );
 ok( $res->get_status() === 404, 'an unknown email → 404' );
 
+// ─────────────────────────────────────────────────────────────────────────
+//  Image persistence — the callback `images` object (signed download URLs)
+//  is fetched server-side into the private dir. Mock pre_http_request so no
+//  real network is hit; example.com resolves public (passes the SSRF guard),
+//  a link-local URL is refused by url_targets_reserved_ip BEFORE any fetch.
+// ─────────────────────────────────────────────────────────────────────────
+$CB = defined( 'HDL_CALLBACK_SECRET' ) ? HDL_CALLBACK_SECRET : '';
+$JPEG = "\xFF\xD8\xFF\xE0" . str_repeat( "\x7f", 256 ) . "\xFF\xD9"; // valid JPEG magic, >64 bytes
+
+add_filter( 'pre_http_request', function ( $pre, $args, $url ) use ( $JPEG, $MARK ) {
+    if ( strpos( (string) $url, $MARK ) === false ) { return $pre; } // only OUR image URLs
+    return array(
+        'headers'  => array( 'content-type' => 'image/jpeg' ),
+        'body'     => $JPEG,
+        'response' => array( 'code' => 200, 'message' => 'OK' ),
+        'cookies'  => array(), 'filename' => null,
+    );
+}, 10, 3 );
+
+function co_iris_dir() { return ( defined( 'HDLV2_PRIVATE_DIR' ) ? rtrim( HDLV2_PRIVATE_DIR, '/' ) : dirname( rtrim( ABSPATH, '/' ) ) . '/hdlv2-private' ) . '/hdlv2-iris/'; }
+function co_row( $cap ) { global $wpdb; $t = $wpdb->prefix . 'hdlv2_iris_results'; return $wpdb->get_row( $wpdb->prepare( "SELECT * FROM $t WHERE capture_id = %s", $cap ) ); }
+function dispatch_cap( $body, $secret ) {
+    $raw = wp_json_encode( $body );
+    $h = HDLV2_Iris_Support::sign_headers( $secret, $raw );
+    $req = new WP_REST_Request( 'POST', '/hdl-v2/v1/iris/analyse/callback' );
+    $req->set_header( 'content-type', 'application/json' );
+    $req->set_header( 'x-hdl-callback-secret', $secret );
+    $req->set_header( 'x-hdl-timestamp', $h['x-hdl-timestamp'] );
+    $req->set_header( 'x-hdl-signature', $h['x-hdl-signature'] );
+    $req->set_body( $raw );
+    return rest_do_request( $req );
+}
+function co_result( $tag ) {
+    return array(
+        'photo_quality' => array( 'usable' => true, 'issues' => array(), 'suggestion' => '' ),
+        'eyes' => array(
+            array( 'eye' => 'L', 'constitution_summary' => array( 'constitution' => 'lymphatic', 'colour_type' => 'blue', 'structure_grade' => '3', 'note' => $tag ), 'visible_observations' => array(), 'map_zone_notes' => array(), 'suggested_questions' => array(), 'low_confidence_or_not_visible' => array(), 'overall_confidence' => 'medium' ),
+            array( 'eye' => 'R', 'constitution_summary' => array( 'constitution' => 'lymphatic', 'colour_type' => 'blue', 'structure_grade' => '3', 'note' => $tag ), 'visible_observations' => array(), 'map_zone_notes' => array(), 'suggested_questions' => array(), 'low_confidence_or_not_visible' => array(), 'overall_confidence' => 'low' ),
+        ),
+        'bilateral_notes' => array(),
+    );
+}
+
+sec( 'capture WITH signed-URL images → all 4 (iris L/R + map L/R) stored + served' );
+ok( $CB !== '', 'HDL_CALLBACK_SECRET configured (callback auth)' );
+$IMG = 'https://example.com/' . $MARK . '-';
+$cap1 = HDLV2_Iris_Support::build_capture_id( $a_cli1, $pA1, hash( 'sha256', $MARK . '-set1' ) );
+$res = dispatch_cap( array(
+    'captureId' => $cap1, 'status' => 'done', 'finalized' => true, 'result' => co_result( 's1' ),
+    'images' => array( 'iris' => array( 'L' => $IMG . 'il.jpg', 'R' => $IMG . 'ir.jpg' ),
+                       'map'  => array( 'L' => $IMG . 'ml.jpg', 'R' => $IMG . 'mr.jpg' ) ),
+), $CB );
+ok( $res->get_status() === 200, 'callback acks 200' );
+$r1 = co_row( $cap1 );
+ok( $r1 && $r1->image_l_path && $r1->image_r_path && $r1->map_l_path && $r1->map_r_path, 'all 4 image path columns recorded (iris L/R + map L/R)' );
+$dir = co_iris_dir();
+ok( $r1 && is_file( $dir . $r1->image_l_path ) && is_file( $dir . $r1->map_r_path ), 'downloaded files exist on disk in the private dir' );
+ok( $r1 && strpos( $r1->image_l_path, 'iris-l' ) !== false && strpos( $r1->map_r_path, 'map-r' ) !== false, 'filenames tag iris-l / map-r' );
+
+sec( 'SSRF — a link-local image URL is refused (column stays NULL), callback still 200' );
+$cap2 = HDLV2_Iris_Support::build_capture_id( $a_cli1, $pA1, hash( 'sha256', $MARK . '-set2' ) );
+$res = dispatch_cap( array(
+    'captureId' => $cap2, 'status' => 'done', 'finalized' => true, 'result' => co_result( 's2' ),
+    'images' => array( 'iris' => array( 'L' => $IMG . 'safe.jpg' ),
+                       'map'  => array( 'L' => 'http://169.254.169.254/' . $MARK . '-evil.jpg' ) ),
+), $CB );
+ok( $res->get_status() === 200, 'callback with a reserved-IP image still acks 200' );
+$r2 = co_row( $cap2 );
+ok( $r2 && $r2->image_l_path, 'the safe iris image stored' );
+ok( $r2 && $r2->map_l_path === null, 'the reserved-IP (metadata) map URL refused → column NULL (SSRF blocked)' );
+
+sec( 'back-compat — legacy flat { L, R } base64 stores iris L/R' );
+$png_b64 = 'data:image/png;base64,' . base64_encode( "\x89PNG\r\n\x1a\n" . str_repeat( "\x00", 120 ) );
+$cap3 = HDLV2_Iris_Support::build_capture_id( $a_cli1, $pA1, hash( 'sha256', $MARK . '-set3' ) );
+$res = dispatch_cap( array(
+    'captureId' => $cap3, 'status' => 'done', 'finalized' => true, 'result' => co_result( 's3' ),
+    'images' => array( 'L' => $png_b64, 'R' => $png_b64 ),
+), $CB );
+$r3 = co_row( $cap3 );
+ok( $res->get_status() === 200 && $r3 && $r3->image_l_path && $r3->image_r_path, 'flat base64 {L,R} stored as iris L/R' );
+ok( $r3 && substr( $r3->image_l_path, -4 ) === '.png', 'png magic bytes → .png extension' );
+
+sec( 'no images — row byte-identical to a no-image capture (back-compat)' );
+$cap4 = HDLV2_Iris_Support::build_capture_id( $a_cli1, $pA1, hash( 'sha256', $MARK . '-set4' ) );
+$res = dispatch_cap( array( 'captureId' => $cap4, 'status' => 'done', 'finalized' => true, 'result' => co_result( 's4' ) ), $CB );
+$r4 = co_row( $cap4 );
+ok( $res->get_status() === 200 && $r4 && $r4->image_l_path === null && $r4->map_l_path === null, 'no images → all image columns NULL (unchanged)' );
+
 sec( 'Rule-0 — flag OFF ⇒ /iris/clients 404s' );
 update_option( 'hdlv2_ff_iris_consult', 0 );
 rebuild_rest_server();
@@ -141,6 +229,14 @@ ok( $res->get_status() === 404, 'request 404s with the flag off (zero trace)' );
 
 // ── cleanup ──
 sec( 'cleanup' );
+$IRIS_TBL = $wpdb->prefix . 'hdlv2_iris_results';
+$imgs = $wpdb->get_results( $wpdb->prepare( "SELECT image_l_path,image_r_path,map_l_path,map_r_path FROM $IRIS_TBL WHERE client_user_id = %d", $a_cli1 ) );
+foreach ( (array) $imgs as $im ) {
+    foreach ( array( $im->image_l_path, $im->image_r_path, $im->map_l_path, $im->map_r_path ) as $f ) {
+        if ( $f && is_file( co_iris_dir() . $f ) ) { @unlink( co_iris_dir() . $f ); }
+    }
+}
+$wpdb->query( $wpdb->prepare( "DELETE FROM $IRIS_TBL WHERE client_user_id IN (%d,%d,%d)", $a_cli1, $a_cli2, $b_cli1 ) );
 foreach ( array( $pA1, $pA2, $pB1 ) as $pid ) { $wpdb->delete( $FP_TBL, array( 'id' => $pid ), array( '%d' ) ); }
 require_once ABSPATH . 'wp-admin/includes/user.php';
 foreach ( array( $pracA, $pracB, $a_cli1, $a_cli2, $b_cli1 ) as $uid ) { if ( $uid && ! is_wp_error( $uid ) ) { wp_delete_user( $uid ); } }

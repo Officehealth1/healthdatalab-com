@@ -1462,6 +1462,41 @@ class HDLV2_Activator {
                 error_log( '[HDLV2] Phase AD migration error: ' . $e->getMessage() . ' — boot continues; verify manually.' );
             }
         }
+
+        // Phase AE (DB v3.24) — Iridology CAPTURE-ONLY: store the MAP-overlay
+        // composite per eye alongside the raw iris photo. The IrisMapper callback
+        // carries an `images` object of short-lived SIGNED download URLs
+        // ({iris:{L,R}, map:{L,R}}); HDL downloads its own copy on capture. Adds
+        // the two map-path columns next to image_l/r_path. Additive, idempotent
+        // (column-exists guarded); the iris table is dark/absent on LIVE.
+        if ( version_compare( $current_db_version, '3.24', '<' ) ) {
+            try {
+                $iris_table = $p . 'hdlv2_iris_results';
+                $present = (int) $wpdb->get_var( $wpdb->prepare(
+                    "SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES
+                     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s", $iris_table ) );
+                if ( $present ) {
+                    $add_iris_col = function ( $col, $ddl ) use ( $wpdb, $iris_table ) {
+                        $has = (int) $wpdb->get_var( $wpdb->prepare(
+                            "SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+                             WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s AND COLUMN_NAME = %s",
+                            $iris_table, $col ) );
+                        if ( ! $has ) {
+                            $wpdb->query( "ALTER TABLE $iris_table ADD COLUMN $ddl" );
+                            if ( $wpdb->last_error ) {
+                                error_log( "[HDLV2] Phase AE (v3.24) FAILED on $iris_table.$col: " . $wpdb->last_error );
+                            } else {
+                                error_log( "[HDLV2] Phase AE (v3.24) migration: added $col to $iris_table." );
+                            }
+                        }
+                    };
+                    $add_iris_col( 'map_l_path', 'map_l_path VARCHAR(255) DEFAULT NULL AFTER image_r_path' );
+                    $add_iris_col( 'map_r_path', 'map_r_path VARCHAR(255) DEFAULT NULL AFTER map_l_path' );
+                }
+            } catch ( \Throwable $e ) {
+                error_log( '[HDLV2] Phase AE migration error: ' . $e->getMessage() . ' — boot continues; verify manually.' );
+            }
+        }
     }
 
     /**
@@ -2026,6 +2061,8 @@ class HDLV2_Activator {
             supabase_key_r VARCHAR(255) DEFAULT NULL,
             image_l_path VARCHAR(255) DEFAULT NULL,
             image_r_path VARCHAR(255) DEFAULT NULL,
+            map_l_path VARCHAR(255) DEFAULT NULL,
+            map_r_path VARCHAR(255) DEFAULT NULL,
             result_json LONGTEXT DEFAULT NULL,
             areas_edited_json LONGTEXT DEFAULT NULL,
             triangulated_overview LONGTEXT DEFAULT NULL,
