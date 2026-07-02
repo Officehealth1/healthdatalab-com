@@ -85,6 +85,15 @@ class HDLV2_Compatibility {
      * result attaches to) — STRICTLY scoped to this practitioner. Name/email fall
      * back to the WP user record. Returns NO health data.
      *
+     * Filtered to CONSULTATION-ELIGIBLE clients only: a client appears ONLY when
+     * their latest consultation is at the consultation stage — Stage 3 complete
+     * AND no final report generated yet ("Awaiting Consult"). The predicate is
+     * delegated to the authoritative HDLV2_Client_Status engine (the same one
+     * that drives the dashboard badge) so it can never drift. AWAITING_CONSULT
+     * covers both a not-yet-started consult and one in progress (no report yet);
+     * a client drops out once the final report is generated, while still in
+     * Stage 1/2/3-data-collection, or on a red flag (→ Needs Attention).
+     *
      * @param int $practitioner_user_id
      * @return array<int,array{clientId:int,name:string,email:string,consultationId:int,consultationStatus:string}>
      */
@@ -118,6 +127,18 @@ class HDLV2_Compatibility {
         $labels = array( 1 => 'Stage 1', 2 => 'Stage 2', 3 => 'Stage 3' );
         $out = array();
         foreach ( $rows as $r ) {
+            // Consultation-eligibility gate — Stage 3 complete AND awaiting/in
+            // consultation (no final report yet). Delegated to the authoritative
+            // lifecycle engine so the predicate never drifts. Fail-closed: if the
+            // engine is somehow unavailable, surface no clients rather than all.
+            if ( ! class_exists( 'HDLV2_Client_Status' ) ) {
+                continue;
+            }
+            $client_status = HDLV2_Client_Status::calculate_status( (int) $r->client_user_id );
+            if ( ! is_array( $client_status )
+                || ( isset( $client_status['status'] ) ? $client_status['status'] : '' ) !== HDLV2_Client_Status::AWAITING_CONSULT ) {
+                continue;
+            }
             $name  = ( $r->client_name !== null && $r->client_name !== '' ) ? $r->client_name : (string) $r->display_name;
             $email = ( $r->client_email !== null && $r->client_email !== '' ) ? $r->client_email : (string) $r->user_email;
             $stage = (int) $r->current_stage;

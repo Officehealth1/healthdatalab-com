@@ -60,8 +60,10 @@ $pracA  = mk_user( $MARK . '_pa', $MARK . '_pa@example.test', 'um_practitioner' 
 $pracB  = mk_user( $MARK . '_pb', $MARK . '_pb@example.test', 'um_practitioner' );
 $a_cli1 = mk_user( $MARK . '_a1', $MARK . '_a1@example.test', 'subscriber' );
 $a_cli2 = mk_user( $MARK . '_a2', $MARK . '_a2@example.test', 'subscriber' );
+$a_cli3 = mk_user( $MARK . '_a3', $MARK . '_a3@example.test', 'subscriber' );
+$a_cli4 = mk_user( $MARK . '_a4', $MARK . '_a4@example.test', 'subscriber' );
 $b_cli1 = mk_user( $MARK . '_b1', $MARK . '_b1@example.test', 'subscriber' );
-ok( ! is_wp_error( $pracA ) && ! is_wp_error( $pracB ) && ! is_wp_error( $a_cli1 ) && ! is_wp_error( $a_cli2 ) && ! is_wp_error( $b_cli1 ), 'temp users created' );
+ok( ! is_wp_error( $pracA ) && ! is_wp_error( $pracB ) && ! is_wp_error( $a_cli1 ) && ! is_wp_error( $a_cli2 ) && ! is_wp_error( $a_cli3 ) && ! is_wp_error( $a_cli4 ) && ! is_wp_error( $b_cli1 ), 'temp users created' );
 ( new WP_User( $pracA ) )->set_role( 'um_practitioner' );
 ( new WP_User( $pracB ) )->set_role( 'um_practitioner' );
 // Entitlement transient so require_practitioner() passes for the cookie-auth
@@ -84,10 +86,35 @@ function mk_progress( $prac, $cli, $name, $email, $stage ) {
     ), array( '%d', '%d', '%s', '%s', '%d', '%s' ) );
     return (int) $wpdb->insert_id;
 }
-$pA1 = mk_progress( $pracA, $a_cli1, 'Alice One',  $MARK . '_a1@example.test', 3 );
-$pA2 = mk_progress( $pracA, $a_cli2, 'Bob Two',    '',                          2 ); // no client_email → must fall back to WP user email
-$pB1 = mk_progress( $pracB, $b_cli1, 'Carol Three',$MARK . '_b1@example.test', 1 );
-ok( $pA1 && $pA2 && $pB1, "form_progress rows created (A:$pA1,$pA2  B:$pB1)" );
+// Stamp stage-completion timestamps (these — not current_stage — are what the
+// authoritative HDLV2_Client_Status engine reads to decide the lifecycle state).
+function set_completion( $pid, $cols ) { global $wpdb; $wpdb->update( $wpdb->prefix . 'hdlv2_form_progress', $cols, array( 'id' => (int) $pid ) ); }
+// A consultation_notes row in a given lifecycle status. ONLY 'report_generated'
+// ends "Awaiting Consult"; 'in_progress' (consult started, no report yet) does NOT.
+function mk_consult( $prac, $cli, $pid, $status ) {
+    global $wpdb;
+    $wpdb->insert( $wpdb->prefix . 'hdlv2_consultation_notes', array(
+        'client_user_id' => (int) $cli, 'practitioner_user_id' => (int) $prac,
+        'form_progress_id' => (int) $pid, 'status' => $status,
+    ), array( '%d', '%d', '%d', '%s' ) );
+    return (int) $wpdb->insert_id;
+}
+$NOW = current_time( 'mysql' );
+// A's clients — TWO eligible (Stage 3 complete, no final report yet), TWO not.
+$pA1 = mk_progress( $pracA, $a_cli1, 'Alice One', $MARK . '_a1@example.test', 3 ); // ELIGIBLE: Stage 3 done + consult IN PROGRESS (no report yet)
+set_completion( $pA1, array( 'stage1_completed_at' => $NOW, 'stage3_completed_at' => $NOW ) );
+mk_consult( $pracA, $a_cli1, $pA1, 'in_progress' );
+$pA2 = mk_progress( $pracA, $a_cli2, 'Bob Two', '', 3 ); // ELIGIBLE: Stage 3 done, awaiting consult (no consult row); blank client_email → WP-user-email fallback
+set_completion( $pA2, array( 'stage1_completed_at' => $NOW, 'stage3_completed_at' => $NOW ) );
+$pA3 = mk_progress( $pracA, $a_cli3, 'Dave Four', $MARK . '_a3@example.test', 3 ); // INELIGIBLE: Stage 3 done BUT final report already generated
+set_completion( $pA3, array( 'stage1_completed_at' => $NOW, 'stage3_completed_at' => $NOW ) );
+mk_consult( $pracA, $a_cli3, $pA3, 'report_generated' );
+$pA4 = mk_progress( $pracA, $a_cli4, 'Eve Five', $MARK . '_a4@example.test', 2 ); // INELIGIBLE: mid-Stage-2 (Stage 3 not complete)
+set_completion( $pA4, array( 'stage1_completed_at' => $NOW ) );
+// B's client — eligible (used to prove A never sees B's even when B's is eligible).
+$pB1 = mk_progress( $pracB, $b_cli1, 'Carol Three', $MARK . '_b1@example.test', 3 );
+set_completion( $pB1, array( 'stage1_completed_at' => $NOW, 'stage3_completed_at' => $NOW ) );
+ok( $pA1 && $pA2 && $pA3 && $pA4 && $pB1, "form_progress rows created (A:$pA1,$pA2,$pA3,$pA4  B:$pB1)" );
 
 update_option( 'hdlv2_ff_iris_addon', 1 );
 update_option( 'hdlv2_ff_iris_consult', 1 );
@@ -95,14 +122,19 @@ rebuild_rest_server();
 ok( HDLV2_Iris_Consult::enabled() === true, 'enabled() true with both flags on' );
 
 // ─────────────────────────────────────────────────────────────────────────
-sec( 'A signed request → ONLY A\'s 2 clients, with email + numeric consultationId' );
+sec( 'A signed request → ONLY A\'s consultation-eligible clients, with email + numeric consultationId' );
 $res = dispatch_clients( array( 'email' => $emailA, 'header_secret' => $SHARED ) );
 ok( $res->get_status() === 200, 'A gets 200' );
 $rows = $res->get_data();
-ok( is_array( $rows ) && count( $rows ) === 2, 'exactly 2 clients (own-only)' );
+ok( is_array( $rows ) && count( $rows ) === 2, 'exactly 2 rows — the 2 eligible of A\'s 4 clients (own-only + eligibility filter)' );
 $ids = array_map( function ( $r ) { return (int) $r['clientId']; }, $rows );
-ok( in_array( (int) $a_cli1, $ids, true ) && in_array( (int) $a_cli2, $ids, true ), 'both of A\'s clients present' );
-ok( ! in_array( (int) $b_cli1, $ids, true ), 'B\'s client is NOT in A\'s list (strict practitioner scoping)' );
+
+// ── eligibility: ONLY Stage-3-complete clients awaiting/in consultation ──
+ok( in_array( (int) $a_cli1, $ids, true ), 'INCLUDED: Stage-3-complete client with an IN-PROGRESS consult (no report yet) — in-progress consult qualifies' );
+ok( in_array( (int) $a_cli2, $ids, true ), 'INCLUDED: Stage-3-complete client awaiting consult (no consult row yet)' );
+ok( ! in_array( (int) $a_cli3, $ids, true ), 'EXCLUDED: Stage-3-complete client whose FINAL REPORT is already generated (no longer awaiting consult)' );
+ok( ! in_array( (int) $a_cli4, $ids, true ), 'EXCLUDED: mid-Stage-2 client (Stage 3 not complete)' );
+ok( ! in_array( (int) $b_cli1, $ids, true ), 'B\'s client is NOT in A\'s list — strict practitioner scoping (even though B\'s client is itself eligible)' );
 $all_have_email = true; $all_numeric_consult = true; $has_health = false;
 foreach ( $rows as $r ) {
     if ( empty( $r['email'] ) || ! is_string( $r['email'] ) ) { $all_have_email = false; }
@@ -302,10 +334,14 @@ foreach ( (array) $imgs as $im ) {
         if ( $f && is_file( co_iris_dir() . $f ) ) { @unlink( co_iris_dir() . $f ); }
     }
 }
-$wpdb->query( $wpdb->prepare( "DELETE FROM $IRIS_TBL WHERE client_user_id IN (%d,%d,%d)", $a_cli1, $a_cli2, $b_cli1 ) );
-foreach ( array( $pA1, $pA2, $pB1 ) as $pid ) { $wpdb->delete( $FP_TBL, array( 'id' => $pid ), array( '%d' ) ); }
+$wpdb->query( $wpdb->prepare( "DELETE FROM $IRIS_TBL WHERE client_user_id IN (%d,%d,%d,%d,%d)", $a_cli1, $a_cli2, $a_cli3, $a_cli4, $b_cli1 ) );
+$CN_TBL = $wpdb->prefix . 'hdlv2_consultation_notes';
+foreach ( array( $pA1, $pA2, $pA3, $pA4, $pB1 ) as $pid ) {
+    $wpdb->delete( $CN_TBL, array( 'form_progress_id' => $pid ), array( '%d' ) );
+    $wpdb->delete( $FP_TBL, array( 'id' => $pid ), array( '%d' ) );
+}
 require_once ABSPATH . 'wp-admin/includes/user.php';
-foreach ( array( $pracA, $pracB, $a_cli1, $a_cli2, $b_cli1 ) as $uid ) { if ( $uid && ! is_wp_error( $uid ) ) { wp_delete_user( $uid ); } }
+foreach ( array( $pracA, $pracB, $a_cli1, $a_cli2, $a_cli3, $a_cli4, $b_cli1 ) as $uid ) { if ( $uid && ! is_wp_error( $uid ) ) { wp_delete_user( $uid ); } }
 if ( $snap_addon === false ) { delete_option( 'hdlv2_ff_iris_addon' ); } else { update_option( 'hdlv2_ff_iris_addon', $snap_addon ); }
 if ( $snap_consult === false ) { delete_option( 'hdlv2_ff_iris_consult' ); } else { update_option( 'hdlv2_ff_iris_consult', $snap_consult ); }
 rebuild_rest_server();
