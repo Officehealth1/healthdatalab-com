@@ -46,6 +46,10 @@
   // In-flight lock for queue-side actions, keyed on lead_id, to prevent
   // double-clicks while the request is mid-flight.
   var _queuePendingActioning = {};
+  // 0.47.48 — which pending leads have their Stage-1 detail panel expanded in the
+  // top "New widget submissions" strip. Held here (not in the DOM) so the open
+  // state survives renderActionQueue()'s wholesale innerHTML rebuild each poll.
+  var _openPendingDetails = {};
 
   // Wait for the V1 table to render (it's server-side PHP so it's usually
   // present immediately, but some themes defer). Give up after ~10s.
@@ -101,7 +105,6 @@
       // on subsequent poll-driven re-renders so user column-header clicks
       // are never overridden by a digest tick.
       defaultSortByLatestActivity();
-      renderPendingLeadsGroup(); // F3 — pinned "Pending confirmation" group at top of the list
       renderActionQueue(list);
       lastFetchedAt = Date.now();
       updateFreshnessIndicator();
@@ -178,7 +181,6 @@
       reconcileRows(list);
       state.clients      = list;
       state.pendingLeads = leads;
-      renderPendingLeadsGroup(); // F3 — keep the pinned pending group in sync each poll
       renderActionQueue(list);
       // v0.35.4 — propagate fresh data into any expanded detail panel
       // whose Flight Plan tab is currently active, so a tick from the
@@ -1064,15 +1066,23 @@
     }
     var name  = esc(lead.visitor_name || lead.visitor_email || 'New lead');
     var email = esc(lead.visitor_email || '');
-    return '<li class="hdlv2-aq-item hdlv2-aq-item-lead" data-lead-id="' + esc(lead.id) + '">'
+    // 0.47.48 — a "View details" toggle reveals the whitelisted Stage-1 detail
+    // (name/email/rate/age/sex + the 9 answers) INLINE in the strip, so the
+    // practitioner can review a lead before Confirm/Reject. This replaced the
+    // duplicate "Pending confirmation" group that F3 had added to the main list:
+    // a pending lead now lives in exactly ONE place (this strip) until confirmed.
+    var isOpen = !!_openPendingDetails[lead.id];
+    return '<li class="hdlv2-aq-item hdlv2-aq-item-lead' + (isOpen ? ' hdlv2-aq-item-open' : '') + '" data-lead-id="' + esc(lead.id) + '">'
       +   '<div class="hdlv2-aq-item-name">' + name + '</div>'
       +   '<div class="hdlv2-aq-item-meta">' + email + ageStr + ' &middot; ' + rate + '&times;'
       +     (submittedAt ? ' &middot; ' + esc(submittedAt) : '')
       +   '</div>'
       +   '<div class="hdlv2-aq-item-action" style="display:flex;gap:5px;">'
+      +     '<button type="button" class="hdlv2-aq-btn hdlv2-aq-btn-pending-details" data-aq="lead-details" data-lead-id="' + esc(lead.id) + '" aria-expanded="' + (isOpen ? 'true' : 'false') + '" title="Review this lead’s Stage-1 details">' + (isOpen ? 'Hide details' : 'View details') + '</button>'
       +     '<button type="button" class="hdlv2-aq-btn hdlv2-aq-btn-pending-confirm" data-aq="lead-confirm" data-lead-id="' + esc(lead.id) + '" title="Send the client their next-step magic link" style="padding:5px 11px;font-size:12px;border:1px solid #3d8da0;background:#3d8da0;color:#fff;border-radius:999px;cursor:pointer;font-weight:600;font-family:inherit;line-height:1.3;">Confirm</button>'
       +     '<button type="button" class="hdlv2-aq-btn hdlv2-aq-btn-pending-reject"  data-aq="lead-reject"  data-lead-id="' + esc(lead.id) + '" title="Silently drop without emailing" style="padding:5px 11px;font-size:12px;border:1px solid #e4e6ea;background:#fff;color:#666;border-radius:999px;cursor:pointer;font-weight:600;font-family:inherit;line-height:1.3;">Reject</button>'
       +   '</div>'
+      +   '<div class="hdlv2-aq-lead-detail"' + (isOpen ? '' : ' hidden') + '>' + buildPendingLeadDetailHTML(lead) + '</div>'
       + '</li>';
   }
 
@@ -1083,6 +1093,24 @@
   // success so the V1 list shows the new client immediately.
   function bindPendingLeadQueueActions() {
     if (!state.actionQueueEl) return;
+    // 0.47.48 — View-details toggle: reveal/hide the inline Stage-1 detail panel.
+    // Open state lives in _openPendingDetails so it survives the strip's per-poll
+    // rebuild (renderActionQueue reads it when re-rendering each row).
+    state.actionQueueEl.querySelectorAll('[data-aq="lead-details"]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var leadId = parseInt(btn.getAttribute('data-lead-id'), 10);
+        if (!leadId) return;
+        var li = btn.closest('.hdlv2-aq-item-lead');
+        var panel = li && li.querySelector('.hdlv2-aq-lead-detail');
+        if (!panel) return;
+        var willOpen = panel.hasAttribute('hidden');
+        if (willOpen) { panel.removeAttribute('hidden'); _openPendingDetails[leadId] = true; }
+        else { panel.setAttribute('hidden', ''); delete _openPendingDetails[leadId]; }
+        btn.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
+        btn.textContent = willOpen ? 'Hide details' : 'View details';
+        if (li) li.classList.toggle('hdlv2-aq-item-open', willOpen);
+      });
+    });
     state.actionQueueEl.querySelectorAll('[data-aq="lead-confirm"], [data-aq="lead-reject"]').forEach(function (btn) {
       btn.addEventListener('click', function () {
         var action = btn.getAttribute('data-aq') === 'lead-confirm' ? 'confirm' : 'reject';
@@ -1174,153 +1202,9 @@
       });
   }
 
-  // ──────────────────────────────────────────────────────────────────
-  //  F3 (0.47.45) — Pending widget leads in the MAIN client list
-  //  ------------------------------------------------------------------
-  //  Matthew's ask: after a client finishes Stage 1 they only appear in the
-  //  top "New widget submissions" queue; the practitioner can't see their
-  //  details in the list below until they Confirm. This surfaces the same
-  //  pre-Confirm leads (state.pendingLeads — no new fetch) as a pinned
-  //  "Pending confirmation" group at the top of the client table, each with
-  //  an expand-dropdown of their Stage-1 answers + inline Confirm/Reject.
-  //
-  //  The group rows are deliberately NOT `.client-row` so the stalled/status/
-  //  source filters (which target `.client-row`) never hide or mis-count them.
-  //  (V1's sortTable() re-appends EVERY <tr>, not just `.client-row`, so a
-  //  header sort still scatters the group — bindSortRepin() re-pins it right
-  //  after the sort; and any open Stage-1 dropdown is remembered + re-opened
-  //  across re-renders so a poll never collapses a panel mid-read.) No dedupe
-  //  needed: pending leads
-  //  have no client_user_id / form_progress row, so they can never collide with
-  //  a confirmed client row; on Confirm the next poll drops the pending row and
-  //  the real client row renders below. Idempotent: the prior group is wiped
-  //  before re-insert so the 4s poll never duplicates or flickers it. The old
-  //  hdlv2_ff_pending_in_list flag was removed as dead code (B.9) — this ships
-  //  unconditionally. Confirm/Reject reuse the shared doQueuePendingAction()
-  //  (identical endpoints + idempotency as the top queue).
-  // ──────────────────────────────────────────────────────────────────
-  function renderPendingLeadsGroup() {
-    if (!state.tbody) return;
-    bindSortRepin(); // one-time: re-pin the group after V1 sortTable() (sorts ALL <tr>)
-
-    // Remember which leads are expanded so a poll re-render / sort re-pin never
-    // collapses a Stage-1 dropdown the practitioner is reading.
-    var openLeadIds = {};
-    state.tbody.querySelectorAll('tr.hdlv2-pending-lead-row.hdlv2-row-active').forEach(function (r) {
-      if (r.dataset.leadId) openLeadIds[r.dataset.leadId] = true;
-    });
-
-    // Wipe any previously-rendered pending group (head + rows + open details)
-    // so a poll-driven re-render can never duplicate or flicker the group.
-    state.tbody.querySelectorAll('tr.hdlv2-pending-group-head, tr.hdlv2-pending-lead-row, tr.hdlv2-pending-lead-detail')
-      .forEach(function (el) { if (el.parentNode) el.parentNode.removeChild(el); });
-
-    var leads = state.pendingLeads || [];
-    if (!leads.length) return; // empty → no header (matches the top queue)
-
-    var frag = document.createDocumentFragment();
-    frag.appendChild(buildPendingGroupHeadRow(leads.length));
-    leads.forEach(function (lead) { frag.appendChild(buildPendingLeadRow(lead)); });
-    state.tbody.insertBefore(frag, state.tbody.firstChild);
-
-    bindPendingLeadListActions();
-
-    // Re-open any dropdown that was expanded before this re-render.
-    if (Object.keys(openLeadIds).length) {
-      leads.forEach(function (lead) {
-        if (!openLeadIds[String(lead.id)]) return;
-        var row = state.tbody.querySelector('tr.hdlv2-pending-lead-row[data-lead-id="' + String(lead.id) + '"]');
-        var btn = row && row.querySelector('.hdlv2-expand-btn');
-        if (row && btn) togglePendingDetail(row, lead, btn);
-      });
-    }
-  }
-
-  // V1's sortTable() (health-data-lab-plugin) re-appends EVERY <tr> in the
-  // tbody on a header click — not just .client-row — so a sort scatters our
-  // non-.client-row pending group. Re-pin it on the next tick (after V1's
-  // synchronous re-append). Bound once, delegated on the clients-table header.
-  function bindSortRepin() {
-    if (window.__hdlv2PendingSortRepin || !state.table) return;
-    window.__hdlv2PendingSortRepin = true;
-    state.table.addEventListener('click', function (e) {
-      var th = e.target && e.target.closest && e.target.closest('th');
-      if (th) setTimeout(renderPendingLeadsGroup, 0);
-    });
-  }
-
-  function buildPendingGroupHeadRow(n) {
-    var tr = document.createElement('tr');
-    tr.className = 'hdlv2-pending-group-head';
-    var td = document.createElement('td');
-    td.colSpan = state.colSpan || 7;
-    td.innerHTML = '<div class="hdlv2-pending-head">'
-      + '<span class="hdlv2-aq-dot" style="background:#3d8da0"></span>'
-      + '<span class="hdlv2-pending-head-label">Pending confirmation</span>'
-      + '<span class="hdlv2-pending-head-count">' + n + '</span>'
-      + '<span class="hdlv2-pending-head-hint">Review each lead’s details, then Confirm to invite or Reject to drop</span>'
-      + '</div>';
-    tr.appendChild(td);
-    return tr;
-  }
-
-  function buildPendingLeadRow(lead) {
-    var tr = document.createElement('tr');
-    tr.className = 'hdlv2-pending-lead-row';
-    tr.dataset.leadId = String(lead.id);
-    var name      = lead.visitor_name || lead.visitor_email || 'New lead';
-    var submitted = formatDate(lead.created_at) || '—';
-    var rate      = (lead.rate_of_ageing !== null && lead.rate_of_ageing !== undefined)
-      ? Number(lead.rate_of_ageing).toFixed(2) + '×' : '—';
-    tr.innerHTML = [
-      '<td class="client-name">' + esc(name) + '</td>',
-      '<td class="date-cell">' + esc(submitted) + '</td>',
-      '<td class="date-cell">' + esc(submitted) + '</td>',
-      '<td class="total-cell">1</td>',
-      '<td class="status-badge-cell"><span class="hdlv2-inline-badge hdlv2-pending-badge">PENDING</span></td>',
-      '<td class="assessment-cell">Stage 1</td>',
-      '<td class="action-cell hdlv2-pending-action-cell">'
-        +   '<button type="button" class="hdlv2-pending-btn hdlv2-pending-btn-confirm" data-aq="lead-confirm" data-lead-id="' + esc(lead.id) + '" title="Send the client their next-step magic link">Confirm</button>'
-        +   '<button type="button" class="hdlv2-pending-btn hdlv2-pending-btn-reject" data-aq="lead-reject" data-lead-id="' + esc(lead.id) + '" title="Silently drop without emailing">Reject</button>'
-        + '</td>',
-    ].join('');
-    injectPendingExpandButton(tr, lead);
-    return tr;
-  }
-
-  function injectPendingExpandButton(row, lead) {
-    var cell = row.querySelector('td:last-child');
-    if (!cell) return;
-    var btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'hdlv2-expand-btn';
-    btn.setAttribute('aria-expanded', 'false');
-    btn.setAttribute('title', 'Show Stage-1 detail');
-    btn.innerHTML = chevronSVG();
-    btn.addEventListener('click', function (e) { e.stopPropagation(); togglePendingDetail(row, lead, btn); });
-    cell.appendChild(btn);
-  }
-
-  function togglePendingDetail(row, lead, btn) {
-    var next = row.nextElementSibling;
-    if (next && next.classList.contains('hdlv2-pending-lead-detail')) {
-      next.parentNode.removeChild(next);
-      btn.setAttribute('aria-expanded', 'false'); btn.classList.remove('open'); row.classList.remove('hdlv2-row-active');
-      return;
-    }
-    var detail = document.createElement('tr');
-    detail.className = 'hdlv2-detail-row hdlv2-pending-lead-detail';
-    var td = document.createElement('td');
-    td.colSpan = state.colSpan || 7;
-    td.innerHTML = buildPendingLeadDetailHTML(lead);
-    detail.appendChild(td);
-    row.parentNode.insertBefore(detail, row.nextSibling);
-    btn.setAttribute('aria-expanded', 'true'); btn.classList.add('open'); row.classList.add('hdlv2-row-active');
-  }
-
-  // Stage-1 snapshot for the dropdown. Degrades gracefully when a lead has no
-  // captured stage1_data (older public leads) — shows contact + rate only and
-  // an explicit "no answer detail" note, never a broken/empty panel.
+  // 0.47.48 — Stage-1 snapshot for the top-strip "View details" panel:
+  // whitelisted contact + rate + the 9 Stage-1 answers. Degrades gracefully
+  // ("no answer detail" note) when a lead has no captured stage1_data.
   function buildPendingLeadDetailHTML(lead) {
     var s1 = (lead.stage1_data && typeof lead.stage1_data === 'object') ? lead.stage1_data : null;
     function kv(k, v) {
@@ -1359,38 +1243,6 @@
       + '<div class="hdlv2-pending-detail-note">Pre-confirmation lead — not yet an account. Confirm to provision the client and send their Stage-2 link.</div>'
       + contact + answers
       + '</div>';
-  }
-
-  // Confirm/Reject inside the main-list pending group. Reuses the shared
-  // doQueuePendingAction() (same endpoints + idempotency as the top queue).
-  // Optimistic: fade the row + its detail; the next poll re-renders authoritatively.
-  function bindPendingLeadListActions() {
-    if (!state.tbody) return;
-    state.tbody.querySelectorAll('.hdlv2-pending-lead-row [data-aq="lead-confirm"], .hdlv2-pending-lead-row [data-aq="lead-reject"]').forEach(function (btn) {
-      btn.addEventListener('click', function () {
-        var action = btn.getAttribute('data-aq') === 'lead-confirm' ? 'confirm' : 'reject';
-        var leadId = parseInt(btn.getAttribute('data-lead-id'), 10);
-        if (!leadId || _queuePendingActioning[leadId]) return;
-        var run = function () {
-          var tr = btn.closest('.hdlv2-pending-lead-row');
-          if (tr) {
-            tr.style.transition = 'opacity 240ms'; tr.style.opacity = '0.4';
-            var d = tr.nextElementSibling;
-            if (d && d.classList.contains('hdlv2-pending-lead-detail')) d.style.opacity = '0.4';
-            tr.querySelectorAll('button').forEach(function (b) { b.disabled = true; });
-          }
-          doQueuePendingAction(btn, action, leadId);
-        };
-        if (action === 'reject') {
-          var ask = (window.HDLV2UI && window.HDLV2UI.confirm)
-            ? window.HDLV2UI.confirm({ title: 'Reject this lead?', body: 'They will not receive any further emails. You can’t undo this without them resubmitting the widget.', confirmLabel: 'Yes, reject', cancelLabel: 'Cancel' })
-            : Promise.resolve(window.confirm('Reject this lead? They will not receive any further emails.'));
-          ask.then(function (ok) { if (ok) run(); });
-        } else {
-          run();
-        }
-      });
-    });
   }
 
   function renderActionQueueButton(action, c) {
@@ -3846,27 +3698,16 @@
       '.hdlv2-expand-btn svg { transition: transform 0.2s ease; display:block; }',
       '.hdlv2-expand-btn.open svg { transform: rotate(180deg); }',
       '.hdlv2-detail-row > td { padding: 0 !important; background: #fafbfc; border-bottom: 1px solid #e4e6ea !important; }',
-      // F3 (0.47.45) — "Pending confirmation" group in the main client list.
-      // HDL brand tokens (teal #3d8da0 / dark teal #004F59) for the group head +
-      // Confirm; Warning tokens (#d97706/#fffbeb/#fde68a) for the PENDING badge.
-      '.hdlv2-pending-group-head > td { padding: 10px 14px !important; background:#f0f7f9; border-top:1px solid #cfe2e7; border-bottom:1px solid #cfe2e7; }',
-      '.hdlv2-pending-head { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }',
-      '.hdlv2-pending-head .hdlv2-aq-dot { width:9px; height:9px; border-radius:50%; display:inline-block; flex:0 0 9px; }',
-      '.hdlv2-pending-head-label { font: 600 13px/1 Poppins, Inter, sans-serif; color:#004F59; }',
-      '.hdlv2-pending-head-count { display:inline-flex; align-items:center; justify-content:center; min-width:20px; height:20px; padding:0 6px; border-radius:999px; background:#3d8da0; color:#fff; font:600 12px/1 Inter, sans-serif; }',
-      '.hdlv2-pending-head-hint { font: 400 11.5px/1.4 Inter, sans-serif; color:#5a7d85; margin-left:4px; }',
-      '.hdlv2-pending-lead-row > td { padding:12px 14px; border-bottom:1px solid #e4e6ea; vertical-align:middle; font:400 14px/1.4 Inter, -apple-system, sans-serif; color:#2c3e50; background:#fff; }',
-      '.hdlv2-pending-lead-row:hover > td { background:#fafbfc; }',
-      '.hdlv2-pending-lead-row.hdlv2-row-active > td { background:#f0f0f0; }',
-      '.hdlv2-pending-lead-row.hdlv2-row-active > td:first-child { box-shadow: inset 3px 0 0 #3d8da0; font-weight:600; }',
-      '.hdlv2-pending-lead-row .client-name { font-weight:600; color:#2c3e50; }',
-      '.hdlv2-pending-badge { color:#d97706 !important; background:#fffbeb !important; border:1px solid #fde68a !important; }',
-      '.hdlv2-pending-action-cell { display:flex; align-items:center; gap:6px; white-space:nowrap; }',
-      '.hdlv2-pending-btn { padding:5px 12px; font:600 12px/1.3 Inter, sans-serif; border-radius:999px; cursor:pointer; font-family:inherit; }',
-      '.hdlv2-pending-btn-confirm { border:1px solid #3d8da0; background:#3d8da0; color:#fff; }',
-      '.hdlv2-pending-btn-confirm:hover { background:#004F59; border-color:#004F59; }',
-      '.hdlv2-pending-btn-reject { border:1px solid #e4e6ea; background:#fff; color:#666; }',
-      '.hdlv2-pending-btn-reject:hover { border-color:#dc2626; color:#dc2626; }',
+      // 0.47.48 — pending-lead "View details" toggle + inline detail panel in the
+      // top "New widget submissions" strip (the F3 main-list group was REMOVED to
+      // kill the duplicate). The .hdlv2-pending-detail*/*-kv rules below are reused
+      // verbatim by the strip panel. HDL brand tokens throughout.
+      '.hdlv2-aq-btn-pending-details { padding:5px 11px; font-size:12px; border:1px solid #cfe2e7; background:#f0f7f9; color:#004F59; border-radius:999px; cursor:pointer; font-weight:600; font-family:inherit; line-height:1.3; }',
+      '.hdlv2-aq-btn-pending-details:hover { border-color:#3d8da0; background:#e3eef1; }',
+      '.hdlv2-aq-btn-pending-details[aria-expanded="true"] { background:#3d8da0; border-color:#3d8da0; color:#fff; }',
+      '.hdlv2-aq-lead-detail { flex-basis:100%; width:100%; margin-top:8px; border-top:1px solid #e4e6ea; }',
+      '.hdlv2-aq-lead-detail[hidden] { display:none; }',
+      '.hdlv2-aq-lead-detail .hdlv2-pending-detail { padding:12px 2px 4px; }',
       '.hdlv2-pending-detail { font-family: Inter, -apple-system, BlinkMacSystemFont, sans-serif; padding:18px 24px 20px; color:#333; }',
       '.hdlv2-pending-detail-note { font-size:12px; color:#5a7d85; background:#f0f7f9; border:1px solid #cfe2e7; border-radius:8px; padding:9px 12px; margin-bottom:14px; }',
       '.hdlv2-pending-detail-sub { font:600 12px/1 Poppins, Inter, sans-serif; color:#004F59; text-transform:uppercase; letter-spacing:.04em; margin:6px 0 8px; }',
