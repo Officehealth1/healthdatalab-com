@@ -1468,7 +1468,7 @@ class HDLV2_Staged_Form {
             $fallback = sprintf(
                 '<p><strong>%syour full Stage 3 measurements put your rate of ageing at %s× — %s.</strong> Biological age estimate: %s years against your real age of %d.</p>'
                 . '<p>The 21-metric panel gives your practitioner the detail they need to build a precise plan with you.</p>'
-                . '<p>Your Draft Trajectory Plan is being generated now. Your practitioner will review it, then walk you through it in your consultation.</p>',
+                . '<p>Your Draft Report is being generated now. Your practitioner will review it, then walk you through it in your consultation.</p>', // F6 — client-facing draft deliverable is "Draft Report" (final "Trajectory Plan" naming left where intended)
                 $name,
                 number_format( $rate, 2 ),
                 esc_html( $verdict ),
