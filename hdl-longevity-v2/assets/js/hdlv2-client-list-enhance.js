@@ -1184,10 +1184,13 @@
   //  "Pending confirmation" group at the top of the client table, each with
   //  an expand-dropdown of their Stage-1 answers + inline Confirm/Reject.
   //
-  //  The group rows are deliberately NOT `.client-row`: that keeps them immune
-  //  to the column-sort comparator AND the stalled/status/source filters (both
-  //  target `.client-row`), so the group stays pinned + always visible — the
-  //  same always-on behaviour as the top queue. No dedupe needed: pending leads
+  //  The group rows are deliberately NOT `.client-row` so the stalled/status/
+  //  source filters (which target `.client-row`) never hide or mis-count them.
+  //  (V1's sortTable() re-appends EVERY <tr>, not just `.client-row`, so a
+  //  header sort still scatters the group — bindSortRepin() re-pins it right
+  //  after the sort; and any open Stage-1 dropdown is remembered + re-opened
+  //  across re-renders so a poll never collapses a panel mid-read.) No dedupe
+  //  needed: pending leads
   //  have no client_user_id / form_progress row, so they can never collide with
   //  a confirmed client row; on Confirm the next poll drops the pending row and
   //  the real client row renders below. Idempotent: the prior group is wiped
@@ -1198,6 +1201,15 @@
   // ──────────────────────────────────────────────────────────────────
   function renderPendingLeadsGroup() {
     if (!state.tbody) return;
+    bindSortRepin(); // one-time: re-pin the group after V1 sortTable() (sorts ALL <tr>)
+
+    // Remember which leads are expanded so a poll re-render / sort re-pin never
+    // collapses a Stage-1 dropdown the practitioner is reading.
+    var openLeadIds = {};
+    state.tbody.querySelectorAll('tr.hdlv2-pending-lead-row.hdlv2-row-active').forEach(function (r) {
+      if (r.dataset.leadId) openLeadIds[r.dataset.leadId] = true;
+    });
+
     // Wipe any previously-rendered pending group (head + rows + open details)
     // so a poll-driven re-render can never duplicate or flicker the group.
     state.tbody.querySelectorAll('tr.hdlv2-pending-group-head, tr.hdlv2-pending-lead-row, tr.hdlv2-pending-lead-detail')
@@ -1212,6 +1224,29 @@
     state.tbody.insertBefore(frag, state.tbody.firstChild);
 
     bindPendingLeadListActions();
+
+    // Re-open any dropdown that was expanded before this re-render.
+    if (Object.keys(openLeadIds).length) {
+      leads.forEach(function (lead) {
+        if (!openLeadIds[String(lead.id)]) return;
+        var row = state.tbody.querySelector('tr.hdlv2-pending-lead-row[data-lead-id="' + String(lead.id) + '"]');
+        var btn = row && row.querySelector('.hdlv2-expand-btn');
+        if (row && btn) togglePendingDetail(row, lead, btn);
+      });
+    }
+  }
+
+  // V1's sortTable() (health-data-lab-plugin) re-appends EVERY <tr> in the
+  // tbody on a header click — not just .client-row — so a sort scatters our
+  // non-.client-row pending group. Re-pin it on the next tick (after V1's
+  // synchronous re-append). Bound once, delegated on the clients-table header.
+  function bindSortRepin() {
+    if (window.__hdlv2PendingSortRepin || !state.table) return;
+    window.__hdlv2PendingSortRepin = true;
+    state.table.addEventListener('click', function (e) {
+      var th = e.target && e.target.closest && e.target.closest('th');
+      if (th) setTimeout(renderPendingLeadsGroup, 0);
+    });
   }
 
   function buildPendingGroupHeadRow(n) {
