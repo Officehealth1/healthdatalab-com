@@ -1176,6 +1176,13 @@ class HDLV2_Widget_Config {
                 // page + practitioner tile (both 1 dp) do not. Same source value
                 // (HDLV2_Stage1_Commentary::biological_age); format only.
                 'biological_age'         => number_format( (float) $commentary['biological_age'], 1, '.', '' ),
+                // F2 (0.47.44) — top-level chronological age for the Make Stage-1
+                // email, which renders {{1.chronological_age}}. Previously absent
+                // at top level (only inside stage1_data.q1_age, which the PDF reads)
+                // so the email rendered blank. Same value the PDF shows (q1_age).
+                // Guaranteed non-null STRING per this payload's type-cache
+                // convention (see the rate_of_ageing note above).
+                'chronological_age'      => (string) (int) ( $stage1_data['q1_age'] ?? 0 ),
                 'strongest_topic'        => $commentary['strongest_topic'],
                 'strongest_text'         => $commentary['strongest_text'],
                 'priority_topic'         => $commentary['priority_topic'],
