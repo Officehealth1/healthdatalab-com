@@ -1805,8 +1805,32 @@ class HDLV2_Widget_Config {
             $user_id
         ) );
 
+        // F3 (0.47.45) — whitelist of Stage-1 answer fields surfaced in the
+        // main-list "Pending confirmation" dropdown. Only the 9 questionnaire
+        // answers — never the server_result/_safety internals stored alongside.
+        $s1_fields = array( 'q1_age', 'q1_sex', 'q2a', 'q2b', 'q3', 'q4', 'q5', 'q6', 'q7', 'q8', 'q9' );
         $out = array();
         foreach ( (array) $rows as $r ) {
+            // F3 — decode + whitelist the captured Stage-1 answers so the
+            // practitioner can review a lead's details in the main-list dropdown
+            // BEFORE confirming (Matthew's ask). The query is already scoped to
+            // the caller's own leads (WHERE practitioner_user_id = %d), so no new
+            // exposure. null when a lead has no captured answers (older leads).
+            $s1_out = null;
+            if ( ! empty( $r->stage1_data ) ) {
+                $s1_raw = json_decode( $r->stage1_data, true );
+                if ( is_array( $s1_raw ) ) {
+                    $s1_out = array();
+                    foreach ( $s1_fields as $f ) {
+                        if ( isset( $s1_raw[ $f ] ) && $s1_raw[ $f ] !== '' ) {
+                            $s1_out[ $f ] = $s1_raw[ $f ];
+                        }
+                    }
+                    if ( empty( $s1_out ) ) {
+                        $s1_out = null;
+                    }
+                }
+            }
             $out[] = array(
                 'id'             => (int) $r->id,
                 'visitor_name'   => (string) $r->visitor_name,
@@ -1814,6 +1838,7 @@ class HDLV2_Widget_Config {
                 'visitor_age'    => $r->visitor_age !== null ? (int) $r->visitor_age : null,
                 'rate_of_ageing' => $r->rate_of_ageing !== null ? (float) $r->rate_of_ageing : null,
                 'created_at'     => (string) $r->created_at,
+                'stage1_data'    => $s1_out,
             );
         }
         return rest_ensure_response( array( 'leads' => $out ) );
