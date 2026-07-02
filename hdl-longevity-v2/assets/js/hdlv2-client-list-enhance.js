@@ -852,41 +852,18 @@
     return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
   }
 
-  function computeQueueHash(list) {
-    // Signature includes only the clients that WOULD appear in the banner
-    // plus their latest_event_at — so a new check-in on a flagged client
-    // (even if still flagged) bumps the hash and un-dismisses the banner.
-    //
-    // v0.35.1 — pending widget submissions are part of the signature too,
-    // so receiving a new lead while the banner is collapsed auto-expands
-    // it on the next render (matches the same UX as receiving a new
-    // check-in).
-    var relevant = (list || []).filter(function (c) {
-      return c.status === 'awaiting_why_release'
-          || c.status === 'awaiting_consult'
-          || c.status === 'needs_attention';
-    }).map(function (c) {
-      return [c.user_id, c.status, c.latest_event_at || ''].join('|');
-    });
-    (state.pendingLeads || []).forEach(function (lead) {
-      relevant.push(['lead', lead.id, lead.created_at || ''].join('|'));
-    });
-    relevant.sort();
-    return relevant.join('~');
-  }
-
   function getCollapseState() {
     try {
       var raw = window.localStorage.getItem(COLLAPSE_KEY);
       if (!raw) return null;
       var parsed = JSON.parse(raw);
-      return parsed && parsed.hash ? parsed : null;
+      return parsed && parsed.date ? parsed : null;
     } catch (e) { return null; }
   }
 
-  function setCollapseState(hash) {
+  function setCollapseState() {
     try {
-      window.localStorage.setItem(COLLAPSE_KEY, JSON.stringify({ hash: hash, date: todayLocal() }));
+      window.localStorage.setItem(COLLAPSE_KEY, JSON.stringify({ date: todayLocal() }));
     } catch (e) {}
   }
 
@@ -911,26 +888,26 @@
     var isNowCollapsed = !state.actionQueueEl.classList.contains('hdlv2-aq-collapsed');
     setToggleUI(isNowCollapsed);
     if (isNowCollapsed) {
-      // Persist collapse with the current content hash so it auto-expands
-      // when something changes (new release-WHY, new check-in, new
-      // awaiting-consult, etc.).
-      var hash = computeQueueHash(state.clients || []);
-      setCollapseState(hash);
+      // 0.47.49 — persist the collapse for the rest of the day. It stays closed
+      // across polls + reloads regardless of queue activity. (The old content-hash
+      // logic re-expanded the banner on ANY queued-client timestamp bump / new
+      // lead — reported as annoying "it won't stay closed".) The header count pill
+      // keeps showing the live total while collapsed, so new work is still
+      // surfaced without forcing the banner open. Resets to expanded at midnight.
+      setCollapseState();
     } else {
       clearCollapseState();
     }
   }
 
-  function applyCollapseState(list) {
+  function applyCollapseState() {
     if (!state.actionQueueEl) return;
     var collapsed = getCollapseState();
     if (!collapsed) { setToggleUI(false); return; }
-    // New day → expand again, clear stale state
+    // New day → fresh start (expand + clear). Otherwise the practitioner's
+    // collapse is honoured for the whole day, regardless of queue changes —
+    // the banner does not auto-re-expand on activity anymore.
     if (collapsed.date !== todayLocal()) { clearCollapseState(); setToggleUI(false); return; }
-    // New event → expand again, clear stale state
-    var currentHash = computeQueueHash(list);
-    if (collapsed.hash !== currentHash) { clearCollapseState(); setToggleUI(false); return; }
-    // Same content, same day → keep collapsed (practitioner's preference)
     setToggleUI(true);
   }
 
@@ -994,7 +971,7 @@
     }
 
     state.actionQueueEl.classList.add('hdlv2-aq-has-items');
-    applyCollapseState(list);
+    applyCollapseState();
 
     var html = '';
     Object.keys(groups).forEach(function (key) {
