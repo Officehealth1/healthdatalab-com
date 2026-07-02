@@ -349,16 +349,18 @@ class HDLV2_Client_Status {
         $s1_raw    = isset( $s1['server_result']['raw'] )    && is_array( $s1['server_result']['raw'] )    ? $s1['server_result']['raw']    : array();
         $s1_scores = isset( $s1['server_result']['scores'] ) && is_array( $s1['server_result']['scores'] ) ? $s1['server_result']['scores'] : array();
 
-        // v0.41.23 — Stage 1 biological-age estimate. Stage 1's
+        // v0.41.23 / F1 0.47.43 — Stage 1 biological-age estimate. Stage 1's
         // calculate_quick() returns rate only, not bio_age (Stage 3's
-        // calculate_full() owns that). The Stage 1 PDFMonkey template uses
-        // the same identity inverse — bio_age = round(rate × chrono_age) —
-        // in HDLV2_Stage1_Commentary line 535. We mirror that integer
-        // rounding so the practitioner panel matches the Bio Age the
-        // client sees in their Stage 1 PDF.
+        // calculate_full() owns that), so we derive it from the identity
+        // inverse bio_age = round(rate × chrono_age, 1). Delegated to the
+        // canonical HDLV2_Stage1_Commentary::biological_age() helper — the
+        // SINGLE source of truth shared with the client result page and the
+        // Stage-1 webhook payload (email + PDF) — so the practitioner panel
+        // figure (1 dp) can never drift from what the client sees. (v0.47.15
+        // moved this off integer rounding; F1 centralises the maths.)
         $s1_age = isset( $s1['q1_age'] ) ? (int) $s1['q1_age'] : null;
         $s1_bio_age_est = ( $s1_rate !== null && $s1_age && $s1_age > 0 )
-            ? round( $s1_rate * $s1_age, 1 ) /* v0.47.15: 1-dp parity with PDF/email/screen (was (int)) */
+            ? HDLV2_Stage1_Commentary::biological_age( $s1_rate, $s1_age )
             : null;
 
         $stage1 = array(

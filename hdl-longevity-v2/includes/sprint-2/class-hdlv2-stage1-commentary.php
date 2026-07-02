@@ -88,12 +88,30 @@ class HDLV2_Stage1_Commentary {
         return $p1 . $p2 . $p3 . $p4 . $p5;
     }
 
+    /**
+     * Canonical Stage-1 biological-age estimate — the SINGLE source of truth
+     * for the identity inverse bio_age = rate × chronological age, rounded to
+     * ONE DECIMAL. Every Stage-1 surface (client result page, practitioner
+     * Stage-1 tile, and the Stage-1 webhook payload that feeds the email + PDF)
+     * derives the number from here so they can never drift — the reported
+     * "46 vs 45.9" inconsistency (F1) was exactly such a drift. Returns null
+     * when age is unknown; each caller decides how to render that.
+     *
+     * @param float $rate Pace-of-ageing multiplier (calculate_quick rate).
+     * @param int   $age  Chronological age (q1_age).
+     * @return float|null round(rate × age, 1), or null when age ≤ 0.
+     */
+    public static function biological_age( $rate, $age ) {
+        $age = (int) $age;
+        return $age > 0 ? round( (float) $rate * $age, 1 ) : null;
+    }
+
     // ──────────────────────────────────────────────────────────────
     //  PARAGRAPH 1 — HEADLINE (rate band)
     // ──────────────────────────────────────────────────────────────
 
     private static function p1_headline( $first_name, $age, $sex, $rate ) {
-        $bio_age = $age > 0 ? round( $rate * $age, 1 ) : null;
+        $bio_age = self::biological_age( $rate, $age );
         $abs_gap = ( $bio_age !== null ) ? abs( round( $bio_age - $age, 1 ) ) : null;
 
         $gap_phrase = '';
@@ -532,7 +550,7 @@ class HDLV2_Stage1_Commentary {
 
         return array(
             'headline_text'   => $headline_text,
-            'biological_age'  => $age > 0 ? round( $rate * $age, 1 ) : 0,
+            'biological_age'  => ( ( $b = self::biological_age( $rate, $age ) ) !== null ? $b : 0 ),
             'strongest_topic' => self::topic_for_factor( $strongest ),
             'strongest_text'  => self::library_text_plain( $strongest, 'strength' ),
             'priority_topic'  => self::topic_for_factor( $weakest ),

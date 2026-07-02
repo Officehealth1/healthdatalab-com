@@ -1390,7 +1390,7 @@
         +     '</div>'
         +     '<div class="hdlw-r-stat">'
         +       '<p class="hdlw-r-stat-label">Biological Age</p>'
-        +       '<p class="hdlw-r-stat-value">' + (bio !== null ? bio + ' yrs' : '\u2014') + '</p>'
+        +       '<p class="hdlw-r-stat-value">' + (bio !== null ? bio.toFixed(1) + ' yrs' : '\u2014') + '</p>'
         +       '<p class="hdlw-r-stat-note ' + bandClass + '">' + escapeHtml(diffLabel) + '</p>'
         +     '</div>'
         +     '<div class="hdlw-r-stat">'

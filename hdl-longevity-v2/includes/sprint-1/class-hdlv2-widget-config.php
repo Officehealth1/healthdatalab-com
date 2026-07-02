@@ -1168,7 +1168,14 @@ class HDLV2_Widget_Config {
                 // HDLV2_Stage1_Commentary::build_structured(). Make.com
                 // forwards these unchanged into the PDFMonkey payload.
                 'headline_text'          => $commentary['headline_text'],
-                'biological_age'         => $commentary['biological_age'],
+                // F1 (0.47.43) — force a stable 1-dp STRING (e.g. "45.9", "46.0"),
+                // mirroring rate_of_ageing above and the Final-Report payload
+                // (final-report.php number_format(...,1)). A raw float drops the
+                // decimal on whole numbers (46.0 → JSON 46), so the Make email /
+                // PDFMonkey Stage-1 PDF could render an integer while the client
+                // page + practitioner tile (both 1 dp) do not. Same source value
+                // (HDLV2_Stage1_Commentary::biological_age); format only.
+                'biological_age'         => number_format( (float) $commentary['biological_age'], 1, '.', '' ),
                 'strongest_topic'        => $commentary['strongest_topic'],
                 'strongest_text'         => $commentary['strongest_text'],
                 'priority_topic'         => $commentary['priority_topic'],
