@@ -1839,6 +1839,15 @@ class HDLV2_Widget_Config {
                 'rate_of_ageing' => $r->rate_of_ageing !== null ? (float) $r->rate_of_ageing : null,
                 'created_at'     => (string) $r->created_at,
                 'stage1_data'    => $s1_out,
+                // 0.47.50 — display-ready { label, value } pairs for the
+                // strip's View-details panel, built server-side from the SAME
+                // wording tables the confirmed-client Stage-1 tab uses
+                // (single wording source). The old JS-side map mislabelled
+                // 6 of 9 answers and showed raw a–e letters for real leads.
+                // null mirrors stage1_data's no-detail case.
+                'stage1_display' => ( $s1_out && class_exists( 'HDLV2_Client_Status' ) )
+                    ? HDLV2_Client_Status::s1_pending_display_pairs( $s1_out )
+                    : null,
             );
         }
         return rest_ensure_response( array( 'leads' => $out ) );

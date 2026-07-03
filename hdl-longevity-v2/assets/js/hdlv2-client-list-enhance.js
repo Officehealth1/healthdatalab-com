@@ -1180,8 +1180,12 @@
   }
 
   // 0.47.48 — Stage-1 snapshot for the top-strip "View details" panel:
-  // whitelisted contact + rate + the 9 Stage-1 answers. Degrades gracefully
+  // whitelisted contact + rate + the Stage-1 answers. Degrades gracefully
   // ("no answer detail" note) when a lead has no captured stage1_data.
+  // 0.47.50 — answers render from server-built stage1_display pairs
+  // (label + canonical answer prose, same wording tables as the confirmed-
+  // client Stage-1 tab). The old JS-side label map mislabelled 6 of 9
+  // answers (q4 "Sitting", q9 "Social", …) and showed raw a–e letters.
   function buildPendingLeadDetailHTML(lead) {
     var s1 = (lead.stage1_data && typeof lead.stage1_data === 'object') ? lead.stage1_data : null;
     function kv(k, v) {
@@ -1201,20 +1205,17 @@
       + kv('Sex', String(sex))
       + '</div>';
 
-    var answers;
-    if (s1) {
-      var labels = { q2a: 'Body shape', q2b: 'Fat distribution', q3: 'Activity', q4: 'Sitting',
-        q5: 'Sleep', q6: 'Smoking', q7: 'Alcohol', q8: 'Diet', q9: 'Social' };
-      var items = '';
-      Object.keys(labels).forEach(function (k) {
-        if (s1[k] !== undefined && s1[k] !== null && s1[k] !== '') items += kv(labels[k], String(s1[k]));
+    var items = '';
+    if (Array.isArray(lead.stage1_display)) {
+      lead.stage1_display.forEach(function (p) {
+        if (p && p.label && p.value !== undefined && p.value !== null && p.value !== '') {
+          items += kv(String(p.label), String(p.value));
+        }
       });
-      answers = items
-        ? '<div class="hdlv2-pending-detail-sub">Stage-1 answers</div><div class="hdlv2-pending-detail-grid">' + items + '</div>'
-        : '<div class="hdlv2-pending-detail-empty">No Stage-1 answer detail was captured for this lead.</div>';
-    } else {
-      answers = '<div class="hdlv2-pending-detail-empty">No Stage-1 answer detail was captured for this lead.</div>';
     }
+    var answers = items
+      ? '<div class="hdlv2-pending-detail-sub">Stage-1 answers</div><div class="hdlv2-pending-detail-grid">' + items + '</div>'
+      : '<div class="hdlv2-pending-detail-empty">No Stage-1 answer detail was captured for this lead.</div>';
 
     return '<div class="hdlv2-pending-detail">'
       + '<div class="hdlv2-pending-detail-note">Pre-confirmation lead — not yet an account. Confirm to provision the client and send their Stage-2 link.</div>'
