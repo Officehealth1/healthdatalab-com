@@ -1981,6 +1981,7 @@ RULES:
 - Flexibility note: remind them the plan is flexible and they can rearrange their day.
 - Include environment management (lay out clothes, prep food, handle difficult people) as Key Actions at the relevant time of day.
 - Include review prompts for the next check-in.
+- NEVER state a numeric clinical figure — biological age, rate of ageing / pace, blood pressure, BMI, weight, or any measurement — unless that EXACT figure appears in the input data below; if you use one, quote it verbatim. If no figure is provided, speak qualitatively ("your pace of ageing", not a number). The same applies to the client\'s name: use only the name given in the input. Inventing a number or a name is a critical failure.
 
 JSON SHAPE — STRICT:
 - Return ONLY valid JSON. No markdown fences. No commentary before or after.

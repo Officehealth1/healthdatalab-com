@@ -154,3 +154,32 @@ These feedback fixes sit on top of Part A + Part B + the dark iris capture-only 
 **Fix (Option A — sticky, day-scoped collapse):** dropped the content-hash entirely. The collapse is now persisted as `{date}` only and **honoured for the whole day** across polls + reloads, regardless of queue activity; it resets to expanded only at local midnight (matching the banner's "today" purpose). The header **count pill still updates live while collapsed**, so new work is surfaced without forcing the banner open. Removed the now-dead `computeQueueHash`; `getCollapseState`/`setCollapseState`/`applyCollapseState`/`toggleActionQueue` simplified; `applyCollapseState()` no longer takes a list.
 **Files:** `assets/js/hdlv2-client-list-enhance.js`, `hdl-longevity-v2.php`. **Risk:** low — collapse-state logic only; no backend/funnel/schema change; Confirm/Reject/View-details untouched.
 **Evidence (STBY, throwaway practitioner, torn down clean):** collapse → localStorage = `{"date":"2026-07-02"}` (no hash); then **added a 3rd pending lead + reloaded** → banner **stayed collapsed** (old code would have re-expanded on the hash change) and the count pill updated to **3**. `node --check`/`php -l` clean; md5-verified; `/health` 0.47.49, db_in_sync, 16/16.
+
+---
+
+## Pending-lead View-details: correct labels + answer prose (0.47.50, `3ec2ddc`)
+
+**Found by the 2026-07-03 full smoke test** (3-agent: practitioner+client browser flows, backend audit, go-live readiness — all PASS otherwise; see memory `project_smoke_test_2026_07_03`).
+**Bug:** the strip panel's JS label map mislabelled **6 of 9** Stage-1 answers (q4 "Sitting", q5 "Sleep", q6 "Smoking", q7 "Alcohol", q8 "Diet", q9 "Social" — vs the widget's real q4 Cardiovascular capacity, q5 Functional strength, q6 Sleep, q7 Smoking, q8 Social connection, q9 Diet) **and** would render raw `a–e` letters for real widget leads (the widget submits letters; only my F3 test seeds contained full text — which is exactly why F3 verification missed it: the seeded values coincidentally matched the wrong labels, and every real STBY lead had null `stage1_data`).
+**Fix (single wording source):** new public `HDLV2_Client_Status::s1_pending_display_pairs()` builds ordered `{label, value}` pairs from the SAME tables the confirmed-client Stage-1 tab uses (`s1_option_label` for Q3–Q9 prose, `s1_q2b_label` for the Q2b code, the tab's exact label nouns incl. "(Qn)" suffixes). `/widget/leads/pending` now emits `stage1_display` alongside the whitelisted raw `stage1_data`; the JS renders the pairs and its wrong map is **deleted** (no dead code). Unknown letters ("z"→"Z") and legacy free-text pass through raw so captured data is never hidden. Whitelist (no `server_result`/`_safety`) unchanged; endpoint stays own-practitioner-scoped.
+**Files:** `class-hdlv2-client-status.php`, `class-hdlv2-widget-config.php`, `hdlv2-client-list-enhance.js`, `hdl-longevity-v2.php`.
+**Evidence (STBY):** in-process endpoint test — seeded a real-format lead (letters + `q2b:'apple'` + 2 fallback edge values) → **8/8 assertions pass** ("silhouette #4 · Mostly middle", "Zone-2 cardio (Q3) = About 30–60 minutes per week", …, legacy text passthrough, "Z", no old labels, whitelist intact); Playwright render as practitioner Bob shows the correct pairs; empty-guard lead (Zeus) still graceful; no horizontal overflow; md5-verified; `/health` 0.47.50. Test lead torn down.
+
+---
+
+## Flight-plan prompt: forbid invented clinical figures/names (0.47.51, `b988306`)
+
+**Found by the same smoke test:** a May-generated plan's Journey Assistance addressed the client by the wrong name ("James") and cited a **fabricated biological age (43.2)** contradicting every real surface (55–56, pace 1.10–1.13).
+**Root cause (live gap, not just stale data):** the flight-plan system prompt — unlike the draft/final report prompts, which all carry "you never invent clinical markers" whitelist rules — had **no guard against fabricating numbers**; `journey_assistance` is free prose.
+**Fix:** one RULES line — numeric clinical figures (bio age, pace, BP, BMI, weight, any measurement) may only be stated if the EXACT figure appears in the input, quoted verbatim; otherwise speak qualitatively; client name likewise input-only. Prompt-text only; no payload/funnel/schema change.
+**Evidence:** guard grep-confirmed in the deployed file; md5-verified; `/health` 0.47.51. (Not exercised with a live Claude call — plan generation is an AI burn; the next real weekly generation is the E2E check, and the go-live funnel E2E must include reading the generated plan copy for numeric consistency.)
+
+---
+
+## Smoke-test findings resolved WITHOUT code (2026-07-03)
+
+- **Cross-surface 1.10× vs 1.13× (Kim Smoke Test) — legacy data, NOT a live bug.** Her April reports have no baked `calc_snapshot` (predate v0.46.28), so `/my-report/` takes its documented legacy fallback (live recompute → 1.13/56.3) while the stored narrative + `rate_snapshot` say 1.10. Every report generated since v0.46.28 freezes the snapshot and renders byte-identical to the PDF. The dashboard "baseline" tile reads `reports.rate_snapshot` (generation-time truth).
+- **Post SMTP 43% failure rate — 100% test noise.** Every failure is "Invalid To address" for synthetic `*.test` addresses from automated diagnostics (`irc_test_*`, `diag_*`); 139/139 real sends OK.
+- **Dead links:** 44 unique same-origin links checked across `/clients/` + `/consultation/` as a logged-in practitioner — zero 4xx/5xx (client pages already had zero failed requests in the smoke run).
+
+**Left for humans (deliberately untouched):** `hdlv2_ff_stalled_filter` still ON on STBY (demo leftover — flip needs Quim's say-so; auto-mode correctly blocked me); LIVE public-audio relocation (needs LIVE-write approval); `/consultation/` page has an empty WP page title (cosmetic; changing `post_title` could surface a theme H1 — Quim's call); `?invite=`/`?prac_login=` magic links are suppressed while another session is active (safe-by-design, but worth knowing during QA); `/my-report/` offers no on-page PDF download (email-delivery by design — feature decision, not a bug).

@@ -581,6 +581,71 @@ class HDLV2_Client_Status {
     }
 
     /**
+     * 0.47.50 — Ordered { label, value } pairs for the pending-lead
+     * "View details" panel in the practitioner action queue. Built from the
+     * SAME wording sources as the confirmed-client Stage-1 tab —
+     * s1_option_label() for the Q3–Q9 prose, s1_q2b_label() for the Q2b
+     * code, and the tab's exact label nouns — so the two practitioner
+     * surfaces cannot drift. (The 2026-07-03 smoke test found the panel's
+     * old JS-side map labelled 6 of 9 answers with the wrong question —
+     * q4 "Sitting", q9 "Social" etc. — and rendered raw a–e letters for
+     * real widget leads.)
+     *
+     * @param array $s1 Whitelisted stage1_data (q1_age..q9) as emitted by
+     *                  rest_list_pending_leads — never contains
+     *                  server_result/_safety.
+     * @return array[] Ordered list of array( 'label' => …, 'value' => … );
+     *                 empty array when nothing displayable.
+     */
+    public static function s1_pending_display_pairs( $s1 ) {
+        if ( ! is_array( $s1 ) || empty( $s1 ) ) {
+            return array();
+        }
+        $pairs = array();
+
+        // Q2 — "silhouette #N · Mostly middle", matching the client tab.
+        $q2b_label = self::s1_q2b_label( $s1['q2b'] ?? '' );
+        if ( $q2b_label === '' && ! empty( $s1['q2b'] ) ) {
+            $q2b_label = (string) $s1['q2b']; // unknown code — show raw rather than hide
+        }
+        if ( isset( $s1['q2a'] ) && $s1['q2a'] !== '' ) {
+            $body = 'silhouette #' . $s1['q2a'];
+            if ( $q2b_label !== '' ) {
+                $body .= ' · ' . $q2b_label;
+            }
+            $pairs[] = array( 'label' => 'Body shape (Q2)', 'value' => $body );
+        } elseif ( $q2b_label !== '' ) {
+            $pairs[] = array( 'label' => 'Body shape (Q2)', 'value' => $q2b_label );
+        }
+
+        // Q3–Q9 — canonical answer prose; fall back to the raw stored value
+        // (upper-cased letter or legacy free text) so captured data is never
+        // silently hidden from the practitioner reviewing the lead.
+        $labels = array(
+            'q3' => 'Zone-2 cardio (Q3)',
+            'q4' => 'VO2max (Q4)',
+            'q5' => 'Sit-to-stand (Q5)',
+            'q6' => 'Sleep (Q6)',
+            'q7' => 'Smoking (Q7)',
+            'q8' => 'Social connection (Q8)',
+            'q9' => 'Diet (Q9)',
+        );
+        foreach ( $labels as $q => $label ) {
+            if ( ! isset( $s1[ $q ] ) || $s1[ $q ] === '' ) {
+                continue;
+            }
+            $text = self::s1_option_label( $q, (string) $s1[ $q ] );
+            if ( $text === '' ) {
+                $raw  = (string) $s1[ $q ];
+                $text = ( strlen( $raw ) === 1 ) ? strtoupper( $raw ) : $raw;
+            }
+            $pairs[] = array( 'label' => $label, 'value' => $text );
+        }
+
+        return $pairs;
+    }
+
+    /**
      * v0.46.49 — { field: answer-word } for the 16 scored Stage-3 dropdown
      * questions, resolved from the client's raw stage3_data answer (what they
      * actually chose, including any consultation-editor correction — those
