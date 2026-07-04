@@ -18,26 +18,6 @@ if ( ! defined( 'ABSPATH' ) ) {
 class HDLV2_Compatibility {
 
     /**
-     * Get the practitioner linked to a client.
-     *
-     * @param int $client_user_id WordPress user ID of the client.
-     * @return int|null Practitioner user ID or null.
-     */
-    public static function get_practitioner_for_client( $client_user_id ) {
-        global $wpdb;
-        $table = $wpdb->prefix . 'health_tracker_practitioner_clients';
-
-        if ( ! self::table_exists( $table ) ) {
-            return null;
-        }
-
-        return $wpdb->get_var( $wpdb->prepare(
-            "SELECT practitioner_user_id FROM $table WHERE client_user_id = %d AND deleted_at IS NULL LIMIT 1",
-            $client_user_id
-        ) );
-    }
-
-    /**
      * Get all clients for a practitioner.
      *
      * @param int $practitioner_user_id WordPress user ID of the practitioner.
@@ -414,18 +394,31 @@ class HDLV2_Compatibility {
             return false;
         }
 
-        // Derive email hashes and name from user IDs for V1 dashboard compatibility
+        // Derive email hashes and name from user IDs for V1 dashboard compatibility.
+        // The V1 table has NO client_user_id column — it keys relationships on
+        // (practitioner_email_hash, client_email_hash). Both hashes are NOT NULL
+        // in the schema, so without both users there is nothing valid to write.
         $client_user       = get_userdata( $client_id );
         $practitioner_user = get_userdata( $practitioner_id );
 
-        $client_email_hash       = $client_user ? hash( 'sha256', strtolower( trim( $client_user->user_email ) ) ) : null;
-        $practitioner_email_hash = $practitioner_user ? hash( 'sha256', strtolower( trim( $practitioner_user->user_email ) ) ) : null;
-        $client_name             = $client_user ? $client_user->display_name : null;
+        if ( ! $client_user || ! $practitioner_user ) {
+            return false;
+        }
 
-        // Check if relationship exists (including soft-deleted) — match by user ID or email hash
+        $client_email_hash       = hash( 'sha256', strtolower( trim( $client_user->user_email ) ) );
+        $practitioner_email_hash = hash( 'sha256', strtolower( trim( $practitioner_user->user_email ) ) );
+        $client_name             = $client_user->display_name;
+
+        // Check if relationship exists (including soft-deleted). Match by
+        // client_email_hash within this practitioner — practitioner side matches
+        // on user ID OR email hash so pre-migration rows (NULL practitioner_user_id)
+        // still dedupe instead of tripping the unique key on insert.
         $existing = $wpdb->get_row( $wpdb->prepare(
-            "SELECT id, deleted_at FROM $table WHERE practitioner_user_id = %d AND (client_user_id = %d OR client_email_hash = %s) LIMIT 1",
-            $practitioner_id, $client_id, $client_email_hash ?? ''
+            "SELECT id, deleted_at FROM $table
+             WHERE ( practitioner_user_id = %d OR practitioner_email_hash = %s )
+               AND client_email_hash = %s
+             LIMIT 1",
+            $practitioner_id, $practitioner_email_hash, $client_email_hash
         ) );
 
         if ( $existing ) {
@@ -443,36 +436,36 @@ class HDLV2_Compatibility {
                 return false;
             }
 
-            // Active row exists — refresh fields. Do NOT touch deleted_at.
-            $update_data = array( 'client_user_id' => $client_id );
+            // Active row exists — refresh fields (incl. backfilling
+            // practitioner_user_id on pre-migration rows). Do NOT touch deleted_at.
+            $update_data = array(
+                'practitioner_user_id' => $practitioner_id,
+                'client_email_hash'    => $client_email_hash,
+            );
             if ( $client_name ) {
                 $update_data['client_name'] = $client_name;
-            }
-            if ( $client_email_hash ) {
-                $update_data['client_email_hash'] = $client_email_hash;
             }
             $wpdb->update( $table, $update_data, array( 'id' => $existing->id ) );
             return true;
         }
 
         // Create new relationship with all V1-required fields
-        $insert_data = array(
-            'practitioner_user_id'   => $practitioner_id,
-            'client_user_id'         => $client_id,
-            'linked_date'            => current_time( 'mysql' ),
-            'submission_count'       => 0,
-        );
-        if ( $practitioner_email_hash ) {
-            $insert_data['practitioner_email_hash'] = $practitioner_email_hash;
-        }
-        if ( $client_email_hash ) {
-            $insert_data['client_email_hash'] = $client_email_hash;
-        }
-        if ( $client_name ) {
-            $insert_data['client_name'] = $client_name;
-        }
+        $inserted = $wpdb->insert( $table, array(
+            'practitioner_user_id'    => $practitioner_id,
+            'practitioner_email_hash' => $practitioner_email_hash,
+            'client_email_hash'       => $client_email_hash,
+            'client_name'             => $client_name,
+            'linked_date'             => current_time( 'mysql' ),
+            'submission_count'        => 0,
+        ) );
 
-        $wpdb->insert( $table, $insert_data );
+        if ( false === $inserted ) {
+            error_log( sprintf(
+                '[HDLV2] Failed to create V1 practitioner-client link (prac=%d, client=%d): %s',
+                $practitioner_id, $client_id, $wpdb->last_error
+            ) );
+            return false;
+        }
 
         // Set user meta so V1 forms lock the practitioner email field
         update_user_meta( $client_id, 'hdl_invited_by_practitioner', $practitioner_id );
