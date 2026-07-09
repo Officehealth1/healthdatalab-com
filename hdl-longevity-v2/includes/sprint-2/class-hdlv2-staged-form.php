@@ -2603,6 +2603,14 @@ class HDLV2_Staged_Form {
         // (or never-backfilled NULL — fail closed) tokens no longer
         // authenticate to any staged-form endpoint. Values are stored via
         // gmdate() (UTC), so the comparison is UTC-to-UTC.
+        //
+        // NOTE: this hard gate (no self/owner bypass, unlike draft-view) is
+        // safe because magic-link auth cookies are session-length (≤2 days)
+        // while the token TTL is 90 days sliding — a valid cookie always
+        // implies a freshly-slid token. If a remember-me / long-lived cookie
+        // is ever introduced, cookie-authed clients with expired tokens will
+        // start getting 403s here and on the checkin/timeline/flight-plan/
+        // audio/job-queue token gates — add a bypass like draft-view's then.
         return $wpdb->get_row( $wpdb->prepare(
             "SELECT * FROM {$wpdb->prefix}hdlv2_form_progress WHERE token = %s AND deleted_at IS NULL AND token_expires_at > UTC_TIMESTAMP() LIMIT 1",
             $token

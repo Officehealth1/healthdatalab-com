@@ -29,9 +29,21 @@ class HDLV2_Activator {
      */
     public static function upgrade() {
         self::create_tables();
-        self::run_migrations();
+        $migrations_ok = self::run_migrations();
         self::schedule_crons();
-        update_option( 'hdlv2_db_version', HDLV2_DB_VERSION );
+        // v0.47.53 (B4 review W1) — only mark the DB version done when the
+        // migrations verified clean. Before this, a failed migration (e.g.
+        // Phase AF backup hitting a full disk) still bumped hdlv2_db_version,
+        // marked itself complete, and never retried — with fail-closed token
+        // auth that silently locks every legacy client out. Now a failure
+        // leaves the version behind, so the boot check re-runs upgrade() on
+        // the next request until it verifies (create_tables/migrations are
+        // idempotent, so the retry loop is safe).
+        if ( $migrations_ok ) {
+            update_option( 'hdlv2_db_version', HDLV2_DB_VERSION );
+        } else {
+            error_log( '[HDLV2] upgrade(): a migration reported failure — hdlv2_db_version NOT bumped; upgrade will retry on the next request.' );
+        }
         update_option( 'hdlv2_version', HDLV2_VERSION );
     }
 
@@ -1521,53 +1533,74 @@ class HDLV2_Activator {
                 $bak_table = $fp_table . '_bak_v325';
                 $ttl_days  = defined( 'HDLV2_CLIENT_TOKEN_TTL_DAYS' ) ? (int) HDLV2_CLIENT_TOKEN_TTL_DAYS : 90;
 
-                $bak_exists = (int) $wpdb->get_var( $wpdb->prepare(
-                    "SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES
-                     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s",
-                    $bak_table
-                ) );
-                if ( ! $bak_exists ) {
-                    $wpdb->query( "CREATE TABLE `$bak_table` LIKE `$fp_table`" );
-                    if ( $wpdb->last_error ) {
-                        error_log( '[HDLV2] Phase AF (v3.25) backup CREATE failed: ' . $wpdb->last_error . ' — backfill NOT run.' );
-                        // No backup → do not touch the live table. Fail-closed
-                        // login treats NULL as expired, so this fails safe
-                        // (deny) — never open.
-                        return;
-                    }
-                    $wpdb->query( "INSERT INTO `$bak_table` SELECT * FROM `$fp_table`" );
-                    if ( $wpdb->last_error ) {
-                        error_log( '[HDLV2] Phase AF (v3.25) backup INSERT failed: ' . $wpdb->last_error . ' — backfill NOT run.' );
-                        return;
-                    }
+                // v0.47.53 (B4 review W2) — named MySQL lock so two concurrent
+                // first-boot requests can't interleave: without it, request B
+                // could see the backup table freshly CREATEd (still empty) by
+                // request A, skip the backup block, and backfill the live
+                // table before A's INSERT…SELECT populated the backup.
+                // Failure to acquire = another request is migrating; report
+                // failure so the version stays behind and we re-check next boot.
+                $got_lock = $wpdb->get_var( "SELECT GET_LOCK( 'hdlv2_phase_af_v325', 10 )" );
+                if ( '1' !== (string) $got_lock ) {
+                    error_log( '[HDLV2] Phase AF (v3.25) migration lock not acquired (another request migrating?) — will retry next boot.' );
+                    return false;
                 }
+                try {
+                    $bak_exists = (int) $wpdb->get_var( $wpdb->prepare(
+                        "SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES
+                         WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s",
+                        $bak_table
+                    ) );
+                    if ( ! $bak_exists ) {
+                        $wpdb->query( "CREATE TABLE `$bak_table` LIKE `$fp_table`" );
+                        if ( $wpdb->last_error ) {
+                            error_log( '[HDLV2] Phase AF (v3.25) backup CREATE failed: ' . $wpdb->last_error . ' — backfill NOT run.' );
+                            // No backup → do not touch the live table. Fail-closed
+                            // login treats NULL as expired, so this fails safe
+                            // (deny) — never open. Returning false keeps the DB
+                            // version behind so the migration retries next boot.
+                            return false;
+                        }
+                        $wpdb->query( "INSERT INTO `$bak_table` SELECT * FROM `$fp_table`" );
+                        if ( $wpdb->last_error ) {
+                            error_log( '[HDLV2] Phase AF (v3.25) backup INSERT failed: ' . $wpdb->last_error . ' — backfill NOT run.' );
+                            return false;
+                        }
+                    }
 
-                $wpdb->query(
-                    "UPDATE `$fp_table`
-                     SET token_expires_at = GREATEST(
-                         DATE_ADD( COALESCE( created_at, UTC_TIMESTAMP() ), INTERVAL $ttl_days DAY ),
-                         DATE_ADD( UTC_TIMESTAMP(), INTERVAL 14 DAY )
-                     )
-                     WHERE token_expires_at IS NULL"
-                );
-                if ( $wpdb->last_error ) {
-                    error_log( '[HDLV2] Phase AF (v3.25) backfill UPDATE failed: ' . $wpdb->last_error );
-                }
+                    $wpdb->query(
+                        "UPDATE `$fp_table`
+                         SET token_expires_at = GREATEST(
+                             DATE_ADD( COALESCE( created_at, UTC_TIMESTAMP() ), INTERVAL $ttl_days DAY ),
+                             DATE_ADD( UTC_TIMESTAMP(), INTERVAL 14 DAY )
+                         )
+                         WHERE token_expires_at IS NULL"
+                    );
+                    if ( $wpdb->last_error ) {
+                        error_log( '[HDLV2] Phase AF (v3.25) backfill UPDATE failed: ' . $wpdb->last_error );
+                    }
 
-                // Verify — a row left NULL is now UNUSABLE (fail-closed
-                // login), so surface it loudly rather than silently.
-                $remaining = (int) $wpdb->get_var(
-                    "SELECT COUNT(*) FROM `$fp_table` WHERE token_expires_at IS NULL"
-                );
-                if ( $remaining > 0 ) {
-                    error_log( sprintf( '[HDLV2] Phase AF (v3.25) INCOMPLETE: %d row(s) still have NULL token_expires_at — those tokens are dead until backfilled.', $remaining ) );
-                } else {
+                    // Verify — a row left NULL is now UNUSABLE (fail-closed
+                    // login), so surface it loudly AND report failure so the
+                    // migration retries instead of marking itself done.
+                    $remaining = (int) $wpdb->get_var(
+                        "SELECT COUNT(*) FROM `$fp_table` WHERE token_expires_at IS NULL"
+                    );
+                    if ( $remaining > 0 ) {
+                        error_log( sprintf( '[HDLV2] Phase AF (v3.25) INCOMPLETE: %d row(s) still have NULL token_expires_at — those tokens are dead until backfilled.', $remaining ) );
+                        return false;
+                    }
                     error_log( '[HDLV2] Phase AF (v3.25) migration: token_expires_at backfilled (90d from created_at, 14d deploy-grace floor); backup in ' . $bak_table . '.' );
+                } finally {
+                    $wpdb->query( "SELECT RELEASE_LOCK( 'hdlv2_phase_af_v325' )" );
                 }
             } catch ( \Throwable $e ) {
                 error_log( '[HDLV2] Phase AF migration error: ' . $e->getMessage() . ' — boot continues; verify manually.' );
+                return false;
             }
         }
+
+        return true;
     }
 
     /**
