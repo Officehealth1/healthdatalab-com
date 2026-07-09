@@ -951,6 +951,16 @@ class HDLV2_Staged_Form {
         ) );
 
         if ( $existing ) {
+            // v0.47.53 (B4) — the practitioner is re-issuing this link right
+            // now, so guarantee it's live for a full TTL window; without this
+            // a re-shared link for a dormant client could be born expired.
+            $wpdb->update(
+                $wpdb->prefix . 'hdlv2_form_progress',
+                array( 'token_expires_at' => gmdate( 'Y-m-d H:i:s', time() + HDLV2_CLIENT_TOKEN_TTL_DAYS * DAY_IN_SECONDS ) ),
+                array( 'id' => $existing->id ),
+                array( '%s' ),
+                array( '%d' )
+            );
             return rest_ensure_response( array(
                 'success' => true,
                 'token'   => $existing->token,
@@ -966,9 +976,12 @@ class HDLV2_Staged_Form {
             'client_name'          => $client_name,
             'client_email'         => $client_email,
             'token'                => $token,
+            // v0.47.53 (B4) — tokens are born with an expiry; the init
+            // auto-login slides it forward on every successful use.
+            'token_expires_at'     => gmdate( 'Y-m-d H:i:s', time() + HDLV2_CLIENT_TOKEN_TTL_DAYS * DAY_IN_SECONDS ),
             'current_stage'        => 1,
         );
-        $insert_format = array( '%d', '%s', '%s', '%s', '%d' );
+        $insert_format = array( '%d', '%s', '%s', '%s', '%s', '%d' );
 
         if ( $invite_id !== null ) {
             $insert_data['widget_invite_id'] = $invite_id;
@@ -2585,8 +2598,13 @@ class HDLV2_Staged_Form {
         // callers already treat a null row as 404, so this is behaviourally
         // transparent for live assessments. Mirrors the same filter on
         // HDLV2_Job_Queue::permission_read() and check_audio_permission().
+        //
+        // v0.47.53 (B4) — `AND token_expires_at > UTC_TIMESTAMP()`. Expired
+        // (or never-backfilled NULL — fail closed) tokens no longer
+        // authenticate to any staged-form endpoint. Values are stored via
+        // gmdate() (UTC), so the comparison is UTC-to-UTC.
         return $wpdb->get_row( $wpdb->prepare(
-            "SELECT * FROM {$wpdb->prefix}hdlv2_form_progress WHERE token = %s AND deleted_at IS NULL LIMIT 1",
+            "SELECT * FROM {$wpdb->prefix}hdlv2_form_progress WHERE token = %s AND deleted_at IS NULL AND token_expires_at > UTC_TIMESTAMP() LIMIT 1",
             $token
         ) );
     }

@@ -164,9 +164,12 @@ class HDLV2_Flight_Plan {
         global $wpdb;
         // v0.41.17 — `AND deleted_at IS NULL`. Stale tokens for soft-deleted
         // assessments must not grant access to flight-plan endpoints.
+        // v0.47.53 (B4) — `AND token_expires_at > UTC_TIMESTAMP()`: expired
+        // tokens no longer authenticate (practitioner + cookie-client paths
+        // are handled above this token fallback).
         $progress = $wpdb->get_row( $wpdb->prepare(
             "SELECT client_user_id FROM {$wpdb->prefix}hdlv2_form_progress
-             WHERE token = %s AND deleted_at IS NULL LIMIT 1",
+             WHERE token = %s AND deleted_at IS NULL AND token_expires_at > UTC_TIMESTAMP() LIMIT 1",
             $token
         ) );
         if ( ! $progress ) {
@@ -2154,9 +2157,11 @@ TODAY: " . date( 'Y-m-d' );
             global $wpdb;
             // v0.41.17 — `AND deleted_at IS NULL`. Old tokens for archived
             // assessments must not surface a client_id to the shortcode.
+            // v0.47.53 (B4) — nor may expired tokens; the anonymous page
+            // load is already blocked at init, this covers direct renders.
             $progress = $wpdb->get_row( $wpdb->prepare(
                 "SELECT client_user_id FROM {$wpdb->prefix}hdlv2_form_progress
-                 WHERE token = %s AND deleted_at IS NULL LIMIT 1",
+                 WHERE token = %s AND deleted_at IS NULL AND token_expires_at > UTC_TIMESTAMP() LIMIT 1",
                 $tok
             ) );
             if ( $progress ) $client_id = (int) $progress->client_user_id;

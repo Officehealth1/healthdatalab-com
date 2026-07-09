@@ -1497,6 +1497,77 @@ class HDLV2_Activator {
                 error_log( '[HDLV2] Phase AE migration error: ' . $e->getMessage() . ' — boot continues; verify manually.' );
             }
         }
+
+        // Phase AF (DB v3.25) — B4: backfill hdlv2_form_progress.token_expires_at.
+        //
+        // The column existed since Phase Q (v3.8) but nothing ever wrote it and
+        // the init auto-login treated NULL as "valid forever" — every client
+        // magic-link token was a permanent reusable login credential. From
+        // v0.47.53 the login + token-authenticated REST surface fail CLOSED on
+        // NULL/expired, so every legacy row needs a real expiry BEFORE that
+        // check can bite:
+        //   expiry = GREATEST( created_at + TTL (90d — same window new tokens
+        //                      get), UTC_TIMESTAMP() + 14 DAY deploy-grace )
+        // The 14-day floor guarantees nobody mid-funnel is locked out at
+        // deploy; any client who clicks their link within the grace window
+        // slides to a fresh 90 days (init login refresh), and dormant/leaked
+        // links die at the floor. Idempotent (WHERE ... IS NULL); the live
+        // table is fully copied to <table>_bak_v325 first (existence-guarded)
+        // so the backfill is restorable:
+        //   UPDATE t JOIN bak USING (id) SET t.token_expires_at = bak.token_expires_at
+        if ( version_compare( $current_db_version, '3.25', '<' ) ) {
+            try {
+                $fp_table  = $p . 'hdlv2_form_progress';
+                $bak_table = $fp_table . '_bak_v325';
+                $ttl_days  = defined( 'HDLV2_CLIENT_TOKEN_TTL_DAYS' ) ? (int) HDLV2_CLIENT_TOKEN_TTL_DAYS : 90;
+
+                $bak_exists = (int) $wpdb->get_var( $wpdb->prepare(
+                    "SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES
+                     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s",
+                    $bak_table
+                ) );
+                if ( ! $bak_exists ) {
+                    $wpdb->query( "CREATE TABLE `$bak_table` LIKE `$fp_table`" );
+                    if ( $wpdb->last_error ) {
+                        error_log( '[HDLV2] Phase AF (v3.25) backup CREATE failed: ' . $wpdb->last_error . ' — backfill NOT run.' );
+                        // No backup → do not touch the live table. Fail-closed
+                        // login treats NULL as expired, so this fails safe
+                        // (deny) — never open.
+                        return;
+                    }
+                    $wpdb->query( "INSERT INTO `$bak_table` SELECT * FROM `$fp_table`" );
+                    if ( $wpdb->last_error ) {
+                        error_log( '[HDLV2] Phase AF (v3.25) backup INSERT failed: ' . $wpdb->last_error . ' — backfill NOT run.' );
+                        return;
+                    }
+                }
+
+                $wpdb->query(
+                    "UPDATE `$fp_table`
+                     SET token_expires_at = GREATEST(
+                         DATE_ADD( COALESCE( created_at, UTC_TIMESTAMP() ), INTERVAL $ttl_days DAY ),
+                         DATE_ADD( UTC_TIMESTAMP(), INTERVAL 14 DAY )
+                     )
+                     WHERE token_expires_at IS NULL"
+                );
+                if ( $wpdb->last_error ) {
+                    error_log( '[HDLV2] Phase AF (v3.25) backfill UPDATE failed: ' . $wpdb->last_error );
+                }
+
+                // Verify — a row left NULL is now UNUSABLE (fail-closed
+                // login), so surface it loudly rather than silently.
+                $remaining = (int) $wpdb->get_var(
+                    "SELECT COUNT(*) FROM `$fp_table` WHERE token_expires_at IS NULL"
+                );
+                if ( $remaining > 0 ) {
+                    error_log( sprintf( '[HDLV2] Phase AF (v3.25) INCOMPLETE: %d row(s) still have NULL token_expires_at — those tokens are dead until backfilled.', $remaining ) );
+                } else {
+                    error_log( '[HDLV2] Phase AF (v3.25) migration: token_expires_at backfilled (90d from created_at, 14d deploy-grace floor); backup in ' . $bak_table . '.' );
+                }
+            } catch ( \Throwable $e ) {
+                error_log( '[HDLV2] Phase AF migration error: ' . $e->getMessage() . ' — boot continues; verify manually.' );
+            }
+        }
     }
 
     /**

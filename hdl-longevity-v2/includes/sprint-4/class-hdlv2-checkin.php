@@ -734,8 +734,11 @@ class HDLV2_Checkin {
         // v0.41.17 — `AND deleted_at IS NULL`. Bookmarked / emailed check-in
         // links pointing at a soft-deleted progress must not post check-ins
         // against the archived row.
+        // v0.47.53 (B4) — `AND token_expires_at > UTC_TIMESTAMP()`: expired
+        // tokens no longer authenticate to check-in endpoints. Weekly-active
+        // clients never expire (the init auto-login slides the window).
         $progress = $wpdb->get_row( $wpdb->prepare(
-            "SELECT * FROM {$wpdb->prefix}hdlv2_form_progress WHERE token = %s AND deleted_at IS NULL",
+            "SELECT * FROM {$wpdb->prefix}hdlv2_form_progress WHERE token = %s AND deleted_at IS NULL AND token_expires_at > UTC_TIMESTAMP()",
             $token
         ) );
         if ( ! $progress ) {

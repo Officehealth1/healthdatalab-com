@@ -441,9 +441,12 @@ class HDLV2_Job_Queue {
         $token = $request->get_param( 'token' ) ?: '';
         if ( $token && preg_match( '/^[a-f0-9]{64}$/', $token ) ) {
             global $wpdb;
+            // v0.47.53 (B4) — `AND token_expires_at > UTC_TIMESTAMP()`:
+            // expired (or never-backfilled NULL — fail closed) tokens no
+            // longer authenticate. Practitioners short-circuit above.
             $exists = $wpdb->get_var( $wpdb->prepare(
                 "SELECT id FROM {$wpdb->prefix}hdlv2_form_progress
-                 WHERE token = %s AND deleted_at IS NULL LIMIT 1",
+                 WHERE token = %s AND deleted_at IS NULL AND token_expires_at > UTC_TIMESTAMP() LIMIT 1",
                 $token
             ) );
             return (bool) $exists;

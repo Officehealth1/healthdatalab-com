@@ -124,8 +124,10 @@ class HDLV2_Audio_Service {
         $token = $request->get_param( 'token' ) ?: '';
         if ( $token && preg_match( '/^[a-f0-9]{64}$/', $token ) ) {
             global $wpdb;
+            // v0.47.53 (B4) — `AND token_expires_at > UTC_TIMESTAMP()`:
+            // expired tokens no longer authenticate to audio endpoints.
             $exists = $wpdb->get_var( $wpdb->prepare(
-                "SELECT id FROM {$wpdb->prefix}hdlv2_form_progress WHERE token = %s AND deleted_at IS NULL",
+                "SELECT id FROM {$wpdb->prefix}hdlv2_form_progress WHERE token = %s AND deleted_at IS NULL AND token_expires_at > UTC_TIMESTAMP()",
                 $token
             ) );
             return (bool) $exists;
@@ -336,8 +338,9 @@ class HDLV2_Audio_Service {
         $is_practitioner = ( ( $uid = (int) get_current_user_id() ) && HDLV2_Compatibility::is_practitioner( $uid ) );
         $progress        = null;
         if ( $tok ) {
+            // v0.47.53 (B4) — expired tokens must not bind AI-burn work.
             $progress = $wpdb->get_row( $wpdb->prepare(
-                "SELECT id, client_user_id FROM {$wpdb->prefix}hdlv2_form_progress WHERE token = %s AND deleted_at IS NULL LIMIT 1",
+                "SELECT id, client_user_id FROM {$wpdb->prefix}hdlv2_form_progress WHERE token = %s AND deleted_at IS NULL AND token_expires_at > UTC_TIMESTAMP() LIMIT 1",
                 $tok
             ) );
         }

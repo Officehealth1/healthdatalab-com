@@ -126,9 +126,11 @@ class HDLV2_Timeline {
         global $wpdb;
         // v0.41.17 — `AND deleted_at IS NULL`. Old client token must not
         // resolve once the practitioner soft-deleted the relationship.
+        // v0.47.53 (B4) — `AND token_expires_at > UTC_TIMESTAMP()`: expired
+        // tokens no longer authenticate (practitioner path handled above).
         $progress = $wpdb->get_row( $wpdb->prepare(
             "SELECT client_user_id FROM {$wpdb->prefix}hdlv2_form_progress
-             WHERE token = %s AND deleted_at IS NULL
+             WHERE token = %s AND deleted_at IS NULL AND token_expires_at > UTC_TIMESTAMP()
              LIMIT 1",
             $token
         ) );

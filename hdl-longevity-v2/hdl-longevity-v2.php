@@ -3,7 +3,7 @@
  * Plugin Name: HDL Longevity V2 — Staged Workflow
  * Plugin URI: https://healthdatalab.net
  * Description: V2 longevity workflow: staged intake, WHY profiling, practitioner consultations, weekly flight plans, and AI coaching. Runs alongside the existing Health Data Lab plugin.
- * Version: 0.47.52
+ * Version: 0.47.53
  * Author: Health Data Lab
  * Author URI: https://healthdatalab.net
  * License: Proprietary
@@ -22,8 +22,17 @@ if ( ! defined( 'ABSPATH' ) ) {
 // register_activation_hook callbacks, which fire synchronously during
 // `wp plugin activate`, can reference them. The activator needs
 // HDLV2_DB_VERSION / HDLV2_VERSION at call time to update version options.
-define( 'HDLV2_VERSION', '0.47.52' );
-define( 'HDLV2_DB_VERSION', '3.24' );
+define( 'HDLV2_VERSION', '0.47.53' );
+define( 'HDLV2_DB_VERSION', '3.25' );
+
+// Client funnel token (hdlv2_form_progress.token) lifetime. Sliding window:
+// set at token creation, refreshed to now+TTL on every successful ?token=
+// auto-login and on practitioner re-issue (New Client for an existing email).
+// 90 days covers the Stage 1→3 assessment plus weekly check-in gaps without
+// cutting a real client off mid-funnel; a leaked/dormant link dies ≤90 days
+// after its last legitimate use. Used by the init login, both INSERT sites,
+// and the Phase AF (v3.25) backfill migration.
+define( 'HDLV2_CLIENT_TOKEN_TTL_DAYS', 90 );
 define( 'HDLV2_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'HDLV2_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 define( 'HDLV2_PLUGIN_FILE', __FILE__ );
@@ -95,7 +104,15 @@ add_action( 'init', function () {
                 ''
             );
         }
-        if ( ! empty( $invite->expires_at ) && strtotime( $invite->expires_at ) < time() ) {
+        // v0.47.53 (B4) — fail CLOSED: an invite with no expiry (legacy row;
+        // schema is NOT NULL so only zero-dates/garbage) is treated as
+        // expired, not as valid forever. ' UTC' suffix because expires_at is
+        // stored via gmdate() — parsing it as server-local time rejected
+        // still-valid invites an hour early on BST (same class of bug as
+        // the v0.26.2 #5 fix elsewhere in widget-config).
+        if ( empty( $invite->expires_at )
+             || false === strtotime( $invite->expires_at . ' UTC' )
+             || strtotime( $invite->expires_at . ' UTC' ) < time() ) {
             // v0.40.15 — surfaced from silent return. Invites expire after
             // 72 hours by default; tell the user clearly and point them at
             // their practitioner.
@@ -295,21 +312,30 @@ add_action( 'init', function () {
 
         global $wpdb;
         // v0.40.20 — also fetch token_expires_at so we can show a specific
-        // "link expired" card (different copy than "not found"). Legacy
-        // rows have NULL expiry → treated as no expiry (back-compat).
+        // "link expired" card (different copy than "not found").
         //
         // v0.41.17 — `AND deleted_at IS NULL`. Soft-deleted form_progress
         // rows must not resolve, otherwise the client could click an old
         // emailed link and auto-log into an archived assessment.
+        //
+        // v0.47.53 (B4) — `id` also fetched for the sliding-expiry refresh
+        // below.
         $progress = $wpdb->get_row( $wpdb->prepare(
-            "SELECT client_user_id, token_expires_at FROM {$wpdb->prefix}hdlv2_form_progress
+            "SELECT id, client_user_id, token_expires_at FROM {$wpdb->prefix}hdlv2_form_progress
              WHERE token = %s AND deleted_at IS NULL
              LIMIT 1",
             $token
         ) );
 
-        if ( $progress && ! empty( $progress->token_expires_at )
-             && strtotime( $progress->token_expires_at ) < time() ) {
+        // v0.47.53 (B4) — fail CLOSED. Pre-fix, NULL expiry meant "valid
+        // forever" and nothing ever wrote token_expires_at, so every client
+        // token was a permanent reusable login credential. Now: NULL/garbage
+        // = expired (the Phase AF v3.25 migration backfills real expiries
+        // before this can bite a live client), and the stored-UTC value is
+        // parsed with ' UTC' so non-UTC servers don't drift the window.
+        if ( $progress && ( empty( $progress->token_expires_at )
+             || false === strtotime( $progress->token_expires_at . ' UTC' )
+             || strtotime( $progress->token_expires_at . ' UTC' ) < time() ) ) {
             // v0.40.20 — explicit "expired" card. Distinct from the
             // "not found" branch below so the practitioner / support
             // can tell the user the right next step (ask for a fresh
@@ -327,6 +353,18 @@ add_action( 'init', function () {
         if ( $progress && $progress->client_user_id ) {
             wp_set_current_user( $progress->client_user_id );
             wp_set_auth_cookie( $progress->client_user_id, false );
+
+            // v0.47.53 (B4) — sliding window: every successful magic-link
+            // login pushes the expiry to now+TTL, so an actively-engaged
+            // client (weekly check-ins) never hits the wall, while a link
+            // that stops being used dies TTL days after its last use.
+            $wpdb->update(
+                $wpdb->prefix . 'hdlv2_form_progress',
+                array( 'token_expires_at' => gmdate( 'Y-m-d H:i:s', time() + HDLV2_CLIENT_TOKEN_TTL_DAYS * DAY_IN_SECONDS ) ),
+                array( 'id' => $progress->id ),
+                array( '%s' ),
+                array( '%d' )
+            );
         } else {
             // v0.40.15 — surfaced from silent fall-through. Token regex was
             // valid (64-hex) but no form_progress row matched, meaning the

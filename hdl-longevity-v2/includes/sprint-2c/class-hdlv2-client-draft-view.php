@@ -78,8 +78,14 @@ class HDLV2_Client_Draft_View {
 
         // v0.41.17 — `AND deleted_at IS NULL`. Stale tokens for soft-deleted
         // assessments must not load draft/final report data.
+        //
+        // v0.47.53 (B4) — token_expires_at also fetched: expiry is checked in
+        // PHP (not SQL) because a cookie-authenticated caller who is the
+        // client themself or the owning practitioner may still view the
+        // report after the token expires — practitioners open dormant
+        // clients' reports via this same route.
         $progress = $wpdb->get_row( $wpdb->prepare(
-            "SELECT id, client_user_id, practitioner_user_id, client_name, stage1_data, stage3_data, stage3_completed_at
+            "SELECT id, client_user_id, practitioner_user_id, client_name, stage1_data, stage3_data, stage3_completed_at, token_expires_at
              FROM {$wpdb->prefix}hdlv2_form_progress
              WHERE token = %s AND deleted_at IS NULL
              LIMIT 1",
@@ -88,6 +94,27 @@ class HDLV2_Client_Draft_View {
 
         if ( ! $progress ) {
             return new WP_Error( 'not_found', 'Report not found.', array( 'status' => 404 ) );
+        }
+
+        // v0.47.53 (B4) — fail CLOSED on missing/garbage/past expiry unless
+        // the caller is cookie-authenticated as the client or their owning
+        // practitioner (HDLV2_Compatibility::practitioner_owns_client — the
+        // standard IDOR helper; admins pass via its manage_options escape).
+        $expired = empty( $progress->token_expires_at )
+            || false === strtotime( $progress->token_expires_at . ' UTC' )
+            || strtotime( $progress->token_expires_at . ' UTC' ) < time();
+        if ( $expired ) {
+            $uid      = get_current_user_id();
+            $is_self  = $uid && (int) $uid === (int) $progress->client_user_id;
+            $is_owner = $uid && class_exists( 'HDLV2_Compatibility' )
+                && HDLV2_Compatibility::practitioner_owns_client( $uid, (int) $progress->client_user_id );
+            if ( ! $is_self && ! $is_owner ) {
+                return new WP_Error(
+                    'expired_token',
+                    'This link has expired. Please ask your practitioner for a fresh link.',
+                    array( 'status' => 410 )
+                );
+            }
         }
 
         // Gate: must have completed Stage 3
