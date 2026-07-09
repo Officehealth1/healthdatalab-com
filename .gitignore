@@ -33,6 +33,10 @@ scripts/
 pdkmoney.json
 healformpdfmonkeytemplate.html
 
+# Local secrets — API keys sourced at runtime, never committed
+.pdfmonkey.env
+*.secret.env
+
 # AI context files (per-directory)
 assets/CLAUDE.md
 assets/css/CLAUDE.md

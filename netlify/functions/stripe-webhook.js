@@ -1,6 +1,7 @@
 const stripe = require('stripe')(process.env.STRIPE_SK);
 const nodemailer = require('nodemailer');
 const https = require('https');
+const { deriveProvisioning } = require('./lib/price-tiers');
 
 const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET;
 
@@ -131,15 +132,56 @@ exports.handler = async (event) => {
             console.log('Checking session metadata for provisioning');
 
             if (session.metadata) {
-                const tier = session.metadata.tier || '';
-                const practPref = session.metadata.practitioner_preference || 'no';
-                console.log(`Tier: "${tier}", Practitioner preference: "${practPref}"`);
+                // C3: derive the tier from the PRICE ACTUALLY PAID (line items), never from
+                // the client-influenced metadata.tier. Fail closed on an unmapped price.
+                let paidLineItems = { data: [] };
+                try {
+                    paidLineItems = await stripe.checkout.sessions.listLineItems(session.id, { limit: 10 });
+                } catch (err) {
+                    console.error('Error retrieving line items for tier derivation:', err.message);
+                }
+                const decision = deriveProvisioning({ lineItems: paidLineItems, metadata: session.metadata });
+                const practPref = session.metadata.practitioner_preference === 'yes' ? 'yes' : 'no';
+                console.log(`Provisioning decision: paidPriceId="${decision.paidPriceId}" tier="${decision.tier}" reason=${decision.reason}`);
 
-                if (tier === 'consumer_single' || tier === 'consumer_annual') {
+                if (decision.reason === 'unknown_price_id') {
+                    // Fail closed — never silently grant a tier for an unmapped price.
+                    provisioningFailed = true;
+                    console.error(`DENY provisioning: unknown/unmapped priceId "${decision.paidPriceId}"`);
+                    try {
+                        await transporter.sendMail({
+                            from: '"HealthDataLab" <office@healthdatalab.com>',
+                            to: 'office@healthdatalab.com',
+                            subject: `[ALERT] Unknown priceId — provisioning denied — ${customerEmail}`,
+                            html: `<p>Checkout completed with a priceId not in PRICE_TO_TIER — provisioning was DENIED (fail-closed).</p>
+<p><strong>Customer:</strong> ${customerEmail}</p>
+<p><strong>Paid priceId:</strong> ${decision.paidPriceId}</p>
+<p><strong>Session:</strong> ${session.id}</p>
+<p>Review and provision manually if legitimate.</p>`,
+                        });
+                    } catch (mailErr) { console.error('Failed to send unknown-price alert:', mailErr.message); }
+                } else if (decision.provision) {
+                    const tier = decision.tier; // authoritative — from the price actually paid
+                    if (decision.mismatch) {
+                        console.error(`Tier mismatch: metadata.tier="${session.metadata.tier}" != paid tier="${tier}" — provisioning the PAID tier`);
+                        try {
+                            await transporter.sendMail({
+                                from: '"HealthDataLab" <office@healthdatalab.com>',
+                                to: 'office@healthdatalab.com',
+                                subject: `[ALERT] Tier mismatch — provisioned paid tier — ${customerEmail}`,
+                                html: `<p>metadata.tier did not match the price actually paid; provisioned the PAID tier (safe).</p>
+<p><strong>Customer:</strong> ${customerEmail}</p>
+<p><strong>metadata.tier:</strong> ${session.metadata.tier}</p>
+<p><strong>Paid tier:</strong> ${tier} (priceId ${decision.paidPriceId})</p>
+<p><strong>Session:</strong> ${session.id}</p>`,
+                            });
+                        } catch (mailErr) { console.error('Failed to send mismatch alert:', mailErr.message); }
+                    }
                     const postData = JSON.stringify({
                         email: customerEmail,
                         name: session.customer_details?.name || '',
                         tier,
+                        price_id: decision.paidPriceId,
                         practitioner_preference: practPref,
                         stripe_session_id: session.id,
                         amount_total: amountTotal,
@@ -205,7 +247,7 @@ exports.handler = async (event) => {
                         }
                     }
                 } else {
-                    console.log(`Skipping provisioning — tier "${tier}" is not a consumer tier`);
+                    console.log(`Skipping provisioning — tier "${decision.tier}" is not a consumer tier`);
                 }
             } else {
                 console.log('No metadata on session — skipping provisioning');
@@ -237,7 +279,14 @@ exports.handler = async (event) => {
                 }
 
                 // --- Annual Pass renewal ---
-                const tier = subscription.metadata.tier || '';
+                // C3: derive the renewal tier from the subscription's ACTUAL price, not from
+                // subscription.metadata.tier. subscription.items carries the recurring price;
+                // non-GBP subs fall back to the server-recorded subscription.metadata.price_id.
+                const renewalDecision = deriveProvisioning({
+                    lineItems: { data: (subscription.items && subscription.items.data) || [] },
+                    metadata: subscription.metadata || {},
+                });
+                const tier = renewalDecision.tier || '';
                 if (tier === 'consumer_annual' && invoice.billing_reason === 'subscription_cycle') {
                     const customer = await stripe.customers.retrieve(subscription.customer);
                     const customerEmail = customer.email;
