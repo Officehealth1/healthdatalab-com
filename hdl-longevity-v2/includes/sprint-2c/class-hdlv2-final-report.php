@@ -117,8 +117,13 @@ class HDLV2_Final_Report {
             );
         }
 
+        // Bound to the ownership-checked progress row — a consultation_id
+        // belonging to another assessment finds no row and fails closed
+        // (cross-tenant guard; the job queue replays whatever pair was
+        // enqueued, so the REST-layer check alone is not enough).
         $consult = $wpdb->get_row( $wpdb->prepare(
-            "SELECT * FROM {$wpdb->prefix}hdlv2_consultation_notes WHERE id = %d", $consult_id
+            "SELECT * FROM {$wpdb->prefix}hdlv2_consultation_notes WHERE id = %d AND form_progress_id = %d",
+            $consult_id, $progress_id
         ) );
         if ( ! $consult ) {
             return new WP_Error( 'not_found', 'Consultation not found.', array( 'status' => 404 ) );
@@ -1896,9 +1901,13 @@ class HDLV2_Final_Report {
         $consult_row       = null;
         $addenda_for_merge = array();
         if ( $consult_id && class_exists( 'HDLV2_AI_Service' ) ) {
+            // Bound to the ownership-checked progress row (cross-tenant
+            // guard) — a foreign consultation_id loads nothing here, so the
+            // integrate/organise paths below can never write to another
+            // practitioner's ai_organised_notes.
             $consult_row = $wpdb->get_row( $wpdb->prepare(
-                "SELECT id, raw_notes, typed_notes, ai_organised_notes, recommendations FROM {$wpdb->prefix}hdlv2_consultation_notes WHERE id = %d LIMIT 1",
-                $consult_id
+                "SELECT id, raw_notes, typed_notes, ai_organised_notes, recommendations FROM {$wpdb->prefix}hdlv2_consultation_notes WHERE id = %d AND form_progress_id = %d LIMIT 1",
+                $consult_id, $progress_id
             ) );
             if ( $consult_row ) {
                 // Load ALL addenda for this consultation (used by the pre-

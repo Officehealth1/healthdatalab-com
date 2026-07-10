@@ -1906,6 +1906,20 @@ class HDLV2_Consultation {
             return new WP_Error( 'forbidden', 'You do not have access to this assessment.', array( 'status' => 403 ) );
         }
 
+        // Confirm the consultation belongs to this progress (cross-tenant
+        // guard — same belt-and-braces as rest_milestones_generate). The
+        // ownership check above only validates $progress_id; without this,
+        // a practitioner could pass ANOTHER practitioner's consultation_id
+        // and read/overwrite their clinical notes via generate()/regenerate().
+        // Nonexistent and foreign ids get the same 403 (no existence oracle).
+        $owns_consult = (int) $wpdb->get_var( $wpdb->prepare(
+            "SELECT COUNT(*) FROM {$wpdb->prefix}hdlv2_consultation_notes WHERE id = %d AND form_progress_id = %d",
+            $consult_id, $progress_id
+        ) );
+        if ( ! $owns_consult ) {
+            return new WP_Error( 'forbidden', 'Consultation does not belong to this assessment.', array( 'status' => 403 ) );
+        }
+
         // Serialise the in-flight check + enqueue with a short per-assessment
         // DB lock. The regenerate path uses a unique idem_key (so the queue's
         // own (job_type, idem_key) dedup can't catch a concurrent double-click),
