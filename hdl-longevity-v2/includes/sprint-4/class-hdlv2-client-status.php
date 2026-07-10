@@ -1030,7 +1030,7 @@ class HDLV2_Client_Status {
             COALESCE((SELECT MAX(confirmed_at) FROM {$p}hdlv2_checkins WHERE client_id IN ($ids) AND deleted_at IS NULL), '1970-01-01 00:00:01'),
             COALESCE((SELECT MAX(rep.updated_at) FROM {$p}hdlv2_reports rep INNER JOIN {$p}hdlv2_form_progress fp ON fp.id = rep.form_progress_id WHERE fp.client_user_id IN ($ids) AND fp.deleted_at IS NULL), '1970-01-01 00:00:01'),
             COALESCE((SELECT MAX(created_at) FROM {$p}hdlv2_flight_plans WHERE client_id IN ($ids) AND deleted_at IS NULL), '1970-01-01 00:00:01'),
-            COALESCE((SELECT MAX(COALESCE(approved_at, started_at, created_at)) FROM {$p}hdlv2_consultation_notes cn INNER JOIN {$p}hdlv2_form_progress fp ON fp.id = cn.form_progress_id WHERE cn.client_user_id IN ($ids) AND fp.deleted_at IS NULL), '1970-01-01 00:00:01'),
+            COALESCE((SELECT MAX(COALESCE(cn.approved_at, cn.started_at, cn.created_at)) FROM {$p}hdlv2_consultation_notes cn INNER JOIN {$p}hdlv2_form_progress fp ON fp.id = cn.form_progress_id WHERE cn.client_user_id IN ($ids) AND fp.deleted_at IS NULL), '1970-01-01 00:00:01'),
             COALESCE((SELECT MAX(ticked_at) FROM {$p}hdlv2_flight_plan_ticks WHERE client_id IN ($ids) AND deleted_at IS NULL), '1970-01-01 00:00:01')
         )) as v";
 
