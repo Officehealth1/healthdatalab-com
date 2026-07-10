@@ -1,4 +1,5 @@
 const stripe = require('stripe')(process.env.STRIPE_SK);
+const { PRICE_TO_TIER } = require('./lib/price-tiers');
 
 // Cache exchange rates for 1 hour
 let rateCache = { rates: null, timestamp: 0 };
@@ -130,13 +131,16 @@ exports.handler = async (event) => {
         sessionParams.phone_number_collection = { enabled: true };
         sessionParams.billing_address_collection = 'required';
 
-        // Session-level metadata for consumer provisioning
-        if (tier) {
-            sessionParams.metadata = {
-                tier: tier,
-                practitioner_preference: practitionerPreference || 'no',
-            };
-        }
+        // C3: tier is derived SERVER-SIDE from the validated priceId — NEVER copied from
+        // the client body. price_id records the priceId the amount was derived from so the
+        // webhook can re-derive the tier authoritatively (and reconcile later).
+        const derivedTier = PRICE_TO_TIER[priceId] || '';
+        const safePractPref = practitionerPreference === 'yes' ? 'yes' : 'no';
+        sessionParams.metadata = {
+            tier: derivedTier,          // display only — the webhook re-derives from the paid price
+            price_id: priceId,
+            practitioner_preference: safePractPref,
+        };
 
         // Free trial for Launchpad (collect card but don't charge during trial)
         if (safeTrial > 0 && safeMode === 'subscription') {
@@ -177,14 +181,16 @@ exports.handler = async (event) => {
             };
         }
 
-        // Ensure subscription metadata carries tier info for renewal webhooks
-        if (tier && safeMode === 'subscription') {
+        // Ensure subscription metadata carries the SERVER-DERIVED tier + price_id for
+        // renewal/cancellation webhooks (never the client-supplied tier).
+        if (safeMode === 'subscription') {
             sessionParams.subscription_data = {
                 ...(sessionParams.subscription_data || {}),
                 metadata: {
                     ...(sessionParams.subscription_data?.metadata || {}),
-                    tier: tier,
-                    practitioner_preference: practitionerPreference || 'no',
+                    tier: derivedTier,
+                    price_id: priceId,
+                    practitioner_preference: safePractPref,
                 },
             };
         }

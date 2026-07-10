@@ -52,4 +52,34 @@
 | ID | Time | T | Title | Read |
 |----|------|---|-------|------|
 | #7715 | 12:20 PM | 🔵 | Complete Infrastructure and Automation Flow Documentation Reviewed | ~1004 |
+
+### Apr 12, 2026
+
+| ID | Time | T | Title | Read |
+|----|------|---|-------|------|
+| #8074 | 11:02 AM | 🔵 | Comprehensive Codebase Architecture Discovery | ~958 |
+
+### Apr 27, 2026
+
+| ID | Time | T | Title | Read |
+|----|------|---|-------|------|
+| #9000 | 5:03 PM | 🔵 | V1 Plugin Credit System and Form Submission Flow Architecture | ~721 |
+
+### Jun 5, 2026
+
+| ID | Time | T | Title | Read |
+|----|------|---|-------|------|
+| #12117 | 11:35 AM | 🔵 | HDL platform architecture: dual WordPress plugins (V1 legacy + V2 AI-heavy), static Netlify frontend, single-VPS hosting | ~1336 |
+
+### Jul 9, 2026
+
+| ID | Time | T | Title | Read |
+|----|------|---|-------|------|
+| #16141 | 8:24 PM | 🔵 | C3 fix implementation progress: 3 files modified, new lib/price-tiers.js canonical mapping created, LIVE has partial consumer-only defense | ~997 |
+| #16131 | 8:17 PM | 🔴 | C3 Stripe tier tampering fix implementation started: importing PRICE_TO_TIER mapping into create-checkout.js | ~690 |
+| #16077 | 1:01 PM | 🔵 | Netlify functions use 7 environment variables with in-memory rate limiting (3/min email, 25 total seats) | ~674 |
+| #16055 | 12:56 PM | 🔵 | Project uses extensive per-directory CLAUDE.md context files, V1 plugin lacks root documentation | ~715 |
+| #16046 | 10:32 AM | 🔵 | Pre-launch backend security audit completed: NO-GO verdict with 4 CRITICAL blockers identified | ~1101 |
+| #16042 | 10:22 AM | 🔵 | Stripe checkout function implements server-side allowlists for price IDs, trial days, installments, and redirect URLs | ~693 |
+| #15956 | 10:10 AM | 🔵 | Stripe webhook handler implements payment processing with provisioning and renewal logic | ~596 |
 </claude-mem-context>
