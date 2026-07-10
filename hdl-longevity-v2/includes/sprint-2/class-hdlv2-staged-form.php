@@ -976,8 +976,8 @@ class HDLV2_Staged_Form {
             'client_name'          => $client_name,
             'client_email'         => $client_email,
             'token'                => $token,
-            // v0.47.53 (B4) — tokens are born with an expiry; the init
-            // auto-login slides it forward on every successful use.
+            // v0.47.53 (B4) — tokens are born with a FIXED expiry; never
+            // extended on use, only on practitioner re-issue (above).
             'token_expires_at'     => gmdate( 'Y-m-d H:i:s', time() + HDLV2_CLIENT_TOKEN_TTL_DAYS * DAY_IN_SECONDS ),
             'current_stage'        => 1,
         );
@@ -2605,12 +2605,13 @@ class HDLV2_Staged_Form {
         // gmdate() (UTC), so the comparison is UTC-to-UTC.
         //
         // NOTE: this hard gate (no self/owner bypass, unlike draft-view) is
-        // safe because magic-link auth cookies are session-length (≤2 days)
-        // while the token TTL is 90 days sliding — a valid cookie always
-        // implies a freshly-slid token. If a remember-me / long-lived cookie
-        // is ever introduced, cookie-authed clients with expired tokens will
-        // start getting 403s here and on the checkin/timeline/flight-plan/
-        // audio/job-queue token gates — add a bypass like draft-view's then.
+        // acceptable because magic-link auth cookies are session-length
+        // (≤2 days) while the token window is 90 days fixed — a cookie-authed
+        // client can only race the wall in the final ≤2 days of the window.
+        // If a remember-me / long-lived cookie is ever introduced, cookie-
+        // authed clients with expired tokens will start getting 403s here and
+        // on the checkin/timeline/flight-plan/audio/job-queue token gates —
+        // add a bypass like draft-view's then.
         return $wpdb->get_row( $wpdb->prepare(
             "SELECT * FROM {$wpdb->prefix}hdlv2_form_progress WHERE token = %s AND deleted_at IS NULL AND token_expires_at > UTC_TIMESTAMP() LIMIT 1",
             $token

@@ -102,12 +102,6 @@ class FakeWpdb {
     public function get_var( $q ) { return null; }
     public function update( $table, $data, $where, $fmt = null, $wfmt = null ) {
         echo 'DB_UPDATE:' . $table . ':' . json_encode( $data ) . "\n";
-        if ( false !== strpos( $table, 'form_progress' ) && isset( $data['token_expires_at'] ) ) {
-            $ts = strtotime( $data['token_expires_at'] . ' UTC' );
-            if ( $ts >= time() + 89 * DAY_IN_SECONDS && $ts <= time() + 91 * DAY_IN_SECONDS ) {
-                echo "SLIDE_OK\n";
-            }
-        }
         return 1;
     }
     public function insert( $t, $d = array(), $f = null ) { return 1; }

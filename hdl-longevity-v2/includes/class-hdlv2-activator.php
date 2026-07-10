@@ -1521,9 +1521,10 @@ class HDLV2_Activator {
         //   expiry = GREATEST( created_at + TTL (90d — same window new tokens
         //                      get), UTC_TIMESTAMP() + 14 DAY deploy-grace )
         // The 14-day floor guarantees nobody mid-funnel is locked out at
-        // deploy; any client who clicks their link within the grace window
-        // slides to a fresh 90 days (init login refresh), and dormant/leaked
-        // links die at the floor. Idempotent (WHERE ... IS NULL); the live
+        // deploy; the window is FIXED (never extended on use — v0.47.54), so
+        // a legacy client whose backfilled expiry lands at the floor needs a
+        // practitioner re-issue (New Client refreshes the expiry) to continue
+        // beyond it. Idempotent (WHERE ... IS NULL); the live
         // table is fully copied to <table>_bak_v325 first (existence-guarded)
         // so the backfill is restorable:
         //   UPDATE t JOIN bak USING (id) SET t.token_expires_at = bak.token_expires_at

@@ -55,12 +55,14 @@ list( $o ) = run_scenario( $sc, 'invite-expired' );
 ok( '?invite= past expiry → expired card, no cookie',
     false !== strpos( $o, 'invitation has expired' ) && false === strpos( $o, 'AUTH_COOKIE_SET' ) );
 
-// (b) fresh token logs in + slides expiry forward ~90d
+// (b) fresh token logs in — and the window is FIXED: re-fetching the link
+// must NOT extend it (review W3: an email link-scanner refetching the URL
+// would otherwise keep a leaked link alive indefinitely)
 list( $o ) = run_scenario( $sc, 'fresh' );
 ok( '?token= fresh → auth cookie set for client 42',
     false !== strpos( $o, 'AUTH_COOKIE_SET:42' ) );
-ok( '?token= fresh → expiry slides to ~now+90d',
-    false !== strpos( $o, 'SLIDE_OK' ) );
+ok( '?token= fresh → login does NOT extend expiry (fixed 90d window)',
+    false === strpos( $o, 'DB_UPDATE:wp_hdlv2_form_progress' ) );
 
 // UTC-parse correctness: a token valid for 30 more minutes must still work
 // on a non-UTC server (scenario pins Etc/GMT-1)

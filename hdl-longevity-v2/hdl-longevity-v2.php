@@ -3,7 +3,7 @@
  * Plugin Name: HDL Longevity V2 — Staged Workflow
  * Plugin URI: https://healthdatalab.net
  * Description: V2 longevity workflow: staged intake, WHY profiling, practitioner consultations, weekly flight plans, and AI coaching. Runs alongside the existing Health Data Lab plugin.
- * Version: 0.47.53
+ * Version: 0.47.54
  * Author: Health Data Lab
  * Author URI: https://healthdatalab.net
  * License: Proprietary
@@ -22,16 +22,17 @@ if ( ! defined( 'ABSPATH' ) ) {
 // register_activation_hook callbacks, which fire synchronously during
 // `wp plugin activate`, can reference them. The activator needs
 // HDLV2_DB_VERSION / HDLV2_VERSION at call time to update version options.
-define( 'HDLV2_VERSION', '0.47.53' );
+define( 'HDLV2_VERSION', '0.47.54' );
 define( 'HDLV2_DB_VERSION', '3.25' );
 
-// Client funnel token (hdlv2_form_progress.token) lifetime. Sliding window:
-// set at token creation, refreshed to now+TTL on every successful ?token=
-// auto-login and on practitioner re-issue (New Client for an existing email).
-// 90 days covers the Stage 1→3 assessment plus weekly check-in gaps without
-// cutting a real client off mid-funnel; a leaked/dormant link dies ≤90 days
-// after its last legitimate use. Used by the init login, both INSERT sites,
-// and the Phase AF (v3.25) backfill migration.
+// Client funnel token (hdlv2_form_progress.token) lifetime. FIXED window
+// from issuance: set when the token is created and refreshed ONLY when the
+// practitioner deliberately re-issues the link (New Client for an existing
+// email). Deliberately NOT extended on use — a fetch of the link (human or
+// an email link-scanner refetching it) must never keep a leaked link alive.
+// 90 days covers the Stage 1→3 assessment; long-running check-in clients
+// need a practitioner re-issue roughly quarterly. Used by the init login,
+// both INSERT sites, and the Phase AF (v3.25) backfill migration.
 define( 'HDLV2_CLIENT_TOKEN_TTL_DAYS', 90 );
 define( 'HDLV2_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'HDLV2_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
@@ -317,11 +318,8 @@ add_action( 'init', function () {
         // v0.41.17 — `AND deleted_at IS NULL`. Soft-deleted form_progress
         // rows must not resolve, otherwise the client could click an old
         // emailed link and auto-log into an archived assessment.
-        //
-        // v0.47.53 (B4) — `id` also fetched for the sliding-expiry refresh
-        // below.
         $progress = $wpdb->get_row( $wpdb->prepare(
-            "SELECT id, client_user_id, token_expires_at FROM {$wpdb->prefix}hdlv2_form_progress
+            "SELECT client_user_id, token_expires_at FROM {$wpdb->prefix}hdlv2_form_progress
              WHERE token = %s AND deleted_at IS NULL
              LIMIT 1",
             $token
@@ -353,18 +351,12 @@ add_action( 'init', function () {
         if ( $progress && $progress->client_user_id ) {
             wp_set_current_user( $progress->client_user_id );
             wp_set_auth_cookie( $progress->client_user_id, false );
-
-            // v0.47.53 (B4) — sliding window: every successful magic-link
-            // login pushes the expiry to now+TTL, so an actively-engaged
-            // client (weekly check-ins) never hits the wall, while a link
-            // that stops being used dies TTL days after its last use.
-            $wpdb->update(
-                $wpdb->prefix . 'hdlv2_form_progress',
-                array( 'token_expires_at' => gmdate( 'Y-m-d H:i:s', time() + HDLV2_CLIENT_TOKEN_TTL_DAYS * DAY_IN_SECONDS ) ),
-                array( 'id' => $progress->id ),
-                array( '%s' ),
-                array( '%d' )
-            );
+            // v0.47.54 (B4) — deliberately NO expiry refresh here. The window
+            // is FIXED from issuance: extending it on use would let any
+            // automated re-fetch (email link-scanners, prefetchers — WP
+            // auto-login runs on GET) keep a leaked link alive indefinitely.
+            // The only refresh is the practitioner's deliberate re-issue in
+            // HDLV2_Staged_Form::rest_create_client().
         } else {
             // v0.40.15 — surfaced from silent fall-through. Token regex was
             // valid (64-hex) but no form_progress row matched, meaning the

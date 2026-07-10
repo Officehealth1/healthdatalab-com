@@ -1451,8 +1451,8 @@ class HDLV2_Widget_Config {
                 'client_email'         => $visitor_email,
                 'widget_invite_id'     => $invite_id,
                 'token'                => $form_token,
-                // v0.47.53 (B4) — tokens are born with an expiry (UTC); the
-                // init auto-login slides it forward on every successful use.
+                // v0.47.53 (B4) — tokens are born with a FIXED expiry (UTC);
+                // never extended on use, only on practitioner re-issue.
                 'token_expires_at'     => gmdate( 'Y-m-d H:i:s', time() + HDLV2_CLIENT_TOKEN_TTL_DAYS * DAY_IN_SECONDS ),
                 'current_stage'        => 2,
                 'stage1_data'          => wp_json_encode( $stage1_data ),
