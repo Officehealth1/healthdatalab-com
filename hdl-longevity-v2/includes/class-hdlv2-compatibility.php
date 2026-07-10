@@ -497,18 +497,111 @@ class HDLV2_Compatibility {
             return false;
         }
 
-        $date = $date ?: current_time( 'Y-m-d' );
+        // Headline metrics ONLY. The V1 client dashboard's Progress Insights
+        // renders progress.slice(0,5) of rows ordered measurement_date DESC —
+        // writing the caller's ~21 sub-scores too would blank that top-5
+        // window with identically-stamped rows and displace V1's own
+        // insights. V1's writer stores exactly 4 headline metrics; this is
+        // the V2 equivalent set.
+        $headline = array( 'rate_of_ageing', 'biological_age', 'bmi', 'whr', 'whtr' );
+
+        $ok = true;
 
         foreach ( $metrics as $metric_name => $metric_value ) {
-            $wpdb->insert( $table, array(
-                'user_hash'        => $user_hash,
-                'measurement_date' => $date,
-                'metric_name'      => $metric_name,
-                'metric_value'     => $metric_value,
-            ), array( '%s', '%s', '%s', '%s' ) );
+            if ( ! in_array( $metric_name, $headline, true ) ) {
+                continue;
+            }
+            // current_value is decimal(8,2). 0 is a legitimate worst-band
+            // value in V2 (unlike V1, where 0 is the missing-data sentinel),
+            // so only negatives and overflow are rejected.
+            if ( ! is_numeric( $metric_value ) || ! is_finite( (float) $metric_value ) ) {
+                continue;
+            }
+            $value = round( (float) $metric_value, 2 );
+            if ( $value < 0 || $value > 999999.99 ) {
+                continue;
+            }
+
+            // Idempotency: generate() also runs on every regenerate, so the
+            // first write of the day wins. Deliberately skip-not-replace — a
+            // delete would destroy a same-day V1-written row (V1 and V2 share
+            // metric names like biological_age). Day compared on the DB clock
+            // (CURDATE()) — the same clock that stamps the rows below.
+            if ( null === $date ) {
+                $exists = $wpdb->get_var( $wpdb->prepare(
+                    "SELECT id FROM $table
+                      WHERE user_hash = %s AND metric_name = %s
+                        AND form_source = 'longevity' AND DATE(measurement_date) = CURDATE()
+                      LIMIT 1",
+                    $user_hash, $metric_name
+                ) );
+            } else {
+                $exists = $wpdb->get_var( $wpdb->prepare(
+                    "SELECT id FROM $table
+                      WHERE user_hash = %s AND metric_name = %s
+                        AND form_source = 'longevity' AND DATE(measurement_date) = %s
+                      LIMIT 1",
+                    $user_hash, $metric_name, substr( $date, 0, 10 )
+                ) );
+            }
+            if ( $exists ) {
+                continue;
+            }
+
+            // form_source 'longevity' is required (NOT NULL) and is the only
+            // value that renders on the client dashboard's filtered tab —
+            // anything else is invisible everywhere except "All Entries".
+            //
+            // measurement_date is deliberately OMITTED when no $date was
+            // passed: the column's DEFAULT current_timestamp() stamps it on
+            // the same clock as V1's writer (which also omits it). Stamping
+            // current_time() here would interleave WP-local and DB clocks in
+            // the one column every reader sorts by — the 1h BST divergence
+            // class fixed three times before (v0.26.2 #5, v0.27.1 #15, B4).
+            $row = array(
+                'user_hash'     => $user_hash,
+                'metric_name'   => $metric_name,
+                'current_value' => $value,
+                'form_source'   => 'longevity',
+            );
+            $format = array( '%s', '%s', '%f', '%s' );
+            if ( null !== $date ) {
+                $row['measurement_date'] = $date;
+                $format[]                = '%s';
+            }
+
+            // Trend columns, V1-parity (calculate_and_store_progress):
+            // computed against the latest prior point. The first-ever point
+            // per metric is stored as a baseline (NULL trend columns) so the
+            // series has an anchor for the next report's delta — V1 needs no
+            // baseline because its previous comes from the submissions table.
+            $prev = $wpdb->get_var( $wpdb->prepare(
+                "SELECT current_value FROM $table
+                  WHERE user_hash = %s AND metric_name = %s
+                  ORDER BY measurement_date DESC LIMIT 1",
+                $user_hash, $metric_name
+            ) );
+            if ( null !== $prev ) {
+                $change                = round( $value - (float) $prev, 2 );
+                $row['previous_value'] = (float) $prev;
+                $row['change_value']   = $change;
+                $format[]              = '%f';
+                $format[]              = '%f';
+                if ( (float) $prev > 0 ) {
+                    // change_percent is decimal(5,2) — clamp to its range.
+                    $pct                   = round( ( $change / (float) $prev ) * 100, 2 );
+                    $row['change_percent'] = max( -999.99, min( 999.99, $pct ) );
+                    $format[]              = '%f';
+                }
+            }
+
+            if ( false === $wpdb->insert( $table, $row, $format ) ) {
+                error_log( '[HDLV2] write_progress_point insert failed for ' . $metric_name . ': ' . $wpdb->last_error );
+                $ok = false;
+            }
         }
 
-        return true;
+        return $ok;
     }
 
     /**
@@ -522,7 +615,11 @@ class HDLV2_Compatibility {
         if ( ! $user ) {
             return null;
         }
-        return wp_hash( strtolower( trim( $user->user_email ) ) );
+        // Must equal V1's generate_user_hash (class-health-tracker.php) —
+        // every V1 table keyed on user_hash uses the salted sha256, so any
+        // other digest writes rows no V1 reader can ever find. The salt
+        // option is created at V1 boot; V1 is a hard boot dependency of V2.
+        return hash( 'sha256', strtolower( trim( $user->user_email ) ) . get_option( 'health_tracker_salt' ) );
     }
 
     /**
