@@ -2338,6 +2338,23 @@ class HDLV2_Staged_Form {
         global $wpdb;
         $threshold = gmdate( 'Y-m-d H:i:s', time() - 30 * MINUTE_IN_SECONDS );
 
+        // v0.47.58 — exclude rows the callback's own lookup would reject:
+        // get_progress_by_token() (B4) requires these SAME two predicates,
+        // so re-firing a dead row at Make (attempts 1-2) can only produce a
+        // phantom 404 "Assessment not found" plus a wasted Make execution,
+        // ~2×/week per stuck row forever (the 7-day retry transient keeps
+        // cycling). NULL expiry fails `> UTC_TIMESTAMP()` — fail closed,
+        // matching B4.
+        //
+        // Documented tradeoff (4-lens review, 2026-07-11): the expiry
+        // predicate also gates the attempt-3 LOCAL fallback, which is
+        // token-independent — an alive client whose token expires while
+        // stuck (Make failure within ~3 days of the 90-day wall) forfeits
+        // the local rescue too. Accepted: the designed recovery is
+        // practitioner re-issue (New Client, same email), which refreshes
+        // token_expires_at on the SAME row and re-arms this cron — and
+        // attempt counters no longer burn against dead rows, so retries
+        // resume where they left off.
         $candidates = $wpdb->get_results( $wpdb->prepare(
             "SELECT fp.id, fp.token, fp.client_user_id, fp.stage2_data, fp.client_name
              FROM {$wpdb->prefix}hdlv2_form_progress fp
@@ -2345,6 +2362,8 @@ class HDLV2_Staged_Form {
              WHERE fp.stage2_webhook_fired_at IS NOT NULL
                AND fp.stage2_webhook_fired_at < %s
                AND wpr.id IS NULL
+               AND fp.deleted_at IS NULL
+               AND fp.token_expires_at > UTC_TIMESTAMP()
              ORDER BY fp.id DESC
              LIMIT 50",
             $threshold
