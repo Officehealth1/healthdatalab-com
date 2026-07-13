@@ -75,6 +75,12 @@
   // 20s unconditional full-pull.
   var VERSION_POLL_MS  = 4000;
   var FALLBACK_POLL_MS = 60000;
+  // 2026-07-14 RL fix — the 60s fallback used to full-fetch UNCONDITIONALLY
+  // (2 counted reads/min/tab = 120/hr/tab against a 200/hr per-user budget
+  // shared by every open tab — idle dashboards self-429'd on LIVE). The
+  // fallback now refetches only when the data is genuinely stale; the 4s
+  // digest poll (unmetered) remains the realtime trigger.
+  var STALE_MS         = 5 * 60 * 1000;
   var versionTimer     = null;
   var fallbackTimer    = null;
   var lastVersion      = 0;
@@ -140,17 +146,32 @@
 
   function startPolling() {
     if (!versionTimer) versionTimer = setInterval(pollVersion, VERSION_POLL_MS);
-    if (!fallbackTimer) fallbackTimer = setInterval(pollNow, FALLBACK_POLL_MS);
+    if (!fallbackTimer) fallbackTimer = setInterval(fallbackTick, FALLBACK_POLL_MS);
   }
   function stopPolling() {
     if (versionTimer)  { clearInterval(versionTimer);  versionTimer = null; }
     if (fallbackTimer) { clearInterval(fallbackTimer); fallbackTimer = null; }
   }
+  // 2026-07-14 RL fix — while a 429 Retry-After cooldown is active (armed by
+  // hdlv2-rate-limit.js's global fetch wrapper) all polling stops. A poll
+  // fired into an active block is a wasted counted request.
+  function rlCoolingDown() {
+    try {
+      return !!(window.hdlv2RateLimit && window.hdlv2RateLimit.isCoolingDown && window.hdlv2RateLimit.isCoolingDown());
+    } catch (e) { return false; }
+  }
+  // 60s safety net: full-fetch ONLY when the digest signal has been missed
+  // long enough that the roster is genuinely stale.
+  function fallbackTick() {
+    if (rlCoolingDown()) return;
+    if (Date.now() - lastFetchedAt > STALE_MS) pollNow();
+  }
   // Fetch the digest. If it advanced, pull the full roster.
   function pollVersion() {
+    if (rlCoolingDown()) return;
     fetch(CFG.api_base + '/dashboard/version?_=' + Date.now(), {
       credentials: 'same-origin',
-      headers: { 'X-WP-Nonce': CFG.nonce },
+      headers: { 'X-WP-Nonce': CFG.nonce, 'X-HDLV2-Bg': '1' },
       cache: 'no-store',
     })
       .then(function (r) { return r.ok ? r.json() : null; })
@@ -171,9 +192,14 @@
     // v0.35.1 — refresh the pending-leads list in parallel so the action
     // queue's "New widget submissions" group reflects fresh server state
     // alongside the client roster.
-    Promise.all([fetchV2Clients(), fetchPendingLeads()]).then(function (results) {
-      var list  = results[0] || [];
-      var leads = results[1] || [];
+    return Promise.all([fetchV2Clients(), fetchPendingLeads()]).then(function (results) {
+      // 2026-07-14 RL fix — a null roster means the read was blocked (429)
+      // or failed: keep the currently rendered roster instead of wiping it
+      // with an empty list. Null leads fall back to the last known set.
+      var list  = results[0];
+      var leads = results[1];
+      if (list === null || typeof list === 'undefined') return;
+      if (leads === null || typeof leads === 'undefined') leads = state.pendingLeads || [];
       lastFetchedAt = Date.now();
       // Re-index by hash for matched-row lookups
       state.byHash = {};
@@ -288,16 +314,21 @@
   // tolerant: returns [] on any error so a transient network hiccup or a
   // server-side schema mismatch can't break the V1 client list render.
   function fetchPendingLeads() {
+    // X-HDLV2-Bg marks this as background traffic: a 429 here updates the
+    // rate-limit pill + arms the shared cooldown but never opens the modal.
+    // Resolves null (not []) on failure so pollNow keeps the last known
+    // leads instead of blanking the action queue. (2026-07-14 RL fix)
     return fetch(CFG.api_base + '/widget/leads/pending', {
       credentials: 'same-origin',
-      headers: { 'X-WP-Nonce': CFG.rest_nonce || CFG.nonce },
+      headers: { 'X-WP-Nonce': CFG.rest_nonce || CFG.nonce, 'X-HDLV2-Bg': '1' },
       cache: 'no-store',
     })
       .then(function (r) { return r.ok ? r.json() : null; })
       .then(function (data) {
+        if (data === null) return null;
         return (data && Array.isArray(data.leads)) ? data.leads : [];
       })
-      .catch(function () { return []; });
+      .catch(function () { return null; });
   }
   function startFreshnessTicker() {
     if (freshnessTimer) return;
@@ -1447,12 +1478,16 @@
   }
 
   function fetchV2Clients() {
+    // X-HDLV2-Bg marks this as background traffic: a 429 here updates the
+    // rate-limit pill + arms the shared cooldown but never opens the modal.
+    // Resolves null (not []) on failure so pollNow keeps the currently
+    // rendered roster instead of wiping it. (2026-07-14 RL fix)
     return fetch(CFG.api_base + '/dashboard/clients', {
       credentials: 'same-origin',
-      headers: { 'X-WP-Nonce': CFG.nonce },
+      headers: { 'X-WP-Nonce': CFG.nonce, 'X-HDLV2-Bg': '1' },
     })
-      .then(function (r) { return r.ok ? r.json() : []; })
-      .catch(function () { return []; });
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .catch(function () { return null; });
   }
 
   // ── Stalled-leads filter — stamp the two data-attrs the filter reads ──

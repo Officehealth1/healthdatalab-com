@@ -71,9 +71,14 @@
 
   function pollVersion() {
     if (!CFG.api_base || !CFG.nonce) return;
+    // 2026-07-14 RL fix — stop polling while a 429 Retry-After cooldown is
+    // active; X-HDLV2-Bg marks this as background traffic (no modal on 429).
+    try {
+      if (window.hdlv2RateLimit && window.hdlv2RateLimit.isCoolingDown && window.hdlv2RateLimit.isCoolingDown()) return;
+    } catch (e) { /* never block the poll on a guard error */ }
     fetch(CFG.api_base + '/dashboard/version?_=' + Date.now(), {
       credentials: 'same-origin',
-      headers: { 'X-WP-Nonce': CFG.nonce },
+      headers: { 'X-WP-Nonce': CFG.nonce, 'X-HDLV2-Bg': '1' },
       cache: 'no-store',
     })
       .then(function (r) { return r.ok ? r.json() : null; })
