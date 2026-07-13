@@ -1098,7 +1098,9 @@ class HDLV2_Client_Status {
         $result = array();
         foreach ( $clients as $client_id ) {
             $user   = get_userdata( $client_id );
-            $status = self::calculate_status( $client_id );
+            // P2 — static:: (late static binding) so the roster is unit-testable
+            // with a pinned status, same pattern rest_resend_link established.
+            $status = static::calculate_status( $client_id );
 
             // v0.41.17 — `AND deleted_at IS NULL` (both queries).
             $last_checkin = $wpdb->get_var( $wpdb->prepare(
@@ -1207,6 +1209,16 @@ class HDLV2_Client_Status {
                 }
             }
 
+            // P2 (action-button unify) — the P1b resend descriptor, so the
+            // client-list enhancer renders the stage-aware paper-plane (label,
+            // tooltip, disabled state) from the SAME pure function the resend
+            // route enforces server-side. has_plan mirrors rest_resend_link's
+            // check exactly (D2: the label must name the actual artefact).
+            $has_plan = (bool) $wpdb->get_var( $wpdb->prepare(
+                "SELECT id FROM {$wpdb->prefix}hdlv2_flight_plans WHERE client_id = %d AND deleted_at IS NULL LIMIT 1",
+                $client_id
+            ) );
+
             $result[] = array(
                 'user_id'          => (int) $client_id,
                 'progress_id'      => $progress_id,
@@ -1235,6 +1247,8 @@ class HDLV2_Client_Status {
                 // every existing client renders identically when flag is off.
                 'tier'             => $tier !== '' ? $tier : 'practitioner',
                 'auto_consultation' => $auto_consultation,
+                // P2 — stage-aware resend behaviour for the action cell.
+                'resend'           => self::resend_link_descriptor( $status['status'], $has_plan ),
             );
         }
 

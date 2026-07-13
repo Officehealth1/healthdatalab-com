@@ -35,6 +35,7 @@
     stageFilter: 'any',   // Stalled filter — 'any' | '1' | '2' (v2_total_stages match)
     quietFilter: 'any',   // Stalled filter — 'any' | '14' | '28' (days since last activity)
     defaultSortApplied: false, // W12 — one-shot default-sort guard
+    msgV2Client: null,    // P2 — client whose V2-sourced chat modal is open (drives email feed + skip_autolink)
   };
 
   // v0.35.1 — How many pending leads we surface in the "What needs you
@@ -86,6 +87,10 @@
     mountActionQueueShell();
     mountIrisCard();   // Iridology add-on (IrisMapper) — self-guards on the flag (Rule-0)
     bindDeleteV2Client();
+    // P2 — delegated handlers for the unified action cell.
+    bindResendLink();
+    bindProgressOpen();
+    bindMessageIntegration();
     // v0.35.1 — fetch pending leads in parallel with /dashboard/clients
     // so the action queue can render both pre-existing client work AND
     // new widget submissions in the same first paint. Each fetch is
@@ -1372,6 +1377,9 @@
       row.dataset.status = c.status || '';
       // Keep the stalled-filter attrs fresh as the client progresses / goes quiet.
       stampStalledAttrs(row, c);
+      // P2 — keep the stage-aware resend button's label/tooltip/disabled state
+      // in step with the fresh status (no-op unless the state actually moved).
+      refreshResendButton(row, c);
       // Update inline pill
       var cell = row.querySelector('.status-badge-cell');
       if (!cell) return;
@@ -1502,6 +1510,9 @@
       // POST /dashboard/client/{user_id}/delete, which DOES stamp
       // form_progress.deleted_at and cascades.
       swapMatchedRowDelete(row, c);
+      // P2 — unify the rest of the action cell (paper-plane → stage-aware
+      // resend, bar-chart → panel Progress tab, chat fed the V2 email).
+      unifyMatchedRowActions(row, c);
     });
     // W11 — mount the source-filter chips once per render after rows are
     // tagged. mountSourceFilter is a no-op when the flag is off or no
@@ -3453,9 +3464,11 @@
     row.dataset.total      = (typeof c.v2_total_stages === 'number') ? String(c.v2_total_stages) : '0';
     // v0.21.0 — 7 cells to match the V1 header (Client · First · Last ·
     // Total · Status · Assessment · Action). Previously 6 cells made the
-    // chevron render under the Assessment column. Keeping the action cell
-    // minimal (just the chevron appended by injectExpandButton) — V1 icon
-    // actions aren't wired for V2-only rows and would otherwise break.
+    // chevron render under the Assessment column.
+    // P2 (2026-07-13) — the action cell now carries the FULL V1 set backed by
+    // V2 behaviours (resend, chat, progress, person, trash; chevron appended
+    // by injectExpandButton below). Replaces the reduced trash+chevron cell —
+    // "V1 icon actions aren't wired for V2-only rows" no longer applies.
     row.innerHTML = [
       '<td class="client-name">' + esc(c.name) + '</td>',
       '<td class="date-cell">' + esc(firstEntry) + '</td>',
@@ -3463,7 +3476,7 @@
       '<td class="total-cell">' + esc(total) + '</td>',
       '<td class="status-badge-cell"><span class="hdlv2-inline-badge" style="' + badgeStyle + '">V2 · ' + esc(c.label) + '</span></td>',
       '<td class="assessment-cell">' + renderV2Assessment(c) + '</td>',
-      '<td class="action-cell">' + renderV2DeleteButton(c) + '</td>',
+      '<td class="action-cell">' + renderV2ActionButtons(c) + renderV2DeleteButton(c) + '</td>',
     ].join('');
     injectExpandButton(row, c);
     stampStalledAttrs(row, c);
@@ -3626,6 +3639,339 @@
       + '</button>';
   }
 
+  // ──────────────────────────────────────────────────────────────────
+  //  P2 (action-button unify, 2026-07-13) — full V1 action set on V2 rows.
+  //
+  //  V2-only rows previously carried ONLY trash + chevron ("V1 icon actions
+  //  aren't wired for V2-only rows"). These renderers close that gap with
+  //  V2-backed equivalents, and unifyMatchedRowActions() swaps the V1
+  //  controls that point at the wrong backend on matched rows:
+  //    paper-plane → POST /dashboard/client/{id}/resend-link (P1b, stage-aware)
+  //    chat        → V1's message modal, fed email_hash + client_email from
+  //                  the V2 payload (+ skip_autolink so the send can't
+  //                  auto-create a V1 link row)
+  //    bar-chart   → the chevron panel on its Progress tab (NOT /client-tracker)
+  //    person      → /user/{login}/ via V1's delegated .details-btn handler
+  //  Deliberately NO cancel-invite affordance on V2 rows — invite rows are a
+  //  V1-only concept and are never decorated (invite-row guard below).
+  //
+  //  SVG paths are copied verbatim from V1's action cells so V1's
+  //  .action-icon-btn CSS styles them identically. Disabled states use
+  //  .hdlv2-btn-off (NOT V1's .btn-disabled): pointer-events stay live so the
+  //  per-stage reason tooltip is hoverable; the delegated handlers refuse the
+  //  click, and the server refuses again (422) as defence-in-depth.
+  // ──────────────────────────────────────────────────────────────────
+
+  function sendIconSVG() {
+    return '<svg viewBox="0 0 24 24"><path d="M22 2L11 13"/><path d="M22 2L15 22L11 13L2 9L22 2Z"/></svg>';
+  }
+  function messageIconSVG() {
+    return '<svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>';
+  }
+  function chartIconSVG() {
+    return '<svg viewBox="0 0 24 24"><rect x="3" y="12" width="4" height="9"/><rect x="10" y="8" width="4" height="13"/><rect x="17" y="3" width="4" height="18"/></svg>';
+  }
+  function personIconSVG() {
+    return '<svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>';
+  }
+
+  // Effective resend state = the server's P1b descriptor ∧ an email on file.
+  // The tooltip is the SINGLE user-facing explanation for every state, so a
+  // disabled button always says WHY it refuses.
+  function resendState(c) {
+    var r = (c && c.resend) || null;
+    if (!r) return { enabled: false, label: '', title: 'Nothing to send for this client yet' };
+    if (r.enabled && !(c && c.email)) {
+      return { enabled: false, label: r.label, title: 'No email address on file — nothing to send' };
+    }
+    if (r.enabled) {
+      return { enabled: true, label: r.label, title: r.label + ' — emails ' + c.email };
+    }
+    return { enabled: false, label: '', title: r.tooltip || 'Nothing to send for this client yet' };
+  }
+
+  function renderResendButton(c) {
+    if (!c || !c.user_id) return '';
+    var st = resendState(c);
+    // data-rs-hash lets reconcileRows() re-render only when the state moved.
+    var rsHash = (st.enabled ? '1' : '0') + '|' + st.label + '|' + st.title;
+    return '<button type="button" class="action-icon-btn hdlv2-resend-link-btn' + (st.enabled ? '' : ' hdlv2-btn-off') + '" '
+      + 'data-client-id="' + attrEsc(c.user_id) + '" '
+      + 'data-client-name="' + attrEsc(c.name || '') + '" '
+      + 'data-rs-hash="' + attrEsc(rsHash) + '" '
+      + (st.enabled ? '' : 'aria-disabled="true" ')
+      + 'title="' + attrEsc(st.title) + '" aria-label="' + attrEsc(st.title) + '">'
+      + sendIconSVG()
+      + '</button>';
+  }
+
+  function renderMessageButton(c) {
+    if (!c || !c.email_hash) return '';
+    var enabled = !!c.email;
+    // Enabled: V1's delegated .message-btn handler opens the modal (prefill +
+    // templates); our hdlv2- marker feeds the email and flags the send
+    // V2-sourced. Disabled (no email): deliberately NOT .message-btn, so V1
+    // can't open a modal that could never deliver.
+    var cls = enabled
+      ? 'action-icon-btn message-btn hdlv2-message-btn'
+      : 'action-icon-btn hdlv2-message-off hdlv2-btn-off';
+    var title = enabled ? ('Message ' + (c.name || 'client')) : 'No email address on file — messaging unavailable';
+    return '<button type="button" class="' + cls + '" '
+      + 'data-client-hash="' + attrEsc(c.email_hash) + '" '
+      + 'data-client-name="' + attrEsc(c.name || '') + '" '
+      + 'data-client-email="' + attrEsc(c.email || '') + '" '
+      + (enabled ? '' : 'aria-disabled="true" ')
+      + 'title="' + attrEsc(title) + '" aria-label="' + attrEsc(title) + '">'
+      + messageIconSVG()
+      + '<span class="msg-unread-badge" data-badge-hash="' + attrEsc(c.email_hash) + '" hidden>0</span>'
+      + '</button>';
+  }
+
+  function renderProgressButton(c) {
+    if (!c || !c.user_id) return '';
+    var aria = 'View progress for ' + (c.name || 'client');
+    return '<button type="button" class="action-icon-btn hdlv2-progress-btn" '
+      + 'data-client-id="' + attrEsc(c.user_id) + '" '
+      + 'title="View progress" aria-label="' + attrEsc(aria) + '">'
+      + chartIconSVG()
+      + '</button>';
+  }
+
+  function renderProfileButton(c) {
+    var login = (c && c.user_login) || '';
+    if (!login) {
+      return '<button type="button" class="action-icon-btn hdlv2-btn-off" aria-disabled="true" '
+        + 'title="No profile page for this client yet" aria-label="No profile page for this client yet">'
+        + personIconSVG()
+        + '</button>';
+    }
+    var aria = 'View profile for ' + ((c && c.name) || 'client');
+    return '<button type="button" class="action-icon-btn details-btn" '
+      + 'data-client-login="' + attrEsc(login) + '" '
+      + 'title="View Profile" aria-label="' + attrEsc(aria) + '">'
+      + personIconSVG()
+      + '</button>';
+  }
+
+  // V1 action-cell order: send, chat, chart, person (trash + chevron follow).
+  function renderV2ActionButtons(c) {
+    return renderResendButton(c) + renderMessageButton(c) + renderProgressButton(c) + renderProfileButton(c);
+  }
+
+  // Confirm-dialog copy (D4/rule 1): must name the STAGE and the RECIPIENT and
+  // state that the send REPLACES any previous link — P1b rotates the token, so
+  // every earlier link (including a pre-issued login email a client may still
+  // be holding, e.g. the beta-relaunch file links) dies the moment this fires.
+  function resendConfirmCopy(c) {
+    var r = (c && c.resend) || {};
+    var artefact;
+    switch (r.link_kind) {
+      case 'plan':   artefact = 'a fresh link to their weekly flight plan'; break;
+      case 'report': artefact = 'a fresh link to their report'; break;
+      default:
+        artefact = (r.stage === 1)
+          ? 'a fresh link to start their assessment (Stage 1)'
+          : 'a fresh link to continue their assessment (Stage ' + (r.stage || '?') + ')';
+        break;
+    }
+    return {
+      title: r.label ? r.label + '?' : 'Send link?',
+      body: 'This emails ' + ((c && c.name) || 'this client') + ' (' + ((c && c.email) || '') + ') ' + artefact + '.\n\n'
+        + '⚠ This replaces any previous link for this client — every earlier link '
+        + '(including any saved or pre-issued login email) stops working the moment you confirm. '
+        + 'Only continue if nobody is holding an older link they still need.',
+      confirmLabel: r.label || 'Send link',
+      cancelLabel: 'Cancel',
+    };
+  }
+
+  // ── P2 delegated handlers (bound once, like bindDeleteV2Client) ──
+
+  function bindResendLink() {
+    if (window.__hdlv2ResendBound) return;
+    window.__hdlv2ResendBound = true;
+    document.addEventListener('click', function (e) {
+      var btn = e.target && e.target.closest && e.target.closest('.hdlv2-resend-link-btn');
+      if (!btn) return;
+      e.preventDefault();
+      e.stopPropagation();
+      handleResendLink(btn);
+    });
+  }
+
+  function handleResendLink(btn) {
+    if (btn.disabled || btn.classList.contains('hdlv2-btn-off') || btn.getAttribute('aria-disabled') === 'true') return;
+    var uid = btn.getAttribute('data-client-id') || '';
+    var c = (state.clients || []).filter(function (x) { return String(x.user_id) === String(uid); })[0];
+    if (!c) return;
+    var r = c.resend || {};
+    // Client-side mirror of the server's 422 refusal — never even ask.
+    if (!r.enabled || !c.email) return;
+    var copy = resendConfirmCopy(c);
+    var ask = (window.HDLV2UI && window.HDLV2UI.confirm)
+      ? window.HDLV2UI.confirm({ title: copy.title, body: copy.body, confirmLabel: copy.confirmLabel, cancelLabel: copy.cancelLabel })
+      : Promise.resolve(window.confirm(copy.title + '\n\n' + copy.body));
+    ask.then(function (confirmed) {
+      if (!confirmed) return;
+      doResendLink(btn, c);
+    });
+  }
+
+  function doResendLink(btn, c) {
+    btn.disabled = true;
+    var url = (CFG.api_base || '').replace(/\/$/, '') + '/dashboard/client/' + encodeURIComponent(c.user_id) + '/resend-link';
+    fetch(url, {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': CFG.nonce || '' },
+    })
+      .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, body: j }; }); })
+      .then(function (res) {
+        btn.disabled = false;
+        if (!res.ok || !res.body || res.body.success !== true) {
+          var msg = (res.body && (res.body.message || (res.body.data && res.body.data.message))) || 'Could not send the link';
+          throw new Error(msg);
+        }
+        // Rule 7 — say what was sent and to whom, not a bare tick.
+        if (window.HDLV2UI && window.HDLV2UI.toast) {
+          window.HDLV2UI.toast('Sent: ' + (res.body.stage_label || 'link') + ' to ' + (res.body.recipient_email || ''), 'success');
+        }
+      })
+      .catch(function (err) {
+        btn.disabled = false;
+        if (window.HDLV2UI && window.HDLV2UI.toast) window.HDLV2UI.toast(err.message || 'Could not send the link', 'error');
+      });
+  }
+
+  function bindProgressOpen() {
+    if (window.__hdlv2ProgressBound) return;
+    window.__hdlv2ProgressBound = true;
+    document.addEventListener('click', function (e) {
+      var btn = e.target && e.target.closest && e.target.closest('.hdlv2-progress-btn');
+      if (!btn) return;
+      e.preventDefault();
+      e.stopPropagation();
+      var row = btn.closest('.client-row');
+      if (!row) return;
+      var expand = row.querySelector('.hdlv2-expand-btn');
+      if (!expand) return;
+      var detail = row.nextElementSibling;
+      var isOpen = detail && detail.classList && detail.classList.contains('hdlv2-detail-row');
+      if (!isOpen) {
+        // buildDetailPanel lands on the Progress tab by default.
+        expand.click();
+        detail = row.nextElementSibling;
+      } else {
+        var tab = detail.querySelector('.hdlv2-detail-tab[data-tab="progress"]');
+        if (tab) tab.click();
+      }
+      if (detail && detail.scrollIntoView) detail.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    });
+  }
+
+  // Chat integration. V1's delegated .message-btn handler opens + fills the
+  // modal from data-client-hash/-name only; the V2 payload supplies the email
+  // (V1 resolves recipients from V1 submissions, which V2 clients don't have).
+  // The ajaxPrefilter stamps skip_autolink=1 onto hdl_send_client_message
+  // POSTs while a V2-sourced modal is the active context, so the send can't
+  // auto-create a V1 link row (see class-messaging-service.php; server-gated
+  // to V2-owned clients).
+  function bindMessageIntegration() {
+    if (window.__hdlv2MsgBound) return;
+    window.__hdlv2MsgBound = true;
+    document.addEventListener('click', function (e) {
+      var btn = e.target && e.target.closest && e.target.closest('.message-btn, #message-current-client-btn');
+      if (!btn) return;
+      if (btn.classList && btn.classList.contains('hdlv2-message-btn')) {
+        var hash = btn.getAttribute('data-client-hash') || '';
+        var c = state.byHash[hash] || null;
+        state.msgV2Client = (c && c.email) ? c : null;
+        if (state.msgV2Client) {
+          // V1's jQuery handler opens + resets the modal on this same click;
+          // fill the email a task-queue hop later so the reset can't wipe it.
+          setTimeout(function () {
+            if (!state.msgV2Client) return;
+            var emailInput = document.getElementById('message-client-email');
+            if (emailInput) emailInput.value = state.msgV2Client.email;
+            var hashInput = document.getElementById('message-client-email-hash');
+            if (hashInput && !hashInput.value) hashInput.value = state.msgV2Client.email_hash || '';
+          }, 0);
+        }
+      } else {
+        // V1-native open (or the tracker-view button) — untouched V1 flow.
+        state.msgV2Client = null;
+      }
+    });
+    if (window.jQuery && window.jQuery.ajaxPrefilter) {
+      window.jQuery.ajaxPrefilter(function (options) {
+        if (!state.msgV2Client || !options) return;
+        var d = options.data;
+        if (typeof d === 'string') {
+          if (d.indexOf('action=hdl_send_client_message') === -1) return;
+          options.data = d + '&skip_autolink=1';
+        } else if (d && typeof d === 'object' && d.action === 'hdl_send_client_message') {
+          d.skip_autolink = '1';
+        }
+      });
+    }
+  }
+
+  // P2 — unify the action cell on MATCHED rows (V1 server-rendered + live V2
+  // record). Matched rows are by definition V2 clients (the roster only
+  // returns form_progress rows), so V1's per-row actions point at the wrong
+  // backend for them:
+  //   - send-form opens V1's Health/Longevity picker → a V1 login link to the
+  //     WP home page, never the client's V2 funnel stage;
+  //   - view-tracker opens /client-tracker/, which reads V1 submissions —
+  //     empty for V2 funnel clients. (V1-only clients keep both: no roster
+  //     row → no decoration. V1 tracker for hybrids stays reachable via
+  //     Client Tools.)
+  // Same REPLACE-never-ADD rule as swapMatchedRowDelete — two live controls
+  // would let the wrong V1 handler still fire. The chat button is AUGMENTED,
+  // not replaced: V1's modal + prefill are right, it just needs the V2 email
+  // fed and the V2-source marker. Invite rows are never touched (cancel-invite
+  // and resend-invite stay pure V1).
+  function unifyMatchedRowActions(row, c) {
+    if (!c || !c.user_id) return;
+    if (row.classList.contains('invite-row')) return;
+    swapActionButton(row, '.send-form-btn', renderResendButton(c));
+    swapActionButton(row, '.view-tracker-btn', renderProgressButton(c));
+    var msg = row.querySelector('.message-btn');
+    if (msg && c.email) {
+      msg.classList.add('hdlv2-message-btn');
+      msg.setAttribute('data-client-email', c.email);
+      // V1 disables messaging for V1-"not started" clients; a V2 client with
+      // an email on file is messageable regardless of V1 history.
+      msg.classList.remove('btn-disabled');
+      msg.removeAttribute('aria-disabled');
+    }
+  }
+
+  function swapActionButton(row, selector, html) {
+    var oldBtn = row.querySelector(selector);
+    if (!oldBtn || !html) return;
+    var tmp = document.createElement('div');
+    tmp.innerHTML = html;
+    var fresh = tmp.firstElementChild;
+    if (fresh) oldBtn.parentNode.replaceChild(fresh, oldBtn);
+  }
+
+  // P2 — keep the stage-aware paper-plane in step with server state as the
+  // 4-s digest poll moves the client through the funnel. Delegated handler =
+  // no rebinding; data-rs-hash makes idle polls a no-op.
+  function refreshResendButton(row, c) {
+    var btn = row.querySelector('.hdlv2-resend-link-btn');
+    if (!btn) return;
+    var html = renderResendButton(c);
+    if (!html) return;
+    var tmp = document.createElement('div');
+    tmp.innerHTML = html;
+    var fresh = tmp.firstElementChild;
+    if (!fresh) return;
+    if (btn.getAttribute('data-rs-hash') === fresh.getAttribute('data-rs-hash')) return;
+    btn.parentNode.replaceChild(fresh, btn);
+  }
+
   // v0.21.0 — tiny label driven by V2 status so the Assessment column isn't
   // blank for V2-only rows. Mirrors the PHP Assessment cell on V1 rows.
   function renderV2Assessment(c) {
@@ -3666,6 +4012,12 @@
       '.hdlv2-delete-client-btn { display:inline-flex; align-items:center; justify-content:center; width:32px; height:32px; border:1px solid #e4e6ea; border-radius:50%; background:#fff; color:#94a3b8; cursor:pointer; margin-left:6px; padding:0; transition: border-color 0.15s ease, background 0.15s ease, color 0.2s ease-in-out; vertical-align:middle; }',
       '.hdlv2-delete-client-btn:hover { border-color:#fecaca; background:#fef2f2; color:#ef4444; }',
       '.hdlv2-delete-client-btn:disabled { opacity:0.5; cursor:not-allowed; }',
+      // P2 — disabled state for the unified action buttons. Deliberately NOT
+      // V1's .btn-disabled: pointer-events stay live so the per-stage reason
+      // tooltip (title attr) is hoverable; delegated handlers refuse the click.
+      '.action-icon-btn.hdlv2-btn-off { opacity:0.35; cursor:not-allowed; }',
+      '.action-icon-btn.hdlv2-btn-off:hover { background:#2D9596; transform:none; box-shadow:none; }',
+      '.hdlv2-resend-link-btn:disabled { opacity:0.5; cursor:progress; }',
       '.hdlv2-delete-client-btn svg { display:block; width:16px; height:16px; transition: stroke 0.2s ease-in-out; pointer-events:none; }',
       '.hdlv2-delete-client-btn svg .trash-lid-lower, .hdlv2-delete-client-btn svg .trash-lid-upper { transform-origin: 50% 100%; transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1); }',
       '.hdlv2-delete-client-btn:hover svg .trash-lid-lower, .hdlv2-delete-client-btn.is-deleting svg .trash-lid-lower { transform: translateY(-2px) rotate(-25deg); }',
@@ -4148,5 +4500,11 @@
     var d = document.createElement('div');
     d.textContent = s == null ? '' : String(s);
     return d.innerHTML;
+  }
+
+  // P2 — attribute-context escape. esc()'s div round-trip escapes & < > but
+  // NOT double quotes, so a value placed inside attr="…" could break out.
+  function attrEsc(s) {
+    return esc(s).replace(/"/g, '&quot;');
   }
 })();
