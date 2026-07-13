@@ -25,6 +25,13 @@ define( 'DAY_IN_SECONDS', 86400 );
 
 $GLOBALS['scn'] = array(
     'status'   => 'not_started',
+    // GAP-1 (2026-07-13) made the SEND descriptor flag-blind: it derives from
+    // resolve_resend_status() (real funnel tables), not from the pinned
+    // display status. The fake wpdb below is therefore driven by 'funnel':
+    //   'not_started'      → no form_progress row
+    //   'awaiting_consult' → stage 1+3 complete, NO report row
+    //   'complete'         → stage 1+3 complete + report_generated row
+    'funnel'   => 'not_started',
     'has_plan' => false,
     // Deliberately unnormalised — the roster must hash the normalised form.
     'email'    => '  Sam.Client@Example.COM ',
@@ -58,15 +65,24 @@ class FakeWpdb {
     public function prepare( $q ) { return $q; }
     public function get_var( $q ) {
         if ( strpos( $q, 'hdlv2_flight_plans' ) !== false ) { return $GLOBALS['scn']['has_plan'] ? 5 : null; }
-        return null; // no check-ins, no reports, no consultation notes
+        if ( strpos( $q, 'hdlv2_consultation_notes' ) !== false ) {
+            // report_generated row exists only when the funnel is complete
+            return ( 'complete' === $GLOBALS['scn']['funnel'] ) ? 7 : null;
+        }
+        return null; // no check-ins
     }
     public function get_row( $q ) {
         if ( strpos( $q, 'hdlv2_form_progress' ) !== false ) {
+            if ( 'not_started' === $GLOBALS['scn']['funnel'] ) {
+                return null; // client never opened Stage 1
+            }
+            // awaiting_consult + complete: Stage 3 finished; report presence
+            // differs via the consultation_notes get_var above.
             return (object) array(
                 'id'                  => 9,
                 'stage1_completed_at' => '2026-07-01 10:00:00',
-                'stage2_completed_at' => null,
-                'stage3_completed_at' => null,
+                'stage2_completed_at' => '2026-07-02 10:00:00',
+                'stage3_completed_at' => '2026-07-03 10:00:00',
             );
         }
         return null; // no why_profile row
@@ -102,7 +118,7 @@ function roster_row( $svc ) {
 }
 
 // ── (1) enabled assessment stage: descriptor present + matches the pure fn ──
-$GLOBALS['scn']['status'] = 'not_started'; $GLOBALS['scn']['has_plan'] = false;
+$GLOBALS['scn']['status'] = 'not_started'; $GLOBALS['scn']['funnel'] = 'not_started'; $GLOBALS['scn']['has_plan'] = false;
 $row = roster_row( $svc );
 ok( '(1a) row carries a resend descriptor', is_array( $row ) && isset( $row['resend'] ) && is_array( $row['resend'] ),
     is_array( $row ) ? implode( ',', array_keys( $row ) ) : gettype( $row ) );
@@ -112,7 +128,7 @@ ok( '(1b) not_started -> enabled Stage-1 "Send assessment link"',
     isset( $row['resend'] ) ? json_encode( $row['resend'] ) : 'no descriptor' );
 
 // ── (2) blocked-on-practitioner: disabled + reason tooltip ──
-$GLOBALS['scn']['status'] = 'awaiting_consult';
+$GLOBALS['scn']['status'] = 'awaiting_consult'; $GLOBALS['scn']['funnel'] = 'awaiting_consult';
 $row = roster_row( $svc );
 ok( '(2) awaiting_consult -> disabled with the P1b tooltip',
     isset( $row['resend'] ) && $row['resend']['enabled'] === false
@@ -120,7 +136,7 @@ ok( '(2) awaiting_consult -> disabled with the P1b tooltip',
     isset( $row['resend'] ) ? json_encode( $row['resend'] ) : 'no descriptor' );
 
 // ── (3) COMPLETE names the actual artefact (D2): plan when one exists… ──
-$GLOBALS['scn']['status'] = 'active'; $GLOBALS['scn']['has_plan'] = true;
+$GLOBALS['scn']['status'] = 'active'; $GLOBALS['scn']['funnel'] = 'complete'; $GLOBALS['scn']['has_plan'] = true;
 $row = roster_row( $svc );
 ok( '(3) COMPLETE + live plan -> "Resend flight plan" (link_kind=plan)',
     isset( $row['resend'] ) && $row['resend']['enabled'] === true
