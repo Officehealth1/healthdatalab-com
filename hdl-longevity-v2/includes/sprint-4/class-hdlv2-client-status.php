@@ -974,6 +974,17 @@ class HDLV2_Client_Status {
             return new WP_Error( 'not_sendable', $d['tooltip'] ? $d['tooltip'] : 'There is nothing to send for this client.', array( 'status' => 422 ) );
         }
 
+        // ⚠️ BETA-RELAUNCH GUARDRAIL (2026-07-13) — this rotation INVALIDATES the
+        // client's current magic link. Twelve beta clients (user_ids 180-188,
+        // 192, 193, 194 — Amanda, Faustina, Leo, Sarah, Marcus, Elliot,
+        // Susannah, Lucas, Helena, Maia, lucianne, Hazel) hold LIVE links that
+        // Matthew is emailing MANUALLY from
+        // /Volumes/Media/hdl-beta-login-links-PRESERVED-20260713/beta-login-links.txt
+        // (tokens valid to 2026-10-08). Do NOT fire this resend for one of those
+        // clients until their file email has gone out — rotating first would
+        // kill the file link and strand them. The Phase 2 confirm dialog must
+        // surface this; until then the route is STBY-only (D4 gate) so it cannot
+        // reach a real beta. See project_beta_login_links_preserved_2026_07_13.
         // Rule 2 — new token + refreshed expiry; the old link stops working.
         $new_token = bin2hex( random_bytes( 32 ) );
         $ttl_days  = defined( 'HDLV2_CLIENT_TOKEN_TTL_DAYS' ) ? (int) HDLV2_CLIENT_TOKEN_TTL_DAYS : 90;
