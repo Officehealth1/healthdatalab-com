@@ -19,6 +19,13 @@ class HDLV2_Rate_Limit_Policy {
     const TIER_PUBLIC  = 'public';
     const TIER_BYPASS  = 'bypass';
 
+    // 2026-07-14 — practitioner-scale read budget (idle-dashboard 429 fix).
+    // Not a route tier: routes still map to TIER_READ; the middleware
+    // upgrades an AUTHENTICATED PRACTITIONER (no magic-link token) to this
+    // bucket on the roster routes below. Anonymous + token traffic keeps
+    // the consumer READ limits untouched.
+    const TIER_PRAC_READ = 'prac-read';
+
     /**
      * Tier configuration. All windows are 1 hour (3600s).
      *
@@ -55,6 +62,42 @@ class HDLV2_Rate_Limit_Policy {
             'per_ip_limit' => 500,
             'window'       => 3600,
         ) );
+    }
+
+    /**
+     * Practitioner-scale read budget for the dashboard roster routes.
+     *
+     * Why 1200/hr: the consumer READ cap (200/hr) is keyed per user and
+     * shared by every open tab + device of the same practitioner. The
+     * client-list keep-fresh traffic consumed 120 reads/hr PER TAB, so two
+     * idle tabs self-429'd the practitioner (LIVE 2026-07-13: 114 blocks,
+     * all on the two routes below). 1200/hr absorbs ~8 concurrent tabs at
+     * the OLD unconditional poll rate — with the digest-gated fallback the
+     * real idle consumption is ~24/hr/tab — while still capping runaway
+     * loops well below any real abuse ceiling.
+     *
+     * @since 0.47.69
+     */
+    public static function prac_read_config() {
+        return apply_filters( 'hdlv2_rate_limit_prac_read_config', array(
+            'per_user_limit' => 1200,
+            'window'         => 3600,
+        ) );
+    }
+
+    /**
+     * The two practitioner-dashboard roster reads eligible for the
+     * prac-read budget. Deliberately narrow: everything else stays on the
+     * consumer READ tier even for practitioners.
+     *
+     * @since 0.47.69
+     */
+    public static function is_prac_read_route( $method, $route ) {
+        if ( 'GET' !== strtoupper( $method ) ) {
+            return false;
+        }
+        return (bool) ( preg_match( '#^/hdl-v2/v1/dashboard/clients$#', $route )
+                     || preg_match( '#^/hdl-v2/v1/widget/leads/pending$#', $route ) );
     }
 
     public static function tier_config( $tier ) {

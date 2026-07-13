@@ -133,6 +133,33 @@ class HDLV2_Rate_Limit_Middleware {
             // cap. The per-practitioner cap below caught this on AI-burn
             // tier only, but READ + WRITE tiers stayed broken. Now the
             // user_id keys the bucket directly.
+            // 2026-07-14 — practitioner-scale read budget (idle-dashboard
+            // 429 fix). The consumer READ cap (200/hr) is keyed per user and
+            // shared by every open tab + device, and the dashboard's own
+            // keep-fresh reads consumed it — idle practitioners self-429'd
+            // (LIVE 2026-07-13: 114 blocks, all tier=read, all on the two
+            // roster routes). An AUTHENTICATED practitioner (no magic-link
+            // token — token precedence stands) reading their own roster now
+            // consumes a dedicated higher bucket. Anonymous and token
+            // traffic on the same routes keeps the consumer limits.
+            if ( HDLV2_Rate_Limit_Policy::TIER_READ === $tier
+                && ! $token
+                && is_user_logged_in()
+                && HDLV2_Rate_Limit_Policy::is_prac_read_route( $method, $route )
+                && self::user_is_practitioner( get_current_user_id() )
+                && ! self::tier_is_disabled( HDLV2_Rate_Limit_Policy::TIER_PRAC_READ ) ) {
+                $pcfg = HDLV2_Rate_Limit_Policy::prac_read_config();
+                $bk_p = HDLV2_Rate_Limiter::bucket_key( array( HDLV2_Rate_Limit_Policy::TIER_PRAC_READ, 'user', (int) get_current_user_id() ) );
+                $r_p  = HDLV2_Rate_Limiter::consume( $bk_p, $pcfg['per_user_limit'], $pcfg['window'] );
+                if ( ! $r_p['allowed'] ) {
+                    self::log_block( HDLV2_Rate_Limit_Policy::TIER_PRAC_READ, self::block_identity( null ), $route );
+                    return self::make_429( $r_p, HDLV2_Rate_Limit_Policy::TIER_PRAC_READ );
+                }
+                self::$last_consumed = $r_p;
+                self::$last_tier     = HDLV2_Rate_Limit_Policy::TIER_PRAC_READ;
+                return null;
+            }
+
             if ( $token ) {
                 $identity = array( 'token', $token );
             } elseif ( is_user_logged_in() ) {
@@ -143,7 +170,7 @@ class HDLV2_Rate_Limit_Middleware {
             $bk       = HDLV2_Rate_Limiter::bucket_key( array_merge( array( $tier ), $identity ) );
             $r        = HDLV2_Rate_Limiter::consume( $bk, $cfg['per_token_limit'], $cfg['window'] );
             if ( ! $r['allowed'] ) {
-                self::log_block( $tier, $token ? $token : $ip, $route );
+                self::log_block( $tier, self::block_identity( $token ), $route );
                 return self::make_429( $r, $tier );
             }
             self::$last_consumed = $r;
@@ -171,6 +198,25 @@ class HDLV2_Rate_Limit_Middleware {
             error_log( '[HDL-RL FAIL-OPEN middleware] ' . $e->getMessage() );
             return null;
         }
+    }
+
+    /**
+     * Human-readable block identity for log lines.
+     *
+     * 2026-07-14 — was `$token ? $token : $ip`, which (a) wrote the FULL
+     * 64-hex magic-link credential into the error log and (b) hid the user
+     * behind an IP for logged-in traffic (the 2026-07-13 RCA had to
+     * md5-decode bucket hashes to find out WHO was blocked). Now: truncated
+     * token prefix, or user:<id>, or the bare IP for anonymous callers.
+     */
+    private static function block_identity( $token ) {
+        if ( $token ) {
+            return 'token:' . substr( (string) $token, 0, 8 );
+        }
+        if ( is_user_logged_in() ) {
+            return 'user:' . (int) get_current_user_id();
+        }
+        return self::get_ip();
     }
 
     /**

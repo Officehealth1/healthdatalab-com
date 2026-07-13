@@ -53,7 +53,7 @@
     function updatePill() {
         var pill = ensurePill();
         var lowest = null;
-        var labels = { ai_burn: 'AI calls', write: 'saves', read: 'page loads', public: 'leads' };
+        var labels = { ai_burn: 'AI calls', write: 'saves', read: 'page loads', prac_read: 'page loads', public: 'leads' };
         for (var k in statusCache) {
             if (!statusCache.hasOwnProperty(k)) continue;
             var s = statusCache[k];
@@ -125,7 +125,14 @@
     }
 
     function loadStatus() {
-        fetch(REST_PREFIX + 'rate-limit/status', { credentials: 'same-origin' }).then(function (r) {
+        // 2026-07-14 RL fix — send the REST nonce (localized as
+        // hdlv2RateLimitCfg) so this probe is counted against the logged-in
+        // user's bucket instead of an anonymous per-IP bucket, and reports
+        // the bucket the user actually consumes.
+        var headers = {};
+        var cfg = window.hdlv2RateLimitCfg;
+        if (cfg && cfg.nonce) headers['X-WP-Nonce'] = cfg.nonce;
+        fetch(REST_PREFIX + 'rate-limit/status', { credentials: 'same-origin', headers: headers }).then(function (r) {
             ingestHeaders(r);
             return r.ok ? r.json() : null;
         }).then(function (json) {
@@ -154,6 +161,40 @@
     var MODAL_MAX_COUNTDOWN   = 600;    // clamp to 10 min so UI doesn't hang
     var lastModalAt           = 0;
     var countdownTimer        = null;
+
+    // ────────────────────────────────────────────────────────────────────────
+    // 2026-07-14 RL fix — shared Retry-After cooldown.
+    //
+    // Every V2 429 arms a cooldown for its Retry-After window. Pollers
+    // (client-list enhancer, practitioner dashboard, nav bar) consult
+    // isCoolingDown() and stop firing until it elapses — a poll sent into an
+    // active block is a wasted counted request (LIVE 2026-07-13: 114 of them).
+    // ────────────────────────────────────────────────────────────────────────
+    var cooldownUntil = 0;
+
+    function setCooldown(seconds) {
+        seconds = parseInt(seconds, 10);
+        if (!isFinite(seconds) || seconds <= 0) return;
+        var until = Date.now() + Math.min(MODAL_MAX_COUNTDOWN, seconds) * 1000;
+        if (until > cooldownUntil) cooldownUntil = until;
+    }
+
+    function isCoolingDown() {
+        return Date.now() < cooldownUntil;
+    }
+
+    // True when the request that got the 429 was marked as background
+    // traffic (poller) via the X-HDLV2-Bg header. Background 429s update
+    // the pill + cooldown but never open the modal — a poll is not a user
+    // action.
+    function isBackgroundInit(init) {
+        try {
+            var h = init && init.headers;
+            if (!h) return false;
+            if (typeof h.get === 'function') return h.get('X-HDLV2-Bg') === '1';
+            return h['X-HDLV2-Bg'] === '1' || h['x-hdlv2-bg'] === '1';
+        } catch (e) { return false; }
+    }
 
     function injectModalCss() {
         if (document.getElementById('hdlv2-rl-modal-css')) return;
@@ -313,6 +354,7 @@
             var input = arguments[0];
             var url = typeof input === 'string' ? input : (input && input.url) || '';
             var isV2 = url.indexOf('/hdl-v2/v1/') !== -1;
+            var isBg = isV2 && isBackgroundInit(arguments[1]);
 
             var call = origFetch.apply(this, arguments);
             if (!isV2) return call;
@@ -321,10 +363,17 @@
                 try {
                     ingestHeaders(resp);
                     if (resp.status === 429) {
+                        // Arm the shared cooldown immediately from headers so
+                        // pollers stop before the body even parses.
+                        setCooldown(resolveRetrySeconds(null, resp.headers));
                         resp.clone().json().then(function (body) {
-                            showRateLimitModal(body, resp.headers);
+                            setCooldown(resolveRetrySeconds(body, resp.headers));
+                            // 2026-07-14 RL fix — background polls never open
+                            // the modal; the pill (ingestHeaders above) is the
+                            // only signal. Modal is for user-initiated actions.
+                            if (!isBg) showRateLimitModal(body, resp.headers);
                         }).catch(function () {
-                            showRateLimitModal(null, resp.headers);
+                            if (!isBg) showRateLimitModal(null, resp.headers);
                         });
                     }
                 } catch (e) { /* never break the page */ }
@@ -339,7 +388,9 @@
         showInline429: showInline429,
         showRateLimitModal: showRateLimitModal,
         v2Fetch: v2Fetch,
-        loadStatus: loadStatus
+        loadStatus: loadStatus,
+        setCooldown: setCooldown,
+        isCoolingDown: isCoolingDown
     };
 
     if (document.readyState === 'loading') {

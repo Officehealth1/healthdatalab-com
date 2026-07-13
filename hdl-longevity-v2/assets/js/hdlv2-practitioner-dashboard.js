@@ -104,17 +104,29 @@
       + '</div>';
   }
 
+  var hasRendered = false;
+
   function loadClients() {
+    // 2026-07-14 RL fix — stop polling while a 429 Retry-After cooldown is
+    // active (armed by hdlv2-rate-limit.js); X-HDLV2-Bg marks this as
+    // background traffic so a 429 shows the pill, never the modal. A failed
+    // background refresh keeps the last rendered roster instead of wiping
+    // it with the error card (that stays for first-load failures only).
+    try {
+      if (window.hdlv2RateLimit && window.hdlv2RateLimit.isCoolingDown && window.hdlv2RateLimit.isCoolingDown()) return;
+    } catch (e) { /* never block the poll on a guard error */ }
     fetch(CFG.api_base + '/dashboard/clients', {
       credentials: 'same-origin',
-      headers: { 'X-WP-Nonce': CFG.nonce },
+      headers: { 'X-WP-Nonce': CFG.nonce, 'X-HDLV2-Bg': '1' },
     })
       .then(function (r) {
         if (!r.ok) throw new Error('HTTP ' + r.status);
         return r.json();
       })
-      .then(function (clients) { render(Array.isArray(clients) ? clients : []); })
-      .catch(function () { renderError('Could not load your clients. Refresh the page to try again.'); });
+      .then(function (clients) { hasRendered = true; render(Array.isArray(clients) ? clients : []); })
+      .catch(function () {
+        if (!hasRendered) renderError('Could not load your clients. Refresh the page to try again.');
+      });
   }
 
   function render(clients) {
