@@ -51,6 +51,57 @@ class HDLV2_Client_Status {
     }
     private function __construct() {}
 
+    /**
+     * P1b (2026-07-13, action-button unify) — pure status → resend-link behaviour.
+     *
+     * The stage-aware core of the "my link expired / I lost the email" resend
+     * action. Keeps the branching side-effect-free and exhaustively testable;
+     * the REST handler wires DB + email + audit around it.
+     *
+     * Buckets (per Quim's signed-off spec):
+     *   - Assessment-continuable (not_started / low_data / stage3_in_progress):
+     *     ENABLED, one URL (/assessment/?token=, routes by current_stage), the
+     *     stage drives the email copy + label. D5: Stage 3 uses "Stage-3 link",
+     *     never flight-plan wording.
+     *   - Blocked on the practitioner (awaiting_why_release / awaiting_consult):
+     *     DISABLED with a reason — the client has nothing to continue.
+     *   - COMPLETE (active / progress_normal / needs_attention / inactive):
+     *     ENABLED, a READ-ONLY report/plan link (must not reopen the funnel).
+     *     D2: the label names the ACTUAL artefact — "Resend flight plan" when a
+     *     plan exists, else "Resend report". Never a generic "Resend plan".
+     *   - Anything else fails closed (disabled).
+     *
+     * @param string $status          One of the self::* status constants.
+     * @param bool   $has_active_plan Whether the client has a live flight plan.
+     * @return array{enabled:bool,stage:?int,link_kind:string,label:string,tooltip:string}
+     */
+    public static function resend_link_descriptor( $status, $has_active_plan = false ) {
+        $off = function ( $tooltip ) {
+            return array( 'enabled' => false, 'stage' => null, 'link_kind' => '', 'label' => '', 'tooltip' => $tooltip );
+        };
+        switch ( $status ) {
+            case self::NOT_STARTED:
+                return array( 'enabled' => true, 'stage' => 1, 'link_kind' => 'assessment', 'label' => 'Send assessment link', 'tooltip' => '' );
+            case self::LOW_DATA:
+                return array( 'enabled' => true, 'stage' => 2, 'link_kind' => 'assessment', 'label' => 'Send Stage-2 link', 'tooltip' => '' );
+            case self::STAGE3_IN_PROGRESS:
+                return array( 'enabled' => true, 'stage' => 3, 'link_kind' => 'assessment', 'label' => 'Send Stage-3 link', 'tooltip' => '' );
+            case self::AWAITING_WHY_RELEASE:
+                return $off( 'Waiting on you to release Stage 3 — nothing to send' );
+            case self::AWAITING_CONSULT:
+                return $off( 'Waiting on your consultation — nothing to send' );
+            case self::ACTIVE:
+            case self::PROGRESS_NORMAL:
+            case self::NEEDS_ATTENTION:
+            case self::INACTIVE:
+                return $has_active_plan
+                    ? array( 'enabled' => true, 'stage' => null, 'link_kind' => 'plan',   'label' => 'Resend flight plan', 'tooltip' => '' )
+                    : array( 'enabled' => true, 'stage' => null, 'link_kind' => 'report', 'label' => 'Resend report',      'tooltip' => '' );
+            default:
+                return $off( 'Nothing to send for this client yet' );
+        }
+    }
+
     public function register_hooks() {
         add_action( 'rest_api_init', array( $this, 'register_rest_routes' ) );
     }
@@ -133,6 +184,25 @@ class HDLV2_Client_Status {
                 // instead of a 403 on the second call. The handler itself
                 // is the source of truth on whether the row needs an update.
                 return HDLV2_Compatibility::practitioner_owns_client_including_deleted( get_current_user_id(), $client_id );
+            },
+        ) );
+
+        // P1b (2026-07-13) — stage-aware "resend the client's continue link".
+        // Purpose: "my link expired / I lost the email — send it again." What
+        // is sent is decided by the client's CURRENT STAGE, never chosen by the
+        // practitioner (this is NOT V1's Health/Longevity Send Form). Owner-gated
+        // by the same IDOR helper Phase 0 reused. Frontend confirm dialog +
+        // dynamic label land in Phase 2; this route must NOT reach LIVE without
+        // them (STBY-only until they ship together).
+        register_rest_route( 'hdl-v2/v1', '/dashboard/client/(?P<client_id>\d+)/resend-link', array(
+            'methods'  => 'POST',
+            'callback' => array( $this, 'rest_resend_link' ),
+            'permission_callback' => function ( $req ) {
+                $client_id = absint( $req['client_id'] );
+                // Standard (non-deleted) ownership — an archived client is not
+                // resendable, so we deliberately do NOT use the _including_deleted
+                // variant the delete route needs.
+                return HDLV2_Compatibility::practitioner_owns_client( get_current_user_id(), $client_id );
             },
         ) );
 
@@ -838,6 +908,174 @@ class HDLV2_Client_Status {
             }
         }
         return $attention;
+    }
+
+    // ── REST: Resend the client's stage-appropriate continue link (P1b) ──
+    //
+    // Owner-gated in permission_callback. Order matters: rate-limit and the
+    // cheap "is there anything to send" checks run BEFORE calculate_status so a
+    // throttled or non-sendable client costs nothing. Every enabled send:
+    //   (rule 2) regenerates form_progress.token — invalidating the old link —
+    //            and refreshes the fixed 90-day window so the fresh link is live;
+    //   (rule 4) writes an audit trail (timeline entry + error_log);
+    //   (rule 7) returns what was sent + to whom.
+    public function rest_resend_link( $request ) {
+        global $wpdb;
+        $client_id = absint( $request['client_id'] );
+        $prac_id   = get_current_user_id();
+
+        // Rule 3 — rate limit, mirroring V1's invite-resend (10/hr/practitioner).
+        // V1 is always active (V2 refuses to boot without it), but guard anyway.
+        if ( class_exists( 'HDL_Rate_Limiter' ) ) {
+            $rl = new HDL_Rate_Limiter();
+            if ( ! $rl->check_limit( 'hdlv2_resend_link', 'user_' . $prac_id, 10, HOUR_IN_SECONDS ) ) {
+                return new WP_Error( 'rate_limited', 'You have sent too many links this hour. Please try again later.', array( 'status' => 429 ) );
+            }
+        }
+
+        // Latest live assessment row for this client.
+        $progress = $wpdb->get_row( $wpdb->prepare(
+            "SELECT id, token, client_email, client_name, current_stage
+             FROM {$wpdb->prefix}hdlv2_form_progress
+             WHERE client_user_id = %d AND deleted_at IS NULL
+             ORDER BY id DESC LIMIT 1",
+            $client_id
+        ) );
+        if ( ! $progress ) {
+            return new WP_Error( 'no_assessment', 'This client has no active assessment to send a link for.', array( 'status' => 422 ) );
+        }
+
+        // Resolve recipient: the assessment row's email, else the WP account.
+        $recipient = '';
+        if ( ! empty( $progress->client_email ) && is_email( $progress->client_email ) ) {
+            $recipient = $progress->client_email;
+        } else {
+            $u = get_userdata( $client_id );
+            if ( $u && is_email( $u->user_email ) ) {
+                $recipient = $u->user_email;
+            }
+        }
+        if ( ! $recipient ) {
+            return new WP_Error( 'no_email', 'No email address on file for this client.', array( 'status' => 422 ) );
+        }
+
+        // Stage-aware behaviour (static:: for late static binding — the pure
+        // descriptor is unit-tested; this layer just wires DB + email around it).
+        $status_arr = static::calculate_status( $client_id );
+        $status     = is_array( $status_arr ) && isset( $status_arr['status'] ) ? $status_arr['status'] : '';
+        $has_plan   = (bool) $wpdb->get_var( $wpdb->prepare(
+            "SELECT id FROM {$wpdb->prefix}hdlv2_flight_plans WHERE client_id = %d AND deleted_at IS NULL LIMIT 1",
+            $client_id
+        ) );
+        $d = self::resend_link_descriptor( $status, $has_plan );
+        if ( empty( $d['enabled'] ) ) {
+            // Defence-in-depth: the frontend disables these, but the route must
+            // refuse a blocked-on-practitioner / unknown state too.
+            return new WP_Error( 'not_sendable', $d['tooltip'] ? $d['tooltip'] : 'There is nothing to send for this client.', array( 'status' => 422 ) );
+        }
+
+        // Rule 2 — new token + refreshed expiry; the old link stops working.
+        $new_token = bin2hex( random_bytes( 32 ) );
+        $ttl_days  = defined( 'HDLV2_CLIENT_TOKEN_TTL_DAYS' ) ? (int) HDLV2_CLIENT_TOKEN_TTL_DAYS : 90;
+        $wpdb->update(
+            $wpdb->prefix . 'hdlv2_form_progress',
+            array( 'token' => $new_token, 'token_expires_at' => gmdate( 'Y-m-d H:i:s', time() + $ttl_days * DAY_IN_SECONDS ) ),
+            array( 'id' => (int) $progress->id ),
+            array( '%s', '%s' ),
+            array( '%d' )
+        );
+
+        // Stage-appropriate URL. COMPLETE uses a READ-ONLY view (never reopens
+        // the funnel); the assessment stages share one URL that routes by stage.
+        switch ( $d['link_kind'] ) {
+            case 'plan':
+                $url = site_url( '/my-flight-plan/?token=' . $new_token );
+                break;
+            case 'report':
+                $url = site_url( '/longevity-draft-report/?t=' . $new_token );
+                break;
+            case 'assessment':
+            default:
+                $url = site_url( '/assessment/?token=' . $new_token );
+                break;
+        }
+
+        $first = class_exists( 'HDLV2_Email_Templates' )
+            ? HDLV2_Email_Templates::derive_first_name( $progress->client_name, $recipient )
+            : '';
+        list( $subject, $html ) = $this->build_resend_email( $d, $first, $url, $prac_id );
+        $sent = wp_mail( $recipient, $subject, $html, array( 'Content-Type: text/html; charset=UTF-8' ) );
+
+        // Rule 4 — audit trail: sender, recipient, stage, timestamp.
+        if ( class_exists( 'HDLV2_Timeline' ) ) {
+            HDLV2_Timeline::add_entry(
+                $client_id, $prac_id, 'link_resent',
+                $d['label'],
+                sprintf( 'Practitioner re-sent the %s to %s.', $d['label'], $recipient ),
+                null, 'hdlv2_form_progress', (int) $progress->id, false, true
+            );
+        }
+        error_log( sprintf(
+            '[HDLV2 resend-link] prac=%d client=%d status=%s kind=%s to=%s sent=%s',
+            $prac_id, $client_id, $status, $d['link_kind'], $recipient, $sent ? '1' : '0'
+        ) );
+
+        // Rule 7 — state what was sent and to whom (not a bare tick).
+        return rest_ensure_response( array(
+            'success'         => true,
+            'stage'           => $d['stage'],
+            'stage_label'     => $d['label'],
+            'artefact'        => $d['link_kind'],
+            'recipient_email' => $recipient,
+            'invalidated_old' => true,
+            'email_sent'      => (bool) $sent,
+        ) );
+    }
+
+    /**
+     * Compose the resend email (subject + branded HTML) for a descriptor.
+     * Copy is stage-derived; every variant states that the link replaces any
+     * previous one (mirrors the confirm dialog's promise). Kept small + pure so
+     * the wording is reviewable in one place.
+     *
+     * @return array{0:string,1:string} [ subject, html ]
+     */
+    private function build_resend_email( $descriptor, $first, $url, $practitioner_id ) {
+        $greeting = $first ? ( 'Hi ' . $first . ',' ) : 'Hi,';
+        switch ( $descriptor['link_kind'] ) {
+            case 'plan':
+                $subject = 'Your flight plan link';
+                $lead    = 'Here is a fresh link to view your weekly flight plan.';
+                $cta     = 'View my flight plan';
+                $banner  = 'Your flight plan';
+                break;
+            case 'report':
+                $subject = 'Your report link';
+                $lead    = 'Here is a fresh link to view your report.';
+                $cta     = 'View my report';
+                $banner  = 'Your report';
+                break;
+            case 'assessment':
+            default:
+                $stage   = (int) $descriptor['stage'];
+                $subject = $stage <= 1 ? 'Your longevity assessment link' : ( 'Continue your assessment — Stage ' . $stage );
+                $lead    = $stage <= 1
+                    ? 'Here is your link to start your longevity assessment.'
+                    : 'Here is a fresh link to pick up your assessment where you left off.';
+                $cta     = $stage <= 1 ? 'Start assessment' : 'Continue assessment';
+                $banner  = 'Your assessment link';
+                break;
+        }
+        $note    = 'For your security this replaces any previous link we sent you.';
+        $content = '<p>' . esc_html( $greeting ) . '</p>'
+            . '<p>' . esc_html( $lead ) . '</p>'
+            . '<p style="text-align:center;margin:28px 0;">'
+            . '<a href="' . esc_url( $url ) . '" style="display:inline-block;background:#3d8da0;color:#ffffff;text-decoration:none;padding:12px 28px;border-radius:8px;font-weight:600;font-family:Inter,-apple-system,sans-serif;">' . esc_html( $cta ) . '</a></p>'
+            . '<p style="color:#888888;font-size:13px;">' . esc_html( $note ) . '</p>';
+        $html = class_exists( 'HDLV2_Email_Templates' )
+            ? HDLV2_Email_Templates::base_layout( $content, $practitioner_id, $banner, $lead )
+            : '<!doctype html><html><body>' . $content . '</body></html>';
+        return array( $subject, $html );
     }
 
     // ── REST: Dashboard clients ──
