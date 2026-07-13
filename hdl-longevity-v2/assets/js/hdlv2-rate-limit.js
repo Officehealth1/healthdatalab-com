@@ -127,8 +127,10 @@
     function loadStatus() {
         // 2026-07-14 RL fix — send the REST nonce (localized as
         // hdlv2RateLimitCfg) so this probe is counted against the logged-in
-        // user's bucket instead of an anonymous per-IP bucket, and reports
-        // the bucket the user actually consumes.
+        // user's bucket instead of an anonymous per-IP bucket. (Note: the
+        // JSON body still reports token-or-IP buckets — the pill's accuracy
+        // comes from ingestHeaders reading live X-RateLimit-* headers on
+        // every metered response, which self-corrects any stale seed.)
         var headers = {};
         var cfg = window.hdlv2RateLimitCfg;
         if (cfg && cfg.nonce) headers['X-WP-Nonce'] = cfg.nonce;

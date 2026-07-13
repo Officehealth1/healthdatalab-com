@@ -98,8 +98,17 @@
     // independently fault-tolerant: if pending-leads fails, the queue
     // simply omits that group rather than blocking the V1 client list.
     Promise.all([fetchV2Clients(), fetchPendingLeads()]).then(function (results) {
-      var list   = results[0] || [];
+      var list   = results[0];
       var leads  = results[1] || [];
+      // 2026-07-14 RL fix (review W1) — a blocked/failed FIRST roster read
+      // must not render an empty V2 layer or stamp freshness: leaving
+      // lastFetchedAt at 0 makes the next 60s fallback tick retry
+      // immediately (the staleness net treats 0 as maximally stale), so
+      // recovery stays ~60s. The V1 server-rendered table is unaffected.
+      if (list === null || typeof list === 'undefined') {
+        pollVersion(); // prime the digest — a later advance still repulls
+        return;
+      }
       list.forEach(function (c) {
         if (c.email_hash) state.byHash[c.email_hash] = c;
       });
