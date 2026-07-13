@@ -543,9 +543,16 @@ class HDLV2_Checkin {
         // v0.27.0 — fix #10 (/ultrareview): SELECT DISTINCT was treating all 5
         // columns together, so a client with multiple form_progress rows
         // (different tokens) appeared once per row → multiple weekly reminder
-        // emails. Group by client_user_id and aggregate the rest with
-        // ANY_VALUE (MySQL 5.7+) so each client is one row regardless of how
-        // many progress rows they have.
+        // emails. Group by client_user_id and aggregate the rest so each client
+        // is one row regardless of how many progress rows they have.
+        // v0.47.63 — the aggregate was ANY_VALUE(), which this MariaDB build
+        // (10.11.16) rejects with ERROR 1305 "FUNCTION wordpress.ANY_VALUE does
+        // not exist" — so this cron (and the two below) had been silently dead
+        // since v0.27.0. Swapped to MAX(): universally supported, same one-per-
+        // group intent. (Caveat, unchanged from ANY_VALUE: for a client with
+        // multiple rows the aggregated columns may not all come from the same
+        // row; harmless here — near-all clients have a single progress row, and
+        // a latest-row-coherent rewrite is a possible follow-up.)
         // v0.41.17 — `AND deleted_at IS NULL` so soft-deleted clients stop
         // receiving weekly check-in reminders. Pair with the cascade in
         // rest_delete_client + the deleted_at filter in the checkins
@@ -553,10 +560,10 @@ class HDLV2_Checkin {
         $clients = $wpdb->get_results(
             "SELECT
                 client_user_id,
-                ANY_VALUE(client_email)         AS client_email,
-                ANY_VALUE(client_name)          AS client_name,
-                ANY_VALUE(practitioner_user_id) AS practitioner_user_id,
-                ANY_VALUE(token)                AS token
+                MAX(client_email)         AS client_email,
+                MAX(client_name)          AS client_name,
+                MAX(practitioner_user_id) AS practitioner_user_id,
+                MAX(token)                AS token
              FROM {$wpdb->prefix}hdlv2_form_progress
              WHERE stage3_completed_at IS NOT NULL AND client_email != ''
                AND deleted_at IS NULL
@@ -612,10 +619,10 @@ class HDLV2_Checkin {
         $clients = $wpdb->get_results(
             "SELECT
                 client_user_id,
-                ANY_VALUE(client_name)          AS client_name,
-                ANY_VALUE(client_email)         AS client_email,
-                ANY_VALUE(practitioner_user_id) AS practitioner_user_id,
-                ANY_VALUE(token)                AS token
+                MAX(client_name)          AS client_name,
+                MAX(client_email)         AS client_email,
+                MAX(practitioner_user_id) AS practitioner_user_id,
+                MAX(token)                AS token
              FROM {$wpdb->prefix}hdlv2_form_progress
              WHERE stage3_completed_at IS NOT NULL AND client_user_id IS NOT NULL AND practitioner_user_id IS NOT NULL
                AND deleted_at IS NULL
@@ -670,17 +677,18 @@ class HDLV2_Checkin {
         global $wpdb;
         $threshold = gmdate( 'Y-m-d H:i:s', time() - 3 * DAY_IN_SECONDS );
 
-        // Collapse multiple form_progress rows per client via ANY_VALUE
-        // (same pattern as send_reminders + run_inactivity_sweep above).
+        // Collapse multiple form_progress rows per client (same pattern as
+        // send_reminders + run_inactivity_sweep above). v0.47.63 — MAX() not
+        // ANY_VALUE() (ERROR 1305 on this MariaDB — see send_reminders note).
         // v0.41.17 — `AND deleted_at IS NULL`.
         $stuck = $wpdb->get_results( $wpdb->prepare(
             "SELECT
                 client_user_id,
-                ANY_VALUE(id)                   AS progress_id,
-                ANY_VALUE(client_name)          AS client_name,
-                ANY_VALUE(client_email)         AS client_email,
-                ANY_VALUE(practitioner_user_id) AS practitioner_user_id,
-                ANY_VALUE(stage2_completed_at)  AS stage2_completed_at
+                MAX(id)                   AS progress_id,
+                MAX(client_name)          AS client_name,
+                MAX(client_email)         AS client_email,
+                MAX(practitioner_user_id) AS practitioner_user_id,
+                MAX(stage2_completed_at)  AS stage2_completed_at
              FROM {$wpdb->prefix}hdlv2_form_progress
              WHERE current_stage = 2
                AND stage2_completed_at IS NOT NULL
