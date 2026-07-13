@@ -71,11 +71,20 @@ class HDLV2_Client_Status {
      *     plan exists, else "Resend report". Never a generic "Resend plan".
      *   - Anything else fails closed (disabled).
      *
-     * @param string $status          One of the self::* status constants.
+     * @param string $status          A FUNNEL/completion status (feed it
+     *                                 resolve_resend_status(), NOT the display
+     *                                 status — see GAP-1 below).
      * @param bool   $has_active_plan Whether the client has a live flight plan.
+     * @param bool   $has_report      Whether a finalised report actually exists.
+     *                                 GAP-1 defence-in-depth: the post-report
+     *                                 bucket NEVER offers a report/plan when no
+     *                                 report exists, regardless of the status
+     *                                 passed in — so no caller can rotate the
+     *                                 token + email a dead link for a client who
+     *                                 has no report yet.
      * @return array{enabled:bool,stage:?int,link_kind:string,label:string,tooltip:string}
      */
-    public static function resend_link_descriptor( $status, $has_active_plan = false ) {
+    public static function resend_link_descriptor( $status, $has_active_plan = false, $has_report = true ) {
         $off = function ( $tooltip ) {
             return array( 'enabled' => false, 'stage' => null, 'link_kind' => '', 'label' => '', 'tooltip' => $tooltip );
         };
@@ -94,12 +103,97 @@ class HDLV2_Client_Status {
             case self::PROGRESS_NORMAL:
             case self::NEEDS_ATTENTION:
             case self::INACTIVE:
+                // GAP-1: needs_attention (and any post-report display status)
+                // is honoured ONLY when a report genuinely exists. calculate_status()
+                // can return NEEDS_ATTENTION from the has_flags short-circuit for a
+                // client mid-funnel with ZERO reports; offering "Resend report"
+                // there rotated the token + emailed a dead /longevity-draft-report/
+                // link, stranding red-flag clients. Callers should pass the
+                // flag-blind resolve_resend_status() status; this gate is the
+                // belt-and-braces for any that still pass a display status.
+                if ( ! $has_report ) {
+                    return $off( 'Waiting on your consultation — no report to send yet' );
+                }
                 return $has_active_plan
                     ? array( 'enabled' => true, 'stage' => null, 'link_kind' => 'plan',   'label' => 'Resend flight plan', 'tooltip' => '' )
                     : array( 'enabled' => true, 'stage' => null, 'link_kind' => 'report', 'label' => 'Resend report',      'tooltip' => '' );
             default:
                 return $off( 'Nothing to send for this client yet' );
         }
+    }
+
+    /**
+     * GAP-1 (2026-07-13) — the FLAG-BLIND funnel/completion position that drives
+     * the SEND button, decoupled from the DISPLAY status.
+     *
+     * calculate_status() overlays two attention signals on top of the funnel:
+     * the has_flags short-circuit (:790, BEFORE the report check) and the
+     * check-in attention branch (:871). Both surface a red "Client Needs
+     * Attention" badge — correct for DISPLAY, wrong for deciding what to SEND.
+     * A red-flagged Stage-2/3 client (zero reports) must still be sent their
+     * stage-appropriate CONTINUE link, never a resend of a non-existent report.
+     *
+     * This resolver mirrors calculate_status()'s funnel branches EXACTLY (same
+     * three lookups, same order) but WITHOUT the attention overlays, so:
+     *   - pre-Stage-3 → NOT_STARTED / LOW_DATA / AWAITING_WHY_RELEASE / STAGE3_IN_PROGRESS
+     *   - Stage-3 done, no report → AWAITING_CONSULT   (nothing to send)
+     *   - report exists → PROGRESS_NORMAL              (the only send-relevant "complete")
+     * ACTIVE / INACTIVE / NEEDS_ATTENTION are display overlays and are never
+     * emitted here.
+     *
+     * @param int $client_user_id
+     * @return array{status:string,has_report:bool}
+     */
+    public static function resolve_resend_status( $client_user_id ) {
+        global $wpdb;
+        $prefix = $wpdb->prefix;
+
+        $progress = $wpdb->get_row( $wpdb->prepare(
+            "SELECT id, stage1_completed_at, stage3_completed_at
+             FROM {$prefix}hdlv2_form_progress
+             WHERE client_user_id = %d AND deleted_at IS NULL
+             ORDER BY id DESC LIMIT 1",
+            $client_user_id
+        ) );
+
+        if ( ! $progress || empty( $progress->stage1_completed_at ) ) {
+            return array( 'status' => self::NOT_STARTED, 'has_report' => false );
+        }
+
+        // Pre-Stage-3 — same WHY-based branching as calculate_status(), minus
+        // the has_flags short-circuit (a red flag must not change the stage the
+        // client is sent to continue from).
+        if ( empty( $progress->stage3_completed_at ) ) {
+            $why = $wpdb->get_row( $wpdb->prepare(
+                "SELECT id, released FROM {$prefix}hdlv2_why_profiles WHERE form_progress_id = %d LIMIT 1",
+                $progress->id
+            ) );
+            if ( $why && (int) $why->released === 0 ) {
+                return array( 'status' => self::AWAITING_WHY_RELEASE, 'has_report' => false );
+            }
+            if ( $why && (int) $why->released === 1 ) {
+                return array( 'status' => self::STAGE3_IN_PROGRESS, 'has_report' => false );
+            }
+            return array( 'status' => self::LOW_DATA, 'has_report' => false );
+        }
+
+        // Stage-3 done — does a finalised report exist?
+        $has_report = (bool) $wpdb->get_var( $wpdb->prepare(
+            "SELECT id FROM {$prefix}hdlv2_consultation_notes WHERE form_progress_id = %d AND status = 'report_generated' LIMIT 1",
+            $progress->id
+        ) );
+        if ( ! $has_report ) {
+            // Stage-3 complete but no report yet: the practitioner owes a
+            // consultation. Nothing to CONTINUE, nothing to RESEND (a red flag
+            // does not create a report). This is where the Margaret-Hughes case
+            // now lands — disabled, honest, no token rotation.
+            return array( 'status' => self::AWAITING_CONSULT, 'has_report' => false );
+        }
+
+        // Report exists — the only send-relevant "complete" position. Attention
+        // and inactivity are display overlays that all collapse to the same
+        // send behaviour (resend the report or, if present, the flight plan).
+        return array( 'status' => self::PROGRESS_NORMAL, 'has_report' => true );
     }
 
     public function register_hooks() {
@@ -959,15 +1053,18 @@ class HDLV2_Client_Status {
             return new WP_Error( 'no_email', 'No email address on file for this client.', array( 'status' => 422 ) );
         }
 
-        // Stage-aware behaviour (static:: for late static binding — the pure
-        // descriptor is unit-tested; this layer just wires DB + email around it).
-        $status_arr = static::calculate_status( $client_id );
-        $status     = is_array( $status_arr ) && isset( $status_arr['status'] ) ? $status_arr['status'] : '';
+        // Stage-aware behaviour. GAP-1: the SEND path derives from the
+        // FLAG-BLIND funnel position (resolve_resend_status), NOT the display
+        // status — a needs_attention client mid-funnel must be sent their
+        // continue link, never a resend of a report that doesn't exist.
+        $send       = static::resolve_resend_status( $client_id );
+        $status     = $send['status'];
+        $has_report = ! empty( $send['has_report'] );
         $has_plan   = (bool) $wpdb->get_var( $wpdb->prepare(
             "SELECT id FROM {$wpdb->prefix}hdlv2_flight_plans WHERE client_id = %d AND deleted_at IS NULL LIMIT 1",
             $client_id
         ) );
-        $d = self::resend_link_descriptor( $status, $has_plan );
+        $d = self::resend_link_descriptor( $status, $has_plan, $has_report );
         if ( empty( $d['enabled'] ) ) {
             // Defence-in-depth: the frontend disables these, but the route must
             // refuse a blocked-on-practitioner / unknown state too.
@@ -1219,6 +1316,10 @@ class HDLV2_Client_Status {
                 $client_id
             ) );
 
+            // GAP-1: flag-blind funnel position for the SEND button (decoupled
+            // from the display status['status'] badge above).
+            $send = self::resolve_resend_status( $client_id );
+
             $result[] = array(
                 'user_id'          => (int) $client_id,
                 'progress_id'      => $progress_id,
@@ -1248,7 +1349,11 @@ class HDLV2_Client_Status {
                 'tier'             => $tier !== '' ? $tier : 'practitioner',
                 'auto_consultation' => $auto_consultation,
                 // P2 — stage-aware resend behaviour for the action cell.
-                'resend'           => self::resend_link_descriptor( $status['status'], $has_plan ),
+                // GAP-1: derive from the FLAG-BLIND funnel position, not the
+                // display status['status'] — otherwise a needs_attention client
+                // with no report is offered "Resend report" (token rotation +
+                // dead link). $send is resolved once per row above.
+                'resend'           => self::resend_link_descriptor( $send['status'], $has_plan, ! empty( $send['has_report'] ) ),
             );
         }
 

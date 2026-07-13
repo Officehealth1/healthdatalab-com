@@ -3888,14 +3888,21 @@
     var r = c.resend || {};
     // Client-side mirror of the server's 422 refusal — never even ask.
     if (!r.enabled || !c.email) return;
+    // GAP-2 (2026-07-13): lock the button the INSTANT the first click is
+    // handled, BEFORE the dialog opens, so a rapid second click hits the
+    // `if (btn.disabled) return` guard at the top of this handler and cannot
+    // stack a second confirm dialog — each of which would rotate the token
+    // again. Released on cancel / dialog error; doResendLink keeps it disabled
+    // through the fetch and re-enables on completion.
+    btn.disabled = true;
     var copy = resendConfirmCopy(c);
     var ask = (window.HDLV2UI && window.HDLV2UI.confirm)
       ? window.HDLV2UI.confirm({ title: copy.title, body: copy.body, confirmLabel: copy.confirmLabel, cancelLabel: copy.cancelLabel })
       : Promise.resolve(window.confirm(copy.title + '\n\n' + copy.body));
     ask.then(function (confirmed) {
-      if (!confirmed) return;
+      if (!confirmed) { btn.disabled = false; return; }
       doResendLink(btn, c);
-    });
+    }, function () { btn.disabled = false; });
   }
 
   function doResendLink(btn, c) {

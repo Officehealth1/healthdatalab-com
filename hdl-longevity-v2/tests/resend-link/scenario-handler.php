@@ -22,7 +22,7 @@ define( 'HDLV2_CLIENT_TOKEN_TTL_DAYS', 90 );
 
 // ── captured side-effects ──
 $GLOBALS['cap'] = array( 'mail' => null, 'timeline' => null, 'update' => null, 'routes' => array() );
-$GLOBALS['scn'] = array( 'owns' => true, 'rate_ok' => true, 'progress' => null, 'has_plan' => false, 'status' => 'not_started', 'uid' => 20 );
+$GLOBALS['scn'] = array( 'owns' => true, 'rate_ok' => true, 'progress' => null, 'has_plan' => false, 'status' => 'not_started', 'send_status' => 'not_started', 'has_report' => false, 'uid' => 20 );
 
 // ── WP stubs ──
 function add_action() {}
@@ -77,10 +77,15 @@ $GLOBALS['wpdb'] = new FakeWpdb();
 
 require __DIR__ . '/../../includes/sprint-4/class-hdlv2-client-status.php';
 
-// Testable: pin calculate_status (the handler calls it via static::).
+// Testable: pin the resolvers (the handler calls them via static::).
+// GAP-1: the SEND path now derives from resolve_resend_status (flag-blind
+// funnel), not calculate_status (display); pin both so scenarios stay explicit.
 class Testable_Client_Status extends HDLV2_Client_Status {
     public function __construct() {}
     public static function calculate_status( $client_id ) { return array( 'status' => $GLOBALS['scn']['status'] ); }
+    public static function resolve_resend_status( $client_id ) {
+        return array( 'status' => $GLOBALS['scn']['send_status'], 'has_report' => (bool) $GLOBALS['scn']['has_report'] );
+    }
 }
 
 $svc = new Testable_Client_Status();
@@ -117,18 +122,34 @@ $r = $svc->rest_resend_link( array( 'client_id' => 55 ) );
 ok( '422: no assessment returns WP_Error 422', $r instanceof WP_Error && $r->status() === 422 );
 
 // ── (4) 422 disabled status (blocked on practitioner) ──
+// GAP-1: awaiting_consult is exactly where a red-flag Stage-3-done-no-report
+// client now lands — disabled, so NO token rotation and NO email.
 reset_caps();
-$GLOBALS['scn']['progress'] = progress_row();
-$GLOBALS['scn']['status']   = 'awaiting_consult';
+$GLOBALS['scn']['progress']    = progress_row();
+$GLOBALS['scn']['send_status'] = 'awaiting_consult';
+$GLOBALS['scn']['has_report']  = false;
 $r = $svc->rest_resend_link( array( 'client_id' => 55 ) );
 ok( '422: disabled status refused', $r instanceof WP_Error && $r->status() === 422 );
 ok( '422: disabled status does NOT rotate the token', $GLOBALS['cap']['update'] === null );
 ok( '422: disabled status sends no email', $GLOBALS['cap']['mail'] === null );
 
+// ── (4b) GAP-1 — a needs_attention client whose funnel is Stage-2 gets the
+//        CONTINUE link (Stage-2), NOT a report; token still rotates for a
+//        genuine continue send, but the artefact is the assessment link. ──
+reset_caps();
+$GLOBALS['scn']['progress']    = progress_row();
+$GLOBALS['scn']['send_status'] = 'low_data';
+$GLOBALS['scn']['has_report']  = false;
+$r = $svc->rest_resend_link( array( 'client_id' => 55 ) );
+ok( 'GAP-1: red-flag Stage-2 → 200 continue link (assessment, not report)',
+    is_array( $r ) && ! empty( $r['success'] ) && $r['artefact'] === 'assessment' && $r['stage_label'] === 'Send Stage-2 link',
+    is_array( $r ) ? json_encode( array( $r['artefact'] ?? null, $r['stage_label'] ?? null ) ) : gettype( $r ) );
+
 // ── (5) happy path — enabled stage rotates + sends + audits ──
 reset_caps();
-$GLOBALS['scn']['progress'] = progress_row();
-$GLOBALS['scn']['status']   = 'not_started';
+$GLOBALS['scn']['progress']    = progress_row();
+$GLOBALS['scn']['send_status'] = 'not_started';
+$GLOBALS['scn']['has_report']  = false;
 $r = $svc->rest_resend_link( array( 'client_id' => 55 ) );
 ok( 'happy: response success', is_array( $r ) && ! empty( $r['success'] ) );
 ok( 'happy: token rotated to a NEW value', $GLOBALS['cap']['update'] && $GLOBALS['cap']['update']['data']['token'] !== 'OLDOLDOLD' && strlen( $GLOBALS['cap']['update']['data']['token'] ) === 64 );
