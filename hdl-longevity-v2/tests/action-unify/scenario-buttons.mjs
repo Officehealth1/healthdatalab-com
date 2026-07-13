@@ -34,6 +34,24 @@ function extract(name) {
   throw new Error('unbalanced braces extracting ' + name);
 }
 
+// P3 — the icon fns now read from the HDLV2_ICONS map; extract it too.
+function extractVar(name) {
+  const marker = 'var ' + name + ' = {';
+  const idx = src.indexOf(marker);
+  if (idx === -1) throw new Error('var ' + name + ' not found in enhancer source');
+  const open = src.indexOf('{', idx);
+  let depth = 0;
+  for (let i = open; i < src.length; i++) {
+    const ch = src[i];
+    if (ch === '{') depth++;
+    else if (ch === '}') {
+      depth--;
+      if (depth === 0) return src.slice(idx, i + 1) + ';';
+    }
+  }
+  throw new Error('unbalanced braces extracting var ' + name);
+}
+
 // Minimal document stub so the REAL esc() runs unmodified (it uses a div's
 // textContent -> innerHTML round-trip; browsers escape & < > there).
 const documentStub = {
@@ -61,6 +79,8 @@ try {
     extract('esc'),
     extract('attrEsc'),
     extract('resendState'),
+    extractVar('HDLV2_ICONS'),
+    extract('iconSVG'),
     extract('sendIconSVG'),
     extract('messageIconSVG'),
     extract('chartIconSVG'),

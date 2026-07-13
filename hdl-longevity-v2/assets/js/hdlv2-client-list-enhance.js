@@ -84,6 +84,11 @@
 
   function init() {
     injectStyles();
+    // P3 — swap the animated icon set into the V1 server-rendered rows
+    // straight away (before the roster fetch resolves), so the
+    // static→animated transition never flashes. Idempotent — later passes
+    // skip any svg already carrying .hdlv2-anim-ico.
+    decorateActionIcons(state.table);
     mountActionQueueShell();
     mountIrisCard();   // Iridology add-on (IrisMapper) — self-guards on the flag (Rule-0)
     bindDeleteV2Client();
@@ -1727,8 +1732,8 @@
   }
 
   // -- Flight Consultation Notes -- per-client download (Phase 4) --
-  // Recreated itshover download-icon (Apache-2.0) as inline SVG; animated by
-  // pure CSS on hover/loading (no React/motion, CSP-safe).
+  // Ported from itshover.com/icons/download-icon (github.com/itshover/itshover, Apache-2.0)
+  // as inline SVG; animated by pure CSS on hover/loading (no React/motion, CSP-safe).
   function flightNotesIconSVG() {
     return '<svg class="hdlv2-fn-ico" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
       + '<path class="fn-ico-tray" d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>'
@@ -2713,7 +2718,8 @@
       .catch(function () { /* toolbar is best-effort; the renderer still mounts */ });
   }
 
-  // v0.46.59 — itshover download-icon geometry (1:1; CSS-approximated motion).
+  // v0.46.59 — ported from itshover.com/icons/download-icon
+  // (github.com/itshover/itshover, Apache-2.0); geometry 1:1, CSS-approximated motion.
   function itshoverDownloadSVG() {
     return '<svg class="hdlv2-iho-dl" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
       + '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>'
@@ -3610,11 +3616,13 @@
       });
   }
 
-  // v0.41.14 — animated trash button rendered on V2-only rows. SVG paths copied
-  // verbatim from itshover.com/icons/trash-icon (Tabler-style stroke set). Class
-  // hooks (.trash-lid-lower / .trash-lid-upper) are targeted by the hover-state
-  // CSS in injectStyles() to rotate the lid open without any JS during idle.
-  // Click flow → confirm modal → AJAX → row fade is in handleDeleteClient above.
+  // v0.41.14 — animated trash button rendered on V2-only rows. Geometry
+  // ported from itshover.com/icons/trash-icon (github.com/itshover/itshover,
+  // Apache-2.0); since P3 it lives in HDLV2_ICONS['trash-v2'] (single source).
+  // Class hooks (.trash-lid-lower / .trash-lid-upper) are targeted by the
+  // hover-state CSS in injectStyles() to rotate the lid open without any JS
+  // during idle. Click flow → confirm modal → AJAX → row fade is in
+  // handleDeleteClient above.
   function renderV2DeleteButton(c) {
     if (!c || !c.user_id) return '';
     var nameEsc = esc(c.name || 'this client');
@@ -3628,14 +3636,7 @@
       + 'data-client-name="' + nameEsc + '" '
       + 'title="Remove ' + nameEsc + ' from your list" '
       + 'aria-label="Remove ' + nameEsc + ' from your list">'
-      + '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
-      +   '<path stroke="none" d="M0 0h24v24H0z" fill="none"/>'
-      +   '<path class="trash-lid-lower" d="M4 7l16 0"/>'
-      +   '<path d="M10 11l0 6"/>'
-      +   '<path d="M14 11l0 6"/>'
-      +   '<path d="M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2 -2l1 -12"/>'
-      +   '<path class="trash-lid-upper" d="M9 7v-3a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v3"/>'
-      + '</svg>'
+      + iconSVG('trash-v2')
       + '</button>';
   }
 
@@ -3655,25 +3656,105 @@
   //  Deliberately NO cancel-invite affordance on V2 rows — invite rows are a
   //  V1-only concept and are never decorated (invite-row guard below).
   //
-  //  SVG paths are copied verbatim from V1's action cells so V1's
-  //  .action-icon-btn CSS styles them identically. Disabled states use
+  //  SVG geometry comes from the P3 HDLV2_ICONS map (V1's own shapes, plus
+  //  classed sub-paths for the hover motion) so V1's .action-icon-btn CSS
+  //  styles them identically. Disabled states use
   //  .hdlv2-btn-off (NOT V1's .btn-disabled): pointer-events stay live so the
   //  per-stage reason tooltip is hoverable; the delegated handlers refuse the
   //  click, and the server refuses again (422) as defence-in-depth.
   // ──────────────────────────────────────────────────────────────────
 
-  function sendIconSVG() {
-    return '<svg viewBox="0 0 24 24"><path d="M22 2L11 13"/><path d="M22 2L15 22L11 13L2 9L22 2Z"/></svg>';
+  // ──────────────────────────────────────────────────────────────────
+  //  P3 (animated icon unify, 2026-07-13) — ONE icon map, ONE motion block.
+  //
+  //  Single source of truth for every action-cell glyph on BOTH dashboards:
+  //  the P2 builders consume it directly, and decorateActionIcons() swaps it
+  //  into V1's server-rendered buttons in place (inner <svg> only, so the
+  //  button's handlers, data-/aria- attributes, and the .msg-unread-badge
+  //  sibling all survive). Geometry stays V1's own Feather set — only the
+  //  moving parts gain classed sub-paths. The hover motion is modelled on
+  //  itshover's per-icon animation spec but hand-rolled as pure CSS in
+  //  injectStyles(): itshover ships React/Motion (JS) components, so nothing
+  //  is copied from its source — only the classed sub-path structure and the
+  //  motion design are ported:
+  //    send    — ported from itshover.com/icons/send-icon (github.com/itshover/itshover, Apache-2.0)
+  //    message — ported from itshover.com/icons/message-circle-icon (github.com/itshover/itshover, Apache-2.0)
+  //    chart   — ported from itshover.com/icons/chart-bar-icon (github.com/itshover/itshover, Apache-2.0)
+  //    person  — ported from itshover.com/icons/user-icon (github.com/itshover/itshover, Apache-2.0)
+  //    trash   — ported from itshover.com/icons/trash-icon (github.com/itshover/itshover, Apache-2.0)
+  //              ×2 entries: 'trash' keeps V1's Feather geometry (the handle
+  //              split into its own sub-path so the lid can open — same
+  //              rendered shape); 'trash-v2' is the itshover geometry already
+  //              shipped on V2 rows since v0.41.14.
+  //  The svg root class .hdlv2-anim-ico doubles as the decorate-pass
+  //  idempotency marker — a button whose svg already carries it is skipped,
+  //  so the 4s digest poll can never double-swap or resurrect a static icon.
+  var HDLV2_ICONS = {
+    'send': '<svg class="hdlv2-anim-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+      + '<g class="send-plane"><path d="M22 2L11 13"/><path d="M22 2L15 22L11 13L2 9L22 2Z"/></g></svg>',
+    'message': '<svg class="hdlv2-anim-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+      + '<path class="msg-bubble" d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>',
+    'chart': '<svg class="hdlv2-anim-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+      + '<rect class="bar-1" x="3" y="12" width="4" height="9"/><rect class="bar-2" x="10" y="8" width="4" height="13"/><rect class="bar-3" x="17" y="3" width="4" height="18"/></svg>',
+    'person': '<svg class="hdlv2-anim-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+      + '<g class="person-avatar"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></g></svg>',
+    'trash': '<svg class="hdlv2-anim-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+      + '<polyline class="trash-lid-lower" points="3 6 5 6 21 6"/>'
+      + '<path class="trash-lid-upper" d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>'
+      + '<path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/>'
+      + '<line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>',
+    'trash-v2': '<svg class="hdlv2-anim-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+      + '<path stroke="none" d="M0 0h24v24H0z" fill="none"/>'
+      + '<path class="trash-lid-lower" d="M4 7l16 0"/>'
+      + '<path d="M10 11l0 6"/>'
+      + '<path d="M14 11l0 6"/>'
+      + '<path d="M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2 -2l1 -12"/>'
+      + '<path class="trash-lid-upper" d="M9 7v-3a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v3"/></svg>',
+  };
+
+  function iconSVG(name) {
+    return HDLV2_ICONS[name] || '';
   }
-  function messageIconSVG() {
-    return '<svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>';
+
+  // V1 button-class -> icon-name for the decorate pass. Only the six
+  // PHP-rendered button classes map (token-safe match, so V2's
+  // .hdlv2-delete-client-btn can never collide with .delete-client-btn);
+  // map-built P2 buttons are skipped upstream by the .hdlv2-anim-ico marker.
+  function iconNameForButton(className) {
+    var cls = ' ' + (className || '') + ' ';
+    if (cls.indexOf(' send-form-btn ') !== -1)     return 'send';
+    if (cls.indexOf(' message-btn ') !== -1)       return 'message';
+    if (cls.indexOf(' view-tracker-btn ') !== -1)  return 'chart';
+    if (cls.indexOf(' details-btn ') !== -1)       return 'person';
+    if (cls.indexOf(' delete-client-btn ') !== -1) return 'trash';
+    if (cls.indexOf(' cancel-invite-btn ') !== -1) return 'trash';
+    return '';
   }
-  function chartIconSVG() {
-    return '<svg viewBox="0 0 24 24"><rect x="3" y="12" width="4" height="9"/><rect x="10" y="8" width="4" height="13"/><rect x="17" y="3" width="4" height="18"/></svg>';
+
+  // P3 — swap the static Feather <svg> inside every V1 server-rendered
+  // action button (all 4 PHP action-cell blocks, both dashboards, incl.
+  // invite rows — visual swap only, handlers untouched) for the animated
+  // map version. Replaces the svg ELEMENT in place via outerHTML, never
+  // button.innerHTML, so V1's jQuery-delegated handlers (bound on button
+  // classes) and the .msg-unread-badge sibling are untouched.
+  function decorateActionIcons(root) {
+    if (!root || !root.querySelectorAll) return;
+    var btns = root.querySelectorAll('.action-icon-btn');
+    for (var i = 0; i < btns.length; i++) {
+      var btn = btns[i];
+      var svg = btn.querySelector('svg');
+      if (!svg || (svg.classList && svg.classList.contains('hdlv2-anim-ico'))) continue;
+      var name = iconNameForButton(btn.className && btn.className.baseVal !== undefined ? btn.className.baseVal : btn.className);
+      if (!name) continue;
+      var html = iconSVG(name);
+      if (html) svg.outerHTML = html;
+    }
   }
-  function personIconSVG() {
-    return '<svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>';
-  }
+
+  function sendIconSVG()    { return iconSVG('send'); }
+  function messageIconSVG() { return iconSVG('message'); }
+  function chartIconSVG()   { return iconSVG('chart'); }
+  function personIconSVG()  { return iconSVG('person'); }
 
   // Effective resend state = the server's P1b descriptor ∧ an email on file.
   // The tooltip is the SINGLE user-facing explanation for every state, so a
@@ -4006,7 +4087,8 @@
       '.hdlv2-inline-badge { display:inline-flex; align-items:center; padding:3px 9px; margin-left:6px; border-radius:24px; font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:0.03em; white-space:nowrap; vertical-align:middle; font-family: Inter, -apple-system, sans-serif; }',
       '.hdlv2-expand-btn { display:inline-flex; align-items:center; justify-content:center; width:32px; height:32px; border:1px solid #e4e6ea; border-radius:50%; background:#fff; color:#888; cursor:pointer; margin-left:6px; padding:0; transition:all 0.15s ease; vertical-align:middle; }',
       '.hdlv2-expand-btn:hover { border-color:#3d8da0; color:#3d8da0; background:rgba(61,141,160,0.06); }',
-      // v0.41.14 — animated trash icon ported from itshover.com/icons/trash-icon.
+      // v0.41.14 — animated trash icon ported from itshover.com/icons/trash-icon
+      // (github.com/itshover/itshover, Apache-2.0).
       // Vanilla CSS translation of the original Motion (Framer) hover animation:
       //   lid lower rotates -25° + lifts; lid upper rotates -35° + lifts diagonally;
       //   stroke colour shifts to #ef4444 (Tailwind red-500) on hover.
@@ -4029,6 +4111,43 @@
       '.hdlv2-delete-client-btn:hover svg .trash-lid-upper, .hdlv2-delete-client-btn.is-deleting svg .trash-lid-upper { transform: translate(-1.5px, -3px) rotate(-35deg); }',
       '@keyframes hdlv2-trash-shake { 0%{transform:translateX(0);} 25%{transform:translateX(-2px);} 50%{transform:translateX(2px);} 75%{transform:translateX(-1px);} 100%{transform:translateX(0);} }',
       '.hdlv2-delete-client-btn.is-shaking svg { animation: hdlv2-trash-shake 0.25s ease-in-out; }',
+      // ── P3 (2026-07-13) — unified animated icon set for the action cell. ──
+      // Motion modelled on itshover.com per-icon specs (hand-rolled pure CSS;
+      // itshover ships React/Motion JS — nothing copied from its source).
+      // ONE shared timing + easing across all five icons, single clean play
+      // on button hover with a natural reset on leave, no loops. The V1 red
+      // trash reuses the exact lid transforms the V2 grey trash has shipped
+      // since v0.41.14, so the motion language is identical everywhere.
+      '.action-icon-btn svg.hdlv2-anim-ico { overflow:visible; }',
+      '.action-icon-btn svg .send-plane, .action-icon-btn svg .msg-bubble, .action-icon-btn svg .person-avatar { transform-box:fill-box; transform-origin:center; transition: transform .25s cubic-bezier(0.16, 1, 0.3, 1); }',
+      '.action-icon-btn svg .bar-1, .action-icon-btn svg .bar-2, .action-icon-btn svg .bar-3 { transform-box:fill-box; transform-origin:50% 100%; transition: transform .25s cubic-bezier(0.16, 1, 0.3, 1); }',
+      '.action-icon-btn svg .bar-2 { transition-delay:.06s; }',
+      '.action-icon-btn svg .bar-3 { transition-delay:.12s; }',
+      '.action-icon-btn svg .trash-lid-lower, .action-icon-btn svg .trash-lid-upper { transform-origin: 50% 100%; transition: transform .25s cubic-bezier(0.16, 1, 0.3, 1); }',
+      '.action-icon-btn:hover svg .send-plane { transform: translate(2px, -2px); }',
+      '.action-icon-btn:hover svg .msg-bubble { transform: scale(1.08); }',
+      '.action-icon-btn:hover svg .bar-1, .action-icon-btn:hover svg .bar-2, .action-icon-btn:hover svg .bar-3 { transform: scaleY(1.1); }',
+      '.action-icon-btn:hover svg .person-avatar { transform: translateY(-1px) scale(1.05); }',
+      '.action-icon-btn:hover svg .trash-lid-lower { transform: translateY(-2px) rotate(-25deg); }',
+      '.action-icon-btn:hover svg .trash-lid-upper { transform: translate(-1.5px, -3px) rotate(-35deg); }',
+      // P3 — disabled buttons show NO motion: V1 .btn-disabled never hovers
+      // (pointer-events:none) but is covered anyway; .hdlv2-btn-off stays
+      // hoverable for its reason-tooltip, so its sub-paths must hold still.
+      '.action-icon-btn.btn-disabled svg *, .action-icon-btn.btn-disabled:hover svg *, .action-icon-btn.hdlv2-btn-off svg *, .action-icon-btn.hdlv2-btn-off:hover svg * { transition:none; transform:none; animation:none; }',
+      // P3 — reduced-motion: one block silences all 8 animated icons (5 new
+      // + the V2 trash + both existing itshover download ports) and the
+      // JS-toggled shake. The chevron keeps its rotate (open/closed is state,
+      // not decoration) but snaps instead of transitioning.
+      '@media (prefers-reduced-motion: reduce) { '
+        + '.action-icon-btn svg .send-plane, .action-icon-btn svg .msg-bubble, .action-icon-btn svg .bar-1, .action-icon-btn svg .bar-2, .action-icon-btn svg .bar-3, .action-icon-btn svg .person-avatar, '
+        + '.action-icon-btn svg .trash-lid-lower, .action-icon-btn svg .trash-lid-upper, '
+        + '.hdlv2-delete-client-btn svg .trash-lid-lower, .hdlv2-delete-client-btn svg .trash-lid-upper, '
+        + '.hdlv2-fn-ico .fn-ico-stem, .hdlv2-fn-ico .fn-ico-head, .hdlv2-fn-ico .fn-ico-tray, '
+        + '.hdlv2-iho-dl .hdlv2-iho-dl-arrow '
+        + '{ transition:none !important; transform:none !important; animation:none !important; } '
+        + '.hdlv2-delete-client-btn.is-shaking svg, .hdlv2-delete-client-btn.is-deleting svg { animation:none !important; } '
+        + '.hdlv2-expand-btn svg { transition:none !important; } '
+        + '}',
       '.hdlv2-v2-only-row.is-removing { transition: opacity 0.3s ease-out, transform 0.3s ease-out; opacity:0; transform: translateX(8px); }',
       '.hdlv2-expand-btn svg { transition: transform 0.2s ease; display:block; }',
       '.hdlv2-expand-btn.open svg { transform: rotate(180deg); }',
