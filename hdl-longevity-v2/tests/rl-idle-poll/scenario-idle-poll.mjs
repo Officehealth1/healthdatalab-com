@@ -24,7 +24,11 @@
  *  (I7) pollNow() with a null roster result (429/error) does NOT
  *       reconcile/render — a blocked poll never wipes the visible roster;
  *  (I8) the REAL fetchV2Clients/fetchPendingLeads send the bg marker and
- *       resolve null (not []) on a non-ok response.
+ *       resolve null (not []) on a non-ok response;
+ *  (I9) review W1 — a blocked (null) FIRST-load roster in init() renders
+ *       nothing (no empty-list render) and does NOT stamp freshness, so the
+ *       next 60s fallback tick retries immediately (pre-fix 60s recovery,
+ *       not a 5-minute stall).
  *
  * Run:  node tests/rl-idle-poll/scenario-idle-poll.mjs   (exit 0/1)
  */
@@ -116,7 +120,7 @@ function makeEnv() {
     'injectStyles', 'mountActionQueueShell', 'mountIrisCard', 'bindDeleteV2Client',
     'enhanceMatchedRows', 'appendV2OnlyRows', 'defaultSortByLatestActivity',
     'decorateActionIcons', 'bindResendLink', 'bindProgressOpen', 'bindMessageIntegration',
-    code + '\nreturn { startPolling: startPolling, stopPolling: stopPolling, pollVersion: pollVersion, pollNow: pollNow };'
+    code + '\nreturn { startPolling: startPolling, stopPolling: stopPolling, pollVersion: pollVersion, pollNow: pollNow, init: init };'
   );
   const noop = function () {};
   env.api = factory(
@@ -235,6 +239,35 @@ ok('(I7) pollNow with null roster result skips reconcile/render', env.reconcileC
       'bg headers=' + JSON.stringify(hdrs));
     ok('(I8b) both resolve null (not []) on a non-ok response', rc === null && rp === null,
       'clients=' + JSON.stringify(rc) + ' pending=' + JSON.stringify(rp));
+  }
+}
+
+// ═══ I9 — review W1: blocked first load renders nothing + recovers in 60s ═══
+{
+  let env2;
+  try {
+    env2 = makeEnv();
+  } catch (e) {
+    ok('(I9) fresh env for init test', false, e.message);
+    env2 = null;
+  }
+  if (env2) {
+    env2.v2ClientsResult = null; // first roster read is blocked (429)
+    env2.api.init();
+    await flush(); await flush();
+    ok('(I9a) init with blocked roster does NOT render an empty V2 layer', env2.renderQueueCalls === 0,
+      'renderQueueCalls=' + env2.renderQueueCalls);
+    const fetchesAfterInit = env2.fullFetches;
+    // Recovery: server unblocks; the next 60s fallback tick must refetch
+    // immediately (freshness was never stamped), not wait out a 5-min net.
+    env2.v2ClientsResult = [{ user_id: 1, email_hash: 'h' }];
+    env2.now += 61_000;
+    const fb = (env2.intervals.find((t) => t.ms === 60000) || {}).cb;
+    if (fb) fb();
+    await flush(); await flush();
+    ok('(I9b) next 60s fallback tick refetches (60s recovery, not 5min)', env2.fullFetches === fetchesAfterInit + 1,
+      'fullFetches=' + env2.fullFetches + ' afterInit=' + fetchesAfterInit);
+    ok('(I9c) recovered roster renders', env2.renderQueueCalls === 1, 'renderQueueCalls=' + env2.renderQueueCalls);
   }
 }
 
