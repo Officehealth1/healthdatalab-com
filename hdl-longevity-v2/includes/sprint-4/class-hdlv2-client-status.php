@@ -964,6 +964,12 @@ class HDLV2_Client_Status {
                 'why_id'           => $why ? (int) $why->id : null,
                 'why_released'     => $why ? (int) $why->released : null,
                 'name'             => $user ? $user->display_name : 'Unknown',
+                // P1a (2026-07-13, action-button unify) — WP user_login so the
+                // dashboard's "View Profile" action can resolve /user/{login}/
+                // for V2-only rows (V1 rows already carry data-client-login from
+                // PHP). Sourced from the $user already fetched above; '' when the
+                // user record is missing so the JS can hide the affordance.
+                'user_login'       => $user ? $user->user_login : '',
                 'email'            => $email,
                 'email_hash'       => $email_hash,
                 'status'           => $status['status'],
