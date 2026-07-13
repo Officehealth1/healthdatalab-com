@@ -3902,14 +3902,19 @@
         state.msgV2Client = null;
       }
     });
+    // Two send actions can leave the modal: hdl_post_message (the hdl-chat.js
+    // conversation thread — the path this dashboard actually uses) and
+    // hdl_send_client_message (the classic form submit). Stamp both.
     if (window.jQuery && window.jQuery.ajaxPrefilter) {
       window.jQuery.ajaxPrefilter(function (options) {
         if (!state.msgV2Client || !options) return;
         var d = options.data;
         if (typeof d === 'string') {
-          if (d.indexOf('action=hdl_send_client_message') === -1) return;
+          if (d.indexOf('action=hdl_send_client_message') === -1
+            && d.indexOf('action=hdl_post_message') === -1) return;
           options.data = d + '&skip_autolink=1';
-        } else if (d && typeof d === 'object' && d.action === 'hdl_send_client_message') {
+        } else if (d && typeof d === 'object'
+          && (d.action === 'hdl_send_client_message' || d.action === 'hdl_post_message')) {
           d.skip_autolink = '1';
         }
       });
