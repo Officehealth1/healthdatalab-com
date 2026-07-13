@@ -331,6 +331,12 @@ class HDLV2_Client_Dashboard {
             return $this->render_practitioner_redirect();
         }
 
+        // Slice C (v0.47.67): the message inbox rides on EVERY logged-in
+        // client state — mid-funnel clients (empty states) receive
+        // practitioner messages too, so a populated-only inbox would hide
+        // the thread from exactly the clients being onboarded.
+        $this->enqueue_inbox( $user_id );
+
         $state = HDLV2_Compatibility::get_client_journey_state( $user_id );
 
         if ( $state === 'populated' ) {
@@ -358,6 +364,51 @@ class HDLV2_Client_Dashboard {
         }
 
         return $this->render_empty_state( $user_id, $state );
+    }
+
+    /**
+     * Slice C — session-mode inbox wiring. The V1 messaging AJAX handlers
+     * authorise a logged-in client by (a) the health_tracker nonce and (b)
+     * is_self_as_client: the supplied client_email_hash must equal the
+     * sha256 of the SESSION user's email — so that is exactly the hash we
+     * hand the JS (self-binding; a tampered hash simply 403s server-side).
+     * The practitioner comes from form_progress.practitioner_user_id (the
+     * V2-authoritative link — the betas have NO V1 practitioner_clients
+     * row); 0 is fine: the JS falls back to the conversation's resolved
+     * practitioner_id.
+     */
+    private function enqueue_inbox( $user_id ) {
+        global $wpdb;
+
+        wp_enqueue_script(
+            'hdlv2-inbox',
+            HDLV2_PLUGIN_URL . 'assets/js/hdlv2-inbox.js',
+            array(),
+            HDLV2_VERSION,
+            true
+        );
+
+        $user  = get_userdata( $user_id );
+        $email = $user ? (string) $user->user_email : '';
+
+        $prac = (int) $wpdb->get_var( $wpdb->prepare(
+            "SELECT practitioner_user_id FROM {$wpdb->prefix}hdlv2_form_progress
+             WHERE client_user_id = %d AND deleted_at IS NULL
+             ORDER BY id DESC LIMIT 1",
+            $user_id
+        ) );
+
+        wp_localize_script( 'hdlv2-inbox', 'HDLV2_INBOX', array(
+            'mode'           => 'session',
+            'ajaxUrl'        => admin_url( 'admin-ajax.php' ),
+            'nonce'          => wp_create_nonce( 'health_tracker_nonce' ),
+            'clientHash'     => $email !== '' ? hash( 'sha256', strtolower( trim( $email ) ) ) : '',
+            'practitionerId' => $prac,
+            // ?msg is included for robustness: with the flag OFF the init
+            // interceptor passes, so a logged-in client clicking an emailed
+            // link still lands with the thread open.
+            'autoOpen'       => isset( $_GET['open_thread'] ) || isset( $_GET['msg'] ),
+        ) );
     }
 
     // ──────────────────────────────────────────────────────────────────────
@@ -401,9 +452,20 @@ class HDLV2_Client_Dashboard {
         $h .= $this->pop_today_panel( $ctx );
         $h .= $this->pop_progress_panel( $ctx );
         $h .= $this->pop_report_panel( $ctx );
+        $h .= $this->pop_messages_panel();
         $h .= '</main>';
         $h .= '</div>';
         return $h;
+    }
+
+    /**
+     * Slice C — Messages tab panel. The shell is shared with the token-mode
+     * standalone page so hdlv2-inbox.js drives one structure in both modes.
+     */
+    private function pop_messages_panel() {
+        return '<section data-tab-panel="messages" class="cdp-panel">'
+             . HDLV2_Message_Thread_View::inbox_shell()
+             . '</section>';
     }
 
     private function pop_tabs_strip() {
@@ -412,6 +474,9 @@ class HDLV2_Client_Dashboard {
         $h .= '<button type="button" class="cdp-tab active" data-tab="today" role="tab" aria-selected="true">Today</button>';
         $h .= '<button type="button" class="cdp-tab"        data-tab="progress" role="tab" aria-selected="false">Progress</button>';
         $h .= '<button type="button" class="cdp-tab"        data-tab="report"   role="tab" aria-selected="false">My Report</button>';
+        // Slice C: Messages tab — the badge is filled by hdlv2-inbox.js from
+        // the poll's unread_count and stays hidden at zero.
+        $h .= '<button type="button" class="cdp-tab"        data-tab="messages" role="tab" aria-selected="false">Messages <span class="hdlv2-inbox-badge cdp-tab-badge" data-inbox-badge hidden>0</span></button>';
         $h .= '</div></nav>';
         return $h;
     }
@@ -1669,6 +1734,9 @@ class HDLV2_Client_Dashboard {
         $h .= $this->hero_for_state( $ctx, $state );
         $h .= $this->path_for_state( $ctx, $state );
         $h .= $this->preview_for_state( $ctx, $state );
+        // Slice C: inbox card — mid-funnel clients must see practitioner
+        // messages (the betas live in these states).
+        $h .= '<section class="cd-inbox">' . HDLV2_Message_Thread_View::inbox_shell() . '</section>';
         $h .= '<h2 class="cd-section-title">How the assessment unfolds</h2>';
         $h .= $this->steps_grid( $state );
         $h .= $this->help_footer();

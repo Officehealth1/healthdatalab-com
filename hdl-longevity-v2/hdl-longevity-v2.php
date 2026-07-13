@@ -22,7 +22,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 // register_activation_hook callbacks, which fire synchronously during
 // `wp plugin activate`, can reference them. The activator needs
 // HDLV2_DB_VERSION / HDLV2_VERSION at call time to update version options.
-define( 'HDLV2_VERSION', '0.47.66' );
+define( 'HDLV2_VERSION', '0.47.67' );
 define( 'HDLV2_DB_VERSION', '3.25' );
 
 // Client funnel token (hdlv2_form_progress.token) lifetime. FIXED window
@@ -840,6 +840,11 @@ final class HDL_Longevity_V2 {
         require_once HDLV2_PLUGIN_DIR . 'includes/sprint-4/class-hdlv2-practitioner-dashboard.php';
         // v0.32.7 — client-side dashboard (/my-dashboard/) + login_redirect + role guards
         require_once HDLV2_PLUGIN_DIR . 'includes/sprint-4/class-hdlv2-client-dashboard.php';
+        // v0.47.67 (Slice C) — token-mode message thread view (?msg=m1...),
+        // rendered pre-UM at init priority 2; flag-gated HDLV2_MSG_LINK_ENABLED.
+        // Required BEFORE nothing in particular (static calls resolve at render
+        // time) but kept beside the dashboard it partners with.
+        require_once HDLV2_PLUGIN_DIR . 'includes/sprint-4/class-hdlv2-message-thread-view.php';
         // v0.41.8 (Bug-3) — daily digest cron for needs_attention clients
         require_once HDLV2_PLUGIN_DIR . 'includes/sprint-4/class-hdlv2-attention-cron.php';
         // v0.41.16 — Tools → V2 Restore admin page for soft-deleted form_progress rows
@@ -929,6 +934,8 @@ final class HDL_Longevity_V2 {
         HDLV2_Client_Status::get_instance()->register_hooks();
         HDLV2_Practitioner_Dashboard::get_instance()->register_hooks();
         HDLV2_Client_Dashboard::get_instance()->register_hooks();
+        // Slice C — pre-UM ?msg= interceptor (inert while HDLV2_MSG_LINK_ENABLED is off/undefined).
+        HDLV2_Message_Thread_View::get_instance()->register_hooks();
         // Iridology add-on (IrisMapper) — REST routes for checkout/status/login.
         // Dark behind hdlv2_ff_iris_addon (require_practitioner() returns false
         // when the flag is off, so the routes 401 — Rule-0).
