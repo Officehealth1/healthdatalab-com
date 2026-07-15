@@ -210,7 +210,8 @@
       // their typed edits from being overwritten by the live stream.
       var liveInsertPoint = null;
 
-      HDLAudioComponent.create(audioEl, {
+      // P0-2 (v0.47.73) — keep the instance so Generate can gate on isBusy().
+      state.consultAudio = HDLAudioComponent.create(audioEl, {
         contextType: 'consultation_notes',
         apiBase: CFG.api_base.replace(/\/consultation$/, '/audio'),
         nonce: CFG.nonce,
@@ -632,6 +633,13 @@
       var actionBtn = document.getElementById('hdlv2-action-btn');
       if (!actionBtn) return;
       actionBtn.addEventListener('click', function () {
+        // P0-2 (v0.47.73) — don't organise while a recording is still
+        // uploading/transcribing: Claude would read notes missing the
+        // in-flight take. The transcript lands in the notes within seconds.
+        if (state.consultAudio && typeof state.consultAudio.isBusy === 'function' && state.consultAudio.isBusy()) {
+          setOrganiseStatus('error', 'Hang on — your recording is still transcribing. It will drop into the notes in a few seconds; then generate the plan.');
+          return;
+        }
         var ta = document.getElementById('hdlv2-consult-notes');
         var raw = ta ? ta.value.trim() : '';
         if (!raw) { setOrganiseStatus('error', 'Add some notes before generating the report.'); return; }
@@ -2258,7 +2266,8 @@
     var audioEl = document.getElementById('hdlv2-addendum-audio');
     if (audioEl && window.HDLAudioComponent) {
       var liveInsertPoint = null;
-      HDLAudioComponent.create(audioEl, {
+      // P0-2 (v0.47.73) — keep the instance so submit can gate on isBusy().
+      state.addendumAudio = HDLAudioComponent.create(audioEl, {
         contextType: 'consultation_addendum',
         apiBase: CFG.api_base.replace(/\/consultation$/, '/audio'),
         nonce: CFG.nonce,
@@ -2367,6 +2376,14 @@
     var prioEl = document.getElementById('hdlv2-addendum-priority');
     var submitBtn = document.getElementById('hdlv2-addendum-submit');
     if (!ta || !submitBtn) return;
+
+    // P0-2 (v0.47.73) — don't save/re-issue while a recording is still
+    // uploading/transcribing: the plan would regenerate without the
+    // in-flight take. The transcript lands in the box within seconds.
+    if (state.addendumAudio && typeof state.addendumAudio.isBusy === 'function' && state.addendumAudio.isBusy()) {
+      setAddendumStatus('error', 'Hang on — your recording is still transcribing. It will appear in the box in a few seconds; then save.');
+      return;
+    }
 
     // v0.28.2 — empty addendum is now valid: it means "regenerate the Final
     // Report using my auto-saved AI summary edits, no new addendum to add".

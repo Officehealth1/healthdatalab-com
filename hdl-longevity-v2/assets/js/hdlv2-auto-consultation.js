@@ -40,8 +40,10 @@
     // Mount the existing audio component. Live mic transcripts stream into
     // the textarea via onLiveTranscript; final transcripts (Whisper or
     // server Deepgram for uploaded files) land via onConfirm.
+    // P0-2 (v0.47.73) — keep the instance so submit can gate on isBusy().
+    var audioComp = null;
     if (audioMount && window.HDLAudioComponent) {
-      HDLAudioComponent.create(audioMount, {
+      audioComp = HDLAudioComponent.create(audioMount, {
         contextType: 'why_collection',
         apiBase: CFG.audio_base,
         nonce: CFG.nonce,
@@ -107,6 +109,13 @@
 
     submitBtn.addEventListener('click', function () {
       clearError();
+      // P0-2 (v0.47.73) — block submit while a recording is still
+      // uploading/transcribing; otherwise only the pre-recording text
+      // (or nothing) would be submitted and the transcript stranded.
+      if (audioComp && typeof audioComp.isBusy === 'function' && audioComp.isBusy()) {
+        showError('Hang on — we are still transcribing your recording. It will appear in the box in a few seconds.');
+        return;
+      }
       var text = (textarea.value || '').trim();
       if (text.length < 10) {
         showError('Please add a few sentences before submitting.');

@@ -22,7 +22,7 @@ window.HDLAudioComponent = (function () {
   // the console) to surface diagnostics. Short-circuit evaluation means
   // `false && console.log(...)` skips the call entirely — no eval cost.
   var HDLV2_AC_DEBUG = !!window.HDLV2_AC_DEBUG;
-  try { HDLV2_AC_DEBUG && HDLV2_AC_DEBUG && console.log('[HDL-DEBUG] hdlv2-audio-component.js LOADED', { build: '0.47.27', hasSR: !!window.SpeechRecognition, hasWebkitSR: !!window.webkitSpeechRecognition, isSecureContext: window.isSecureContext, href: location.href }); } catch(e){}
+  try { HDLV2_AC_DEBUG && HDLV2_AC_DEBUG && console.log('[HDL-DEBUG] hdlv2-audio-component.js LOADED', { build: '0.47.73', hasSR: !!window.SpeechRecognition, hasWebkitSR: !!window.webkitSpeechRecognition, isSecureContext: window.isSecureContext, href: location.href }); } catch(e){}
   try { HDLV2_AC_DEBUG && console.log('[HDL-DEBUG] browser info', { userAgent: navigator.userAgent, vendor: navigator.vendor, platform: navigator.platform, hardwareConcurrency: navigator.hardwareConcurrency, hasAudioContext: !!(window.AudioContext || window.webkitAudioContext), hasUserActivation: !!navigator.userActivation }); } catch(e){}
   try {
     if (navigator.mediaDevices && navigator.mediaDevices.enumerateDevices) {
@@ -383,13 +383,22 @@ window.HDLAudioComponent = (function () {
     if (this._starting || this.isRecording) return;
     this._starting = true;
 
-    // Web Speech is preview-only sugar. Brave blocks Google's speech service
-    // and fires spurious errors, so never preview there; Firefox has no SR at
-    // all (no live text, but Deepgram still delivers). _forceNoPreview lets the
-    // legacy "Try local transcription" button skip the preview explicitly.
+    // P0-2 (v0.47.73) — a new take clears any persistent error and supersedes
+    // a held failed upload (the user chose to re-record instead of retrying).
+    this.hideError();
+    this._lastFailedUpload = null;
+
+    // P0-4 (v0.47.73, 2026-07-15, Matthew sign-off) — Web Speech preview
+    // DISABLED. SpeechRecognition streams the mic audio to Google (Chrome/
+    // Edge) / Apple (Safari) — Art. 9 PHI egress. The preview has been
+    // cosmetic since v0.47.2: the MediaRecorder→Deepgram path is the only
+    // delivered transcript, so recording behaviour is unchanged — text
+    // arrives after stop, exactly as Firefox/Brave users have always had.
+    // Re-enable by restoring:
+    //   var isBrave = !!(navigator.brave && typeof navigator.brave.isBrave === 'function');
+    //   this._previewEnabled = !!(SpeechRecognition && !isBrave && !this._forceNoPreview);
     var SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    var isBrave = !!(navigator.brave && typeof navigator.brave.isBrave === 'function');
-    this._previewEnabled = !!(SpeechRecognition && !isBrave && !this._forceNoPreview);
+    this._previewEnabled = false;
     this._forceNoPreview = false;
 
     // Reset live-preview state. The DELIVERED transcript always comes from
@@ -952,6 +961,8 @@ window.HDLAudioComponent = (function () {
     // the 5s steady-state for long audio. See getNextPollInterval().
     var MAX_POLL_MS = 8 * 60 * 1000; // 8 minutes — covers 1-hour audio
 
+    this.hideError(); // P0-2 — a fresh attempt clears any prior persistent error
+    this._lastFailedUpload = null; // P0-2 — this attempt supersedes any held failure
     this.showAsyncProcessing( 'uploading' );
     this._jobInFlight = true; // (A1) busy until the transcript lands or the job terminally fails
 
@@ -981,7 +992,12 @@ window.HDLAudioComponent = (function () {
 
     function fail(msg) {
       self._jobInFlight = false; // (A1) terminal upload failure — clear busy
-      if (!self._restoreCarryOnFail()) self.showError(msg);
+      // P0-2 (v0.47.73) — HOLD the recording and offer Retry instead of
+      // discarding the blob. _carryText is deliberately NOT consumed here:
+      // a successful Retry (or the next take) still folds it in, exactly as
+      // the poll-completion and submitText paths already do.
+      self._lastFailedUpload = file;
+      self.showUploadRetry(msg);
     }
 
     // v0.47.24 (A4) — bounded retry with offline-awareness. A single dropped
@@ -1027,7 +1043,17 @@ window.HDLAudioComponent = (function () {
         headers: Object.assign({ 'Idempotency-Key': idemKey }, self.nonce ? { 'X-WP-Nonce': self.nonce } : {}),
         body: buildForm(),
       })
-        .then(function (r) { return r.json().then(function (j) { return { status: r.status, body: j }; }); })
+        .then(function (r) {
+          // P0-2 (v0.47.73) — the STATUS decides the branch; the body may be
+          // non-JSON (e.g. a web-server 413 error page). Parse tolerantly so a
+          // terminal 4xx is never mis-classified as a network blip and burned
+          // through the retry budget ending in a misleading "check your
+          // connection" message.
+          return r.json().then(
+            function (j) { return { status: r.status, body: j }; },
+            function () { return { status: r.status, body: null }; }
+          );
+        })
         .then(function (res) {
           if (res.status === 200 && res.body && res.body.job_id) {
             self.pollTranscriptionJob(res.body.job_id, MAX_POLL_MS, Date.now());
@@ -1038,7 +1064,8 @@ window.HDLAudioComponent = (function () {
             setTimeout(function () { attempt(triesLeft - 1); }, backoff);
             return;
           }
-          var msg = (res.body && (res.body.message || res.body.code)) || 'Upload failed';
+          var msg = (res.body && (res.body.message || res.body.code))
+            || (res.status === 413 ? 'This recording is too large to upload.' : 'Upload failed');
           fail('Upload failed: ' + msg);
         })
         .catch(function () {
@@ -1592,9 +1619,61 @@ window.HDLAudioComponent = (function () {
     if (errEl) {
       errEl.textContent = msg;
       errEl.style.display = 'block';
-      setTimeout(function () { errEl.style.display = 'none'; }, 5000);
+      // P0-2 (v0.47.73) — NO auto-hide. The old 5s timer made an over-cap
+      // upload failure vanish while the user looked away, reading as "saved"
+      // (launch audit 2026-07-15). Errors now persist until the next action
+      // clears them via hideError() (startRecording / uploadFileAsync).
     }
     if (this.onError) this.onError(msg);
+  };
+
+  // P0-2 (v0.47.73) — explicit error clear, called when a new action starts.
+  AudioComponent.prototype.hideError = function () {
+    if (this.iconsOnlyMode) {
+      var s = this.el.querySelector('.hdlv2-ac-icons-status');
+      if (s && (s.className || '').indexOf('error') !== -1) {
+        s.textContent = '';
+        s.className = 'hdlv2-ac-icons-status';
+      }
+      var ib = this.el.querySelector('.hdlv2-ac-retry-btn');
+      if (ib && ib.parentNode) ib.parentNode.removeChild(ib);
+      return;
+    }
+    var errEl = this.el.querySelector('[data-role="error"]');
+    if (errEl) {
+      errEl.style.display = 'none';
+      var b = errEl.querySelector ? errEl.querySelector('.hdlv2-ac-retry-btn') : null;
+      if (b && b.parentNode) b.parentNode.removeChild(b);
+      // Also drop a stale "Try again" (empty-blob path) so it can't reappear
+      // beside a later, unrelated error message.
+      var fb = errEl.querySelector ? errEl.querySelector('.hdlv2-ac-fallback-btn') : null;
+      if (fb && fb.parentNode) fb.parentNode.removeChild(fb);
+    }
+  };
+
+  // P0-2 (v0.47.73) — terminal upload failure: persistent message + a Retry
+  // button that re-sends the HELD recording (this._lastFailedUpload). Without
+  // this the closure GC'd the only copy of the audio and the only path back
+  // was re-recording from scratch.
+  AudioComponent.prototype.showUploadRetry = function (msg) {
+    var self = this;
+    this.showError(msg);
+    var host = this.iconsOnlyMode
+      ? this.el.querySelector('.hdlv2-ac-icons-status')
+      : this.el.querySelector('[data-role="error"]');
+    if (!host) return;
+    if (host.querySelector && host.querySelector('.hdlv2-ac-retry-btn')) return; // no duplicates
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'hdlv2-ac-retry-btn';
+    btn.textContent = 'Retry upload';
+    btn.style.cssText = 'display:inline-block;margin:8px 8px 0 0;padding:6px 12px;background:#3d8da0;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:500;cursor:pointer;';
+    btn.addEventListener('click', function () {
+      var held = self._lastFailedUpload;
+      self.hideError();
+      if (held) self.uploadFileAsync(held);
+    });
+    host.appendChild(btn);
   };
 
   // ── Utility ──
