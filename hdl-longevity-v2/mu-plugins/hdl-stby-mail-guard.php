@@ -159,8 +159,9 @@ function wp_json_encode_compat( $data ) {
 }
 
 /**
- * The wp_mail filter. Priority 0 — runs before Post SMTP or anything else
- * reads the args.
+ * The wp_mail filter. Priority PHP_INT_MAX — the guard runs LAST so no
+ * later filter can re-add a real recipient after the whitelist decision;
+ * wp_mail() consumes the filtered args directly after this.
  */
 function hdl_stby_mail_guard_filter( $args ) {
     if ( ! is_array( $args ) ) {
@@ -226,4 +227,4 @@ function hdl_stby_mail_guard_filter( $args ) {
     return $args;
 }
 
-add_filter( 'wp_mail', 'hdl_stby_mail_guard_filter', 0 );
+add_filter( 'wp_mail', 'hdl_stby_mail_guard_filter', PHP_INT_MAX );
