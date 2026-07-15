@@ -585,6 +585,12 @@ class HDLV2_Checkin {
             $cooldown_key = 'hdlv2_checkin_remind_' . (int) $c->client_user_id;
             if ( get_transient( $cooldown_key ) ) continue;
 
+            // v0.47.74 — the send + its cooldown auto-fire on LIVE only. STBY
+            // holds real client addresses and emailed two real clients from
+            // this cron on 2026-07-14; candidate evaluation above stays live
+            // for staging tests (override: hdlv2_allow_staging_side_effects).
+            if ( ! HDLV2_Env::gate( 'checkin_reminder client:' . (int) $c->client_user_id ) ) continue;
+
             // v0.36.23 — drop the inline 'there' fallback; derive_first_name()
             // handles empty + email-shaped names centrally now.
             HDLV2_Email_Templates::checkin_reminder( array(
@@ -641,6 +647,9 @@ class HDLV2_Checkin {
 
             $prac = get_userdata( $c->practitioner_user_id );
             if ( ! $prac || empty( $prac->user_email ) ) continue;
+
+            // v0.47.74 — send + 7-day dedupe fire on LIVE only (see send_reminders).
+            if ( ! HDLV2_Env::gate( 'inactivity_sweep client:' . (int) $c->client_user_id ) ) continue;
 
             HDLV2_Email_Templates::client_needs_attention( array(
                 'practitioner_email' => $prac->user_email,
@@ -711,6 +720,9 @@ class HDLV2_Checkin {
 
             $prac = get_userdata( $c->practitioner_user_id );
             if ( ! $prac || empty( $prac->user_email ) ) continue;
+
+            // v0.47.74 — send + 7-day throttle fire on LIVE only (see send_reminders).
+            if ( ! HDLV2_Env::gate( 'stuck_release progress:' . (int) $c->progress_id ) ) continue;
 
             $days_waiting = max( 0, floor( ( time() - strtotime( $c->stage2_completed_at . ' UTC' ) ) / DAY_IN_SECONDS ) );
             $client_label = $c->client_name ?: ( $c->client_email ?: 'Your client' );
@@ -869,6 +881,10 @@ class HDLV2_Checkin {
                 $c->client_user_id, date( 'Y-m-d', strtotime( '-7 days' ) )
             ) );
             if ( $recent_reminder ) continue;
+
+            // v0.47.74 — both emails + the timeline milestone (the 7-day
+            // re-nudge suppressor) fire on LIVE only (see send_reminders).
+            if ( ! HDLV2_Env::gate( 'quarterly_review client:' . (int) $c->client_user_id ) ) continue;
 
             // Get practitioner email
             $prac = get_userdata( $c->practitioner_user_id );

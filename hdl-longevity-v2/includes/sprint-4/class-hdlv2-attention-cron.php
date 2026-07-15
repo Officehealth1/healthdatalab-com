@@ -94,6 +94,13 @@ class HDLV2_Attention_Cron {
 			return false;
 		}
 
+		// v0.47.74 — the digest + its 24h last-sent stamp fire on LIVE only.
+		// Status evaluation above stays live so STBY remains testable
+		// (override: hdlv2_allow_staging_side_effects filter).
+		if ( ! HDLV2_Env::gate( 'attention_digest prac:' . (int) $prac_id ) ) {
+			return false;
+		}
+
 		$sent = $this->send_digest( (int) $prac_id, $attention );
 		if ( $sent ) {
 			update_user_meta( $prac_id, 'hdlv2_attention_last_sent', time() );

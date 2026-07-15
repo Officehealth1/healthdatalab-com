@@ -2096,6 +2096,15 @@ TODAY: " . date( 'Y-m-d' );
                 continue;
             }
 
+            // v0.47.74 — the generate() dispatch (Claude call + Make PDF +
+            // client email) auto-fires on LIVE only. Candidate selection and
+            // the zero-engagement gate above stay live so STBY remains
+            // testable (override: hdlv2_allow_staging_side_effects filter).
+            if ( ! HDLV2_Env::gate( 'weekly_flight_plan client:' . (int) $c->client_user_id ) ) {
+                $skipped++;
+                continue;
+            }
+
             // F18 — reuse the context already built for the gate above (same
             // client, same tier 2) instead of rebuilding it inside generate().
             $result = $this->generate( $c->client_user_id, $c->practitioner_user_id, 'auto', true, $week_start, false, $context_for_gate );

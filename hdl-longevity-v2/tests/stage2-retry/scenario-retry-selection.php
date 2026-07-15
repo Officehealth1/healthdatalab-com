@@ -47,6 +47,10 @@ define( 'MINUTE_IN_SECONDS', 60 );
 define( 'DAY_IN_SECONDS', 86400 );
 define( 'HDLV2_MAKE_STAGE2_WHY', 'https://hook.example.test/stage2-why' );
 define( 'HDLV2_MAKE_CALLBACK_SECRET', 'test-callback-secret' );
+// v0.47.74 — the retry loop now asks HDLV2_Env::gate() before firing; this
+// suite tests the retry SELECTION logic, so run with side-effects allowed
+// (the gate itself is covered by tests/email-safety/).
+define( 'HDLV2_STAGING_SIDE_EFFECTS', true );
 
 // ── WP stubs ──
 $GLOBALS['transients'] = array();
@@ -199,7 +203,8 @@ function make_row( $id, $deleted_at, $token_expires_at ) {
     );
 }
 
-// ── Load the real class ──
+// ── Load the real classes ──
+require __DIR__ . '/../../includes/class-hdlv2-env.php';
 require __DIR__ . '/../../includes/sprint-2/class-hdlv2-staged-form.php';
 
 $pass = 0; $fail = 0;

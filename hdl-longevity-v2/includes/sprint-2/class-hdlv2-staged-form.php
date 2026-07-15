@@ -2371,6 +2371,12 @@ class HDLV2_Staged_Form {
             $attempts  = (int) get_transient( $key );
             if ( $attempts >= 3 ) continue; // Exhausted
 
+            // v0.47.74 — both retry legs (Make re-fire, local Claude rescue)
+            // are production side-effects; on a non-live box skip and leave
+            // the attempt ladder untouched so a later manual run starts
+            // clean (override: hdlv2_allow_staging_side_effects filter).
+            if ( ! HDLV2_Env::gate( 'stage2_retry progress:' . (int) $row->id ) ) continue;
+
             $next = $attempts + 1;
 
             // v0.47.59 (Option B) — a Make re-fire is pointless for an

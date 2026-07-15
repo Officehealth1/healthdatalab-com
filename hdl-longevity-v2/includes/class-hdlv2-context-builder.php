@@ -363,6 +363,11 @@ class HDLV2_Context_Builder {
 
             if ( count( $checkins ) < 4 ) continue;
 
+            // v0.47.74 — the Anthropic call (and the summary row it would
+            // write) auto-fires on LIVE only; real billing must not burn from
+            // a staging box's cron (override: hdlv2_allow_staging_side_effects).
+            if ( ! HDLV2_Env::gate( 'monthly_summary client:' . (int) $client_id ) ) continue;
+
             // Build input
             $input = '';
             foreach ( $checkins as $ci ) {
