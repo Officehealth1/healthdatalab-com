@@ -1652,6 +1652,53 @@
         : 'Automation tier — awaiting self-reported submission';
       cell.appendChild(srPill);
     }
+
+    // Phase 2.1 — where a V2 status exists it is the ONLY status shown.
+    suppressV1StatusBadge(cell, row);
+  }
+
+  // Phase 2.1 (v0.47.72) — hide V1's legacy status badge on MATCHED rows.
+  //
+  // A matched row is a V1 server-rendered tr.client-row that also resolves to a
+  // live V2 record. Its .status-badge-cell carried BOTH V1's .status-badge —
+  // typically a stale "NOT STARTED", because V2-onboarded clients never write to
+  // V1's submissions table — AND the V2 pill injected above. Two contradictory
+  // statuses in one cell is exactly the confusion this removes.
+  //
+  // REPLACE-never-ADD, the same rule as swapMatchedRowDelete: the V2 pill is
+  // already in place, so we only hide V1's.
+  //
+  // Scoped to .status-badge-cell on purpose — renderV2Assessment() emits its own
+  // .status-badge spans into the Assessment column, and those must survive.
+  //
+  // Hidden via a class, never removed: the node and its title attribute stay for
+  // debugging and the change is trivially reversible. V1's sort comparator reads
+  // the data-status / data-status-priority attributes, never the badge text, so
+  // sorting is unaffected.
+  //
+  // No-op by construction on every row that must stay untouched:
+  //   - V1-only rows  → no V2 record, so enhanceMatchedRows returns before this
+  //   - V2-only rows  → cell is built with the V2 pill only; no .status-badge
+  //   - invite rows   → V1 renders that badge in a plain <td>, not this cell
+  // Called from injectV2Badge, so it covers both the initial matched pass and
+  // reconcileRows' 4-second digest re-render. ZERO V1 PHP change.
+  function suppressV1StatusBadge(cell, row) {
+    if (!cell) return false;
+    var v1Badge = cell.querySelector('.status-badge');
+    if (!v1Badge) return false;
+    if (!v1Badge.classList.contains('hdlv2-v1-badge-suppressed')) {
+      v1Badge.classList.add('hdlv2-v1-badge-suppressed');
+    }
+    // Audit stamp: a matched client with REAL V1 tracker data (data-total > 0)
+    // has a V1-derived status worth knowing about. The V2 status still wins per
+    // the signed-off rule, and the V1 numbers remain visible in their own
+    // First/Last Entry + Total columns — but stamp the row so these cases stay
+    // greppable in the DOM instead of the signal disappearing silently.
+    if (row && row.dataset) {
+      var v1Total = parseInt(row.dataset.total, 10);
+      if (v1Total > 0) row.dataset.v1BadgeHidden = String(v1Total);
+    }
+    return true;
   }
 
   // v0.41.19 — 6-dot inline journey indicator. Order matches the
@@ -4422,6 +4469,15 @@
       '.hdlv2-mini-stages-dot.done { background:#3d8da0; }',
       '.hdlv2-mini-stages-dot.active { background:#d97706; box-shadow:0 0 0 2px rgba(217,119,6,0.18); }',
       '.hdlv2-mini-stages-label { margin-left:4px; font-size:10.5px; color:#666; font-weight:500; letter-spacing:0.02em; font-variant-numeric:tabular-nums; font-family: Inter, -apple-system, sans-serif; }',
+
+      // ─────────────────────────────────────────────────────────────
+      // Phase 2.1 (v0.47.72) — on a MATCHED row the V2 pill is the only
+      // status shown; V1's legacy .status-badge (often a stale "NOT
+      // STARTED") is hidden, never removed. Applied by
+      // suppressV1StatusBadge() and scoped to .status-badge-cell, so the
+      // Assessment column's own .status-badge is unaffected.
+      // ─────────────────────────────────────────────────────────────
+      '.status-badge-cell .status-badge.hdlv2-v1-badge-suppressed { display:none !important; }',
 
       // ─────────────────────────────────────────────────────────────
       // v0.41.19 — Expanded panel HEAD: name+email left, status pill +
