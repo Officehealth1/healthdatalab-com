@@ -2105,9 +2105,16 @@ TODAY: " . date( 'Y-m-d' );
                 continue;
             }
 
+            // v0.47.75 — the plan itself still generates (Claude, PDF,
+            // timeline row) so a launched client has a current plan waiting;
+            // only the "your plan is ready" CLIENT email is launch-flagged.
+            // Burn stays near-zero while dark because the zero-engagement
+            // gate above already skips every dormant client.
+            $send_email = HDLV2_Env::client_campaign_gate( 'weekly_flight_plan client:' . (int) $c->client_user_id );
+
             // F18 — reuse the context already built for the gate above (same
             // client, same tier 2) instead of rebuilding it inside generate().
-            $result = $this->generate( $c->client_user_id, $c->practitioner_user_id, 'auto', true, $week_start, false, $context_for_gate );
+            $result = $this->generate( $c->client_user_id, $c->practitioner_user_id, 'auto', $send_email, $week_start, false, $context_for_gate );
             if ( ! is_wp_error( $result ) ) $count++;
         }
 

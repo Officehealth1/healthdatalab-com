@@ -71,4 +71,50 @@ class HDLV2_Env {
         error_log( '[HDLV2-ENV] side-effect GATED (non-live): ' . $context );
         return false;
     }
+
+    /**
+     * Launch flag for SCHEDULED client-facing email — the unattended kind the
+     * system decides to send on its own timer to a client who did nothing:
+     * check-in reminders, the quarterly client nudge, weekly Flight Plan
+     * "ready" mail. OFF (absent) by default so the V2 stack deploys silent
+     * and the 19 LIVE clients stay dormant until launch day.
+     *
+     * NOT a kill switch for the whole product: practitioner nudges to
+     * Matthew's own inbox, and transactional client mail that answers an
+     * action someone just took (finalise → report ready; check-in → flight
+     * plan), are deliberately outside this flag.
+     *
+     * Option, not a constant — matches the existing hdlv2_ff_* convention
+     * (iris_addon, milestone_preview) and makes the launch a single
+     * reversible command with no file edit and no deploy:
+     *
+     *     wp option update hdlv2_ff_client_campaigns 1     # launch
+     *     wp option update hdlv2_ff_client_campaigns 0     # stop
+     *
+     * @since 0.47.75
+     * @return bool
+     */
+    public static function client_campaigns_enabled() {
+        return (bool) get_option( 'hdlv2_ff_client_campaigns', false );
+    }
+
+    /**
+     * Gate for a scheduled client campaign: BOTH the environment gate (live,
+     * or the staging manual-test override) AND the launch flag must pass.
+     * Composes gate() rather than duplicating it, so a staging box can never
+     * send a campaign by flipping the flag alone.
+     *
+     * @param string $context e.g. 'checkin_reminder client:42' — IDs only, never emails.
+     * @return bool
+     */
+    public static function client_campaign_gate( $context ) {
+        if ( ! self::gate( $context ) ) {
+            return false;
+        }
+        if ( ! self::client_campaigns_enabled() ) {
+            error_log( '[HDLV2-ENV] client campaign SUPPRESSED (hdlv2_ff_client_campaigns off): ' . $context );
+            return false;
+        }
+        return true;
+    }
 }

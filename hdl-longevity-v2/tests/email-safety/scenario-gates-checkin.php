@@ -35,6 +35,12 @@ function apply_filters( $tag, $value ) {
 }
 
 // ── WP stubs ──
+// v0.47.75 — this suite isolates the ENV gate, so the launch flag is held ON
+// throughout; flag behaviour has its own scenario (scenario-launch-flag.php).
+$GLOBALS['options']    = array( 'hdlv2_ff_client_campaigns' => 1 );
+function get_option( $k, $default = false ) { return array_key_exists( $k, $GLOBALS['options'] ) ? $GLOBALS['options'][ $k ] : $default; }
+function update_option( $k, $v, $autoload = null ) { $GLOBALS['options'][ $k ] = $v; return true; }
+
 $GLOBALS['transients'] = array();
 $GLOBALS['user_meta']  = array();
 $GLOBALS['mail']       = array();

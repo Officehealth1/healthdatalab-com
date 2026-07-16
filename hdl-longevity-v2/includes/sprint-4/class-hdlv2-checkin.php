@@ -589,7 +589,12 @@ class HDLV2_Checkin {
             // holds real client addresses and emailed two real clients from
             // this cron on 2026-07-14; candidate evaluation above stays live
             // for staging tests (override: hdlv2_allow_staging_side_effects).
-            if ( ! HDLV2_Env::gate( 'checkin_reminder client:' . (int) $c->client_user_id ) ) continue;
+            // v0.47.75 — AND the launch flag: this is a scheduled campaign to
+            // a client who did nothing, so it stays dark until launch day.
+            // Skipping before the cooldown is deliberate — writing it for an
+            // email we never sent would suppress the first real reminder for
+            // 3 days after the flag flips.
+            if ( ! HDLV2_Env::client_campaign_gate( 'checkin_reminder client:' . (int) $c->client_user_id ) ) continue;
 
             // v0.36.23 — drop the inline 'there' fallback; derive_first_name()
             // handles empty + email-shaped names centrally now.
@@ -900,7 +905,13 @@ class HDLV2_Checkin {
 
             // Send email to client (v0.36.23 — practitioner_id now passed so
             // header carries the practitioner's logo, not the HDL fallback).
-            if ( $c->client_email ) {
+            // v0.47.75 — the CLIENT leg is a scheduled campaign → launch-flag
+            // gated. The practitioner leg above and the milestone below are
+            // NOT: Matthew still gets his nudge, and it still dedupes at 7
+            // days. Consequence: if the flag flips mid-window, the client's
+            // first quarterly nudge waits for the milestone to age out.
+            if ( $c->client_email
+                 && HDLV2_Env::client_campaign_gate( 'quarterly_review_client client:' . (int) $c->client_user_id ) ) {
                 HDLV2_Email_Templates::quarterly_review_client( array(
                     'client_name'     => $c->client_name,
                     'client_email'    => $c->client_email,

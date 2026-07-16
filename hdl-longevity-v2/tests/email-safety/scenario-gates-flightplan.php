@@ -33,6 +33,11 @@ function add_action() {}
 function add_shortcode() {}
 function register_rest_route() {}
 function rest_ensure_response( $x ) { return $x; }
+// v0.47.75 — this suite isolates the ENV gate, so the launch flag is held ON
+// throughout; flag behaviour has its own scenario (scenario-launch-flag.php).
+$GLOBALS['options'] = array( 'hdlv2_ff_client_campaigns' => 1 );
+function get_option( $k, $default = false ) { return array_key_exists( $k, $GLOBALS['options'] ) ? $GLOBALS['options'][ $k ] : $default; }
+function update_option( $k, $v, $autoload = null ) { $GLOBALS['options'][ $k ] = $v; return true; }
 function get_transient( $k ) { return false; }
 function set_transient( $k, $v, $ttl = 0 ) { return true; }
 // Generation day defaults to Saturday; return today so the candidate is due.
