@@ -147,6 +147,13 @@ class FakeWpdb {
     public function get_results( $sql ) {
         $this->captured_candidate_sql = $sql;
         $has_never_fired_branch = ( false !== stripos( $sql, 'stage2_webhook_fired_at IS NULL' ) );
+        // Age floor on the never-fired branch (v0.47.76 rev 2): rows completed
+        // more than N days ago are NOT swept in — parse the actual bound from
+        // the SQL so a regression that drops or inverts it fails loudly.
+        $age_floor = null;
+        if ( preg_match( "/stage2_completed_at\s*>\s*'([^']+)'/i", $sql, $m ) ) {
+            $age_floor = strtotime( $m[1] . ' UTC' );
+        }
         $out = array();
         foreach ( $this->rows as $r ) {
             // All fixture timestamps predate the 30-min threshold, so the
@@ -154,7 +161,8 @@ class FakeWpdb {
             $fired_branch = ( null !== $r->stage2_webhook_fired_at );
             $never_branch = $has_never_fired_branch
                 && null === $r->stage2_webhook_fired_at
-                && null !== $r->stage2_completed_at;
+                && null !== $r->stage2_completed_at
+                && ( null === $age_floor || strtotime( $r->stage2_completed_at . ' UTC' ) > $age_floor );
             if ( ! $fired_branch && ! $never_branch ) continue;
             if ( $this->why_exists( $r->id ) ) continue;
             if ( preg_match( '/fp\.deleted_at\s+IS\s+NULL/i', $sql ) && null !== $r->deleted_at ) continue;
@@ -362,25 +370,33 @@ $wpdb2->rows = array(
         'stage2_webhook_fired_at' => '2020-01-01 00:00:00',
         'stage2_completed_at'     => '2020-01-01 00:00:00',
     ) ),
-    // NEW belt: completed long ago, NEVER fired (race row whose auto-save never came)
+    // NEW belt: completed 2h ago (inside the 30-day window), NEVER fired
+    // (race row whose transcript auto-save never came)
     402 => make_row( 402, array(
         'stage2_data'         => json_encode( array( 'vision_text' => $LONG_TEXT . ' 402' ) ),
-        'stage2_completed_at' => '2020-01-01 00:00:00',
+        'stage2_completed_at' => gmdate( 'Y-m-d H:i:s', time() - 2 * 3600 ),
     ) ),
-    // Never fired, completed, but THIN text → selected by SQL, skipped by loop
+    // Never fired, completed recently, but THIN text → selected by SQL, skipped by loop
     403 => make_row( 403, array(
         'stage2_data'         => json_encode( array( 'vision_text' => 'thin' ) ),
-        'stage2_completed_at' => '2020-01-01 00:00:00',
+        'stage2_completed_at' => gmdate( 'Y-m-d H:i:s', time() - 2 * 3600 ),
     ) ),
     // Never fired, NOT completed (client mid-form) → never selected
     404 => make_row( 404, array(
         'stage2_data' => json_encode( array( 'vision_text' => $LONG_TEXT . ' 404' ) ),
     ) ),
-    // Soft-deleted, completed, never fired → never selected
+    // Soft-deleted, completed recently, never fired → never selected
     405 => make_row( 405, array(
         'stage2_data'         => json_encode( array( 'vision_text' => $LONG_TEXT . ' 405' ) ),
-        'stage2_completed_at' => '2020-01-01 00:00:00',
+        'stage2_completed_at' => gmdate( 'Y-m-d H:i:s', time() - 2 * 3600 ),
         'deleted_at'          => '2026-07-01 00:00:00',
+    ) ),
+    // LEGACY never-fired row completed 60 days ago → OUTSIDE the 30-day
+    // age floor, never swept in (prevents a day-one burst of Make/Claude
+    // burns on ancient abandoned rows when the belt first deploys)
+    406 => make_row( 406, array(
+        'stage2_data'         => json_encode( array( 'vision_text' => $LONG_TEXT . ' 406' ) ),
+        'stage2_completed_at' => gmdate( 'Y-m-d H:i:s', time() - 60 * 86400 ),
     ) ),
 );
 
@@ -408,6 +424,11 @@ check( 'K4 thin row 403: selected class but NO fire, NO counter',
 check( 'K5 mid-form row 404: untouched', ! in_array( $wpdb2->rows[404]->token, $fired_tokens, true ) );
 check( 'K6 soft-deleted row 405: untouched', ! in_array( $wpdb2->rows[405]->token, $fired_tokens, true ) );
 check( 'K7 no local extraction burned this pass (attempts 1 = Make)', 0 === count( HDLV2_AI_Service::$calls ) );
+check( 'K8 candidate SQL carries the 30-day age floor on the never-fired branch',
+    (bool) preg_match( "/stage2_completed_at\s*>\s*'[^']+'/i", $sql ) );
+check( 'K9 legacy 60-day-old never-fired row 406: NOT swept in',
+    ! in_array( $wpdb2->rows[406]->token, $fired_tokens, true )
+    && ! isset( $GLOBALS['transients']['hdlv2_stage2_retry_406'] ) );
 
 echo "\n" . ( $fail ? "SCENARIO: FAIL ($fail)\n" : "SCENARIO: PASS ($pass)\n" );
 exit( $fail ? 1 : 0 );

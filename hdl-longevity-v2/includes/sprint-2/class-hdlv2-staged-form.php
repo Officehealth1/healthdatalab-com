@@ -2421,6 +2421,14 @@ class HDLV2_Staged_Form {
         // STAGE2_MIN_VISION_LEN check keeps rows whose text never became
         // usable out of Make; the loop's own length gate skips them before
         // any counter is burned.
+        //
+        // 30-day age floor (rev 2): STBY held 8 legacy never-fired fixture
+        // rows from April/May that this branch would have swept in on its
+        // first pass — on LIVE that pattern would mean a day-one burst of
+        // Make/Claude burns on long-abandoned rows. The belt's job is
+        // recovering RECENT race rows; anything older is practitioner-level
+        // territory, same as the post-3-attempt parking rule.
+        $age_floor = gmdate( 'Y-m-d H:i:s', time() - 30 * DAY_IN_SECONDS );
         $candidates = $wpdb->get_results( $wpdb->prepare(
             "SELECT fp.id, fp.token, fp.client_user_id, fp.stage2_data, fp.client_name, fp.token_expires_at
              FROM {$wpdb->prefix}hdlv2_form_progress fp
@@ -2431,12 +2439,14 @@ class HDLV2_Staged_Form {
                      ( fp.stage2_webhook_fired_at IS NOT NULL AND fp.stage2_webhook_fired_at < %s )
                   OR ( fp.stage2_webhook_fired_at IS NULL
                        AND fp.stage2_completed_at IS NOT NULL
-                       AND fp.stage2_completed_at < %s )
+                       AND fp.stage2_completed_at < %s
+                       AND fp.stage2_completed_at > %s )
                    )
              ORDER BY fp.id DESC
              LIMIT 50",
             $threshold,
-            $threshold
+            $threshold,
+            $age_floor
         ) );
 
         if ( empty( $candidates ) ) return;
