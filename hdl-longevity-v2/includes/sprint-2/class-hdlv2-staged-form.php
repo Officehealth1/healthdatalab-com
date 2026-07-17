@@ -16,6 +16,16 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 class HDLV2_Staged_Form {
 
+    /**
+     * v0.47.76 — minimum trimmed vision_text length for ANY Stage-2 Make fire
+     * or local extraction. Below this bar Claude has nothing to distil — it
+     * honestly returns an empty distilled_why (prompt rule 4), which the Make
+     * scenario's module 88 rejects as a missing required field. Single source
+     * for the bar the JS submit gate (completeStage2), the submit fire, the
+     * deferred fire, the retry cron and the out-of-band local extract share.
+     */
+    const STAGE2_MIN_VISION_LEN = 10;
+
     public function register_hooks() {
         add_action( 'rest_api_init', array( $this, 'register_rest_routes' ) );
         add_shortcode( 'hdlv2_assessment', array( $this, 'render_shortcode' ) );
@@ -232,24 +242,49 @@ class HDLV2_Staged_Form {
 
         // Fire Stage 2 webhook to Make.com — only on explicit Submit, not auto-save
         // Guard: skip if webhook already fired for identical text (prevents duplicate PDFs/emails)
-        $submitted = ! empty( $params['submitted'] );
-        if ( $stage === 2 && $submitted && ! empty( $merged['vision_text'] ) ) {
-            $text_hash    = md5( $merged['vision_text'] );
-            $prev_hash    = $progress->stage2_text_hash ?? '';
-            $already_fired = ! empty( $progress->stage2_webhook_fired_at );
+        //
+        // v0.47.76 — the fire additionally requires a USABLE transcript:
+        // >= STAGE2_MIN_VISION_LEN trimmed chars, the same bar the retry cron,
+        // the out-of-band local extract and the JS submit gate already enforce.
+        // The previous `! empty()` let a 1-char or whitespace-only vision_text
+        // fire a doomed Make execution — Claude honestly returns an empty
+        // distilled_why for content with no extractable WHY (prompt rule 4),
+        // and the scenario's module 88 then hard-errors on its required field
+        // (the 2026-07-17 row-237 incident class). A submit arriving BEFORE
+        // the Deepgram transcript landed (stale cached JS / direct API call —
+        // current JS blocks this with the isBusy gate) still claims completion
+        // below but DEFERS the fire: the auto-save that later delivers the
+        // transcript fires it (deferred-fire branch after this block), with
+        // the retry cron's never-fired candidate branch as the belt.
+        $submitted    = ! empty( $params['submitted'] );
+        $vision_ready = $stage === 2
+            && strlen( trim( (string) ( $merged['vision_text'] ?? '' ) ) ) >= self::STAGE2_MIN_VISION_LEN;
 
-            if ( ! $already_fired || $text_hash !== $prev_hash ) {
-                self::fire_stage2_webhook( $progress, $merged );
-                $wpdb->update(
-                    $wpdb->prefix . 'hdlv2_form_progress',
-                    array(
-                        'stage2_webhook_fired_at' => current_time( 'mysql' ),
-                        'stage2_text_hash'        => $text_hash,
-                    ),
-                    array( 'id' => $progress->id ),
-                    array( '%s', '%s' ),
-                    array( '%d' )
-                );
+        if ( $stage === 2 && $submitted ) {
+            if ( $vision_ready ) {
+                $text_hash    = md5( $merged['vision_text'] );
+                $prev_hash    = $progress->stage2_text_hash ?? '';
+                $already_fired = ! empty( $progress->stage2_webhook_fired_at );
+
+                if ( ! $already_fired || $text_hash !== $prev_hash ) {
+                    self::fire_stage2_webhook( $progress, $merged );
+                    $wpdb->update(
+                        $wpdb->prefix . 'hdlv2_form_progress',
+                        array(
+                            'stage2_webhook_fired_at' => current_time( 'mysql' ),
+                            'stage2_text_hash'        => $text_hash,
+                        ),
+                        array( 'id' => $progress->id ),
+                        array( '%s', '%s' ),
+                        array( '%d' )
+                    );
+                }
+            } else {
+                error_log( sprintf(
+                    '[HDLV2] Stage 2 submit for progress %d arrived without a usable vision_text (%d trimmed chars) — Make fire deferred until the transcript lands.',
+                    (int) $progress->id,
+                    strlen( trim( (string) ( $merged['vision_text'] ?? '' ) ) )
+                ) );
             }
 
             // ── F7/F8/F9 (v0.46.20) — Stage 2 submit side-effects ──────────
@@ -312,7 +347,7 @@ class HDLV2_Staged_Form {
                 // backstop.
                 $make_configured = defined( 'HDLV2_MAKE_STAGE2_WHY' )
                                    && (string) HDLV2_MAKE_STAGE2_WHY !== '';
-                if ( ! $make_configured && strlen( trim( (string) ( $stage2_data['vision_text'] ?? '' ) ) ) >= 10 ) {
+                if ( ! $make_configured && strlen( trim( (string) ( $stage2_data['vision_text'] ?? '' ) ) ) >= self::STAGE2_MIN_VISION_LEN ) {
                     $args = array( (int) $progress->id );
                     if ( ! wp_next_scheduled( 'hdlv2_stage2_local_extract', $args ) ) {
                         wp_schedule_single_event( time() + 5, 'hdlv2_stage2_local_extract', $args );
@@ -326,6 +361,36 @@ class HDLV2_Staged_Form {
                         ) );
                     }
                 }
+            }
+        }
+
+        // v0.47.76 — DEFERRED FIRE. A completed row whose webhook never fired
+        // (the submit raced the Deepgram transcript) fires as soon as a later
+        // save delivers a usable vision_text — this is exactly the debounced
+        // auto-save the audio component's onChange sends when the transcript
+        // arrives (hdlv2-staged-form.js, A3 v0.47.23). The fire is claimed
+        // ATOMICALLY (fired_at NULL → now) before the HTTP call so two racing
+        // auto-saves cannot double-fire Make; if the claimed fire then dies
+        // mid-flight, the row reads as fired-with-no-why and the retry cron
+        // ladder recovers it.
+        if ( $stage === 2 && ! $submitted && $vision_ready
+             && ! empty( $progress->stage2_completed_at )
+             && empty( $progress->stage2_webhook_fired_at ) ) {
+            $claimed_fire = $wpdb->query( $wpdb->prepare(
+                "UPDATE {$wpdb->prefix}hdlv2_form_progress
+                    SET stage2_webhook_fired_at = %s, stage2_text_hash = %s
+                  WHERE id = %d
+                    AND (stage2_webhook_fired_at IS NULL OR stage2_webhook_fired_at = '')",
+                current_time( 'mysql' ),
+                md5( (string) $merged['vision_text'] ),
+                (int) $progress->id
+            ) );
+            if ( $claimed_fire === 1 ) {
+                self::fire_stage2_webhook( $progress, $merged );
+                error_log( sprintf(
+                    '[HDLV2] Stage 2 deferred Make fire for progress %d — transcript landed after submit.',
+                    (int) $progress->id
+                ) );
             }
         }
 
@@ -2347,16 +2412,30 @@ class HDLV2_Staged_Form {
         // deserves the token-independent LOCAL fallback, so expiry is
         // evaluated per row in the loop below and gates ONLY the Make
         // re-fire branch. fp.token_expires_at is selected for that check.
+        //
+        // v0.47.76 — second candidate class: NEVER-FIRED rows whose
+        // stage2_completed_at is set (> 30 min). These are submits that raced
+        // the Deepgram transcript: the fire was deferred (rest_save_form
+        // vision-ready gate) and the transcript-carrying auto-save never
+        // arrived (browser closed). retry_stage2_webhook()'s
+        // STAGE2_MIN_VISION_LEN check keeps rows whose text never became
+        // usable out of Make; the loop's own length gate skips them before
+        // any counter is burned.
         $candidates = $wpdb->get_results( $wpdb->prepare(
             "SELECT fp.id, fp.token, fp.client_user_id, fp.stage2_data, fp.client_name, fp.token_expires_at
              FROM {$wpdb->prefix}hdlv2_form_progress fp
              LEFT JOIN {$wpdb->prefix}hdlv2_why_profiles wpr ON wpr.form_progress_id = fp.id
-             WHERE fp.stage2_webhook_fired_at IS NOT NULL
-               AND fp.stage2_webhook_fired_at < %s
-               AND wpr.id IS NULL
+             WHERE wpr.id IS NULL
                AND fp.deleted_at IS NULL
+               AND (
+                     ( fp.stage2_webhook_fired_at IS NOT NULL AND fp.stage2_webhook_fired_at < %s )
+                  OR ( fp.stage2_webhook_fired_at IS NULL
+                       AND fp.stage2_completed_at IS NOT NULL
+                       AND fp.stage2_completed_at < %s )
+                   )
              ORDER BY fp.id DESC
              LIMIT 50",
+            $threshold,
             $threshold
         ) );
 
@@ -2365,7 +2444,7 @@ class HDLV2_Staged_Form {
         foreach ( $candidates as $row ) {
             $stage2_data = json_decode( $row->stage2_data, true ) ?: array();
             $vision_text = (string) ( $stage2_data['vision_text'] ?? '' );
-            if ( strlen( trim( $vision_text ) ) < 10 ) continue;
+            if ( strlen( trim( $vision_text ) ) < self::STAGE2_MIN_VISION_LEN ) continue;
 
             $key       = 'hdlv2_stage2_retry_' . (int) $row->id;
             $attempts  = (int) get_transient( $key );
@@ -2457,7 +2536,7 @@ class HDLV2_Staged_Form {
         if ( ! $row ) return;
 
         $stage2_data = json_decode( $row->stage2_data, true ) ?: array();
-        if ( strlen( trim( (string) ( $stage2_data['vision_text'] ?? '' ) ) ) < 10 ) return;
+        if ( strlen( trim( (string) ( $stage2_data['vision_text'] ?? '' ) ) ) < self::STAGE2_MIN_VISION_LEN ) return;
 
         $result = self::local_extract_why_profile(
             $progress_id,
@@ -2584,7 +2663,7 @@ class HDLV2_Staged_Form {
 
         $stage2_data = json_decode( $progress->stage2_data, true ) ?: array();
         $vision_text = (string) ( $stage2_data['vision_text'] ?? '' );
-        if ( strlen( trim( $vision_text ) ) < 10 ) return false;
+        if ( strlen( trim( $vision_text ) ) < self::STAGE2_MIN_VISION_LEN ) return false;
 
         self::fire_stage2_webhook( $progress, $stage2_data );
 
