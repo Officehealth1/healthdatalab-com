@@ -1900,6 +1900,7 @@ class HDLV2_Final_Report {
         // generate() even when this refresh step misfires entirely.
         $consult_row       = null;
         $addenda_for_merge = array();
+        $new_addenda       = array(); // populated in the block below; read by the Option-2 stamp after generate()
         if ( $consult_id && class_exists( 'HDLV2_AI_Service' ) ) {
             // Bound to the ownership-checked progress row (cross-tenant
             // guard) — a foreign consultation_id loads nothing here, so the
@@ -1926,12 +1927,7 @@ class HDLV2_Final_Report {
                 // not yet been stamped to a Final). Already-stamped addenda
                 // already live in health_summary as Update paragraphs from a
                 // prior regen — re-integrating them would duplicate.
-                $new_addenda = array_values( array_filter(
-                    $addenda_for_merge,
-                    static function ( $a ) {
-                        return empty( $a['superseded_by_report_id'] );
-                    }
-                ) );
+                $new_addenda = self::filter_unsuperseded_addenda( $addenda_for_merge );
 
                 $existing_organised = ! empty( $consult_row->ai_organised_notes )
                     ? ( json_decode( $consult_row->ai_organised_notes, true ) ?: null )
@@ -2084,6 +2080,37 @@ class HDLV2_Final_Report {
             return $result;
         }
 
+        // ── Post-success: stamp the integrated addenda (P1 fix, 2026-07-19) ──
+        // Option 2 for the addenda re-integration bug. regenerate() integrated
+        // exactly $new_addenda (the un-superseded set) into ai_organised_notes
+        // above, and generate() has now written the report in UPDATE mode
+        // (report id == $existing_final_id). Tie those addenda to the report so
+        // filter_unsuperseded_addenda() excludes them next cycle — otherwise
+        // every Save-&-Update-Plan re-passes them to integrate_addenda_into_
+        // organised() forever (unbounded re-processing + broken audit trail +
+        // a latent duplicate the integrate step currently masks). The original
+        // stamp in generate() (~L500) is dead code — $addenda_rows is out of
+        // scope there — so it is done here where $new_addenda is in scope.
+        // Belt-and-braces: Option 4 (dedupe-on-surface) inside
+        // integrate_addenda_into_organised() covers the narrow window where the
+        // integrate write succeeded but this stamp did not.
+        if ( ! empty( $new_addenda ) ) {
+            $stamp_ids = array_values( array_filter( array_map(
+                static function ( $a ) { return (int) $a['id']; },
+                $new_addenda
+            ) ) );
+            if ( ! empty( $stamp_ids ) ) {
+                $stamp_report_id = (int) ( is_array( $result ) ? ( $result['report_id'] ?? $existing_final_id ) : $existing_final_id );
+                $ph = implode( ',', array_fill( 0, count( $stamp_ids ), '%d' ) );
+                $wpdb->query( $wpdb->prepare(
+                    "UPDATE {$wpdb->prefix}hdlv2_consultation_addenda
+                     SET superseded_by_report_id = %d
+                     WHERE id IN ($ph) AND superseded_by_report_id IS NULL",
+                    ...array_merge( array( $stamp_report_id ), $stamp_ids )
+                ) );
+            }
+        }
+
         // ── Post-success: clear next-plan priorities ──
         // The /addendum endpoint appends a pointer per addendum to
         // hdlv2_next_plan_priorities user_meta so the next Saturday Flight
@@ -2121,6 +2148,23 @@ class HDLV2_Final_Report {
         }
 
         return $result;
+    }
+
+    /**
+     * P1 fix (2026-07-19) — the "new addenda" filter, extracted so the
+     * stamp/filter mechanism is unit-testable (tests/addenda-stamp/). An
+     * addendum is "new" (still needs integrating into ai_organised_notes) until
+     * a successful regenerate() stamps it superseded_by_report_id. regenerate()
+     * integrates ONLY the rows this returns; the Option-2 stamp then ties them
+     * to the report so the next cycle excludes them. Pure array logic, no I/O.
+     *
+     * @param array $addenda Rows each with a 'superseded_by_report_id' key.
+     * @return array Re-indexed rows whose superseded_by_report_id is empty.
+     */
+    public static function filter_unsuperseded_addenda( array $addenda ) {
+        return array_values( array_filter( $addenda, static function ( $a ) {
+            return empty( $a['superseded_by_report_id'] );
+        } ) );
     }
 
     /**

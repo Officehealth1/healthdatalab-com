@@ -1486,6 +1486,29 @@ class HDLV2_AI_Service {
             $parsed['recommendations'] = array_values( $existing_organised['recommendations'] );
         }
 
+        // Option 4 (2026-07-19) — dedupe-on-surface safety net for the addenda
+        // re-integration bug. The regenerate() stamp (Option 2) stops already-
+        // integrated addenda being re-passed here at all; this makes the
+        // client-visible surface correct-by-construction even if that stamp
+        // ever fails after a successful integrate. Deterministic: drop later
+        // EXACT-duplicate "**Update …**" paragraphs from health_summary, keep
+        // the first. Never touches non-Update prose or the recommendations
+        // array (rec-level growth is a separate, model-mediated follow-up).
+        if ( is_string( $parsed['health_summary'] ) && strpos( $parsed['health_summary'], '**Update' ) !== false ) {
+            $paras = preg_split( "/\n{2,}/", $parsed['health_summary'] );
+            $seen  = array();
+            $kept  = array();
+            foreach ( $paras as $p ) {
+                if ( strpos( ltrim( $p ), '**Update' ) === 0 ) {
+                    $norm = preg_replace( '/\s+/', ' ', trim( $p ) );
+                    if ( isset( $seen[ $norm ] ) ) { continue; } // exact-duplicate Update paragraph
+                    $seen[ $norm ] = true;
+                }
+                $kept[] = $p;
+            }
+            $parsed['health_summary'] = implode( "\n\n", $kept );
+        }
+
         return $parsed;
     }
 
