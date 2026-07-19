@@ -22,7 +22,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 // register_activation_hook callbacks, which fire synchronously during
 // `wp plugin activate`, can reference them. The activator needs
 // HDLV2_DB_VERSION / HDLV2_VERSION at call time to update version options.
-define( 'HDLV2_VERSION', '0.47.76' );
+define( 'HDLV2_VERSION', '0.47.77' );
 define( 'HDLV2_DB_VERSION', '3.25' );
 
 // Client funnel token (hdlv2_form_progress.token) lifetime. FIXED window

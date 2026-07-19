@@ -699,6 +699,19 @@
       var finBtn = document.getElementById('hdlv2-finalise-btn');
       if (finBtn) {
         finBtn.addEventListener('click', function () {
+          // P3 (2026-07-19) — cancel any pending autosave BEFORE finalise tears
+          // down the whole root in showReportPreparing() (root.innerHTML=). A
+          // debounced flushAutoSave/flushBriefAutoSave firing after teardown
+          // reads an empty DOM and POSTs blank organised notes / brief, wiping
+          // what /approve just committed. Clearing the pending FLAGS (not just
+          // the timers) also stops an in-flight save from rescheduling a
+          // post-teardown flush. Both machineries share this closure (see the
+          // beforeunload guard) and both surfaces are editable in this view.
+          if (autoSaveTimer) { clearTimeout(autoSaveTimer); autoSaveTimer = null; }
+          autoSavePending = false;
+          if (briefAutoSaveTimer) { clearTimeout(briefAutoSaveTimer); briefAutoSaveTimer = null; }
+          briefAutoSavePending = false;
+
           var edited = collectOrganisedFromDom();
           var SPINNER = '<span class="hdlv2-spinner" aria-hidden="true"></span>';
 
