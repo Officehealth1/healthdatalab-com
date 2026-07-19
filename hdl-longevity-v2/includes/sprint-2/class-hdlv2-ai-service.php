@@ -18,13 +18,16 @@ class HDLV2_AI_Service {
     const API_URL    = 'https://api.anthropic.com/v1/messages';
     // v0.46.24 — switched every AI surface to Opus 4.8 (Stage 2 WHY, draft
     // report, final report, consultation organise/refresh/regenerate, Stage 3
-    // commentary helper). MODEL_HAIKU retained as a named alias (now also Opus
-    // 4.8) so a future cost-optimisation can flip the Stage 3 commentary
-    // surface to a cheaper model without touching every other caller of MODEL.
+    // commentary helper).
+    // 2026-07-19 — renamed the old MODEL_HAIKU alias to MODEL_COMMENTARY. The
+    // old name implied Haiku but the value was Opus 4.8, which misled cost
+    // audits (verification #1). The Stage-3 commentary call is the single
+    // surface a future cost-optimisation can flip to a genuinely cheaper model
+    // by changing MODEL_COMMENTARY alone, without touching any caller of MODEL.
     // NOTE: Opus 4.8 rejects `temperature`/`top_p`/`top_k` (HTTP 400). call_claude
     // sends none of them, so it is Opus-safe as-is.
-    const MODEL       = 'claude-opus-4-8';
-    const MODEL_HAIKU = 'claude-opus-4-8';
+    const MODEL            = 'claude-opus-4-8';
+    const MODEL_COMMENTARY = 'claude-opus-4-8'; // Stage-3 commentary only — flip here to go cheaper
 
     // ──────────────────────────────────────────────────────────────
     //  PUBLIC: WHY EXTRACTION
@@ -1716,7 +1719,7 @@ class HDLV2_AI_Service {
             $name_first ?: 'the client'
         );
 
-        $response = self::call_claude( $key, $system, $user_prompt, 800, self::MODEL_HAIKU );
+        $response = self::call_claude( $key, $system, $user_prompt, 800, self::MODEL_COMMENTARY );
         if ( is_wp_error( $response ) ) {
             error_log( '[HDLV2 AI] Stage 3 commentary failed: ' . $response->get_error_message() );
             return null;

@@ -1531,37 +1531,37 @@ class HDLV2_Staged_Form {
         $result      = $stage3_data['server_result'] ?? array();
         $client_name = $progress->client_name ?: ( $stage1_data['name'] ?? '' );
 
+        // Negative cache (2026-07-19, verification #2). A failed/invalid Claude
+        // response is NOT persisted to commentary_html, so without this a stuck
+        // client refreshing the results page re-fires Opus on EVERY load. If we
+        // failed within the cooldown, serve the deterministic fallback instead
+        // of re-billing; a refresh past the cooldown retries once.
+        $cooldown_key = 'hdlv2_s3c_cd_' . (int) $progress->id;
+        if ( get_transient( $cooldown_key ) ) {
+            return rest_ensure_response( array(
+                'success'         => true,
+                'commentary_html' => $this->stage3_fallback_html( $stage1_data, $result, $client_name ),
+                'cached'          => true,
+                'fallback'        => true,
+            ) );
+        }
+
         $html = HDLV2_AI_Service::generate_stage3_commentary( $stage1_data, $stage2_data, $stage3_data, $result, $client_name );
 
         if ( ! $html ) {
-            // Deterministic fallback — page never blanks even when API is down.
-            $rate = (float) ( $result['rate'] ?? 1.0 );
-            $age  = (int)   ( $stage1_data['q1_age'] ?? 0 );
-            $bio  = (float) ( $result['bio_age'] ?? ( $age * $rate ) );
-            $name = $client_name ? esc_html( strtok( $client_name, ' ' ) ) . ', ' : '';
-            $verdict = ( $rate <= 0.95 ) ? 'slower than the average pace'
-                     : ( ( $rate <= 1.05 ) ? 'roughly on pace with the population average'
-                                            : 'faster than the average pace' );
-
-            $fallback = sprintf(
-                '<p><strong>%syour full Stage 3 measurements put your rate of ageing at %s× — %s.</strong> Biological age estimate: %s years against your real age of %d.</p>'
-                . '<p>The 21-metric panel gives your practitioner the detail they need to build a precise plan with you.</p>'
-                . '<p>Your Draft Report is being generated now. Your practitioner will review it, then walk you through it in your consultation.</p>', // F6 — client-facing draft deliverable is "Draft Report" (final "Trajectory Plan" naming left where intended)
-                $name,
-                number_format( $rate, 2 ),
-                esc_html( $verdict ),
-                number_format( $bio, 1 ),
-                $age
-            );
-
+            // AI failed — cool down so refreshes don't re-bill Opus (10 min),
+            // then serve the deterministic fallback so the page never blanks.
+            set_transient( $cooldown_key, 1, 10 * MINUTE_IN_SECONDS );
             return rest_ensure_response( array(
                 'success'         => false,
-                'commentary_html' => $fallback,
+                'commentary_html' => $this->stage3_fallback_html( $stage1_data, $result, $client_name ),
                 'cached'          => false,
                 'fallback'        => true,
             ) );
         }
 
+        // Success — clear any prior failure cooldown and persist the result.
+        delete_transient( $cooldown_key );
         global $wpdb;
         $stage3_data['commentary_html'] = $html;
         $wpdb->update(
@@ -1577,6 +1577,39 @@ class HDLV2_Staged_Form {
             'commentary_html' => $html,
             'cached'          => false,
         ) );
+    }
+
+    /**
+     * Deterministic Stage-3 commentary fallback — the page never blanks even
+     * when the AI call fails or is cooling down. Extracted 2026-07-19 so the
+     * identical text serves both the failure branch and the negative-cache
+     * path in rest_stage3_commentary(). Behaviour-preserving: same markup as
+     * the pre-2026-07-19 inline fallback.
+     *
+     * @param array  $stage1_data
+     * @param array  $result
+     * @param string $client_name
+     * @return string
+     */
+    private function stage3_fallback_html( $stage1_data, $result, $client_name ) {
+        $rate = (float) ( $result['rate'] ?? 1.0 );
+        $age  = (int)   ( $stage1_data['q1_age'] ?? 0 );
+        $bio  = (float) ( $result['bio_age'] ?? ( $age * $rate ) );
+        $name = $client_name ? esc_html( strtok( $client_name, ' ' ) ) . ', ' : '';
+        $verdict = ( $rate <= 0.95 ) ? 'slower than the average pace'
+                 : ( ( $rate <= 1.05 ) ? 'roughly on pace with the population average'
+                                        : 'faster than the average pace' );
+
+        return sprintf(
+            '<p><strong>%syour full Stage 3 measurements put your rate of ageing at %s× — %s.</strong> Biological age estimate: %s years against your real age of %d.</p>'
+            . '<p>The 21-metric panel gives your practitioner the detail they need to build a precise plan with you.</p>'
+            . '<p>Your Draft Report is being generated now. Your practitioner will review it, then walk you through it in your consultation.</p>',
+            $name,
+            number_format( $rate, 2 ),
+            esc_html( $verdict ),
+            number_format( $bio, 1 ),
+            $age
+        );
     }
 
     // ──────────────────────────────────────────────────────────────

@@ -228,6 +228,47 @@ class HDLV2_Rate_Limit_Policy {
             // (server-to-server, shared-secret + HMAC). Counted as a read; the
             // IP backstop also applies (no WP user on this s2s call).
             array( 'GET',  '#^/hdl-v2/v1/iris/clients$#',                       self::TIER_READ ),
+
+            // ── Coverage close-out (2026-07-19) ─────────────────────────
+            // These routes were previously UNMAPPED — a null tier means NO
+            // per-caller limit for an identified (logged-in / token) caller,
+            // because the IP backstop only runs for anonymous traffic. Each is
+            // now mapped to the tier matching its real cost/shape. Guarded by
+            // tests/route-coverage/test-route-coverage.php so this can't silently
+            // regress. See LIVE-VERIFICATION-AUDIT-2026-07-19.md finding #3.
+
+            // Read-shaped (cheap, per-token 200/hr)
+            array( 'GET',  '#^/hdl-v2/v1/consultation/[0-9]+$#',                self::TIER_READ ),
+            array( 'GET',  '#^/hdl-v2/v1/dashboard/client-record/[0-9]+$#',     self::TIER_READ ),
+            array( 'GET',  '#^/hdl-v2/v1/reports/draft$#',                      self::TIER_READ ),
+
+            // Deterministic result-page commentary/insight (build from stored
+            // data, no AI). READ-tier so a client refreshing their results is
+            // not throttled like a mutating call.
+            array( 'POST', '#^/hdl-v2/v1/form/stage1-commentary$#',             self::TIER_READ ),
+            array( 'POST', '#^/hdl-v2/v1/form/stage2-insight$#',                self::TIER_READ ),
+
+            // Stage-3 commentary DOES fire Claude (Opus). It caches on first
+            // success and — after the staged-form negative-cache fix — also
+            // caches failures for a short cooldown, so READ (200/hr) bounds
+            // abuse WITHOUT 429-ing a normal results refresh. (AI_BURN 8/hr
+            // here would false-429 a client reloading a *cached* result page.)
+            array( 'POST', '#^/hdl-v2/v1/form/stage3-commentary$#',             self::TIER_READ ),
+
+            // Mutating but cheap, owner-gated — WRITE 60/hr
+            array( 'POST', '#^/hdl-v2/v1/consultation/(approve|save-organised|save-brief|reset-organised)$#', self::TIER_WRITE ),
+            array( 'POST', '#^/hdl-v2/v1/dashboard/client/[0-9]+/delete$#',     self::TIER_WRITE ),
+            array( 'POST', '#^/hdl-v2/v1/widget/config$#',                      self::TIER_WRITE ),
+
+            // Sends a magic-link email — was unthrottled (verification #3).
+            // WRITE 60/hr caps it; tighten to a dedicated low cap later if
+            // abuse ever appears.
+            array( 'POST', '#^/hdl-v2/v1/dashboard/client/[0-9]+/resend-link$#', self::TIER_WRITE ),
+
+            // High-frequency dashboard poll (~every 4s). EXPLICIT bypass so it
+            // is intentional-in-code, not an accidental null tier — a READ cap
+            // here would self-429 the dashboard. Self-scoped + digest-cheap.
+            array( 'GET',  '#^/hdl-v2/v1/dashboard/version$#',                  self::TIER_BYPASS ),
         );
     }
 
