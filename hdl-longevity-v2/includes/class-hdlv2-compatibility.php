@@ -18,26 +18,6 @@ if ( ! defined( 'ABSPATH' ) ) {
 class HDLV2_Compatibility {
 
     /**
-     * Get the practitioner linked to a client.
-     *
-     * @param int $client_user_id WordPress user ID of the client.
-     * @return int|null Practitioner user ID or null.
-     */
-    public static function get_practitioner_for_client( $client_user_id ) {
-        global $wpdb;
-        $table = $wpdb->prefix . 'health_tracker_practitioner_clients';
-
-        if ( ! self::table_exists( $table ) ) {
-            return null;
-        }
-
-        return $wpdb->get_var( $wpdb->prepare(
-            "SELECT practitioner_user_id FROM $table WHERE client_user_id = %d AND deleted_at IS NULL LIMIT 1",
-            $client_user_id
-        ) );
-    }
-
-    /**
      * Get all clients for a practitioner.
      *
      * @param int $practitioner_user_id WordPress user ID of the practitioner.
@@ -45,16 +25,112 @@ class HDLV2_Compatibility {
      */
     public static function get_clients_for_practitioner( $practitioner_user_id ) {
         global $wpdb;
-        $table = $wpdb->prefix . 'health_tracker_practitioner_clients';
 
+        // V2-first: the authoritative source of a practitioner's V2 clients is
+        // hdlv2_form_progress. The V1 link table doesn't carry a client_user_id
+        // column (it keys on email-hash), so querying it for user IDs returned
+        // nothing — which is what made the practitioner dashboard look empty.
+        $table = $wpdb->prefix . 'hdlv2_form_progress';
         if ( ! self::table_exists( $table ) ) {
             return array();
         }
 
-        return $wpdb->get_col( $wpdb->prepare(
-            "SELECT client_user_id FROM $table WHERE practitioner_user_id = %d AND deleted_at IS NULL",
+        // v0.41.15 — soft-delete filter. When a practitioner removes a V2
+        // client via the dashboard trash icon, form_progress.deleted_at is
+        // stamped (see HDLV2_Client_Status::rest_delete_client). Excluding
+        // those rows here hides the client from the practitioner's list
+        // without destroying assessment data — re-invite (which restores
+        // deleted_at = NULL in rest_create_form / dispatch_post_signup_artifacts)
+        // brings the client back with full history.
+        // ONLY_FULL_GROUP_BY safe: `SELECT DISTINCT ... ORDER BY id` is illegal
+        // when sql_mode contains ONLY_FULL_GROUP_BY (MySQL 5.7.5+/8.0/9.x default),
+        // because the ORDER BY column (id) is not in the SELECT list — MySQL raises
+        // error 3065 and the whole dashboard returns zero clients. Grouping by
+        // client_user_id and ordering by MAX(id) DESC preserves the same distinct
+        // rows in the same newest-first order while staying strict-mode valid.
+        return array_map( 'intval', $wpdb->get_col( $wpdb->prepare(
+            "SELECT client_user_id FROM $table
+             WHERE practitioner_user_id = %d
+               AND client_user_id IS NOT NULL
+               AND deleted_at IS NULL
+             GROUP BY client_user_id
+             ORDER BY MAX(id) DESC",
             $practitioner_user_id
-        ) );
+        ) ) );
+    }
+
+    /**
+     * Rich client rows for the IrisMapper picker (GET /iris/clients). Returns ONE
+     * row per client — their LATEST consultation (the form_progress row an iris
+     * result attaches to) — STRICTLY scoped to this practitioner. Name/email fall
+     * back to the WP user record. Returns NO health data.
+     *
+     * Filtered to CONSULTATION-ELIGIBLE clients only: a client appears ONLY when
+     * their latest consultation is at the consultation stage — Stage 3 complete
+     * AND no final report generated yet ("Awaiting Consult"). The predicate is
+     * delegated to the authoritative HDLV2_Client_Status engine (the same one
+     * that drives the dashboard badge) so it can never drift. AWAITING_CONSULT
+     * covers both a not-yet-started consult and one in progress (no report yet);
+     * a client drops out once the final report is generated, while still in
+     * Stage 1/2/3-data-collection, or on a red flag (→ Needs Attention).
+     *
+     * @param int $practitioner_user_id
+     * @return array<int,array{clientId:int,name:string,email:string,consultationId:int,consultationStatus:string}>
+     */
+    public static function get_client_rows_for_practitioner( $practitioner_user_id ) {
+        global $wpdb;
+        $fp    = $wpdb->prefix . 'hdlv2_form_progress';
+        $users = $wpdb->users;
+        if ( ! self::table_exists( $fp ) ) {
+            return array();
+        }
+        // One row per client = their LATEST form_progress. The MAX(id) self-join
+        // keeps this ONLY_FULL_GROUP_BY-safe (see get_clients_for_practitioner).
+        $rows = $wpdb->get_results( $wpdb->prepare(
+            "SELECT fp.id AS consultation_id, fp.client_user_id, fp.client_name,
+                    fp.client_email, fp.current_stage, u.display_name, u.user_email
+               FROM $fp fp
+               INNER JOIN (
+                    SELECT client_user_id, MAX(id) AS max_id
+                      FROM $fp
+                     WHERE practitioner_user_id = %d
+                       AND client_user_id IS NOT NULL
+                       AND deleted_at IS NULL
+                     GROUP BY client_user_id
+               ) latest ON fp.id = latest.max_id
+               LEFT JOIN $users u ON u.ID = fp.client_user_id
+              ORDER BY fp.id DESC",
+            $practitioner_user_id ) );
+        if ( ! $rows ) {
+            return array();
+        }
+        $labels = array( 1 => 'Stage 1', 2 => 'Stage 2', 3 => 'Stage 3' );
+        $out = array();
+        foreach ( $rows as $r ) {
+            // Consultation-eligibility gate — Stage 3 complete AND awaiting/in
+            // consultation (no final report yet). Delegated to the authoritative
+            // lifecycle engine so the predicate never drifts. Fail-closed: if the
+            // engine is somehow unavailable, surface no clients rather than all.
+            if ( ! class_exists( 'HDLV2_Client_Status' ) ) {
+                continue;
+            }
+            $client_status = HDLV2_Client_Status::calculate_status( (int) $r->client_user_id );
+            if ( ! is_array( $client_status )
+                || ( isset( $client_status['status'] ) ? $client_status['status'] : '' ) !== HDLV2_Client_Status::AWAITING_CONSULT ) {
+                continue;
+            }
+            $name  = ( $r->client_name !== null && $r->client_name !== '' ) ? $r->client_name : (string) $r->display_name;
+            $email = ( $r->client_email !== null && $r->client_email !== '' ) ? $r->client_email : (string) $r->user_email;
+            $stage = (int) $r->current_stage;
+            $out[] = array(
+                'clientId'           => (int) $r->client_user_id,
+                'name'               => (string) $name,
+                'email'              => (string) $email,
+                'consultationId'     => (int) $r->consultation_id,
+                'consultationStatus' => isset( $labels[ $stage ] ) ? $labels[ $stage ] : ( 'Stage ' . max( 1, $stage ) ),
+            );
+        }
+        return $out;
     }
 
     /**
@@ -71,6 +147,203 @@ class HDLV2_Compatibility {
         return in_array( 'um_practitioner', (array) $user->roles, true )
             || in_array( 'practitioner', (array) $user->roles, true )
             || in_array( 'administrator', (array) $user->roles, true );
+    }
+
+    /**
+     * Iridology add-on (IrisMapper) — does this practitioner hold the add-on?
+     *
+     * The dashboard's public predicate. Resolves from the PRACTITIONER's WP
+     * email via the cached, fail-closed entitlement struct below.
+     *
+     * @param int $practitioner_id
+     * @return bool
+     */
+    public static function practitioner_has_iridology_addon( $practitioner_id ) {
+        return self::iris_entitlement( $practitioner_id )['iridologyAddon'] === true;
+    }
+
+    /**
+     * Cached, fail-closed IrisMapper entitlement struct for a practitioner.
+     *
+     * Master-flag guarded (Rule-0). The raw HTTP lives in HDLV2_Iris_Addon —
+     * this class never calls wp_remote_* directly; it only adds a brief
+     * transient cache around the delegated lookup. Errors/timeouts return the
+     * fail-closed default and are NOT cached, so a transient blip self-heals
+     * on the next load. The post-checkout poll busts the transient (?fresh=1)
+     * so the "ready" state appears immediately.
+     *
+     * @param int $practitioner_id
+     * @return array { found, iridologyAddon, hasReportAccess, subscriptionTier, subscriptionStatus }
+     */
+    public static function iris_entitlement( $practitioner_id ) {
+        $fail = array(
+            'found'              => false,
+            'iridologyAddon'     => false,
+            'hasReportAccess'    => false,
+            'subscriptionTier'   => null,
+            'subscriptionStatus' => null,
+        );
+        if ( ! get_option( 'hdlv2_ff_iris_addon', false ) ) {
+            return $fail; // master guard — feature dark
+        }
+        $user = get_userdata( (int) $practitioner_id );
+        if ( ! $user || ! is_email( $user->user_email ) ) {
+            return $fail;
+        }
+
+        $key    = 'hdlv2_irido_addon_' . (int) $practitioner_id;
+        $cached = get_transient( $key );
+        if ( is_array( $cached ) ) {
+            return $cached;
+        }
+
+        $res = HDLV2_Iris_Addon::check_entitlement( $user->user_email );
+        if ( is_wp_error( $res ) ) {
+            return $fail; // FAIL-CLOSED — never cache an error
+        }
+        $out = wp_parse_args( $res, $fail );
+        set_transient( $key, $out, 5 * MINUTE_IN_SECONDS );
+        return $out;
+    }
+
+    /**
+     * v0.35.4 (Quim 2026-05-07) — Page-level access gate for practitioner-only
+     * surfaces (/clients/, /consultation/, /practitioner-dashboard/).
+     *
+     * Three-way redirect:
+     *   • Logged-out                 → /login/?redirect_to=<current URL>
+     *   • Logged-in non-practitioner → /my-dashboard/ (their own surface)
+     *   • Practitioner / admin       → return (page renders)
+     *
+     * Replaces the previous hard-404 in maybe_404_unauthorised(), which broke
+     * the email-link-while-logged-out case and stranded clients on a 404
+     * instead of routing them to their own dashboard.
+     *
+     * Hooked at template_redirect priority 5 so it fires BEFORE Ultimate
+     * Member's content-restriction filter (priority 10 default). Without
+     * this priority, UM 404s any non-allowed visitor before our redirect
+     * logic gets a chance to run.
+     *
+     * Safe to call on every dashboard render — no-op for the allowed roles.
+     * Calls exit on redirect, so subsequent code never runs.
+     *
+     * @return void
+     */
+    public static function enforce_practitioner_only_page() {
+        if ( is_admin() || wp_doing_ajax() || wp_doing_cron() ) {
+            return;
+        }
+
+        $user_id = get_current_user_id();
+
+        // Logged out → kick to login with redirect_to back to where they
+        // were trying to go (so the "Review in your dashboard" notify-email
+        // CTA still lands them on /clients/ after they sign in).
+        if ( ! $user_id ) {
+            $current_url = ( is_ssl() ? 'https://' : 'http://' )
+                . ( isset( $_SERVER['HTTP_HOST'] ) ? $_SERVER['HTTP_HOST'] : '' )
+                . ( isset( $_SERVER['REQUEST_URI'] ) ? $_SERVER['REQUEST_URI'] : '/' );
+            wp_safe_redirect( wp_login_url( $current_url ) );
+            exit;
+        }
+
+        // Practitioner or administrator → render the page (no redirect).
+        if ( self::is_practitioner( $user_id ) ) {
+            return;
+        }
+
+        // Logged-in non-practitioner (um_client, um_consumer, subscriber,
+        // editor, author, contributor, …) → send them to their own
+        // dashboard. Filter so individual deployments can override the
+        // destination if they ever ship a different non-practitioner home.
+        $non_practitioner_url = apply_filters(
+            'hdlv2_non_practitioner_redirect',
+            home_url( '/my-dashboard/' )
+        );
+        wp_safe_redirect( $non_practitioner_url );
+        exit;
+    }
+
+    /**
+     * Check whether a practitioner owns a given client.
+     *
+     * "Owns" = there is at least one hdlv2_form_progress row linking the
+     * two. Mirrors get_clients_for_practitioner() so a practitioner can
+     * always reach any client that appears in their dashboard, but never
+     * reach one that does not.
+     *
+     * Admins (manage_options) bypass — same precedent as
+     * class-hdlv2-staged-form.php::rest_release_why so support flows
+     * still work.
+     *
+     * Closes the IDOR family found in the 2026-04-26 audit, where
+     * Timeline / FlightPlan / Final_Report routes treated "is a
+     * practitioner" as sufficient and let practitioner A reach
+     * practitioner B's client by URL.
+     *
+     * @param int $practitioner_id WordPress user ID of the caller.
+     * @param int $client_id       WordPress user ID of the target client.
+     * @return bool
+     */
+    public static function practitioner_owns_client( $practitioner_id, $client_id ) {
+        $practitioner_id = (int) $practitioner_id;
+        $client_id       = (int) $client_id;
+        if ( ! $practitioner_id || ! $client_id ) {
+            return false;
+        }
+
+        // Admin escape hatch — matches existing precedent.
+        if ( user_can( $practitioner_id, 'manage_options' ) ) {
+            return true;
+        }
+
+        global $wpdb;
+        // v0.41.15 — soft-delete filter. Once a practitioner has removed a
+        // client (form_progress.deleted_at stamped), this helper denies all
+        // their per-client IDOR-gated endpoints (timeline, flight plan,
+        // effort-outcomes, etc.) so the deleted client is consistently
+        // invisible from the practitioner surface, not just from the list.
+        $exists = $wpdb->get_var( $wpdb->prepare(
+            "SELECT 1 FROM {$wpdb->prefix}hdlv2_form_progress
+             WHERE practitioner_user_id = %d
+               AND client_user_id = %d
+               AND deleted_at IS NULL
+             LIMIT 1",
+            $practitioner_id,
+            $client_id
+        ) );
+        return (bool) $exists;
+    }
+
+    /**
+     * Like practitioner_owns_client() but also returns true when the row is
+     * soft-deleted. ONLY use for endpoints that must access deleted rows —
+     * the delete endpoint itself (so a practitioner can re-delete after a
+     * race) and the restore-on-create lookups.
+     *
+     * @since v0.41.15
+     * @param int $practitioner_id
+     * @param int $client_id
+     * @return bool
+     */
+    public static function practitioner_owns_client_including_deleted( $practitioner_id, $client_id ) {
+        $practitioner_id = (int) $practitioner_id;
+        $client_id       = (int) $client_id;
+        if ( ! $practitioner_id || ! $client_id ) {
+            return false;
+        }
+        if ( user_can( $practitioner_id, 'manage_options' ) ) {
+            return true;
+        }
+        global $wpdb;
+        $exists = $wpdb->get_var( $wpdb->prepare(
+            "SELECT 1 FROM {$wpdb->prefix}hdlv2_form_progress
+             WHERE practitioner_user_id = %d AND client_user_id = %d
+             LIMIT 1",
+            $practitioner_id,
+            $client_id
+        ) );
+        return (bool) $exists;
     }
 
     /**
@@ -104,11 +377,14 @@ class HDLV2_Compatibility {
      * Create practitioner-client relationship in V1 table.
      *
      * This write makes widget leads visible in the V1 practitioner dashboard.
-     * If a relationship already exists (including soft-deleted), it restores it.
+     * If an ACTIVE relationship already exists, it refreshes the fields.
+     * If a SOFT-DELETED relationship exists, it refuses to restore — admin
+     * recovery (Tools → HDL Deleted Data, paid) is the only path back.
      *
      * @param int $practitioner_id Practitioner user ID.
      * @param int $client_id       Client user ID.
-     * @return bool Success.
+     * @return bool True on insert/update of an active row, false otherwise
+     *              (no V1 table, no user lookup, OR refused soft-delete restore).
      */
     public static function create_practitioner_client_link( $practitioner_id, $client_id ) {
         global $wpdb;
@@ -118,54 +394,78 @@ class HDLV2_Compatibility {
             return false;
         }
 
-        // Derive email hashes and name from user IDs for V1 dashboard compatibility
+        // Derive email hashes and name from user IDs for V1 dashboard compatibility.
+        // The V1 table has NO client_user_id column — it keys relationships on
+        // (practitioner_email_hash, client_email_hash). Both hashes are NOT NULL
+        // in the schema, so without both users there is nothing valid to write.
         $client_user       = get_userdata( $client_id );
         $practitioner_user = get_userdata( $practitioner_id );
 
-        $client_email_hash       = $client_user ? hash( 'sha256', strtolower( trim( $client_user->user_email ) ) ) : null;
-        $practitioner_email_hash = $practitioner_user ? hash( 'sha256', strtolower( trim( $practitioner_user->user_email ) ) ) : null;
-        $client_name             = $client_user ? $client_user->display_name : null;
+        if ( ! $client_user || ! $practitioner_user ) {
+            return false;
+        }
 
-        // Check if relationship exists (including soft-deleted) — match by user ID or email hash
+        $client_email_hash       = hash( 'sha256', strtolower( trim( $client_user->user_email ) ) );
+        $practitioner_email_hash = hash( 'sha256', strtolower( trim( $practitioner_user->user_email ) ) );
+        $client_name             = $client_user->display_name;
+
+        // Check if relationship exists (including soft-deleted). Match by
+        // client_email_hash within this practitioner — practitioner side matches
+        // on user ID OR email hash so pre-migration rows (NULL practitioner_user_id)
+        // still dedupe instead of tripping the unique key on insert.
         $existing = $wpdb->get_row( $wpdb->prepare(
-            "SELECT id, deleted_at FROM $table WHERE practitioner_user_id = %d AND (client_user_id = %d OR client_email_hash = %s) LIMIT 1",
-            $practitioner_id, $client_id, $client_email_hash ?? ''
+            "SELECT id, deleted_at FROM $table
+             WHERE ( practitioner_user_id = %d OR practitioner_email_hash = %s )
+               AND client_email_hash = %s
+             LIMIT 1",
+            $practitioner_id, $practitioner_email_hash, $client_email_hash
         ) );
 
         if ( $existing ) {
-            // Restore soft-deleted relationship and refresh fields
-            $update_data = array( 'client_user_id' => $client_id );
+            // v0.41.17 — soft-deleted V1 links stay deleted. Auto-clearing
+            // deleted_at here was a silent restore path that defeated the
+            // admin-only Tools → HDL Deleted Data ($89) recovery policy.
+            // Triggered by every magic-link consumption and every widget
+            // signup. Now refused; caller proceeds without a V1 link, and
+            // the V2 splicer surfaces the new form_progress as a V2-only row.
             if ( $existing->deleted_at ) {
-                $update_data['deleted_at'] = null;
+                error_log( sprintf(
+                    '[HDLV2] Refused to auto-restore soft-deleted V1 link (id=%d, prac=%d, client=%d). Admin restore required.',
+                    $existing->id, $practitioner_id, $client_id
+                ) );
+                return false;
             }
+
+            // Active row exists — refresh fields (incl. backfilling
+            // practitioner_user_id on pre-migration rows). Do NOT touch deleted_at.
+            $update_data = array(
+                'practitioner_user_id' => $practitioner_id,
+                'client_email_hash'    => $client_email_hash,
+            );
             if ( $client_name ) {
                 $update_data['client_name'] = $client_name;
-            }
-            if ( $client_email_hash ) {
-                $update_data['client_email_hash'] = $client_email_hash;
             }
             $wpdb->update( $table, $update_data, array( 'id' => $existing->id ) );
             return true;
         }
 
         // Create new relationship with all V1-required fields
-        $insert_data = array(
-            'practitioner_user_id'   => $practitioner_id,
-            'client_user_id'         => $client_id,
-            'linked_date'            => current_time( 'mysql' ),
-            'submission_count'       => 0,
-        );
-        if ( $practitioner_email_hash ) {
-            $insert_data['practitioner_email_hash'] = $practitioner_email_hash;
-        }
-        if ( $client_email_hash ) {
-            $insert_data['client_email_hash'] = $client_email_hash;
-        }
-        if ( $client_name ) {
-            $insert_data['client_name'] = $client_name;
-        }
+        $inserted = $wpdb->insert( $table, array(
+            'practitioner_user_id'    => $practitioner_id,
+            'practitioner_email_hash' => $practitioner_email_hash,
+            'client_email_hash'       => $client_email_hash,
+            'client_name'             => $client_name,
+            'linked_date'             => current_time( 'mysql' ),
+            'submission_count'        => 0,
+        ) );
 
-        $wpdb->insert( $table, $insert_data );
+        if ( false === $inserted ) {
+            error_log( sprintf(
+                '[HDLV2] Failed to create V1 practitioner-client link (prac=%d, client=%d): %s',
+                $practitioner_id, $client_id, $wpdb->last_error
+            ) );
+            return false;
+        }
 
         // Set user meta so V1 forms lock the practitioner email field
         update_user_meta( $client_id, 'hdl_invited_by_practitioner', $practitioner_id );
@@ -197,18 +497,111 @@ class HDLV2_Compatibility {
             return false;
         }
 
-        $date = $date ?: current_time( 'Y-m-d' );
+        // Headline metrics ONLY. The V1 client dashboard's Progress Insights
+        // renders progress.slice(0,5) of rows ordered measurement_date DESC —
+        // writing the caller's ~21 sub-scores too would blank that top-5
+        // window with identically-stamped rows and displace V1's own
+        // insights. V1's writer stores exactly 4 headline metrics; this is
+        // the V2 equivalent set.
+        $headline = array( 'rate_of_ageing', 'biological_age', 'bmi', 'whr', 'whtr' );
+
+        $ok = true;
 
         foreach ( $metrics as $metric_name => $metric_value ) {
-            $wpdb->insert( $table, array(
-                'user_hash'        => $user_hash,
-                'measurement_date' => $date,
-                'metric_name'      => $metric_name,
-                'metric_value'     => $metric_value,
-            ), array( '%s', '%s', '%s', '%s' ) );
+            if ( ! in_array( $metric_name, $headline, true ) ) {
+                continue;
+            }
+            // current_value is decimal(8,2). 0 is a legitimate worst-band
+            // value in V2 (unlike V1, where 0 is the missing-data sentinel),
+            // so only negatives and overflow are rejected.
+            if ( ! is_numeric( $metric_value ) || ! is_finite( (float) $metric_value ) ) {
+                continue;
+            }
+            $value = round( (float) $metric_value, 2 );
+            if ( $value < 0 || $value > 999999.99 ) {
+                continue;
+            }
+
+            // Idempotency: generate() also runs on every regenerate, so the
+            // first write of the day wins. Deliberately skip-not-replace — a
+            // delete would destroy a same-day V1-written row (V1 and V2 share
+            // metric names like biological_age). Day compared on the DB clock
+            // (CURDATE()) — the same clock that stamps the rows below.
+            if ( null === $date ) {
+                $exists = $wpdb->get_var( $wpdb->prepare(
+                    "SELECT id FROM $table
+                      WHERE user_hash = %s AND metric_name = %s
+                        AND form_source = 'longevity' AND DATE(measurement_date) = CURDATE()
+                      LIMIT 1",
+                    $user_hash, $metric_name
+                ) );
+            } else {
+                $exists = $wpdb->get_var( $wpdb->prepare(
+                    "SELECT id FROM $table
+                      WHERE user_hash = %s AND metric_name = %s
+                        AND form_source = 'longevity' AND DATE(measurement_date) = %s
+                      LIMIT 1",
+                    $user_hash, $metric_name, substr( $date, 0, 10 )
+                ) );
+            }
+            if ( $exists ) {
+                continue;
+            }
+
+            // form_source 'longevity' is required (NOT NULL) and is the only
+            // value that renders on the client dashboard's filtered tab —
+            // anything else is invisible everywhere except "All Entries".
+            //
+            // measurement_date is deliberately OMITTED when no $date was
+            // passed: the column's DEFAULT current_timestamp() stamps it on
+            // the same clock as V1's writer (which also omits it). Stamping
+            // current_time() here would interleave WP-local and DB clocks in
+            // the one column every reader sorts by — the 1h BST divergence
+            // class fixed three times before (v0.26.2 #5, v0.27.1 #15, B4).
+            $row = array(
+                'user_hash'     => $user_hash,
+                'metric_name'   => $metric_name,
+                'current_value' => $value,
+                'form_source'   => 'longevity',
+            );
+            $format = array( '%s', '%s', '%f', '%s' );
+            if ( null !== $date ) {
+                $row['measurement_date'] = $date;
+                $format[]                = '%s';
+            }
+
+            // Trend columns, V1-parity (calculate_and_store_progress):
+            // computed against the latest prior point. The first-ever point
+            // per metric is stored as a baseline (NULL trend columns) so the
+            // series has an anchor for the next report's delta — V1 needs no
+            // baseline because its previous comes from the submissions table.
+            $prev = $wpdb->get_var( $wpdb->prepare(
+                "SELECT current_value FROM $table
+                  WHERE user_hash = %s AND metric_name = %s
+                  ORDER BY measurement_date DESC LIMIT 1",
+                $user_hash, $metric_name
+            ) );
+            if ( null !== $prev ) {
+                $change                = round( $value - (float) $prev, 2 );
+                $row['previous_value'] = (float) $prev;
+                $row['change_value']   = $change;
+                $format[]              = '%f';
+                $format[]              = '%f';
+                if ( (float) $prev > 0 ) {
+                    // change_percent is decimal(5,2) — clamp to its range.
+                    $pct                   = round( ( $change / (float) $prev ) * 100, 2 );
+                    $row['change_percent'] = max( -999.99, min( 999.99, $pct ) );
+                    $format[]              = '%f';
+                }
+            }
+
+            if ( false === $wpdb->insert( $table, $row, $format ) ) {
+                error_log( '[HDLV2] write_progress_point insert failed for ' . $metric_name . ': ' . $wpdb->last_error );
+                $ok = false;
+            }
         }
 
-        return true;
+        return $ok;
     }
 
     /**
@@ -222,7 +615,11 @@ class HDLV2_Compatibility {
         if ( ! $user ) {
             return null;
         }
-        return wp_hash( strtolower( trim( $user->user_email ) ) );
+        // Must equal V1's generate_user_hash (class-health-tracker.php) —
+        // every V1 table keyed on user_hash uses the salted sha256, so any
+        // other digest writes rows no V1 reader can ever find. The salt
+        // option is created at V1 boot; V1 is a hard boot dependency of V2.
+        return hash( 'sha256', strtolower( trim( $user->user_email ) ) . get_option( 'health_tracker_salt' ) );
     }
 
     /**
@@ -235,5 +632,188 @@ class HDLV2_Compatibility {
         global $wpdb;
         $result = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) );
         return $result === $table;
+    }
+
+    /**
+     * v0.25.0 — Single source of truth for the practitioner gate that
+     * advances a client from Stage 2 → Stage 3 (formerly "Release WHY").
+     * Called by BOTH `rest_release_why` (REST) and `ajax_release_why`
+     * (AJAX) handlers — see B7 in CLAUDE-CHANGELOG. Make.com integration
+     * is untouched: Make.com posts to /form/stage2-callback (creates
+     * why_profiles row with released=0); this helper handles the manual
+     * practitioner gate that flips released=1 + advances current_stage.
+     *
+     * @param int $progress_id     wp_hdlv2_form_progress.id
+     * @param int $practitioner_id WP user ID of the calling practitioner
+     * @return array{ ok: bool, code?: string, message?: string, status?: int, already_released?: bool }
+     */
+    public static function advance_to_stage_3( $progress_id, $practitioner_id ) {
+        global $wpdb;
+
+        // v0.41.17 — `AND deleted_at IS NULL`. Stage 2 → Stage 3 advance must
+        // not target a soft-deleted assessment.
+        $progress = $wpdb->get_row( $wpdb->prepare(
+            "SELECT * FROM {$wpdb->prefix}hdlv2_form_progress
+             WHERE id = %d AND deleted_at IS NULL",
+            (int) $progress_id
+        ) );
+        if ( ! $progress ) {
+            return array( 'ok' => false, 'code' => 'not_found', 'message' => 'Assessment not found.', 'status' => 404 );
+        }
+        if ( (int) $progress->practitioner_user_id !== (int) $practitioner_id && ! user_can( (int) $practitioner_id, 'manage_options' ) ) {
+            return array( 'ok' => false, 'code' => 'forbidden', 'message' => 'You do not have access to this assessment.', 'status' => 403 );
+        }
+
+        $why = $wpdb->get_row( $wpdb->prepare(
+            "SELECT id, released FROM {$wpdb->prefix}hdlv2_why_profiles WHERE form_progress_id = %d LIMIT 1",
+            (int) $progress->id
+        ) );
+        if ( ! $why ) {
+            return array( 'ok' => false, 'code' => 'no_why', 'message' => 'Stage 2 has not been completed yet.', 'status' => 400 );
+        }
+        if ( $why->released ) {
+            return array( 'ok' => true, 'already_released' => true );
+        }
+
+        $wpdb->update(
+            $wpdb->prefix . 'hdlv2_why_profiles',
+            array( 'released' => 1, 'released_at' => current_time( 'mysql' ) ),
+            array( 'id' => (int) $why->id )
+        );
+        // The ONLY place current_stage goes 2 → 3.
+        $wpdb->update(
+            $wpdb->prefix . 'hdlv2_form_progress',
+            array( 'current_stage' => 3 ),
+            array( 'id' => (int) $progress->id ),
+            array( '%d' ),
+            array( '%d' )
+        );
+
+        if ( ! empty( $progress->client_email ) && class_exists( 'HDLV2_Email_Templates' ) ) {
+            $form_url = site_url( '/assessment/?token=' . $progress->token );
+            HDLV2_Email_Templates::why_gate_released( array(
+                'client_name'     => $progress->client_name,
+                'client_email'    => $progress->client_email,
+                'form_url'        => $form_url,
+                'practitioner_id' => $progress->practitioner_user_id ?? null,
+            ) );
+        }
+
+        return array( 'ok' => true );
+    }
+
+    /**
+     * v0.32.1 — Is this a client-only role (not practitioner, not admin)?
+     *
+     * Used by the new /my-dashboard/ page guards so practitioners are
+     * silently redirected to /clients/ instead of seeing the client UI.
+     * Anyone logged-in who is NOT a practitioner counts as a client here
+     * (um_client, um_consumer, um_practitioner-invite, subscriber, etc.).
+     *
+     * @param int $user_id WordPress user ID.
+     * @return bool
+     */
+    public static function is_client_only( $user_id ) {
+        $user_id = (int) $user_id;
+        if ( ! $user_id ) return false;
+        if ( self::is_practitioner( $user_id ) ) return false;
+        $user = get_userdata( $user_id );
+        return $user ? true : false;
+    }
+
+    /**
+     * v0.32.1 — Resolve which journey state to render on /my-dashboard/.
+     *
+     * Returns one of:
+     *   'brand-new'   — no form_progress OR Stage 1 not finished
+     *   'stage1-done' — Stage 1 finished, no Stage 2 (no why_profiles row)
+     *   'stage2-done' — Stage 2 captured (why_profiles row exists), no draft report
+     *   'stage3-done' — draft report exists, final not yet finalised
+     *   'populated'   — final report exists with status='ready'
+     *
+     * Reads only V2 tables; cheap (4 single-row lookups, all indexed by
+     * client_user_id / form_progress_id). Safe to call on every page render.
+     *
+     * @param int $user_id WordPress user ID of the client.
+     * @return string One of the five state strings above.
+     */
+    public static function get_client_journey_state( $user_id ) {
+        global $wpdb;
+        $user_id = (int) $user_id;
+        if ( $user_id <= 0 ) return 'brand-new';
+
+        // v0.41.17 — `AND deleted_at IS NULL`. /my-dashboard/ journey state
+        // for a client whose latest lifecycle was soft-deleted should reset
+        // to 'brand-new' (until they re-engage on a fresh form_progress).
+        $progress = $wpdb->get_row( $wpdb->prepare(
+            "SELECT id, current_stage, stage1_completed_at, stage2_completed_at, stage3_completed_at
+             FROM {$wpdb->prefix}hdlv2_form_progress
+             WHERE client_user_id = %d AND deleted_at IS NULL
+             ORDER BY id DESC LIMIT 1",
+            $user_id
+        ) );
+        if ( ! $progress ) return 'brand-new';
+
+        $progress_id = (int) $progress->id;
+
+        // ─── populated: the journey is "complete enough" to surface the 3-tab dashboard.
+        //
+        // Trigger on ANY of three signals. The practitioner-side
+        // (HDLV2_Client_Status::calculate_status) considers the journey
+        // complete when consultation_notes.status='report_generated', so we
+        // mirror that as the canonical signal — anything later is icing.
+        // Also triggers on a generated Flight Plan (the actual deliverable
+        // clients engage with weekly) to handle older clients whose
+        // consultation row was migrated/imported without status update.
+        // The status='ready' check on the reports row remains as the cleanest
+        // explicit signal for new finalisations.
+        //
+        // 2026-05-05: previously only the reports.status='ready' check fired,
+        // which missed kim_4052 (final row exists with status='') and any
+        // client whose final write was interrupted before status flip.
+        $consult_done = $wpdb->get_var( $wpdb->prepare(
+            "SELECT 1 FROM {$wpdb->prefix}hdlv2_consultation_notes
+             WHERE form_progress_id = %d AND status = 'report_generated'
+             LIMIT 1",
+            $progress_id
+        ) );
+        $final_ready = $wpdb->get_var( $wpdb->prepare(
+            "SELECT 1 FROM {$wpdb->prefix}hdlv2_reports
+             WHERE form_progress_id = %d AND report_type = 'final' AND status = 'ready'
+             LIMIT 1",
+            $progress_id
+        ) );
+        // v0.41.17 — `AND deleted_at IS NULL`. Archived plans must not
+        // flip a fresh-lifecycle client to 'populated'.
+        $has_plan = $wpdb->get_var( $wpdb->prepare(
+            "SELECT 1 FROM {$wpdb->prefix}hdlv2_flight_plans
+             WHERE client_id = %d AND deleted_at IS NULL
+             LIMIT 1",
+            $user_id
+        ) );
+        if ( $consult_done || $final_ready || $has_plan ) return 'populated';
+
+        // Draft report exists → practitioner is finalising.
+        $draft_exists = $wpdb->get_var( $wpdb->prepare(
+            "SELECT 1 FROM {$wpdb->prefix}hdlv2_reports
+             WHERE form_progress_id = %d AND report_type = 'draft'
+             LIMIT 1",
+            $progress_id
+        ) );
+        if ( $draft_exists || ! empty( $progress->stage3_completed_at ) ) return 'stage3-done';
+
+        // Stage 2 (WHY) captured — released or not, the client has handed it over.
+        $why_exists = $wpdb->get_var( $wpdb->prepare(
+            "SELECT 1 FROM {$wpdb->prefix}hdlv2_why_profiles
+             WHERE form_progress_id = %d
+             LIMIT 1",
+            $progress_id
+        ) );
+        if ( $why_exists || ! empty( $progress->stage2_completed_at ) ) return 'stage2-done';
+
+        // Stage 1 finished, no Stage 2 yet.
+        if ( ! empty( $progress->stage1_completed_at ) ) return 'stage1-done';
+
+        return 'brand-new';
     }
 }

@@ -1,0 +1,127 @@
+/**
+ * HDL V2 Practitioner Dashboard — Tutorial Section
+ *
+ * Always-visible getting-started block beneath the live client list.
+ * All styles scoped under .hdlv2-pdt to avoid Divi/theme leakage.
+ *
+ * @since 0.22.24
+ */
+
+.hdlv2-pdt{
+  --pdt-teal:#3d8da0;
+  --pdt-teal-light:#5bb0c4;
+  --pdt-teal-lighter:#e6f3f5;
+  --pdt-teal-lightest:#f0fbfc;
+  --pdt-bg:#fafbfc;
+  --pdt-ink:#111;
+  --pdt-ink-soft:#555;
+  --pdt-ink-muted:#888;
+  --pdt-border:#e4e6ea;
+  --pdt-amber:#f59e0b;
+  --pdt-red:#dc2626;
+  --pdt-green:#10b981;
+  --pdt-serif:'Poppins','Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  --pdt-sans:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+  font-family:var(--pdt-sans);
+  color:var(--pdt-ink);
+  /* Matches V1's .dashboard-container max-width (class-health-tracker-practitioner.php:9323).
+     Keeps the tutorial section the same width as the V1 client list above it on
+     landscape / ultrawide screens. Mockup file used 1080px because it was a
+     standalone page; here we sit beside a 1600px sibling. */
+  max-width:1600px;
+  margin:32px auto 0;
+  padding:0 16px 40px;
+  line-height:1.6;
+  -webkit-font-smoothing:antialiased;
+}
+.hdlv2-pdt *{box-sizing:border-box}
+
+.hdlv2-pdt-hero{background:linear-gradient(135deg,var(--pdt-teal) 0%,var(--pdt-teal-light) 100%);color:#fff;border-radius:14px;padding:28px 32px;margin:0 0 18px;position:relative;overflow:hidden}
+.hdlv2-pdt-hero::before{content:'';position:absolute;inset:0;background:radial-gradient(circle at 90% 10%,rgba(255,255,255,0.10),transparent 55%);pointer-events:none}
+.hdlv2-pdt-hero-row{display:flex;justify-content:space-between;align-items:flex-start;gap:20px;position:relative}
+.hdlv2-pdt-greeting{font-size:13px;opacity:0.85;margin:0 0 4px;font-weight:500;letter-spacing:0.02em;color:#fff}
+.hdlv2-pdt-title{font-family:var(--pdt-serif);font-size:28px;font-weight:600;margin:0;letter-spacing:-0.01em;color:#fff;line-height:1.25}
+.hdlv2-pdt-sub{font-size:14px;opacity:0.92;margin:10px 0 0;max-width:560px;line-height:1.6;color:#fff}
+
+.hdlv2-pdt-paths{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:0 0 18px}
+.hdlv2-pdt-path{background:#fff;border:1px solid var(--pdt-border);border-radius:14px;padding:26px 28px;display:flex;flex-direction:column;gap:12px}
+.hdlv2-pdt-path-icon{width:38px;height:38px;border-radius:10px;background:var(--pdt-teal-lightest);color:var(--pdt-teal);display:flex;align-items:center;justify-content:center;border:1px solid var(--pdt-teal-lighter)}
+.hdlv2-pdt-path-icon svg{width:18px;height:18px}
+.hdlv2-pdt-path h3{margin:0;font-family:var(--pdt-serif);font-size:18px;font-weight:600;color:var(--pdt-ink);letter-spacing:-0.005em}
+.hdlv2-pdt-path p{margin:0;font-size:14px;color:var(--pdt-ink-soft);line-height:1.55}
+.hdlv2-pdt-path .hdlv2-pdt-btn{margin-top:6px;align-self:flex-start}
+
+.hdlv2-pdt-btn{display:inline-flex;align-items:center;gap:8px;background:var(--pdt-teal);color:#fff;font-weight:600;font-size:14px;padding:10px 18px;border-radius:8px;border:none;cursor:pointer;text-decoration:none;font-family:var(--pdt-sans);line-height:1.2;transition:background .15s ease,color .15s ease}
+.hdlv2-pdt-btn:hover{background:#357887;color:#fff}
+.hdlv2-pdt-btn-ghost{background:#fff;color:var(--pdt-teal);border:1px solid var(--pdt-teal-lighter)}
+.hdlv2-pdt-btn-ghost:hover{background:var(--pdt-teal-lightest);color:var(--pdt-teal)}
+.hdlv2-pdt-btn[disabled]{opacity:.6;cursor:not-allowed}
+
+.hdlv2-pdt-section-title{font-family:var(--pdt-serif);font-size:18px;font-weight:600;color:var(--pdt-ink);margin:24px 0 12px;letter-spacing:-0.005em}
+
+/* v0.35.3 — !important + ::marker reset because Divi/UM theme override
+   `list-style:none` with higher-specificity selectors, leaking the
+   browser's default "1.", "2.", ... markers in addition to our teal
+   counter circles. ::marker is the modern reset; the !important
+   list-style is the IE/Edge fallback for older WP themes. */
+.hdlv2-pdt-steps{counter-reset:step;list-style:none !important;list-style-type:none !important;padding:0;margin:0 0 18px;display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.hdlv2-pdt-steps li{counter-increment:step;position:relative;padding:16px 18px 16px 56px;background:#fff;border:1px solid var(--pdt-border);border-radius:10px;font-size:13px;color:var(--pdt-ink-soft);line-height:1.55;list-style:none !important;list-style-type:none !important}
+.hdlv2-pdt-steps li::marker{content:'' !important;color:transparent !important;font-size:0 !important}
+.hdlv2-pdt-steps li::before{content:counter(step);position:absolute;left:14px;top:16px;width:28px;height:28px;border-radius:50%;background:var(--pdt-teal-lightest);color:var(--pdt-teal);border:1px solid var(--pdt-teal-lighter);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px}
+.hdlv2-pdt-steps li strong{color:var(--pdt-ink);font-weight:600;display:block;margin-bottom:2px;font-size:14px}
+
+.hdlv2-pdt-config{background:#fff;border:1px solid var(--pdt-border);border-radius:14px;padding:22px 28px;margin:0 0 16px}
+.hdlv2-pdt-config summary{cursor:pointer;list-style:none;display:flex;justify-content:space-between;align-items:center;font-weight:600;font-size:15px;color:var(--pdt-ink);gap:14px}
+.hdlv2-pdt-config summary::-webkit-details-marker{display:none}
+.hdlv2-pdt-config summary::after{content:'\2304';color:var(--pdt-ink-muted);transition:transform .2s;flex:0 0 auto}
+.hdlv2-pdt-config[open] summary::after{transform:rotate(180deg)}
+.hdlv2-pdt-config[open] summary{margin-bottom:18px;padding-bottom:14px;border-bottom:1px solid var(--pdt-border)}
+.hdlv2-pdt-summary-sub{display:block;font-size:12px;color:var(--pdt-ink-muted);font-weight:400;margin-top:2px}
+.hdlv2-pdt-config-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.hdlv2-pdt-config-grid label{display:block;font-size:12px;color:var(--pdt-ink-soft);font-weight:600;margin:0 0 6px;text-transform:uppercase;letter-spacing:0.04em}
+.hdlv2-pdt-config-grid input[type=text],
+.hdlv2-pdt-config-grid input[type=url]{width:100%;padding:9px 12px;border:1px solid var(--pdt-border);border-radius:8px;font-size:14px;font-family:var(--pdt-sans);color:var(--pdt-ink);background:#fff}
+.hdlv2-pdt-config-grid input:focus{outline:none;border-color:var(--pdt-teal)}
+.hdlv2-pdt-color-row{display:flex;gap:10px;align-items:center}
+.hdlv2-pdt-color-row input[type=color]{width:40px;height:38px;padding:0;border:1px solid var(--pdt-border);border-radius:8px;cursor:pointer;background:#fff;flex:0 0 auto}
+.hdlv2-pdt-config-foot{display:flex;justify-content:flex-end;gap:8px;margin-top:18px;align-items:center;flex-wrap:wrap}
+.hdlv2-pdt-status{font-size:13px;font-weight:500;margin-right:auto}
+
+.hdlv2-pdt-embed-preview{background:#0e1115;color:#cbd5e1;border-radius:10px;padding:16px 18px;margin:14px 0 0;font-family:'SF Mono',ui-monospace,Menlo,Consolas,monospace;font-size:12px;line-height:1.6;overflow-x:auto;white-space:pre-wrap;word-break:break-all}
+
+.hdlv2-pdt-help{display:flex;justify-content:space-between;align-items:center;background:var(--pdt-teal-lightest);border:1px solid var(--pdt-teal-lighter);border-radius:12px;padding:14px 20px;margin:0 0 16px;font-size:13px;color:var(--pdt-ink-soft);gap:14px;flex-wrap:wrap}
+.hdlv2-pdt-help strong{color:var(--pdt-ink);font-weight:600}
+.hdlv2-pdt-help a{color:var(--pdt-teal);font-weight:600;text-decoration:none;white-space:nowrap}
+.hdlv2-pdt-help a:hover{text-decoration:underline}
+
+/* Modal */
+.hdlv2-pdt-overlay{position:fixed;inset:0;background:rgba(17,24,39,0.6);display:flex;align-items:center;justify-content:center;z-index:99999;padding:20px;font-family:var(--pdt-sans)}
+.hdlv2-pdt-overlay[hidden]{display:none}
+.hdlv2-pdt-modal{background:#fff;border-radius:14px;max-width:480px;width:100%;padding:24px 28px;position:relative;box-shadow:0 10px 40px rgba(0,0,0,0.2);max-height:90vh;overflow-y:auto}
+.hdlv2-pdt-modal-close{position:absolute;top:14px;right:14px;background:transparent;border:0;font-size:24px;color:var(--pdt-ink-muted);cursor:pointer;line-height:1;padding:4px 8px;font-family:inherit}
+.hdlv2-pdt-modal-close:hover{color:var(--pdt-ink)}
+.hdlv2-pdt-modal h2{margin:0 0 6px;font-family:var(--pdt-serif);font-size:20px;font-weight:600;color:var(--pdt-ink)}
+.hdlv2-pdt-modal p{margin:0 0 14px;font-size:13px;color:var(--pdt-ink-soft);line-height:1.55}
+.hdlv2-pdt-modal label{display:block;font-size:12px;color:var(--pdt-ink-soft);font-weight:600;margin:0 0 12px;text-transform:uppercase;letter-spacing:0.04em}
+.hdlv2-pdt-modal label > input,
+.hdlv2-pdt-modal label > select{display:block;width:100%;margin-top:5px;padding:9px 12px;border:1px solid var(--pdt-border);border-radius:8px;font-size:14px;font-family:var(--pdt-sans);color:var(--pdt-ink);background:#fff;text-transform:none;letter-spacing:0;font-weight:400}
+.hdlv2-pdt-modal label > input:focus,
+.hdlv2-pdt-modal label > select:focus{outline:none;border-color:var(--pdt-teal)}
+.hdlv2-pdt-modal-foot{display:flex;justify-content:flex-end;gap:8px;margin-top:18px}
+.hdlv2-pdt-modal-status{margin:10px 0 0;font-size:13px;font-weight:500}
+
+#hdlv2-pdt-invite-success{margin-top:8px}
+#hdlv2-pdt-invite-success input{width:100%;padding:9px 12px;border:1px solid var(--pdt-border);border-radius:8px;font-size:13px;font-family:'SF Mono',ui-monospace,Menlo,Consolas,monospace;background:#f8f9fb;margin:8px 0 4px}
+
+@media (max-width:760px){
+  .hdlv2-pdt{margin:18px auto 0;padding:0 12px 28px}
+  .hdlv2-pdt-hero{padding:22px 22px}
+  .hdlv2-pdt-title{font-size:22px}
+  .hdlv2-pdt-paths{grid-template-columns:1fr}
+  .hdlv2-pdt-steps{grid-template-columns:1fr}
+  .hdlv2-pdt-config{padding:18px 20px}
+  .hdlv2-pdt-config-grid{grid-template-columns:1fr}
+  .hdlv2-pdt-help{flex-direction:column;align-items:flex-start;gap:8px}
+  .hdlv2-pdt-config-foot{justify-content:stretch}
+  .hdlv2-pdt-config-foot .hdlv2-pdt-btn{flex:1}
+}

@@ -29,6 +29,55 @@
   to = "/404.html"
   status = 404
 
+# Security (2026-07-19, verification #5) — publish="." serves the ENTIRE repo
+# root, which also contains WordPress plugin source, wp-config.php, the
+# .pdfmonkey.env secret, dotfiles and internal .md docs (server IPs, keys,
+# architecture). These 404'd at probe time, but only by Netlify default
+# behaviour — nothing in the repo guaranteed it. force=true makes the block
+# explicit and versioned. NOTE: the stronger fix is to publish a dedicated
+# site subdirectory instead of "." — see the runbook; these are belt-and-braces.
+[[redirects]]
+  from = "/hdl-longevity-v2/*"
+  to = "/404.html"
+  status = 404
+  force = true
+
+[[redirects]]
+  from = "/health-data-lab-plugin/*"
+  to = "/404.html"
+  status = 404
+  force = true
+
+[[redirects]]
+  from = "/wp-config.php"
+  to = "/404.html"
+  status = 404
+  force = true
+
+[[redirects]]
+  from = "/.pdfmonkey.env"
+  to = "/404.html"
+  status = 404
+  force = true
+
+[[redirects]]
+  from = "/netlify/*"
+  to = "/404.html"
+  status = 404
+  force = true
+
+[[redirects]]
+  from = "/scripts/*"
+  to = "/404.html"
+  status = 404
+  force = true
+
+[[redirects]]
+  from = "/*.md"
+  to = "/404.html"
+  status = 404
+  force = true
+
 [[redirects]]
   from = "https://healthdatalab.netlify.app/*"
   to = "https://healthdatalab.com/:splat"

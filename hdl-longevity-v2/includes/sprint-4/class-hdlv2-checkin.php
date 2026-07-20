@@ -21,6 +21,9 @@ class HDLV2_Checkin {
         add_action( 'rest_api_init', array( $this, 'register_rest_routes' ) );
         add_action( 'hdlv2_checkin_reminder', array( $this, 'send_reminders' ) );
         add_action( 'hdlv2_quarterly_review', array( $this, 'check_quarterly_reviews' ) );
+        add_action( 'hdlv2_inactivity_sweep', array( $this, 'run_inactivity_sweep' ) );
+        // v0.40.17 — nudge practitioner about clients stuck after Stage 2.
+        add_action( 'hdlv2_stuck_release_reminder', array( $this, 'run_stuck_release_reminder' ) );
         add_shortcode( 'hdlv2_checkin', array( $this, 'render_shortcode' ) );
     }
 
@@ -46,16 +49,27 @@ class HDLV2_Checkin {
 
         $week_start = $this->get_week_start();
         global $wpdb;
+        // v0.41.17 — `AND deleted_at IS NULL` on both queries. The check-in
+        // page must not surface archived draft/confirmed rows or archived
+        // Flight Plans from a previous lifecycle.
         $checkin = $wpdb->get_row( $wpdb->prepare(
-            "SELECT * FROM {$wpdb->prefix}hdlv2_checkins WHERE client_id = %d AND week_start = %s LIMIT 1",
+            "SELECT * FROM {$wpdb->prefix}hdlv2_checkins
+             WHERE client_id = %d AND week_start = %s AND deleted_at IS NULL
+             LIMIT 1",
             $progress->client_user_id, $week_start
         ) );
 
         // Fetch current week's flight plan context for the check-in page
         $flight_plan = null;
+        // Skip future-dated plans so we show the plan covering the current check-in week,
+        // not a plan that's been pre-generated for an upcoming week.
         $fp_row = $wpdb->get_row( $wpdb->prepare(
-            "SELECT id, week_number, identity_statement, weekly_targets, adherence_summary, week_start FROM {$wpdb->prefix}hdlv2_flight_plans WHERE client_id = %d ORDER BY week_start DESC LIMIT 1",
-            $progress->client_user_id
+            "SELECT id, week_number, identity_statement, weekly_targets, adherence_summary, week_start
+             FROM {$wpdb->prefix}hdlv2_flight_plans
+             WHERE client_id = %d AND week_start <= %s AND deleted_at IS NULL
+             ORDER BY week_start DESC LIMIT 1",
+            $progress->client_user_id,
+            current_time( 'Y-m-d' )
         ) );
         if ( $fp_row ) {
             $flight_plan = array(
@@ -88,6 +102,15 @@ class HDLV2_Checkin {
         $progress = $this->get_progress_from_token( $params['token'] ?? '' );
         if ( is_wp_error( $progress ) ) return $progress;
 
+        // AI-burn idempotency: rest_submit calls Claude (Opus 4.8) for the
+        // weekly check-in extraction. Without wrapping, a duplicate submission
+        // (network retry, double-click) charges Claude twice. Scope is per
+        // (token, week_start) so submissions in different weeks don't collide.
+        $idem_scope = 'tok:' . substr( hash( 'sha256', (string) ( $params['token'] ?? '' ) ), 0, 16 )
+                    . ':cs:' . (int) $progress->id
+                    . ':wk:' . $this->get_week_start();
+        return HDLV2_Idempotency::wrap_ai( $request, $idem_scope, function () use ( $request, $params, $progress ) {
+
         $text = sanitize_textarea_field( $params['text'] ?? '' );
         $audio_summary = $params['audio_summary'] ?? '';
 
@@ -117,8 +140,12 @@ class HDLV2_Checkin {
         // "Add more" mode — append new input to existing draft and re-extract
         if ( ! empty( $params['append_mode'] ) ) {
             global $wpdb;
+            // v0.41.17 — `AND deleted_at IS NULL` so an archived draft cannot
+            // be appended to in a re-invite lifecycle.
             $existing_raw = $wpdb->get_var( $wpdb->prepare(
-                "SELECT raw_input FROM {$wpdb->prefix}hdlv2_checkins WHERE client_id = %d AND week_start = %s AND status = 'draft' LIMIT 1",
+                "SELECT raw_input FROM {$wpdb->prefix}hdlv2_checkins
+                 WHERE client_id = %d AND week_start = %s AND status = 'draft' AND deleted_at IS NULL
+                 LIMIT 1",
                 $progress->client_user_id, $this->get_week_start()
             ) );
             if ( $existing_raw ) {
@@ -136,7 +163,14 @@ class HDLV2_Checkin {
 
         // Only extract via AI if not already structured
         if ( ! $already_extracted ) {
-            $summary = HDLV2_Audio_Service::get_instance()->process_text( $raw_input, 'weekly_checkin' );
+            // Persist raw transcript + structured output for 90 days so the client's
+            // actual words survive beyond the check-in summary compression.
+            $meta = array(
+                'form_progress_id' => (int) $progress->id,
+                'client_user_id'   => $progress->client_user_id ? (int) $progress->client_user_id : null,
+                'input_method'     => $input_method,
+            );
+            $summary = HDLV2_Audio_Service::get_instance()->process_text( $raw_input, 'weekly_checkin', $meta );
             if ( is_wp_error( $summary ) ) return $summary;
         }
 
@@ -148,9 +182,12 @@ class HDLV2_Checkin {
         global $wpdb;
         $table = $wpdb->prefix . 'hdlv2_checkins';
 
-        // Upsert — one check-in per week
+        // Upsert — one check-in per week.
+        // v0.41.17 — `AND deleted_at IS NULL`. Without it, a re-invite client
+        // (same WP user, new lifecycle) would UPDATE the archived row instead
+        // of INSERTing a fresh draft for the new lifecycle's week.
         $existing = $wpdb->get_var( $wpdb->prepare(
-            "SELECT id FROM $table WHERE client_id = %d AND week_start = %s",
+            "SELECT id FROM $table WHERE client_id = %d AND week_start = %s AND deleted_at IS NULL",
             $progress->client_user_id, $week_start
         ) );
 
@@ -184,11 +221,16 @@ class HDLV2_Checkin {
             'has_flags'  => $parsed['has_flags'],
             'flags'      => $parsed['flags'],
         ) );
+        } );
     }
 
     // ── REST: Confirm check-in ──
     public function rest_confirm( $request ) {
-        $params   = $request->get_json_params();
+        $params     = $request->get_json_params();
+        $tok        = is_array( $params ) ? ( $params['token'] ?? '' ) : '';
+        $cid        = is_array( $params ) ? absint( $params['checkin_id'] ?? 0 ) : 0;
+        $idem_scope = ( $tok ? 'tok:' . substr( hash( 'sha256', (string) $tok ), 0, 16 ) : 'anon' ) . ':ci:' . $cid;
+        return HDLV2_Idempotency::wrap( $request, $idem_scope, function () use ( $request, $params ) {
         $progress = $this->get_progress_from_token( $params['token'] ?? '' );
         if ( is_wp_error( $progress ) ) return $progress;
 
@@ -200,16 +242,46 @@ class HDLV2_Checkin {
         global $wpdb;
         $checkin_table = $wpdb->prefix . 'hdlv2_checkins';
 
-        // Set confirmed
-        $wpdb->update(
-            $checkin_table,
-            array( 'status' => 'confirmed', 'confirmed_at' => current_time( 'mysql' ) ),
-            array( 'id' => $checkin_id, 'client_id' => $progress->client_user_id )
-        );
+        // v0.46.21 (QA F1/F2/F11) — atomic, owner-scoped confirm.
+        // The UPDATE is scoped to the CALLER's own client_id AND flips only a
+        // not-yet-confirmed row to 'confirmed', so:
+        //   (a) a foreign / guessed checkin_id belonging to another client
+        //       matches 0 rows  → IDOR closed (was: id-only reload ran the
+        //       timeline insert, flag re-eval + practitioner email, and a
+        //       Claude flight-plan burn against the VICTIM's record); and
+        //   (b) a re-click / retry on an already-confirmed row matches 0 rows
+        //       → idempotent no-op (was: duplicate timeline rows + repeated
+        //       flag/flight-plan work, since hdlv2_timeline has no unique key).
+        // Because the WHERE excludes already-confirmed rows and the SET always
+        // changes status+confirmed_at, a matched row is always an affected row,
+        // so rows_affected === 1 unambiguously means "this request won the
+        // confirm" and may run the side effects exactly once.
+        $updated = $wpdb->query( $wpdb->prepare(
+            "UPDATE $checkin_table SET status = 'confirmed', confirmed_at = %s
+             WHERE id = %d AND client_id = %d AND status != 'confirmed' AND deleted_at IS NULL",
+            current_time( 'mysql' ), $checkin_id, (int) $progress->client_user_id
+        ) );
 
-        // Reload the confirmed checkin
+        if ( 1 !== (int) $updated ) {
+            // 0 rows changed: either the caller does not own this check-in
+            // (foreign/forged id) or it is already confirmed. Re-read scoped
+            // to the owner to tell the two apart.
+            $own = $wpdb->get_row( $wpdb->prepare(
+                "SELECT id, status FROM $checkin_table
+                 WHERE id = %d AND client_id = %d AND deleted_at IS NULL",
+                $checkin_id, (int) $progress->client_user_id
+            ) );
+            if ( ! $own ) {
+                return new WP_Error( 'not_found', 'Check-in not found.', array( 'status' => 404 ) );
+            }
+            // Owned and already confirmed → idempotent success, no side effects.
+            return rest_ensure_response( array( 'success' => true, 'already_confirmed' => true ) );
+        }
+
+        // Reload the freshly-confirmed checkin (guaranteed owned by the caller).
         $checkin = $wpdb->get_row( $wpdb->prepare(
-            "SELECT * FROM $checkin_table WHERE id = %d", $checkin_id
+            "SELECT * FROM $checkin_table WHERE id = %d AND client_id = %d AND deleted_at IS NULL",
+            $checkin_id, (int) $progress->client_user_id
         ) );
         if ( ! $checkin ) {
             return new WP_Error( 'not_found', 'Check-in not found.', array( 'status' => 404 ) );
@@ -240,16 +312,35 @@ class HDLV2_Checkin {
         // 4.2 — Re-evaluate flags on confirmed check-in
         $this->evaluate_flags( $checkin );
 
-        // 4.3 — Trigger flight plan generation (async, 30s delay)
-        if ( ! wp_next_scheduled( 'hdlv2_generate_single_flight_plan', array( (int) $checkin->client_id ) ) ) {
-            wp_schedule_single_event(
-                time() + 30,
-                'hdlv2_generate_single_flight_plan',
-                array( (int) $checkin->client_id )
-            );
+        // 4.3 — Trigger flight plan generation for the UPCOMING week (async, 30s delay).
+        // The client has just finished THIS week and is now checking in to shape
+        // NEXT week's plan — so target 'next'. Without this we would try to write
+        // into a current-week slot that already has a plan and get blocked by
+        // duplicate prevention, and the client would never see a new plan.
+        // v0.46.66 (#6/#3/#4/#7) — route next-week generation through the robust
+        // job queue. enqueue_for() kicks /internal/worker-tick — a loopback that
+        // runs REGARDLESS of DISABLE_WP_CRON (STBY and LIVE alike) — and the job
+        // retries once on a transient Claude failure, then alerts the
+        // practitioner on permanent failure. The old wp_schedule_single_event(
+        // +30s) + /wp-cron.php kick sat unfired on a box without a system cron
+        // (the loopback fires before the +30s event is due, so it ran nothing).
+        // Legacy fallback kept for safety if the job class is unavailable.
+        if ( class_exists( 'HDLV2_Flight_Plan_Auto_Jobs' ) ) {
+            HDLV2_Flight_Plan_Auto_Jobs::enqueue_for( (int) $checkin->client_id, 'next' );
+        } else {
+            $args = array( (int) $checkin->client_id, 'next' );
+            if ( ! wp_next_scheduled( 'hdlv2_generate_single_flight_plan', $args ) ) {
+                wp_schedule_single_event( time() + 30, 'hdlv2_generate_single_flight_plan', $args );
+                wp_remote_post( site_url( '/wp-cron.php?doing_wp_cron=' . microtime( true ) ), array(
+                    'timeout'   => 0.01,
+                    'blocking'  => false,
+                    'sslverify' => apply_filters( 'https_local_ssl_verify', false ),
+                ) );
+            }
         }
 
         return rest_ensure_response( array( 'success' => true ) );
+        } );
     }
 
     /**
@@ -266,10 +357,13 @@ class HDLV2_Checkin {
             $flags = $summary_data['flags'];
         }
 
-        // Check adherence trend — ≤3/10 for 2+ consecutive weeks
+        // Check adherence trend — ≤3/10 for 2+ consecutive weeks.
+        // v0.41.17 — `AND deleted_at IS NULL` so the trend doesn't include
+        // archived data from a prior lifecycle.
         $prev_checkin = $wpdb->get_row( $wpdb->prepare(
             "SELECT adherence_scores FROM {$wpdb->prefix}hdlv2_checkins
              WHERE client_id = %d AND status = 'confirmed' AND id != %d
+               AND deleted_at IS NULL
              ORDER BY week_start DESC LIMIT 1",
             $checkin->client_id, $checkin->id
         ) );
@@ -286,10 +380,12 @@ class HDLV2_Checkin {
             }
         }
 
-        // Check for missed check-ins (2+ weeks gap)
+        // Check for missed check-ins (2+ weeks gap).
+        // v0.41.17 — `AND deleted_at IS NULL`.
         $last_confirmed = $wpdb->get_var( $wpdb->prepare(
             "SELECT MAX(week_start) FROM {$wpdb->prefix}hdlv2_checkins
-             WHERE client_id = %d AND status = 'confirmed' AND id != %d",
+             WHERE client_id = %d AND status = 'confirmed' AND id != %d
+               AND deleted_at IS NULL",
             $checkin->client_id, $checkin->id
         ) );
         if ( $last_confirmed ) {
@@ -308,10 +404,14 @@ class HDLV2_Checkin {
             array( 'id' => $checkin->id )
         );
 
-        // 4.4 — Notify practitioner if flags detected
+        // 4.4 — Notify practitioner if flags detected.
+        // v0.41.17 — `AND deleted_at IS NULL` (defensive — checkin should
+        // already be a current-lifecycle row).
         if ( $has_flags && $checkin->practitioner_id ) {
             $client_name = $wpdb->get_var( $wpdb->prepare(
-                "SELECT client_name FROM {$wpdb->prefix}hdlv2_form_progress WHERE client_user_id = %d ORDER BY id DESC LIMIT 1",
+                "SELECT client_name FROM {$wpdb->prefix}hdlv2_form_progress
+                 WHERE client_user_id = %d AND deleted_at IS NULL
+                 ORDER BY id DESC LIMIT 1",
                 $checkin->client_id
             ) ) ?: 'A client';
 
@@ -326,7 +426,8 @@ class HDLV2_Checkin {
                     'practitioner_email' => $prac->user_email,
                     'client_name'        => $client_name,
                     'reasons'            => $flag_reasons,
-                    'timeline_url'       => site_url( '/client-tracker/?client_id=' . $checkin->client_id ),
+                    'timeline_url'       => home_url( '/' . trim( apply_filters( 'hdlv2_practitioner_dashboard_slug', 'clients' ), '/' ) . '/?client_id=' .$checkin->client_id ),
+                    'practitioner_id'    => $checkin->practitioner_id ?? null,
                 ) );
             }
 
@@ -348,9 +449,11 @@ class HDLV2_Checkin {
 
         global $wpdb;
         $table = $wpdb->prefix . 'hdlv2_checkins';
+        // v0.41.17 — `AND deleted_at IS NULL`.
         $rows = $wpdb->get_results( $wpdb->prepare(
             "SELECT id, week_number, week_start, summary, adherence_scores, comfort_zone, has_flags, flags, status, confirmed_at
-             FROM $table WHERE client_id = %d AND status = 'confirmed' ORDER BY week_start DESC LIMIT %d OFFSET %d",
+             FROM $table WHERE client_id = %d AND status = 'confirmed' AND deleted_at IS NULL
+             ORDER BY week_start DESC LIMIT %d OFFSET %d",
             $progress->client_user_id, $per_page, $offset
         ) );
 
@@ -373,40 +476,277 @@ class HDLV2_Checkin {
 
     // ── Shortcode ──
     public function render_shortcode( $atts ) {
-        wp_enqueue_script( 'hdlv2-audio-component', HDLV2_PLUGIN_URL . 'assets/js/hdlv2-audio-component.js', array(), HDLV2_VERSION, true );
-        wp_enqueue_script( 'hdlv2-checkin', HDLV2_PLUGIN_URL . 'assets/js/hdlv2-checkin.js', array( 'hdlv2-audio-component' ), HDLV2_VERSION, true );
-        wp_enqueue_style( 'hdlv2-form', HDLV2_PLUGIN_URL . 'assets/css/hdlv2-form.css', array(), HDLV2_VERSION );
+        wp_enqueue_script( 'hdlv2-audio-component', HDLV2_PLUGIN_URL . 'assets/js/hdlv2-audio-component.js', array(), HDLV2_VERSION, true ); // E4 — Whisper tier removed
+        wp_enqueue_script( 'hdlv2-checkin', HDLV2_PLUGIN_URL . 'assets/js/hdlv2-checkin.js', array( 'hdlv2-audio-component', 'hdlv2-loading' ), HDLV2_VERSION, true );
+        wp_enqueue_style( 'hdlv2-form', HDLV2_PLUGIN_URL . 'assets/css/hdlv2-form.css', array( 'hdlv2-loading-css' ), HDLV2_VERSION );
+
+        // v0.40.15 — Defensive guard for clients who reach /check-in/ without a
+        // valid token (e.g. bookmark, copy-pasted URL minus the ?token=). The JS
+        // expects a 64-hex token in the query string and silently fails to load
+        // weekly data without one. Render a friendly card pointing the user
+        // back to the email instead of a blank container.
+        $raw_token = isset( $_GET['token'] ) ? sanitize_text_field( wp_unslash( $_GET['token'] ) ) : '';
+        $effective_token = ( $raw_token && preg_match( '/^[a-f0-9]{64}$/', $raw_token ) ) ? $raw_token : '';
+
+        // v0.46.66 (#2) — cookie-auth fallback. A logged-in client landing here
+        // WITHOUT a ?token (e.g. the dashboard "Begin →" button, or a bookmark)
+        // resolves their OWN form_progress token server-side, so the in-app
+        // check-in works without digging out the weekly email. The token is
+        // injected into the page's inline config (same exposure as the email
+        // link, but never placed in the URL/history); every downstream REST
+        // call still validates it via get_progress_from_token(), so there is no
+        // new auth surface and no IDOR (the token belongs to the caller).
+        if ( ! $effective_token && is_user_logged_in() ) {
+            global $wpdb;
+            $own_token = $wpdb->get_var( $wpdb->prepare(
+                "SELECT token FROM {$wpdb->prefix}hdlv2_form_progress
+                 WHERE client_user_id = %d AND deleted_at IS NULL
+                 ORDER BY id DESC LIMIT 1",
+                get_current_user_id()
+            ) );
+            if ( $own_token && preg_match( '/^[a-f0-9]{64}$/', $own_token ) ) {
+                $effective_token = $own_token;
+            }
+        }
+
+        if ( ! $effective_token ) {
+            $dashboard_slug = apply_filters( 'hdlv2_client_dashboard_slug', 'my-dashboard' );
+            return '<div style="max-width:560px;margin:60px auto;padding:40px 32px;background:#fff;border:1px solid #e4e6ea;border-radius:14px;box-shadow:0 4px 24px rgba(0,0,0,0.04);text-align:center;font-family:Inter,-apple-system,sans-serif;">'
+                 . '<h2 style="font-family:Poppins,Inter,sans-serif;font-size:22px;font-weight:600;color:#111;margin:0 0 10px;">Please open this page from your weekly email</h2>'
+                 . '<p style="font-size:14px;color:#666;margin:0 0 24px;line-height:1.5;">Each weekly check-in uses a unique link. Use the link from your most recent email to start.</p>'
+                 . '<a href="' . esc_url( home_url( '/' . trim( $dashboard_slug, '/' ) . '/' ) ) . '" style="display:inline-block;background:#3d8da0;color:#fff;padding:11px 24px;border-radius:48px;font-size:14px;font-weight:600;text-decoration:none;font-family:Poppins,Inter,sans-serif;">Go to my dashboard &rarr;</a>'
+                 . '</div>';
+        }
+
+        // Flight-plan page slug is configurable via filter so sites that rename
+        // the page still get a working "View your Flight Plan" link post-confirm.
+        $flight_plan_slug = apply_filters( 'hdlv2_flight_plan_slug', 'my-flight-plan' );
         wp_localize_script( 'hdlv2-checkin', 'hdlv2_checkin', array(
-            'api_base'   => rest_url( 'hdl-v2/v1/checkin' ),
-            'nonce'      => wp_create_nonce( 'wp_rest' ),
+            'api_base'        => rest_url( 'hdl-v2/v1/checkin' ),
+            'nonce'           => wp_create_nonce( 'wp_rest' ),
+            'flight_plan_url' => home_url( '/' . trim( $flight_plan_slug, '/' ) . '/' ),
+            'token'           => $effective_token, // v0.46.66 (#2) — URL token, or cookie-resolved for a logged-in client
         ) );
         return '<div id="hdlv2-checkin" class="hdlv2-assessment-root"></div>';
     }
 
     // ── Cron: Send weekly reminders ──
+    //
+    // Cadence (v0.15.16): cron fires daily, but each client gets at most one
+    // reminder per 3-day window via a transient. Realistic pattern for a client
+    // who never checks in: Mon reminder → 3-day silence → Thu nudge → 3-day
+    // silence → next Mon reminder (by which point week_start advances and the
+    // skip-if-checked-in guard resets the clock). Replaces the pre-v0.15.16
+    // behaviour where a lazy client got a nag every single day.
     public function send_reminders() {
         global $wpdb;
-        // Get all active clients with completed stages
+        // v0.27.0 — fix #10 (/ultrareview): SELECT DISTINCT was treating all 5
+        // columns together, so a client with multiple form_progress rows
+        // (different tokens) appeared once per row → multiple weekly reminder
+        // emails. Group by client_user_id and aggregate the rest so each client
+        // is one row regardless of how many progress rows they have.
+        // v0.47.63 — the aggregate was ANY_VALUE(), which this MariaDB build
+        // (10.11.16) rejects with ERROR 1305 "FUNCTION wordpress.ANY_VALUE does
+        // not exist" — so this cron (and the two below) had been silently dead
+        // since v0.27.0. Swapped to MAX(): universally supported, same one-per-
+        // group intent. (Caveat, unchanged from ANY_VALUE: for a client with
+        // multiple rows the aggregated columns may not all come from the same
+        // row; harmless here — near-all clients have a single progress row, and
+        // a latest-row-coherent rewrite is a possible follow-up.)
+        // v0.41.17 — `AND deleted_at IS NULL` so soft-deleted clients stop
+        // receiving weekly check-in reminders. Pair with the cascade in
+        // rest_delete_client + the deleted_at filter in the checkins
+        // existence check below.
         $clients = $wpdb->get_results(
-            "SELECT DISTINCT client_user_id, client_email, client_name, practitioner_user_id, token
+            "SELECT
+                client_user_id,
+                MAX(client_email)         AS client_email,
+                MAX(client_name)          AS client_name,
+                MAX(practitioner_user_id) AS practitioner_user_id,
+                MAX(token)                AS token
              FROM {$wpdb->prefix}hdlv2_form_progress
-             WHERE stage3_completed_at IS NOT NULL AND client_email != ''"
+             WHERE stage3_completed_at IS NOT NULL AND client_email != ''
+               AND deleted_at IS NULL
+             GROUP BY client_user_id"
         );
 
         $week_start = $this->get_week_start();
         foreach ( $clients as $c ) {
-            // Skip if already checked in this week
+            // Skip if already checked in this week (active rows only).
             $exists = $wpdb->get_var( $wpdb->prepare(
-                "SELECT id FROM {$wpdb->prefix}hdlv2_checkins WHERE client_id = %d AND week_start = %s AND status = 'confirmed'",
+                "SELECT id FROM {$wpdb->prefix}hdlv2_checkins
+                 WHERE client_id = %d AND week_start = %s AND status = 'confirmed'
+                   AND deleted_at IS NULL",
                 $c->client_user_id, $week_start
             ) );
             if ( $exists ) continue;
 
+            // Cooldown: skip if we already emailed this client within the last 3 days.
+            $cooldown_key = 'hdlv2_checkin_remind_' . (int) $c->client_user_id;
+            if ( get_transient( $cooldown_key ) ) continue;
+
+            // v0.47.74 — the send + its cooldown auto-fire on LIVE only. STBY
+            // holds real client addresses and emailed two real clients from
+            // this cron on 2026-07-14; candidate evaluation above stays live
+            // for staging tests (override: hdlv2_allow_staging_side_effects).
+            // v0.47.75 — AND the launch flag: this is a scheduled campaign to
+            // a client who did nothing, so it stays dark until launch day.
+            // Skipping before the cooldown is deliberate — writing it for an
+            // email we never sent would suppress the first real reminder for
+            // 3 days after the flag flips.
+            if ( ! HDLV2_Env::client_campaign_gate( 'checkin_reminder client:' . (int) $c->client_user_id ) ) continue;
+
+            // v0.36.23 — drop the inline 'there' fallback; derive_first_name()
+            // handles empty + email-shaped names centrally now.
             HDLV2_Email_Templates::checkin_reminder( array(
-                'client_name'  => $c->client_name ?: 'there',
-                'client_email' => $c->client_email,
-                'checkin_url'  => site_url( '/weekly-check-in/?token=' . $c->token ),
+                'client_name'     => $c->client_name,
+                'client_email'    => $c->client_email,
+                'checkin_url'     => site_url( '/weekly-check-in/?token=' . $c->token ),
+                'practitioner_id' => $c->practitioner_user_id ?? null,
             ) );
+
+            set_transient( $cooldown_key, 1, 3 * DAY_IN_SECONDS );
+        }
+    }
+
+    // ── Cron: Inactivity sweep ──
+    //
+    // Fires daily. Scans every V2 client past Stage 3 and evaluates their
+    // current status. If a client is `needs_attention` (low-adherence streak,
+    // missed check-ins) OR `inactive` (4+ weeks silent), we email the
+    // practitioner — once per 7-day incident window to avoid spam.
+    //
+    // Critical-flag check-ins already fire `client_needs_attention` inline from
+    // confirm_checkin(); this cron is the "silent drop-off" safety net that
+    // didn't exist before v0.15.16 (audit Gaps A + B).
+    public function run_inactivity_sweep() {
+        if ( ! class_exists( 'HDLV2_Client_Status' ) || ! class_exists( 'HDLV2_Email_Templates' ) ) return;
+
+        global $wpdb;
+        // v0.27.0 — fix #10 (/ultrareview): same DISTINCT-vs-GROUP-BY bug as
+        // send_reminders above. One row per client, not one per form_progress.
+        // v0.41.17 — `AND deleted_at IS NULL` so the attention digest stops
+        // surfacing soft-deleted clients.
+        $clients = $wpdb->get_results(
+            "SELECT
+                client_user_id,
+                MAX(client_name)          AS client_name,
+                MAX(client_email)         AS client_email,
+                MAX(practitioner_user_id) AS practitioner_user_id,
+                MAX(token)                AS token
+             FROM {$wpdb->prefix}hdlv2_form_progress
+             WHERE stage3_completed_at IS NOT NULL AND client_user_id IS NOT NULL AND practitioner_user_id IS NOT NULL
+               AND deleted_at IS NULL
+             GROUP BY client_user_id"
+        );
+
+        foreach ( $clients as $c ) {
+            $status = HDLV2_Client_Status::calculate_status( $c->client_user_id );
+            if ( ! in_array( $status['status'], array( 'needs_attention', 'inactive' ), true ) ) continue;
+            if ( empty( $status['reasons'] ) ) continue;
+
+            // De-dup per client per 7 days (separate key per status so a state
+            // transition from inactive→needs_attention still notifies).
+            $key = 'hdlv2_attn_' . (int) $c->client_user_id . '_' . $status['status'];
+            if ( get_transient( $key ) ) continue;
+
+            $prac = get_userdata( $c->practitioner_user_id );
+            if ( ! $prac || empty( $prac->user_email ) ) continue;
+
+            // v0.47.74 — send + 7-day dedupe fire on LIVE only (see send_reminders).
+            if ( ! HDLV2_Env::gate( 'inactivity_sweep client:' . (int) $c->client_user_id ) ) continue;
+
+            HDLV2_Email_Templates::client_needs_attention( array(
+                'practitioner_email' => $prac->user_email,
+                'client_name'        => $c->client_name ?: 'Client',
+                'reasons'            => $status['reasons'],
+                'timeline_url'       => home_url( '/' . trim( apply_filters( 'hdlv2_practitioner_dashboard_slug', 'clients' ), '/' ) . '/?client_id=' .(int) $c->client_user_id ),
+                'practitioner_id'    => $c->practitioner_user_id ?? null,
+            ) );
+
+            set_transient( $key, 1, 7 * DAY_IN_SECONDS );
+        }
+    }
+
+    // ── Cron: Stuck-on-Stage-2 release reminder ──
+    //
+    // Fires daily. Scans form_progress where Stage 2 WHY was submitted but
+    // the practitioner has not yet released Stage 3 (current_stage = 2 and
+    // stage2_completed_at older than 3 days). For each stuck progress, emails
+    // the practitioner once per 7 days to nudge them to review and release.
+    //
+    // Without this safety net, if a practitioner forgets to click
+    // "Release WHY", the client waits indefinitely — /my-dashboard/ tells
+    // them "your practitioner will email you", but if no release happens,
+    // no email ever fires. This cron closes that gap.
+    //
+    // The CTA in the email deep-links to /clients/?release_progress_id=N
+    // which hdlv2-client-list-enhance.js:846 (applyReleaseDeepLink) reads
+    // to scroll + pulse-highlight the relevant client row.
+    //
+    // @since 0.40.17
+    public function run_stuck_release_reminder() {
+        if ( ! class_exists( 'HDLV2_Email_Templates' ) ) return;
+
+        global $wpdb;
+        $threshold = gmdate( 'Y-m-d H:i:s', time() - 3 * DAY_IN_SECONDS );
+
+        // Collapse multiple form_progress rows per client (same pattern as
+        // send_reminders + run_inactivity_sweep above). v0.47.63 — MAX() not
+        // ANY_VALUE() (ERROR 1305 on this MariaDB — see send_reminders note).
+        // v0.41.17 — `AND deleted_at IS NULL`.
+        $stuck = $wpdb->get_results( $wpdb->prepare(
+            "SELECT
+                client_user_id,
+                MAX(id)                   AS progress_id,
+                MAX(client_name)          AS client_name,
+                MAX(client_email)         AS client_email,
+                MAX(practitioner_user_id) AS practitioner_user_id,
+                MAX(stage2_completed_at)  AS stage2_completed_at
+             FROM {$wpdb->prefix}hdlv2_form_progress
+             WHERE current_stage = 2
+               AND stage2_completed_at IS NOT NULL
+               AND stage2_completed_at < %s
+               AND stage3_completed_at IS NULL
+               AND practitioner_user_id IS NOT NULL
+               AND deleted_at IS NULL
+             GROUP BY client_user_id",
+            $threshold
+        ) );
+
+        if ( empty( $stuck ) ) return;
+
+        foreach ( $stuck as $c ) {
+            // Throttle per progress per 7 days. Keyed on progress_id (not
+            // client_user_id) so re-stuck cases after a release-then-revert
+            // cycle still re-fire when the new progress_id rolls in.
+            $key = 'hdlv2_stuck_release_' . (int) $c->progress_id;
+            if ( get_transient( $key ) ) continue;
+
+            $prac = get_userdata( $c->practitioner_user_id );
+            if ( ! $prac || empty( $prac->user_email ) ) continue;
+
+            // v0.47.74 — send + 7-day throttle fire on LIVE only (see send_reminders).
+            if ( ! HDLV2_Env::gate( 'stuck_release progress:' . (int) $c->progress_id ) ) continue;
+
+            $days_waiting = max( 0, floor( ( time() - strtotime( $c->stage2_completed_at . ' UTC' ) ) / DAY_IN_SECONDS ) );
+            $client_label = $c->client_name ?: ( $c->client_email ?: 'Your client' );
+
+            HDLV2_Email_Templates::client_needs_attention( array(
+                'practitioner_email' => $prac->user_email,
+                'client_name'        => $client_label,
+                'reasons'            => array(
+                    sprintf(
+                        'Stage 2 WHY submitted %d day%s ago — please review and release Stage 3 so they can continue.',
+                        (int) $days_waiting,
+                        $days_waiting === 1 ? '' : 's'
+                    ),
+                ),
+                'timeline_url'       => home_url( '/' . trim( apply_filters( 'hdlv2_practitioner_dashboard_slug', 'clients' ), '/' ) . '/?release_progress_id=' . (int) $c->progress_id ),
+                'practitioner_id'    => $c->practitioner_user_id,
+            ) );
+
+            set_transient( $key, 1, 7 * DAY_IN_SECONDS );
         }
     }
 
@@ -416,8 +756,16 @@ class HDLV2_Checkin {
             return new WP_Error( 'invalid_token', 'Invalid token.', array( 'status' => 401 ) );
         }
         global $wpdb;
+        // v0.41.17 — `AND deleted_at IS NULL`. Bookmarked / emailed check-in
+        // links pointing at a soft-deleted progress must not post check-ins
+        // against the archived row.
+        // v0.47.53 (B4) — `AND token_expires_at > UTC_TIMESTAMP()`: expired
+        // tokens no longer authenticate to check-in endpoints. The window is
+        // FIXED 90d from issuance (v0.47.54) — long-running check-in clients
+        // need a practitioner re-issue (New Client refreshes the expiry).
         $progress = $wpdb->get_row( $wpdb->prepare(
-            "SELECT * FROM {$wpdb->prefix}hdlv2_form_progress WHERE token = %s", $token
+            "SELECT * FROM {$wpdb->prefix}hdlv2_form_progress WHERE token = %s AND deleted_at IS NULL AND token_expires_at > UTC_TIMESTAMP()",
+            $token
         ) );
         if ( ! $progress ) {
             return new WP_Error( 'not_found', 'Assessment not found.', array( 'status' => 404 ) );
@@ -499,27 +847,49 @@ class HDLV2_Checkin {
         global $wpdb;
         $three_months_ago = date( 'Y-m-d H:i:s', strtotime( '-3 months' ) );
 
-        // Find clients whose last final report (or form creation) is 3+ months old
-        $clients = $wpdb->get_results(
+        // Find clients whose last final report (or form creation) is 3+ months old.
+        // A client can have multiple form_progress rows (multi-practitioner case),
+        // so an inner subquery picks the single latest row per client_user_id before
+        // joining — guarantees token and practitioner_user_id come from the same row
+        // (otherwise GROUP BY would return indeterminate values across columns).
+        // v0.41.17 — `AND fp.deleted_at IS NULL` on the outer SELECT and on
+        // the inner subquery's pick-latest. Quarterly nudges must skip
+        // soft-deleted clients entirely.
+        $clients = $wpdb->get_results( $wpdb->prepare(
             "SELECT fp.client_user_id, fp.client_name, fp.client_email, fp.practitioner_user_id, fp.token, fp.created_at,
                     COALESCE(
                         (SELECT MAX(r.created_at) FROM {$wpdb->prefix}hdlv2_reports r WHERE r.client_user_id = fp.client_user_id AND r.report_type IN ('final','quarterly')),
                         fp.stage3_completed_at
                     ) AS last_assessment
              FROM {$wpdb->prefix}hdlv2_form_progress fp
-             WHERE fp.stage3_completed_at IS NOT NULL
-             AND fp.client_user_id IS NOT NULL
-             GROUP BY fp.client_user_id
-             HAVING last_assessment < '{$three_months_ago}'"
-        );
+             INNER JOIN (
+                 SELECT client_user_id, MAX(id) AS latest_id
+                 FROM {$wpdb->prefix}hdlv2_form_progress
+                 WHERE stage3_completed_at IS NOT NULL AND client_user_id IS NOT NULL
+                   AND deleted_at IS NULL
+                 GROUP BY client_user_id
+             ) latest ON latest.client_user_id = fp.client_user_id AND latest.latest_id = fp.id
+             WHERE fp.deleted_at IS NULL
+             HAVING last_assessment < %s",
+            $three_months_ago
+        ) );
 
         foreach ( $clients as $c ) {
-            // Check we haven't already sent a reminder recently
+            // Check we haven't already sent a reminder recently (active rows only).
             $recent_reminder = $wpdb->get_var( $wpdb->prepare(
-                "SELECT id FROM {$wpdb->prefix}hdlv2_timeline WHERE client_id = %d AND entry_type = 'milestone' AND title LIKE '%%Quarterly review due%%' AND created_at > %s LIMIT 1",
+                "SELECT id FROM {$wpdb->prefix}hdlv2_timeline
+                 WHERE client_id = %d AND entry_type = 'milestone'
+                   AND title LIKE '%%Quarterly review due%%'
+                   AND created_at > %s
+                   AND deleted_at IS NULL
+                 LIMIT 1",
                 $c->client_user_id, date( 'Y-m-d', strtotime( '-7 days' ) )
             ) );
             if ( $recent_reminder ) continue;
+
+            // v0.47.74 — both emails + the timeline milestone (the 7-day
+            // re-nudge suppressor) fire on LIVE only (see send_reminders).
+            if ( ! HDLV2_Env::gate( 'quarterly_review client:' . (int) $c->client_user_id ) ) continue;
 
             // Get practitioner email
             $prac = get_userdata( $c->practitioner_user_id );
@@ -530,14 +900,23 @@ class HDLV2_Checkin {
                 'practitioner_email' => $prac->user_email,
                 'client_name'        => $c->client_name,
                 'dashboard_url'      => admin_url( 'admin.php?page=hdl-dashboard' ),
+                'practitioner_id'    => $c->practitioner_user_id ?? null,
             ) );
 
-            // Send email to client
-            if ( $c->client_email ) {
+            // Send email to client (v0.36.23 — practitioner_id now passed so
+            // header carries the practitioner's logo, not the HDL fallback).
+            // v0.47.75 — the CLIENT leg is a scheduled campaign → launch-flag
+            // gated. The practitioner leg above and the milestone below are
+            // NOT: Matthew still gets his nudge, and it still dedupes at 7
+            // days. Consequence: if the flag flips mid-window, the client's
+            // first quarterly nudge waits for the milestone to age out.
+            if ( $c->client_email
+                 && HDLV2_Env::client_campaign_gate( 'quarterly_review_client client:' . (int) $c->client_user_id ) ) {
                 HDLV2_Email_Templates::quarterly_review_client( array(
-                    'client_name'  => $c->client_name ?: 'there',
-                    'client_email' => $c->client_email,
-                    'review_url'   => site_url( '/my-flight-plan/?token=' . $c->token ),
+                    'client_name'     => $c->client_name,
+                    'client_email'    => $c->client_email,
+                    'review_url'      => site_url( '/my-flight-plan/?token=' . $c->token ),
+                    'practitioner_id' => $c->practitioner_user_id ?? null,
                 ) );
             }
 

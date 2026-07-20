@@ -4,11 +4,579 @@
  */
 
 /* ── LAYOUT ── */
+
+/* Expand Divi's default content column for consultation. The theme wraps
+   shortcode output in an .et_pb_row capped at 80% (~596px on a 1280 viewport)
+   which squeezes the split-screen layout. With the hdlv2-wide-page body
+   class (added via body_class filter in the shortcode), we widen the row
+   and let our own .hdlv2-consultation-root cap at 1400px. */
+/* Widen the Divi article + entry-content on pages that embed the consultation
+   shortcode. Default Divi reserves a narrow column plus sidebar gutter which
+   leaves the 58/38 split-screen cramped. Scope is body.hdlv2-wide-page (added
+   via body_class filter only when this shortcode is present) so no other page
+   is affected. */
+body.hdlv2-wide-page #left-area,
+body.hdlv2-wide-page #main-content .container > div:not(.et-l),
+body.hdlv2-wide-page article.page {
+  width: 100% !important;
+  max-width: 100% !important;
+  padding-right: 0 !important;
+}
+body.hdlv2-wide-page #sidebar { display: none !important; }
+body.hdlv2-wide-page .entry-content { width: 100% !important; max-width: 100% !important; }
+body.hdlv2-wide-page .container { width: 100% !important; max-width: 1400px !important; }
+body.hdlv2-wide-page .entry-content .et_pb_row {
+  width: 100% !important;
+  max-width: 100% !important;
+}
+body.hdlv2-wide-page .entry-content .et_pb_section {
+  padding-left: 0;
+  padding-right: 0;
+}
+body.hdlv2-wide-page .hdlv2-consult-layout {
+  width: 100%;
+}
+
 .hdlv2-consultation-root {
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  max-width: 1400px;
-  margin: 0 auto;
-  padding: 0 16px;
+  /* Escape parent theme content-wrapper width constraints — render full-bleed */
+  width: 100vw;
+  max-width: 100vw;
+  margin-left: calc((100vw - 100%) / -2);
+  margin-right: calc((100vw - 100%) / -2);
+  padding: 0 32px;
+  box-sizing: border-box;
+}
+
+@media (max-width: 1024px) {
+  .hdlv2-consultation-root {
+    padding: 0 16px;
+  }
+}
+
+/* ── HEADER STAT CARDS — Rate / Bio Age / Chronological Age ── */
+.hdlv2-stat-cards {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  margin: 0 0 24px;
+}
+
+.hdlv2-stat-card {
+  background: #fff;
+  border: 1px solid #e4e6ea;
+  border-radius: 14px;
+  padding: 20px 18px;
+  text-align: center;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+.hdlv2-stat-label {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #888;
+  margin: 0 0 8px;
+}
+
+.hdlv2-stat-value {
+  font-family: 'Poppins', sans-serif;
+  font-size: 36px;
+  font-weight: 700;
+  color: #3d8da0;
+  line-height: 1.1;
+}
+
+.hdlv2-stat-unit {
+  font-size: 16px;
+  font-weight: 500;
+  color: #999;
+  margin-left: 4px;
+}
+
+.hdlv2-stat-sub {
+  font-size: 12px;
+  color: #888;
+  margin-top: 6px;
+}
+
+.hdlv2-stat-sub.good { color: #10b981; font-weight: 600; }
+.hdlv2-stat-sub.warn { color: #d97706; font-weight: 600; }
+
+.hdlv2-stat-badge {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 12px;
+  margin-top: 8px;
+}
+
+.hdlv2-stat-badge.good { background: #ecfdf5; color: #10b981; }
+.hdlv2-stat-badge.ok   { background: #eef4f6; color: #3d8da0; }
+.hdlv2-stat-badge.warn { background: #fffbeb; color: #d97706; }
+
+.hdlv2-gauge-wrap {
+  text-align: center;
+  margin: 0 0 24px;
+}
+
+.hdlv2-gauge-wrap img {
+  max-width: 360px;
+  width: 100%;
+}
+
+@media (max-width: 768px) {
+  .hdlv2-stat-cards { grid-template-columns: 1fr; }
+}
+
+/* ── GROUPED HEALTH FIELD SECTIONS ── */
+.hdlv2-field-group {
+  margin: 0 0 16px;
+  padding: 0 0 12px;
+  border-bottom: 1px dashed #ececec;
+}
+
+.hdlv2-field-group:last-child {
+  border-bottom: none;
+}
+
+.hdlv2-field-group-title {
+  font-family: 'Poppins', sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: #3d8da0;
+  margin: 0 0 8px;
+  padding: 0 4px;
+}
+
+.hdlv2-consult-field-empty .hdlv2-consult-field-value {
+  color: #ccc;
+  font-weight: 400;
+}
+
+/* ── v0.15.0: Free-form consultation + AI organise UI ── */
+.hdlv2-consult-audio-inline {
+  margin: 10px 0 14px;
+}
+
+.hdlv2-consult-organise-btn {
+  width: 100%;
+  background: #3d8da0;
+  color: #fff;
+  border: none;
+  border-radius: 48px;
+  padding: 12px 24px;
+  font-family: 'Poppins', sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+.hdlv2-consult-organise-btn:hover { opacity: 0.9; }
+.hdlv2-consult-organise-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.hdlv2-consult-hint {
+  font-size: 11px;
+  color: #888;
+  margin: 8px 0 0;
+  line-height: 1.4;
+}
+
+/* v0.24.9 — D1: page heading at the top of /consultation/ per Matthew's
+   transcript ("on this page actually put a title that says Consultation").
+   Sits above the JS hydration root so it survives every panel re-render. */
+.hdlv2-consultation-page-title {
+  font-family: 'Poppins', sans-serif;
+  font-size: 28px;
+  font-weight: 600;
+  color: #004F59;
+  letter-spacing: 0.01em;
+  /* Align the title with the full-bleed consultation root below it
+     (root is width:100vw; padding:0 32px). Without this the h1 sits in the
+     theme's content gutter while the cards are full-bleed — a ~32px mismatch
+     that reads as "dropped in". Now both start at the same 32px inset. */
+  width: 100vw;
+  max-width: 100vw;
+  box-sizing: border-box;
+  margin: 0 calc((100vw - 100%) / -2) 18px;
+  padding: 0 32px;
+}
+@media (max-width: 1024px) {
+  .hdlv2-consultation-page-title { padding: 0 16px; }
+}
+
+/* v0.24.7 — Matthew asked the editability hint to be visually prominent
+   ("draft consultation summary, edit anything you need to change in here,
+   in red"). Bumps font-size + weight + warm red so the practitioner
+   notices the inline editing affordance before reading the AI output. */
+.hdlv2-consult-hint-emphasis {
+  font-size: 13px;
+  color: #b91c1c;
+  font-weight: 600;
+  margin: 8px 0 14px;
+}
+
+.hdlv2-organised-empty {
+  padding: 16px;
+  background: #f8f9fb;
+  border: 1px dashed #d1d5db;
+  border-radius: 8px;
+  color: #888;
+  font-size: 13px;
+  text-align: center;
+}
+
+.hdlv2-organised-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 0 0 12px;
+}
+.hdlv2-organised-head h4 {
+  margin: 0;
+  font-family: 'Poppins', sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  color: #3d8da0;
+}
+
+.hdlv2-organised-status.approved {
+  background: #ecfdf5;
+  color: #065f46;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 12px;
+}
+
+/* v0.24.8 — Auto-save status pill in the review-panel head row.
+   States: empty (hidden), pending (grey), saving (amber), saved (green),
+   error (red). Sits inline next to the section heading. */
+.hdlv2-save-pill {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 500;
+  font-family: 'Inter', sans-serif;
+  padding: 3px 10px;
+  border-radius: 12px;
+  letter-spacing: 0.2px;
+  vertical-align: middle;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+.hdlv2-save-pill:empty { display: none; }
+.hdlv2-save-pill.hdlv2-save-pending { background: #f3f4f6; color: #6b7280; }
+.hdlv2-save-pill.hdlv2-save-saving  { background: #fef3c7; color: #b45309; }
+.hdlv2-save-pill.hdlv2-save-saved   { background: #d1fae5; color: #065f46; }
+.hdlv2-save-pill.hdlv2-save-error   { background: #fee2e2; color: #991b1b; }
+
+.hdlv2-consult-approve-btn {
+  background: #10b981;
+  color: #fff;
+  border: none;
+  border-radius: 48px;
+  padding: 8px 18px;
+  font-family: 'Poppins', sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.hdlv2-consult-approve-btn:hover { opacity: 0.9; }
+.hdlv2-consult-approve-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.hdlv2-organised-sec {
+  margin: 14px 0;
+  padding: 12px 14px;
+  background: #fafbfc;
+  border: 1px solid #eef0f2;
+  border-radius: 10px;
+}
+.hdlv2-organised-sec h5 {
+  font-family: 'Poppins', sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: #3d8da0;
+  margin: 0 0 8px;
+}
+
+.hdlv2-organised-body {
+  font-size: 13px;
+  line-height: 1.55;
+  color: #333;
+  white-space: pre-wrap;
+  outline: none;
+  padding: 4px;
+  border-radius: 6px;
+  min-height: 24px;
+}
+.hdlv2-organised-body[contenteditable="true"]:focus {
+  background: #fff;
+  box-shadow: 0 0 0 2px rgba(61, 141, 160, 0.15);
+}
+
+/* v0.24.7 — When the body holds AI-formatted rich text (paragraphs +
+   bullet lists from formatRichText), turn off pre-wrap so block elements
+   handle their own spacing. Old plain-text rows without .hdlv2-rich-text
+   keep the legacy pre-wrap behaviour. */
+.hdlv2-organised-body.hdlv2-rich-text {
+  white-space: normal;
+}
+.hdlv2-organised-body.hdlv2-rich-text p {
+  margin: 0 0 8px;
+}
+.hdlv2-organised-body.hdlv2-rich-text p:last-child {
+  margin-bottom: 0;
+}
+.hdlv2-rich-list {
+  list-style: disc;
+  padding-left: 22px;
+  margin: 0 0 8px;
+}
+.hdlv2-rich-list:last-child { margin-bottom: 0; }
+.hdlv2-rich-list li {
+  font-size: 13px;
+  line-height: 1.55;
+  color: #333;
+  margin: 0 0 4px;
+}
+.hdlv2-rich-list li:last-child { margin-bottom: 0; }
+
+.hdlv2-organised-recs,
+.hdlv2-organised-followups {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.hdlv2-organised-followups li {
+  padding: 6px 4px;
+  border-bottom: 1px dashed #e4e6ea;
+  font-size: 13px;
+  color: #333;
+}
+.hdlv2-organised-followups li:last-child { border-bottom: none; }
+
+.hdlv2-organised-rec {
+  padding: 10px 4px;
+  border-bottom: 1px dashed #e4e6ea;
+}
+.hdlv2-organised-rec:last-child { border-bottom: none; }
+
+.hdlv2-organised-rec-text {
+  font-size: 13px;
+  color: #222;
+  line-height: 1.5;
+  margin: 0 0 6px;
+  outline: none;
+  padding: 4px;
+  border-radius: 6px;
+}
+.hdlv2-organised-rec-text[contenteditable="true"]:focus {
+  background: #fff;
+  box-shadow: 0 0 0 2px rgba(61, 141, 160, 0.15);
+}
+
+.hdlv2-organised-rec-meta {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.hdlv2-organised-rec-meta .tag {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: #eef4f6;
+  color: #3d8da0;
+}
+.hdlv2-organised-rec-meta .tag.priority-high   { background: #fef2f2; color: #dc2626; }
+.hdlv2-organised-rec-meta .tag.priority-medium { background: #fffbeb; color: #d97706; }
+.hdlv2-organised-rec-meta .tag.priority-low    { background: #f0f9ff; color: #0369a1; }
+
+/* v0.32.5 — UX-1: Recommendations section header + manual Add control.
+   Section is now ALWAYS rendered (even when empty) so practitioners can
+   add cards manually when Claude extracted none. */
+.hdlv2-organised-sec--recs .hdlv2-organised-sec-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 0 0 6px;
+}
+.hdlv2-organised-sec--recs .hdlv2-organised-sec-head h5 { margin: 0; }
+.hdlv2-organised-add-rec {
+  background: #eef4f6;
+  color: #3d8da0;
+  border: 1px solid #d6e8ee;
+  border-radius: 10px;
+  padding: 4px 10px;
+  font-family: 'Inter', sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.hdlv2-organised-add-rec:hover {
+  background: #3d8da0;
+  color: #fff;
+  border-color: #3d8da0;
+}
+.hdlv2-organised-empty {
+  margin: 6px 0 4px;
+  padding: 10px 12px;
+  background: #fafbfc;
+  border: 1px dashed #d6e0e6;
+  border-radius: 8px;
+  font-family: 'Inter', sans-serif;
+  font-size: 12px;
+  color: #6b7280;
+  line-height: 1.5;
+}
+.hdlv2-organised-empty strong { color: #3d8da0; font-weight: 600; }
+.hdlv2-organised-rec-remove {
+  margin-left: auto;
+  background: transparent;
+  border: 1px solid transparent;
+  color: #9ca3af;
+  font-size: 13px;
+  line-height: 1;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.hdlv2-organised-rec-remove:hover {
+  background: #fef2f2;
+  color: #dc2626;
+  border-color: #fecaca;
+}
+.hdlv2-organised-rec-remove:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* Inline Add-Recommendation form */
+.hdlv2-organised-add-rec-wrap[hidden] { display: none; }
+.hdlv2-organised-add-rec-form {
+  margin-top: 10px;
+  padding: 12px;
+  background: #fafbfc;
+  border: 1px solid #e4e6ea;
+  border-radius: 10px;
+}
+.hdlv2-organised-add-rec-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+.hdlv2-organised-add-rec-input {
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 6px 10px;
+  font-family: 'Inter', sans-serif;
+  font-size: 12px;
+  color: #2c3e50;
+  background: #fff;
+  border: 1px solid #d6e0e6;
+  border-radius: 8px;
+}
+.hdlv2-organised-add-rec-input:focus {
+  outline: none;
+  border-color: #3d8da0;
+  box-shadow: 0 0 0 3px rgba(61, 141, 160, 0.12);
+}
+.hdlv2-organised-add-rec-text {
+  width: 100%;
+  padding: 8px 10px;
+  font-family: 'Inter', sans-serif;
+  font-size: 13px;
+  color: #2c3e50;
+  background: #fff;
+  border: 1px solid #d6e0e6;
+  border-radius: 8px;
+  resize: vertical;
+  line-height: 1.45;
+  box-sizing: border-box;
+}
+.hdlv2-organised-add-rec-text:focus {
+  outline: none;
+  border-color: #3d8da0;
+  box-shadow: 0 0 0 3px rgba(61, 141, 160, 0.12);
+}
+.hdlv2-organised-add-rec-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+/* v0.32.5 — UX-2: Re-organise control on the review panel head.
+   Small text-link style — secondary action that lets practitioners
+   redo a poor /organise result without DB access. */
+.hdlv2-reorganise-link {
+  background: transparent;
+  border: 1px solid transparent;
+  color: #6b7280;
+  font-family: 'Inter', sans-serif;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  padding: 3px 8px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.hdlv2-reorganise-link:hover {
+  background: #fffbeb;
+  color: #d97706;
+  border-color: #fde68a;
+}
+.hdlv2-reorganise-link:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* v0.33.6 — Empty-recs recovery panel.
+   Appears inline below the addendum status when the L1 guard fires.
+   Hidden by default; only revealed when Save & Update Plan returns
+   the empty_recommendations error. */
+.hdlv2-empty-recs-recovery {
+  margin: 12px 0 0;
+  padding: 14px 16px;
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  border-radius: 10px;
+  color: #92400e;
+}
+.hdlv2-empty-recs-recovery__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: 'Inter', sans-serif;
+  font-size: 13px;
+  color: #92400e;
+  margin-bottom: 6px;
+}
+.hdlv2-empty-recs-recovery__head svg { color: #d97706; flex-shrink: 0; }
+.hdlv2-empty-recs-recovery__body {
+  margin: 0 0 10px;
+  font-family: 'Inter', sans-serif;
+  font-size: 12px;
+  color: #6b4d10;
+  line-height: 1.5;
+}
+.hdlv2-empty-recs-recovery__actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.hdlv2-empty-recs-recovery__actions .hdlv2-btn,
+.hdlv2-empty-recs-recovery__actions .hdlv2-btn-secondary {
+  font-size: 12px;
+  padding: 6px 12px;
 }
 
 .hdlv2-consult-layout {
@@ -19,22 +587,18 @@
 
 .hdlv2-consult-left {
   flex: 0 0 58%;
-  max-height: 90vh;
-  overflow-y: auto;
+  /* No max-height / overflow — the whole page scrolls as one (browser scrollbar). */
   padding-right: 12px;
 }
 
 .hdlv2-consult-right {
   flex: 0 0 38%;
-  position: sticky;
-  top: 32px;
-  max-height: 90vh;
-  overflow-y: auto;
   background: #fff;
   border: 1px solid #e4e6ea;
   border-radius: 14px;
   padding: 24px;
   box-shadow: 0 4px 24px rgba(0, 0, 0, 0.06);
+  /* No sticky / max-height / overflow — grows with content, page scrolls naturally. */
 }
 
 @media (max-width: 1024px) {
@@ -45,8 +609,6 @@
   .hdlv2-consult-right {
     flex: none;
     width: 100%;
-    max-height: none;
-    position: static;
   }
 }
 
@@ -122,10 +684,13 @@
 .hdlv2-consult-field-row {
   display: flex;
   align-items: center;
+  /* B6.2 — wrap so the change-note gets its own line and the edit
+     controls reflow on narrow screens instead of overflowing. */
+  flex-wrap: wrap;
   padding: 6px 8px;
   border-radius: 6px;
   font-size: 13px;
-  gap: 8px;
+  gap: 4px 8px;
   transition: background 0.2s;
 }
 
@@ -134,7 +699,7 @@
 }
 
 .hdlv2-consult-field-changed {
-  background: #fef3cd !important;
+  background: #fffbeb !important;
 }
 
 .hdlv2-consult-field-label {
@@ -145,6 +710,11 @@
 
 .hdlv2-consult-field-value {
   min-width: 50px;
+  /* B6.2 — long answer words ("60+ seconds on one leg") wrap tidily
+     instead of stretching or breaking the row. */
+  max-width: 60%;
+  overflow-wrap: anywhere;
+  line-height: 1.35;
   text-align: right;
   font-weight: 600;
   color: #111;
@@ -168,8 +738,83 @@
   display: block;
   width: 100%;
   font-size: 11px;
-  color: #856404;
+  color: #d97706;
   margin-top: 2px;
+}
+
+/* ── B6.2 — themed, responsive edit mode (replaces the old inline-styled
+      system controls). The editor keeps .hdlv2-consult-field-input for the
+      save handler; .hdlv2-consult-field-editor is styling only. ── */
+.hdlv2-consult-field-row.is-editing,
+.hdlv2-consult-field-row.is-editing:hover {
+  background: #f0fbfc;
+}
+
+.hdlv2-consult-field-editor {
+  flex: 1 1 160px;
+  min-width: 0;
+  max-width: 280px;
+  padding: 6px 10px;
+  border: 1px solid #3d8da0;
+  border-radius: 8px;
+  font: 500 13px/1.4 Inter, -apple-system, sans-serif;
+  color: #111;
+  background: #fff;
+}
+
+.hdlv2-consult-reason-input {
+  flex: 1 1 120px;
+  min-width: 0;
+  max-width: 200px;
+  padding: 6px 10px;
+  border: 1px solid #e4e6ea;
+  border-radius: 8px;
+  font: 400 12px/1.4 Inter, -apple-system, sans-serif;
+  color: #333;
+  background: #fff;
+}
+
+.hdlv2-consult-save-edit,
+.hdlv2-consult-cancel-edit {
+  appearance: none;
+  padding: 6px 14px;
+  border-radius: 999px;
+  font: 600 12px/1.2 Inter, -apple-system, sans-serif;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+
+.hdlv2-consult-save-edit {
+  background: #3d8da0;
+  border: 1px solid #3d8da0;
+  color: #fff;
+}
+
+.hdlv2-consult-save-edit:hover {
+  background: #327686;
+  border-color: #327686;
+}
+
+.hdlv2-consult-cancel-edit {
+  background: #fff;
+  border: 1px solid #e4e6ea;
+  color: #666;
+}
+
+.hdlv2-consult-cancel-edit:hover {
+  border-color: #3d8da0;
+  color: #3d8da0;
+}
+
+@media (max-width: 560px) {
+  .hdlv2-consult-field-row.is-editing .hdlv2-consult-field-label {
+    flex: 1 1 100%;
+  }
+  .hdlv2-consult-field-editor,
+  .hdlv2-consult-reason-input {
+    max-width: none;
+  }
 }
 
 /* ── NOTES TEXTAREA ── */
@@ -233,8 +878,8 @@
   margin-left: 6px;
 }
 
-.hdlv2-consult-rec-priority.high { color: #e74c3c; }
-.hdlv2-consult-rec-priority.medium { color: #f59e0b; }
+.hdlv2-consult-rec-priority.high { color: #dc2626; }
+.hdlv2-consult-rec-priority.medium { color: #d97706; }
 .hdlv2-consult-rec-priority.low { color: #10b981; }
 
 .hdlv2-consult-rec-remove {
@@ -249,7 +894,7 @@
   transition: color 0.2s;
 }
 
-.hdlv2-consult-rec-remove:hover { color: #e74c3c; }
+.hdlv2-consult-rec-remove:hover { color: #dc2626; }
 
 /* ── REC FORM ── */
 .hdlv2-consult-rec-form {
@@ -285,7 +930,46 @@
 }
 
 .hdlv2-consult-generate-btn:hover { opacity: 0.85; }
-.hdlv2-consult-generate-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.hdlv2-consult-generate-btn:disabled {
+  cursor: not-allowed;
+  opacity: 1;
+  color: #fff;
+  background-image: linear-gradient(
+    90deg,
+    #3d8da0 0%,
+    #3d8da0 40%,
+    #5eb3c7 50%,
+    #3d8da0 60%,
+    #3d8da0 100%
+  );
+  background-size: 200% 100%;
+  background-repeat: no-repeat;
+  animation: hdlv2-generate-shimmer 2.2s linear infinite;
+  position: relative;
+}
+
+@keyframes hdlv2-generate-shimmer {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* Animated dots suffix — JS sets text without trailing dots, CSS supplies them.
+   The ::after content is a single animated block that swaps through 1/2/3 dots
+   to give the "working" feel even if the button text never changes. */
+.hdlv2-consult-generate-btn:disabled::after {
+  content: '';
+  display: inline-block;
+  width: 1.2em;
+  text-align: left;
+  animation: hdlv2-generate-dots 1.4s steps(4, end) infinite;
+}
+@keyframes hdlv2-generate-dots {
+  0%   { content: ''; }
+  25%  { content: '.'; }
+  50%  { content: '..'; }
+  75%  { content: '...'; }
+  100% { content: ''; }
+}
 
 /* ── REPORT SECTIONS (reuse from form CSS) ── */
 .hdlv2-report-section {
@@ -318,8 +1002,8 @@
 /* ── DRAFT LABEL ── */
 .hdlv2-draft-label {
   display: inline-block;
-  background: #fef3cd;
-  color: #856404;
+  background: #fffbeb;
+  color: #d97706;
   font-size: 11px;
   font-weight: 700;
   text-transform: uppercase;
@@ -330,9 +1014,975 @@
 
 /* ── SAVE STATUS ── */
 .hdlv2-save-status { font-size: 12px; min-height: 18px; margin-top: 4px; }
-.hdlv2-save-status.saving { color: #f59e0b; }
+.hdlv2-save-status.saving { color: #d97706; }
 .hdlv2-save-status.saved { color: #10b981; }
-.hdlv2-save-status.error { color: #e74c3c; }
+.hdlv2-save-status.error { color: #dc2626; }
 
 /* ── SPINNER ── */
 @keyframes hdlv2spin { to { transform: rotate(360deg); } }
+
+.hdlv2-spinner {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  margin-right: 8px;
+  vertical-align: -2px;
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  border-top-color: #ffffff;
+  border-radius: 50%;
+  animation: hdlv2spin 0.8s linear infinite;
+}
+
+.hdlv2-spinner-label {
+  display: inline-block;
+  vertical-align: middle;
+}
+
+/* When the button is disabled (i.e. mid-request) the inner spinner stays
+   visible and crisp regardless of the dim button background. */
+.hdlv2-consult-generate-btn:disabled .hdlv2-spinner {
+  border-color: rgba(255, 255, 255, 0.5);
+  border-top-color: #ffffff;
+  opacity: 1;
+}
+
+
+/* ── v0.15.1 — icons-inside-textarea + collapsed flow ── */
+/* v0.15.2 — WhatsApp-style notes bar: single bordered container,
+   textarea on top (no border, no bottom overlap), icons in a
+   separate row below with a subtle top divider. */
+.hdlv2-consult-notes-bar {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid #d1d5db;
+  border-radius: 12px;
+  background: #fff;
+  overflow: hidden;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.hdlv2-consult-notes-bar:focus-within {
+  border-color: #3d8da0;
+  box-shadow: 0 0 0 2px rgba(61, 141, 160, 0.15);
+}
+.hdlv2-consult-notes-input {
+  width: 100%;
+  min-height: 200px;
+  padding: 12px 14px;
+  font-family: 'Inter', sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+  border: 0;
+  background: transparent;
+  resize: vertical;
+  box-sizing: border-box;
+  display: block;
+}
+.hdlv2-consult-notes-input:focus { outline: none; }
+.hdlv2-consult-notes-iconbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px;
+  border-top: 1px solid #f0f1f3;
+  background: #fafbfc;
+  min-height: 48px;
+  max-height: 48px;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+.hdlv2-consult-notes-iconbar > * { min-height: 0; }
+.hdlv2-ac-icons-only { display: flex; gap: 6px; align-items: center; }
+.hdlv2-ac-icons-only .hdlv2-ac-icon-btn {
+  width: 32px; height: 32px; border-radius: 50%;
+  border: 1px solid #e4e6ea; background: #fff; cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center;
+  padding: 0; transition: all 0.15s;
+  flex: 0 0 32px; min-width: 32px; min-height: 32px;
+  align-self: center;
+}
+.hdlv2-ac-icons-only .hdlv2-ac-icon-btn:hover { border-color: #3d8da0; background: rgba(61,141,160,0.06); }
+.hdlv2-ac-icons-only .hdlv2-ac-icon-btn:hover svg { stroke: #3d8da0; }
+.hdlv2-ac-icons-only .hdlv2-ac-icon-btn.recording {
+  border-color: #dc2626; background: #fef2f2; animation: hdlv2-pulse 1s infinite;
+}
+.hdlv2-ac-icons-only .hdlv2-ac-icon-btn.recording svg { stroke: #dc2626; }
+.hdlv2-ac-icons-status { font-size: 11px; color: #888; margin-left: 6px; white-space: nowrap; }
+.hdlv2-ac-icons-status.error { color: #dc2626; }
+.hdlv2-ac-icons-status.loading { color: #3d8da0; }
+@keyframes hdlv2-pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+.hdlv2-review-actions { display: flex; flex-direction: column; gap: 10px; margin-top: 18px; }
+.hdlv2-btn-secondary {
+  background: #fff; color: #555; border: 1px solid #e4e6ea;
+  border-radius: 48px; padding: 10px 18px;
+  font-family: 'Poppins', sans-serif; font-size: 13px; font-weight: 500;
+  cursor: pointer; transition: all 0.15s;
+}
+.hdlv2-btn-secondary:hover { border-color: #3d8da0; color: #3d8da0; }
+
+
+/* v0.15.2 — Issue 2: mobile breathing room for review panel sections */
+@media (max-width: 768px) {
+  .hdlv2-organised-sec {
+    padding: 16px 14px;
+    margin: 12px 0;
+  }
+  .hdlv2-organised-sec h5 {
+    font-size: 13px;
+    letter-spacing: 0.4px;
+  }
+  .hdlv2-organised-rec {
+    padding: 12px 8px;
+  }
+  .hdlv2-organised-rec-meta {
+    gap: 4px;
+  }
+  .hdlv2-organised-rec-meta .tag {
+    font-size: 10px;
+    padding: 2px 6px;
+  }
+}
+
+
+/* v0.15.3 — Client Brief collapsible section */
+.hdlv2-client-brief-details {
+  background: #fff;
+  border: 1px solid #e4e6ea;
+  border-radius: 10px;
+  padding: 0;
+  margin: 0 0 4px;
+}
+.hdlv2-client-brief-details > summary {
+  cursor: pointer;
+  padding: 12px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  list-style: none;
+}
+.hdlv2-client-brief-details > summary::-webkit-details-marker { display: none; }
+.hdlv2-client-brief-details > summary::after {
+  content: '▾';
+  color: #888;
+  font-size: 14px;
+  transition: transform 0.2s;
+}
+.hdlv2-client-brief-details[open] > summary::after { transform: rotate(180deg); }
+.hdlv2-client-brief-details > summary h4 {
+  margin: 0;
+  font-family: 'Poppins', sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  color: #3d8da0;
+  flex: 1;
+}
+.hdlv2-client-brief-meta {
+  font-size: 11px;
+  color: #888;
+  font-style: italic;
+  margin-right: 6px;
+}
+.hdlv2-client-brief-details[open] > #hdlv2-client-brief-body,
+.hdlv2-client-brief-details[open] > button {
+  margin-left: 16px;
+  margin-right: 16px;
+  margin-bottom: 12px;
+}
+.hdlv2-client-brief-loading {
+  padding: 16px;
+  background: #fafbfc;
+  border-radius: 8px;
+  color: #888;
+  font-size: 13px;
+  text-align: center;
+}
+@keyframes hdlv2spin { to { transform: rotate(360deg); } }
+
+/* ──────────────────────────────────────────────────────────────────────
+   CONSULTATIONS LIST VIEW (v0.25.2) — /consultation/ with no ?progress_id
+   ──────────────────────────────────────────────────────────────────── */
+
+/* The list view re-uses .hdlv2-consultation-root as its outer wrapper, so
+   font + full-bleed escape are already inherited. These rules style the
+   index UI rendered by hdlv2-consultation.js → renderList(). */
+
+/* v0.25.3 — single centered shell. The parent .hdlv2-consultation-root is
+   intentionally full-bleed (100vw with negative margin) to escape Divi's
+   .et_pb_row 80% cap, so without this wrapper the inner content was
+   left-aligned to the viewport's left padding instead of centered. */
+.hdlv2-consultation-root .cl-shell {
+  max-width: 1180px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.hdlv2-consultation-root .cl-page-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 20px;
+  margin: 0 0 24px;
+  max-width: 1180px;
+}
+.hdlv2-consultation-root .cl-h1 {
+  margin: 0 0 4px;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-size: 28px;
+  font-weight: 700;
+  color: #111;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+}
+.hdlv2-consultation-root .cl-lead {
+  margin: 0;
+  font-size: 14px;
+  color: #555;
+  line-height: 1.6;
+}
+.hdlv2-consultation-root .cl-back-link {
+  color: #3d8da0;
+  font-weight: 600;
+  font-size: 13px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border-radius: 8px;
+  border: 1px solid #c9e4e9;
+  background: #fff;
+  text-decoration: none;
+  flex-shrink: 0;
+  transition: background .15s;
+}
+.hdlv2-consultation-root .cl-back-link:hover {
+  background: #f0fbfc;
+}
+
+/* Counts strip (3 cards). */
+.hdlv2-consultation-root .cl-counts {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin: 0 0 28px;
+  max-width: 1180px;
+}
+.hdlv2-consultation-root .cl-count-card {
+  background: #fff;
+  border: 1px solid #e4e6ea;
+  border-radius: 14px;
+  padding: 16px 20px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+.hdlv2-consultation-root .cl-count-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #888;
+  margin: 0 0 6px;
+}
+.hdlv2-consultation-root .cl-count-value {
+  font-family: 'Poppins', sans-serif;
+  font-size: 32px;
+  font-weight: 700;
+  color: #111;
+  line-height: 1;
+  margin: 0;
+}
+.hdlv2-consultation-root .cl-count-card.is-action .cl-count-value {
+  color: #3d8da0;
+}
+
+/* Section heads. */
+.hdlv2-consultation-root .cl-section-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 28px 0 12px;
+  max-width: 1180px;
+}
+.hdlv2-consultation-root .cl-section-head h2 {
+  margin: 0;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-size: 18px;
+  font-weight: 700;
+  color: #111;
+  letter-spacing: -0.005em;
+}
+.hdlv2-consultation-root .cl-count-pill {
+  background: #f0fbfc;
+  color: #3d8da0;
+  border: 1px solid #c9e4e9;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.hdlv2-consultation-root .cl-section-sub {
+  margin-left: auto;
+  font-size: 13px;
+  color: #888;
+}
+.hdlv2-consultation-root .cl-section-lead {
+  margin: 0 0 14px;
+  font-size: 13px;
+  color: #555;
+  line-height: 1.6;
+  max-width: 1180px;
+}
+
+/* Row card. */
+.hdlv2-consultation-root .cl-row {
+  background: #fff;
+  border: 1px solid #e4e6ea;
+  border-radius: 14px;
+  padding: 16px 20px;
+  margin: 0 0 10px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  gap: 18px;
+  align-items: center;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+  transition: border-color .15s, box-shadow .15s;
+  max-width: 1180px;
+}
+.hdlv2-consultation-root .cl-row:hover {
+  border-color: #c9e4e9;
+  box-shadow: 0 4px 12px rgba(61, 141, 160, 0.08);
+}
+.hdlv2-consultation-root .cl-row.is-new {
+  border-left: 4px solid #f59e0b;
+  padding-left: 16px;
+}
+
+.hdlv2-consultation-root .cl-avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: #f0fbfc;
+  color: #3d8da0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 14px;
+  border: 1px solid #c9e4e9;
+  flex-shrink: 0;
+}
+
+.hdlv2-consultation-root .cl-body {
+  min-width: 0;
+}
+.hdlv2-consultation-root .cl-name {
+  margin: 0 0 4px;
+  font-size: 15px;
+  font-weight: 600;
+  color: #111;
+}
+.hdlv2-consultation-root .cl-meta {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  font-size: 12px;
+  color: #888;
+  flex-wrap: wrap;
+}
+.hdlv2-consultation-root .cl-meta .item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+.hdlv2-consultation-root .cl-meta .item .label {
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-weight: 600;
+  color: #888;
+  font-size: 10px;
+  margin-right: 4px;
+}
+.hdlv2-consultation-root .cl-meta .item .val {
+  color: #555;
+  font-weight: 500;
+}
+.hdlv2-consultation-root .cl-meta .dot {
+  color: #e4e6ea;
+}
+
+/* Status pills — same colour palette as the practitioner-active mockup. */
+.hdlv2-consultation-root .cl-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 999px;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+.hdlv2-consultation-root .cl-status::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  display: inline-block;
+}
+.hdlv2-consultation-root .cl-status.in-progress         { background: #dbeafe; color: #1e40af; }
+.hdlv2-consultation-root .cl-status.in-progress::before { background: #3b82f6; }
+.hdlv2-consultation-root .cl-status.delivered           { background: #dcfce7; color: #166534; }
+.hdlv2-consultation-root .cl-status.delivered::before   { background: #10b981; }
+
+/* Pace-of-ageing rate. */
+.hdlv2-consultation-root .cl-rate-wrap {
+  min-width: 80px;
+  text-align: right;
+}
+.hdlv2-consultation-root .cl-rate {
+  font-family: 'Poppins', sans-serif;
+  font-size: 18px;
+  font-weight: 700;
+  color: #3d8da0;
+  white-space: nowrap;
+}
+.hdlv2-consultation-root .cl-rate-unit {
+  font-family: 'Inter', sans-serif;
+  font-size: 11px;
+  font-weight: 500;
+  color: #888;
+  margin-left: 3px;
+}
+
+/* Primary action button. */
+.hdlv2-consultation-root .cl-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #3d8da0;
+  color: #fff;
+  font-weight: 600;
+  font-size: 13px;
+  padding: 9px 16px;
+  border-radius: 8px;
+  border: none;
+  cursor: pointer;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: background .15s;
+}
+.hdlv2-consultation-root .cl-action:hover {
+  background: #357887;
+  color: #fff;
+}
+.hdlv2-consultation-root .cl-action.ghost {
+  background: #fff;
+  color: #3d8da0;
+  border: 1px solid #c9e4e9;
+}
+.hdlv2-consultation-root .cl-action.ghost:hover {
+  background: #f0fbfc;
+  color: #3d8da0;
+}
+
+/* Empty state. */
+.hdlv2-consultation-root .cl-empty {
+  background: #fff;
+  border: 1px dashed #e4e6ea;
+  border-radius: 14px;
+  padding: 40px 28px;
+  text-align: center;
+  margin: 0 0 10px;
+  max-width: 1180px;
+}
+.hdlv2-consultation-root .cl-empty-icon {
+  width: 48px;
+  height: 48px;
+  margin: 0 auto 12px;
+  background: #f0fbfc;
+  color: #3d8da0;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.hdlv2-consultation-root .cl-empty-icon svg {
+  width: 22px;
+  height: 22px;
+}
+.hdlv2-consultation-root .cl-empty h3 {
+  margin: 0 0 6px;
+  font-size: 15px;
+  font-weight: 600;
+  color: #111;
+}
+.hdlv2-consultation-root .cl-empty p {
+  margin: 0;
+  font-size: 13px;
+  color: #888;
+  line-height: 1.6;
+}
+.hdlv2-consultation-root .cl-empty-link {
+  color: #3d8da0;
+  font-weight: 600;
+  text-decoration: none;
+}
+.hdlv2-consultation-root .cl-empty-link:hover {
+  text-decoration: underline;
+}
+
+/* Admin-only practitioner attribution chip. */
+.hdlv2-consultation-root .cl-admin-tag {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #6b21a8;
+  background: #f3e8ff;
+  border: 1px solid #e9d5ff;
+  padding: 2px 6px;
+  border-radius: 4px;
+  margin-left: 6px;
+}
+
+/* Responsive. */
+@media (max-width: 980px) {
+  .hdlv2-consultation-root .cl-counts {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+  }
+  .hdlv2-consultation-root .cl-count-value { font-size: 24px; }
+  .hdlv2-consultation-root .cl-row {
+    grid-template-columns: auto 1fr;
+    grid-template-rows: auto auto;
+  }
+  .hdlv2-consultation-root .cl-rate-wrap,
+  .hdlv2-consultation-root .cl-row .cl-action {
+    grid-column: 1 / -1;
+  }
+  .hdlv2-consultation-root .cl-rate-wrap { text-align: left; }
+  .hdlv2-consultation-root .cl-row .cl-action {
+    justify-self: stretch;
+    text-align: center;
+    justify-content: center;
+  }
+}
+@media (max-width: 640px) {
+  .hdlv2-consultation-root .cl-counts {
+    grid-template-columns: 1fr;
+  }
+  .hdlv2-consultation-root .cl-page-head {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+  .hdlv2-consultation-root .cl-back-link {
+    align-self: flex-start;
+  }
+  .hdlv2-consultation-root .cl-section-head {
+    flex-wrap: wrap;
+  }
+  .hdlv2-consultation-root .cl-section-head .cl-section-sub {
+    margin-left: 0;
+    flex-basis: 100%;
+  }
+}
+
+/* ──────────────────────────────────────────────────────────────
+   v0.28.0 — Consultation Addenda
+   Practitioner-appended timestamped observations between the
+   original consultation and the next quarterly Part. Visually
+   mirrors the .hdlv2-organised-sec vocabulary so the new section
+   feels native to the existing review panel.
+   See: hdl-longevity-v2/CONSULTATION-ADDENDA-DESIGN.md
+   ────────────────────────────────────────────────────────────── */
+
+.hdlv2-addenda-wrap:empty { display: none; }
+
+.hdlv2-addenda-count {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 600;
+  color: #888;
+  background: #fff;
+  border: 1px solid #e4e6ea;
+  padding: 2px 8px;
+  border-radius: 10px;
+}
+
+.hdlv2-addenda-empty {
+  margin: 0;
+  padding: 14px;
+  background: #f8f9fb;
+  border: 1px dashed #d1d5db;
+  border-radius: 8px;
+  color: #888;
+  font-size: 13px;
+  text-align: center;
+}
+
+.hdlv2-addenda-timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 12px 0 0;
+}
+
+.hdlv2-addendum {
+  position: relative;
+  padding: 12px 14px 12px 18px;
+  background: #fff;
+  border: 1px solid #e4e6ea;
+  border-radius: 8px;
+}
+.hdlv2-addendum::before {
+  content: '';
+  position: absolute;
+  left: 0; top: 8px; bottom: 8px;
+  width: 3px;
+  border-radius: 2px;
+  background: #d97706; /* default = medium */
+}
+.hdlv2-addendum.priority-high::before    { background: #dc2626; }
+.hdlv2-addendum.priority-medium::before  { background: #d97706; }
+.hdlv2-addendum.priority-low::before     { background: #0369a1; }
+
+/* v0.33.2 — addendum is now <details>; meta lives inside <summary>.
+   Strip the native marker, make the whole row a click target, flip the
+   chevron on open. */
+.hdlv2-addendum > summary {
+  list-style: none;
+  cursor: pointer;
+  user-select: none;
+  outline: none;
+}
+.hdlv2-addendum > summary::-webkit-details-marker { display: none; }
+.hdlv2-addendum > summary:focus-visible {
+  box-shadow: 0 0 0 2px rgba(61, 141, 160, 0.25);
+  border-radius: 4px;
+}
+.hdlv2-addendum-chevron {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  color: #9ca3af;
+  transition: transform 0.15s ease;
+}
+.hdlv2-addendum[open] > summary .hdlv2-addendum-chevron {
+  transform: rotate(90deg);
+  color: #3d8da0;
+}
+
+.hdlv2-addendum-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 0;
+  flex-wrap: wrap;
+}
+.hdlv2-addendum[open] > summary.hdlv2-addendum-meta { margin-bottom: 8px; }
+.hdlv2-addendum-spacer { flex: 1; }
+
+/* Compact preview — visible when collapsed, hidden when expanded.
+   Truncates at the CSS layer too as a belt for tiny screens. */
+.hdlv2-addendum-preview {
+  font-size: 12px;
+  color: #6b7280;
+  font-style: italic;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1 1 100%;
+  margin-top: 2px;
+}
+.hdlv2-addendum[open] > summary .hdlv2-addendum-preview { display: none; }
+
+.hdlv2-addendum-date {
+  font-size: 11px;
+  color: #888;
+  font-weight: 500;
+  letter-spacing: 0.2px;
+}
+
+.hdlv2-addendum-tag {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  padding: 2px 7px;
+  border-radius: 10px;
+  background: #eef4f6;
+  color: #3d8da0;
+}
+.hdlv2-addendum-tag.priority-high   { background: #fef2f2; color: #dc2626; }
+.hdlv2-addendum-tag.priority-medium { background: #fffbeb; color: #d97706; }
+.hdlv2-addendum-tag.priority-low    { background: #f0f9ff; color: #0369a1; }
+
+.hdlv2-addendum-source {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 10px;
+  color: #6b7280;
+  background: #f3f4f6;
+  padding: 2px 7px;
+  border-radius: 10px;
+}
+.hdlv2-addendum-source svg { width: 11px; height: 11px; }
+
+.hdlv2-addendum-text {
+  font-size: 13px;
+  line-height: 1.55;
+  color: #333;
+}
+
+/* Add-an-addendum entry form */
+.hdlv2-addendum-form {
+  margin: 16px 0 0;
+  padding: 14px 16px;
+  background: #f8f9fb;
+  border: 1px dashed #b5d8e1;
+  border-radius: 10px;
+}
+.hdlv2-addendum-form-h {
+  font-family: 'Poppins', sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: #3d8da0;
+  margin: 0 0 10px;
+}
+.hdlv2-addendum-row {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+.hdlv2-addendum-field {
+  flex: 1;
+  min-width: 140px;
+}
+.hdlv2-addendum-label {
+  display: block;
+  font-size: 11px;
+  color: #6b7280;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  margin-bottom: 4px;
+}
+.hdlv2-addendum-input {
+  width: 100%;
+  font-family: inherit;
+  font-size: 13px;
+  padding: 8px 10px;
+  border: 1px solid #e4e6ea;
+  border-radius: 6px;
+  background: #fff;
+  color: #333;
+  box-sizing: border-box;
+}
+.hdlv2-addendum-input:focus {
+  outline: none;
+  border-color: #3d8da0;
+  box-shadow: 0 0 0 2px rgba(61, 141, 160, 0.15);
+}
+
+/* Audio-only reminder pill below the notes bar */
+.hdlv2-addendum-reminder {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin-top: 8px;
+  padding: 8px 12px;
+  background: #eff6ff;
+  border-left: 3px solid #3b82f6;
+  border-radius: 4px;
+  font-size: 11px;
+  color: #1e3a8a;
+  line-height: 1.5;
+}
+.hdlv2-addendum-reminder svg {
+  flex-shrink: 0;
+  margin-top: 1px;
+  color: #3b82f6;
+}
+.hdlv2-addendum-reminder strong { color: #1e40af; }
+
+.hdlv2-addendum-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 14px;
+}
+
+/* Cost hint sits below the primary CTA, mirrors the existing button pattern */
+.hdlv2-cost-hint {
+  font-size: 11px;
+  color: #888;
+  text-align: center;
+  margin: 4px 0 0;
+}
+
+/* Success card after Save & Update Plan */
+.hdlv2-update-success {
+  margin: 0;
+  padding: 24px 22px;
+  background: #ecfdf5;
+  border: 1px solid #a7f3d0;
+  border-radius: 14px;
+  text-align: center;
+}
+.hdlv2-update-success-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px; height: 44px;
+  border-radius: 50%;
+  background: #10b981;
+  color: #fff;
+  font-size: 22px;
+  font-weight: 700;
+  margin-bottom: 10px;
+}
+.hdlv2-update-success h4 {
+  font-family: 'Poppins', sans-serif;
+  font-size: 16px;
+  font-weight: 600;
+  color: #065f46;
+  margin: 0 0 4px;
+}
+.hdlv2-update-success-meta {
+  font-size: 12px;
+  color: #047857;
+  margin: 0 0 16px;
+}
+.hdlv2-update-success-meta strong { color: #065f46; }
+/* v0.34.3 — small hint line under the meta clarifying the new-tab behaviour
+   so the practitioner knows their consultation page stays open. */
+.hdlv2-update-success-hint {
+  font-size: 12px;
+  color: #047857;
+  margin: -10px 0 14px;
+  font-style: italic;
+  opacity: 0.85;
+}
+.hdlv2-update-success-link {
+  display: inline-block;
+  background: #10b981;
+  color: #fff;
+  padding: 10px 22px;
+  border-radius: 48px;
+  font-family: 'Poppins', sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+  margin-bottom: 10px;
+}
+.hdlv2-update-success-link:hover { background: #059669; }
+.hdlv2-update-success #hdlv2-update-success-reload {
+  background: transparent;
+  color: #065f46;
+  border: 1px solid #a7f3d0;
+  padding: 8px 18px;
+  border-radius: 48px;
+  font-family: 'Poppins', sans-serif;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  margin-top: 4px;
+}
+.hdlv2-update-success #hdlv2-update-success-reload:hover {
+  background: rgba(16, 185, 129, 0.06);
+}
+
+/* v0.34.3 — Phase N recovery banner. Appears at the top of the addenda
+   section when a Final Report row was healed by the Phase N migration.
+   Self-clears once the practitioner clicks Save & Update Plan and the
+   regen succeeds (server delete_transient()s on success). Uses the HDL
+   info palette per CLAUDE.md (#3b82f6 / #eff6ff / #bfdbfe). */
+.hdlv2-phase-n-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 16px;
+  margin: 0 0 16px;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 10px;
+  color: #1e40af;
+  font-size: 13.5px;
+  line-height: 1.55;
+}
+.hdlv2-phase-n-banner svg {
+  flex-shrink: 0;
+  color: #3b82f6;
+  margin-top: 2px;
+}
+.hdlv2-phase-n-banner__body {
+  flex: 1;
+}
+.hdlv2-phase-n-banner strong {
+  color: #1e3a8a;
+  font-weight: 600;
+}
+
+/* Mobile — collapse the date+priority row onto two lines */
+@media (max-width: 600px) {
+  .hdlv2-addendum-row {
+    flex-direction: column;
+  }
+  .hdlv2-addendum-field { min-width: 0; }
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   v0.38.0 — Stage 3 Section 6 "Health Background" on consultation.
+   Distinct from the scored-field rows because these are long-form
+   prose, not editable numeric/dropdown values. Uses HDL brand tokens.
+   ───────────────────────────────────────────────────────────────── */
+.hdlv2-background-group {
+  margin-top: 6px;
+}
+.hdlv2-background-helper {
+  margin: 0 0 12px;
+  font-size: 12px;
+  color: #888;
+  font-style: italic;
+  line-height: 1.5;
+}
+.hdlv2-background-row {
+  background: #f8f9fb;
+  border: 1px solid #e4e6ea;
+  border-left: 3px solid #3d8da0;
+  border-radius: 0 8px 8px 0;
+  padding: 12px 14px;
+  margin: 0 0 10px;
+}
+.hdlv2-background-row:last-child {
+  margin-bottom: 0;
+}
+.hdlv2-background-label {
+  font-family: 'Inter', -apple-system, sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #004F59;
+  margin-bottom: 6px;
+}
+.hdlv2-background-value {
+  font-size: 13.5px;
+  color: #2c3e50;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+.hdlv2-background-value.hdlv2-background-empty {
+  color: #aaa;
+  font-style: italic;
+}

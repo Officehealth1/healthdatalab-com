@@ -14,6 +14,10 @@
 
   var token = '';
   try { token = new URLSearchParams(window.location.search).get('token') || ''; } catch (e) {}
+  // v0.46.66 (#2) — cookie-auth fallback: a logged-in client reaching the
+  // check-in without a ?token (e.g. the dashboard "Begin →" button) receives
+  // their own token via the server-localised config instead of the URL.
+  if (!token && CFG.token) { token = CFG.token; }
   if (!token || !/^[a-f0-9]{64}$/.test(token)) {
     root.innerHTML = '<div class="hdlv2-card"><div class="hdlv2-error"><h3>Invalid link</h3><p>Please check your check-in URL.</p></div></div>';
     return;
@@ -36,7 +40,12 @@
   var weekData = null;
 
   function init() {
-    root.innerHTML = '<div class="hdlv2-card"><div class="hdlv2-loading"><div class="hdlv2-spinner"></div><p style="color:#888;">Loading...</p></div></div>';
+    // v0.37.0 — shaped skeleton on initial mount replaces the blank
+    // spinner. ~1-3s wait; once /checkin/load resolves, real content
+    // replaces the skeleton in-place.
+    root.innerHTML = (window.HDLV2Loading && typeof HDLV2Loading.skeleton === 'function')
+      ? HDLV2Loading.skeleton('checkin')
+      : '<div class="hdlv2-card"><div class="hdlv2-loading"><div class="hdlv2-spinner"></div><p style="color:#888;">Loading...</p></div></div>';
     fetch(CFG.api_base + '/load?token=' + encodeURIComponent(token), { headers: { 'X-WP-Nonce': CFG.nonce } })
       .then(function (r) { return r.json(); })
       .then(function (data) {
@@ -68,7 +77,8 @@
           + '<summary style="padding:10px 14px;cursor:pointer;font-weight:600;color:#004F59;font-size:13px;">Your Flight Plan this week (Week ' + fp.week_number + ')</summary>'
           + '<div style="padding:0 14px 12px;">';
         if (fp.identity_statement) {
-          html += '<div style="font-style:italic;color:#3d8da0;margin-bottom:8px;">\u201c' + esc(fp.identity_statement) + '\u201d</div>';
+          var identity = String(fp.identity_statement).replace(/^[\u201c\u201d"\s]+|[\u201c\u201d"\s]+$/g, '');
+          html += '<div style="font-style:italic;color:#3d8da0;margin-bottom:8px;">\u201c' + esc(identity) + '\u201d</div>';
         }
         if (fp.weekly_targets && fp.weekly_targets.length) {
           html += '<div style="font-weight:600;color:#004F59;margin-bottom:4px;">Weekly Targets:</div><ul style="margin:0 0 8px;padding-left:18px;color:#444;line-height:1.6;">';
@@ -125,6 +135,29 @@
         apiBase: CFG.api_base.replace('/checkin', '/audio'),
         nonce: CFG.nonce,
         token: token,
+        // v0.17.0 — uploaded audio files go server-side via Deepgram. Live
+        // mic recording still streams live text. The transcript-review
+        // screen still fires so the client can Extract Themes (Claude)
+        // before submitting — same user flow as before, just a different
+        // backend for the audio → text step.
+        asyncUpload: true,
+        // v0.31.3 — bypass the audio-component's generic JSON-dump review.
+        // The check-in's own renderReview() displays Claude's structured
+        // response as friendly score cards + wins/obstacles/comfort-zone
+        // bands. Without this flag, clients saw raw JSON between Extract
+        // Themes and the friendly card — confusing and unprofessional.
+        skipSummaryReview: true,
+        // v0.31.3 — hide "Use as-is" on the transcript-review step. Submitting
+        // raw transcript bypasses Claude extraction and produces no scores,
+        // no engagement signal, no flags — breaks the check-in → next-plan
+        // pipeline. "Edit my answer" on the friendly review covers the
+        // legitimate "AI got it wrong" case better.
+        requireExtraction: true,
+        // v0.31.4 — client-friendly primary label. Default ("Extract Themes
+        // with AI") leaks implementation detail and reads like AI marketing
+        // copy. "See my summary" matches HDL voice (consultation uses
+        // "Generate Final Report"; widget uses "See my pace of ageing").
+        extractButtonLabel: 'See my summary',
         onConfirm: function (summary) {
           submitCheckin(summary, opts.mode === 'addmore' ? { append_mode: true } : {});
         }
@@ -133,7 +166,33 @@
   }
 
   function submitCheckin(summary, extraParams) {
-    root.innerHTML = '<div class="hdlv2-card"><div class="hdlv2-loading"><div class="hdlv2-spinner"></div><p style="color:#888;">Analysing your check-in...</p></div></div>';
+    // v0.37.0 — progress-bar illusion + step ladder for the 5-15s Claude
+    // extract-themes wait. Previously a blank spinner — now the user
+    // sees concrete steps so the wait feels productive.
+    root.innerHTML = ''
+      + '<div class="hdlv2-card">'
+      +   '<div class="hdlv2-loading">'
+      +     '<div class="hdlv2-spinner" aria-hidden="true"></div>'
+      +     '<h3 style="margin:0 0 6px;color:#2c3e50;font-weight:600;">Analysing your check-in</h3>'
+      +     '<p style="color:#555;margin:0;font-size:14px;">Pulling out the wins, obstacles, and key signals.</p>'
+      +     '<div id="hdlv2-checkin-progress-mount" style="display:flex;justify-content:center;"></div>'
+      +   '</div>'
+      + '</div>';
+    if (window.HDLV2Loading) {
+      var mount = document.getElementById('hdlv2-checkin-progress-mount');
+      if (mount) {
+        HDLV2Loading.progress(mount, {
+          steps: [
+            'Reading your check-in',
+            'Spotting wins and obstacles',
+            'Scoring adherence',
+            'Drafting your summary'
+          ],
+          capPercent: 90,
+          stepMs: 3500
+        });
+      }
+    }
     var body = { token: token };
     if (summary) body.audio_summary = summary;
     if (extraParams) {
@@ -160,11 +219,59 @@
       .catch(function () { root.innerHTML = '<div class="hdlv2-card"><p style="color:#dc2626;padding:24px;">Connection error. Please try again.</p></div>'; });
   }
 
+  // v0.31.3 — Some Claude responses fall back to apologetic placeholders when
+  // the client didn't mention a topic ("Not explicitly reported in this
+  // check-in.", "No specific suggestions or questions raised in this
+  // check-in."). Showing those literally makes it look like a feature.
+  // Strip them so the section collapses naturally.
+  function isAiFallbackString(value) {
+    if (!value || typeof value !== 'string') return true;
+    var s = value.trim().toLowerCase();
+    if (!s) return true;
+    return /not (?:explicitly )?reported/.test(s)
+        || /^no (?:specific )?(?:suggestions|questions|wins|obstacles|flags|concerns)\b/.test(s)
+        || s === 'n/a'
+        || s === 'none'
+        || s === 'not provided'
+        || s === 'not specified';
+  }
+
+  function hasMeaningfulSummary(s) {
+    if (!s || typeof s !== 'object') return false;
+    if (s.check_in_summary && !isAiFallbackString(s.check_in_summary)) return true;
+    if (s.fitness_adherence && (s.fitness_adherence.summary || typeof s.fitness_adherence.score === 'number')) return true;
+    if (s.nutrition_adherence && (s.nutrition_adherence.summary || typeof s.nutrition_adherence.score === 'number')) return true;
+    if (s.wins && s.wins.length) return true;
+    if (s.obstacles && s.obstacles.length) return true;
+    if (s.comfort_zone && typeof s.comfort_zone === 'object') {
+      var cz = s.comfort_zone;
+      if ((cz.too_easy && cz.too_easy.length) || (cz.about_right && cz.about_right.length) || (cz.too_hard && cz.too_hard.length)) return true;
+    }
+    return false;
+  }
+
   // ── 1A: Structured summary display ──
   function renderReview(checkin) {
     currentCheckin = checkin;
     var s = checkin.summary;
     if (typeof s === 'string') { try { s = JSON.parse(s); } catch (e) { s = { raw: s }; } }
+
+    // v0.31.3 — defensive empty-state fallback. If the AI extraction returned
+    // nothing meaningful (all fallback strings + empty arrays), don't render
+    // an empty card with confirm buttons. Offer Redo so the client can
+    // record again with more content.
+    if (!hasMeaningfulSummary(s)) {
+      var emptyHtml = '<div class="hdlv2-card">'
+        + '<div class="hdlv2-header"><h2>We couldn’t summarise that</h2></div>'
+        + '<div class="hdlv2-form-body">'
+        + '<p style="font-size:14px;color:#555;line-height:1.6;margin:0 0 16px;">It looks like there wasn’t enough detail to summarise. Try recording again — share a few specifics about your week (what went well, what was hard, how the plan felt).</p>'
+        + '<button id="hdlv2-ci-empty-redo" class="hdlv2-btn">Record again</button>'
+        + '</div></div>';
+      root.innerHTML = emptyHtml;
+      var redoBtn = document.getElementById('hdlv2-ci-empty-redo');
+      if (redoBtn) redoBtn.addEventListener('click', function () { renderInput(weekData || {}, {}); });
+      return;
+    }
 
     var html = '<div class="hdlv2-card">'
       + '<div class="hdlv2-header"><h2>Your Check-in Summary</h2><p>Please review and confirm.</p></div>'
@@ -176,8 +283,8 @@
         + '\u26a0\ufe0f Some items may need your practitioner\u2019s attention</div>';
     }
 
-    // Main summary
-    if (s.check_in_summary) {
+    // Main summary — only render if not an AI fallback string.
+    if (s.check_in_summary && !isAiFallbackString(s.check_in_summary)) {
       html += '<div style="background:#f8f9fb;border:1px solid #e4e6ea;border-radius:8px;padding:14px;font-size:14px;line-height:1.7;color:#333;margin-bottom:16px;">'
         + esc(s.check_in_summary) + '</div>';
     } else if (s.raw) {
@@ -185,22 +292,24 @@
         + esc(s.raw) + '</div>';
     }
 
-    // Structured breakdown
-    html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px;">';
-
-    // Fitness adherence
-    if (s.fitness_adherence) {
-      html += renderScoreCard('Fitness', s.fitness_adherence.summary, s.fitness_adherence.score, '\ud83c\udfc3');
+    // Structured breakdown \u2014 only render the grid wrapper if at least one
+    // adherence card has content (avoids a 16px empty grid block when AI
+    // returns no fitness/nutrition data).
+    var hasFitness = s.fitness_adherence && (s.fitness_adherence.summary || typeof s.fitness_adherence.score === 'number');
+    var hasNutrition = s.nutrition_adherence && (s.nutrition_adherence.summary || typeof s.nutrition_adherence.score === 'number');
+    if (hasFitness || hasNutrition) {
+      html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px;">';
+      if (hasFitness) {
+        html += renderScoreCard('Fitness', s.fitness_adherence.summary, s.fitness_adherence.score, '\ud83c\udfc3');
+      }
+      if (hasNutrition) {
+        html += renderScoreCard('Nutrition', s.nutrition_adherence.summary, s.nutrition_adherence.score, '\ud83e\udd57');
+      }
+      html += '</div>';
     }
-    // Nutrition adherence
-    if (s.nutrition_adherence) {
-      html += renderScoreCard('Nutrition', s.nutrition_adherence.summary, s.nutrition_adherence.score, '\ud83e\udd57');
-    }
 
-    html += '</div>';
-
-    // Energy & mood
-    if (s.energy_mood) {
+    // Energy & mood \u2014 drop AI fallbacks
+    if (s.energy_mood && !isAiFallbackString(s.energy_mood)) {
       html += renderSection('\u26a1 Energy & Mood', s.energy_mood);
     }
 
@@ -214,24 +323,37 @@
       html += renderList('\ud83d\udea7 Obstacles', s.obstacles);
     }
 
-    // Comfort zone
-    if (s.comfort_zone && typeof s.comfort_zone === 'object' && !Array.isArray(s.comfort_zone)) {
-      html += '<div style="background:#f8f9fb;border:1px solid #e4e6ea;border-radius:8px;padding:12px;margin-bottom:12px;">'
-        + '<div style="font-size:12px;font-weight:600;color:#004F59;margin-bottom:8px;">Comfort Zone</div>';
-      if (s.comfort_zone.too_easy && s.comfort_zone.too_easy.length) {
-        html += '<div style="margin-bottom:6px;"><span style="font-size:11px;font-weight:600;color:#10b981;">Too easy:</span> <span style="font-size:12px;color:#444;">' + s.comfort_zone.too_easy.map(esc).join(', ') + '</span></div>';
-      }
-      if (s.comfort_zone.about_right && s.comfort_zone.about_right.length) {
-        html += '<div style="margin-bottom:6px;"><span style="font-size:11px;font-weight:600;color:#3d8da0;">About right:</span> <span style="font-size:12px;color:#444;">' + s.comfort_zone.about_right.map(esc).join(', ') + '</span></div>';
-      }
-      if (s.comfort_zone.too_hard && s.comfort_zone.too_hard.length) {
-        html += '<div><span style="font-size:11px;font-weight:600;color:#f59e0b;">Too hard:</span> <span style="font-size:12px;color:#444;">' + s.comfort_zone.too_hard.map(esc).join(', ') + '</span></div>';
-      }
-      html += '</div>';
+    // v0.31.3 \u2014 Environmental / social context. Was rendered as JSON in the
+    // old flow because the audio component dumped the whole AI response.
+    // Now: friendly bullet list when present, hidden when empty.
+    if (s.environmental_social && s.environmental_social.length) {
+      html += renderList('\ud83e\udd1d People & Environment', s.environmental_social);
     }
 
-    // Client suggestions
-    if (s.client_suggestions) {
+    // Comfort zone \u2014 only render the wrapper if at least one band has content.
+    if (s.comfort_zone && typeof s.comfort_zone === 'object' && !Array.isArray(s.comfort_zone)) {
+      var cz = s.comfort_zone;
+      var hasCz = (cz.too_easy && cz.too_easy.length)
+                || (cz.about_right && cz.about_right.length)
+                || (cz.too_hard && cz.too_hard.length);
+      if (hasCz) {
+        html += '<div style="background:#f8f9fb;border:1px solid #e4e6ea;border-radius:8px;padding:12px;margin-bottom:12px;">'
+          + '<div style="font-size:12px;font-weight:600;color:#004F59;margin-bottom:8px;">Comfort Zone</div>';
+        if (cz.too_easy && cz.too_easy.length) {
+          html += '<div style="margin-bottom:6px;"><span style="font-size:11px;font-weight:600;color:#10b981;">Too easy:</span> <span style="font-size:12px;color:#444;">' + cz.too_easy.map(esc).join(', ') + '</span></div>';
+        }
+        if (cz.about_right && cz.about_right.length) {
+          html += '<div style="margin-bottom:6px;"><span style="font-size:11px;font-weight:600;color:#3d8da0;">About right:</span> <span style="font-size:12px;color:#444;">' + cz.about_right.map(esc).join(', ') + '</span></div>';
+        }
+        if (cz.too_hard && cz.too_hard.length) {
+          html += '<div><span style="font-size:11px;font-weight:600;color:#f59e0b;">Too hard:</span> <span style="font-size:12px;color:#444;">' + cz.too_hard.map(esc).join(', ') + '</span></div>';
+        }
+        html += '</div>';
+      }
+    }
+
+    // Client suggestions \u2014 drop AI fallbacks
+    if (s.client_suggestions && !isAiFallbackString(s.client_suggestions)) {
       html += renderSection('\ud83d\udca1 Your suggestions', s.client_suggestions);
     }
 
@@ -239,8 +361,8 @@
     html += '<div style="display:flex;flex-direction:column;gap:8px;margin-top:16px;">'
       + '<button id="hdlv2-ci-confirm" class="hdlv2-btn">\u2705 Confirm Check-in</button>'
       + '<div style="display:flex;gap:8px;">'
-      + '<button id="hdlv2-ci-addmore" class="hdlv2-btn" style="flex:1;background:#fff;color:#3d8da0;border:1px solid #3d8da0;">I want to add more</button>'
-      + '<button id="hdlv2-ci-correct" class="hdlv2-btn" style="flex:1;background:#fff;color:#f59e0b;border:1px solid #f59e0b;">That\u2019s not quite right</button>'
+      + '<button id="hdlv2-ci-addmore" class="hdlv2-btn" style="flex:1;background:#fff;color:#3d8da0;border:1px solid #3d8da0;">Add another note</button>'
+      + '<button id="hdlv2-ci-correct" class="hdlv2-btn" style="flex:1;background:#fff;color:#f59e0b;border:1px solid #f59e0b;">Edit my answer</button>'
       + '</div></div>';
 
     html += '</div></div>';
@@ -259,12 +381,12 @@
         .then(function (res) {
           if (res.success) { renderDone(); }
           else {
-            confirmBtn.disabled = false; confirmBtn.textContent = '\u2705 Confirm Check-in';
+            confirmBtn.disabled = false; confirmBtn.textContent = '\u21bb Try Again';
             showError('Could not confirm. Please try again.');
           }
         })
         .catch(function () {
-          confirmBtn.disabled = false; confirmBtn.textContent = '\u2705 Confirm Check-in';
+          confirmBtn.disabled = false; confirmBtn.textContent = '\u21bb Try Again';
           showError('Connection error. Please try again.');
         });
     });
@@ -281,12 +403,29 @@
   }
 
   // ── 4B: Enhanced post-confirm success screen ──
+  // v0.31.3 — copy rewrite. The old "by Saturday" line was stale: Week 2
+  // generation now fires 30 sec after /confirm via the check-in trigger
+  // (sprint-4/checkin.php line 274), or via the Saturday cron — whichever
+  // fires first wins via the duplicate guard. The plan lands on the next
+  // calendar Monday's row. We tell the client the truthful timing in their
+  // local timezone and give two clear next-step CTAs.
   function renderDone() {
     var fp = weekData && weekData.flight_plan;
+
+    // Compute the upcoming Monday in the client's local time so the success
+    // copy reads accurately ("Monday 12 May" rather than a generic phrase).
+    var _mNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    var _dayNames = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+    var _now = new Date();
+    var _daysUntilMon = (1 + 7 - _now.getDay()) % 7;
+    if (_daysUntilMon === 0) _daysUntilMon = 7; // never "today" — always upcoming Monday
+    var _nextMon = new Date(_now.getTime() + _daysUntilMon * 86400000);
+    var _nextMonLabel = _dayNames[_nextMon.getDay()] + ' ' + _nextMon.getDate() + ' ' + _mNames[_nextMon.getMonth()];
+
     var html = '<div class="hdlv2-card"><div class="hdlv2-result" style="text-align:center;padding:40px 20px;">'
       + '<div style="font-size:48px;margin-bottom:12px;">\u2705</div>'
-      + '<h3 style="margin:0 0 8px;font-size:18px;color:#111;">Check-in complete \u2014 thank you!</h3>'
-      + '<p style="font-size:14px;color:#888;margin:0 0 16px;">Your practitioner has been notified. Your next Flight Plan will be ready by Saturday.</p>';
+      + '<h3 style="margin:0 0 8px;font-size:20px;color:#111;font-family:Poppins,Inter,sans-serif;font-weight:600;">Thanks \u2014 your check-in is in.</h3>'
+      + '<p style="font-size:14px;color:#555;line-height:1.6;margin:0 auto 18px;max-width:420px;">Your practitioner will review what you shared. Your <strong>Week 2 Flight Plan</strong> is being prepared and will be ready on <strong>' + esc(_nextMonLabel) + '</strong>.</p>';
 
     // Reminder to transfer ticks if flight plan exists
     if (fp && fp.adherence_summary) {
@@ -299,11 +438,15 @@
       }
     }
 
-    // Link to flight plan page if one exists
-    if (fp) {
-      var fpUrl = window.location.pathname.replace(/\/check-?in\/?/i, '/flight-plan/') + '?token=' + encodeURIComponent(token);
-      html += '<a href="' + fpUrl + '" class="hdlv2-btn-secondary" style="display:inline-block;margin-top:8px;text-decoration:none;">View your Flight Plan</a>';
-    }
+    // v0.31.3 — Two CTAs. Primary = view this week's plan (works regardless
+    // of whether the next-week plan has finished generating yet). Secondary
+    // = back to home for clients who'd rather close the tab.
+    var fpBase = (CFG && CFG.flight_plan_url) || (window.location.origin + '/my-flight-plan/');
+    var fpUrl  = fpBase + '?token=' + encodeURIComponent(token);
+    html += '<div style="display:flex;flex-direction:column;align-items:center;gap:10px;margin-top:8px;">'
+      + '<a href="' + fpUrl + '" class="hdlv2-btn" style="display:inline-block;padding:12px 28px;text-decoration:none;min-width:240px;">View this week’s Flight Plan</a>'
+      + '<a href="' + esc(window.location.origin) + '/" style="display:inline-block;padding:8px 20px;font-size:13px;color:#3d8da0;text-decoration:none;">Back to home</a>'
+      + '</div>';
 
     html += '</div></div>';
     root.innerHTML = html;

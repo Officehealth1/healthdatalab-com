@@ -147,6 +147,16 @@
   font-size: 12px;
 }
 
+/* Short label (Mon/Tue/…) on screen; full "Monday · 13 Apr 2026" is print-only.
+   The print stylesheet flips these so each day page has a proper header. */
+.fp-day-short { display: inline; }
+.fp-day-full  { display: none; }
+
+/* Per-day WHY anchor is rendered by JS at the foot of each column but only
+   shown when printing — screen already shows the WHY on the identity banner. */
+.hdlv2-print-only { display: none; }
+.fp-day-why       { display: none; }
+
 .fp-day-tickall {
   display: block;
   margin: 4px auto 0;
@@ -171,12 +181,145 @@
   text-align: center;
 }
 
+/* v0.31.0 / v0.31.1 — Day-column state classes.
+   - fp-day-prestart: column for a calendar day BEFORE the plan started
+     (mid-week Final Report → Mon column on a Tue-Sun plan).
+     LOCKED: those days have no ticks. There is nothing to backfill.
+   - fp-day-past:     column for a date now in the past (yesterday, last Mon).
+     OPEN: clients can backfill missed ticks. Visually muted only.
+   - fp-day-today:    today's column — gets a primary-teal accent.
+   - fp-day-upcoming: future days. Default appearance. */
+
+/* Pre-start: TRULY disabled. No content, no ticking, no point. */
+.fp-day-column.fp-day-prestart .fp-day-header {
+  opacity: 0.55;
+}
+.fp-day-column.fp-day-prestart .fp-band {
+  opacity: 0.45;
+  pointer-events: none;
+}
+
+/* Past: muted, but TICKABLE.
+   v0.31.1 — clients legitimately forget to tick. The plan-as-record-of-truth
+   value comes from accurate adherence data, not from punishing slips. So
+   past days dim but stay interactive. The fp-day-past-hint label below the
+   header signposts the affordance. */
+.fp-day-column.fp-day-past .fp-day-header {
+  opacity: 0.7;
+}
+.fp-day-column.fp-day-past .fp-band {
+  opacity: 0.75; /* still readable; clearly past-but-active */
+}
+.fp-day-column.fp-day-past .fp-action {
+  /* untouched — full pointer-events, full tick interaction */
+}
+
+.fp-day-empty--prestart {
+  color: #6b7280;
+  font-style: italic;
+  background: #f8f9fb;
+  border-top: 1px dashed #e4e6ea;
+  padding: 16px 8px;
+}
+
+.fp-day-column.fp-day-today .fp-day-header {
+  background: #004f59; /* dark teal — readable highlight against existing teal */
+}
+.fp-day-column.fp-day-today {
+  outline: 2px solid #3d8da0;
+  outline-offset: -2px;
+}
+
+/* v0.31.1 — auto-repair banner, shown when the backend detects a sparse
+   legacy plan and schedules async regeneration. Banner self-clears once
+   the new plan is loaded by the polling refresh. */
+.fp-repair-banner {
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 10px;
+  color: #1e40af;
+  padding: 12px 16px;
+  margin: 12px 24px 0;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.fp-repair-banner .fp-repair-spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid #bfdbfe;
+  border-top-color: #1e40af;
+  border-radius: 50%;
+  animation: fp-spin 0.8s linear infinite;
+  flex-shrink: 0;
+}
+@keyframes fp-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ── Category Bands ──
+   Each day is split into up to 3 ordered bands (Food, Fitness, Lifestyle)
+   so a client can scan down a column and find the category they care about.
+   Band colour shows through default-state action rows; done rows override
+   with the teal tint. */
+.fp-band {
+  border-top: 1px solid #e4e6ea;
+}
+
+.fp-band:first-of-type {
+  border-top: none;
+}
+
+.fp-band-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 8px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  line-height: 1;
+}
+
+.fp-band-icon {
+  font-size: 12px;
+}
+
+.fp-band--food {
+  background: #ecfdf5;
+}
+
+.fp-band--food .fp-band-header {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.fp-band--fitness {
+  background: #eff6ff;
+}
+
+.fp-band--fitness .fp-band-header {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.fp-band--lifestyle {
+  background: #fffbeb;
+}
+
+.fp-band--lifestyle .fp-band-header {
+  background: #fef3c7;
+  color: #92400e;
+}
+
 /* ── Tappable Action Rows (3-state toggle) ── */
 .fp-action {
   display: flex;
   align-items: flex-start;
   gap: 4px;
-  padding: 6px 8px;
+  padding: 6px 8px 6px 22px;
   border-bottom: 1px solid #f0f0f0;
   cursor: pointer;
   font-size: 11px;
@@ -185,30 +328,57 @@
   user-select: none;
   -webkit-user-select: none;
   -webkit-tap-highlight-color: transparent;
+  position: relative;
 }
 
 .fp-action:last-child {
   border-bottom: none;
 }
 
-/* State: Default (not interacted) */
+/* State: Default — empty circle tick mark on the left.
+   Transparent background lets the parent .fp-band tint show through so the
+   category colour is visible across the row, not just in the band header. */
 .fp-action[data-state="default"] {
-  background: #fff;
+  background: transparent;
   color: #333;
   opacity: 1;
   border-left: 3px solid transparent;
 }
 .fp-action[data-state="default"] span { text-decoration: none; }
+.fp-action[data-state="default"]::before {
+  content: "";
+  position: absolute;
+  left: 8px;
+  top: 8px;
+  width: 10px;
+  height: 10px;
+  border: 1.5px solid #c4c9cf;
+  border-radius: 50%;
+  background: #fff;
+  transition: all 0.15s ease;
+}
+.fp-action[data-state="default"]:hover::before { border-color: #3d8da0; }
 
-/* State: Done (completed) */
+/* State: Done — teal circle with white check. More visible at a glance than
+   the faint background shift we had before, but still calm (no flash, no
+   strikethrough), matching the V2 voice. */
 .fp-action[data-state="done"] {
-  background: #f0f4f8;
+  background: #e8f2f4;
   color: #1a1a1a;
   opacity: 1;
   border-left: 3px solid #3d8da0;
 }
 .fp-action[data-state="done"] span { text-decoration: none; }
-.fp-action[data-state="not-done"] span { text-decoration: line-through; }
+.fp-action[data-state="done"]::before {
+  content: "";
+  position: absolute;
+  left: 8px;
+  top: 8px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #3d8da0 url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='white' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'><polyline points='3.5 8.5 6.5 11.5 12.5 4.5'/></svg>") center / 10px 10px no-repeat;
+}
 
 /* Hover — subtle feedback */
 .fp-action:hover {
@@ -412,46 +582,412 @@
   }
 }
 
-/* ── Print Styles ── */
+/* ── Print Styles ──
+   window.print() / Cmd+P / File→Print all enter through this block. Jobs:
+   1. ISOLATE CONTENT — hide the WP theme (header nav, language switcher,
+      footer, etc.) so the printed artefact contains only the flight plan.
+   2. PAGINATE — cover page (title + identity + flex note), then one full
+      landscape-A4 page per day (Monday → Sunday), then one overview page
+      (targets / shopping / journey / review). Each day page maximises the
+      real estate with large type + big tick boxes for fridge-printing.    */
 @media print {
-  .hdlv2-fp-noprint {
+  /* margin: 0 on @page suppresses the browser's auto header/footer strip
+     (timestamp, page URL, "1/N" page numbers). We reclaim the visual
+     breathing room by padding each printable section manually below. */
+  @page {
+    size: landscape A4;
+    margin: 0;
+  }
+
+  /* ── Content isolation ──
+     Primary rule (modern browsers with :has() — Chrome 105+, Safari 15.4+,
+     Firefox 121+): display:none every element that is NOT on the ancestor
+     chain of #hdlv2-flight-plan and is NOT the flight plan itself nor any
+     of its descendants. This removes the WP theme chrome from the flow
+     entirely — no ghost margins, no blank pages. */
+  body *:not(:has(#hdlv2-flight-plan)):not(#hdlv2-flight-plan):not(#hdlv2-flight-plan *) {
     display: none !important;
   }
 
-  @page {
-    size: landscape A4;
-    margin: 10mm;
+  /* Flatten the ancestor containers (theme wrappers, article, .et-l--post,
+     etc.) so the flight plan gets the full printable width. */
+  body *:has(#hdlv2-flight-plan) {
+    margin: 0 !important;
+    padding: 0 !important;
+    max-width: 100% !important;
+    width: auto !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    border: none !important;
+  }
+
+  /* Fallback for legacy browsers without :has() — hide-via-visibility so
+     the user still gets a chrome-less print even if layout is a bit loose. */
+  @supports not selector(:has(a)) {
+    body * { visibility: hidden !important; }
+    #hdlv2-flight-plan,
+    #hdlv2-flight-plan * { visibility: visible !important; }
+  }
+
+  .hdlv2-fp-noprint { display: none !important; }
+  /* …but keep the flex note — it belongs on the cover page. */
+  .fp-flex-note.hdlv2-fp-noprint { display: block !important; }
+
+  /* Flip the per-day header between short ("Mon") and full ("Monday · 13 Apr 2026") */
+  .fp-day-short { display: none !important; }
+  .fp-day-full  { display: block !important; }
+  .fp-day-why,
+  .hdlv2-print-only { display: block !important; }
+
+  /* Flight plan container — full width, no card chrome, no horizontal cap. */
+  #hdlv2-flight-plan,
+  #hdlv2-flight-plan.hdlv2-assessment-root {
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
   }
 
   .hdlv2-card {
     box-shadow: none !important;
     border: none !important;
-  }
-
-  .fp-action[data-state="done"] {
-    background: #f0f4f8 !important;
-    color: #1a1a1a !important;
-    border-left: 3px solid #3d8da0 !important;
-    -webkit-print-color-adjust: exact;
-    print-color-adjust: exact;
-  }
-
-  .fp-action[data-state="default"] {
+    margin: 0 !important;
+    padding: 0 !important;
     background: #fff !important;
-    border: 1px solid #e4e6ea !important;
   }
 
-  .fp-day-column {
-    page-break-inside: avoid;
+  /* ── PAGE 1 — COVER ─────────────────────────────────────────
+     Title + date range (centered), identity quote, flexibility note.
+     Tightened spacing so even a wordy flexibility note (up to ~4 lines)
+     fits on the cover without spilling to page 2. */
+  .hdlv2-header {
+    padding: 25mm 24mm 6mm !important;
+    text-align: center !important;
+    margin: 0 !important;
   }
-
+  .hdlv2-header h2 {
+    font-size: 32pt !important;
+    font-weight: 700 !important;
+    line-height: 1.1 !important;
+    margin: 0 0 5mm !important;
+    color: #0f3d4c !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .hdlv2-header p {
+    font-size: 13pt !important;
+    color: #666 !important;
+    margin: 0 !important;
+  }
   .fp-identity-statement {
+    margin: 12mm 30mm 6mm !important;
+    padding: 8mm 14mm !important;
+    font-size: 14pt !important;
+    font-style: italic !important;
+    font-weight: 600 !important;
+    line-height: 1.45 !important;
+    border-left: 4px solid #3d8da0 !important;
+    background: #f8f9fb !important;
+    color: #111 !important;
+    page-break-inside: avoid !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .fp-flex-note {
+    margin: 6mm 30mm 0 !important;
+    padding: 5mm 12mm !important;
+    font-size: 10.5pt !important;
+    line-height: 1.5 !important;
+    background: #f0fdf4 !important;
+    border: 1px solid #bbf7d0 !important;
+    color: #166534 !important;
+    border-radius: 4px !important;
+    page-break-inside: avoid !important; /* don't split across pages */
+    page-break-after: always !important;  /* → Monday starts on page 2 */
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
 
+  /* ── PAGES 2–8 — ONE DAY PER LANDSCAPE-A4 PAGE ──────────────
+     Stop the screen grid from being a grid; lay each day out full width
+     with stacked bands (Food / Fitness / Lifestyle) and big type. */
+  .fp-grid-wrap { padding: 0 !important; }
+  .fp-week-grid {
+    display: block !important;
+    gap: 0 !important;
+    width: 100% !important;
+  }
+  .fp-day-column {
+    width: 100% !important;
+    min-height: 180mm !important; /* push into full page territory */
+    border: none !important;
+    border-radius: 0 !important;
+    /* Each day page needs its own top/bottom/left/right padding now that
+       @page margin is 0 (to kill browser header/footer strips). */
+    padding: 12mm 12mm 12mm 12mm !important;
+    margin: 0 !important;
+    overflow: visible !important;
+    page-break-after: always !important;
+    page-break-inside: avoid !important;
+    box-sizing: border-box !important;
+  }
+  .fp-day-column:last-of-type {
+    /* Sunday still needs a break so overview lands on its own page */
+    page-break-after: always !important;
+  }
+  .fp-day-empty {
+    padding: 20mm !important;
+    font-size: 14pt !important;
+    text-align: center !important;
+    color: #999 !important;
+  }
+
+  /* Day header strip: left = "Monday · 13 Apr 2026", right = "Flight Plan" */
   .fp-day-header {
+    display: flex !important;
+    align-items: baseline !important;
+    justify-content: space-between !important;
+    padding: 6mm 10mm !important;
+    margin: 0 0 6mm !important;
+    background: #0f3d4c !important;
+    color: #fff !important;
+    text-align: left !important;
+    border-radius: 3px !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .fp-day-full {
+    font-family: inherit;
+    font-size: 22pt !important;
+    font-weight: 700 !important;
+    letter-spacing: 0.3px !important;
+    color: #fff !important;
+  }
+  .fp-day-header::after {
+    content: "Flight Plan";
+    font-size: 11pt !important;
+    font-weight: 400 !important;
+    opacity: 0.75;
+    color: #fff !important;
+  }
+  .fp-day-header .fp-day-tickall { display: none !important; }
+
+  /* Bands — stacked vertically, full width, generous padding */
+  .fp-band {
+    margin: 0 6mm 4mm !important;
+    padding: 0 !important;
+    border: none !important;
+    border-top: 0 !important;
+    border-radius: 3px !important;
+    overflow: hidden !important;
+    page-break-inside: avoid !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .fp-band-header {
+    padding: 3mm 6mm !important;
+    font-size: 12pt !important;
+    font-weight: 700 !important;
+    letter-spacing: 0.6px !important;
+    text-transform: uppercase !important;
+    gap: 4mm !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .fp-band-icon { font-size: 14pt !important; }
+
+  /* Big, fridge-tickable action rows — CSS-drawn checkbox via ::before,
+     generous padding, 12pt type, tight-but-readable line height. */
+  .fp-action {
+    position: relative !important;
+    padding: 3mm 6mm 3mm 14mm !important;
+    font-size: 11pt !important;
+    line-height: 1.35 !important;
+    background: transparent !important;
+    border-left: none !important;
+    border-bottom: 1px solid rgba(0,0,0,0.06) !important;
+  }
+  .fp-action:last-child { border-bottom: none !important; }
+  .fp-action::before {
+    content: "" !important;
+    position: absolute !important;
+    left: 6mm !important;
+    top: 3.5mm !important;
+    width: 5mm !important;
+    height: 5mm !important;
+    border: 1.5px solid #222 !important;
+    border-radius: 1px !important;
+    box-sizing: border-box !important;
+    background: #fff !important;
+  }
+  /* A tick already logged on screen shows as a checked box on paper too */
+  .fp-action[data-state="done"]::before {
+    background: #3d8da0 !important;
+    border-color: #3d8da0 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .fp-action[data-state="done"] {
+    color: #1a1a1a !important;
+    opacity: 0.75 !important;
+  }
+
+  /* Per-day WHY anchor — italic quote at the foot of each day page */
+  .fp-day-why {
+    margin: 8mm 6mm 0 !important;
+    padding: 6mm 10mm !important;
+    font-size: 12pt !important;
+    font-style: italic !important;
+    line-height: 1.5 !important;
+    color: #3d8da0 !important;
+    border-top: 1px dashed #cbd5e1 !important;
+    text-align: center !important;
+  }
+
+  /* Adherence card is screen-only feedback — hide for print. */
+  .fp-adherence-card,
+  #hdlv2-fp-adherence { display: none !important; }
+
+  /* ── FINAL PAGE — WEEKLY OVERVIEW ───────────────────────────
+     Targets + Shopping List (2-col) + Journey Assistance + Review Prompts.
+     JS always renders these sections in order; first .fp-section is
+     (normally) Weekly Targets, but :first-of-type doesn't match class
+     selectors reliably. We instead rely on Sunday's page-break-after to
+     start a new page, and add a small top margin so content breathes. */
+  /* Overview page — every section carries its own padding-box so whichever
+     section ends up at the top or bottom of a page has breathing room from
+     the paper edge (we run @page margin:0 to kill browser header/footer
+     strips). Adjacent sections still feel connected because margin is 0. */
+  .fp-section {
+    margin: 0 !important;
+    padding: 10mm 14mm !important;
+    /* Keep each section (heading + body) together. Prevents the Journey
+       Assistance paragraph from splitting off its heading onto a new page. */
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+  .fp-section-header {
+    font-size: 14pt !important;
+    font-weight: 700 !important;
+    color: #0f3d4c !important;
+    margin: 0 0 4mm !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .fp-targets-list,
+  .fp-review-prompts {
+    font-size: 11pt !important;
+    line-height: 1.6 !important;
+    margin: 0 !important;
+    padding-left: 6mm !important;
+  }
+  .fp-shopping-list {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    column-gap: 10mm !important;
+    row-gap: 1.5mm !important;
+    font-size: 11pt !important;
+    line-height: 1.5 !important;
+    margin: 0 !important;
+    padding-left: 6mm !important;
+  }
+  .fp-journey-assistance {
+    font-size: 11pt !important;
+    line-height: 1.6 !important;
+    padding: 6mm 10mm !important;
+    margin: 4mm 0 0 !important; /* sits inside .fp-section — no extra horiz margin */
+    background: #f8f9fb !important;
+    border-radius: 3px !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
 }
+
+/* ══ v0.46.59 — WFP UI/UX v2 ══════════════════════════════════════════
+   Download control (printer/window.print retired), pre-start collapse,
+   inline editor affordances. Icons = itshover.com geometry 1:1; hover
+   motion approximated in CSS (no build step on this stack). */
+.fp-btn-download {
+  display: inline-flex; align-items: center; gap: 7px;
+  background: #3d8da0; border: 1px solid #3d8da0; color: #fff;
+  border-radius: 24px; padding: 10px 18px;
+  font-weight: 600; text-decoration: none;
+}
+.fp-btn-download:hover:not([disabled]) { background: #004F59; border-color: #004F59; color: #fff; }
+.fp-btn-download[disabled] { opacity: .6; cursor: default; }
+.fp-ico { width: 15px; height: 15px; flex: 0 0 15px; }
+.fp-btn-download:hover .fp-dl-arrow { animation: fp-dl-drop .7s ease infinite; }
+@keyframes fp-dl-drop {
+  0% { transform: translateY(0); opacity: 1; }
+  45% { transform: translateY(4px); opacity: 0; }
+  55% { transform: translateY(-3px); opacity: 0; }
+  100% { transform: translateY(0); opacity: 1; }
+}
+
+/* Pre-start collapse: slim stub + adaptive column count (desktop; the
+   mobile and print rules later in this file still take precedence). */
+.fp-prestart-stub {
+  display: flex; align-items: center; justify-content: center;
+  border: 1px dashed #d1d5db; border-radius: 8px;
+  color: #9ca3af; font-size: 11px; text-align: center;
+  line-height: 1.5; padding: 8px 4px;
+  writing-mode: vertical-rl; transform: rotate(180deg);
+}
+.fp-prestart-stub strong { color: #6b7280; }
+.fp-week-grid--n1 { grid-template-columns: repeat(1, minmax(120px, 1fr)); }
+.fp-week-grid--n2 { grid-template-columns: repeat(2, minmax(120px, 1fr)); }
+.fp-week-grid--n3 { grid-template-columns: repeat(3, minmax(120px, 1fr)); }
+.fp-week-grid--n4 { grid-template-columns: repeat(4, minmax(120px, 1fr)); }
+.fp-week-grid--n5 { grid-template-columns: repeat(5, minmax(120px, 1fr)); }
+.fp-week-grid--n6 { grid-template-columns: repeat(6, minmax(120px, 1fr)); }
+.fp-week-grid--n7 { grid-template-columns: repeat(7, minmax(120px, 1fr)); }
+.fp-week-grid--stub.fp-week-grid--n1 { grid-template-columns: 34px repeat(1, minmax(120px, 1fr)); }
+.fp-week-grid--stub.fp-week-grid--n2 { grid-template-columns: 34px repeat(2, minmax(120px, 1fr)); }
+.fp-week-grid--stub.fp-week-grid--n3 { grid-template-columns: 34px repeat(3, minmax(120px, 1fr)); }
+.fp-week-grid--stub.fp-week-grid--n4 { grid-template-columns: 34px repeat(4, minmax(120px, 1fr)); }
+.fp-week-grid--stub.fp-week-grid--n5 { grid-template-columns: 34px repeat(5, minmax(120px, 1fr)); }
+.fp-week-grid--stub.fp-week-grid--n6 { grid-template-columns: 34px repeat(6, minmax(120px, 1fr)); }
+
+/* Inline editor affordances (practitioner edit mode only — the client
+   page never renders these elements). */
+.fp-pen, .fp-add {
+  background: none; border: none; cursor: pointer; color: #3d8da0;
+  padding: 2px 4px; border-radius: 6px; line-height: 0;
+  opacity: .55; transition: opacity .15s, background .15s;
+}
+.fp-pen:hover, .fp-add:hover { opacity: 1; background: rgba(61, 141, 160, .12); }
+.fp-pen:hover .fp-ico-pen { animation: fp-pen-wiggle .8s ease infinite; }
+@keyframes fp-pen-wiggle {
+  0%, 100% { transform: rotate(0); }
+  25% { transform: rotate(-6deg) translateY(-1px); }
+  60% { transform: rotate(-4deg); }
+}
+.fp-add { margin-left: auto; }
+.fp-add:hover .fp-ico-plus { animation: fp-plus-pop .5s ease; }
+@keyframes fp-plus-pop {
+  0% { transform: scale(1); } 50% { transform: scale(1.35); } 100% { transform: scale(1); }
+}
+.fp-action .fp-pen { margin-left: auto; flex: 0 0 auto; }
+.fp-identity-statement .fp-pen, .fp-journey-assistance .fp-pen { margin-left: 6px; vertical-align: middle; }
+.fp-targets-list li { display: flex; align-items: flex-start; gap: 4px; }
+.fp-targets-list li .fp-edit-text { flex: 1 1 auto; }
+
+.fp-edit-box { width: 100%; padding: 8px; background: #f0fbfc; border: 1px solid #3d8da0; border-radius: 8px; margin-top: 4px; }
+.fp-edit-input {
+  width: 100%; box-sizing: border-box; font: 400 13px/1.5 Inter, -apple-system, sans-serif;
+  color: #222; border: 1px solid #d6dade; border-radius: 6px; padding: 8px 10px; background: #fff;
+}
+.fp-edit-input:focus { outline: none; border-color: #3d8da0; }
+.fp-edit-slot-label { display: block; font-size: 12px; color: #374151; margin-top: 6px; }
+.fp-edit-slot { margin-left: 6px; font-size: 13px; padding: 4px 8px; border: 1px solid #d6dade; border-radius: 6px; }
+.fp-edit-actions { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+.fp-edit-actions .fp-btn { padding: 7px 14px; font-size: 13px; }
+.fp-edit-msg { font-size: 12px; color: #666; }
+.fp-edit-msg.is-error { color: #c0392b; }
+.fp-edit-notice {
+  margin: 0 24px 10px; padding: 8px 14px; border-radius: 8px;
+  background: #ecfdf5; border: 1px solid #a7f3d0; color: #065f46; font-size: 13px;
+}
+.fp-edit-notice.is-warn { background: #fffbeb; border-color: #fde68a; color: #92400e; }

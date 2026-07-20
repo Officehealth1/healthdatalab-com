@@ -70,6 +70,14 @@ class HDLV2_Timeline {
     // ── REST: Practitioner timeline ──
     public function rest_load_practitioner( $request ) {
         $client_id = absint( $request['client_id'] );
+
+        // Ownership: caller must be the linked practitioner (or admin).
+        // Closes the IDOR where any practitioner could read any client's
+        // full timeline — including other practitioners' private notes.
+        if ( ! HDLV2_Compatibility::practitioner_owns_client( get_current_user_id(), $client_id ) ) {
+            return new WP_Error( 'forbidden', 'You do not have access to this client.', array( 'status' => 403 ) );
+        }
+
         $page      = max( 1, (int) $request->get_param( 'page' ) ?: 1 );
         $per_page  = min( 50, max( 1, (int) $request->get_param( 'per_page' ) ?: 20 ) );
         $type      = sanitize_text_field( $request->get_param( 'type' ) ?: '' );
@@ -82,7 +90,7 @@ class HDLV2_Timeline {
     public function rest_load_client( $request ) {
         $client_id = absint( $request['client_id'] );
 
-        // Auth: token-based client validation or practitioner override
+        // Auth: token-bound to client_id, or practitioner who owns this client
         $auth = $this->validate_client_token( $request, $client_id );
         if ( is_wp_error( $auth ) ) return $auth;
 
@@ -95,12 +103,19 @@ class HDLV2_Timeline {
 
     /**
      * Validate client access via token or practitioner session.
+     *
+     * Practitioner branch now requires ownership of the requested
+     * client_id — was previously a blanket override that let any
+     * practitioner read any client's data.
      */
     private function validate_client_token( $request, $client_id ) {
-        // Practitioner override
+        // Practitioner: must own this client.
         $user_id = get_current_user_id();
         if ( $user_id && HDLV2_Compatibility::is_practitioner( $user_id ) ) {
-            return true;
+            if ( HDLV2_Compatibility::practitioner_owns_client( $user_id, $client_id ) ) {
+                return true;
+            }
+            return new WP_Error( 'forbidden', 'You do not have access to this client.', array( 'status' => 403 ) );
         }
 
         $token = $request->get_param( 'token' ) ?: '';
@@ -109,8 +124,15 @@ class HDLV2_Timeline {
         }
 
         global $wpdb;
+        // v0.41.17 — `AND deleted_at IS NULL`. Old client token must not
+        // resolve once the practitioner soft-deleted the relationship.
+        // v0.47.53 (B4) — `AND token_expires_at > UTC_TIMESTAMP()`: expired
+        // tokens no longer authenticate (practitioner path handled above).
         $progress = $wpdb->get_row( $wpdb->prepare(
-            "SELECT client_user_id FROM {$wpdb->prefix}hdlv2_form_progress WHERE token = %s LIMIT 1", $token
+            "SELECT client_user_id FROM {$wpdb->prefix}hdlv2_form_progress
+             WHERE token = %s AND deleted_at IS NULL AND token_expires_at > UTC_TIMESTAMP()
+             LIMIT 1",
+            $token
         ) );
         if ( ! $progress || (int) $progress->client_user_id !== (int) $client_id ) {
             return new WP_Error( 'forbidden', 'Access denied.', array( 'status' => 403 ) );
@@ -122,7 +144,9 @@ class HDLV2_Timeline {
     private function query_timeline( $client_id, $page, $per_page, $type, $search, $exclude_private ) {
         global $wpdb;
         $table  = $wpdb->prefix . 'hdlv2_timeline';
-        $where  = $wpdb->prepare( "WHERE client_id = %d", $client_id );
+        // v0.41.17 — `AND deleted_at IS NULL`. Phase T cascade hides timeline
+        // entries from prior lifecycles after a re-invite (same WP user).
+        $where  = $wpdb->prepare( "WHERE client_id = %d AND deleted_at IS NULL", $client_id );
 
         if ( $exclude_private ) $where .= " AND is_private = 0";
         if ( $type ) $where .= $wpdb->prepare( " AND entry_type = %s", $type );
@@ -172,6 +196,13 @@ class HDLV2_Timeline {
         }
 
         $prac_id = get_current_user_id();
+
+        // Ownership: body client_id must belong to the calling practitioner.
+        // Closes the IDOR where any practitioner could write a (private)
+        // note onto any client's timeline by passing the target client_id.
+        if ( ! HDLV2_Compatibility::practitioner_owns_client( $prac_id, $client_id ) ) {
+            return new WP_Error( 'forbidden', 'You do not have access to this client.', array( 'status' => 403 ) );
+        }
         $entry_id = self::add_entry( $client_id, $prac_id, 'note', $title, $summary, null, '', null, false, $private );
 
         return rest_ensure_response( array( 'success' => true, 'entry_id' => $entry_id ) );
@@ -186,8 +217,11 @@ class HDLV2_Timeline {
         if ( is_wp_error( $auth ) ) return $auth;
 
         global $wpdb;
+        // v0.41.17 — `AND deleted_at IS NULL` so the CSV export honours soft-delete.
         $rows = $wpdb->get_results( $wpdb->prepare(
-            "SELECT * FROM {$wpdb->prefix}hdlv2_timeline WHERE client_id = %d ORDER BY COALESCE(date, created_at) ASC, created_at ASC",
+            "SELECT * FROM {$wpdb->prefix}hdlv2_timeline
+             WHERE client_id = %d AND deleted_at IS NULL
+             ORDER BY COALESCE(date, created_at) ASC, created_at ASC",
             $client_id
         ) );
 
@@ -216,7 +250,7 @@ class HDLV2_Timeline {
 
     // ── Shortcode ──
     public function render_shortcode( $atts ) {
-        wp_enqueue_script( 'hdlv2-audio-component', HDLV2_PLUGIN_URL . 'assets/js/hdlv2-audio-component.js', array(), HDLV2_VERSION, true );
+        wp_enqueue_script( 'hdlv2-audio-component', HDLV2_PLUGIN_URL . 'assets/js/hdlv2-audio-component.js', array(), HDLV2_VERSION, true ); // E4 — Whisper tier removed
         wp_enqueue_script( 'hdlv2-timeline', HDLV2_PLUGIN_URL . 'assets/js/hdlv2-timeline.js', array( 'hdlv2-audio-component' ), HDLV2_VERSION, true );
         wp_enqueue_style( 'hdlv2-form', HDLV2_PLUGIN_URL . 'assets/css/hdlv2-form.css', array(), HDLV2_VERSION );
         wp_localize_script( 'hdlv2-timeline', 'hdlv2_timeline', array(

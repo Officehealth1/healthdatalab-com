@@ -1,0 +1,704 @@
+/**
+ * HDL V2 — Client DRAFT Report styles
+ * Powers [hdlv2_draft_report] shortcode.
+ * Teal theme matches V2 brand. Readable typography. Responsive <640px.
+ */
+
+.hdlv2-dr {
+  --hdlv2-teal: #3d8da0;
+  --hdlv2-teal-light: #5bb0c4;
+  --hdlv2-teal-lighter: #e6f3f5;
+  --hdlv2-teal-lightest: #f0fbfc;
+  --hdlv2-bg: #fafbfc;
+  --hdlv2-ink: #111;
+  --hdlv2-ink-soft: #555;
+  --hdlv2-ink-muted: #888;
+  --hdlv2-border: #e4e6ea;
+  --hdlv2-amber: #f59e0b;
+  --hdlv2-amber-bg: #fef3c7;
+  --hdlv2-amber-border: #fcd34d;
+
+  font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background: var(--hdlv2-bg);
+  color: var(--hdlv2-ink);
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+  max-width: 100%;
+  width: 100%;
+  margin: 0;
+  padding: 32px clamp(20px, 4vw, 64px) 80px;
+}
+.hdlv2-dr * { box-sizing: border-box; }
+
+/* Keep prose readable even when container is ultrawide (e.g. Divi full-width row on 1920px screen). */
+.hdlv2-dr-hero,
+.hdlv2-dr-pace,
+.hdlv2-dr-section,
+.hdlv2-dr-narrative,
+.hdlv2-dr-goals,
+.hdlv2-dr-recs,
+.hdlv2-dr-next,
+.hdlv2-dr-footer { max-width: 1280px; margin-left: auto; margin-right: auto; }
+
+/* Loading + error states */
+.hdlv2-dr-loading,
+.hdlv2-dr-error {
+  padding: 60px 30px;
+  text-align: center;
+  background: #fff;
+  border: 1px solid var(--hdlv2-border);
+  border-radius: 14px;
+}
+.hdlv2-dr-loading-icon {
+  width: 48px; height: 48px; border-radius: 50%;
+  background: var(--hdlv2-teal-lightest);
+  display: inline-flex; align-items: center; justify-content: center;
+  margin-bottom: 18px;
+  animation: hdlv2-dr-pulse 1.8s infinite;
+}
+.hdlv2-dr-loading-icon::before {
+  content: ''; width: 16px; height: 16px; border-radius: 50%;
+  background: var(--hdlv2-teal); opacity: 0.9;
+}
+.hdlv2-dr-loading h3 {
+  font-family: Poppins, Inter, sans-serif;
+  font-size: 20px; font-weight: 600; margin: 0 0 8px;
+  color: var(--hdlv2-ink);
+}
+.hdlv2-dr-loading p {
+  font-size: 14px; color: var(--hdlv2-ink-soft); margin: 0 0 6px;
+}
+.hdlv2-dr-loading-dots::after {
+  content: '…'; display: inline-block; width: 20px; text-align: left;
+  animation: hdlv2-dr-dots 1.4s infinite;
+}
+@keyframes hdlv2-dr-pulse { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.15); opacity: 0.7; } }
+@keyframes hdlv2-dr-dots { 0% { content: '.'; } 33% { content: '..'; } 66% { content: '...'; } }
+
+.hdlv2-dr-error h3 { color: #d97706; margin: 0 0 8px; }
+
+/* ── Hero ── */
+.hdlv2-dr-hero {
+  background: linear-gradient(135deg, var(--hdlv2-teal) 0%, var(--hdlv2-teal-light) 100%);
+  color: #fff;
+  border-radius: 16px;
+  padding: 32px 32px 28px;
+  margin-bottom: 24px;
+  position: relative;
+  overflow: hidden;
+}
+.hdlv2-dr-hero::before {
+  content: '';
+  position: absolute; top: -50%; right: -20%;
+  width: 400px; height: 400px;
+  background: radial-gradient(circle, rgba(255,255,255,0.12), transparent 60%);
+  pointer-events: none;
+}
+.hdlv2-dr-hero-header {
+  display: flex; justify-content: space-between; align-items: flex-start;
+  gap: 16px; flex-wrap: wrap; margin-bottom: 20px; position: relative;
+}
+.hdlv2-dr-hero-greeting { font-size: 14px; opacity: 0.85; margin: 0 0 4px; font-weight: 500; }
+.hdlv2-dr-hero-title {
+  font-family: Poppins, Inter, sans-serif;
+  font-size: 30px; font-weight: 700; margin: 0; letter-spacing: -0.5px;
+}
+.hdlv2-dr-draft-badge {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: rgba(254, 243, 199, 0.95);
+  color: #92400e;
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 12px; font-weight: 700; letter-spacing: 0.8px;
+  text-transform: uppercase;
+}
+.hdlv2-dr-draft-badge::before {
+  content: ''; width: 6px; height: 6px; border-radius: 50%;
+  background: var(--hdlv2-amber);
+  animation: hdlv2-dr-pulse-badge 2s infinite;
+}
+@keyframes hdlv2-dr-pulse-badge { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+.hdlv2-dr-hero-subtitle {
+  font-size: 15px; opacity: 0.95; max-width: 620px; margin: 0;
+  position: relative; line-height: 1.6;
+}
+
+/* ── Pace of Ageing (gauge hero + supporting stat cards) ── */
+.hdlv2-dr-pace {
+  background: #fff;
+  border: 1px solid var(--hdlv2-border);
+  border-radius: 12px;
+  padding: 24px 28px 24px;
+  margin-bottom: 24px;
+}
+.hdlv2-dr-pace-head { text-align: center; margin-bottom: 12px; }
+.hdlv2-dr-pace-head h2 {
+  font-family: Poppins, Inter, sans-serif;
+  font-size: 22px; font-weight: 600; margin: 0 0 4px;
+  color: var(--hdlv2-ink); letter-spacing: -0.3px;
+}
+.hdlv2-dr-pace-head p {
+  font-size: 13px; color: var(--hdlv2-ink-muted); margin: 0; line-height: 1.5;
+  max-width: 520px; margin-left: auto; margin-right: auto;
+}
+.hdlv2-dr-gauge-wrap {
+  display: flex; justify-content: center; align-items: center;
+  margin: 8px 0 16px;
+  min-height: 360px;
+}
+.hdlv2-dr-gauge-wrap img {
+  display: block; max-width: 100%; height: auto; width: 420px;
+}
+.hdlv2-dr-pace-stats {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px;
+  padding-top: 18px;
+  border-top: 1px solid var(--hdlv2-border);
+}
+
+/* ── Stat card (used in .hdlv2-dr-pace-stats) ── */
+.hdlv2-dr-stat-card {
+  background: #fff;
+  border: 1px solid var(--hdlv2-border);
+  border-radius: 12px;
+  padding: 18px 18px 16px;
+  text-align: center;
+}
+.hdlv2-dr-stat-card.highlight {
+  background: linear-gradient(180deg, var(--hdlv2-teal-lightest), #fff);
+  border-color: var(--hdlv2-teal-lighter);
+}
+.hdlv2-dr-stat-label {
+  font-size: 11px; color: var(--hdlv2-ink-muted); text-transform: uppercase;
+  letter-spacing: 1px; font-weight: 600; margin: 0 0 8px;
+}
+.hdlv2-dr-stat-value {
+  font-family: Poppins, Inter, sans-serif;
+  font-size: 32px; font-weight: 700; color: var(--hdlv2-ink);
+  line-height: 1; margin: 0;
+}
+.hdlv2-dr-stat-unit { font-size: 14px; color: var(--hdlv2-ink-muted); font-weight: 500; margin-left: 3px; }
+.hdlv2-dr-stat-delta { font-size: 12px; margin-top: 6px; color: var(--hdlv2-ink-soft); font-weight: 500; }
+.hdlv2-dr-stat-delta.good { color: #059669; }
+.hdlv2-dr-stat-delta.warn { color: #d97706; }
+
+/* ── Sections ── */
+.hdlv2-dr-section {
+  background: #fff;
+  border: 1px solid var(--hdlv2-border);
+  border-radius: 12px;
+  padding: 24px 28px 28px;
+  margin-bottom: 20px;
+}
+.hdlv2-dr-section h2 {
+  font-family: Poppins, Inter, sans-serif;
+  font-size: 18px; font-weight: 600; margin: 0 0 2px;
+  color: var(--hdlv2-ink); letter-spacing: -0.2px;
+}
+.hdlv2-dr-section-sub {
+  font-size: 13px; color: var(--hdlv2-ink-muted); margin: 0 0 18px;
+}
+.hdlv2-dr-trajectory { width: 100%; min-height: 440px; position: relative; }
+.hdlv2-dr-trajectory svg { width: 100%; height: auto; display: block; }
+.hdlv2-dr-radar-wrap {
+  max-width: 680px; margin: 8px auto 14px; padding: 0 10px;
+}
+.hdlv2-dr-draft-note {
+  display: flex; gap: 10px; align-items: flex-start;
+  background: var(--hdlv2-amber-bg);
+  border: 1px solid var(--hdlv2-amber-border);
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 13px; color: #78350f;
+  line-height: 1.5; margin-top: 14px;
+}
+.hdlv2-dr-draft-note-icon { flex: 0 0 18px; color: var(--hdlv2-amber); font-weight: 700; margin-top: -1px; }
+.hdlv2-dr-draft-note strong { color: #92400e; }
+
+/* ── AI blocks ── */
+.hdlv2-dr-ai-label {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 10px; font-weight: 700; letter-spacing: 1.2px; text-transform: uppercase;
+  color: var(--hdlv2-teal); margin-bottom: 10px;
+}
+.hdlv2-dr-ai-label::before { content: '✦'; font-size: 14px; color: var(--hdlv2-teal-light); }
+
+.hdlv2-dr-narrative {
+  background: #fff;
+  border: 1px solid var(--hdlv2-border);
+  border-left: 4px solid var(--hdlv2-teal);
+  border-radius: 12px;
+  padding: 22px 26px;
+  margin-bottom: 20px;
+}
+.hdlv2-dr-narrative p { font-size: 15px; line-height: 1.7; color: var(--hdlv2-ink); margin: 0; }
+.hdlv2-dr-narrative p + p { margin-top: 10px; }
+.hdlv2-dr-narrative strong { color: var(--hdlv2-ink); font-weight: 600; }
+
+.hdlv2-dr-insight {
+  margin-top: 18px;
+  padding: 16px 18px;
+  background: var(--hdlv2-teal-lightest);
+  border-radius: 10px;
+  border: 1px solid var(--hdlv2-teal-lighter);
+}
+.hdlv2-dr-insight ul { list-style: none; padding: 0; margin: 0; }
+.hdlv2-dr-insight li {
+  padding: 6px 0 6px 22px;
+  position: relative;
+  font-size: 14px; line-height: 1.55; color: var(--hdlv2-ink-soft);
+}
+.hdlv2-dr-insight li::before {
+  content: '●';
+  position: absolute; left: 0; top: 8px;
+  color: var(--hdlv2-teal); font-size: 9px;
+}
+.hdlv2-dr-insight li strong { color: var(--hdlv2-ink); font-weight: 600; }
+
+.hdlv2-dr-radar-split {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 18px;
+}
+.hdlv2-dr-radar-split > div {
+  background: #fafbfc;
+  border: 1px solid var(--hdlv2-border);
+  border-radius: 10px;
+  padding: 14px 16px;
+}
+.hdlv2-dr-radar-split h4 {
+  font-size: 12px; text-transform: uppercase; letter-spacing: 1px;
+  margin: 0 0 10px; font-weight: 700;
+  display: flex; align-items: center; gap: 6px;
+}
+.hdlv2-dr-radar-split .strengths h4 { color: #059669; }
+.hdlv2-dr-radar-split .focus h4 { color: #d97706; }
+.hdlv2-dr-radar-split ul { list-style: none; padding: 0; margin: 0; }
+.hdlv2-dr-radar-split li {
+  font-size: 13px; line-height: 1.5; color: var(--hdlv2-ink-soft);
+  padding: 5px 0;
+}
+.hdlv2-dr-radar-split li strong { color: var(--hdlv2-ink); font-weight: 600; }
+
+.hdlv2-dr-goals {
+  background: #fff;
+  border: 1px solid var(--hdlv2-border);
+  border-radius: 12px;
+  padding: 24px 28px 28px;
+  margin-bottom: 20px;
+}
+.hdlv2-dr-goals h2 {
+  font-family: Poppins, Inter, sans-serif;
+  font-size: 18px; font-weight: 600; margin: 0 0 2px; letter-spacing: -0.2px;
+}
+.hdlv2-dr-goals .hdlv2-dr-section-sub { margin-bottom: 18px; }
+.hdlv2-dr-goal-item {
+  display: flex; gap: 16px; padding: 16px 0;
+  border-top: 1px solid var(--hdlv2-border);
+  align-items: flex-start;
+}
+.hdlv2-dr-goal-item:first-of-type { border-top: none; padding-top: 4px; }
+.hdlv2-dr-goal-quote {
+  flex: 0 0 200px;
+  font-style: italic;
+  color: var(--hdlv2-teal); font-size: 14px;
+  line-height: 1.55;
+  padding-left: 14px;
+  border-left: 3px solid var(--hdlv2-teal-lighter);
+}
+.hdlv2-dr-goal-insight {
+  flex: 1;
+  font-size: 14px; color: var(--hdlv2-ink-soft); line-height: 1.6;
+}
+.hdlv2-dr-goal-insight strong { color: var(--hdlv2-ink); font-weight: 600; }
+.hdlv2-dr-goal-insight em { color: var(--hdlv2-teal); font-style: normal; font-weight: 600; }
+
+.hdlv2-dr-recs {
+  background: #fff;
+  border: 1px solid var(--hdlv2-border);
+  border-radius: 12px;
+  padding: 24px 28px 24px;
+  margin-bottom: 20px;
+}
+.hdlv2-dr-recs h2 {
+  font-family: Poppins, Inter, sans-serif;
+  font-size: 18px; font-weight: 600; margin: 0 0 2px; letter-spacing: -0.2px;
+}
+.hdlv2-dr-recs .hdlv2-dr-section-sub { margin-bottom: 18px; }
+.hdlv2-dr-rec-item {
+  padding: 16px 0;
+  border-top: 1px solid var(--hdlv2-border);
+  display: grid; grid-template-columns: 36px 1fr auto; gap: 14px;
+  align-items: flex-start;
+}
+.hdlv2-dr-rec-item:first-of-type { border-top: none; padding-top: 4px; }
+.hdlv2-dr-rec-icon {
+  width: 36px; height: 36px;
+  background: var(--hdlv2-teal-lightest);
+  color: var(--hdlv2-teal);
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 15px; font-weight: 700;
+  font-family: Poppins, Inter, sans-serif;
+}
+.hdlv2-dr-rec-body h3 {
+  font-size: 15px; font-weight: 600; margin: 0 0 4px;
+  color: var(--hdlv2-ink);
+  font-family: Poppins, Inter, sans-serif;
+}
+.hdlv2-dr-rec-body p {
+  font-size: 13px; color: var(--hdlv2-ink-soft); margin: 0; line-height: 1.55;
+}
+.hdlv2-dr-rec-pill {
+  background: var(--hdlv2-amber-bg);
+  color: #92400e;
+  border: 1px solid var(--hdlv2-amber-border);
+  border-radius: 999px;
+  padding: 3px 10px;
+  font-size: 10px; font-weight: 700; letter-spacing: 0.8px;
+  text-transform: uppercase;
+  white-space: nowrap;
+  margin-top: 6px;
+}
+
+/* ── What happens next ── */
+.hdlv2-dr-next {
+  background: linear-gradient(135deg, var(--hdlv2-teal-lightest), var(--hdlv2-teal-lighter));
+  border: 1px solid var(--hdlv2-teal-lighter);
+  border-radius: 12px;
+  padding: 22px 24px;
+  margin-bottom: 20px;
+}
+.hdlv2-dr-next h2 {
+  font-family: Poppins, Inter, sans-serif;
+  font-size: 18px; font-weight: 600; color: var(--hdlv2-teal); margin: 0 0 8px;
+}
+.hdlv2-dr-next p { font-size: 14px; color: var(--hdlv2-ink-soft); margin: 0 0 12px; line-height: 1.6; }
+.hdlv2-dr-steps { list-style: none; padding: 0; margin: 12px 0 0; counter-reset: step; }
+.hdlv2-dr-steps li {
+  counter-increment: step;
+  font-size: 14px; color: var(--hdlv2-ink-soft);
+  padding: 8px 0 8px 40px;
+  position: relative; line-height: 1.5;
+}
+.hdlv2-dr-steps li::before {
+  content: counter(step);
+  position: absolute; left: 0; top: 6px;
+  width: 26px; height: 26px; border-radius: 50%;
+  background: #fff; color: var(--hdlv2-teal);
+  font-weight: 700; font-size: 13px;
+  display: flex; align-items: center; justify-content: center;
+  border: 2px solid var(--hdlv2-teal);
+}
+.hdlv2-dr-steps li strong { color: var(--hdlv2-ink); }
+
+/* ── Footer ── */
+.hdlv2-dr-footer {
+  margin-top: 32px;
+  padding: 24px 28px;
+  background: #fff;
+  border: 1px solid var(--hdlv2-border);
+  border-radius: 12px;
+  display: flex; justify-content: space-between; align-items: center;
+  flex-wrap: wrap; gap: 16px;
+}
+.hdlv2-dr-prac-info { display: flex; align-items: center; gap: 14px; }
+.hdlv2-dr-prac-logo {
+  width: 56px; height: 56px; border-radius: 50%;
+  background: var(--hdlv2-teal-lightest);
+  border: 2px solid var(--hdlv2-teal-lighter);
+  display: flex; align-items: center; justify-content: center;
+  font-family: Poppins, Inter, sans-serif;
+  font-weight: 700; color: var(--hdlv2-teal); font-size: 20px;
+  overflow: hidden;
+}
+.hdlv2-dr-prac-logo img { width: 100%; height: 100%; object-fit: cover; }
+.hdlv2-dr-prac-info p { margin: 0; }
+.hdlv2-dr-prac-name { font-weight: 600; font-size: 14px; color: var(--hdlv2-ink); }
+.hdlv2-dr-prac-role { font-size: 12px; color: var(--hdlv2-ink-muted); }
+.hdlv2-dr-mark {
+  font-size: 11px; color: var(--hdlv2-ink-muted);
+  letter-spacing: 1px; text-transform: uppercase;
+}
+.hdlv2-dr-mark strong { color: var(--hdlv2-teal); letter-spacing: 0.5px; }
+
+/* ──────────────────────────────────────────────────────────────────────── */
+/* v0.20.6 — Final Report additions: final badge, practitioner-notes        */
+/*           section, milestone timeline. Uses existing design tokens only. */
+/* ──────────────────────────────────────────────────────────────────────── */
+
+/* Final badge — green tint equivalent of the amber .hdlv2-dr-draft-badge.
+   Same geometry, no pulse (it's a completed state, not in-progress). */
+.hdlv2-dr-final-badge {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: rgba(209, 250, 229, 0.95);
+  color: #065f46;
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 12px; font-weight: 700; letter-spacing: 0.8px;
+  text-transform: uppercase;
+}
+.hdlv2-dr-final-badge::before {
+  content: ''; width: 6px; height: 6px; border-radius: 50%;
+  background: #10b981;
+}
+
+/* From-your-practitioner section — same card shape as .hdlv2-dr-section
+   but with a subtle teal tinted background + teal left stripe, so it
+   reads visually distinct from the AI-generated cards around it. */
+.hdlv2-dr-practitioner-notes {
+  background: linear-gradient(135deg, var(--hdlv2-teal-lightest) 0%, #fff 70%);
+  border: 1px solid var(--hdlv2-teal-lighter);
+  border-left: 4px solid var(--hdlv2-teal);
+  border-radius: 12px;
+  padding: 22px 26px;
+  margin-bottom: 20px;
+  max-width: 1280px;
+  margin-left: auto;
+  margin-right: auto;
+}
+.hdlv2-dr-practitioner-notes-header {
+  display: flex; align-items: center; gap: 14px;
+  margin-bottom: 14px;
+}
+.hdlv2-dr-practitioner-notes-avatar {
+  width: 48px; height: 48px; border-radius: 50%;
+  background: var(--hdlv2-teal);
+  color: #fff;
+  font-family: Poppins, Inter, sans-serif; font-weight: 700; font-size: 16px;
+  display: flex; align-items: center; justify-content: center;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.hdlv2-dr-practitioner-notes-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.hdlv2-dr-practitioner-notes h2 {
+  font-family: Poppins, Inter, sans-serif;
+  font-size: 17px; font-weight: 600; color: var(--hdlv2-ink);
+  margin: 0; letter-spacing: -0.2px;
+}
+.hdlv2-dr-practitioner-notes-summary p {
+  font-size: 15px; line-height: 1.65; color: var(--hdlv2-ink); margin: 0 0 10px;
+}
+.hdlv2-dr-practitioner-notes-summary p:last-child { margin-bottom: 0; }
+.hdlv2-dr-practitioner-notes-actions {
+  margin-top: 16px;
+  padding: 14px 16px;
+  background: #fff;
+  border: 1px solid var(--hdlv2-border);
+  border-radius: 10px;
+}
+.hdlv2-dr-practitioner-notes-actions ul {
+  list-style: none; padding: 0; margin: 8px 0 0;
+}
+.hdlv2-dr-practitioner-notes-actions li {
+  padding: 6px 0 6px 22px;
+  position: relative;
+  font-size: 14px; line-height: 1.5; color: var(--hdlv2-ink);
+}
+.hdlv2-dr-practitioner-notes-actions li::before {
+  content: '✓';
+  position: absolute; left: 0; top: 6px;
+  color: var(--hdlv2-teal); font-weight: 700; font-size: 12px;
+}
+
+/* Milestone timeline — four colored tiers, each a card inside the section.
+   Uses left-border + light tinted background per tier, same pattern as the
+   existing .hdlv2-dr-insight box but coloured. */
+.hdlv2-dr-milestones .hdlv2-dr-ms-interval {
+  margin-top: 12px;
+  padding: 14px 18px;
+  border-radius: 10px;
+  border-left: 4px solid #ccc;
+  background: #fafbfc;
+}
+.hdlv2-dr-ms-interval .hdlv2-dr-ms-label {
+  font-family: Poppins, Inter, sans-serif;
+  font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px;
+  margin-bottom: 8px;
+  color: #666;
+}
+.hdlv2-dr-ms-interval .hdlv2-dr-ms-list {
+  list-style: none; padding: 0; margin: 0;
+}
+.hdlv2-dr-ms-interval .hdlv2-dr-ms-list li {
+  padding: 5px 0 5px 22px;
+  position: relative;
+  font-size: 14px; line-height: 1.55; color: var(--hdlv2-ink);
+}
+.hdlv2-dr-ms-interval .hdlv2-dr-ms-list li::before {
+  content: '●';
+  position: absolute; left: 0; top: 7px;
+  font-size: 9px;
+  color: #999;
+}
+/* Per-tier colour variants — heading + bullet + left border match */
+.hdlv2-dr-ms-teal  { border-left-color: #3d8da0; background: #f0fbfc; }
+.hdlv2-dr-ms-teal  .hdlv2-dr-ms-label,
+.hdlv2-dr-ms-teal  .hdlv2-dr-ms-list li::before { color: #3d8da0; }
+.hdlv2-dr-ms-green { border-left-color: #10b981; background: #ecfdf5; }
+.hdlv2-dr-ms-green .hdlv2-dr-ms-label,
+.hdlv2-dr-ms-green .hdlv2-dr-ms-list li::before { color: #10b981; }
+.hdlv2-dr-ms-amber { border-left-color: #f59e0b; background: #fffbeb; }
+.hdlv2-dr-ms-amber .hdlv2-dr-ms-label,
+.hdlv2-dr-ms-amber .hdlv2-dr-ms-list li::before { color: #b87500; }
+.hdlv2-dr-ms-ruby  { border-left-color: #be5a4a; background: #fef4f2; }
+.hdlv2-dr-ms-ruby  .hdlv2-dr-ms-label,
+.hdlv2-dr-ms-ruby  .hdlv2-dr-ms-list li::before { color: #be5a4a; }
+
+/* ── Mobile ── */
+@media (max-width: 640px) {
+  .hdlv2-dr { padding: 16px 12px 48px; }
+  .hdlv2-dr-hero { padding: 24px 20px; }
+  .hdlv2-dr-hero-title { font-size: 24px; }
+  .hdlv2-dr-pace { padding: 18px 16px; }
+  .hdlv2-dr-pace-stats { grid-template-columns: 1fr; gap: 10px; }
+  .hdlv2-dr-gauge-wrap { min-height: 320px; }
+  .hdlv2-dr-gauge-wrap img { width: 100%; max-width: 360px; }
+  .hdlv2-dr-section, .hdlv2-dr-narrative, .hdlv2-dr-goals, .hdlv2-dr-recs,
+  .hdlv2-dr-practitioner-notes { padding: 18px 16px; }
+  .hdlv2-dr-trajectory { min-height: 360px; }
+  .hdlv2-dr-radar-wrap { max-width: 100%; padding: 0; }
+  .hdlv2-dr-radar-split { grid-template-columns: 1fr; }
+  .hdlv2-dr-goal-item { flex-direction: column; gap: 10px; }
+  .hdlv2-dr-goal-quote { flex: auto; padding-left: 12px; }
+  .hdlv2-dr-rec-item { grid-template-columns: 1fr auto; }
+  .hdlv2-dr-rec-icon { display: none; }
+  .hdlv2-dr-footer { padding: 18px; }
+  .hdlv2-dr-practitioner-notes-avatar { width: 40px; height: 40px; font-size: 14px; }
+}
+
+/* ── Metabolic Health — derived surrogate signal (AUDIT Action Point 1) ──
+   Display-only estimate. Green-LEFT axis (healthy on the left). Reuses the
+   report tokens; soft band tints are the HDL Status-palette borders; Info-blue
+   accent for the "Inferred" tag + suggested-input chips. No chart library. */
+.hdlv2-dr-metab {
+  --metab-good: #10b981;      /* status Success — matches the report's green */
+  --metab-watch: #d97706;     /* status Warning — matches the report's orange (was pale #fde68a) */
+  --metab-elevated: #dc2626;  /* status Error — matches the report's red (was pink #fecaca) */
+  --metab-blue-ink: #2563eb;
+  --metab-blue-bg: #eff6ff;
+  --metab-blue-bd: #bfdbfe;
+  background: #fff;
+  border: 1px solid var(--hdlv2-border);
+  border-radius: 14px;
+  padding: 24px clamp(18px, 3vw, 32px);
+  margin: 0 auto 28px;
+  max-width: 1280px;
+}
+.hdlv2-dr-metab-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.hdlv2-dr-metab-eyebrow { font-size: 12px; color: var(--hdlv2-ink-muted); margin: 0 0 2px; }
+.hdlv2-dr-metab-head h2 { margin: 0; font-size: 18px; line-height: 1.3; }
+.hdlv2-dr-metab-tag {
+  flex: 0 0 auto;
+  font-size: 11px; font-weight: 600; letter-spacing: 0.02em;
+  color: var(--metab-blue-ink); background: var(--metab-blue-bg);
+  border: 1px solid var(--metab-blue-bd); border-radius: 999px;
+  padding: 4px 10px; white-space: nowrap;
+}
+.hdlv2-dr-metab-bar { margin: 20px 0 14px; }
+.hdlv2-dr-metab-gauge { position: relative; padding-top: 24px; }
+.hdlv2-dr-metab-track {
+  display: flex; height: 8px;
+  border-radius: 999px; overflow: hidden;
+}
+.hdlv2-dr-metab-zone { display: block; height: 100%; }
+.hdlv2-dr-metab-zone--good     { width: 30%; background: var(--metab-good); }
+.hdlv2-dr-metab-zone--watch    { width: 20%; background: var(--metab-watch); }
+.hdlv2-dr-metab-zone--elevated { width: 50%; background: var(--metab-elevated); }
+.hdlv2-dr-metab-marker {
+  position: absolute; top: 0; bottom: 0;
+  display: flex; flex-direction: column; align-items: center;
+  transform: translateX(-50%); pointer-events: none;
+}
+.hdlv2-dr-metab-marker::after {
+  content: ''; flex: 1; width: 2px; border-radius: 1px;
+  background: var(--hdlv2-ink);
+}
+.hdlv2-dr-metab-you {
+  font-size: 11px; font-weight: 600; color: var(--hdlv2-ink);
+  line-height: 1; margin-bottom: 3px; white-space: nowrap;
+}
+.hdlv2-dr-metab-scale {
+  display: flex; justify-content: space-between; margin-top: 7px;
+  font-size: 11px; color: var(--hdlv2-ink-muted);
+}
+.hdlv2-dr-metab-readout { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 12px; margin-top: 14px; }
+.hdlv2-dr-metab-score { font-family: Poppins, Inter, sans-serif; font-size: 30px; font-weight: 600; color: var(--hdlv2-ink); }
+.hdlv2-dr-metab-score small { font-size: 15px; color: var(--hdlv2-ink-muted); font-weight: 500; }
+.hdlv2-dr-metab-note { font-size: 14px; color: var(--hdlv2-ink-soft); }
+.hdlv2-dr-metab-divider { height: 1px; background: var(--hdlv2-border); margin: 16px 0; }
+.hdlv2-dr-metab-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.hdlv2-dr-metab-chip {
+  font-size: 12px; color: var(--hdlv2-ink-soft); background: #fff;
+  border: 1px solid var(--hdlv2-border); border-radius: 8px; padding: 5px 10px;
+}
+.hdlv2-dr-metab-chip b { color: var(--hdlv2-ink); margin-left: 5px; font-weight: 600; }
+@media (max-width: 640px) {
+  .hdlv2-dr-metab-head { flex-direction: column; gap: 8px; }
+  .hdlv2-dr-metab-score { font-size: 26px; }
+}
+
+/* ── v0.46.57 (P4 safety bundle) — on-screen legal / not-medical-advice line.
+   Mirrors the email footer fine print; sits below the practitioner footer on
+   both the client my-report view and the practitioner draft view. ── */
+.hdlv2-dr-legal {
+  max-width: 1280px;
+  margin: 10px auto 28px;
+  padding: 0 18px;
+  font-size: 11px;
+  line-height: 1.55;
+  color: #8a9098;
+  text-align: center;
+}
+
+/* v0.46.63 — In-place milestone editing (practitioner consultation view) */
+.hdlv2-dr-ms-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin: 6px 0 14px;
+}
+.hdlv2-dr-ms-btn {
+  border: 1px solid #3d8da0;
+  background: #fff;
+  color: #00565f;
+  border-radius: 999px;
+  padding: 6px 14px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background .15s ease, color .15s ease;
+}
+.hdlv2-dr-ms-btn:hover { background: #3d8da0; color: #fff; }
+.hdlv2-dr-ms-savestatus { font-size: 12px; color: #6b7280; }
+.hdlv2-dr-ms-editable .hdlv2-dr-ms-interval { padding-top: 12px; padding-bottom: 12px; }
+.hdlv2-dr-ms-edit {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid #cdd9dc;
+  border-radius: 8px;
+  padding: 8px 10px;
+  margin-top: 4px;
+  font: inherit;
+  font-size: 14px;
+  line-height: 1.5;
+  color: #2c3e50;
+  background: #fff;
+  resize: vertical;
+}
+.hdlv2-dr-ms-edit:focus {
+  outline: none;
+  border-color: #3d8da0;
+  box-shadow: 0 0 0 2px rgba(61, 141, 160, 0.18);
+}
+.hdlv2-dr-ms-flags { margin-top: 6px; display: flex; flex-direction: column; gap: 4px; }
+.hdlv2-dr-ms-flag {
+  display: inline-block;
+  background: #fef3c7;
+  color: #92600a;
+  border: 1px solid #fcd980;
+  border-radius: 6px;
+  padding: 3px 8px;
+  font-size: 12px;
+  line-height: 1.3;
+}
+.hdlv2-dr-ms-empty { color: #aab; font-style: italic; }

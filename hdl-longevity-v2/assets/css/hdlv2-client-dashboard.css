@@ -1,0 +1,718 @@
+/*
+ * HDL V2 — Client Dashboard (/my-dashboard/) styles.
+ *
+ * Mirror of mockups/_shell.css + mockups/client-empty-mockup.html, namespaced
+ * with hdlv2-cd / cd- prefixes so it never collides with theme styles or with
+ * V1's longevity-form CSS.
+ *
+ * Phase A (v0.32.1): chrome + 4 empty states + populated 3-CTA placeholder.
+ * Phase B will add the 3-tab populated UI tokens (tabs, day picker, charts).
+ *
+ * Design language is identical to mockups/practitioner-empty.html so the two
+ * empty states read as siblings — Source Serif Pro headings, Inter body,
+ * --teal palette, same .pd-* primitives renamed to .cd-* to avoid leaking
+ * styles into the practitioner side.
+ */
+
+:root {
+  --hdlv2-cd-teal: #3d8da0;
+  --hdlv2-cd-teal-light: #5bb0c4;
+  --hdlv2-cd-teal-lighter: #e6f3f5;
+  --hdlv2-cd-teal-lightest: #f0fbfc;
+  --hdlv2-cd-bg: #fafbfc;
+  --hdlv2-cd-ink: #111;
+  --hdlv2-cd-ink-soft: #555;
+  --hdlv2-cd-ink-muted: #888;
+  --hdlv2-cd-border: #e4e6ea;
+  --hdlv2-cd-amber: #f59e0b;
+  --hdlv2-cd-amber-bg: #fef3c7;
+  --hdlv2-cd-amber-border: #fcd34d;
+  --hdlv2-cd-serif: 'Source Serif Pro', Georgia, serif;
+  --hdlv2-cd-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+/* ── Chrome ─────────────────────────────────────────────────────────── */
+
+.hdlv2-cd-sitehead {
+  background: #fff;
+  border-bottom: 1px solid var(--hdlv2-cd-border);
+  padding: 16px 20px;
+  font-family: var(--hdlv2-cd-sans);
+}
+.hdlv2-cd-sitehead-inner {
+  max-width: 1080px;
+  margin: 0 auto;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.hdlv2-cd-sitehead-logo {
+  font-weight: 700;
+  font-size: 18px;
+  color: var(--hdlv2-cd-ink);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.hdlv2-cd-sitehead-logo svg {
+  width: 28px;
+  height: 28px;
+}
+.hdlv2-cd-sitehead nav {
+  display: flex;
+  gap: 24px;
+  font-size: 14px;
+  color: var(--hdlv2-cd-ink-soft);
+}
+.hdlv2-cd-sitehead nav a,
+.hdlv2-cd-sitehead nav span {
+  color: var(--hdlv2-cd-ink-soft);
+  text-decoration: none;
+}
+.hdlv2-cd-sitehead nav .cd-nav-active {
+  color: var(--hdlv2-cd-teal);
+  font-weight: 600;
+}
+
+.hdlv2-cd-topnav {
+  background: #fff;
+  border-bottom: 1px solid var(--hdlv2-cd-border);
+  padding: 12px 20px;
+  font-family: var(--hdlv2-cd-sans);
+}
+.hdlv2-cd-topnav-inner {
+  max-width: 1080px;
+  margin: 0 auto;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px;
+  color: var(--hdlv2-cd-ink-soft);
+}
+.hdlv2-cd-topnav a {
+  color: var(--hdlv2-cd-teal);
+  text-decoration: none;
+}
+.hdlv2-cd-topnav .cd-crumb {
+  color: var(--hdlv2-cd-ink-muted);
+}
+.hdlv2-cd-topnav .cd-crumb strong {
+  color: var(--hdlv2-cd-ink);
+  font-weight: 600;
+}
+
+/* ── Shell ──────────────────────────────────────────────────────────── */
+
+.hdlv2-cd.shell {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 32px 20px 80px;
+  font-family: var(--hdlv2-cd-sans);
+  color: var(--hdlv2-cd-ink);
+  background: var(--hdlv2-cd-bg);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  box-sizing: border-box;
+}
+.hdlv2-cd.shell *,
+.hdlv2-cd.shell *::before,
+.hdlv2-cd.shell *::after {
+  box-sizing: border-box;
+}
+
+/* ── Hero ───────────────────────────────────────────────────────────── */
+
+.hdlv2-cd .cd-hero {
+  background: linear-gradient(135deg, var(--hdlv2-cd-teal) 0%, var(--hdlv2-cd-teal-light) 100%);
+  color: #fff;
+  border-radius: 14px;
+  padding: 28px 32px;
+  margin: 0 0 18px;
+  position: relative;
+  overflow: hidden;
+}
+.hdlv2-cd .cd-hero::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 90% 10%, rgba(255, 255, 255, 0.10), transparent 55%);
+  pointer-events: none;
+}
+.hdlv2-cd .cd-hero-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 20px;
+  position: relative;
+}
+.hdlv2-cd .cd-hero-greeting {
+  font-size: 13px;
+  opacity: 0.85;
+  margin: 0 0 4px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+}
+.hdlv2-cd .cd-hero-title {
+  font-family: var(--hdlv2-cd-serif);
+  font-size: 28px;
+  font-weight: 600;
+  margin: 0;
+  letter-spacing: -0.01em;
+  color: #fff;
+  line-height: 1.2;
+}
+.hdlv2-cd .cd-hero-sub {
+  font-size: 14px;
+  opacity: 0.92;
+  margin: 10px 0 0;
+  max-width: 560px;
+  line-height: 1.6;
+}
+
+/* ── Path cards ─────────────────────────────────────────────────────── */
+
+.hdlv2-cd .cd-paths {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+  margin: 0 0 18px;
+}
+/* Populated placeholder uses 3-up at desktop, stacks on mobile (v0.32.2 — explicit class) */
+.hdlv2-cd .cd-paths.cd-paths-3up {
+  grid-template-columns: repeat(3, 1fr);
+}
+.hdlv2-cd .cd-path {
+  background: #fff;
+  border: 1px solid var(--hdlv2-cd-border);
+  border-radius: 14px;
+  padding: 26px 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.hdlv2-cd .cd-path-icon {
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  background: var(--hdlv2-cd-teal-lightest);
+  color: var(--hdlv2-cd-teal);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--hdlv2-cd-teal-lighter);
+}
+.hdlv2-cd .cd-path-icon svg {
+  width: 18px;
+  height: 18px;
+}
+.hdlv2-cd .cd-path h3 {
+  margin: 0;
+  font-family: var(--hdlv2-cd-serif);
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--hdlv2-cd-ink);
+  letter-spacing: -0.005em;
+}
+.hdlv2-cd .cd-path p {
+  margin: 0;
+  font-size: 14px;
+  color: var(--hdlv2-cd-ink-soft);
+  line-height: 1.55;
+}
+.hdlv2-cd .cd-path .cd-btn {
+  margin-top: 6px;
+  align-self: flex-start;
+}
+
+/* Brand-new state: amber tint mirrors the practitioner-empty CTA card */
+.hdlv2-cd[data-state="brand-new"] .cd-path,
+.hdlv2-cd .cd-path-cta {
+  border-color: var(--hdlv2-cd-amber-border);
+  background: linear-gradient(180deg, var(--hdlv2-cd-amber-bg) 0%, #fff 60%);
+}
+.hdlv2-cd[data-state="brand-new"] .cd-path-icon,
+.hdlv2-cd .cd-path-cta .cd-path-icon {
+  background: #fff;
+  border-color: var(--hdlv2-cd-amber-border);
+  color: #92400e;
+}
+
+/* ── Buttons ────────────────────────────────────────────────────────── */
+
+.hdlv2-cd .cd-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--hdlv2-cd-teal);
+  color: #fff;
+  font-weight: 600;
+  font-size: 14px;
+  padding: 10px 18px;
+  border-radius: 8px;
+  border: none;
+  cursor: pointer;
+  text-decoration: none;
+  font-family: var(--hdlv2-cd-sans);
+  line-height: 1.2;
+}
+.hdlv2-cd .cd-btn:hover {
+  background: #357887;
+  color: #fff;
+}
+
+/* ── Preview block ──────────────────────────────────────────────────── */
+
+.hdlv2-cd .cd-preview {
+  background: #fff;
+  border: 1px solid var(--hdlv2-cd-border);
+  border-radius: 14px;
+  padding: 22px 28px;
+  margin: 0 0 18px;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 24px;
+  align-items: center;
+}
+.hdlv2-cd .cd-gauge-mini {
+  width: 140px;
+  height: 80px;
+  flex-shrink: 0;
+}
+/* v0.46.25 — real QuickChart speedometer in the new-client preview card
+   (replaces the old decorative cd-gauge-mini static arc). */
+.hdlv2-cd .cd-gauge-real {
+  width: 172px;
+  height: auto;
+  display: block;
+  flex-shrink: 0;
+}
+.hdlv2-cd .cd-preview-meta {
+  font-size: 14px;
+  color: var(--hdlv2-cd-ink-soft);
+  line-height: 1.55;
+}
+.hdlv2-cd .cd-preview-meta .big {
+  display: block;
+  color: var(--hdlv2-cd-ink);
+  font-family: var(--hdlv2-cd-serif);
+  font-size: 34px;
+  line-height: 1.1;
+  font-weight: 600;
+  margin-bottom: 6px;
+  letter-spacing: -0.02em;
+}
+.hdlv2-cd .cd-preview-quote {
+  margin: 0;
+  font-family: var(--hdlv2-cd-serif);
+  font-size: 18px;
+  line-height: 1.5;
+  color: var(--hdlv2-cd-ink);
+  font-style: italic;
+  font-weight: 500;
+  grid-column: 1 / -1;
+}
+.hdlv2-cd .cd-preview-quote::before {
+  content: '\201C';
+  color: var(--hdlv2-cd-teal);
+  font-size: 30px;
+  line-height: 0;
+  vertical-align: -10px;
+  margin-right: 4px;
+}
+.hdlv2-cd .cd-preview-quote::after {
+  content: '\201D';
+  color: var(--hdlv2-cd-teal);
+  font-size: 30px;
+  line-height: 0;
+  vertical-align: -10px;
+  margin-left: 2px;
+}
+.hdlv2-cd .cd-preview-foot {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: 16px;
+  border-top: 1px solid var(--hdlv2-cd-border);
+  font-size: 13px;
+  color: var(--hdlv2-cd-ink-muted);
+}
+
+/* ── Section title + steps ──────────────────────────────────────────── */
+
+.hdlv2-cd .cd-section-title {
+  font-family: var(--hdlv2-cd-serif);
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--hdlv2-cd-ink);
+  margin: 24px 0 12px;
+  letter-spacing: -0.005em;
+}
+
+.hdlv2-cd .cd-steps {
+  counter-reset: step;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.hdlv2-cd .cd-steps li {
+  counter-increment: step;
+  position: relative;
+  padding: 16px 18px 16px 56px;
+  background: #fff;
+  border: 1px solid var(--hdlv2-cd-border);
+  border-radius: 10px;
+  font-size: 13px;
+  color: var(--hdlv2-cd-ink-soft);
+  line-height: 1.55;
+  transition: all 0.2s;
+}
+.hdlv2-cd .cd-steps li::before {
+  content: counter(step);
+  position: absolute;
+  left: 14px;
+  top: 16px;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--hdlv2-cd-teal-lightest);
+  color: var(--hdlv2-cd-teal);
+  border: 1px solid var(--hdlv2-cd-teal-lighter);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 13px;
+}
+.hdlv2-cd .cd-steps li strong {
+  color: var(--hdlv2-cd-ink);
+  font-weight: 600;
+  display: block;
+  margin-bottom: 2px;
+  font-size: 14px;
+}
+
+.hdlv2-cd .cd-steps li.done::before {
+  content: '\2713';
+  background: #ecfdf5;
+  color: #10b981;
+  border-color: #a7f3d0;
+  font-size: 16px;
+}
+.hdlv2-cd .cd-steps li.current {
+  border-color: var(--hdlv2-cd-teal);
+  background: var(--hdlv2-cd-teal-lightest);
+}
+.hdlv2-cd .cd-steps li.current::before {
+  background: var(--hdlv2-cd-teal);
+  color: #fff;
+  border-color: var(--hdlv2-cd-teal);
+  box-shadow: 0 0 0 4px var(--hdlv2-cd-teal-lighter);
+}
+.hdlv2-cd .cd-steps li .cd-step-tag {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  padding: 2px 8px;
+  border-radius: 999px;
+  margin-left: 8px;
+  vertical-align: middle;
+  background: var(--hdlv2-cd-teal-lightest);
+  color: var(--hdlv2-cd-teal);
+  border: 1px solid var(--hdlv2-cd-teal-lighter);
+}
+.hdlv2-cd .cd-steps li.done .cd-step-tag {
+  background: #ecfdf5;
+  color: #10b981;
+  border-color: #a7f3d0;
+}
+.hdlv2-cd .cd-steps li.current .cd-step-tag {
+  background: #fff;
+  color: var(--hdlv2-cd-teal);
+  border-color: var(--hdlv2-cd-teal);
+}
+
+/* ── Help footer ────────────────────────────────────────────────────── */
+
+.hdlv2-cd .cd-help {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: var(--hdlv2-cd-teal-lightest);
+  border: 1px solid var(--hdlv2-cd-teal-lighter);
+  border-radius: 12px;
+  padding: 14px 20px;
+  margin: 16px 0 16px;
+  font-size: 13px;
+  color: var(--hdlv2-cd-ink-soft);
+  gap: 16px;
+}
+.hdlv2-cd .cd-help strong {
+  color: var(--hdlv2-cd-ink);
+  font-weight: 600;
+}
+.hdlv2-cd .cd-help a {
+  color: var(--hdlv2-cd-teal);
+  font-weight: 600;
+  white-space: nowrap;
+  text-decoration: none;
+}
+
+/* ── Responsive ─────────────────────────────────────────────────────── */
+
+@media (max-width: 760px) {
+  .hdlv2-cd .cd-steps {
+    grid-template-columns: 1fr;
+  }
+  .hdlv2-cd .cd-paths.cd-paths-3up {
+    grid-template-columns: 1fr;
+  }
+  .hdlv2-cd .cd-preview {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+  .hdlv2-cd .cd-gauge-mini {
+    width: 120px;
+    height: 70px;
+  }
+  .hdlv2-cd .cd-gauge-real {
+    width: 150px;
+  }
+  .hdlv2-cd .cd-hero {
+    padding: 24px 22px;
+  }
+  .hdlv2-cd .cd-hero-title {
+    font-size: 24px;
+  }
+  .hdlv2-cd .cd-hero-row {
+    flex-direction: column;
+  }
+  .hdlv2-cd-sitehead nav {
+    display: none;
+  }
+  .hdlv2-cd .cd-help {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+}
+
+/* ── Slice C (v0.47.67): client message inbox ───────────────────────────
+ * ONE shell, two hosts: the Messages panel inside /my-dashboard/ (session
+ * mode) and the standalone token-mode thread page rendered pre-UM by
+ * HDLV2_Message_Thread_View (body.hdlv2-inbox-standalone). All motion is a
+ * single fade/slide on new bubbles, disabled under prefers-reduced-motion. */
+
+.hdlv2-inbox {
+  background: #fff;
+  border: 1px solid var(--hdlv2-cd-border);
+  border-radius: 14px;
+  padding: 22px;
+  font-family: var(--hdlv2-cd-sans);
+  color: var(--hdlv2-cd-ink);
+}
+
+.hdlv2-inbox-head { margin-bottom: 12px; }
+
+.hdlv2-inbox-title {
+  font-family: var(--hdlv2-cd-serif);
+  font-size: 21px;
+  font-weight: 600;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.hdlv2-inbox-badge {
+  display: inline-block;
+  min-width: 20px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--hdlv2-cd-teal);
+  color: #fff;
+  font-family: var(--hdlv2-cd-sans);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 18px;
+  text-align: center;
+}
+
+.cdp-tab .cdp-tab-badge { margin-left: 4px; vertical-align: 1px; }
+
+.hdlv2-inbox-sub {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: var(--hdlv2-cd-ink-muted);
+}
+
+.hdlv2-inbox-thread {
+  max-height: 420px;
+  overflow-y: auto;
+  padding: 6px 2px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.hdlv2-inbox-loading,
+.hdlv2-inbox-empty {
+  color: var(--hdlv2-cd-ink-muted);
+  font-size: 14px;
+  margin: 10px 2px;
+}
+
+.hdlv2-inbox-msg { display: flex; }
+.hdlv2-inbox-msg-client { justify-content: flex-end; }
+.hdlv2-inbox-msg-prac   { justify-content: flex-start; }
+
+.hdlv2-inbox-bubble {
+  max-width: 78%;
+  padding: 10px 14px;
+  border-radius: 14px;
+  font-size: 14px;
+  line-height: 1.5;
+  animation: hdlv2-inbox-in 0.25s ease-out;
+}
+
+.hdlv2-inbox-msg-prac .hdlv2-inbox-bubble {
+  background: var(--hdlv2-cd-teal-lightest);
+  border: 1px solid var(--hdlv2-cd-teal-lighter);
+  border-bottom-left-radius: 4px;
+}
+
+.hdlv2-inbox-msg-client .hdlv2-inbox-bubble {
+  background: var(--hdlv2-cd-teal);
+  color: #fff;
+  border-bottom-right-radius: 4px;
+}
+
+.hdlv2-inbox-msg-subject { font-weight: 600; margin-bottom: 4px; }
+
+.hdlv2-inbox-msg-time {
+  margin-top: 6px;
+  font-size: 11px;
+  opacity: 0.7;
+}
+
+@keyframes hdlv2-inbox-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.hdlv2-inbox-reply {
+  margin-top: 14px;
+  border-top: 1px solid var(--hdlv2-cd-border);
+  padding-top: 14px;
+}
+
+.hdlv2-inbox-reply-label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.hdlv2-inbox-reply textarea {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid var(--hdlv2-cd-border);
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-family: var(--hdlv2-cd-sans);
+  font-size: 14px;
+  resize: vertical;
+}
+
+.hdlv2-inbox-reply textarea:focus {
+  outline: 2px solid var(--hdlv2-cd-teal);
+  outline-offset: 1px;
+  border-color: var(--hdlv2-cd-teal);
+}
+
+.hdlv2-inbox-reply-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.hdlv2-inbox-note {
+  font-size: 13px;
+  color: var(--hdlv2-cd-ink-muted);
+}
+
+.hdlv2-inbox-send {
+  background: var(--hdlv2-cd-teal);
+  color: #fff;
+  border: 0;
+  border-radius: 8px;
+  padding: 9px 22px;
+  font-family: var(--hdlv2-cd-sans);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.hdlv2-inbox-send:hover { background: #004F59; }
+.hdlv2-inbox-send:disabled { opacity: 0.6; cursor: default; }
+
+.hdlv2-cd .cd-inbox { margin: 18px 0; }
+
+/* Standalone token-mode page (no theme chrome) */
+body.hdlv2-inbox-standalone {
+  margin: 0;
+  background: var(--hdlv2-cd-bg);
+  font-family: var(--hdlv2-cd-sans);
+}
+
+.hdlv2-inbox-page { max-width: 720px; margin: 0 auto; padding: 28px 18px 48px; }
+
+.hdlv2-inbox-page-head { margin-bottom: 18px; }
+
+.hdlv2-inbox-brand {
+  display: inline-block;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--hdlv2-cd-teal);
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+
+.hdlv2-inbox-page-head h1 {
+  font-family: var(--hdlv2-cd-serif);
+  font-size: 28px;
+  margin: 0 0 6px;
+  color: var(--hdlv2-cd-ink);
+}
+
+.hdlv2-inbox-page-sub { margin: 0; font-size: 14px; color: var(--hdlv2-cd-ink-soft); }
+
+.hdlv2-inbox-page-foot {
+  margin-top: 14px;
+  font-size: 12px;
+  color: var(--hdlv2-cd-ink-muted);
+}
+
+.hdlv2-inbox-expired {
+  background: #fff;
+  border: 1px solid var(--hdlv2-cd-border);
+  border-radius: 14px;
+  padding: 22px;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--hdlv2-cd-ink-soft);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hdlv2-inbox-bubble { animation: none; }
+  .hdlv2-inbox-send { transition: none; }
+}
