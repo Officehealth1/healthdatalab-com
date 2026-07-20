@@ -4264,7 +4264,20 @@
       '.hdlv2-aq-item-lead { flex-wrap:wrap; }',
       '.hdlv2-aq-lead-detail { flex-basis:100%; width:100%; margin-top:8px; border-top:1px solid #e4e6ea; }',
       '.hdlv2-aq-lead-detail[hidden] { display:none; }',
-      '.hdlv2-aq-lead-detail .hdlv2-pending-detail { padding:12px 2px 4px; }',
+      // 0.47.81 — strip-panel polish (Quim 2026-07-20): the base rules below
+      // were written for the narrow modal Pending Leads tab and render too
+      // tight at the strip's full row width (2px side padding; auto-fit
+      // cramming 8 answer columns). Scoped overrides only — the modal tab
+      // keeps the base rules. Answer cells take the same soft-card treatment
+      // as the confirmed-client Stage-1 tab rows (#fafbfc / #f0f0f0).
+      '.hdlv2-aq-lead-detail .hdlv2-pending-detail { padding:16px 24px 20px; }',
+      '.hdlv2-aq-lead-detail .hdlv2-pending-detail-note { margin-bottom:16px; }',
+      '.hdlv2-aq-lead-detail .hdlv2-pending-detail-grid { grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:12px 24px; margin-bottom:16px; }',
+      '.hdlv2-aq-lead-detail .hdlv2-pending-detail-sub { margin:12px 0 10px; }',
+      '.hdlv2-aq-lead-detail .hdlv2-pending-detail-sub + .hdlv2-pending-detail-grid { grid-template-columns:repeat(4, 1fr); gap:10px 14px; }',
+      '.hdlv2-aq-lead-detail .hdlv2-pending-detail-sub + .hdlv2-pending-detail-grid .hdlv2-pending-kv { background:#fafbfc; border:1px solid #f0f0f0; border-radius:8px; padding:10px 14px; }',
+      '@media (max-width:900px) { .hdlv2-aq-lead-detail .hdlv2-pending-detail-sub + .hdlv2-pending-detail-grid { grid-template-columns:1fr 1fr; } }',
+      '@media (max-width:640px) { .hdlv2-aq-lead-detail .hdlv2-pending-detail { padding:12px 4px 8px; } .hdlv2-aq-lead-detail .hdlv2-pending-detail-sub + .hdlv2-pending-detail-grid { grid-template-columns:1fr; } }',
       '.hdlv2-pending-detail { font-family: Inter, -apple-system, BlinkMacSystemFont, sans-serif; padding:18px 24px 20px; color:#333; }',
       '.hdlv2-pending-detail-note { font-size:12px; color:#5a7d85; background:#f0f7f9; border:1px solid #cfe2e7; border-radius:8px; padding:9px 12px; margin-bottom:14px; }',
       '.hdlv2-pending-detail-sub { font:600 12px/1 Poppins, Inter, sans-serif; color:#004F59; text-transform:uppercase; letter-spacing:.04em; margin:6px 0 8px; }',
