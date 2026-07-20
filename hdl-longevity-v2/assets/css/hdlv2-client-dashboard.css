@@ -543,6 +543,11 @@
   text-align: center;
 }
 
+/* v0.47.82 — display:inline-block above defeats the browser's built-in
+ * [hidden]{display:none} (author styles beat UA styles), so the zero badge
+ * was permanently visible on every host. Explicit rule restores hidden. */
+.hdlv2-inbox-badge[hidden] { display: none; }
+
 .cdp-tab .cdp-tab-badge { margin-left: 4px; vertical-align: 1px; }
 
 .hdlv2-inbox-sub {
@@ -554,7 +559,7 @@
 .hdlv2-inbox-thread {
   max-height: 420px;
   overflow-y: auto;
-  padding: 6px 2px;
+  padding: 6px 8px; /* v0.47.82 — was 2px sides; bubbles sat flush on the scrollbar */
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -665,6 +670,123 @@
 .hdlv2-inbox-send:disabled { opacity: 0.6; cursor: default; }
 
 .hdlv2-cd .cd-inbox { margin: 18px 0; }
+
+/* v0.47.82 — mid-funnel messages host: compact launcher + popup panel.
+ * All rules scoped under .cd-inbox-* / .cd-inbox-popup so the other two
+ * shell hosts (populated-dashboard Messages tab, standalone token page)
+ * are untouched. */
+
+.cd-inbox-launcher {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  text-align: left;
+  background: #fff;
+  border: 1px solid var(--hdlv2-cd-border);
+  border-radius: 14px;
+  padding: 14px 18px;
+  cursor: pointer;
+  font-family: var(--hdlv2-cd-sans);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.cd-inbox-launcher:hover {
+  border-color: var(--hdlv2-cd-teal);
+  box-shadow: 0 1px 6px rgba(61, 141, 160, 0.12);
+}
+.cd-inbox-launcher-ico {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background: var(--hdlv2-cd-teal-lightest);
+  border: 1px solid var(--hdlv2-cd-teal-lighter);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--hdlv2-cd-teal);
+  flex: 0 0 auto;
+}
+.cd-inbox-launcher-ico svg { width: 18px; height: 18px; }
+.cd-inbox-launcher-text { flex: 1; min-width: 0; }
+.cd-inbox-launcher-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--hdlv2-cd-serif);
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--hdlv2-cd-ink);
+}
+.cd-inbox-launcher-sub {
+  display: block;
+  margin-top: 2px;
+  font-size: 13px;
+  color: var(--hdlv2-cd-ink-muted);
+}
+.cd-inbox-launcher-open {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--hdlv2-cd-teal);
+  flex: 0 0 auto;
+}
+
+.cd-inbox-popup {
+  position: fixed;
+  right: 22px;
+  bottom: 22px;
+  width: min(400px, calc(100vw - 32px));
+  max-height: min(72vh, 640px);
+  display: flex;
+  flex-direction: column;
+  z-index: 9999;
+  border-radius: 14px;
+  box-shadow: 0 12px 40px rgba(17, 17, 17, 0.18);
+}
+.cd-inbox-popup[hidden] { display: none; }
+
+/* Inside the popup the shell flexes to the panel height: the thread grows,
+ * head + reply stay put. Scoped — the tab/standalone hosts keep 420px. */
+.cd-inbox-popup .hdlv2-inbox {
+  display: flex;
+  flex-direction: column;
+  max-height: 100%;
+  min-height: 0;
+}
+.cd-inbox-popup .hdlv2-inbox-thread {
+  flex: 1;
+  min-height: 120px;
+  max-height: none;
+}
+.cd-inbox-popup .hdlv2-inbox-head { padding-right: 26px; }
+
+.cd-inbox-close {
+  position: absolute;
+  top: 12px;
+  right: 14px;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--hdlv2-cd-ink-muted);
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+  z-index: 1;
+}
+.cd-inbox-close:hover { background: var(--hdlv2-cd-teal-lightest); color: var(--hdlv2-cd-ink); }
+
+@media (max-width: 640px) {
+  .cd-inbox-popup {
+    right: 0;
+    left: 0;
+    bottom: 0;
+    width: 100%;
+    max-height: 85vh;
+    border-radius: 14px 14px 0 0;
+  }
+  .cd-inbox-popup .hdlv2-inbox { border-radius: 14px 14px 0 0; }
+}
 
 /* Standalone token-mode page (no theme chrome) */
 body.hdlv2-inbox-standalone {

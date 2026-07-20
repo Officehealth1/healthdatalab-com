@@ -1725,6 +1725,32 @@ class HDLV2_Client_Dashboard {
         return 'food';
     }
 
+    /**
+     * v0.47.82 — mid-funnel messages host: a compact launcher row that opens
+     * the inbox shell in a fixed bottom-right popup (mobile: bottom sheet).
+     * The launcher's badge is a second [data-inbox-badge] mirror — setBadge()
+     * in hdlv2-inbox.js already updates every instance on the page. The
+     * populated dashboard's Messages tab and the standalone token page keep
+     * embedding inbox_shell() directly; only THIS host wraps it in a popup.
+     */
+    private function inbox_launcher_host() {
+        $h  = '<section class="cd-inbox">';
+        $h .= '<button type="button" class="cd-inbox-launcher" data-inbox-open aria-haspopup="dialog" aria-expanded="false">';
+        $h .= '<span class="cd-inbox-launcher-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span>';
+        $h .= '<span class="cd-inbox-launcher-text">';
+        $h .= '<span class="cd-inbox-launcher-title">Messages <span class="hdlv2-inbox-badge" data-inbox-badge hidden>0</span></span>';
+        $h .= '<span class="cd-inbox-launcher-sub">Private messages with your practitioner</span>';
+        $h .= '</span>';
+        $h .= '<span class="cd-inbox-launcher-open">Open</span>';
+        $h .= '</button>';
+        $h .= '<div class="cd-inbox-popup" data-inbox-popup hidden role="dialog" aria-label="Messages">';
+        $h .= '<button type="button" class="cd-inbox-close" data-inbox-close aria-label="Close messages">&times;</button>';
+        $h .= HDLV2_Message_Thread_View::inbox_shell();
+        $h .= '</div>';
+        $h .= '</section>';
+        return $h;
+    }
+
     private function render_empty_state( $user_id, $state ) {
         $ctx = $this->load_context( $user_id );
 
@@ -1734,9 +1760,11 @@ class HDLV2_Client_Dashboard {
         $h .= $this->hero_for_state( $ctx, $state );
         $h .= $this->path_for_state( $ctx, $state );
         $h .= $this->preview_for_state( $ctx, $state );
-        // Slice C: inbox card — mid-funnel clients must see practitioner
-        // messages (the betas live in these states).
-        $h .= '<section class="cd-inbox">' . HDLV2_Message_Thread_View::inbox_shell() . '</section>';
+        // Slice C: inbox — mid-funnel clients must see practitioner messages
+        // (the betas live in these states). v0.47.82: compact launcher card +
+        // bottom-right popup replaced the always-open full-width card; the
+        // shell inside is byte-identical so hdlv2-inbox.js drives it unchanged.
+        $h .= $this->inbox_launcher_host();
         $h .= '<h2 class="cd-section-title">How the assessment unfolds</h2>';
         $h .= $this->steps_grid( $state );
         $h .= $this->help_footer();
