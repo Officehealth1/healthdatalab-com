@@ -1664,6 +1664,10 @@
   //  setInterval), adaptive backoff, cache-bust + cache:'no-store' (so a
   //  cached "pending" can't hang the UI), and a root.isConnected guard so a
   //  late tick can't write into a torn-down DOM.
+  //
+  //  v0.47.79 — the status line is animated by startReportPrepTicker (its
+  //  own self-terminating setTimeout chain, stopped by node detachment on
+  //  any exit path); the poll no longer writes reassurance copy.
   // ──────────────────────────────────────────────────────────────────
 
   function jobsStatusUrl(jobId) {
@@ -1696,15 +1700,48 @@
       +   '<h3 style="font-family:Poppins,Inter,sans-serif;font-size:18px;font-weight:600;color:#1e3a5f;margin:0 0 10px;">' + esc(title) + '</h3>'
       +   '<p style="color:#2c3e50;font-size:14px;line-height:1.55;margin:0 0 8px;">This usually takes a minute or two. You can stay on this page &mdash; <strong>the report will appear here automatically</strong> when it&rsquo;s ready. You don&rsquo;t need to refresh.</p>'
       +   '<p style="color:#5b6b7b;font-size:13px;line-height:1.5;margin:0;">It is also saved to the client&rsquo;s Trajectory Plan, so it is safe to leave this page and come back later.</p>'
-      +   '<p class="hdlv2-rp-status" id="hdlv2-rp-status" role="status" aria-live="polite" style="color:#3b82f6;font-size:13px;font-weight:600;margin:16px 0 0;">Generating the report&hellip;</p>'
+      +   '<p class="hdlv2-rp-status" id="hdlv2-rp-status" role="status" aria-live="polite" style="color:#3b82f6;font-size:13px;font-weight:600;margin:16px 0 0;">' + esc(REPORT_PREP_MESSAGES[0]) + '</p>'
       + '</div>'
       + (skel ? '<div aria-hidden="true" style="margin-top:18px;opacity:0.65;">' + skel + '</div>' : '')
       + '</div>';
+    startReportPrepTicker(document.getElementById('hdlv2-rp-status'));
   }
 
-  function setReportPrepStatus(msg) {
-    var el = document.getElementById('hdlv2-rp-status');
-    if (el && typeof msg === 'string') el.textContent = msg;
+  // v0.47.79 — rotating reassurance ladder for the preparing card. Five
+  // roughly-ordered lines (mirroring generate()'s real step order: notes →
+  // summary → recommendations → milestones → assembly), then a steady line
+  // that never loops — a long wait must not reveal the rotation as scripted.
+  // Time-sequenced reassurance only: the poll knows job STATUS, never the
+  // sub-stage, so no line claims a step has completed, and there is no fake
+  // progress bar / percentage.
+  var REPORT_PREP_MESSAGES = [
+    'Reviewing the consultation notes…',
+    'Preparing the health summary…',
+    'Drafting the recommendations…',
+    'Shaping the long-term milestones…',
+    'Putting the report together…',
+    'Still working — this can take a minute or two.'
+  ];
+  var REPORT_PREP_STEP_MS = 7000;
+
+  // Message ticker for #hdlv2-rp-status. Same idiom as pollReportJob below:
+  // recursive setTimeout, self-terminating, nothing to clear. It holds the
+  // NODE reference (never re-looks-up by id) — every exit path from the
+  // preparing screen replaces root.innerHTML, detaching the node, so the
+  // next tick stops for good; and a re-opened preparing screen's fresh
+  // same-id element can never be written to by a stale ticker. Ends on its
+  // own after the last (steady) line regardless. Single writer: the poll
+  // does not touch the status line.
+  function startReportPrepTicker(el) {
+    if (!el) return;
+    var idx = 0; // line 0 is in the rendered markup
+    var tick = function () {
+      if (!el.isConnected) return; // torn down — stop, don't reschedule
+      idx++;
+      el.textContent = REPORT_PREP_MESSAGES[idx];
+      if (idx < REPORT_PREP_MESSAGES.length - 1) setTimeout(tick, REPORT_PREP_STEP_MS);
+    };
+    setTimeout(tick, REPORT_PREP_STEP_MS);
   }
 
   // Poll the report job until completed / failed / timeout.
@@ -1734,11 +1771,8 @@
           if (!root || !root.isConnected) return;
           if (!job || !job.status) { setTimeout(tick, reportPollInterval(attempts)); return; }
           if (job.status === 'pending' || job.status === 'running') {
-            // Drive the reassurance copy off elapsed time (report jobs use
-            // max_attempts=1, so job.attempts is always 1 — an attempts-based
-            // message would never change).
-            var elapsed = Date.now() - startedAt;
-            setReportPrepStatus(elapsed > 45000 ? 'Still working on it — almost there…' : 'Generating the report…');
+            // Reassurance copy is owned by the showReportPreparing ticker
+            // (single writer) — this branch only keeps polling.
             setTimeout(tick, reportPollInterval(attempts));
             return;
           }
