@@ -4257,6 +4257,11 @@
       '.hdlv2-aq-btn-pending-details { padding:5px 11px; font-size:12px; border:1px solid #cfe2e7; background:#f0f7f9; color:#004F59; border-radius:999px; cursor:pointer; font-weight:600; font-family:inherit; line-height:1.3; }',
       '.hdlv2-aq-btn-pending-details:hover { border-color:#3d8da0; background:#e3eef1; }',
       '.hdlv2-aq-btn-pending-details[aria-expanded="true"] { background:#3d8da0; border-color:#3d8da0; color:#fff; }',
+      // 0.47.80 — the detail panel's flex-basis:100% only drops it onto its own
+      // full-width line when the row wraps; .hdlv2-aq-item is nowrap at desktop
+      // (wrap exists only in the ≤640px media queries), so the open panel was
+      // rendering as a squeezed 4th column beside the buttons. Lead rows only.
+      '.hdlv2-aq-item-lead { flex-wrap:wrap; }',
       '.hdlv2-aq-lead-detail { flex-basis:100%; width:100%; margin-top:8px; border-top:1px solid #e4e6ea; }',
       '.hdlv2-aq-lead-detail[hidden] { display:none; }',
       '.hdlv2-aq-lead-detail .hdlv2-pending-detail { padding:12px 2px 4px; }',
