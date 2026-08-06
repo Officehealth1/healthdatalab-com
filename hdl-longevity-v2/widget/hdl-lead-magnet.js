@@ -13,6 +13,39 @@
 (function () {
   'use strict';
 
+  // ---------- VISITOR GEO (v0.47.83) ----------
+  // Coarse location (country + state) resolved by the healthdatalab.com edge
+  // function (Netlify context.geo — no keys, no tracking, nothing stored on
+  // that domain). Fetched once at init so it's ready by submit time (~2 min
+  // later); strictly fail-silent — a blocked/slow lookup NEVER delays or
+  // blocks the submission, the lead just goes out without a location.
+  // window.HDLW_GEO_URL exists for test harnesses only.
+  var GEO_URL = window.HDLW_GEO_URL || 'https://healthdatalab.com/api/geo';
+  var visitorGeo = null; // { country: 'US', region: 'Texas' } once resolved
+
+  function prefetchGeo() {
+    if (visitorGeo || !window.fetch) return;
+    var done = false;
+    var safety = setTimeout(function () { done = true; }, 2500);
+    fetch(GEO_URL, { method: 'GET', credentials: 'omit' })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (data) {
+        if (done) return;
+        clearTimeout(safety);
+        done = true;
+        if (data && typeof data.country === 'string' && /^[A-Za-z]{2}$/.test(data.country)) {
+          visitorGeo = {
+            country: data.country.toUpperCase(),
+            region: (typeof data.region === 'string') ? data.region.slice(0, 64) : ''
+          };
+        }
+      })
+      .catch(function () {
+        clearTimeout(safety);
+        done = true;
+      });
+  }
+
   // ---------- CALCULATION ENGINE (9-question algorithm) ----------
 
   var QUICK_WEIGHTS = { q2_body:1.5, q3_zone2:2.0, q4_vo2:2.0, q5_sts:2.0, q6_sleep:1.5, q7_smoking:2.5, q8_social:1.5, q9_diet:1.5 };
@@ -1510,6 +1543,13 @@
       // and something was ticked). Server sanitises against a key allowlist.
       if (answers._safety) payload.safety = answers._safety;
       if (inviteToken) payload.invite_token = inviteToken;
+      // v0.47.83 — coarse location (country + state) if the init-time geo
+      // lookup resolved. Optional by design: absent when blocked/slow, and
+      // the server validates + discards junk without ever rejecting the lead.
+      if (visitorGeo && visitorGeo.country) {
+        payload.visitor_country = visitorGeo.country;
+        if (visitorGeo.region) payload.visitor_region = visitorGeo.region;
+      }
 
       if (cfg.apiUrl) {
         fetch(cfg.apiUrl, {
@@ -1694,6 +1734,10 @@
   function init() {
     var inviteToken = getInviteToken();
     var widgets = document.querySelectorAll('.hdl-rate-widget');
+
+    // v0.47.83 — kick the geo lookup as soon as a widget exists on the page
+    // so the result is ready long before the visitor reaches submit.
+    if (widgets.length) prefetchGeo();
 
     for (var i = 0; i < widgets.length; i++) {
       if (widgets[i].getAttribute('data-hdl-init')) continue;

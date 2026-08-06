@@ -458,6 +458,15 @@ class HDLV2_Widget_Config {
         $visitor_age   = isset( $params['q1_age'] ) ? absint( $params['q1_age'] ) : null;
         $rate          = isset( $params['rate_of_ageing_result'] ) ? floatval( $params['rate_of_ageing_result'] ) : null;
 
+        // v0.47.83 — optional coarse location (country + state) resolved by
+        // the widget via the healthdatalab.com geo edge function. Invalid or
+        // absent → empty strings; NEVER an error (informational only, and a
+        // partner-site ad-blocker killing the geo fetch must not cost a lead).
+        $visitor_loc = self::sanitize_visitor_location(
+            $params['visitor_country'] ?? '',
+            $params['visitor_region'] ?? ''
+        );
+
         // ── Email validation — format + MX record (catches typos + dead domains). ──
         if ( ! $visitor_email || ! is_email( $visitor_email ) ) {
             return new WP_Error( 'invalid_email', 'Please enter a valid email address.', array( 'status' => 400 ) );
@@ -532,6 +541,8 @@ class HDLV2_Widget_Config {
                 'stage1_data'     => $stage1_data,
                 'invite_id'       => $invite_id,
                 'config'          => $config,
+                'visitor_country' => $visitor_loc['country'],
+                'visitor_region'  => $visitor_loc['region'],
                 // v0.41.24 — "New Lead from Your Widget" email suppressed.
                 // Make.com Module 40 fires its own "New Lead" email with the
                 // Stage 1 PDF, which is the canonical practitioner copy. The
@@ -577,6 +588,8 @@ class HDLV2_Widget_Config {
             'visitor_age'     => $visitor_age,
             'rate'            => $rate,
             'stage1_data'     => $stage1_data,
+            'visitor_country' => $visitor_loc['country'],
+            'visitor_region'  => $visitor_loc['region'],
         ) );
 
         // ── Front-door safety screen (v0.45.0) — fire flag emails at PUBLIC
@@ -700,6 +713,14 @@ class HDLV2_Widget_Config {
             'stage1_data'          => wp_json_encode( $args['stage1_data'] ?? array() ),
         );
 
+        // v0.47.83 — location written ONLY when the submission carried one,
+        // so a later geo-blocked resubmission can never blank a previously
+        // captured location (same keep-the-last-known rule on both branches).
+        if ( ! empty( $args['visitor_country'] ) ) {
+            $common['visitor_country'] = (string) $args['visitor_country'];
+            $common['visitor_region']  = (string) ( $args['visitor_region'] ?? '' );
+        }
+
         $existing_id = (int) $wpdb->get_var( $wpdb->prepare(
             "SELECT id FROM $table WHERE practitioner_user_id = %d AND visitor_email = %s ORDER BY id DESC LIMIT 1",
             $practitioner_id, $visitor_email
@@ -759,6 +780,45 @@ class HDLV2_Widget_Config {
      * Skipped entirely when HDLV2_SKIP_MX_CHECK is defined (useful for local dev
      * with .test domains).
      */
+    /**
+     * v0.47.83 — Stage-1 lead location. Validate the OPTIONAL widget-supplied
+     * visitor location (resolved client-side by the healthdatalab.com geo
+     * edge function). Fail-open by design: invalid input is DISCARDED, never
+     * an error — location is informational and must never block lead capture.
+     * Country gates region: a region without a plausible ISO-3166 alpha-2
+     * country code is meaningless on its own, so both drop together.
+     *
+     * @return array { country: 'US'|'' , region: 'Texas'|'' }
+     */
+    public static function sanitize_visitor_location( $country_raw, $region_raw ) {
+        $none = array( 'country' => '', 'region' => '' );
+        if ( ! is_scalar( $country_raw ) ) {
+            return $none;
+        }
+        $country = strtoupper( sanitize_text_field( (string) $country_raw ) );
+        if ( ! preg_match( '/^[A-Z]{2}$/', $country ) ) {
+            return $none;
+        }
+        $region = is_scalar( $region_raw ) ? sanitize_text_field( (string) $region_raw ) : '';
+        $region = function_exists( 'mb_substr' ) ? mb_substr( $region, 0, 64 ) : substr( $region, 0, 64 );
+        return array( 'country' => $country, 'region' => $region );
+    }
+
+    /**
+     * "US"+"Texas" → "Texas, US" · "US"+"" → "US" · empty → "".
+     * Single display source for the pending-lead row/panel AND the
+     * confirmed-client Stage-1 tab (mirrors the 0.47.50 rule: display
+     * strings are built server-side once, never re-derived in JS).
+     */
+    public static function format_visitor_location( $country, $region ) {
+        $country = is_scalar( $country ) ? trim( (string) $country ) : '';
+        $region  = is_scalar( $region ) ? trim( (string) $region ) : '';
+        if ( '' === $country ) {
+            return '';
+        }
+        return '' !== $region ? $region . ', ' . $country : $country;
+    }
+
     private static function validate_email_deliverable( $email ) {
         if ( defined( 'HDLV2_SKIP_MX_CHECK' ) && HDLV2_SKIP_MX_CHECK ) {
             return null;
@@ -1313,6 +1373,11 @@ class HDLV2_Widget_Config {
         $stage1_data     = $args['stage1_data'];
         $invite_id       = $args['invite_id'] ?? null;
         $config          = $args['config'] ?? null;
+        // v0.47.83 — coarse lead location (already sanitized by the callers:
+        // rest_capture_lead validates fresh input, rest_confirm_lead reads the
+        // stored columns). Empty = unknown; written only when present.
+        $visitor_country = (string) ( $args['visitor_country'] ?? '' );
+        $visitor_region  = (string) ( $args['visitor_region'] ?? '' );
 
         // v0.45.0 — the public path fired the safety emails at SUBMIT and
         // carried the messaged-stamped flags on the lead
@@ -1354,13 +1419,20 @@ class HDLV2_Widget_Config {
         if ( $existing ) {
             $form_token = $existing->token;
             $fp_id      = (int) $existing->id;
+            $fp_update  = array(
+                'stage1_data'         => wp_json_encode( $stage1_data ),
+                'stage1_completed_at' => current_time( 'mysql' ),
+                'client_name'         => $visitor_name,
+            );
+            // v0.47.83 — refresh location only when this pass knows one
+            // (keep-the-last-known rule, mirrors record_widget_lead).
+            if ( '' !== $visitor_country ) {
+                $fp_update['visitor_country'] = $visitor_country;
+                $fp_update['visitor_region']  = $visitor_region;
+            }
             $wpdb->update(
                 $wpdb->prefix . 'hdlv2_form_progress',
-                array(
-                    'stage1_data'         => wp_json_encode( $stage1_data ),
-                    'stage1_completed_at' => current_time( 'mysql' ),
-                    'client_name'         => $visitor_name,
-                ),
+                $fp_update,
                 array( 'id' => $existing->id )
             );
             // Resolve client_user_id for the V1 link (may be null on legacy rows)
@@ -1458,6 +1530,11 @@ class HDLV2_Widget_Config {
                 'stage1_data'          => wp_json_encode( $stage1_data ),
                 'stage1_completed_at'  => current_time( 'mysql' ),
             );
+            // v0.47.83 — coarse lead location, only when known.
+            if ( '' !== $visitor_country ) {
+                $fp_insert['visitor_country'] = $visitor_country;
+                $fp_insert['visitor_region']  = $visitor_region;
+            }
             if ( $seed_flags ) {
                 // Already messaged at submit — seed so the process() call below
                 // sees them present (dedup) and does NOT re-send.
@@ -1497,6 +1574,11 @@ class HDLV2_Widget_Config {
             'rate_of_ageing' => $rate,
             'stage1_data'    => wp_json_encode( $stage1_data ),
         );
+        // v0.47.83 — location, only when this pass knows one (never blanks).
+        if ( '' !== $visitor_country ) {
+            $lead_payload['visitor_country'] = $visitor_country;
+            $lead_payload['visitor_region']  = $visitor_region;
+        }
         // Only write invite_id when we actually have one (invite-fast path).
         // record_widget_lead never writes it, so an UPDATE here without the
         // guard would clobber the legacy invite_id capture.
@@ -1800,7 +1882,7 @@ class HDLV2_Widget_Config {
 
         $rows = $wpdb->get_results( $wpdb->prepare(
             "SELECT id, visitor_name, visitor_email, visitor_age, rate_of_ageing,
-                    stage1_data, created_at
+                    stage1_data, created_at, visitor_country, visitor_region
              FROM {$wpdb->prefix}hdlv2_widget_leads
              WHERE practitioner_user_id = %d AND status = 'pending'
              ORDER BY created_at DESC
@@ -1851,6 +1933,12 @@ class HDLV2_Widget_Config {
                 'stage1_display' => ( $s1_out && class_exists( 'HDLV2_Client_Status' ) )
                     ? HDLV2_Client_Status::s1_pending_display_pairs( $s1_out )
                     : null,
+                // v0.47.83 — server-built display string ("Texas, US"), '' when
+                // unknown (legacy rows / geo-blocked submissions render nothing).
+                'location'       => self::format_visitor_location(
+                    $r->visitor_country ?? '',
+                    $r->visitor_region ?? ''
+                ),
             );
         }
         return rest_ensure_response( array( 'leads' => $out ) );
@@ -1941,6 +2029,11 @@ class HDLV2_Widget_Config {
             'rate'            => $lead->rate_of_ageing !== null ? (float) $lead->rate_of_ageing : null,
             'stage1_data'     => $stage1,
             'config'          => $config,
+            // v0.47.83 — carry the submit-time location onto the client
+            // record. Null-coalesced: a pre-migration lead row has no
+            // location columns and must confirm exactly as before.
+            'visitor_country' => (string) ( $lead->visitor_country ?? '' ),
+            'visitor_region'  => (string) ( $lead->visitor_region ?? '' ),
             // Both Make.com fan-out emails (client + practitioner) and the
             // practitioner notify email already fired at widget submission.
             // Don't refire on Confirm — that'd duplicate the PDF email

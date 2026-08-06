@@ -1601,6 +1601,62 @@ class HDLV2_Activator {
             }
         }
 
+        // Phase AG (DB v3.26) — Stage-1 lead location (v0.47.83).
+        // Two nullable columns on BOTH wp_hdlv2_widget_leads (public-path
+        // capture) and wp_hdlv2_form_progress (invite fast-path + Confirm
+        // carry-over): visitor_country CHAR-2 ISO code, visitor_region
+        // (state) VARCHAR(64). Additive only — legacy rows stay NULL and the
+        // dashboard renders nothing for them. create_tables()/dbDelta above
+        // normally adds these already; the guarded ALTERs below make the
+        // migration self-sufficient and VERIFIED (missing column after this
+        // block → return false so the version doesn't bump and boot retries).
+        if ( version_compare( $current_db_version, '3.26', '<' ) ) {
+            try {
+                $targets = array(
+                    $p . 'hdlv2_widget_leads'  => 'stage1_data',
+                    $p . 'hdlv2_form_progress' => 'stage1_completed_at',
+                );
+                foreach ( $targets as $table => $after_col ) {
+                    foreach ( array( 'visitor_country' => 'VARCHAR(2)', 'visitor_region' => 'VARCHAR(64)' ) as $col => $type ) {
+                        $has = (int) $wpdb->get_var( $wpdb->prepare(
+                            "SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+                             WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s AND COLUMN_NAME = %s",
+                            $table, $col
+                        ) );
+                        if ( ! $has ) {
+                            $wpdb->query( "ALTER TABLE `$table` ADD COLUMN $col $type DEFAULT NULL AFTER $after_col" );
+                            if ( $wpdb->last_error ) {
+                                error_log( "[HDLV2] Phase AG (v3.26) migration: ADD $col to $table FAILED: " . $wpdb->last_error );
+                            } else {
+                                error_log( "[HDLV2] Phase AG (v3.26) migration: added $col to $table." );
+                            }
+                        }
+                        // visitor_region must go after visitor_country.
+                        $after_col = $col;
+                    }
+                }
+                // Verify — all four columns must exist before we let the
+                // version bump; a partial ALTER (e.g. metadata lock timeout)
+                // must retry on next boot, not mark itself done.
+                foreach ( array_keys( $targets ) as $table ) {
+                    $have = (int) $wpdb->get_var( $wpdb->prepare(
+                        "SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+                         WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s
+                           AND COLUMN_NAME IN ('visitor_country','visitor_region')",
+                        $table
+                    ) );
+                    if ( $have < 2 ) {
+                        error_log( "[HDLV2] Phase AG (v3.26) INCOMPLETE: $table has $have/2 location columns — will retry next boot." );
+                        return false;
+                    }
+                }
+                error_log( '[HDLV2] Phase AG (v3.26) migration: lead-location columns verified on widget_leads + form_progress.' );
+            } catch ( \Throwable $e ) {
+                error_log( '[HDLV2] Phase AG migration error: ' . $e->getMessage() . ' — boot continues; verify manually.' );
+                return false;
+            }
+        }
+
         return true;
     }
 
@@ -1676,6 +1732,8 @@ class HDLV2_Activator {
             visitor_age INT DEFAULT NULL,
             rate_of_ageing DECIMAL(4,2) DEFAULT NULL,
             stage1_data JSON DEFAULT NULL,
+            visitor_country VARCHAR(2) DEFAULT NULL,
+            visitor_region VARCHAR(64) DEFAULT NULL,
             invite_id BIGINT(20) UNSIGNED DEFAULT NULL,
             status ENUM('pending','confirmed','rejected') DEFAULT 'pending',
             confirmed_at DATETIME DEFAULT NULL,
@@ -1728,6 +1786,8 @@ class HDLV2_Activator {
             token_expires_at DATETIME DEFAULT NULL,
             stage1_data JSON DEFAULT NULL,
             stage1_completed_at DATETIME DEFAULT NULL,
+            visitor_country VARCHAR(2) DEFAULT NULL,
+            visitor_region VARCHAR(64) DEFAULT NULL,
             stage1_pdf_url VARCHAR(500) DEFAULT NULL,
             stage1_pdf_stored_path VARCHAR(255) DEFAULT NULL,
             stage1_pdf_generated_at DATETIME DEFAULT NULL,

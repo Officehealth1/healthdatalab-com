@@ -1103,6 +1103,9 @@
       +   '<div class="hdlv2-aq-item-name">' + name + '</div>'
       +   '<div class="hdlv2-aq-item-meta">' + email + ageStr + ' &middot; ' + rate + '&times;'
       +     (submittedAt ? ' &middot; ' + esc(submittedAt) : '')
+      // v0.47.83 — server-built location string ("Texas, US"); empty for
+      // legacy/geo-blocked leads, which render exactly as before.
+      +     (lead.location ? ' &middot; 📍 ' + esc(lead.location) : '')
       +   '</div>'
       +   '<div class="hdlv2-aq-item-action" style="display:flex;gap:5px;">'
       +     '<button type="button" class="hdlv2-aq-btn hdlv2-aq-btn-pending-details" data-aq="lead-details" data-lead-id="' + esc(lead.id) + '" aria-expanded="' + (isOpen ? 'true' : 'false') + '" title="Review this lead’s Stage-1 details">' + (isOpen ? 'Hide details' : 'View details') + '</button>'
@@ -1253,6 +1256,9 @@
       + kv('Rate of ageing', rate)
       + kv('Age', String(age))
       + kv('Sex', String(sex))
+      // v0.47.83 — only when captured; legacy leads show no Location cell
+      // at all (design: never render an "Unknown" placeholder for it).
+      + (lead.location ? kv('Location', String(lead.location)) : '')
       + '</div>';
 
     var items = '';
@@ -2338,7 +2344,10 @@
         +     (s1.age != null ? '<small>vs. ' + esc(s1.age) + ' actual</small>' : '')
         +   '</div>'
         +   '<div class="hdlv2-st-stat"><strong>' + esc(capSex) + '</strong><span>Sex</span></div>'
-        + '</div>';
+        + '</div>'
+        // v0.47.83 — coarse submit-time location ("Texas, US"), built
+        // server-side; hidden entirely when unknown (legacy clients).
+        + (s1.location ? '<div class="hdlv2-st-location">📍 ' + esc(s1.location) + '</div>' : '');
 
       // v0.41.23 pills → v0.46.52 — Stage-1 rows now match Stage 3: the
       // answer text IS the data, coloured by the same severity bands the
@@ -4372,6 +4381,8 @@
       '.hdlv2-st-card { display:block; }',
       '.hdlv2-st-meta { font-size: 10px; color: #888; margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.06em; font-weight: 500; }',
       '.hdlv2-st-row { display:flex; gap:10px; margin-bottom: 14px; flex-wrap: wrap; }',
+      // v0.47.83 — Stage-1 tab location line under the stat cards.
+      '.hdlv2-st-location { font-size:13px; color:#888; margin:-6px 0 12px 2px; }',
       '.hdlv2-st-stat { flex:1; min-width:120px; padding:10px 14px; background:#fff; border:1px solid #e4e6ea; border-radius:10px; text-align:center; }',
       '.hdlv2-st-stat strong { display:block; font-family: Poppins, Inter, sans-serif; font-size:18px; font-weight:700; color:#004F59; margin-bottom:2px; line-height:1.1; }',
       '.hdlv2-st-stat span { display:block; font-size:10px; color:#888; text-transform:uppercase; letter-spacing:0.05em; }',

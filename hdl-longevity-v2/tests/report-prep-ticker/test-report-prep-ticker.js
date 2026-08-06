@@ -109,8 +109,22 @@ ok(!/function setReportPrepStatus/.test(src), 'old setReportPrepStatus helper re
   ok(/role="status" aria-live="polite"/.test(prepBody), 'status line keeps role=status aria-live=polite');
   ok(/REPORT_PREP_MESSAGES\[0\]/.test(prepBody), 'initial rendered text is ladder line 0');
 }
-ok(/define\(\s*'HDLV2_VERSION',\s*'0\.47\.79'\s*\)/.test(phpSrc), 'HDLV2_VERSION bumped to 0.47.79 (cache-bust)');
-ok(/\* Version: 0\.47\.79/.test(phpSrc), 'plugin header Version in sync with constant (drift resolved)');
+// v0.47.83 — was pinned to the literal '0.47.79', which silently went red on
+// every later release (0.47.80+ shipped with this failing). The durable
+// intent is (a) the version is at least the ticker release and (b) the
+// plugin header can never drift from the constant again — assert exactly that.
+const constMatch = phpSrc.match(/define\(\s*'HDLV2_VERSION',\s*'([0-9.]+)'\s*\)/);
+const headerMatch = phpSrc.match(/\* Version: ([0-9.]+)/);
+ok(constMatch && cmpVer(constMatch[1], '0.47.79') >= 0, 'HDLV2_VERSION at or beyond 0.47.79 (cache-bust)');
+ok(constMatch && headerMatch && constMatch[1] === headerMatch[1], 'plugin header Version in sync with constant (drift resolved)');
+function cmpVer(a, b) {
+  const pa = a.split('.').map(Number), pb = b.split('.').map(Number);
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+    const d = (pa[i] || 0) - (pb[i] || 0);
+    if (d) return d < 0 ? -1 : 1;
+  }
+  return 0;
+}
 
 console.log('── Ladder content ──');
 const T = extractTicker();
