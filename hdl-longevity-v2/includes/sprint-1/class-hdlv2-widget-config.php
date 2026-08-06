@@ -732,7 +732,15 @@ class HDLV2_Widget_Config {
             // row stays in its terminal state on resubmission.
             $update_row = $common;
             $update_row['created_at'] = current_time( 'mysql' );
-            $wpdb->update( $table, $update_row, array( 'id' => $existing_id ) );
+            $ok = $wpdb->update( $table, $update_row, array( 'id' => $existing_id ) );
+            // v0.47.83 — location columns may not exist yet (deploy window
+            // before the Phase AG migration, or a failed migration). The
+            // lead data must never be lost over an optional field: retry
+            // the write without the location keys.
+            if ( false === $ok && isset( $update_row['visitor_country'] ) ) {
+                unset( $update_row['visitor_country'], $update_row['visitor_region'] );
+                $wpdb->update( $table, $update_row, array( 'id' => $existing_id ) );
+            }
             return $existing_id;
         }
 
@@ -743,7 +751,12 @@ class HDLV2_Widget_Config {
             'visitor_email'        => $visitor_email,
             'status'               => 'pending',
         );
-        $wpdb->insert( $table, $insert_row );
+        $ok = $wpdb->insert( $table, $insert_row );
+        // v0.47.83 — same missing-column belt as the UPDATE branch above.
+        if ( false === $ok && isset( $insert_row['visitor_country'] ) ) {
+            unset( $insert_row['visitor_country'], $insert_row['visitor_region'] );
+            $wpdb->insert( $table, $insert_row );
+        }
         return (int) $wpdb->insert_id;
     }
 
@@ -1543,7 +1556,14 @@ class HDLV2_Widget_Config {
                 $fp_insert['flags_scanned_at']  = current_time( 'mysql', true );
                 $fp_insert['flags_scan_status'] = 'ok';
             }
-            $wpdb->insert( $wpdb->prefix . 'hdlv2_form_progress', $fp_insert );
+            $ok = $wpdb->insert( $wpdb->prefix . 'hdlv2_form_progress', $fp_insert );
+            // v0.47.83 — missing-column belt (pre-Phase-AG window / failed
+            // migration): the client record must never be lost over an
+            // optional field — retry the INSERT without the location keys.
+            if ( false === $ok && isset( $fp_insert['visitor_country'] ) ) {
+                unset( $fp_insert['visitor_country'], $fp_insert['visitor_region'] );
+                $wpdb->insert( $wpdb->prefix . 'hdlv2_form_progress', $fp_insert );
+            }
             $fp_id = (int) $wpdb->insert_id;
 
             if ( $client_user_id && class_exists( 'HDLV2_Compatibility' ) ) {

@@ -349,6 +349,54 @@ call_private_static( 'record_widget_lead', array( array(
 $upd = $wpdb->last_update_of( 'hdlv2_widget_leads' );
 check( 'C5 geo-blocked resubmission never clobbers stored location', is_array( $upd ) && ! array_key_exists( 'visitor_country', $upd ) );
 
+// C6/C7 — missing-column resilience: if the INSERT/UPDATE fails while the
+// location columns are present (deploy window before the Phase AG migration
+// ran, or a failed migration), the write must retry WITHOUT the location
+// keys so the lead itself is never lost. Modeled by a wpdb whose writes
+// fail whenever the row contains visitor_country.
+class NoLocColumnWpdb extends FakeWpdb {
+    public function insert( $table, $data, $format = null ) {
+        if ( array_key_exists( 'visitor_country', $data ) ) {
+            $this->last_error = "Unknown column 'visitor_country' in 'field list'";
+            return false;
+        }
+        return parent::insert( $table, $data, $format );
+    }
+    public function update( $table, $data, $where, $format = null, $where_format = null ) {
+        if ( array_key_exists( 'visitor_country', $data ) ) {
+            $this->last_error = "Unknown column 'visitor_country' in 'field list'";
+            return false;
+        }
+        return parent::update( $table, $data, $where, $format, $where_format );
+    }
+}
+
+echo "── C6/C7. missing-column resilience (pre-migration window) ──\n";
+$wpdb = new NoLocColumnWpdb();
+$cfg = new stdClass();
+$cfg->practitioner_user_id = 206; $cfg->webhook_url = ''; $cfg->notification_email = '';
+$cfg->logo_url = ''; $cfg->logo_shape = 'round';
+$wpdb->rows['hdlv2_widget_config'] = $cfg;
+$id = call_private_static( 'record_widget_lead', array( array(
+    'practitioner_id' => 206, 'visitor_name' => 'C6', 'visitor_email' => 'c6@example.test',
+    'visitor_age' => 44, 'rate' => 1.02, 'stage1_data' => array(),
+    'visitor_country' => 'US', 'visitor_region' => 'Texas',
+) ) );
+$row = $wpdb->last_insert_of( 'hdlv2_widget_leads' );
+check( 'C6 lead INSERT retried without location when columns missing', $id > 0 && is_array( $row ) && ! array_key_exists( 'visitor_country', $row ) && $row['visitor_email'] === 'c6@example.test' );
+
+$wpdb = new NoLocColumnWpdb();
+$wpdb->rows['hdlv2_widget_config'] = $cfg;
+call_private_static( 'complete_signup', array( array(
+    'practitioner_id' => 206, 'visitor_name' => 'C7', 'visitor_email' => 'c7@example.test',
+    'visitor_phone' => '', 'visitor_age' => 40, 'rate' => 1.0,
+    'stage1_data' => array( 'q1_age' => 40 ), 'config' => $cfg,
+    'visitor_country' => 'US', 'visitor_region' => 'Texas',
+    'send_practitioner_notify' => false, 'send_make_pdf' => false,
+) ) );
+$fp = $wpdb->last_insert_of( 'hdlv2_form_progress' );
+check( 'C7 form_progress INSERT retried without location when columns missing', is_array( $fp ) && ! array_key_exists( 'visitor_country', $fp ) && $fp['client_email'] === 'c7@example.test' );
+
 echo "── D. rest_capture_lead() public path glue ──\n";
 $wpdb = fresh_wpdb();
 $inst = widget_instance();
