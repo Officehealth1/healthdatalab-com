@@ -221,10 +221,29 @@ class FakeWpdb {
     }
 }
 
+// Roster test (section I) needs the compatibility facade; complete_signup's
+// class_exists() gate therefore also finds it in sections E/F — the stub
+// link-writer is a no-op so those assertions are unaffected.
+class HDLV2_Compatibility {
+    public static function get_clients_for_practitioner( $p ) { return array( 901 ); }
+    public static function is_practitioner( $u ) { return true; }
+    public static function practitioner_owns_client( $p, $c ) { return true; }
+    public static function create_practitioner_client_link( $p, $c ) { return true; }
+}
+
 // ── Load real sources ─────────────────────────────────────────────────
 require __DIR__ . '/../../includes/sprint-2/class-hdlv2-rate-calculator.php';
 require __DIR__ . '/../../includes/sprint-2/class-hdlv2-stage1-commentary.php';
 require __DIR__ . '/../../includes/sprint-1/class-hdlv2-widget-config.php';
+require __DIR__ . '/../../includes/sprint-4/class-hdlv2-client-status.php';
+
+// Pin the status calculation (LSB pattern from tests/action-unify's roster
+// scenario) so rest_get_clients() runs without the full status data model.
+class TestableClientStatus extends HDLV2_Client_Status {
+    public static function calculate_status( $client_id ) {
+        return array( 'status' => 'progress_normal', 'label' => 'Progress normal', 'color' => '#10b981', 'reasons' => array() );
+    }
+}
 
 // ── Assertion plumbing ────────────────────────────────────────────────
 $PASS = 0; $FAIL = 0;
@@ -503,6 +522,30 @@ $resp = $inst->rest_list_pending_leads( new FakeRequest( array() ) );
 $leads = is_array( $resp ) && isset( $resp['leads'] ) ? $resp['leads'] : array();
 check( 'H1 lead with location exposes display string', isset( $leads[0]['location'] ) && $leads[0]['location'] === 'Texas, US' );
 check( 'H2 legacy lead exposes empty location (renders nothing)', isset( $leads[1] ) && array_key_exists( 'location', $leads[1] ) && $leads[1]['location'] === '' );
+
+echo "── I. roster /dashboard/clients carries location (list-row + panel header) ──\n";
+$wpdb = fresh_wpdb();
+$fp_row = new stdClass();
+$fp_row->id = 310;
+$fp_row->stage1_completed_at = '2026-08-06 10:00:00';
+$fp_row->stage2_completed_at = null;
+$fp_row->stage3_completed_at = null;
+$fp_row->visitor_country = 'US';
+$fp_row->visitor_region  = 'California';
+$wpdb->rows['hdlv2_form_progress'] = $fp_row;
+$rc = new ReflectionClass( 'TestableClientStatus' );
+$roster_inst = $rc->newInstanceWithoutConstructor();
+$resp = $roster_inst->rest_get_clients( new FakeRequest( array() ) );
+$clients = is_array( $resp ) ? $resp : array();
+check( 'I1 roster row exposes location display string', isset( $clients[0]['location'] ) && $clients[0]['location'] === 'California, US' );
+
+$fp_row2 = clone $fp_row;
+$fp_row2->visitor_country = null;
+$fp_row2->visitor_region  = null;
+$wpdb->rows['hdlv2_form_progress'] = $fp_row2;
+$resp = $roster_inst->rest_get_clients( new FakeRequest( array() ) );
+$clients = is_array( $resp ) ? $resp : array();
+check( 'I2 legacy roster row exposes empty location', isset( $clients[0] ) && array_key_exists( 'location', $clients[0] ) && $clients[0]['location'] === '' );
 
 echo "\nPASS=$PASS FAIL=$FAIL\n";
 exit( $FAIL === 0 ? 0 : 1 );

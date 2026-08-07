@@ -1628,6 +1628,17 @@
   }
 
   function injectV2Badge(row, c) {
+    // v0.47.84 — location subline in the V1-rendered name cell for matched
+    // rows (V2-only rows get it in buildV2OnlyRow). Idempotent for
+    // reconcileRows() re-renders; absent location renders nothing.
+    var nameCell = row.querySelector('.client-name');
+    if (nameCell && c.location && !nameCell.querySelector('.hdlv2-row-location')) {
+      var locEl = document.createElement('div');
+      locEl.className = 'hdlv2-row-location';
+      locEl.textContent = '📍 ' + c.location;
+      nameCell.appendChild(locEl);
+    }
+
     var cell = row.querySelector('.status-badge-cell');
     if (!cell) return;
     var pill = document.createElement('span');
@@ -1964,6 +1975,8 @@
       '<div class="hdlv2-detail-head-id">',
       '<strong>' + esc(c.name) + '</strong>',
       '<span class="hdlv2-detail-email">' + esc(c.email || '') + '</span>',
+      // v0.47.84 — location beside the email, visible on every tab.
+      (c.location ? '<span class="hdlv2-detail-location">📍 ' + esc(c.location) + '</span>' : ''),
       '</div>',
       '<div class="hdlv2-detail-head-meta">',
       headPill,
@@ -3576,7 +3589,11 @@
     // by injectExpandButton below). Replaces the reduced trash+chevron cell —
     // "V1 icon actions aren't wired for V2-only rows" no longer applies.
     row.innerHTML = [
-      '<td class="client-name">' + esc(c.name) + '</td>',
+      // v0.47.84 — location subline under the name (same muted treatment as
+      // the V2-only tag); empty string renders nothing for legacy clients.
+      '<td class="client-name">' + esc(c.name)
+        + (c.location ? '<div class="hdlv2-row-location">📍 ' + esc(c.location) + '</div>' : '')
+        + '</td>',
       '<td class="date-cell">' + esc(firstEntry) + '</td>',
       '<td class="date-cell">' + esc(lastEntry) + '</td>',
       '<td class="total-cell">' + esc(total) + '</td>',
@@ -4383,6 +4400,9 @@
       '.hdlv2-st-row { display:flex; gap:10px; margin-bottom: 14px; flex-wrap: wrap; }',
       // v0.47.83 — Stage-1 tab location line under the stat cards.
       '.hdlv2-st-location { font-size:13px; color:#888; margin:-6px 0 12px 2px; }',
+      // v0.47.84 — location subline in the roster name cell + detail-head.
+      '.hdlv2-row-location { font-size:12px; color:#888; font-weight:400; margin-top:2px; }',
+      '.hdlv2-detail-location { font-size:13px; color:#888; margin-left:10px; white-space:nowrap; }',
       '.hdlv2-st-stat { flex:1; min-width:120px; padding:10px 14px; background:#fff; border:1px solid #e4e6ea; border-radius:10px; text-align:center; }',
       '.hdlv2-st-stat strong { display:block; font-family: Poppins, Inter, sans-serif; font-size:18px; font-weight:700; color:#004F59; margin-bottom:2px; line-height:1.1; }',
       '.hdlv2-st-stat span { display:block; font-size:10px; color:#888; text-transform:uppercase; letter-spacing:0.05em; }',

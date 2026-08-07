@@ -1219,7 +1219,8 @@ class HDLV2_Client_Status {
             // clients (Bug-1: previously hardcoded em-dash).
             // v0.41.17 — filter soft-deleted rows.
             $progress = $wpdb->get_row( $wpdb->prepare(
-                "SELECT id, stage1_completed_at, stage2_completed_at, stage3_completed_at
+                "SELECT id, stage1_completed_at, stage2_completed_at, stage3_completed_at,
+                        visitor_country, visitor_region
                  FROM {$wpdb->prefix}hdlv2_form_progress
                  WHERE client_user_id = %d AND deleted_at IS NULL
                  ORDER BY id DESC LIMIT 1",
@@ -1344,6 +1345,12 @@ class HDLV2_Client_Status {
                 'label'            => $status['label'],
                 'color'            => $status['color'],
                 'reasons'          => $status['reasons'],
+                // v0.47.84 — coarse Stage-1 submit-time location ("Texas, US"),
+                // server-built by the shared widget-config helper; '' = unknown
+                // (legacy rows) and the JS renders nothing for it.
+                'location'         => ( $progress && class_exists( 'HDLV2_Widget_Config' ) )
+                    ? HDLV2_Widget_Config::format_visitor_location( $progress->visitor_country ?? '', $progress->visitor_region ?? '' )
+                    : '',
                 'last_checkin_date' => $last_checkin,
                 'latest_event_at'  => $latest_event_at,
                 'v2_first_event_at' => $v2_first_event_at,
