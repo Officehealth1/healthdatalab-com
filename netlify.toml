@@ -120,6 +120,10 @@
   status = 200
 
 [[edge_functions]]
+  function = "geo-locate"
+  path = "/api/geo"
+
+[[edge_functions]]
   function = "geo-currency"
   path = "/"
 
