@@ -58,16 +58,26 @@ if (safeBuyUrl) {
 const notSaved = extract('notSaved');
 ok(typeof notSaved === 'function', 'notSaved() exists in the widget');
 if (notSaved) {
-  // notSaved(body, hasLink) → { head, msg, again }
-  let n = notSaved({ code: 'rate_limit_exceeded', message: 'Too many requests', retry_after: 2402 }, true);
+  // notSaved(body, hasLink, status) → { head, msg, again }; status 0 = the request itself failed
+  let n = notSaved({ code: 'rate_limit_exceeded', message: 'Too many requests', retry_after: 2402 }, true, 429);
   ok(/not saved yet/i.test(n.head) && /41 minutes/.test(n.msg) && /link still works/i.test(n.msg) && n.again === true, 'blocked submit with a ticket: not saved yet, N minutes, link still works, Send again');
-  n = notSaved({ code: 'rate_limit_exceeded', retry_after: 45 }, false);
+  n = notSaved({ code: 'rate_limit_exceeded', retry_after: 45 }, false, 429);
   ok(/1 minute\b/.test(n.msg) && !/minutes/.test(n.msg) && !/link/i.test(n.msg) && n.again === true, 'free path: 1 minute, no mention of a link');
-  n = notSaved(null, false);
+  n = notSaved(null, false, 0);
   ok(/not saved yet/i.test(n.head) && n.msg.length > 20 && n.again === true, 'network failure: not saved yet, Send again');
-  n = notSaved({ code: 'invalid_email', message: 'Please enter a valid email address.' }, false);
+  n = notSaved({ code: 'invalid_email', message: 'Please enter a valid email address.' }, false, 400);
   ok(n.msg.indexOf('Please enter a valid email address.') === 0, 'other refusals show the server\'s own message');
-  n = notSaved({ code: 'ticket_required', message: 'This report needs a personal link.' }, true);
+  // Send again only where sending the same answers again can work.
+  ok(n.again === false && !/send again|keep this page open/i.test(n.msg) && /reload this page/i.test(n.msg), 'bad email, free path: no Send again, says to reload and re-enter');
+  n = notSaved({ code: 'undeliverable_email', message: 'That email domain doesn\'t accept mail.' }, true, 400);
+  ok(n.again === false && /open your personal link again/i.test(n.msg) && !/not saved yet/i.test(n.head), 'bad email with a ticket: no Send again, says to open the personal link again');
+  n = notSaved({ code: 'rate_limited', message: 'Too many submissions. Please try again later.' }, false, 429);
+  ok(n.again === true, 'older address cap (429, no retry_after): Send again');
+  n = notSaved({ code: 'lead_not_saved', message: 'We could not save your answers. Please try again in a moment; your personal link still works.' }, true, 500);
+  ok(n.again === true && (n.msg.match(/link still works/gi) || []).length === 1, 'server fault (500): Send again, "link still works" said once');
+  n = notSaved({ code: 'internal_server_error', message: 'There has been a critical error.' }, false, 503);
+  ok(n.again === true, '5xx: Send again');
+  n = notSaved({ code: 'ticket_required', message: 'This report needs a personal link.' }, true, 403);
   ok(/did not work/i.test(n.head) && n.again === false && !/still works/i.test(n.msg), 'ticket_required: says the link did not work, no Send again');
 }
 
@@ -76,6 +86,7 @@ ok(/id="' \+ id \+ '-thanks" hidden/.test(src) && /id="' \+ id \+ '-sent" hidden
 ok(/-thanks'\)/.test(result) && /-sent'\)/.test(result) && /\.hidden = false/.test(result), 'they are revealed from the saved reply only');
 ok(!/catch\(function \(\) \{ \/\* silent/.test(src), 'a failed post is no longer silent');
 ok(/Send again/.test(result) && /notSaved\(/.test(result), 'not-saved box offers Send again');
+ok(/notSaved\(body, !!inviteToken, status\)/.test(result) && /failed\(res\.body, res\.status\)/.test(result) && /failed\(null, 0\)/.test(result), 'the reply\'s HTTP status reaches notSaved(); a failed fetch passes 0');
 const retry = (src.match(/  function showLinkRetry\([^)]*\) \{[\s\S]*?\n  \}/) || [''])[0];
 ok(retry !== '' && /try again shortly/i.test(retry) && !/buyLink\(/.test(retry), 'link-check retry card: "try again shortly", no Buy');
 

@@ -89,6 +89,11 @@ function wp_upload_dir() {
 function wp_remote_get( $url, $a = array() ) { return new WP_Error( 'test_offline', 'offline' ); }
 function wp_remote_post( $url, $a = array() ) {
     $GLOBALS['captured_posts'][] = array( 'url' => $url, 'args' => $a );
+    if ( ! empty( $GLOBALS['during_dispatch'] ) ) {
+        $fn = $GLOBALS['during_dispatch'];
+        $GLOBALS['during_dispatch'] = null;
+        $fn();
+    }
     return array( 'response' => array( 'code' => 200 ) );
 }
 function wp_safe_remote_post( $url, $a = array() ) { return wp_remote_post( $url, $a ); }
@@ -150,14 +155,15 @@ class HDLV2_Email_Templates {
 
 
 class FakeRequest {
-    private $json; private $headers; private $method; private $route;
-    public function __construct( $json, $headers = array(), $method = 'POST', $route = '' ) {
-        $this->json = $json; $this->headers = $headers; $this->method = $method; $this->route = $route;
+    private $json; private $headers; private $method; private $route; private $query;
+    public function __construct( $json, $headers = array(), $method = 'POST', $route = '', $query = array() ) {
+        $this->json = $json; $this->headers = $headers; $this->method = $method; $this->route = $route; $this->query = $query;
     }
     public function get_method() { return $this->method; }
     public function get_route() { return $this->route; }
     public function get_json_params() { return $this->json; }
-    public function get_param( $k ) { return $this->json[ $k ] ?? null; }
+    // WordPress order: JSON body first, then the query string.
+    public function get_param( $k ) { return $this->json[ $k ] ?? $this->query[ $k ] ?? null; }
     public function get_header( $k ) { return $this->headers[ $k ] ?? null; }
 }
 
@@ -174,7 +180,9 @@ class FakeWpdb {
     public $tickets = array();   // minted rows keyed by external_ref (UNIQUE)
     public $invites = array();   // section 14: several invite rows keyed by token (replaces $invite when set)
     public $fail_lead_insert = false;
+    public $stale_ticket_read = false; // token lookups see the ticket as it was before another post claimed it
     private $next_insert_id = 500;
+    private $txn = null;               // state to put back on ROLLBACK
 
     public function prepare( $sql, ...$args ) {
         if ( count( $args ) === 1 && is_array( $args[0] ) ) { $args = $args[0]; }
@@ -197,8 +205,25 @@ class FakeWpdb {
             if ( ! $this->config ) return null;
             return preg_match( '/practitioner_user_id = (\d+)/', $sql, $m ) && (int) $m[1] !== (int) $this->config->practitioner_user_id ? null : $this->config;
         }
+        // The lead a used paid ticket bought (invites JOIN leads).
+        if ( strpos( $sql, 'JOIN' ) !== false && strpos( $sql, 'hdlv2_widget_leads' ) !== false ) {
+            if ( ! preg_match( "/i\.token = '([a-f0-9]{64})'/", $sql, $m ) || ! preg_match( '/i\.practitioner_id = (\d+)/', $sql, $p ) ) return null;
+            $inv = $this->invites ? ( $this->invites[ $m[1] ] ?? null ) : ( $this->invite && $this->invite->token === $m[1] ? $this->invite : null );
+            if ( ! $inv || 'completed' !== $inv->status || 'paid_stage1' !== $inv->source || (int) $inv->practitioner_id !== (int) $p[1] ) return null;
+            foreach ( array_merge( $this->inserts_into( 'hdlv2_widget_leads' ), $this->updates ) as $w ) {
+                if ( (int) ( $w['data']['invite_id'] ?? 0 ) === (int) $inv->id ) {
+                    return (object) array( 'rate_of_ageing' => $w['data']['rate_of_ageing'] ?? null );
+                }
+            }
+            return null;
+        }
         if ( 'hdlv2_widget_invites' === $t ) {
             if ( preg_match( "/external_ref = '([^']*)'/", $sql, $m ) ) return $this->tickets[ $m[1] ] ?? null;
+            if ( $this->stale_ticket_read && $this->invite ) {
+                $old = clone $this->invite;
+                $old->status = 'pending';
+                return $old;
+            }
             if ( $this->invites ) {
                 return preg_match( "/token = '([a-f0-9]{64})'/", $sql, $m ) ? ( $this->invites[ $m[1] ] ?? null ) : null;
             }
@@ -246,6 +271,20 @@ class FakeWpdb {
     }
     public function query( $sql ) {
         $this->queries[] = $sql;
+        if ( 'START TRANSACTION' === $sql ) {
+            $rows = $this->invites ? array_values( $this->invites ) : ( $this->invite ? array( $this->invite ) : array() );
+            $this->txn = array( 'inserts' => count( $this->inserts ), 'rows' => array_map( function ( $r ) { return array( $r, $r->status ); }, $rows ) );
+            return 1;
+        }
+        if ( 'COMMIT' === $sql ) { $this->txn = null; return 1; }
+        if ( 'ROLLBACK' === $sql ) {
+            if ( $this->txn ) {
+                foreach ( $this->txn['rows'] as $r ) { $r[0]->status = $r[1]; }
+                $this->inserts = array_slice( $this->inserts, 0, $this->txn['inserts'] );
+            }
+            $this->txn = null;
+            return 1;
+        }
         // The one-time claim: only a pending/opened invite can be taken.
         if ( strpos( $sql, 'hdlv2_widget_invites' ) !== false && stripos( $sql, "SET status = 'completed'" ) !== false ) {
             $row = preg_match( '/WHERE id = (\d+)/', $sql, $m ) ? $this->invite_by_id( $m[1] ) : null;
@@ -305,6 +344,7 @@ function fresh_wpdb( $mode = 'open' ) {
     $GLOBALS['transients']     = array();
     $GLOBALS['captured_posts'] = array();
     $GLOBALS['mails']          = array();
+    $GLOBALS['during_dispatch'] = null;
     $wpdb = new FakeWpdb();
     $cfg  = new stdClass();
     $cfg->practitioner_user_id = 206;
@@ -618,9 +658,9 @@ echo "── 14. answers post: a confirmed paid ticket is counted per ticket, an
 // Every post here goes through the REAL limiter middleware, then the REAL handler.
 const IP = '198.51.100.7';
 function tok( $n ) { return str_pad( dechex( $n ), 64, 'c', STR_PAD_LEFT ); }
-function limited_post( $params ) {
+function limited_post( $params, $query = array() ) {
     $_SERVER['REMOTE_ADDR'] = IP;
-    $req = new FakeRequest( $params, array(), 'POST', '/hdl-v2/v1/widget/lead' );
+    $req = new FakeRequest( $params, array(), 'POST', '/hdl-v2/v1/widget/lead', $query );
     $r   = HDLV2_Rate_Limit_Middleware::check_request( null, null, $req );
     return null !== $r ? $r : widget_instance()->rest_capture_lead( $req );
 }
@@ -701,6 +741,80 @@ $r = limited_post( lead_params( 'open@example.test' ) );
 $h = limiter_headers();
 check( '14.20 open mode, no token: reply and limiter headers unchanged', is_array( $r ) && array_keys( $r ) === array( 'success', 'rate' ) && '5' === ( $h['X-RateLimit-Limit'] ?? '' ) && '4' === ( $h['X-RateLimit-Remaining'] ?? '' ) && 'public' === ( $h['X-RateLimit-Tier'] ?? '' ) && 1 === bucket( 'public', 'ip', IP ) && 1 === old_cap() );
 unset( $_SERVER['REMOTE_ADDR'] );
+
+echo "── 15. limiter and handler read the ticket from the same place (the JSON body) ──\n";
+$wpdb = fresh_wpdb( 'paid' );
+$wpdb->invite = invite_row();
+$r = limited_post( lead_params( 'q@example.test' ), array( 'invite_token' => TOKEN, 'practitioner_id' => 206 ) );
+check( '15.1 ticket in the query string, none in the body → refused and counted by address', 403 === status_of( $r ) && 1 === bucket( 'public', 'ip', IP ) && 0 === bucket( 'public', 'ticket', 77 ) && 1 === old_cap() );
+check( '15.2 …and the ticket is not used up', 'pending' === $wpdb->invite->status && 0 === count( $wpdb->inserts ) );
+$wpdb = fresh_wpdb( 'paid' );
+$wpdb->invites[ TOKEN ]    = invite_row();
+$wpdb->invites[ tok( 1 ) ] = invite_row( array( 'id' => 101, 'token' => tok( 1 ) ) );
+$r = limited_post( lead_params( 'q@example.test', TOKEN ), array( 'invite_token' => tok( 1 ) ) );
+check( '15.3 one ticket in the body, another in the query string → the body\'s ticket is counted and used', is_array( $r ) && 1 === bucket( 'public', 'ticket', 77 ) && 0 === bucket( 'public', 'ticket', 101 ) && 'completed' === $wpdb->invites[ TOKEN ]->status && 'pending' === $wpdb->invites[ tok( 1 ) ]->status );
+unset( $_SERVER['REMOTE_ADDR'] );
+
+echo "── 16. a repeat post for a ticket whose lead is saved gets the success body ──\n";
+$wpdb = fresh_wpdb( 'paid' );
+$wpdb->invite = invite_row();
+$first = post_lead( lead_params( 'buyer@example.test', TOKEN ) );
+$GLOBALS['transients'] = array(); // well past 60 s: every cache is gone
+$late  = post_lead( lead_params( 'buyer@example.test', TOKEN ) );
+check( '16.1 after the 60 s window: same body as the first post', is_array( $first ) && $first === $late );
+check( '16.2 …one lead, one webhook', 1 === count( $wpdb->inserts_into( 'hdlv2_widget_leads' ) ) && 1 === count( $GLOBALS['captured_posts'] ) );
+
+$wpdb = fresh_wpdb( 'paid' );
+$wpdb->invite = invite_row();
+$mid = null;
+$GLOBALS['during_dispatch'] = function () use ( &$mid ) { $mid = post_lead( lead_params( 'buyer@example.test', TOKEN ) ); };
+$first = post_lead( lead_params( 'buyer@example.test', TOKEN ) );
+check( '16.3 while the first post is still dispatching: same body, not a refusal', is_array( $mid ) && $first === $mid );
+check( '16.4 …one lead, one webhook', 1 === count( $wpdb->inserts_into( 'hdlv2_widget_leads' ) ) && 1 === count( $GLOBALS['captured_posts'] ) );
+
+$wpdb = fresh_wpdb( 'paid' );
+$wpdb->invite = invite_row();
+$first = post_lead( lead_params( 'buyer@example.test', TOKEN ) );
+$GLOBALS['transients']   = array();
+$wpdb->stale_ticket_read = true; // two posts both read the ticket before either claimed it
+$lost = post_lead( lead_params( 'buyer@example.test', TOKEN ) );
+check( '16.5 the post that loses the claim to its twin gets the success body', is_array( $lost ) && $first === $lost && 1 === count( $wpdb->inserts_into( 'hdlv2_widget_leads' ) ) && 1 === count( $GLOBALS['captured_posts'] ) );
+
+$wpdb = fresh_wpdb( 'paid' );
+$wpdb->invite = invite_row( array( 'status' => 'completed' ) );
+$r = post_lead( lead_params( 'buyer@example.test', TOKEN ) );
+check( '16.6 used ticket with no lead on file → refused, nothing recorded (no second go)', 403 === status_of( $r ) && 'ticket_required' === code_of( $r ) && nothing_recorded( $wpdb ) );
+
+$wpdb = fresh_wpdb( 'paid' );
+$wpdb->invite = invite_row();
+post_lead( lead_params( 'buyer@example.test', TOKEN ) );
+$GLOBALS['transients'] = array();
+$wpdb->invite->practitioner_id = 999; // the same saved lead, but the ticket is another practitioner's
+$r = post_lead( lead_params( 'buyer@example.test', TOKEN ) );
+check( '16.7 another practitioner\'s used ticket → refused', 403 === status_of( $r ) && 1 === count( $GLOBALS['captured_posts'] ) );
+
+echo "── 17. the claim and the lead are saved together or not at all ──\n";
+function sql_pos( $wpdb, $needle ) {
+    foreach ( $wpdb->queries as $i => $q ) { if ( strpos( $q, $needle ) !== false ) return $i; }
+    return -1;
+}
+$wpdb = fresh_wpdb( 'paid' );
+$wpdb->invite = invite_row();
+post_lead( lead_params( 'buyer@example.test', TOKEN ) );
+$a = sql_pos( $wpdb, 'START TRANSACTION' ); $b = sql_pos( $wpdb, "SET status = 'completed'" ); $c = sql_pos( $wpdb, 'COMMIT' );
+check( '17.1 saved ticket post: START TRANSACTION, claim, lead, COMMIT in that order', $a >= 0 && $a < $b && $b < $c && -1 === sql_pos( $wpdb, 'ROLLBACK' ) );
+$wpdb = fresh_wpdb( 'paid' );
+$wpdb->invite = invite_row();
+$wpdb->fail_lead_insert = true;
+$r = post_lead( lead_params( 'buyer@example.test', TOKEN ) );
+check( '17.2 lead not saved: ROLLBACK, no COMMIT, ticket open again', $r instanceof WP_Error && sql_pos( $wpdb, 'ROLLBACK' ) > sql_pos( $wpdb, 'START TRANSACTION' ) && -1 === sql_pos( $wpdb, 'COMMIT' ) && 'pending' === $wpdb->invite->status );
+$wpdb = fresh_wpdb( 'open' );
+post_lead( lead_params( 'free@example.test' ) );
+check( '17.3 open-mode post opens no transaction (as today)', -1 === sql_pos( $wpdb, 'START TRANSACTION' ) && -1 === sql_pos( $wpdb, 'COMMIT' ) );
+$wpdb = fresh_wpdb( 'paid' );
+$wpdb->invite = invite_row( array( 'source' => 'practitioner' ) );
+post_lead( lead_params( 'seven@example.test', TOKEN ) );
+check( '17.4 practitioner invite opens no transaction (as today)', -1 === sql_pos( $wpdb, 'START TRANSACTION' ) );
 
 echo "\nPASS=$PASS FAIL=$FAIL\n";
 exit( $FAIL === 0 ? 0 : 1 );
