@@ -160,6 +160,11 @@ switch ( $CASE ) {
         $GLOBALS['case_rows']['invite'] = (object) array( 'id' => 9, 'practitioner_id' => 3, 'client_email' => 'c@x.test', 'client_name' => 'C', 'status' => 'opened', 'expires_at' => gmdate( 'Y-m-d H:i:s', time() - 2 * HOUR_IN_SECONDS ) );
         break;
 
+    case 'invite-paid-ticket': // v0.47.85 — a paid Stage 1 ticket is not a login link
+        $_GET['invite'] = $hex;
+        $GLOBALS['case_rows']['invite'] = (object) array( 'id' => 9, 'practitioner_id' => 3, 'client_email' => 'c@x.test', 'client_name' => 'C', 'status' => 'pending', 'expires_at' => gmdate( 'Y-m-d H:i:s', time() + 6 * HOUR_IN_SECONDS ), 'source' => 'paid_stage1' );
+        break;
+
     // ?prac_login= (30-min one-shot transient — regression guards, no change expected)
     case 'prac-login-fresh':
         $_GET['prac_login'] = $hex;
