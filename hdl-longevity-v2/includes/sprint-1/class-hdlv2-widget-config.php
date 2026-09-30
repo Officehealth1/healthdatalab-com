@@ -2244,9 +2244,9 @@ class HDLV2_Widget_Config {
         }
         global $wpdb;
         $row = $wpdb->get_row( $wpdb->prepare(
-            "SELECT practitioner_name, logo_url, logo_shape, cta_link, cta_text, theme_color,
-                    show_book_button_after_widget, access_mode, buy_url
-             FROM {$wpdb->prefix}hdlv2_widget_config
+            // SELECT * so a server whose Phase AH (v3.27) migration has not
+            // run yet still answers; only the fields named below go out.
+            "SELECT * FROM {$wpdb->prefix}hdlv2_widget_config
              WHERE practitioner_user_id = %d LIMIT 1",
             $practitioner_id
         ) );
@@ -2268,8 +2268,8 @@ class HDLV2_Widget_Config {
             // v0.47.85 — paid mode: the widget shows its locked panel to a
             // visitor without a personal link. Covers embeds pasted before
             // the snippet carried data-access.
-            'access_mode'                   => 'paid' === $row->access_mode ? 'paid' : 'open',
-            'buy_url'                       => (string) $row->buy_url,
+            'access_mode'                   => isset( $row->access_mode ) && 'paid' === $row->access_mode ? 'paid' : 'open',
+            'buy_url'                       => isset( $row->buy_url ) ? (string) $row->buy_url : '',
         ) ) );
     }
 

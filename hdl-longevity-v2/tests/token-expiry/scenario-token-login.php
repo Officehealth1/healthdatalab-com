@@ -99,7 +99,7 @@ class FakeWpdb {
         if ( false !== strpos( $q, 'hdlv2_form_progress' ) ) return $GLOBALS['case_rows']['progress'] ?? null;
         return null;
     }
-    public function get_var( $q ) { return null; }
+    public function get_var( $q ) { return $GLOBALS['case_rows']['var'] ?? null; }
     public function update( $table, $data, $where, $fmt = null, $wfmt = null ) {
         echo 'DB_UPDATE:' . $table . ':' . json_encode( $data ) . "\n";
         return 1;
@@ -163,6 +163,12 @@ switch ( $CASE ) {
     case 'invite-paid-ticket': // v0.47.85 — a paid Stage 1 ticket is not a login link
         $_GET['invite'] = $hex;
         $GLOBALS['case_rows']['invite'] = (object) array( 'id' => 9, 'practitioner_id' => 3, 'client_email' => 'c@x.test', 'client_name' => 'C', 'status' => 'pending', 'expires_at' => gmdate( 'Y-m-d H:i:s', time() + 6 * HOUR_IN_SECONDS ), 'source' => 'paid_stage1' );
+        break;
+
+    case 'invite-paid-ticket-used': // status completed → the pending/opened lookup misses
+        $_GET['invite'] = $hex;
+        $GLOBALS['case_rows']['invite'] = null;
+        $GLOBALS['case_rows']['var']    = '1';
         break;
 
     // ?prac_login= (30-min one-shot transient — regression guards, no change expected)

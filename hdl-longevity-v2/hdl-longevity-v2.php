@@ -95,6 +95,14 @@ add_action( 'init', function () {
         ) );
 
         if ( ! $invite ) {
+            // v0.47.85 — a used or revoked paid Stage 1 ticket is not an
+            // invitation: let the page render so the widget can say so.
+            if ( $wpdb->get_var( $wpdb->prepare(
+                "SELECT 1 FROM {$wpdb->prefix}hdlv2_widget_invites WHERE token = %s AND source = 'paid_stage1' LIMIT 1",
+                $token
+            ) ) ) {
+                return;
+            }
             // v0.40.15 — surfaced from silent return. Invite row missing
             // (deleted, never existed, or token forged). Friendly card with
             // clear next step instead of letting the page render anonymously.

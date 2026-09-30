@@ -33,7 +33,7 @@ $GLOBALS['current_user_id'] = 206;
 function get_transient( $k ) { return $GLOBALS['transients'][ $k ] ?? false; }
 function set_transient( $k, $v, $ttl = 0 ) { $GLOBALS['transients'][ $k ] = $v; return true; }
 function delete_transient( $k ) { unset( $GLOBALS['transients'][ $k ] ); return true; }
-function get_option( $k, $d = false ) { return $d; }
+function get_option( $k, $d = false ) { return $GLOBALS['options'][ $k ] ?? $d; }
 function update_option( $k, $v ) { return true; }
 function apply_filters( $tag, $value ) { return $value; }
 function do_action() {}
@@ -268,6 +268,8 @@ require $ROOT . 'includes/sprint-1/class-hdlv2-widget-renderer.php';
 if ( file_exists( $ROOT . 'includes/security/class-hdl-stage1-ticket.php' ) ) {
     require $ROOT . 'includes/security/class-hdl-stage1-ticket.php';
 }
+
+$GLOBALS['options'] = array( 'hdlv2_db_version' => '3.27' );
 
 $PASS = 0; $FAIL = 0;
 function check( $label, $cond ) {
@@ -549,8 +551,13 @@ if ( $has_mint ) {
         $last = mint( array( 'external_ref' => 'cs_burst_' . $i ) + $good );
     }
     check( '12.24 limiter answers 429 past its cap', 429 === status_of( $last ) && count( $wpdb->inserts ) === HDL_Stage1_Ticket::RATE_LIMIT );
+
+    $wpdb = fresh_wpdb( 'paid' );
+    $GLOBALS['options']['hdlv2_db_version'] = '3.26';
+    check( '12.25 schema not yet verified (db 3.26) → 503, nothing minted', 503 === status_of( mint( $good ) ) && count( $wpdb->inserts ) === 0 );
+    $GLOBALS['options']['hdlv2_db_version'] = '3.27';
 } else {
-    for ( $i = 2; $i <= 24; $i++ ) { check( "12.$i (skipped — route class missing)", false ); }
+    for ( $i = 2; $i <= 25; $i++ ) { check( "12.$i (skipped — route class missing)", false ); }
 }
 
 echo "── 13. other readers of the invites table ignore paid tickets ──\n";

@@ -58,6 +58,13 @@ class HDL_Stage1_Ticket {
             return self::refuse( 503, 'not_configured', 'Stage 1 tickets are not enabled on this server.' );
         }
 
+        // hdlv2_db_version only reaches 3.27 once Phase AH has verified the
+        // 'paid_stage1' source value and the UNIQUE key. Without them a
+        // ticket would be stored as an ordinary invite, or minted twice.
+        if ( version_compare( (string) get_option( 'hdlv2_db_version', '0' ), '3.27', '<' ) ) {
+            return self::refuse( 503, 'not_ready', 'Stage 1 tickets are not ready on this server.' );
+        }
+
         $provided = (string) $request->get_header( 'X-HDL-Stage1-Ticket-Key' );
         if ( '' === $provided || ! hash_equals( $expected, $provided ) ) {
             return self::refuse( 401, 'unauthorized', 'Unauthorized.' );

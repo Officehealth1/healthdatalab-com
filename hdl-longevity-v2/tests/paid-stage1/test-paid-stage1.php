@@ -38,5 +38,12 @@ foreach ( array(
     if ( ! $cond ) $fail = 1;
 }
 
+$out = array();
+exec( $php . ' ' . escapeshellarg( dirname( __DIR__ ) . '/token-expiry/scenario-token-login.php' ) . ' invite-paid-ticket-used 2>/dev/null', $out, $code );
+$o    = implode( "\n", $out );
+$cond = false !== strpos( $o, 'HANDLER_RETURNED' ) && false === strpos( $o, 'no longer valid' ) && false === strpos( $o, 'AUTH_COOKIE_SET' );
+echo ( $cond ? '  PASS  ' : '  FAIL  ' ) . "13.8 a used paid ticket gets no invitation card and no login (the widget explains it)\n";
+if ( ! $cond ) $fail = 1;
+
 echo ( 0 === $fail ? "SUITE: PASS\n" : "SUITE: FAIL\n" );
 exit( $fail );
