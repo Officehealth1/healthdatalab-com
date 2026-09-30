@@ -94,6 +94,7 @@ function wp_remote_post( $url, $a = array() ) {
 function wp_safe_remote_post( $url, $a = array() ) { return wp_remote_post( $url, $a ); }
 function wp_remote_retrieve_response_code( $r ) { return is_array( $r ) ? ( $r['response']['code'] ?? 0 ) : 0; }
 function wp_remote_retrieve_body( $r ) { return ''; }
+function is_user_logged_in() { return false; }
 function is_wp_error( $x ) { return $x instanceof WP_Error; }
 function wp_parse_url( $u, $c = -1 ) { return parse_url( $u, $c ); }
 function trailingslashit( $s ) { return rtrim( $s, '/' ) . '/'; }
@@ -123,6 +124,14 @@ class WP_Error {
     public function get_error_message() { return $this->message; }
 }
 
+class WP_REST_Response {
+    public $data; public $status; public $headers = array();
+    public function __construct( $data = null, $status = 200 ) { $this->data = $data; $this->status = $status; }
+    public function header( $k, $v ) { $this->headers[ $k ] = $v; }
+    public function get_status() { return $this->status; }
+    public function get_data() { return $this->data; }
+}
+
 // dispatch_post_signup_artifacts() resolves the practitioner logo via the
 // real sprint-1 helper class; a stub keeps the harness offline + WP-free.
 class HDLV2_Practitioner {
@@ -141,8 +150,12 @@ class HDLV2_Email_Templates {
 
 
 class FakeRequest {
-    private $json; private $headers;
-    public function __construct( $json, $headers = array() ) { $this->json = $json; $this->headers = $headers; }
+    private $json; private $headers; private $method; private $route;
+    public function __construct( $json, $headers = array(), $method = 'POST', $route = '' ) {
+        $this->json = $json; $this->headers = $headers; $this->method = $method; $this->route = $route;
+    }
+    public function get_method() { return $this->method; }
+    public function get_route() { return $this->route; }
     public function get_json_params() { return $this->json; }
     public function get_param( $k ) { return $this->json[ $k ] ?? null; }
     public function get_header( $k ) { return $this->headers[ $k ] ?? null; }
@@ -172,6 +185,7 @@ class FakeWpdb {
     public $config  = null;      // hdlv2_widget_config row
     public $invite  = null;      // hdlv2_widget_invites row served for token lookups
     public $tickets = array();   // minted rows keyed by external_ref (UNIQUE)
+    public $invites = array();   // section 14: several invite rows keyed by token (replaces $invite when set)
     public $fail_lead_insert = false;
     private $next_insert_id = 500;
 
@@ -198,9 +212,18 @@ class FakeWpdb {
         }
         if ( 'hdlv2_widget_invites' === $t ) {
             if ( preg_match( "/external_ref = '([^']*)'/", $sql, $m ) ) return $this->tickets[ $m[1] ] ?? null;
+            if ( $this->invites ) {
+                return preg_match( "/token = '([a-f0-9]{64})'/", $sql, $m ) ? ( $this->invites[ $m[1] ] ?? null ) : null;
+            }
             return $this->invite;
         }
         return null;
+    }
+    private function invite_by_id( $id ) {
+        foreach ( $this->invites as $row ) {
+            if ( (int) $row->id === (int) $id ) return $row;
+        }
+        return $this->invite && (int) $this->invite->id === (int) $id ? $this->invite : null;
     }
     public $existing_lead_id = null; // a lead already on file for this practitioner + email
     public function get_var( $sql ) {
@@ -228,17 +251,19 @@ class FakeWpdb {
     }
     public function update( $table, $data, $where, $format = null, $where_format = null ) {
         $this->updates[] = array( 'table' => $table, 'data' => $data, 'where' => $where );
-        if ( $this->invite && substr( $table, -20 ) === 'hdlv2_widget_invites' && (int) ( $where['id'] ?? 0 ) === (int) $this->invite->id ) {
-            foreach ( $data as $k => $v ) { $this->invite->$k = $v; }
+        $row = substr( $table, -20 ) === 'hdlv2_widget_invites' ? $this->invite_by_id( $where['id'] ?? 0 ) : null;
+        if ( $row ) {
+            foreach ( $data as $k => $v ) { $row->$k = $v; }
         }
         return 1;
     }
     public function query( $sql ) {
         $this->queries[] = $sql;
         // The one-time claim: only a pending/opened invite can be taken.
-        if ( $this->invite && strpos( $sql, 'hdlv2_widget_invites' ) !== false && stripos( $sql, "SET status = 'completed'" ) !== false ) {
-            if ( ! in_array( $this->invite->status, array( 'pending', 'opened' ), true ) ) return 0;
-            $this->invite->status = 'completed';
+        if ( strpos( $sql, 'hdlv2_widget_invites' ) !== false && stripos( $sql, "SET status = 'completed'" ) !== false ) {
+            $row = preg_match( '/WHERE id = (\d+)/', $sql, $m ) ? $this->invite_by_id( $m[1] ) : null;
+            if ( ! $row || ! in_array( $row->status, array( 'pending', 'opened' ), true ) ) return 0;
+            $row->status = 'completed';
             return 1;
         }
         return 1;
@@ -263,6 +288,9 @@ class HDLV2_Compatibility {
 $ROOT = __DIR__ . '/../../';
 require $ROOT . 'includes/sprint-2/class-hdlv2-rate-calculator.php';
 require $ROOT . 'includes/sprint-2/class-hdlv2-stage1-commentary.php';
+require $ROOT . 'includes/security/class-hdlv2-rate-limiter.php';
+require $ROOT . 'includes/security/class-hdlv2-rate-limit-policy.php';
+require $ROOT . 'includes/security/class-hdlv2-rate-limit-middleware.php';
 require $ROOT . 'includes/sprint-1/class-hdlv2-widget-config.php';
 require $ROOT . 'includes/sprint-1/class-hdlv2-widget-renderer.php';
 if ( file_exists( $ROOT . 'includes/security/class-hdl-stage1-ticket.php' ) ) {
@@ -277,7 +305,10 @@ function check( $label, $cond ) {
     if ( $cond ) { $PASS++; echo "  PASS  $label\n"; }
     else         { $FAIL++; echo "  FAIL  $label\n"; }
 }
-function status_of( $r ) { return $r instanceof WP_Error ? (int) ( $r->data['status'] ?? 0 ) : 200; }
+function status_of( $r ) {
+    if ( $r instanceof WP_REST_Response ) return $r->get_status();
+    return $r instanceof WP_Error ? (int) ( $r->data['status'] ?? 0 ) : 200;
+}
 function code_of( $r )   { return $r instanceof WP_Error ? $r->code : ''; }
 
 const TOKEN = 'abababababababababababababababababababababababababababababababab';
@@ -576,6 +607,94 @@ foreach ( array(
     $want = strpos( $label, '2 lookups' ) ? 2 : 1;
     check( $label . ' ignores paid tickets', substr_count( file_get_contents( $ROOT . $file ), "source <> 'paid_stage1'" ) >= $want );
 }
+
+echo "── 14. answers post: a confirmed paid ticket is counted per ticket, anything else by address ──\n";
+// Every post here goes through the REAL limiter middleware, then the REAL handler.
+const IP = '198.51.100.7';
+function tok( $n ) { return str_pad( dechex( $n ), 64, 'c', STR_PAD_LEFT ); }
+function limited_post( $params ) {
+    $_SERVER['REMOTE_ADDR'] = IP;
+    $req = new FakeRequest( $params, array(), 'POST', '/hdl-v2/v1/widget/lead' );
+    $r   = HDLV2_Rate_Limit_Middleware::check_request( null, null, $req );
+    return null !== $r ? $r : widget_instance()->rest_capture_lead( $req );
+}
+function bucket( ...$parts ) {
+    $st = get_transient( HDLV2_Rate_Limiter::bucket_key( $parts ) );
+    return is_array( $st ) ? (int) $st['count'] : 0;
+}
+function old_cap() { return (int) get_transient( 'hdlv2_lead_' . md5( IP ) ); }
+function limiter_headers() {
+    $resp = new WP_REST_Response( array() );
+    HDLV2_Rate_Limit_Middleware::add_headers( $resp, null, new FakeRequest( array(), array(), 'POST', '/hdl-v2/v1/widget/lead' ) );
+    return $resp->headers;
+}
+
+$wpdb = fresh_wpdb( 'paid' );
+$wpdb->invite = invite_row();
+$r = limited_post( lead_params( 'buyer@example.test', TOKEN ) );
+check( '14.1 valid ticket: saved, counted in the ticket\'s own bucket', is_array( $r ) && ! empty( $r['success'] ) && 1 === bucket( 'public', 'ticket', 77 ) );
+check( '14.2 …the address\'s public bucket and the older address cap are untouched', 0 === bucket( 'public', 'ip', IP ) && 0 === old_cap() );
+check( '14.3 …the 500 backstop still counts it', 1 === bucket( 'ip-backstop', IP ) );
+check( '14.4 …one read of the ticket row for limiter and handler together', 1 === count( $wpdb->sql_matching( 'hdlv2_widget_invites WHERE token' ) ) );
+$h = limiter_headers();
+check( '14.5 …headers: limit 5, tier public', '5' === ( $h['X-RateLimit-Limit'] ?? '' ) && 'public' === ( $h['X-RateLimit-Tier'] ?? '' ) && '4' === ( $h['X-RateLimit-Remaining'] ?? '' ) );
+
+$wpdb = fresh_wpdb( 'paid' );
+$wpdb->invite = invite_row();
+$codes = array();
+for ( $i = 0; $i < 6; $i++ ) { $last = limited_post( lead_params( 'not-an-email', TOKEN ) ); $codes[] = status_of( $last ); }
+check( '14.6 one ticket, six posts: five reach the handler, the sixth is 429', array( 400, 400, 400, 400, 400, 429 ) === $codes );
+check( '14.7 …429 is the public tier with Retry-After, address bucket still empty', $last instanceof WP_REST_Response && 'public' === ( $last->get_data()['tier'] ?? '' ) && isset( $last->headers['Retry-After'] ) && 0 === bucket( 'public', 'ip', IP ) );
+
+$wpdb = fresh_wpdb( 'paid' );
+for ( $i = 1; $i <= 11; $i++ ) { $wpdb->invites[ tok( $i ) ] = invite_row( array( 'id' => 100 + $i, 'token' => tok( $i ) ) ); }
+$saved = 0;
+for ( $i = 1; $i <= 11; $i++ ) {
+    $r = limited_post( lead_params( "buyer$i@example.test", tok( $i ) ) );
+    if ( is_array( $r ) && ! empty( $r['success'] ) ) $saved++;
+}
+check( '14.8 eleven buyers behind one address, a ticket each: all eleven saved', 11 === $saved );
+check( '14.9 …neither address count moved; backstop counted all eleven', 0 === bucket( 'public', 'ip', IP ) && 0 === old_cap() && 11 === bucket( 'ip-backstop', IP ) );
+
+$wpdb = fresh_wpdb( 'paid' );
+$wpdb->invite = invite_row();
+set_transient( 'hdlv2_lead_' . md5( IP ), 10 ); // REMOTE_ADDR is still IP from the posts above
+check( '14.10 handler alone (limiter off): a confirmed ticket still skips the older cap', is_array( post_lead( lead_params( 'buyer@example.test', TOKEN ) ) ) );
+
+$n = 10;
+foreach ( array(
+    'made-up token'                 => array( null, 403 ),
+    'used ticket'                   => array( array( 'status' => 'completed' ), 403 ),
+    'revoked ticket'                => array( array( 'status' => 'revoked' ), 403 ),
+    'expired ticket'                => array( array( 'expires_at' => '2020-01-01 00:00:00' ), 403 ),
+    'another practitioner\'s ticket' => array( array( 'practitioner_id' => 999 ), 403 ),
+    'practitioner-made invite'      => array( array( 'source' => 'practitioner' ), 200 ),
+) as $label => $case ) {
+    $n++;
+    $wpdb = fresh_wpdb( 'paid' );
+    $wpdb->invites[ tok( 1 ) ] = invite_row( array( 'id' => 101, 'token' => tok( 1 ) ) ); // a real ticket exists, but is not the one sent
+    if ( $case[0] ) { $wpdb->invites[ TOKEN ] = invite_row( $case[0] ); }
+    $r = limited_post( lead_params( "case$n@example.test", TOKEN ) );
+    check( "14.$n $label → counted by address as today", $case[1] === status_of( $r ) && 1 === bucket( 'public', 'ip', IP ) && 1 === old_cap() && 1 === bucket( 'ip-backstop', IP ) && 0 === bucket( 'public', 'ticket', 77 ) );
+}
+$wpdb = fresh_wpdb( 'paid' );
+$r = limited_post( lead_params( 'none@example.test' ) );
+check( '14.17 no token → counted by address as today', 403 === status_of( $r ) && 1 === bucket( 'public', 'ip', IP ) && 1 === old_cap() && 1 === bucket( 'ip-backstop', IP ) );
+
+$wpdb = fresh_wpdb( 'paid' );
+$codes = array();
+for ( $i = 0; $i < 6; $i++ ) { $last = limited_post( lead_params( 'x@example.test', tok( 900 + $i ) ) ); $codes[] = status_of( $last ); }
+check( '14.18 six made-up tokens from one address: the sixth is 429 (public, 5 an hour)', array( 403, 403, 403, 403, 403, 429 ) === $codes && 'public' === ( $last->get_data()['tier'] ?? '' ) && 6 === bucket( 'ip-backstop', IP ) );
+$wpdb = fresh_wpdb( 'paid' );
+set_transient( 'hdlv2_lead_' . md5( IP ), 10 );
+$r = limited_post( lead_params( 'x@example.test', tok( 900 ) ) );
+check( '14.19 made-up token with the older cap already full → its 429, as today', $r instanceof WP_Error && 'rate_limited' === code_of( $r ) && 429 === status_of( $r ) );
+
+$wpdb = fresh_wpdb( 'open' );
+$r = limited_post( lead_params( 'open@example.test' ) );
+$h = limiter_headers();
+check( '14.20 open mode, no token: reply and limiter headers unchanged', is_array( $r ) && array_keys( $r ) === array( 'success', 'rate' ) && '5' === ( $h['X-RateLimit-Limit'] ?? '' ) && '4' === ( $h['X-RateLimit-Remaining'] ?? '' ) && 'public' === ( $h['X-RateLimit-Tier'] ?? '' ) && 1 === bucket( 'public', 'ip', IP ) && 1 === old_cap() );
+unset( $_SERVER['REMOTE_ADDR'] );
 
 echo "\nPASS=$PASS FAIL=$FAIL\n";
 exit( $FAIL === 0 ? 0 : 1 );

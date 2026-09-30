@@ -428,22 +428,27 @@ class HDLV2_Widget_Config {
             return new WP_Error( 'invalid_practitioner', 'Submission could not be processed.', array( 'status' => 400 ) );
         }
 
-        // ── Per-IP cap (legacy backstop, lighter than the rate-limit middleware) ──
-        $ip        = sanitize_text_field( $_SERVER['REMOTE_ADDR'] ?? 'unknown' );
-        $transient = 'hdlv2_lead_' . md5( $ip );
-        $count     = (int) get_transient( $transient );
-        if ( $count >= 10 ) {
-            return new WP_Error( 'rate_limited', 'Too many submissions. Please try again later.', array( 'status' => 429 ) );
-        }
-        set_transient( $transient, $count + 1, HOUR_IN_SECONDS );
-
         // Optional invite-token completion — preserves the practitioner-issued
         // direct-link flow. Invite tokens are pre-trusted (the practitioner
         // explicitly created them for a known client) so they SKIP the
         // verification step and fall through to the legacy immediate flow.
         $invite_id    = null;
         $invite_token = isset( $params['invite_token'] ) ? sanitize_text_field( $params['invite_token'] ) : '';
-        $invite       = $invite_token ? $this->get_valid_invite( $invite_token ) : null;
+        $invite       = $invite_token ? self::get_valid_invite( $invite_token ) : null;
+
+        // ── Per-IP cap (legacy backstop, lighter than the rate-limit middleware) ──
+        // v0.47.87 — a confirmed paid ticket is counted per ticket by the
+        // middleware instead, so buyers sharing one address (an office, a
+        // venue) are not held to ten an hour between them.
+        if ( ! self::is_paid_ticket_of( $invite, $practitioner_id ) ) {
+            $ip        = sanitize_text_field( $_SERVER['REMOTE_ADDR'] ?? 'unknown' );
+            $transient = 'hdlv2_lead_' . md5( $ip );
+            $count     = (int) get_transient( $transient );
+            if ( $count >= 10 ) {
+                return new WP_Error( 'rate_limited', 'Too many submissions. Please try again later.', array( 'status' => 429 ) );
+            }
+            set_transient( $transient, $count + 1, HOUR_IN_SECONDS );
+        }
 
         // v0.47.85 — paid mode (widget_config.access_mode). A paid widget
         // takes answers only with a valid invite of THIS practitioner. A paid
@@ -3153,9 +3158,16 @@ class HDLV2_Widget_Config {
      * @param string $token The 64-char hex token.
      * @return object|null The invite row if valid, null otherwise.
      */
-    private function get_valid_invite( $token ) {
-        if ( ! preg_match( '/^[a-f0-9]{64}$/', $token ) ) {
+    private static function get_valid_invite( $token ) {
+        if ( ! is_string( $token ) || ! preg_match( '/^[a-f0-9]{64}$/', $token ) ) {
             return null;
+        }
+
+        // The rate limiter already read this row for this request.
+        if ( self::$limiter_invite && self::$limiter_invite[0] === $token ) {
+            $invite               = self::$limiter_invite[1];
+            self::$limiter_invite = null;
+            return $invite;
         }
 
         global $wpdb;
@@ -3177,6 +3189,31 @@ class HDLV2_Widget_Config {
         }
 
         return $invite;
+    }
+
+    /** array( token, row|null ) read by ticket_for_limiter(), handed once to get_valid_invite(). */
+    private static $limiter_invite = null;
+
+    /** True for a usable paid Stage 1 ticket that belongs to this practitioner. */
+    private static function is_paid_ticket_of( $invite, $practitioner_id ) {
+        return $invite
+            && isset( $invite->source ) && 'paid_stage1' === $invite->source
+            && (int) $invite->practitioner_id === (int) $practitioner_id;
+    }
+
+    /**
+     * For the rate-limit middleware: the paid ticket this answers post
+     * carries, or null when the database does not confirm one (made up,
+     * used, revoked, expired, another practitioner's, or not a paid ticket).
+     * The row is kept for the handler so the request reads it once.
+     */
+    public static function ticket_for_limiter( $token, $practitioner_id ) {
+        self::$limiter_invite = null;
+        $invite               = self::get_valid_invite( $token );
+        if ( is_string( $token ) && '' !== $token ) {
+            self::$limiter_invite = array( $token, $invite );
+        }
+        return self::is_paid_ticket_of( $invite, $practitioner_id ) ? $invite : null;
     }
 
     /**
