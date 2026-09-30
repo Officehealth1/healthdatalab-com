@@ -459,19 +459,15 @@ class HDLV2_Widget_Config {
         $paid_mode   = isset( $config->access_mode ) && 'paid' === $config->access_mode;
         $is_ticket   = $invite && isset( $invite->source ) && 'paid_stage1' === $invite->source;
         $ticket_id   = null;
-        // A repeat of a ticket submission must get the first answer back, and
-        // by then the ticket is used up, so this key cannot depend on it
-        // still being valid.
-        $ticket_dedupe_key = preg_match( '/^[a-f0-9]{64}$/', $invite_token )
-            ? 'hdlv2_lead_dedup_' . md5( $practitioner_id . '|ticket|' . $invite_token )
-            : '';
         if ( $invite && ( $paid_mode || $is_ticket ) && (int) $invite->practitioner_id !== $practitioner_id ) {
             $invite = null;
         }
         if ( $paid_mode && ! $invite ) {
-            $cached = $ticket_dedupe_key ? get_transient( $ticket_dedupe_key ) : false;
-            if ( is_array( $cached ) ) {
-                return rest_ensure_response( $cached );
+            // v0.47.89 — a repeat post of a ticket whose lead is on file gets
+            // the first answer back, however long after the first post.
+            $saved = self::saved_ticket_reply( $invite_token, $practitioner_id );
+            if ( $saved ) {
+                return rest_ensure_response( $saved );
             }
             return new WP_Error(
                 'ticket_required',
@@ -619,8 +615,20 @@ class HDLV2_Widget_Config {
         // v0.47.85 — claim the ticket. One UPDATE that only a pending/opened
         // row can satisfy, so two posts racing on the same ticket cannot both
         // record a lead. Given back below if the lead could not be saved.
-        if ( $ticket_id && ! $this->claim_ticket( $ticket_id ) ) {
-            return new WP_Error( 'ticket_required', 'This personal link has already been used. Your answers were not saved.', array( 'status' => 403 ) );
+        // v0.47.89 — the claim and the lead write share one transaction, so
+        // a worker that dies between them leaves the ticket unused.
+        if ( $ticket_id ) {
+            global $wpdb;
+            $wpdb->query( 'START TRANSACTION' );
+            if ( ! $this->claim_ticket( $ticket_id ) ) {
+                $wpdb->query( 'ROLLBACK' );
+                // Lost to a twin of this same post: answer as the twin did.
+                $saved = self::saved_ticket_reply( $invite_token, $practitioner_id );
+                if ( $saved ) {
+                    return rest_ensure_response( $saved );
+                }
+                return new WP_Error( 'ticket_required', 'This personal link has already been used. Your answers were not saved.', array( 'status' => 403 ) );
+            }
         }
 
         $lead_id = self::record_widget_lead( array(
@@ -636,7 +644,8 @@ class HDLV2_Widget_Config {
         ) );
 
         if ( $ticket_id && ! $lead_id ) {
-            global $wpdb;
+            $wpdb->query( 'ROLLBACK' );
+            // Kept for a table engine without transactions.
             $wpdb->update(
                 $wpdb->prefix . 'hdlv2_widget_invites',
                 array( 'status' => 'opened', 'completed_at' => null ),
@@ -644,6 +653,9 @@ class HDLV2_Widget_Config {
             );
             error_log( '[HDLV2 paid-stage1] lead not saved for ticket ' . $ticket_id . ' — ticket released.' );
             return new WP_Error( 'lead_not_saved', 'We could not save your answers. Please try again in a moment; your personal link still works.', array( 'status' => 500 ) );
+        }
+        if ( $ticket_id ) {
+            $wpdb->query( 'COMMIT' );
         }
 
         // ── Front-door safety screen (v0.45.0) — fire flag emails at PUBLIC
@@ -728,9 +740,6 @@ class HDLV2_Widget_Config {
             'rate'    => $rate,
         );
         set_transient( $dedupe_key, $public_response, 60 );
-        if ( $ticket_id ) {
-            set_transient( $ticket_dedupe_key, $public_response, 60 );
-        }
         return rest_ensure_response( $public_response );
     }
 
@@ -3214,6 +3223,36 @@ class HDLV2_Widget_Config {
             self::$limiter_invite = array( $token, $invite );
         }
         return self::is_paid_ticket_of( $invite, $practitioner_id ) ? $invite : null;
+    }
+
+    /**
+     * The answer for a repeat post of a used paid Stage 1 ticket: the success
+     * body when the lead that ticket bought is on file, else null. Read from
+     * the database, so it holds while the first post is still sending its
+     * PDF and for as long as the lead exists.
+     */
+    private static function saved_ticket_reply( $token, $practitioner_id ) {
+        if ( ! is_string( $token ) || ! preg_match( '/^[a-f0-9]{64}$/', $token ) ) {
+            return null;
+        }
+        global $wpdb;
+        $lead = $wpdb->get_row( $wpdb->prepare(
+            "SELECT l.rate_of_ageing
+             FROM {$wpdb->prefix}hdlv2_widget_invites i
+             JOIN {$wpdb->prefix}hdlv2_widget_leads l
+               ON l.invite_id = i.id AND l.practitioner_user_id = i.practitioner_id
+             WHERE i.token = %s AND i.practitioner_id = %d
+               AND i.source = 'paid_stage1' AND i.status = 'completed'
+             LIMIT 1",
+            $token, (int) $practitioner_id
+        ) );
+        if ( ! $lead ) {
+            return null;
+        }
+        return array(
+            'success' => true,
+            'rate'    => null === $lead->rate_of_ageing ? null : (float) $lead->rate_of_ageing,
+        );
     }
 
     /**

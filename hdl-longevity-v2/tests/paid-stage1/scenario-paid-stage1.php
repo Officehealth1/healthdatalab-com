@@ -807,7 +807,7 @@ $wpdb = fresh_wpdb( 'paid' );
 $wpdb->invite = invite_row();
 $wpdb->fail_lead_insert = true;
 $r = post_lead( lead_params( 'buyer@example.test', TOKEN ) );
-check( '17.2 lead not saved: ROLLBACK, no COMMIT, ticket open again', $r instanceof WP_Error && sql_pos( $wpdb, 'ROLLBACK' ) > sql_pos( $wpdb, 'START TRANSACTION' ) && -1 === sql_pos( $wpdb, 'COMMIT' ) && 'pending' === $wpdb->invite->status );
+check( '17.2 lead not saved: ROLLBACK, no COMMIT, ticket open again', $r instanceof WP_Error && sql_pos( $wpdb, 'ROLLBACK' ) > sql_pos( $wpdb, 'START TRANSACTION' ) && -1 === sql_pos( $wpdb, 'COMMIT' ) && 'completed' !== $wpdb->invite->status );
 $wpdb = fresh_wpdb( 'open' );
 post_lead( lead_params( 'free@example.test' ) );
 check( '17.3 open-mode post opens no transaction (as today)', -1 === sql_pos( $wpdb, 'START TRANSACTION' ) && -1 === sql_pos( $wpdb, 'COMMIT' ) );

@@ -117,9 +117,13 @@ class HDLV2_Rate_Limit_Middleware {
             //    counted per ticket, same limit, so buyers behind one shared
             //    address do not use up each other's five. Anything else,
             //    a made-up or used token included, stays per-IP.
+            //    v0.47.89 — read from the JSON body only, as the handler
+            //    does: a ticket in the query string is never used up, so it
+            //    must not earn the per-ticket count.
             if ( $tier === HDLV2_Rate_Limit_Policy::TIER_PUBLIC ) {
-                $ticket = ( 'POST' === $method && '/hdl-v2/v1/widget/lead' === $route )
-                    ? HDLV2_Widget_Config::ticket_for_limiter( $request->get_param( 'invite_token' ), absint( $request->get_param( 'practitioner_id' ) ) )
+                $body   = ( 'POST' === $method && '/hdl-v2/v1/widget/lead' === $route ) ? $request->get_json_params() : null;
+                $ticket = is_array( $body )
+                    ? HDLV2_Widget_Config::ticket_for_limiter( $body['invite_token'] ?? '', absint( $body['practitioner_id'] ?? 0 ) )
                     : null;
                 $who = $ticket ? array( 'ticket', (int) $ticket->id ) : array( 'ip', $ip );
                 $bk  = HDLV2_Rate_Limiter::bucket_key( array_merge( array( $tier ), $who ) );

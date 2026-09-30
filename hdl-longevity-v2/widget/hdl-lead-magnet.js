@@ -508,16 +508,28 @@
   }
 
   // What to tell someone whose answers did not reach the server. Pure.
-  function notSaved(body, hasLink) {
+  // status is the reply's HTTP status, 0 when the request itself failed.
+  // Send again is offered only where the same answers can get through on a
+  // second try (a limit, a server fault, the network), never for a refusal
+  // of the answers themselves.
+  function notSaved(body, hasLink, status) {
     body = body || {};
     if (body.code === 'ticket_required') {
       return { head: 'Your personal link did not work', msg: body.message || 'Your answers were not saved.', again: false };
+    }
+    if (status && status !== 429 && status < 500) {
+      return {
+        head: 'Your answers were not saved',
+        msg: (body.message || 'These answers could not be accepted.')
+          + (hasLink ? ' Please open your personal link again and enter your details again.' : ' Please reload this page and enter your details again.'),
+        again: false
+      };
     }
     var mins = body.retry_after ? Math.ceil(body.retry_after / 60) : 0;
     var msg = mins
       ? 'Too many answers have come from your network in the last hour. Please send again in ' + mins + (mins === 1 ? ' minute.' : ' minutes.')
       : (body.message || 'We could not reach the server. Check your connection, then send again.');
-    if (hasLink) msg += ' Your personal link still works.';
+    if (hasLink && !/link still works/i.test(msg)) msg += ' Your personal link still works.';
     return { head: 'Your answers are not saved yet', msg: msg + ' Keep this page open.', again: true };
   }
 
@@ -1691,8 +1703,8 @@
         var thanks = document.getElementById(id + '-thanks');
         if (thanks) thanks.hidden = false;
       }
-      function failed(body) {
-        var n = notSaved(body, !!inviteToken);
+      function failed(body, status) {
+        var n = notSaved(body, !!inviteToken, status);
         statusEl.innerHTML = '<div class="hdlw-r-notsaved"><strong>' + n.head + '</strong>' + escapeHtml(n.msg)
           + (n.again ? '<div><button type="button" class="hdlw-r-again">Send again</button></div>' : '')
           + '</div>';
@@ -1709,13 +1721,13 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
         })
-          .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, body: j }; }); })
+          .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, status: r.status, body: j }; }); })
           .then(function (res) {
             if (!statusEl) return;
-            if (!res.ok || !res.body || res.body.code) { failed(res.body); return; }
+            if (!res.ok || !res.body || res.body.code) { failed(res.body, res.status); return; }
             saved(res.body);
           })
-          .catch(function () { if (statusEl) failed(null); });
+          .catch(function () { if (statusEl) failed(null, 0); });
       }
       if (cfg.apiUrl) {
         send();
