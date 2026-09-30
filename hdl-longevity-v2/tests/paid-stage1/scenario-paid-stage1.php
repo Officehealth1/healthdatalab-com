@@ -202,7 +202,11 @@ class FakeWpdb {
         }
         return null;
     }
-    public function get_var( $sql ) { $this->queries[] = $sql; return null; }
+    public $existing_lead_id = null; // a lead already on file for this practitioner + email
+    public function get_var( $sql ) {
+        $this->queries[] = $sql;
+        return strpos( $sql, 'hdlv2_widget_leads' ) !== false ? $this->existing_lead_id : null;
+    }
     public function get_results( $sql ) { $this->queries[] = $sql; return array(); }
     public function insert( $table, $data, $format = null ) {
         $this->last_error = '';
@@ -374,6 +378,18 @@ $wpdb = fresh_wpdb( 'open' ); // practitioner switched back to open with tickets
 $wpdb->invite = invite_row();
 $r    = post_lead( lead_params( 'buyer@example.test', TOKEN ) );
 check( '3.8 paid ticket in open mode still takes the public path and is used up', is_array( $r ) && ! array_key_exists( 'form_token', $r ) && 'completed' === $wpdb->invite->status && count( $wpdb->inserts_into( 'hdlv2_form_progress' ) ) === 0 );
+
+$wpdb = fresh_wpdb( 'paid' );
+$wpdb->invite = invite_row();
+$wpdb->existing_lead_id = 321; // this email sent a free report earlier
+$r    = post_lead( lead_params( 'buyer@example.test', TOKEN ) );
+$upd  = array_values( array_filter( $wpdb->updates, function ( $u ) { return isset( $u['data']['stage1_data'] ) && isset( $u['data']['visitor_name'] ); } ) );
+check( '3.9 returning email: lead row updated with invite_id', is_array( $r ) && count( $upd ) === 1 && (int) ( $upd[0]['data']['invite_id'] ?? 0 ) === 77 );
+check( '3.10 …and a rejected row goes back to pending (only a rejected one)', count( $wpdb->sql_matching( "SET status = 'pending', rejected_at = NULL WHERE id = 321 AND status = 'rejected'" ) ) === 1 );
+$wpdb = fresh_wpdb( 'open' );
+$wpdb->existing_lead_id = 321;
+post_lead( lead_params( 'free@example.test' ) );
+check( '3.11 open-mode resubmission never touches status (as today)', count( $wpdb->sql_matching( "SET status = 'pending'" ) ) === 0 );
 
 echo "── 4. paid mode, unusable tickets: refused ──\n";
 $bad = array(

@@ -432,7 +432,8 @@ class HDLV2_Client_Status {
                  SET status = 'revoked'
                  WHERE practitioner_id = %d
                    AND LOWER(client_email) = %s
-                   AND status IN ('pending','opened')",
+                   AND status IN ('pending','opened')
+                   AND source <> 'paid_stage1'",
                 $practitioner_id, $client_email
             ) );
         }

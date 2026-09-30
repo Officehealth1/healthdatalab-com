@@ -443,12 +443,42 @@ class HDLV2_Widget_Config {
         // verification step and fall through to the legacy immediate flow.
         $invite_id    = null;
         $invite_token = isset( $params['invite_token'] ) ? sanitize_text_field( $params['invite_token'] ) : '';
-        if ( $invite_token ) {
-            $invite = $this->get_valid_invite( $invite_token );
-            if ( $invite ) {
-                $invite_id = (int) $invite->id;
-                $this->complete_invite( $invite_id );
+        $invite       = $invite_token ? $this->get_valid_invite( $invite_token ) : null;
+
+        // v0.47.85 — paid mode (widget_config.access_mode). A paid widget
+        // takes answers only with a valid invite of THIS practitioner. A paid
+        // Stage 1 ticket (source 'paid_stage1') is one such invite, but it
+        // buys the PUBLIC path: pending lead, PDF, practitioner Confirm. It
+        // never takes the fast path below, and it is claimed only once the
+        // submission has passed validation (see "claim the ticket").
+        $paid_mode   = isset( $config->access_mode ) && 'paid' === $config->access_mode;
+        $is_ticket   = $invite && isset( $invite->source ) && 'paid_stage1' === $invite->source;
+        $ticket_id   = null;
+        // A repeat of a ticket submission must get the first answer back, and
+        // by then the ticket is used up, so this key cannot depend on it
+        // still being valid.
+        $ticket_dedupe_key = preg_match( '/^[a-f0-9]{64}$/', $invite_token )
+            ? 'hdlv2_lead_dedup_' . md5( $practitioner_id . '|ticket|' . $invite_token )
+            : '';
+        if ( $invite && ( $paid_mode || $is_ticket ) && (int) $invite->practitioner_id !== $practitioner_id ) {
+            $invite = null;
+        }
+        if ( $paid_mode && ! $invite ) {
+            $cached = $ticket_dedupe_key ? get_transient( $ticket_dedupe_key ) : false;
+            if ( is_array( $cached ) ) {
+                return rest_ensure_response( $cached );
             }
+            return new WP_Error(
+                'ticket_required',
+                'This report needs a personal link, and this one is missing, already used or out of date. Your answers were not saved.',
+                array( 'status' => 403 )
+            );
+        }
+        if ( $invite && $is_ticket ) {
+            $ticket_id = (int) $invite->id;
+        } elseif ( $invite ) {
+            $invite_id = (int) $invite->id;
+            $this->complete_invite( $invite_id );
         }
 
         // Extract lead fields (V2: 9-question format)
@@ -581,6 +611,13 @@ class HDLV2_Widget_Config {
         // legitimate workflows. It's never used as an auth token because
         // there's no form_progress row keyed on it — the post-Confirm magic
         // link uses a real token instead.
+        // v0.47.85 — claim the ticket. One UPDATE that only a pending/opened
+        // row can satisfy, so two posts racing on the same ticket cannot both
+        // record a lead. Given back below if the lead could not be saved.
+        if ( $ticket_id && ! $this->claim_ticket( $ticket_id ) ) {
+            return new WP_Error( 'ticket_required', 'This personal link has already been used. Your answers were not saved.', array( 'status' => 403 ) );
+        }
+
         $lead_id = self::record_widget_lead( array(
             'practitioner_id' => $practitioner_id,
             'visitor_name'    => $visitor_name,
@@ -590,7 +627,19 @@ class HDLV2_Widget_Config {
             'stage1_data'     => $stage1_data,
             'visitor_country' => $visitor_loc['country'],
             'visitor_region'  => $visitor_loc['region'],
+            'invite_id'       => $ticket_id,
         ) );
+
+        if ( $ticket_id && ! $lead_id ) {
+            global $wpdb;
+            $wpdb->update(
+                $wpdb->prefix . 'hdlv2_widget_invites',
+                array( 'status' => 'opened', 'completed_at' => null ),
+                array( 'id' => $ticket_id )
+            );
+            error_log( '[HDLV2 paid-stage1] lead not saved for ticket ' . $ticket_id . ' — ticket released.' );
+            return new WP_Error( 'lead_not_saved', 'We could not save your answers. Please try again in a moment; your personal link still works.', array( 'status' => 500 ) );
+        }
 
         // ── Front-door safety screen (v0.45.0) — fire flag emails at PUBLIC
         // submit. The public path defers complete_signup() (and the safety
@@ -674,6 +723,9 @@ class HDLV2_Widget_Config {
             'rate'    => $rate,
         );
         set_transient( $dedupe_key, $public_response, 60 );
+        if ( $ticket_id ) {
+            set_transient( $ticket_dedupe_key, $public_response, 60 );
+        }
         return rest_ensure_response( $public_response );
     }
 
@@ -720,6 +772,10 @@ class HDLV2_Widget_Config {
             $common['visitor_country'] = (string) $args['visitor_country'];
             $common['visitor_region']  = (string) ( $args['visitor_region'] ?? '' );
         }
+        // v0.47.85 — the paid Stage 1 ticket this submission used, if any.
+        if ( ! empty( $args['invite_id'] ) ) {
+            $common['invite_id'] = (int) $args['invite_id'];
+        }
 
         $existing_id = (int) $wpdb->get_var( $wpdb->prepare(
             "SELECT id FROM $table WHERE practitioner_user_id = %d AND visitor_email = %s ORDER BY id DESC LIMIT 1",
@@ -740,6 +796,15 @@ class HDLV2_Widget_Config {
             if ( false === $ok && isset( $update_row['visitor_country'] ) ) {
                 unset( $update_row['visitor_country'], $update_row['visitor_region'] );
                 $wpdb->update( $table, $update_row, array( 'id' => $existing_id ) );
+            }
+            // v0.47.85 — a paid submission must reach the practitioner's
+            // Pending Leads even if an earlier free one from this email was
+            // rejected. A confirmed row stays confirmed (already a client).
+            if ( ! empty( $args['invite_id'] ) ) {
+                $wpdb->query( $wpdb->prepare(
+                    "UPDATE $table SET status = 'pending', rejected_at = NULL WHERE id = %d AND status = 'rejected'",
+                    $existing_id
+                ) );
             }
             return $existing_id;
         }
@@ -2685,6 +2750,9 @@ class HDLV2_Widget_Config {
             'safety_screen_enabled'          => (bool) get_option( 'hdlv2_ff_safety_screen', false ),
             'api_url'                        => rest_url( 'hdl-v2/v1/widget/lead' ),
             'prefill_stage1'                 => $prefill,
+            // v0.47.85 — 'paid_stage1' tells the widget this link buys the
+            // public path (no "Continue to Stage 2").
+            'source'                         => isset( $invite->source ) ? (string) $invite->source : 'practitioner',
         ) );
     }
 
@@ -2709,7 +2777,7 @@ class HDLV2_Widget_Config {
         $invites = $wpdb->get_results( $wpdb->prepare(
             "SELECT id, client_name, client_email, status, token, expires_at, created_at, opened_at, completed_at
              FROM {$wpdb->prefix}hdlv2_widget_invites
-             WHERE practitioner_id = %d
+             WHERE practitioner_id = %d AND source <> 'paid_stage1'
              ORDER BY created_at DESC
              LIMIT 100",
             $user_id
@@ -3006,7 +3074,7 @@ class HDLV2_Widget_Config {
         $invites = $wpdb->get_results( $wpdb->prepare(
             "SELECT id, client_name, client_email, status, token, expires_at, created_at, opened_at, completed_at
              FROM {$wpdb->prefix}hdlv2_widget_invites
-             WHERE practitioner_id = %d
+             WHERE practitioner_id = %d AND source <> 'paid_stage1'
              ORDER BY created_at DESC
              LIMIT 100",
             $user_id
@@ -3053,7 +3121,8 @@ class HDLV2_Widget_Config {
         global $wpdb;
         $deleted = $wpdb->query( $wpdb->prepare(
             "DELETE FROM {$wpdb->prefix}hdlv2_widget_invites
-             WHERE id = %d AND practitioner_id = %d AND status IN ('expired','revoked','completed')",
+             WHERE id = %d AND practitioner_id = %d AND status IN ('expired','revoked','completed')
+               AND source <> 'paid_stage1'",
             $invite_id,
             $user_id
         ) );
@@ -3120,6 +3189,21 @@ class HDLV2_Widget_Config {
             array( '%s', '%s' ),
             array( '%d' )
         );
+    }
+
+    /**
+     * Take a paid Stage 1 ticket. True only for the one caller whose UPDATE
+     * found the row still pending/opened.
+     */
+    private function claim_ticket( $invite_id ) {
+        global $wpdb;
+        return 1 === (int) $wpdb->query( $wpdb->prepare(
+            "UPDATE {$wpdb->prefix}hdlv2_widget_invites
+             SET status = 'completed', completed_at = %s
+             WHERE id = %d AND status IN ('pending','opened')",
+            current_time( 'mysql' ),
+            $invite_id
+        ) );
     }
 
     // ──────────────────────────────────────────────────────────────

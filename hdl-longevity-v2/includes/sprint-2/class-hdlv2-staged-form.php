@@ -619,7 +619,8 @@ class HDLV2_Staged_Form {
                  SET status = 'completed', completed_at = %s
                  WHERE client_email = %s
                    AND practitioner_id = %d
-                   AND status = 'opened'",
+                   AND status = 'opened'
+                   AND source <> 'paid_stage1'",
                 current_time( 'mysql' ),
                 $progress->client_email,
                 (int) $progress->practitioner_user_id

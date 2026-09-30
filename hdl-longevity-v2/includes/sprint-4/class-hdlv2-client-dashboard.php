@@ -159,7 +159,7 @@ class HDLV2_Client_Dashboard {
         if ( $email !== '' ) {
             $has_invite = (int) $wpdb->get_var( $wpdb->prepare(
                 "SELECT 1 FROM {$wpdb->prefix}hdlv2_widget_invites
-                 WHERE client_email = %s LIMIT 1",
+                 WHERE client_email = %s AND source <> 'paid_stage1' LIMIT 1",
                 $email
             ) );
         }
@@ -2084,6 +2084,7 @@ class HDLV2_Client_Dashboard {
             $invite = $wpdb->get_row( $wpdb->prepare(
                 "SELECT token FROM {$wpdb->prefix}hdlv2_widget_invites
                  WHERE client_email = %s AND status IN ('pending','opened')
+                   AND source <> 'paid_stage1'
                    AND expires_at > %s
                  ORDER BY id DESC LIMIT 1",
                 $email, $now
