@@ -105,6 +105,12 @@ add_action( 'init', function () {
                 ''
             );
         }
+        // v0.47.85 — a paid Stage 1 ticket opens the widget's questions and
+        // nothing else: no account, no login. The widget on the page checks
+        // the ticket itself.
+        if ( isset( $invite->source ) && 'paid_stage1' === $invite->source ) {
+            return;
+        }
         // v0.47.53 (B4) — fail CLOSED: an invite with no expiry (legacy row;
         // schema is NOT NULL so only zero-dates/garbage) is treated as
         // expired, not as valid forever. ' UTC' suffix because expires_at is
@@ -789,6 +795,9 @@ final class HDL_Longevity_V2 {
         // pipeline (token, widget invite pre-fill, magic link) is V2-owned.
         // Dark behind hdlv2_automation_tier_enabled feature flag.
         require_once HDLV2_PLUGIN_DIR . 'includes/security/class-hdl-paid-report-provisioner.php';
+        // v0.47.85 — keyed route that mints paid Stage 1 widget tickets.
+        // Dark (503) until HDL_STAGE1_TICKET_KEY is defined in wp-config.
+        require_once HDLV2_PLUGIN_DIR . 'includes/security/class-hdl-stage1-ticket.php';
 
         // Sprint 1: Lead Magnet Widget
         require_once HDLV2_PLUGIN_DIR . 'includes/sprint-1/class-hdlv2-widget-config.php';
@@ -896,6 +905,7 @@ final class HDL_Longevity_V2 {
         // automation tier). Dark behind hdlv2_automation_tier_enabled
         // flag; with flag false every request returns 503.
         HDL_Paid_Report_Provisioner::get_instance()->register_hooks();
+        HDL_Stage1_Ticket::register_hooks();
 
         // Sprint 1: Widget config dashboard + REST API + shortcode
         $widget_config = new HDLV2_Widget_Config();
