@@ -69,6 +69,10 @@
     return Math.max(1, Math.min(5, 3.0 + (raw - expected)));
   }
 
+  // ponytail: the rate is worked out here, in the browser, so paid mode
+  // (v0.47.85) protects the report, the lead and the practitioner's review,
+  // not this arithmetic. Move compute() behind the ticket check only if that
+  // is ever shown to matter.
   function compute(answers) {
     var age = Math.max(1, parseInt(answers.q1_age, 10) || 0);
 
@@ -416,6 +420,12 @@
       + '.hdlw-error-eyebrow{font-family:' + B.body + ';font-size:10px;color:#dc2626;letter-spacing:0.18em;text-transform:uppercase;font-weight:600;margin:0 0 10px;}'
       + '.hdlw-error-title{font-family:' + B.serif + ';margin:0 0 8px;font-size:22px;font-weight:600;color:var(--hdl-accent-deep,#004F59);letter-spacing:-0.01em;line-height:1.15;}'
       + '.hdlw-error-msg{font-family:' + B.body + ';font-size:13.5px;color:' + B.text + ';margin:0;line-height:1.55;}'
+      // ----- v0.47.85 paid-mode locked panel (reuses the error card) -----
+      + '.hdlw-locked .hdlw-logo{margin:0 auto 18px;}'
+      + '.hdlw-locked .hdlw-error-eyebrow{color:var(--hdl-accent,#3d8da0);}'
+      + '.hdlw-buy{display:inline-block;margin-top:22px;padding:12px 28px;background:#004F59;color:#fff;border:1px solid #004F59;border-radius:999px;font-family:' + B.body + ';font-size:14px;font-weight:600;text-decoration:none;transition:background .15s ease;}'
+      + '.hdlw-buy:hover{background:#003a42;border-color:#003a42;}'
+      + '.hdlw-buy:focus-visible{outline:2px solid var(--hdl-accent,#3d8da0);outline-offset:3px;}'
       // ----- Result-page logo override -----
       // The renderResult inline block emits .hdlw-r-prac-foot-logo as a 42px
       // circle (object-fit:cover) which crops wordmarks. v0.36.0 retires
@@ -462,16 +472,74 @@
       + '</div></div>';
   }
 
-  function showInviteError(el, reason) {
+  // paid (v0.47.85): the page sells the report, so say plainly what happened
+  // to the link and offer the way to get a new one.
+  function showInviteError(el, reason, paid, publicCfg) {
     loadFonts();
     injectEditorialStyles();
     var title = reason === 'expired' ? 'This link has expired' : reason === 'completed' ? 'Assessment already completed' : 'Invalid link';
     var msg   = reason === 'expired' ? 'Please contact your practitioner for a new assessment link.' : reason === 'completed' ? 'This assessment link has already been used.' : 'This assessment link is not valid.';
+    if (paid) {
+      title = reason === 'expired' ? 'This link has run out' : reason === 'completed' ? 'This link has already been used' : 'This link is not valid';
+      msg   = reason === 'expired' ? 'A personal link works for a limited time and this one is past its date. To take the report, buy a new one.'
+            : reason === 'completed' ? 'A personal link opens the report once, and this one has been used. To take it again, buy a new one.'
+            : 'Check that you opened the whole link from your email. If it still does not work, you can buy the report here.';
+    }
     el.innerHTML = '<div class="hdlw-shell"><div class="hdlw-error-card">'
       + '<p class="hdlw-error-eyebrow">Assessment link</p>'
       + '<h3 class="hdlw-error-title">' + title + '</h3>'
       + '<p class="hdlw-error-msg">' + msg + '</p>'
+      + (paid ? buyLink(el, publicCfg) : '')
       + '</div></div>';
+  }
+
+  // ---------- PAID MODE (v0.47.85) ----------
+
+  // Which screen a widget shows. Pure, so the test suite can run it as is.
+  function accessScreen(hasToken, verify, paidAttr, publicCfg) {
+    if (hasToken) return (verify && verify.valid) ? 'questions' : 'error';
+    if (paidAttr || (publicCfg && publicCfg.access_mode === 'paid')) return 'locked';
+    return 'questions';
+  }
+
+  // The Buy button is only ever drawn for an https: address.
+  function safeBuyUrl(url) {
+    return (typeof url === 'string' && /^https:\/\//i.test(url)) ? url : '';
+  }
+
+  function buyLink(el, publicCfg) {
+    var url = safeBuyUrl((publicCfg && publicCfg.buy_url) || el.getAttribute('data-buy-url') || '');
+    return url ? '<a class="hdlw-buy" href="' + escHtml(url) + '">Buy the report</a>' : '';
+  }
+
+  // A visitor without a personal link sees this instead of the questions.
+  // Drawn from the embed's own attributes (or the public-config answer the
+  // caller already holds), so it asks the server nothing.
+  function showLocked(el, publicCfg) {
+    loadFonts();
+    injectEditorialStyles();
+    var cfg = publicCfg || {};
+    var logo = cfg.logo_url || el.getAttribute('data-logo') || '';
+    var shape = cfg.logo_shape || el.getAttribute('data-logo-shape') || 'square';
+    if (shape !== 'square' && shape !== 'wordmark' && shape !== 'tall') shape = 'square';
+    var name = cfg.practitioner_name || el.getAttribute('data-practitioner-name') || 'your practitioner';
+    try { el.style.setProperty('--hdl-accent', cfg.theme_color || el.getAttribute('data-color') || B.teal); } catch (e) { /* no-op */ }
+    el.innerHTML = '<div class="hdlw-shell"><div class="hdlw-error-card hdlw-locked">'
+      + (logo ? '<div class="hdlw-logo" data-shape="' + shape + '"><img src="' + escHtml(logo) + '" alt=""></div>' : '')
+      + '<p class="hdlw-error-eyebrow">Rate of ageing report</p>'
+      + '<h3 class="hdlw-error-title">This report opens with a personal link</h3>'
+      + '<p class="hdlw-error-msg">When you buy the report from ' + escHtml(name) + ', your link arrives by email. Open it and the questions start on this page.</p>'
+      + buyLink(el, publicCfg)
+      + '</div></div>';
+  }
+
+  // An invite link that did not verify. Old embeds carry no data-access, so
+  // ask public-config whether this page sells the report.
+  function inviteFailed(el, reason) {
+    if (el.getAttribute('data-access') === 'paid') { showInviteError(el, reason, true, null); return; }
+    pullPublicConfig(el, function (publicCfg) {
+      showInviteError(el, reason, !!publicCfg && publicCfg.access_mode === 'paid', publicCfg);
+    });
   }
 
   // ---------- WIDGET BUILDER ----------
@@ -541,6 +609,10 @@
       inviteName = invite.client_name || '';
       inviteEmail = invite.client_email || '';
     }
+    // v0.47.85 — a paid Stage 1 ticket is an invite that buys the PUBLIC
+    // path: the token rides with the answers, but the result page is the
+    // public one (no "Continue to Stage 2").
+    var fastInvite = !!inviteToken && invite.source !== 'paid_stage1';
     // Defensive — legacy practitioners without a logo_shape on file land
     // on 'square' (centred circle). Any unknown value also falls through
     // to 'square' so the CSS always finds a matching rule.
@@ -1281,7 +1353,7 @@
       //     will feel difficult"). Practitioners who want a single Calendly
       //     CTA on their embed can flip the toggle in Widget Settings.
       var showBookOnPublic = !!cfg.showBookOnPublic;
-      var showBook = hasCtaLink && (!!inviteToken || showBookOnPublic);
+      var showBook = hasCtaLink && (fastInvite || showBookOnPublic);
       var bookSessionBtn = showBook
         ? '<a class="hdlw-r-btn-secondary" href="' + cfg.ctaLink + '" target="_blank" rel="noopener">' + escapeHtml(cfg.ctaText) + '</a>'
         : '';
@@ -1461,7 +1533,7 @@
         //   intentional: it forces the practitioner-confirm gate that
         //   keeps the dashboard spam-free.
         +     '<div class="hdlw-r-card">'
-        +       ( inviteToken
+        +       ( fastInvite
             ? ''
             +   '<h2>What Happens Next</h2>'
             +   '<p class="hdlw-r-lede">Your gauge is a snapshot. The next two stages turn it into a plan.</p>'
@@ -1567,9 +1639,13 @@
               var msg = (res.body && res.body.message)
                 ? res.body.message
                 : 'Something went wrong saving your submission. Please try again in a moment.';
+              // v0.47.85 — paid widget refused the answers (ticket_required).
+              var head = (res.body && res.body.code === 'ticket_required')
+                ? 'Your personal link did not work'
+                : 'We couldn\u2019t send your verification email';
               contEl.innerHTML = ''
                 + '<div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:10px;padding:14px 16px;text-align:left;color:#9a3412;font-size:13px;line-height:1.5;">'
-                + '<strong style="display:block;margin-bottom:4px;">We couldn\u2019t send your verification email</strong>'
+                + '<strong style="display:block;margin-bottom:4px;">' + head + '</strong>'
                 + msg
                 + '</div>';
               return;
@@ -1735,15 +1811,18 @@
     var inviteToken = getInviteToken();
     var widgets = document.querySelectorAll('.hdl-rate-widget');
 
-    // v0.47.83 — kick the geo lookup as soon as a widget exists on the page
-    // so the result is ready long before the visitor reaches submit.
-    if (widgets.length) prefetchGeo();
+    // v0.47.85 — a widget locked by its own data-access attribute makes no
+    // request at all, so the geo lookup waits until a widget needs it.
+    var needsGeo = false;
 
     for (var i = 0; i < widgets.length; i++) {
       if (widgets[i].getAttribute('data-hdl-init')) continue;
       widgets[i].setAttribute('data-hdl-init', '1');
 
+      var paidAttr = widgets[i].getAttribute('data-access') === 'paid';
+
       if (inviteToken && i === 0) {
+        needsGeo = true;
         (function (el, token) {
           showSpinner(el);
           var verifyUrl = el.getAttribute('data-verify-api') || '';
@@ -1751,26 +1830,35 @@
             var apiUrl = el.getAttribute('data-api') || '';
             verifyUrl = apiUrl ? apiUrl.replace('/widget/lead', '/widget/verify-invite') : '';
           }
-          if (!verifyUrl) { showInviteError(el, 'invalid'); return; }
+          if (!verifyUrl) { inviteFailed(el, 'invalid'); return; }
 
           fetch(verifyUrl + '?token=' + encodeURIComponent(token))
             .then(function (r) { return r.json(); })
             .then(function (data) {
-              if (data.valid) { data._token = token; buildWidget(el, data); }
-              else { showInviteError(el, data.reason || 'invalid'); }
+              if (accessScreen(true, data, false, null) === 'questions') { data._token = token; buildWidget(el, data); }
+              else { inviteFailed(el, (data && data.reason) || 'invalid'); }
             })
-            .catch(function () { showInviteError(el, 'invalid'); });
+            .catch(function () { inviteFailed(el, 'invalid'); });
         })(widgets[i], inviteToken);
+      } else if (accessScreen(false, null, paidAttr, null) === 'locked') {
+        showLocked(widgets[i], null);
       } else {
+        needsGeo = true;
         // Public path — fetch fresh config before render, fall back to
         // embed's data-* attributes on timeout/error.
         (function (el) {
           pullPublicConfig(el, function (publicCfg) {
+            // Embeds pasted before data-access existed learn it here.
+            if (accessScreen(false, null, false, publicCfg) === 'locked') { showLocked(el, publicCfg); return; }
             buildWidget(el, null, publicCfg);
           });
         })(widgets[i]);
       }
     }
+
+    // v0.47.83 — kick the geo lookup early so the result is ready long
+    // before the visitor reaches submit.
+    if (needsGeo) prefetchGeo();
   }
 
   if (document.readyState === 'loading') {
