@@ -496,10 +496,42 @@
   // ---------- PAID MODE (v0.47.85) ----------
 
   // Which screen a widget shows. Pure, so the test suite can run it as is.
+  // 'retry' = the link check itself did not answer (a limit, the network):
+  // that says nothing about the link, so it must never read as a bad one.
   function accessScreen(hasToken, verify, paidAttr, publicCfg) {
-    if (hasToken) return (verify && verify.valid) ? 'questions' : 'error';
+    if (hasToken) {
+      if (!verify || verify.code) return 'retry';
+      return verify.valid ? 'questions' : 'error';
+    }
     if (paidAttr || (publicCfg && publicCfg.access_mode === 'paid')) return 'locked';
     return 'questions';
+  }
+
+  // What to tell someone whose answers did not reach the server. Pure.
+  function notSaved(body, hasLink) {
+    body = body || {};
+    if (body.code === 'ticket_required') {
+      return { head: 'Your personal link did not work', msg: body.message || 'Your answers were not saved.', again: false };
+    }
+    var mins = body.retry_after ? Math.ceil(body.retry_after / 60) : 0;
+    var msg = mins
+      ? 'Too many answers have come from your network in the last hour. Please send again in ' + mins + (mins === 1 ? ' minute.' : ' minutes.')
+      : (body.message || 'We could not reach the server. Check your connection, then send again.');
+    if (hasLink) msg += ' Your personal link still works.';
+    return { head: 'Your answers are not saved yet', msg: msg + ' Keep this page open.', again: true };
+  }
+
+  // The link check was stopped by a limit or the network. No Buy here: the
+  // link may be perfectly good.
+  function showLinkRetry(el) {
+    loadFonts();
+    injectEditorialStyles();
+    el.innerHTML = '<div class="hdlw-shell"><div class="hdlw-error-card hdlw-locked">'
+      + '<p class="hdlw-error-eyebrow">Assessment link</p>'
+      + '<h3 class="hdlw-error-title">We could not check your link just now</h3>'
+      + '<p class="hdlw-error-msg">Nothing is wrong with your link. Please try again shortly.</p>'
+      + '<a class="hdlw-buy" href="' + escHtml(window.location.href) + '">Try again</a>'
+      + '</div></div>';
   }
 
   // The Buy button is only ever drawn for an https: address.
@@ -1404,6 +1436,13 @@
         + '.hdlw-r-next-list li{counter-increment:step;position:relative;padding:14px 14px 14px 56px;font-size:14px;color:#555;line-height:1.5;background:#fafbfc;border:1px solid #e4e6ea;border-radius:10px;margin:0 0 8px;}'
         + '.hdlw-r-next-list li::before{content:counter(step);position:absolute;left:14px;top:50%;transform:translateY(-50%);width:28px;height:28px;border-radius:50%;background:#3d8da0;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;}'
         + '.hdlw-r-next-list li strong{color:#111;font-weight:600;}'
+        + '.hdlw-r-status{font-size:13px;color:#888;font-style:italic;}'
+        + '.hdlw-r-notsaved{background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:14px 16px;text-align:left;color:#92400e;font-size:13.5px;line-height:1.5;font-style:normal;}'
+        + '.hdlw-r-notsaved strong{display:block;margin-bottom:4px;}'
+        + '.hdlw-r-again{margin-top:12px;padding:10px 22px;background:#004F59;color:#fff;border:1px solid #004F59;border-radius:999px;font-family:inherit;font-size:13.5px;font-weight:600;cursor:pointer;}'
+        + '.hdlw-r-again:hover{background:#003a42;}'
+        + '.hdlw-r-again:focus-visible{outline:2px solid #3d8da0;outline-offset:3px;}'
+        + '.hdlw-r-again:disabled{opacity:.6;cursor:default;}'
         + '.hdlw-r-buttons{display:flex;flex-direction:column;align-items:center;gap:8px;}'
         + '.hdlw-r-buttons-continue{width:100%;display:flex;flex-direction:column;align-items:center;gap:8px;}'
         // v0.35.0 (Phase O) — public-path thank-you wall styling. Single
@@ -1549,11 +1588,16 @@
             +     bookSessionBtn
             +   '</div>'
             : ''
-            +   '<h2 class="hdlw-r-thanks-headline">Thank you.</h2>'
-            +   '<p class="hdlw-r-thanks-body">Your practitioner has been sent your data. Once they have looked at your data, you will receive another email.</p>'
-            +   ( showBook
-                ? '<div class="hdlw-r-buttons" style="margin-top:22px;">' + bookSessionBtn + '</div>'
-                : '' )
+            // v0.47.86 — nothing here may say "sent" until the server has
+            // said saved: the thank-you stays hidden and -status reports.
+            +   '<div id="' + id + '-status" class="hdlw-r-status" role="status" aria-live="polite">Sending your answers\u2026</div>'
+            +   '<div id="' + id + '-thanks" hidden>'
+            +     '<h2 class="hdlw-r-thanks-headline">Thank you.</h2>'
+            +     '<p class="hdlw-r-thanks-body">Your practitioner has been sent your data. Once they have looked at your data, you will receive another email.</p>'
+            +     ( showBook
+                  ? '<div class="hdlw-r-buttons" style="margin-top:22px;">' + bookSessionBtn + '</div>'
+                  : '' )
+            +   '</div>'
         )
         +     '</div>'
         +   '</div>'
@@ -1565,6 +1609,7 @@
         // one .hdlw-r-prac-foot wrapper so the page stops feeling like a
         // stack of separate boxes at the bottom of the report.
         + '<div class="hdlw-r-prac-foot">'
+        + '<div id="' + id + '-sent" hidden>'
         +   ( cfg.pracName
             ? '<div class="hdlw-r-foot-line">'
               +   '<span class="hdlw-r-foot-icon">\u2713</span>'
@@ -1577,6 +1622,7 @@
         +     '<span class="hdlw-r-foot-icon"><svg viewBox="0 0 22 16" width="18" height="14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round" aria-hidden="true"><rect x="1" y="1" width="20" height="14" rx="1.5"/><path d="M1.6 2.6l9.4 6.8 9.4-6.8"/></svg></span>'
         +     '<span>A copy of your Quick Insight is on its way to your inbox.</span>'
         +   '</div>'
+        + '</div>'
         +   '<hr class="hdlw-r-foot-divider" />'
         // v0.36.14 — practitioner identity stacked vertically (logo on top,
         // "Your practitioner" overline, name beneath). The .hdlw-r-prac-foot-left
@@ -1623,59 +1669,59 @@
         if (visitorGeo.region) payload.visitor_region = visitorGeo.region;
       }
 
-      if (cfg.apiUrl) {
+      // v0.47.86 — the result above is drawn before the answers are posted,
+      // so every "sent" line waits for the server's reply. A refusal, a limit
+      // or a dropped connection says so and offers Send again; the answers
+      // stay on the page (payload) for the resend.
+      var statusEl = document.getElementById(id + '-status') || document.getElementById(id + '-continue');
+      function saved(data) {
+        var sent = document.getElementById(id + '-sent');
+        if (sent) sent.hidden = false;
+        // Invite-fast-path: pre-trusted, immediate magic link.
+        if (data.form_token) {
+          var baseUrl = cfg.apiUrl.replace(/\/wp-json\/.*$/, '');
+          var continueUrl = baseUrl + '/assessment/?token=' + data.form_token;
+          statusEl.innerHTML = ''
+            + '<a class="hdlw-r-btn-primary" href="' + continueUrl + '" target="_blank" rel="noopener">Continue to Stage 2 \u2014 Your WHY \u2192</a>'
+            + '<p class="hdlw-r-email-note">We\u2019ve also sent this link to your email.</p>';
+          return;
+        }
+        // Public path (and paid tickets): the thank-you wall.
+        statusEl.innerHTML = '';
+        var thanks = document.getElementById(id + '-thanks');
+        if (thanks) thanks.hidden = false;
+      }
+      function failed(body) {
+        var n = notSaved(body, !!inviteToken);
+        statusEl.innerHTML = '<div class="hdlw-r-notsaved"><strong>' + n.head + '</strong>' + escapeHtml(n.msg)
+          + (n.again ? '<div><button type="button" class="hdlw-r-again">Send again</button></div>' : '')
+          + '</div>';
+        var again = statusEl.querySelector('.hdlw-r-again');
+        if (again) again.addEventListener('click', function () {
+          again.disabled = true;
+          again.textContent = 'Sending\u2026';
+          send();
+        });
+      }
+      function send() {
         fetch(cfg.apiUrl, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
         })
-          .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, status: r.status, body: j }; }); })
+          .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, body: j }; }); })
           .then(function (res) {
-            var contEl = document.getElementById(id + '-continue');
-            if (!contEl) return;
-
-            // Server-side rate limit / cooldown / format error
-            if (!res.ok || res.body.code) {
-              var msg = (res.body && res.body.message)
-                ? res.body.message
-                : 'Something went wrong saving your submission. Please try again in a moment.';
-              // v0.47.85 — paid widget refused the answers (ticket_required).
-              var head = (res.body && res.body.code === 'ticket_required')
-                ? 'Your personal link did not work'
-                : 'We couldn\u2019t send your verification email';
-              contEl.innerHTML = ''
-                + '<div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:10px;padding:14px 16px;text-align:left;color:#9a3412;font-size:13px;line-height:1.5;">'
-                + '<strong style="display:block;margin-bottom:4px;">' + head + '</strong>'
-                + msg
-                + '</div>';
-              return;
-            }
-
-            var data = res.body || {};
-
-            // Invite-fast-path: pre-trusted, immediate magic link.
-            // Phase 17 \u2014 primary CTA styled to match the mockup pill, full
-            // width within the buttons row, dark teal #004F59. The "we've
-            // also sent this link to your email" caption sits below as a
-            // safety-net for clients who walk away.
-            if (data.form_token) {
-              var baseUrl = cfg.apiUrl.replace(/\/wp-json\/.*$/, '');
-              var continueUrl = baseUrl + '/assessment/?token=' + data.form_token;
-              contEl.innerHTML = ''
-                + '<a class="hdlw-r-btn-primary" href="' + continueUrl + '" target="_blank" rel="noopener">Continue to Stage 2 \u2014 Your WHY \u2192</a>'
-                + '<p class="hdlw-r-email-note">We\u2019ve also sent this link to your email.</p>';
-              return;
-            }
-
-            // v0.29.0 — public lead-capture path: no Continue button,
-            // no email card. The practitioner footer above already renders
-            // the "details forwarded to your practitioner" confirm line,
-            // and the Book-a-Session button is rendered inline as the only
-            // CTA. Clear the "Sending your results..." placeholder by
-            // collapsing the continue area to nothing.
-            contEl.innerHTML = '';
+            if (!statusEl) return;
+            if (!res.ok || !res.body || res.body.code) { failed(res.body); return; }
+            saved(res.body);
           })
-          .catch(function () { /* silent — gauge already shown */ });
+          .catch(function () { if (statusEl) failed(null); });
+      }
+      if (cfg.apiUrl) {
+        send();
+      } else if (statusEl) {
+        // No API (the practitioner's dashboard preview): nothing to save.
+        saved({});
       }
     }
 
@@ -1835,10 +1881,12 @@
           fetch(verifyUrl + '?token=' + encodeURIComponent(token))
             .then(function (r) { return r.json(); })
             .then(function (data) {
-              if (accessScreen(true, data, false, null) === 'questions') { data._token = token; buildWidget(el, data); }
-              else { inviteFailed(el, (data && data.reason) || 'invalid'); }
+              var screen = accessScreen(true, data, false, null);
+              if (screen === 'questions') { data._token = token; buildWidget(el, data); }
+              else if (screen === 'retry') { showLinkRetry(el); }
+              else { inviteFailed(el, data.reason || 'invalid'); }
             })
-            .catch(function () { inviteFailed(el, 'invalid'); });
+            .catch(function () { showLinkRetry(el); });
         })(widgets[i], inviteToken);
       } else if (accessScreen(false, null, paidAttr, null) === 'locked') {
         showLocked(widgets[i], null);
