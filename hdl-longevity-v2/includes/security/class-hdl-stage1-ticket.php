@@ -70,12 +70,20 @@ class HDL_Stage1_Ticket {
             return self::refuse( 401, 'unauthorized', 'Unauthorized.' );
         }
 
-        if ( class_exists( 'HDL_Rate_Limiter' ) ) {
-            $ip = isset( $_SERVER['REMOTE_ADDR'] ) ? sanitize_text_field( $_SERVER['REMOTE_ADDR'] ) : 'unknown';
-            $rl = new HDL_Rate_Limiter();
-            if ( ! $rl->check_limit( 'stage1_ticket', $ip, self::RATE_LIMIT, HOUR_IN_SECONDS ) ) {
-                return self::refuse( 429, 'rate_limited', 'Too many requests.' );
-            }
+        // A fixed hour from the first counted call (V1's limiter restarts its
+        // hour on every call and cannot say how long is left).
+        $ip = isset( $_SERVER['REMOTE_ADDR'] ) ? sanitize_text_field( $_SERVER['REMOTE_ADDR'] ) : 'unknown';
+        $rl = HDLV2_Rate_Limiter::consume( HDLV2_Rate_Limiter::bucket_key( array( 'stage1-ticket', $ip ) ), self::RATE_LIMIT, HOUR_IN_SECONDS );
+        if ( ! $rl['allowed'] ) {
+            // Same body a WP_Error gives; a response object so it can carry the header.
+            $error = self::refuse( 429, 'rate_limited', 'Too many requests.' );
+            $resp  = new WP_REST_Response( array(
+                'code'    => $error->get_error_code(),
+                'message' => $error->get_error_message(),
+                'data'    => array( 'status' => 429 ),
+            ), 429 );
+            $resp->header( 'Retry-After', (string) (int) $rl['retry_after'] );
+            return $resp;
         }
 
         $practitioner_id = absint( $request->get_param( 'practitioner_id' ) );

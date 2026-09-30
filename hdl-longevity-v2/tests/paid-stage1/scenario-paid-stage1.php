@@ -161,19 +161,6 @@ class FakeRequest {
     public function get_header( $k ) { return $this->headers[ $k ] ?? null; }
 }
 
-// V1's limiter, same counting rule (health-data-lab-plugin/includes/security/
-// class-rate-limiter.php) — the mint route calls it for its own bucket.
-class HDL_Rate_Limiter {
-    public function check_limit( $action, $identifier, $max = 5, $window = 3600 ) {
-        $key = 'hdl_rate_limit_' . $action . '_' . md5( $identifier );
-        $n   = get_transient( $key );
-        if ( false === $n ) { set_transient( $key, 1, $window ); return true; }
-        if ( $n >= $max ) return false;
-        set_transient( $key, $n + 1, $window );
-        return true;
-    }
-}
-
 // ── Fake wpdb — one config row, one invite row, minted tickets ────────
 class FakeWpdb {
     public $prefix = 'wp_';
@@ -583,12 +570,31 @@ if ( $has_mint ) {
     }
     check( '12.24 limiter answers 429 past its cap', 429 === status_of( $last ) && count( $wpdb->inserts ) === HDL_Stage1_Ticket::RATE_LIMIT );
 
+    check( '12.26 the 429 carries Retry-After (seconds left in the hour) and the same body', $last instanceof WP_REST_Response && 'rate_limited' === ( $last->get_data()['code'] ?? '' ) && (int) ( $last->headers['Retry-After'] ?? 0 ) > 3590 && (int) $last->headers['Retry-After'] <= 3600 );
+    // A fixed hour: move the stored window so it ends in 100 s, as if the
+    // first mint was 58 minutes ago. Calls must not push that end back.
+    $bk = HDLV2_Rate_Limiter::bucket_key( array( 'stage1-ticket', 'unknown' ) );
+    $st = get_transient( $bk );
+    $end = time() + 100;
+    set_transient( $bk, array( 'count' => is_array( $st ) ? $st['count'] : 0, 'reset' => $end ) );
+    $r  = mint( array( 'external_ref' => 'cs_late_1' ) + $good );
+    $st = get_transient( $bk );
+    check( '12.27 a refused call does not restart the hour (Retry-After counts down to the same end)', 429 === status_of( $r ) && $r instanceof WP_REST_Response && (int) $r->headers['Retry-After'] <= 100 && $end === ( $st['reset'] ?? 0 ) );
+    set_transient( $bk, array( 'count' => 5, 'reset' => $end ) );
+    mint( array( 'external_ref' => 'cs_late_2' ) + $good );
+    $st = get_transient( $bk );
+    check( '12.28 an allowed call does not restart the hour either', 6 === ( $st['count'] ?? 0 ) && $end === ( $st['reset'] ?? 0 ) );
+    set_transient( $bk, array( 'count' => 999, 'reset' => time() - 1 ) );
+    $r  = mint( array( 'external_ref' => 'cs_next_hour' ) + $good );
+    $st = get_transient( $bk );
+    check( '12.29 when the hour ends the count starts again', is_array( $r ) && 1 === ( $st['count'] ?? 0 ) );
+
     $wpdb = fresh_wpdb( 'paid' );
     $GLOBALS['options']['hdlv2_db_version'] = '3.26';
     check( '12.25 schema not yet verified (db 3.26) → 503, nothing minted', 503 === status_of( mint( $good ) ) && count( $wpdb->inserts ) === 0 );
     $GLOBALS['options']['hdlv2_db_version'] = '3.27';
 } else {
-    for ( $i = 2; $i <= 25; $i++ ) { check( "12.$i (skipped — route class missing)", false ); }
+    for ( $i = 2; $i <= 29; $i++ ) { check( "12.$i (skipped — route class missing)", false ); }
 }
 
 echo "── 13. other readers of the invites table ignore paid tickets ──\n";
