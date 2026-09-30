@@ -60,7 +60,7 @@ function sanitize_user( $x, $strict = false ) { return preg_replace( '/[^a-z0-9_
 function absint( $x ) { return abs( (int) $x ); }
 function esc_html( $x ) { return htmlspecialchars( (string) $x, ENT_QUOTES ); }
 function esc_attr( $x ) { return htmlspecialchars( (string) $x, ENT_QUOTES ); }
-function esc_url( $x ) { return (string) $x; }
+function esc_url( $x ) { return str_replace( array( '&', '"' ), array( '&amp;', '&quot;' ), (string) $x ); }
 function esc_url_raw( $x ) { return (string) $x; }
 function wp_kses_post( $x ) { return (string) $x; }
 function rest_ensure_response( $x ) { return $x; }
@@ -472,6 +472,7 @@ check( '10.1 update writes neither access_mode nor buy_url', is_array( $upd ) &&
 
 echo "── 11. embed snippet ──\n";
 $embed_cfg = array( 'practitioner_name' => 'Dr "A"', 'logo_url' => 'https://x.test/l.png', 'logo_shape' => 'square', 'cta_text' => 'Book', 'cta_link' => 'https://x.test/b', 'theme_color' => '#3d8da0' );
+$wpdb = fresh_wpdb( 'open' );
 $open = HDLV2_Widget_Renderer::generate_embed_code( 206, $embed_cfg );
 // md5 of the snippet produced by the 0.47.84 renderer for this exact input.
 check( '11.1 open mode: today\'s snippet byte for byte', '030df362720d1b03aba0ac2b37aee4ce' === md5( $open ) );
@@ -480,6 +481,9 @@ $paid = HDLV2_Widget_Renderer::generate_embed_code( 206, $embed_cfg + array( 'ac
 check( '11.3 paid mode adds data-access="paid"', strpos( $paid, ' data-access="paid"' ) !== false );
 check( '11.4 paid mode adds the escaped buy url', strpos( $paid, 'data-buy-url="https://shop.test/buy?a=1&amp;b=&quot;x&quot;"' ) !== false );
 check( '11.5 paid snippet minus the two attributes is the open snippet', $open === preg_replace( '/ data-access="paid" data-buy-url="[^"]*"/', '', $paid ) );
+
+$wpdb = fresh_wpdb( 'paid' ); // the dashboard callers pass no access_mode: the stored row decides
+check( '11.6 paid practitioner, caller passes no access_mode → paid snippet from the stored row', strpos( HDLV2_Widget_Renderer::generate_embed_code( 206, $embed_cfg ), ' data-access="paid" data-buy-url="https://altituding.example.test/buy"' ) !== false );
 
 echo "── 12. mint route POST /hdl/v1/stage1-ticket ──\n";
 $has_mint = class_exists( 'HDL_Stage1_Ticket' );

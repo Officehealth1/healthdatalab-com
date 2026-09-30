@@ -39,6 +39,26 @@ class HDLV2_Widget_Renderer {
         $cta_link          = esc_url( $config['cta_link'] ?? '#' );
         $theme_color       = esc_attr( $config['theme_color'] ?? '#3d8da0' );
 
+        // v0.47.85 — paid mode. Written into the snippet so the widget can
+        // draw its locked panel without asking the server anything. Paid
+        // mode is not a Widget Settings field, so the callers' $config arrays
+        // do not carry it: read it here, once for all of them.
+        if ( ! isset( $config['access_mode'] ) ) {
+            global $wpdb;
+            $access = $wpdb->get_row( $wpdb->prepare(
+                "SELECT access_mode, buy_url FROM {$wpdb->prefix}hdlv2_widget_config WHERE practitioner_user_id = %d LIMIT 1",
+                $practitioner_id
+            ) );
+            if ( $access ) {
+                $config['access_mode'] = $access->access_mode;
+                $config['buy_url']     = $access->buy_url;
+            }
+        }
+        $paid_attrs = '';
+        if ( 'paid' === ( $config['access_mode'] ?? 'open' ) ) {
+            $paid_attrs = sprintf( ' data-access="paid" data-buy-url="%s"', esc_url( $config['buy_url'] ?? '' ) );
+        }
+
         // v0.35.0 (Phase O) — script URL gets ?ver=HDLV2_VERSION cache-buster
         // so when we ship a new widget JS version (the public-path thank-you
         // wall, the public-config fetch, etc.), browsers on practitioner host
@@ -73,7 +93,7 @@ class HDLV2_Widget_Renderer {
             . 'data-cta-text="%s" '
             . 'data-cta-link="%s" '
             . 'data-api="%s" '
-            . 'data-color="%s">'
+            . 'data-color="%s"%s>'
             . '</div>'
             . '<noscript>'
             . '<div style="max-width:480px;margin:0 auto;padding:24px;text-align:center;'
@@ -94,6 +114,7 @@ class HDLV2_Widget_Renderer {
             $cta_link,
             $api_url,
             $theme_color,
+            $paid_attrs,
             esc_url( $script_url )
         );
     }

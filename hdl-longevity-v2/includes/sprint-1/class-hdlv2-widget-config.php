@@ -2245,7 +2245,7 @@ class HDLV2_Widget_Config {
         global $wpdb;
         $row = $wpdb->get_row( $wpdb->prepare(
             "SELECT practitioner_name, logo_url, logo_shape, cta_link, cta_text, theme_color,
-                    show_book_button_after_widget
+                    show_book_button_after_widget, access_mode, buy_url
              FROM {$wpdb->prefix}hdlv2_widget_config
              WHERE practitioner_user_id = %d LIMIT 1",
             $practitioner_id
@@ -2265,6 +2265,11 @@ class HDLV2_Widget_Config {
             // the embedded widget shows the 2-question safety screen before the
             // result. Default off = widget behaves exactly as before.
             'safety_screen_enabled'         => (bool) get_option( 'hdlv2_ff_safety_screen', false ),
+            // v0.47.85 — paid mode: the widget shows its locked panel to a
+            // visitor without a personal link. Covers embeds pasted before
+            // the snippet carried data-access.
+            'access_mode'                   => 'paid' === $row->access_mode ? 'paid' : 'open',
+            'buy_url'                       => (string) $row->buy_url,
         ) ) );
     }
 
