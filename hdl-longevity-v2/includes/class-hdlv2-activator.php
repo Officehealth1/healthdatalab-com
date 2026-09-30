@@ -1657,6 +1657,75 @@ class HDLV2_Activator {
             }
         }
 
+        // Phase AH (DB v3.27) — paid Stage 1 widget mode (v0.47.85).
+        // widget_config: access_mode ('open' default, so every practitioner
+        // stays as they are) + buy_url. widget_invites: 'paid_stage1' joins
+        // the source ENUM and external_ref (the seller's payment reference)
+        // sits under a UNIQUE key, which is what makes the mint route
+        // idempotent. Additive only; each step is guarded and the phase is
+        // verified before the version bumps.
+        if ( version_compare( $current_db_version, '3.27', '<' ) ) {
+            try {
+                $config_table  = $p . 'hdlv2_widget_config';
+                $invites_table = $p . 'hdlv2_widget_invites';
+                $has_col = function ( $table, $col ) use ( $wpdb ) {
+                    return (int) $wpdb->get_var( $wpdb->prepare(
+                        "SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+                         WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s AND COLUMN_NAME = %s",
+                        $table, $col
+                    ) ) > 0;
+                };
+                $has_paid_source = function () use ( $wpdb, $invites_table ) {
+                    return false !== strpos( (string) $wpdb->get_var( $wpdb->prepare(
+                        "SELECT COLUMN_TYPE FROM INFORMATION_SCHEMA.COLUMNS
+                         WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s AND COLUMN_NAME = 'source'",
+                        $invites_table
+                    ) ), "'paid_stage1'" );
+                };
+                $has_ref_key = function () use ( $wpdb, $invites_table ) {
+                    return (int) $wpdb->get_var( $wpdb->prepare(
+                        "SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS
+                         WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s AND INDEX_NAME = 'external_ref'",
+                        $invites_table
+                    ) ) > 0;
+                };
+
+                $steps = array();
+                if ( ! $has_col( $config_table, 'access_mode' ) ) {
+                    $steps[] = "ALTER TABLE `$config_table` ADD COLUMN access_mode ENUM('open','paid') NOT NULL DEFAULT 'open'";
+                }
+                if ( ! $has_col( $config_table, 'buy_url' ) ) {
+                    $steps[] = "ALTER TABLE `$config_table` ADD COLUMN buy_url VARCHAR(500) NOT NULL DEFAULT ''";
+                }
+                if ( ! $has_col( $invites_table, 'external_ref' ) ) {
+                    $steps[] = "ALTER TABLE `$invites_table` ADD COLUMN external_ref VARCHAR(128) DEFAULT NULL";
+                }
+                if ( ! $has_paid_source() ) {
+                    $steps[] = "ALTER TABLE `$invites_table` MODIFY COLUMN source ENUM('practitioner','automation','paid_stage1') NOT NULL DEFAULT 'practitioner'";
+                }
+                if ( ! $has_ref_key() ) {
+                    $steps[] = "ALTER TABLE `$invites_table` ADD UNIQUE KEY external_ref (external_ref)";
+                }
+                foreach ( $steps as $sql ) {
+                    $wpdb->query( $sql );
+                    if ( $wpdb->last_error ) {
+                        error_log( '[HDLV2] Phase AH (v3.27) FAILED: ' . $sql . ' — ' . $wpdb->last_error . ' — will retry next boot.' );
+                        return false;
+                    }
+                }
+
+                if ( ! $has_col( $config_table, 'access_mode' ) || ! $has_col( $config_table, 'buy_url' )
+                     || ! $has_col( $invites_table, 'external_ref' ) || ! $has_paid_source() || ! $has_ref_key() ) {
+                    error_log( '[HDLV2] Phase AH (v3.27) INCOMPLETE — will retry next boot.' );
+                    return false;
+                }
+                error_log( '[HDLV2] Phase AH (v3.27) migration: paid Stage 1 columns, source value and external_ref key verified (' . count( $steps ) . ' change(s)).' );
+            } catch ( \Throwable $e ) {
+                error_log( '[HDLV2] Phase AH migration error: ' . $e->getMessage() . ' — boot continues; verify manually.' );
+                return false;
+            }
+        }
+
         return true;
     }
 
@@ -1711,6 +1780,8 @@ class HDLV2_Activator {
             notification_email VARCHAR(200) DEFAULT '',
             theme_color VARCHAR(7) DEFAULT '#3d8da0',
             show_book_button_after_widget TINYINT(1) DEFAULT 0,
+            access_mode ENUM('open','paid') NOT NULL DEFAULT 'open',
+            buy_url VARCHAR(500) NOT NULL DEFAULT '',
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
             PRIMARY KEY (id),
@@ -1765,10 +1836,12 @@ class HDLV2_Activator {
             opened_at DATETIME DEFAULT NULL,
             completed_at DATETIME DEFAULT NULL,
             prefill_stage1 JSON DEFAULT NULL,
-            source ENUM('practitioner','automation') NOT NULL DEFAULT 'practitioner',
+            source ENUM('practitioner','automation','paid_stage1') NOT NULL DEFAULT 'practitioner',
+            external_ref VARCHAR(128) DEFAULT NULL,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             PRIMARY KEY (id),
             UNIQUE KEY token (token),
+            UNIQUE KEY external_ref (external_ref),
             KEY practitioner_status (practitioner_id, status)
         ) $charset_collate;";
 

@@ -79,6 +79,10 @@ class FakeWpdb {
         if ( false !== strpos( $q, 'visitor_country' ) && false !== stripos( $q, 'INFORMATION_SCHEMA.COLUMNS' ) ) {
             return ( false !== stripos( $q, 'IN (' ) ) ? '2' : '1';
         }
+        // Phase AH (v3.27) paid Stage 1 schema: same model — already present.
+        if ( false !== stripos( $q, 'COLUMN_TYPE' ) ) return "enum('practitioner','automation','paid_stage1')";
+        if ( false !== stripos( $q, 'INFORMATION_SCHEMA.STATISTICS' ) ) return '1';
+        if ( preg_match( "/COLUMN_NAME = '(access_mode|buy_url|external_ref)'/", $q ) ) return '1';
         return '0';
     }
     public function get_results( $q ) { $this->queries[] = $q; return array(); }
