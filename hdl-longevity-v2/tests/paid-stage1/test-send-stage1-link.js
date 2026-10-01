@@ -100,7 +100,7 @@ const tick = () => new Promise(r => setTimeout(r, 0));
   // Repeat and failed-email lines
   w.next = { json: { success: true, data: { url: 'u', expires_at: '2026-12-30 10:00:00', email: 'sam@example.test', email_sent: false, repeat: true } } };
   w.api.sendStage1Link(); await tick(); await tick();
-  ok(/already sent to sam@example\.test/.test(w.els['hdlv2-s1link-label'].textContent), 'repeat says the link was already sent');
+  ok(/made earlier for sam@example\.test\. If they have not got the email, copy the link/.test(w.els['hdlv2-s1link-label'].textContent), 'repeat says the link was made earlier and points at the copy box (it cannot know the first email went out)');
   w.els['hdlv2-s1link_name'].value = 'Kim'; w.els['hdlv2-s1link_email'].value = 'kim@example.test';
   w.next = { json: { success: true, data: { url: 'u', expires_at: '2026-12-30 10:00:00', email: 'kim@example.test', email_sent: false, repeat: false } } };
   w.api.sendStage1Link(); await tick(); await tick();

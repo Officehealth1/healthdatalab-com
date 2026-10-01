@@ -1506,7 +1506,8 @@
 
   function stage1LinkSentLine(d) {
     var until = 'Link valid until ' + formatExpiryAbsolute(d.expires_at) + '.';
-    if (d.repeat) return 'This link was already sent to ' + d.email + '. ' + until;
+    // A repeat cannot know whether the first email went out: say so.
+    if (d.repeat) return 'This link was made earlier for ' + d.email + '. If they have not got the email, copy the link below and send it yourself. ' + until;
     if (!d.email_sent) return 'The email did not go out. Copy the link below and send it to ' + d.email + ' yourself. ' + until;
     return 'Sent to ' + d.email + '. ' + until;
   }
