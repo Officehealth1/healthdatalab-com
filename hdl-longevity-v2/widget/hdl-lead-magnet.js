@@ -422,6 +422,10 @@
       + '.hdlw-error-msg{font-family:' + B.body + ';font-size:13.5px;color:' + B.text + ';margin:0;line-height:1.55;}'
       // ----- v0.47.85 paid-mode locked panel (reuses the error card) -----
       + '.hdlw-locked .hdlw-logo{margin:0 auto 18px;}'
+      // v0.47.91 — the frame hugs the logo instead of spanning the card, and a
+      // wordmark is drawn naked like the result footer (no box inside a box).
+      + '.hdlw-locked .hdlw-logo:not([data-shape="square"]){width:fit-content;}'
+      + '.hdlw-locked .hdlw-logo[data-shape="wordmark"]{background:transparent;border:0;padding:0;}'
       + '.hdlw-locked .hdlw-error-eyebrow{color:var(--hdl-accent,#3d8da0);}'
       + '.hdlw-buy{display:inline-block;margin-top:22px;padding:12px 28px;background:#004F59;color:#fff;border:1px solid #004F59;border-radius:999px;font-family:' + B.body + ';font-size:14px;font-weight:600;text-decoration:none;transition:background .15s ease;}'
       + '.hdlw-buy:hover{background:#003a42;border-color:#003a42;}'
