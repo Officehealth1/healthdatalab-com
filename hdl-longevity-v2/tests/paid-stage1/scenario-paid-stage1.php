@@ -119,6 +119,12 @@ function wp_strip_all_tags( $x, $remove_breaks = false ) {
     return trim( $x );
 }
 function html_entity_decode_stub() {}
+// AJAX: the real wp_send_json_* and a failed check_ajax_referer end the request.
+class AjaxDone extends Exception { public $ok; public $data; public function __construct( $ok, $data ) { $this->ok = $ok; $this->data = $data; } }
+function check_ajax_referer( $action, $field ) { if ( ( $_POST[ $field ] ?? '' ) !== 'good-nonce' ) throw new AjaxDone( false, -1 ); return 1; }
+function wp_send_json_success( $d = null ) { throw new AjaxDone( true, $d ); }
+function wp_send_json_error( $d = null ) { throw new AjaxDone( false, $d ); }
+function wp_unslash( $x ) { return is_string( $x ) ? stripslashes( $x ) : $x; }
 
 class WP_Error {
     public $code; public $message; public $data;
@@ -147,7 +153,7 @@ class HDLV2_Practitioner {
 // send_invite_email() renders through the real template class; the stub
 // returns inert strings (email content is not under test here).
 class HDLV2_Email_Templates {
-    public static function base_layout( ...$a ) { return '<html>stub</html>'; }
+    public static function base_layout( ...$a ) { return '<html>' . $a[0] . '</html>'; }
     public static function derive_first_name( $name, $email = '' ) { return (string) $name; }
     public static function widget_verification( ...$a ) { return '<html>stub</html>'; }
     public static function __callStatic( $m, $a ) { return ''; }
@@ -305,7 +311,7 @@ class FakeWpdb {
 }
 
 class HDLV2_Compatibility {
-    public static function is_practitioner( $u ) { return true; }
+    public static function is_practitioner( $u ) { return $GLOBALS['is_prac'] ?? true; }
     public static function practitioner_owns_client( $p, $c ) { return true; }
     public static function create_practitioner_client_link( $p, $c ) { return true; }
 }
@@ -815,6 +821,109 @@ $wpdb = fresh_wpdb( 'paid' );
 $wpdb->invite = invite_row( array( 'source' => 'practitioner' ) );
 post_lead( lead_params( 'seven@example.test', TOKEN ) );
 check( '17.4 practitioner invite opens no transaction (as today)', -1 === sql_pos( $wpdb, 'START TRANSACTION' ) );
+
+echo "── 18. Send Stage 1 link (dashboard action hdlv2_send_stage1_link) ──\n";
+const PAGE = 'https://altituding.example.test/report';
+const RID  = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+function link_wpdb( $mode = 'paid', $page = PAGE ) {
+    $wpdb = fresh_wpdb( $mode );
+    $wpdb->config->ticket_page_url = $page;
+    $GLOBALS['is_prac']         = true;
+    $GLOBALS['current_user_id'] = 206;
+    return $wpdb;
+}
+function send_link( $post = array() ) {
+    $_POST = array_merge( array( 'nonce' => 'good-nonce', 'client_name' => 'Pat Payer', 'client_email' => 'pat@example.test', 'request_id' => RID ), $post );
+    try {
+        widget_instance()->ajax_send_stage1_link();
+    } catch ( AjaxDone $d ) {
+        return $d;
+    }
+    return null;
+}
+function tickets_made( $wpdb ) { return count( $wpdb->inserts_into( 'hdlv2_widget_invites' ) ); }
+$has_send = method_exists( 'HDLV2_Widget_Config', 'ajax_send_stage1_link' ) && method_exists( 'HDL_Stage1_Ticket', 'mint' );
+check( '18.0 action + shared mint() exist', $has_send );
+if ( $has_send ) {
+    $wpdb = link_wpdb();
+    $r = send_link( array( 'nonce' => '' ) );
+    check( '18.1 no nonce → refused, no ticket, no mail', $r && ! $r->ok && 0 === tickets_made( $wpdb ) && 0 === count( $GLOBALS['mails'] ) );
+
+    $wpdb = link_wpdb();
+    $GLOBALS['is_prac'] = false;
+    $r = send_link();
+    check( '18.2 not a practitioner → refused, no ticket', $r && ! $r->ok && 0 === tickets_made( $wpdb ) );
+
+    $wpdb = link_wpdb( 'open' );
+    $r = send_link();
+    check( '18.3 open mode → refused with a message, no ticket', $r && ! $r->ok && is_string( $r->data ) && strlen( $r->data ) > 10 && 0 === tickets_made( $wpdb ) );
+    foreach ( array( '18.4 no ticket page set' => '', '18.5 ticket page not https' => 'http://altituding.example.test/report', '18.6 ticket page not a URL' => 'javascript:alert(1)' ) as $label => $page ) {
+        $wpdb = link_wpdb( 'paid', $page );
+        $r = send_link();
+        check( "$label → refused, no ticket", $r && ! $r->ok && 0 === tickets_made( $wpdb ) );
+    }
+    foreach ( array(
+        '18.7 bad email'           => array( 'client_email' => 'nope' ),
+        '18.8 missing name'        => array( 'client_name' => '  ' ),
+        '18.9 request id too short' => array( 'request_id' => 'abc' ),
+        '18.10 request id with junk' => array( 'request_id' => str_repeat( 'a', 20 ) . "'; DROP" ),
+    ) as $label => $over ) {
+        $wpdb = link_wpdb();
+        $r = send_link( $over );
+        check( "$label → refused, no ticket, no mail", $r && ! $r->ok && 0 === tickets_made( $wpdb ) && 0 === count( $GLOBALS['mails'] ) );
+    }
+
+    $wpdb = link_wpdb();
+    $r   = send_link( array( 'practitioner_id' => 999, 'practitioner_user_id' => 999 ) );
+    $row = $wpdb->inserts_into( 'hdlv2_widget_invites' )[0]['data'] ?? array();
+    check( '18.11 success', $r && $r->ok );
+    check( '18.12 another practitioner id in the post is ignored (ticket belongs to the logged-in practitioner)', 206 === (int) ( $row['practitioner_id'] ?? 0 ) );
+    check( '18.13 row: paid_stage1, pending, ref manual:<request id>, name + email', 'paid_stage1' === ( $row['source'] ?? '' ) && 'pending' === ( $row['status'] ?? '' ) && 'manual:' . RID === ( $row['external_ref'] ?? '' ) && 'Pat Payer' === ( $row['client_name'] ?? '' ) && 'pat@example.test' === ( $row['client_email'] ?? '' ) );
+    $days = ( strtotime( ( $row['expires_at'] ?? '' ) . ' UTC' ) - time() ) / DAY_IN_SECONDS;
+    check( '18.14 valid 90 days', $days > 89.9 && $days < 90.1 );
+    $url = $r->data['url'] ?? '';
+    check( '18.15 link = ticket page ?invite=<64 hex> of that ticket', 1 === preg_match( '#^' . preg_quote( PAGE, '#' ) . '\?invite=([a-f0-9]{64})$#', $url, $m ) && $m[1] === ( $row['token'] ?? '' ) );
+    check( '18.16 one email, to the person', 1 === count( $GLOBALS['mails'] ) && 'pat@example.test' === $GLOBALS['mails'][0][0] );
+    check( '18.17 reply says sent, gives email + expiry, not a repeat', true === ( $r->data['email_sent'] ?? null ) && false === ( $r->data['repeat'] ?? null ) && 'pat@example.test' === ( $r->data['email'] ?? '' ) && ( $row['expires_at'] ?? 'x' ) === ( $r->data['expires_at'] ?? '' ) );
+    check( '18.18 reply carries no token field or user ids beyond the link', ! isset( $r->data['token'] ) && ! isset( $r->data['practitioner_id'] ) );
+
+    $mail = $GLOBALS['mails'][0];
+    check( '18.19 subject names the practitioner', false !== strpos( $mail[1], 'Prac 206' ) );
+    check( '18.20 body button points at the link', false !== strpos( $mail[2], 'href="' . $url . '"' ) );
+    check( '18.21 body says it works once and gives the date, shows no price', false !== stripos( $mail[2], 'once' ) && false !== strpos( $mail[2], gmdate( 'Y', time() + 90 * DAY_IN_SECONDS ) ) && false === strpos( $mail[2], '£' ) && false === strpos( $mail[2], '29' . '.00' ) );
+    check( '18.22 sent by HealthDataLab, replies go to the practitioner', in_array( 'From: "HealthDataLab" <noreply@healthdatalab.net>', $mail[3], true ) && in_array( 'Reply-To: "Prac 206" <prac206@example.test>', $mail[3], true ) );
+
+    $again = send_link( array( 'client_email' => 'someone-else@example.test' ) );
+    check( '18.23 same request id again → same link, still one ticket, still one email', $again && $again->ok && $url === ( $again->data['url'] ?? '' ) && 1 === tickets_made( $wpdb ) && 1 === count( $GLOBALS['mails'] ) );
+    check( '18.24 the repeat says so and names the ticket\'s own email', true === ( $again->data['repeat'] ?? null ) && 'pat@example.test' === ( $again->data['email'] ?? '' ) );
+
+    $via_route = HDL_Stage1_Ticket::handle( new FakeRequest( array( 'practitioner_id' => 206, 'email' => 'pat@example.test', 'name' => 'Pat Payer', 'external_ref' => 'manual:' . RID ), array( 'X-HDL-Stage1-Ticket-Key' => 'k-test-key' ) ) );
+    check( '18.25 the keyed route and the action share one mint: same ref → same token', is_array( $via_route ) && $via_route['token'] === ( $row['token'] ?? '' ) && true === $via_route['idempotent'] && 1 === tickets_made( $wpdb ) );
+
+    $wpdb = link_wpdb();
+    $GLOBALS['current_user_id'] = 207;
+    $wpdb->config->practitioner_user_id = 207;
+    $wpdb->tickets[ 'manual:' . RID ] = (object) array( 'token' => TOKEN, 'expires_at' => '2030-01-01 00:00:00', 'practitioner_id' => 206, 'source' => 'paid_stage1', 'client_email' => 'pat@example.test', 'client_name' => 'Pat Payer' );
+    $r = send_link();
+    check( '18.26 a request id that is another practitioner\'s ticket → refused, no link, no mail', $r && ! $r->ok && ! isset( $r->data['url'] ) && 0 === count( $GLOBALS['mails'] ) );
+
+    $wpdb = link_wpdb( 'paid', PAGE . '?src=hdl' );
+    $r = send_link( array( 'client_name' => 'O\\\'Brien & <b>Co</b>' ) );
+    check( '18.27 ticket page with a query string → &invite=', $r && $r->ok && 1 === preg_match( '#\?src=hdl&invite=[a-f0-9]{64}$#', $r->data['url'] ?? '' ) );
+    $row = $wpdb->inserts_into( 'hdlv2_widget_invites' )[0]['data'] ?? array();
+    check( '18.28 slashes WordPress adds to the post are removed, tags stripped', 'O\'Brien & Co' === ( $row['client_name'] ?? '' ) );
+    check( '18.29 name is escaped in the email', false !== strpos( $GLOBALS['mails'][0][2] ?? '', 'O&#039;Brien &amp; Co' ) );
+
+    $wpdb = link_wpdb();
+    $sent = 0;
+    for ( $i = 1; $i <= 21; $i++ ) {
+        $r = send_link( array( 'request_id' => str_pad( (string) $i, 32, 'b', STR_PAD_LEFT ) ) );
+        if ( $r && $r->ok ) $sent++;
+    }
+    check( '18.30 20 an hour per practitioner; the 21st is refused', 20 === $sent && $r && ! $r->ok && 20 === tickets_made( $wpdb ) );
+} else {
+    for ( $i = 1; $i <= 30; $i++ ) { check( "18.$i (skipped — action missing)", false ); }
+}
 
 echo "\nPASS=$PASS FAIL=$FAIL\n";
 exit( $FAIL === 0 ? 0 : 1 );
