@@ -75,7 +75,7 @@ const tick = () => new Promise(r => setTimeout(r, 0));
   ok(first.action === 'hdlv2_send_stage1_link' && first.nonce === 'n1' && first.client_name === 'Pat Payer' && first.client_email === 'pat@example.test', 'posts action, nonce, trimmed name + email');
   ok(/^[a-f0-9]{32}$/.test(first.request_id || ''), 'request id is 32 hex (server accepts 16–64 of [A-Za-z0-9_-])');
   ok(first.practitioner_id === undefined, 'never posts a practitioner id');
-  ok(w.els['hdlv2-s1link-status'].style.display === 'block' && /Send again/.test(w.els['hdlv2-s1link-status'].textContent), 'network error shown inline, says Send again is safe');
+  ok(w.els['hdlv2-s1link-status'].style.display === 'block' && /again: it will not make a second link/.test(w.els['hdlv2-s1link-status'].textContent), 'network error shown inline, says sending again is safe');
   ok(w.els['hdlv2-send-s1link'].disabled === false, 'button usable again after the error');
 
   w.next = { json: { success: true, data: { url: 'https://altituding.example.test/report?invite=' + 'a'.repeat(64), expires_at: '2026-12-30 10:00:00', email: 'pat@example.test', email_sent: true, repeat: false } } };

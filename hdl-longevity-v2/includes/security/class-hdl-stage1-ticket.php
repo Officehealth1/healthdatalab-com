@@ -18,6 +18,8 @@
  * The same external_ref always returns the same token. That is enforced by
  * the UNIQUE key on widget_invites.external_ref: insert first, read the
  * existing row on the duplicate-key error. No user, no email, no Stage 2.
+ * The insert lives in mint(), which the dashboard's "Send Stage 1 link"
+ * also calls (v0.47.90); that path sends its own email.
  *
  * V1-style class name because the route lives in the hdl/v1 namespace, like
  * HDL_Paid_Report_Provisioner next to it.
@@ -113,6 +115,27 @@ class HDL_Stage1_Ticket {
             return self::refuse( 400, 'invalid_body', 'One or more fields failed validation.', $invalid );
         }
 
+        $ticket = self::mint( $practitioner_id, $email, $name, $external_ref, $days );
+        if ( is_wp_error( $ticket ) ) {
+            return $ticket;
+        }
+        return rest_ensure_response( array(
+            'token'      => $ticket['token'],
+            'expires_at' => self::iso( $ticket['expires_at'] ),
+            'idempotent' => $ticket['idempotent'],
+        ) );
+    }
+
+    /**
+     * Mint the ticket for $external_ref, or return the one it already has.
+     * Shared by the keyed route above and the dashboard's "Send Stage 1
+     * link" (HDLV2_Widget_Config::ajax_send_stage1_link). Callers validate
+     * their own input first.
+     *
+     * @return array|WP_Error { token, expires_at (stored UTC), idempotent,
+     *                         email, name } — email/name are the ticket's own.
+     */
+    public static function mint( $practitioner_id, $email, $name, $external_ref, $days ) {
         global $wpdb;
         $access_mode = $wpdb->get_row( $wpdb->prepare(
             "SELECT access_mode FROM {$wpdb->prefix}hdlv2_widget_config WHERE practitioner_user_id = %d LIMIT 1",
@@ -142,28 +165,26 @@ class HDL_Stage1_Ticket {
         $wpdb->suppress_errors( $was_suppressed );
 
         if ( $inserted ) {
-            return rest_ensure_response( array(
-                'token'      => $token,
-                'expires_at' => self::iso( $expires_at ),
-                'idempotent' => false,
-            ) );
+            return array( 'token' => $token, 'expires_at' => $expires_at, 'idempotent' => false, 'email' => $email, 'name' => $name );
         }
 
         $existing = $wpdb->get_row( $wpdb->prepare(
-            "SELECT token, expires_at, practitioner_id, source FROM $table WHERE external_ref = %s LIMIT 1",
+            "SELECT token, expires_at, practitioner_id, source, client_email, client_name FROM $table WHERE external_ref = %s LIMIT 1",
             $external_ref
         ) );
         if ( ! $existing ) {
             return self::refuse( 500, 'mint_failed', 'The ticket could not be saved.' );
         }
-        if ( (int) $existing->practitioner_id !== $practitioner_id || 'paid_stage1' !== $existing->source ) {
+        if ( (int) $existing->practitioner_id !== (int) $practitioner_id || 'paid_stage1' !== $existing->source ) {
             return self::refuse( 409, 'external_ref_conflict', 'This external_ref belongs to another ticket.' );
         }
-        return rest_ensure_response( array(
+        return array(
             'token'      => (string) $existing->token,
-            'expires_at' => self::iso( $existing->expires_at ),
+            'expires_at' => (string) $existing->expires_at,
             'idempotent' => true,
-        ) );
+            'email'      => (string) $existing->client_email,
+            'name'       => (string) $existing->client_name,
+        );
     }
 
     /** Stored UTC datetime → ISO 8601. */

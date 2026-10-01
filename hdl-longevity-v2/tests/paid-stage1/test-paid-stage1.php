@@ -6,6 +6,7 @@
  *   php tests/paid-stage1/test-paid-stage1.php
  * The widget script has its own runner:
  *   node tests/paid-stage1/test-widget-access.js
+ *   node tests/paid-stage1/test-send-stage1-link.js
  */
 
 error_reporting( E_ALL & ~E_DEPRECATED & ~E_WARNING & ~E_NOTICE );

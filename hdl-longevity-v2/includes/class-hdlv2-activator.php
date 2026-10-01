@@ -1726,6 +1726,29 @@ class HDLV2_Activator {
             }
         }
 
+        // Phase AI (DB v3.28) — widget_config.ticket_page_url (v0.47.90): the
+        // page that hosts a paid practitioner's widget, where the dashboard's
+        // "Send Stage 1 link" points (<page>?invite=<token>). Additive, empty
+        // default, set by one SQL line per practitioner like buy_url.
+        if ( version_compare( $current_db_version, '3.28', '<' ) ) {
+            $config_table = $p . 'hdlv2_widget_config';
+            $has_page_col = function () use ( $wpdb, $config_table ) {
+                return (int) $wpdb->get_var( $wpdb->prepare(
+                    "SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+                     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s AND COLUMN_NAME = 'ticket_page_url'",
+                    $config_table
+                ) ) > 0;
+            };
+            if ( ! $has_page_col() ) {
+                $wpdb->query( "ALTER TABLE `$config_table` ADD COLUMN ticket_page_url VARCHAR(500) NOT NULL DEFAULT ''" );
+                if ( $wpdb->last_error || ! $has_page_col() ) {
+                    error_log( '[HDLV2] Phase AI (v3.28) FAILED: ticket_page_url — ' . $wpdb->last_error . ' — will retry next boot.' );
+                    return false;
+                }
+            }
+            error_log( '[HDLV2] Phase AI (v3.28) migration: widget_config.ticket_page_url verified.' );
+        }
+
         return true;
     }
 
@@ -1782,6 +1805,7 @@ class HDLV2_Activator {
             show_book_button_after_widget TINYINT(1) DEFAULT 0,
             access_mode ENUM('open','paid') NOT NULL DEFAULT 'open',
             buy_url VARCHAR(500) NOT NULL DEFAULT '',
+            ticket_page_url VARCHAR(500) NOT NULL DEFAULT '',
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
             PRIMARY KEY (id),

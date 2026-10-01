@@ -28,6 +28,7 @@ class HDLV2_Widget_Config {
 
         // AJAX — invites
         add_action( 'wp_ajax_hdlv2_create_invite', array( $this, 'ajax_create_invite' ) );
+        add_action( 'wp_ajax_hdlv2_send_stage1_link', array( $this, 'ajax_send_stage1_link' ) );
         add_action( 'wp_ajax_hdlv2_get_invites', array( $this, 'ajax_get_invites' ) );
         // v0.46.20 — let a practitioner clean dead invite rows from the Sent
         // Invites tab. Hard-delete, scoped to own + expired/revoked only.
@@ -253,6 +254,8 @@ class HDLV2_Widget_Config {
             'clients_url'     => apply_filters( 'hdlv2_clients_dashboard_url', site_url( '/clients/' ) ),
             'config'          => $config_arr,
             'embed_code'      => $config ? HDLV2_Widget_Renderer::generate_embed_code( $user_id, $config_arr ) : '',
+            // v0.47.90 — shows the "Send Stage 1 link" card (paid mode + ticket page set).
+            'stage1_link_ready' => '' !== self::stage1_link_page( $config ),
         ) );
     }
 
@@ -2541,22 +2544,11 @@ class HDLV2_Widget_Config {
      * @since 0.22.24 — rewritten 0.22.35 for V2 layout + email-path unification.
      */
     public static function send_invite_email( $practitioner_id, $client_name, $client_email, $invite_url, $expires_at ) {
-        $practitioner_user = get_userdata( $practitioner_id );
-        if ( ! $practitioner_user ) {
+        $sender = self::invite_sender( $practitioner_id );
+        if ( ! $sender ) {
             return false;
         }
-
-        // Prefer widget_config.practitioner_name (the brand the practitioner
-        // chose for the widget). Fall back to WP display_name.
-        global $wpdb;
-        $config = $wpdb->get_row( $wpdb->prepare(
-            "SELECT practitioner_name FROM {$wpdb->prefix}hdlv2_widget_config WHERE practitioner_user_id = %d LIMIT 1",
-            $practitioner_id
-        ) );
-        $practitioner_name  = $config && ! empty( $config->practitioner_name )
-            ? $config->practitioner_name
-            : $practitioner_user->display_name;
-        $practitioner_email = $practitioner_user->user_email;
+        list( $practitioner_name, $practitioner_email ) = $sender;
 
         // v0.36.23 — single derive-first-name helper avoids the previous
         // "Dear matthewdhaemer+test080526@…" bleed-through when an early
@@ -2625,18 +2617,70 @@ class HDLV2_Widget_Config {
         // logo/name are resolved inside the shared header renderer.
         $message = HDLV2_Email_Templates::base_layout( $body, (int) $practitioner_id, 'Stage 2 form — Why Longevity' );
 
-        // v0.36.23 — Reply-To display-name now quoted so apostrophes
-        // ("Matthew D'haemer") survive RFC 5322 parsing in Gmail /
-        // Outlook MUAs. Pre-v0.36.23 the bare display-name lost the
-        // apostrophe in some clients ("Matthew Dhaemer"). Same defensive
-        // quoting applied to From header for future-proofing.
-        $headers = array(
+        return wp_mail( $client_email, $subject, $message, self::invite_headers( $practitioner_name, $practitioner_email ) );
+    }
+
+    /**
+     * Practitioner's display name (widget_config.practitioner_name, the brand
+     * they chose for the widget, else WP display_name) and email, or null.
+     */
+    private static function invite_sender( $practitioner_id ) {
+        $practitioner_user = get_userdata( $practitioner_id );
+        if ( ! $practitioner_user ) {
+            return null;
+        }
+        global $wpdb;
+        $config = $wpdb->get_row( $wpdb->prepare(
+            "SELECT practitioner_name FROM {$wpdb->prefix}hdlv2_widget_config WHERE practitioner_user_id = %d LIMIT 1",
+            $practitioner_id
+        ) );
+        $name = $config && ! empty( $config->practitioner_name ) ? $config->practitioner_name : $practitioner_user->display_name;
+        return array( $name, $practitioner_user->user_email );
+    }
+
+    /**
+     * Sent by HealthDataLab, replies go to the practitioner.
+     * v0.36.23 — Reply-To display-name quoted so apostrophes ("Matthew
+     * D'haemer") survive RFC 5322 parsing in Gmail / Outlook MUAs.
+     */
+    private static function invite_headers( $practitioner_name, $practitioner_email ) {
+        return array(
             'Content-Type: text/html; charset=UTF-8',
             'From: "HealthDataLab" <noreply@healthdatalab.net>',
             'Reply-To: "' . addcslashes( $practitioner_name, '\\"' ) . '" <' . $practitioner_email . '>',
         );
+    }
 
-        return wp_mail( $client_email, $subject, $message, $headers );
+    /**
+     * v0.47.90 — email for "Send Stage 1 link": the one-time paid Stage 1
+     * ticket, for someone who paid the practitioner directly. Same shell as
+     * the Stage 2 invite. Copy is a draft for Matthew. Never shows a price.
+     */
+    public static function send_stage1_link_email( $practitioner_id, $client_name, $client_email, $link_url, $expires_at ) {
+        $sender = self::invite_sender( $practitioner_id );
+        if ( ! $sender ) {
+            return false;
+        }
+        list( $practitioner_name, $practitioner_email ) = $sender;
+        $first_name = HDLV2_Email_Templates::derive_first_name( $client_name, $client_email );
+        $until      = wp_date( 'F j, Y', strtotime( $expires_at . ' UTC' ) );
+        $p          = '<p style="margin:0 0 16px;font-size:15px;color:#333333;line-height:1.7;font-family:Inter,-apple-system,sans-serif;">';
+
+        $body  = '<p style="margin:0 0 16px;font-size:16px;color:#1a1a1a;font-family:Inter,-apple-system,BlinkMacSystemFont,\'Segoe UI\',sans-serif;">Dear ' . esc_html( $first_name ) . ',</p>';
+        $body .= $p . '<strong style="color:#1a1a1a;">' . esc_html( $practitioner_name ) . '</strong> has set up your Stage 1 Longevity assessment.</p>';
+        $body .= $p . 'It is nine short questions and takes about ten minutes. When you finish, your Stage 1 report is emailed to you.</p>';
+        $body .= '<table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center" style="margin:8px auto 24px;"><tr>';
+        $body .= '<td align="center" bgcolor="#004F59" style="border-radius:2px;">';
+        $body .= '<a href="' . esc_url( $link_url ) . '" target="_blank" style="display:inline-block;padding:14px 30px;font-size:13.5px;font-weight:600;letter-spacing:0.04em;color:#ffffff;text-decoration:none;font-family:Inter,-apple-system,BlinkMacSystemFont,\'Segoe UI\',sans-serif;">Start Stage 1 &rarr;</a>';
+        $body .= '</td></tr></table>';
+        $body .= '<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin:6px 0 0;"><tr><td style="background:#f5f6f8;border:1px solid #e4e6ea;border-radius:10px;padding:18px 22px;font-family:Inter,-apple-system,BlinkMacSystemFont,\'Segoe UI\',sans-serif;">';
+        $body .= '<p style="margin:0 0 12px;font-size:13px;color:#666666;text-align:center;line-height:1.5;">This link works once and is valid until <strong style="color:#1a1a1a;">' . esc_html( $until ) . '</strong>.</p>';
+        $body .= '<p style="margin:0;font-size:13px;color:#666666;text-align:center;line-height:1.5;border-top:1px solid #e4e6ea;padding-top:12px;">Any questions? Please contact <a href="mailto:' . esc_attr( $practitioner_email ) . '" style="color:#3d8da0;text-decoration:underline;font-weight:500;">' . esc_html( $practitioner_name ) . '</a>.</p>';
+        $body .= '</td></tr></table>';
+
+        $subject = sprintf( '%s has sent you your Stage 1 Longevity assessment', $practitioner_name );
+        $message = HDLV2_Email_Templates::base_layout( $body, (int) $practitioner_id, 'Stage 1 Longevity assessment' );
+        return wp_mail( $client_email, $subject, $message, self::invite_headers( $practitioner_name, $practitioner_email ) );
     }
 
     /**
@@ -3033,6 +3077,73 @@ class HDLV2_Widget_Config {
             'prefill_found'        => $prefill_found,
             'prefill_submitted_at' => $prefill_found ? $prefill_lead->created_at : null,
             'prefill_rate'         => $prefill_found ? (float) $prefill_lead->rate_of_ageing : null,
+        ) );
+    }
+
+    /** Paid mode + an https ticket page → that page; otherwise ''. */
+    public static function stage1_link_page( $config ) {
+        if ( ! $config || 'paid' !== ( $config->access_mode ?? '' ) ) {
+            return '';
+        }
+        $url = (string) ( $config->ticket_page_url ?? '' );
+        return 'https' === wp_parse_url( $url, PHP_URL_SCHEME ) && wp_parse_url( $url, PHP_URL_HOST ) ? $url : '';
+    }
+
+    /**
+     * v0.47.90 — "Send Stage 1 link". A paid-mode practitioner emails someone
+     * who paid them directly the same one-time ticket a buyer gets (public
+     * path, pending lead). The practitioner is always the logged-in user.
+     * request_id comes from the browser, one per filled form, so a retry gets
+     * the same ticket and no second email.
+     */
+    public function ajax_send_stage1_link() {
+        check_ajax_referer( 'hdlv2_widget_config', 'nonce' );
+
+        $user_id = get_current_user_id();
+        if ( ! HDLV2_Compatibility::is_practitioner( $user_id ) ) {
+            wp_send_json_error( 'Not authorized' );
+        }
+
+        $page = self::stage1_link_page( $this->get_config( $user_id ) );
+        if ( '' === $page ) {
+            wp_send_json_error( 'Stage 1 links can only be sent when your widget is in paid mode with a ticket page set.' );
+        }
+
+        $name       = substr( sanitize_text_field( wp_unslash( $_POST['client_name'] ?? '' ) ), 0, 200 );
+        $email      = sanitize_email( wp_unslash( $_POST['client_email'] ?? '' ) );
+        $request_id = (string) ( $_POST['request_id'] ?? '' );
+        if ( '' === $name ) {
+            wp_send_json_error( 'Please enter their name.' );
+        }
+        if ( ! is_email( $email ) ) {
+            wp_send_json_error( 'A valid email is required.' );
+        }
+        if ( ! preg_match( '/^[A-Za-z0-9_-]{16,64}$/', $request_id ) ) {
+            wp_send_json_error( 'Please reload the page and try again.' );
+        }
+
+        $rl = HDLV2_Rate_Limiter::consume( HDLV2_Rate_Limiter::bucket_key( array( 'stage1-link', $user_id ) ), 20, HOUR_IN_SECONDS );
+        if ( ! $rl['allowed'] ) {
+            wp_send_json_error( 'Too many links this hour. Please try again later.' );
+        }
+
+        $ticket = HDL_Stage1_Ticket::mint( $user_id, $email, $name, 'manual:' . $request_id, HDL_Stage1_Ticket::DEFAULT_DAYS );
+        if ( is_wp_error( $ticket ) ) {
+            wp_send_json_error( 'The link could not be made. Please try again.' );
+        }
+
+        $url  = $page . ( false === strpos( $page, '?' ) ? '?' : '&' ) . 'invite=' . $ticket['token'];
+        $sent = $ticket['idempotent'] ? false : self::send_stage1_link_email( $user_id, $ticket['name'], $ticket['email'], $url, $ticket['expires_at'] );
+        if ( ! $ticket['idempotent'] && ! $sent ) {
+            error_log( sprintf( '[HDL V2] Stage 1 link email failed — practitioner %d', $user_id ) );
+        }
+
+        wp_send_json_success( array(
+            'url'        => $url,
+            'expires_at' => $ticket['expires_at'],
+            'email'      => $ticket['email'],
+            'email_sent' => $sent,
+            'repeat'     => $ticket['idempotent'],
         ) );
     }
 
