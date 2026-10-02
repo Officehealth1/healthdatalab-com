@@ -569,16 +569,18 @@
 }
 
 /* v0.47.92 — single-form "What matters most" pick list. */
-.hdlv2-picks-grid .hdlv2-checkbox-item { max-width: 100%; line-height: 1.35; }
+/* v0.47.93 — statements sit in two even columns (one on a phone), not a
+   ragged cloud of pills: they are sentences, and they read better aligned. */
+.hdlv2-picks-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.hdlv2-picks-grid .hdlv2-checkbox-item { max-width: 100%; line-height: 1.35; border-radius: 12px; align-items: flex-start; }
 .hdlv2-picks-count {
   font-size: 13px;
   font-weight: 600;
   color: #2c3e50;
   margin: 18px 0 8px;
 }
-@media (max-width: 480px) {
-  .hdlv2-picks-grid { flex-direction: column; }
-  .hdlv2-picks-grid .hdlv2-checkbox-item { border-radius: 12px; }
+@media (max-width: 699px) {
+  .hdlv2-picks-grid { grid-template-columns: minmax(0, 1fr); }
 }
 
 /* v0.47.93 — themes first: six tiles, each opens its statements below.
@@ -633,9 +635,10 @@
   color: #3d8da0;
 }
 .hdlv2-theme-title { font-size: 14px; font-weight: 600; line-height: 1.3; }
-.hdlv2-theme-count { min-height: 16px; font-size: 12px; font-weight: 500; color: #3d8da0; }
+.hdlv2-theme-count { min-height: 16px; font-size: 12px; font-weight: 500; color: #888; }
+.hdlv2-theme-tile.has-picks .hdlv2-theme-count { color: #3d8da0; }
 .hdlv2-themes-hint { margin: 0 0 6px; font-size: 13px; color: #888; }
-.hdlv2-theme-panel { margin-bottom: 6px; }
+.hdlv2-theme-panel { margin: 18px 0 6px; }
 @media (prefers-reduced-motion: reduce) {
   .hdlv2-theme-tile { transition: none; }
 }

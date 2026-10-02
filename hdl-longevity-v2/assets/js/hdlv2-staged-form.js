@@ -1363,7 +1363,8 @@
       var isOpen = openThemes.indexOf(g.id) !== -1;
       var chosen = g.items.filter(function (it) { return picks.indexOf(it.id) !== -1; }).length;
       tile.setAttribute('aria-pressed', isOpen ? 'true' : 'false');
-      tile.querySelector('.hdlv2-theme-count').textContent = chosen ? chosen + ' chosen' : '';
+      tile.classList.toggle('has-picks', chosen > 0);
+      tile.querySelector('.hdlv2-theme-count').textContent = chosen ? chosen + ' chosen' : g.items.length + ' ideas';
       document.getElementById(tile.getAttribute('aria-controls')).hidden = !isOpen;
     });
     var hint = document.getElementById('hdlv2-themes-hint');
