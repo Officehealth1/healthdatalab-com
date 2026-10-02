@@ -8,6 +8,10 @@
  * local Claude extraction. Make's Stage 2 scenario and the practitioner's
  * "ready to invite" email are skipped. Everything else stays on today's path.
  *
+ * v0.47.93 — abilities: /form/load carries the ability names, the draft and
+ * the milestones receive the same picks block (with the focus line), and the
+ * practitioner's client record carries stage2.choices for single-form rows.
+ *
  * Run:  php scenario-single-form-flow.php   (self-asserting, exit 0/1)
  */
 
@@ -60,6 +64,7 @@ function esc_url( $x ) { return (string) $x; }
 function esc_url_raw( $x ) { return (string) $x; }
 function number_format_i18n( $n, $d = 0 ) { return number_format( (float) $n, $d ); }
 function get_user_meta( ...$a ) { return ''; }
+function absint( $x ) { return abs( (int) $x ); }
 
 class WP_Error {
     public $code; public $message; public $data;
@@ -98,7 +103,8 @@ class HDLV2_AI_Service {
         self::$draft_why[] = $why;
         return array( 'awaken_content' => 'a', 'lift_content' => 'l', 'thrive_content' => 't' );
     }
-    public static function generate_milestones( ...$a ) { return array(); }
+    public static $ms_why = array();
+    public static function generate_milestones( ...$a ) { self::$ms_why[] = $a[1] ?? null; return array(); }
     public static function generate_client_draft_narrative( ...$a ) { return null; }
 }
 class HDLV2_Webhook_Monitor {
@@ -142,7 +148,13 @@ class FakeWpdb {
             return ARRAY_A === $output ? $w : (object) $w;
         }
         if ( preg_match( '/hdlv2_form_progress\s+WHERE id = (\d+)/', $sql, $m ) ) {
-            return isset( $this->rows[ (int) $m[1] ] ) ? clone $this->rows[ (int) $m[1] ] : null;
+            if ( ! isset( $this->rows[ (int) $m[1] ] ) ) return null;
+            $row = clone $this->rows[ (int) $m[1] ];
+            // A named column list returns only those columns, like the real table.
+            if ( preg_match( '/SELECT\s+(.+?)\s+FROM/s', $sql, $c ) && '*' !== trim( $c[1] ) ) {
+                $row = (object) array_intersect_key( (array) $row, array_flip( array_map( 'trim', explode( ',', $c[1] ) ) ) );
+            }
+            return $row;
         }
         return null;
     }
@@ -251,6 +263,7 @@ function s2( $row ) { return json_decode( $row->stage2_data, true ) ?: array(); 
 require __DIR__ . '/../../includes/class-hdlv2-env.php';
 require __DIR__ . '/../../includes/sprint-2/class-hdlv2-why-picks.php';
 require __DIR__ . '/../../includes/sprint-2/class-hdlv2-staged-form.php';
+require __DIR__ . '/../../includes/sprint-4/class-hdlv2-client-status.php';
 
 $pass = 0; $fail = 0;
 function check( $label, $ok ) {
@@ -278,9 +291,15 @@ $GLOBALS['options']['hdlv2_ff_single_form'] = '122';
 $r = $form->rest_load_form( req( array( 'token' => $wpdb->rows[1]->token ) ) );
 check( 'L2 switch on, WHY open: single_form true', true === ( $r['single_form'] ?? null ) );
 check( 'L3 switch on, WHY open: why_options present', ! empty( $r['why_options'][0]['items'] ) );
+check( 'L5 switch on, WHY open: why_abilities = the eight display names, in order',
+    array( 'strength' => 'Strength', 'mobility' => 'Mobility', 'flexibility' => 'Flexibility', 'balance' => 'Balance',
+        'stamina' => 'Stamina', 'mind' => 'A sharp mind', 'energy' => 'Energy and sleep', 'connection' => 'Connection' ) === ( $r['why_abilities'] ?? null ) );
+check( 'L6 switch on, WHY open: only the three new keys beside today\'s list',
+    array_merge( $TODAY_KEYS, array( 'single_form', 'why_options', 'why_abilities' ) ) === array_keys( $r ) );
 $wpdb->rows[2] = make_row( 2, array( 'stage2_completed_at' => '2026-10-01 10:00:00', 'stage2_data' => '{"vision_text":"typed the old way"}' ) );
 $r = $form->rest_load_form( req( array( 'token' => $wpdb->rows[2]->token ) ) );
 check( 'L4 switch on, WHY already sent the old way: neither key', ! isset( $r['single_form'] ) && ! isset( $r['why_options'] ) );
+check( 'L7 switch on, WHY already sent the old way: keys are exactly today\'s list', $TODAY_KEYS === array_keys( $r ) );
 
 // ════════ Submit on a covered row ════════
 $row = $wpdb->rows[10] = make_row( 10 );
@@ -399,6 +418,7 @@ $wpdb->rows[22] = make_row( 22, array( 'practitioner_user_id' => 206, 'stage2_da
 $form->generate_draft_for_progress( clone $wpdb->rows[22] );
 check( 'D5 old-flow row with no WHY row: extraction never called', count( HDLV2_AI_Service::$why_calls ) === $calls );
 check( 'D6 old-flow row: empty picks block', '' === ( end( HDLV2_AI_Service::$draft_why )['picks_block'] ?? '' ) );
+check( 'D6b old-flow row: milestones receive an empty block too', '' === ( end( HDLV2_AI_Service::$ms_why )['picks_block'] ?? null ) );
 
 // Review fix 3 — Claude down for both tries: the draft still gets the picks.
 HDLV2_AI_Service::$draft_ok = false;
@@ -407,6 +427,71 @@ $form->generate_draft_for_progress( clone $wpdb->rows[17] );
 check( 'D7 no WHY row at all: picks block still in the draft prompt',
     ! isset( $wpdb->why[17] ) && 0 === strpos( (string) ( end( HDLV2_AI_Service::$draft_why )['picks_block'] ?? '' ), '=== WHAT THIS CLIENT CHOSE' ) );
 HDLV2_AI_Service::$draft_ok = true;
+
+// ════════ Abilities reach the draft, the milestones and the practitioner (v0.47.93) ════════
+// By hand, for $FIVE with these answers: strength 3 choices, (2+2)/2 = 2.0 → 3×3 = 9 ·
+// flexibility 2 choices, 2.0 → 6 · mobility 1, 2.0 → 3 · mind 1, 3.0 → 2 ·
+// stamina (4+4)/2 = 4.0 and energy (4+3+4)/3 = 3.7 are above 3.
+$S1 = array( 'q1_age' => '55', 'server_result' => array( 'raw' => array( 'q4_vo2' => 4, 'q5_sts' => 2 ) ) );
+$SCORES = array( 'sitToStand' => 2, 'balance' => 3, 'physicalActivity' => 4, 'cognitiveActivity' => 3, 'stressLevels' => 3,
+    'sleepQuality' => 3, 'sleepDuration' => 4, 'dietQuality' => 4, 'socialConnections' => 4 );
+$SINGLE_S2 = json_encode( array( 'form_flow' => 'single', 'why_picks' => $FIVE, 'key_people_text' => 'my wife Jenny',
+    'vision_text' => HDLV2_Why_Picks::compose_vision_text( $FIVE, 'my wife Jenny', '' ) ) );
+$FOCUS_LINE = "Focus areas (most chosen, weakest measured): Strength, Flexibility, Mobility\n";
+$wpdb->rows[40] = make_row( 40, array( 'stage1_data' => json_encode( $S1 ), 'stage2_data' => $SINGLE_S2,
+    'stage3_data' => json_encode( array( 'sitToStand' => '2', 'server_result' => array( 'rate' => 1.1, 'scores' => $SCORES ) ) ),
+    'stage2_completed_at' => '2026-10-02 00:00:00', 'stage3_completed_at' => '2026-10-02 01:00:00', 'current_stage' => 3 ) );
+$form->generate_draft_for_progress( clone $wpdb->rows[40] );
+$draft_block = (string) ( end( HDLV2_AI_Service::$draft_why )['picks_block'] ?? '' );
+check( 'D8 single row: the draft block carries the client\'s focus line', false !== strpos( $draft_block, $FOCUS_LINE ) );
+check( 'D9 single row: milestones receive the same block', '' !== $draft_block && $draft_block === ( end( HDLV2_AI_Service::$ms_why )['picks_block'] ?? null ) );
+
+// The other two milestone callers (final report, consultation preview) and
+// the milestones prompt itself: wiring in the shipped files.
+$fr = file_get_contents( __DIR__ . '/../../includes/sprint-2c/class-hdlv2-final-report.php' );
+check( 'W1 final report: both generate_milestones() callers build the picks block', 2 === substr_count( $fr, 'HDLV2_Why_Picks::prompt_block(' ) );
+$ai = file_get_contents( __DIR__ . '/../../includes/sprint-2/class-hdlv2-ai-service.php' );
+$ms_fn = substr( $ai, (int) strpos( $ai, 'public static function generate_milestones(' ) );
+$ms_fn = substr( $ms_fn, 0, (int) strpos( $ms_fn, "\n    }\n" ) );
+check( 'W2 milestones prompt prints the block after the WHY line',
+    false !== strpos( $ms_fn, '"WHY: %s\n"' . "\n" . '            . "%s"' ) && false !== strpos( $ms_fn, "\$why_profile['picks_block'] ?? ''" ) );
+
+// Practitioner's client record.
+$status = HDLV2_Client_Status::get_instance();
+$rec    = $status->rest_get_client_record( array( 'progress_id' => 40 ) );
+$ch     = is_array( $rec ) ? ( $rec['stage2']['choices'] ?? null ) : null;
+check( 'C1 single row: stage2.choices has picks, abilities, stage3_done', is_array( $ch ) && array( 'picks', 'abilities', 'stage3_done' ) === array_keys( $ch ) );
+check( 'C2 single row: each pick is its label plus ability display names',
+    5 === count( $ch['picks'] ?? array() )
+    && array( 'label' => 'Get down on the floor to play with my grandchildren, and get back up without help', 'needs' => array( 'Mobility', 'Flexibility', 'Strength' ) ) === $ch['picks'][0]
+    && array( 'label' => 'Keep driving safely, including turning to look over my shoulder', 'needs' => array( 'A sharp mind', 'Flexibility' ) ) === $ch['picks'][3] );
+$abil = $ch['abilities'] ?? array();
+check( 'C3 single row: abilities are the profile of the saved answers (counts, scores, focus by hand)',
+    method_exists( 'HDLV2_Why_Picks', 'abilities_profile' )
+    && $abil === HDLV2_Why_Picks::abilities_profile( $FIVE, $S1['server_result']['raw'], $SCORES )
+    && array( 'strength', 'mobility', 'flexibility', 'stamina', 'mind', 'energy' ) === array_column( $abil, 'id' )
+    && array( 3, 1, 2, 1, 1, 1 ) === array_column( $abil, 'count' )
+    && array( 2.0, 2.0, 2.0, 4.0, 3.0, 3.7 ) === array_column( $abil, 'score' )
+    && array( true, true, true, false, false, false ) === array_column( $abil, 'focus' ) );
+check( 'C4 single row, Stage 3 finished: stage3_done true', true === ( $ch['stage3_done'] ?? null ) );
+
+$wpdb->rows[41] = make_row( 41, array( 'stage1_data' => json_encode( $S1 ), 'stage2_data' => $SINGLE_S2,
+    'stage3_data' => json_encode( array( 'sitToStand' => '2' ) ), 'stage2_completed_at' => '2026-10-02 00:00:00', 'current_stage' => 3 ) );
+$wpdb->why[41] = array( 'form_progress_id' => 41, 'distilled_why' => 'x', 'released' => 1 );
+$mid = $status->rest_get_client_record( array( 'progress_id' => 41 ) )['stage2']['choices'] ?? array();
+check( 'C5 single row mid-questionnaire: stage3_done false, numbers from Stage 1 only',
+    false === ( $mid['stage3_done'] ?? null )
+    && array( 2.0, 2.0, 2.0, 4.0, null, null ) === array_column( $mid['abilities'] ?? array(), 'score' ) );
+
+$old_rec = $status->rest_get_client_record( array( 'progress_id' => 21 ) );
+check( 'C6 old-flow row with a WHY: stage2 has no choices key',
+    is_array( $old_rec['stage2'] ?? null ) && ! array_key_exists( 'choices', $old_rec['stage2'] ) );
+check( 'C7 old-flow row: stage2 keys are exactly today\'s list',
+    array( 'completed_at', 'distilled_why', 'key_people', 'motivations', 'fears', 'vision_text', 'ai_reformulation', 'released', 'pdf_url' ) === array_keys( $old_rec['stage2'] ?? array() ) );
+// A row with picks typed into stage2_data but no server-written marker is not a single-form row.
+$wpdb->rows[42] = make_row( 42, array( 'practitioner_user_id' => 206, 'stage2_data' => json_encode( array( 'why_picks' => $FIVE, 'vision_text' => $LONG ) ) ) );
+$wpdb->why[42] = array( 'form_progress_id' => 42, 'distilled_why' => 'x', 'released' => 0 );
+check( 'C8 picks without the marker: no choices key', ! array_key_exists( 'choices', $status->rest_get_client_record( array( 'progress_id' => 42 ) )['stage2'] ?? array( 'choices' => 1 ) ) );
 
 // ════════ Retry cron ════════
 $w2 = new FakeWpdb();
