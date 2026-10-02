@@ -1312,6 +1312,8 @@
 
   function submitWhyPicks() {
     if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
+    // Let an in-flight autosave finish first so it cannot land after Next.
+    if (saving) { setTimeout(submitWhyPicks, 300); return; }
     ['key_people_text', 'own_words'].forEach(function (n) {
       var el = document.getElementById('hdlv2-f-' + n);
       if (el) formData[n] = el.value.trim();

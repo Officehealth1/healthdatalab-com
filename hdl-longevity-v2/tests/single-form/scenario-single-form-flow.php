@@ -166,6 +166,12 @@ class FakeWpdb {
         return null;
     }
     public function query( $sql ) {
+        if ( preg_match( "/SET stage2_data = '(.*)'\s+WHERE id = (\d+)\s+AND \(stage2_completed_at IS NULL/s", $sql, $m ) ) {
+            $row = $this->rows[ (int) $m[2] ] ?? null;
+            if ( ! $row || ( null !== $row->stage2_completed_at && '' !== $row->stage2_completed_at ) ) return 0;
+            $row->stage2_data = $m[1];
+            return 1;
+        }
         if ( preg_match( "/SET stage2_completed_at = '([^']+)'\s+WHERE id = (\d+)/s", $sql, $m ) ) {
             $row = $this->rows[ (int) $m[2] ] ?? null;
             if ( ! $row || ( null !== $row->stage2_completed_at && '' !== $row->stage2_completed_at ) ) return 0;
@@ -320,6 +326,29 @@ check( 'F17 autosave before submit: picks stored, marker and vision_text not',
     array( 'wake_rested' ) === ( s2( $auto )['why_picks'] ?? null ) && ! isset( s2( $auto )['form_flow'] ) && ! isset( s2( $auto )['vision_text'] ) );
 check( 'F18 autosave before submit: not completed, stage 2', empty( $auto->stage2_completed_at ) && 2 === (int) $auto->current_stage );
 
+// Review fix 1 — an autosave that read the row BEFORE the submit and writes
+// after it must not wipe the marker / vision_text.
+$race = $wpdb->rows[14] = make_row( 14 );
+$stale = clone $race;
+save( $form, $race, $PICKS, true );
+$m = new ReflectionMethod( 'HDLV2_Staged_Form', 'save_single_form_why' );
+$m->setAccessible( true );
+$m->invoke( $form, $stale, array( 'why_picks' => array( 'wake_rested' ) ), false );
+check( 'R1 in-flight autosave landing after submit: marker + vision_text kept',
+    'single' === ( s2( $race )['form_flow'] ?? '' ) && ! empty( s2( $race )['vision_text'] ) );
+
+// Review fix 2 — a row whose Stage 1 is not done cannot submit the picks.
+$s1 = $wpdb->rows[15] = make_row( 15, array( 'current_stage' => 1, 'stage1_completed_at' => null ) );
+$res = save( $form, $s1, $PICKS, true );
+check( 'R2 stage-1 row submitting picks: 400, not moved, nothing claimed',
+    is_wp_error( $res ) && 400 === ( $res->data['status'] ?? 0 ) && 1 === (int) $s1->current_stage && empty( $s1->stage2_completed_at ) );
+
+// Review fix 4 — a covered row that had typed/recorded the old way keeps it.
+$leg = $wpdb->rows[16] = make_row( 16, array( 'stage2_data' => json_encode( array( 'vision_text' => 'My recorded why from before the switch.' ) ) ) );
+save( $form, $leg, $PICKS, true );
+check( 'R3 earlier recorded vision_text kept as legacy_vision_text',
+    'My recorded why from before the switch.' === ( s2( $leg )['legacy_vision_text'] ?? '' ) );
+
 // ════════ Uncovered practitioner: today's path, and the marker cannot be forged ════════
 $LONG = 'I want to stay strong for my grandchildren and keep hiking every summer.';
 $old = $wpdb->rows[20] = make_row( 20, array( 'practitioner_user_id' => 206 ) );
@@ -368,6 +397,14 @@ $wpdb->rows[22] = make_row( 22, array( 'practitioner_user_id' => 206, 'stage2_da
 $form->generate_draft_for_progress( clone $wpdb->rows[22] );
 check( 'D5 old-flow row with no WHY row: extraction never called', count( HDLV2_AI_Service::$why_calls ) === $calls );
 check( 'D6 old-flow row: empty picks block', '' === ( end( HDLV2_AI_Service::$draft_why )['picks_block'] ?? '' ) );
+
+// Review fix 3 — Claude down for both tries: the draft still gets the picks.
+HDLV2_AI_Service::$draft_ok = false;
+$wpdb->rows[17] = make_row( 17, array( 'stage2_data' => json_encode( array( 'form_flow' => 'single', 'why_picks' => $FIVE, 'vision_text' => HDLV2_Why_Picks::compose_vision_text( $FIVE, '', '' ) ) ), 'stage2_completed_at' => '2026-10-02 00:00:00', 'current_stage' => 3 ) );
+$form->generate_draft_for_progress( clone $wpdb->rows[17] );
+check( 'D7 no WHY row at all: picks block still in the draft prompt',
+    ! isset( $wpdb->why[17] ) && 0 === strpos( (string) ( end( HDLV2_AI_Service::$draft_why )['picks_block'] ?? '' ), '=== WHAT THIS CLIENT CHOSE' ) );
+HDLV2_AI_Service::$draft_ok = true;
 
 // ════════ Retry cron ════════
 $w2 = new FakeWpdb();

@@ -441,16 +441,34 @@ class HDLV2_Staged_Form {
             return rest_ensure_response( array( 'success' => true, 'already_submitted' => true ) );
         }
 
-        unset( $data['vision_text'] ); // server-built below
+        unset( $data['vision_text'], $data['legacy_vision_text'] ); // server-written only
         $merged = array_merge( $existing, $data );
 
         if ( ! $submitted ) {
-            $wpdb->update( $table, array( 'stage2_data' => wp_json_encode( $merged ) ), array( 'id' => $progress->id ), array( '%s' ), array( '%d' ) );
+            // Conditional on the WHY still being open: an autosave that read
+            // the row before a submit and lands after it must not wipe the
+            // marker and vision_text the submit just wrote.
+            $wpdb->query( $wpdb->prepare(
+                "UPDATE {$table} SET stage2_data = %s WHERE id = %d AND (stage2_completed_at IS NULL OR stage2_completed_at = '')",
+                wp_json_encode( $merged ), (int) $progress->id
+            ) );
             return rest_ensure_response( array( 'success' => true, 'saved_fields' => count( $data ) ) );
+        }
+
+        // The old flow parks a row behind Stage 1 and the Release step; here
+        // nothing else does, so a row must have finished Stage 1 first.
+        if ( empty( $progress->stage1_completed_at ) ) {
+            return new WP_Error( 'stage1_incomplete', 'Please finish the first part of your assessment first.', array( 'status' => 400 ) );
         }
 
         $valid = HDLV2_Why_Picks::validate( $merged );
         if ( is_wp_error( $valid ) ) return $valid;
+
+        // A covered client who had already typed or recorded a WHY the old
+        // way (switch turned on mid-funnel) keeps it beside the composed text.
+        if ( '' !== trim( (string) ( $existing['vision_text'] ?? '' ) ) && ! isset( $existing['legacy_vision_text'] ) ) {
+            $merged['legacy_vision_text'] = (string) $existing['vision_text'];
+        }
 
         $merged['why_picks']       = array_values( $merged['why_picks'] );
         $merged['key_people_text'] = sanitize_textarea_field( (string) ( $merged['key_people_text'] ?? '' ) );
@@ -983,8 +1001,9 @@ class HDLV2_Staged_Form {
         $why_profile['verbatim_quotes'] = $raw_bundle['verbatim_quotes'] ?? array();
         $why_profile['life_context']    = $raw_bundle['life_context']    ?? array();
         // v0.47.92 — single-form picks for the draft prompt ('' otherwise).
-        // raw_input is the stage2_data the extraction read.
-        $why_profile['picks_block'] = HDLV2_Why_Picks::prompt_block( $raw_bundle );
+        // Read from the row itself so the picks still reach the draft when
+        // the WHY extraction failed and there is no why_profiles row.
+        $why_profile['picks_block'] = HDLV2_Why_Picks::prompt_block( json_decode( (string) $progress->stage2_data, true ) ?: array() );
         if ( $single && ! $why_row ) {
             error_log( sprintf( '[HDLV2] Draft for progress %d written without a WHY: single-form extraction did not land.', (int) $progress->id ) );
         }
