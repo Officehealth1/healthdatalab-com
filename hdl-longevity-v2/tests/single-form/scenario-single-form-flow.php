@@ -370,6 +370,8 @@ check( 'U7 switch turned off after submit: row still frozen, no Make', 0 === sta
 // ════════ Extraction ════════
 HDLV2_Staged_Form::run_single_stage2_extraction( 10 );
 check( 'X1 single row: WHY row released = 1 with released_at', 1 === (int) ( $wpdb->why[10]['released'] ?? -1 ) && ! empty( $wpdb->why[10]['released_at'] ) );
+check( 'X1b single row: summary stored as plain paragraphs like the Make rows (no <p> markup)',
+    "You want to keep up." === ( $wpdb->why[10]['ai_reformulation'] ?? '' ) );
 check( 'X2 single row: Claude read the server-built paragraph',
     false !== strpos( end( HDLV2_AI_Service::$why_calls )['vision_text'], 'In my later years' ) );
 $wpdb->rows[21] = make_row( 21, array( 'practitioner_user_id' => 206, 'stage2_data' => json_encode( array( 'vision_text' => $LONG ) ) ) );

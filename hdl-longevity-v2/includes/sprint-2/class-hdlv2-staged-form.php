@@ -2828,6 +2828,10 @@ class HDLV2_Staged_Form {
             $row['released']    = 1;
             $row['released_at'] = current_time( 'mysql' );
             $formats[]          = '%s';
+            // Every single-form WHY comes from this local path, so store the
+            // summary as plain paragraphs like the Make-callback rows (the
+            // dashboard WHY tab escapes it and would print the <p> tags).
+            $row['ai_reformulation'] = trim( wp_strip_all_tags( preg_replace( '#</p>\s*#i', "\n\n", (string) ( $extracted['ai_reformulation'] ?? '' ) ) ) );
         }
         $inserted = $wpdb->insert( $table, $row, $formats );
 
