@@ -14,6 +14,9 @@ if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
 
+// v0.47.92 — hard dependency (load, save, extraction, draft, retry cron).
+require_once __DIR__ . '/class-hdlv2-why-picks.php';
+
 class HDLV2_Staged_Form {
 
     /**
@@ -180,7 +183,7 @@ class HDLV2_Staged_Form {
             $practitioner_logo_url = HDLV2_Practitioner::get_logo_url( $prac_id );
         }
 
-        return rest_ensure_response( array(
+        $response = array(
             'current_stage'         => (int) $progress->current_stage,
             'client_name'           => $progress->client_name,
             'client_email'          => $progress->client_email,
@@ -195,7 +198,16 @@ class HDLV2_Staged_Form {
             'practitioner_cta_link' => $practitioner_cta_link,
             'practitioner_cta_text' => $practitioner_cta_text,
             'practitioner_logo_url' => $practitioner_logo_url,
-        ) );
+        );
+
+        // v0.47.92 — single-form WHY picks: covered rows whose WHY is still
+        // open get the pick-list page. Every other row keeps today's keys.
+        if ( empty( $progress->stage2_completed_at ) && HDLV2_Why_Picks::row_uses_single_form( $progress ) ) {
+            $response['single_form'] = true;
+            $response['why_options'] = HDLV2_Why_Picks::options_for_page();
+        }
+
+        return rest_ensure_response( $response );
     }
 
     // ──────────────────────────────────────────────────────────────
@@ -224,6 +236,16 @@ class HDLV2_Staged_Form {
         $data = $params['data'] ?? array();
         if ( ! is_array( $data ) ) {
             return new WP_Error( 'invalid_data', 'Data must be an object.', array( 'status' => 400 ) );
+        }
+
+        if ( $stage === 2 ) {
+            // v0.47.92 — only the server writes the single-form marker: it
+            // decides whether the practitioner's Release step is skipped, so a
+            // client-sent value must never reach stage2_data.
+            unset( $data['form_flow'] );
+            if ( HDLV2_Why_Picks::row_uses_single_form( $progress ) ) {
+                return $this->save_single_form_why( $progress, $data, ! empty( $params['submitted'] ) );
+            }
         }
 
         // Merge with existing data (don't overwrite fields not in this save)
@@ -395,6 +417,88 @@ class HDLV2_Staged_Form {
         }
 
         return rest_ensure_response( array( 'success' => true, 'saved_fields' => count( $data ) ) );
+    }
+
+    /**
+     * v0.47.92 — Stage 2 save for a single-form row (the pick-list WHY page).
+     *
+     * Autosave stores the picks and the two text boxes. The submitted save
+     * validates them, writes the marker + a server-built vision_text, claims
+     * stage2_completed_at with the same atomic UPDATE as the old flow, moves
+     * the row to stage 3 and schedules the existing local Claude extraction.
+     * No Make Stage 2 webhook and no practitioner "ready to invite" email:
+     * there is no Release step to invite for. Once submitted, stage 2 is
+     * frozen, so a stale tab can neither change the picks nor wake the
+     * deferred Make fire.
+     */
+    private function save_single_form_why( $progress, $data, $submitted ) {
+        global $wpdb;
+        $table    = $wpdb->prefix . 'hdlv2_form_progress';
+        $existing = json_decode( $progress->stage2_data, true ) ?: array();
+
+        if ( HDLV2_Why_Picks::is_single( $existing ) && ! empty( $progress->stage2_completed_at ) ) {
+            $this->move_single_form_row_to_stage_3( $progress );
+            return rest_ensure_response( array( 'success' => true, 'already_submitted' => true ) );
+        }
+
+        unset( $data['vision_text'] ); // server-built below
+        $merged = array_merge( $existing, $data );
+
+        if ( ! $submitted ) {
+            $wpdb->update( $table, array( 'stage2_data' => wp_json_encode( $merged ) ), array( 'id' => $progress->id ), array( '%s' ), array( '%d' ) );
+            return rest_ensure_response( array( 'success' => true, 'saved_fields' => count( $data ) ) );
+        }
+
+        $valid = HDLV2_Why_Picks::validate( $merged );
+        if ( is_wp_error( $valid ) ) return $valid;
+
+        $merged['why_picks']       = array_values( $merged['why_picks'] );
+        $merged['key_people_text'] = sanitize_textarea_field( (string) ( $merged['key_people_text'] ?? '' ) );
+        $merged['own_words']       = sanitize_textarea_field( (string) ( $merged['own_words'] ?? '' ) );
+        $merged['form_flow']       = HDLV2_Why_Picks::FLOW;
+        $merged['vision_text']     = HDLV2_Why_Picks::compose_vision_text( $merged['why_picks'], $merged['key_people_text'], $merged['own_words'] );
+        $wpdb->update( $table, array( 'stage2_data' => wp_json_encode( $merged ) ), array( 'id' => $progress->id ), array( '%s' ), array( '%d' ) );
+
+        $claimed = $wpdb->query( $wpdb->prepare(
+            "UPDATE {$table}
+                SET stage2_completed_at = %s
+              WHERE id = %d
+                AND (stage2_completed_at IS NULL OR stage2_completed_at = '')",
+            current_time( 'mysql' ), (int) $progress->id
+        ) );
+        $this->move_single_form_row_to_stage_3( $progress );
+
+        if ( $claimed === 1 ) {
+            // Same out-of-band kick as the old flow's no-Make branch, here
+            // whether or not Make is configured: Make's Stage 2 scenario is
+            // never called for these rows. The draft job runs the extraction
+            // itself if this has not landed by the time Stage 3 completes.
+            $args = array( (int) $progress->id );
+            if ( ! wp_next_scheduled( 'hdlv2_stage2_local_extract', $args ) ) {
+                wp_schedule_single_event( time() + 5, 'hdlv2_stage2_local_extract', $args );
+                wp_remote_post( site_url( '/wp-cron.php?doing_wp_cron=' . microtime( true ) ), array(
+                    'timeout'   => 0.01,
+                    'blocking'  => false,
+                    'sslverify' => apply_filters( 'https_local_ssl_verify', false ),
+                ) );
+            }
+        }
+
+        return rest_ensure_response( array( 'success' => true, 'current_stage' => 3 ) );
+    }
+
+    /**
+     * The SECOND writer of current_stage 2 → 3 (the first is
+     * HDLV2_Compatibility::advance_to_stage_3, the practitioner's Release).
+     * Not reused here because it requires a WHY row (the extraction runs
+     * after this, out of band) and emails the client a "next step" link they
+     * do not need — they go straight on to the health sections. Idempotent.
+     */
+    private function move_single_form_row_to_stage_3( $progress ) {
+        if ( (int) $progress->current_stage >= 3 ) return;
+        global $wpdb;
+        $wpdb->update( $wpdb->prefix . 'hdlv2_form_progress', array( 'current_stage' => 3 ), array( 'id' => $progress->id ), array( '%d' ), array( '%d' ) );
+        $progress->current_stage = 3;
     }
 
     // ──────────────────────────────────────────────────────────────
@@ -851,6 +955,17 @@ class HDLV2_Staged_Form {
         $s3_data    = json_decode( $progress->stage3_data, true ) ?: array();
         $calc_result = $s3_data['server_result'] ?? array();
 
+        // v0.47.92 — a single-form client can finish the health sections
+        // before the out-of-band WHY extraction lands (or Claude was down
+        // then): run it here first so the draft still carries the WHY.
+        $single = HDLV2_Why_Picks::is_single( json_decode( (string) $progress->stage2_data, true ) );
+        if ( $single && ! $wpdb->get_var( $wpdb->prepare(
+            "SELECT id FROM {$wpdb->prefix}hdlv2_why_profiles WHERE form_progress_id = %d LIMIT 1",
+            (int) $progress->id
+        ) ) ) {
+            self::run_single_stage2_extraction( (int) $progress->id );
+        }
+
         // Load WHY profile — includes richer fields stored by extract_why() v0.19.0
         global $wpdb;
         $why_row = $wpdb->get_row( $wpdb->prepare(
@@ -867,6 +982,12 @@ class HDLV2_Staged_Form {
         $raw_bundle = ! empty( $why_profile['raw_input'] ) ? ( json_decode( $why_profile['raw_input'], true ) ?: array() ) : array();
         $why_profile['verbatim_quotes'] = $raw_bundle['verbatim_quotes'] ?? array();
         $why_profile['life_context']    = $raw_bundle['life_context']    ?? array();
+        // v0.47.92 — single-form picks for the draft prompt ('' otherwise).
+        // raw_input is the stage2_data the extraction read.
+        $why_profile['picks_block'] = HDLV2_Why_Picks::prompt_block( $raw_bundle );
+        if ( $single && ! $why_row ) {
+            error_log( sprintf( '[HDLV2] Draft for progress %d written without a WHY: single-form extraction did not land.', (int) $progress->id ) );
+        }
 
         // Generate report via Claude AI
         // v0.38.0 — Pass $s3_data so the new Section 6 (family history /
@@ -2516,7 +2637,12 @@ class HDLV2_Staged_Form {
             $token_valid = ! empty( $row->token_expires_at )
                 && strtotime( $row->token_expires_at . ' UTC' ) > time();
 
-            if ( $next <= 2 && $token_valid ) {
+            // v0.47.92 — Make's Stage 2 scenario is never called for a
+            // single-form row (no Stage 2 emails/PDF, no Release step), so it
+            // goes straight to the local extraction on every attempt.
+            $single = HDLV2_Why_Picks::is_single( $stage2_data );
+
+            if ( $next <= 2 && $token_valid && ! $single ) {
                 // Attempts 1-2: re-fire Make.com webhook.
                 $ok = self::retry_stage2_webhook( (int) $row->id );
                 error_log( sprintf(
@@ -2639,6 +2765,14 @@ class HDLV2_Staged_Form {
         if ( empty( $extracted['distilled_why'] ) ) {
             return 'no_distilled_why';
         }
+        // v0.47.92 — a single-form row has no practitioner Release step to
+        // catch a placeholder (why_placeholder() on a failed Claude call: the
+        // only result without key_people), so write nothing and let the draft
+        // job or the retry cron try again.
+        $single = HDLV2_Why_Picks::is_single( $stage2_data );
+        if ( $single && ! isset( $extracted['key_people'] ) ) {
+            return 'no_distilled_why';
+        }
 
         // (2) Race safety — serialise the re-check + insert against the
         // Make.com callback writer for this progress.
@@ -2656,22 +2790,27 @@ class HDLV2_Staged_Form {
             return 'exists';
         }
 
-        $inserted = $wpdb->insert(
-            $table,
-            array(
-                'form_progress_id' => $progress_id,
-                'client_user_id'   => $client_user_id ? (int) $client_user_id : null,
-                'key_people'       => wp_json_encode( $extracted['key_people']  ?? array() ),
-                'motivations'      => wp_json_encode( $extracted['motivations'] ?? array() ),
-                'fears'            => wp_json_encode( $extracted['fears']       ?? array() ),
-                'vision_text'      => sanitize_textarea_field( $vision_text ),
-                'distilled_why'    => sanitize_textarea_field( $extracted['distilled_why'] ),
-                'ai_reformulation' => wp_kses_post( $extracted['ai_reformulation'] ?? '' ),
-                'raw_input'        => wp_json_encode( $stage2_data ),
-                'released'         => 0,
-            ),
-            array( '%d', '%d', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%d' )
+        $row     = array(
+            'form_progress_id' => $progress_id,
+            'client_user_id'   => $client_user_id ? (int) $client_user_id : null,
+            'key_people'       => wp_json_encode( $extracted['key_people']  ?? array() ),
+            'motivations'      => wp_json_encode( $extracted['motivations'] ?? array() ),
+            'fears'            => wp_json_encode( $extracted['fears']       ?? array() ),
+            'vision_text'      => sanitize_textarea_field( $vision_text ),
+            'distilled_why'    => sanitize_textarea_field( $extracted['distilled_why'] ),
+            'ai_reformulation' => wp_kses_post( $extracted['ai_reformulation'] ?? '' ),
+            'raw_input'        => wp_json_encode( $stage2_data ),
+            'released'         => 0,
         );
+        $formats = array( '%d', '%d', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%d' );
+        if ( $single ) {
+            // Single-form rows are already on the health sections: the WHY is
+            // released as it lands (the dashboard reads "Stage 3 in progress").
+            $row['released']    = 1;
+            $row['released_at'] = current_time( 'mysql' );
+            $formats[]          = '%s';
+        }
+        $inserted = $wpdb->insert( $table, $row, $formats );
 
         if ( $got_lock ) $wpdb->query( $wpdb->prepare( "SELECT RELEASE_LOCK(%s)", $lock_name ) );
 

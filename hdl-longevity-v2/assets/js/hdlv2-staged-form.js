@@ -4,6 +4,8 @@
  * Token-based multi-stage longevity assessment.
  * Stage 1: Quick Insight (6 fields, gauge result)
  * Stage 2: Your WHY (free-text — key people, motivations, vision; no multi-select)
+ *   or, for practitioners on hdlv2_ff_single_form, the "What matters most" pick
+ *   list that opens one questionnaire running straight into Stage 3 (v0.47.92)
  * Stage 3: Full Detail (22 factors, wizard mode, skip options, draft report)
  *
  * Requires: hdlv2-speedometer.js (HDLSpeedometer.buildUrl)
@@ -46,6 +48,8 @@
   var saving = false;
   var serverData = {};
   var wizardSection = 0;
+  // v0.47.92 — single-form WHY picks; HDLV2_Why_Picks holds the same limits.
+  var PICK_MIN = 5, PICK_MAX = 10;
 
   // v0.40.2 — Centralised width modifier for .hdlv2-assessment-root.
   // Three states: '' (default 620px), 'is-medium' (760px), 'is-wide' (full).
@@ -382,7 +386,11 @@
         serverData = data;
         currentStage = data.current_stage || 1;
         if (currentStage === 1) { formData = data.stage1_data || {}; renderStage1(data); }
-        else if (currentStage === 2) { formData = data.stage2_data || {}; renderStage2(data); }
+        else if (currentStage === 2) {
+          formData = data.stage2_data || {};
+          // v0.47.92 — covered practitioners' clients get the pick-list page.
+          if (data.single_form) renderWhyPicks(data); else renderStage2(data);
+        }
         else { formData = data.stage3_data || {}; renderStage3(data); }
       })
       .catch(function () { showError('Connection error', 'Could not load your assessment. Please try again.'); });
@@ -824,6 +832,7 @@
     var greet = firstName ? ('Hi ' + esc(firstName) + ' \u2014') : 'Hi there \u2014';
 
     var gaugeUrl = HDLSpeedometer.buildUrl(rate, { width: 640, height: 560 });
+    var singleForm = !!(serverData && serverData.single_form); // v0.47.92
 
     // Phase 17 (v0.22.26) \u2014 practitioner CTA + footer data from /form/load.
     // The buttons row hides "Book a session" entirely when no cta_link is
@@ -903,10 +912,14 @@
       +     '</div>'
       +     '<div class="hdlv2-s1-card">'
       +       '<h2>What Happens Next</h2>'
-      +       '<p class="hdlv2-s1-lede">Your gauge is a snapshot. The next two stages turn it into a plan.</p>'
-      +       '<ol class="hdlv2-s1-next-list">'
-      +         '<li><strong>Stage 2 \u2014 Your WHY.</strong> Tell us what motivates you. We capture your reasons in your own words. ~10 minutes.</li>'
-      +         '<li><strong>Stage 3 \u2014 Full Health Detail.</strong> Replace today\u2019s visual estimates with real measurements (body, fitness, sleep, lifestyle).</li>'
+      +       ( singleForm
+              ? '<p class="hdlv2-s1-lede">Your gauge is a snapshot. One questionnaire turns it into a plan.</p>'
+              +   '<ol class="hdlv2-s1-next-list">'
+              +     '<li><strong>One questionnaire.</strong> What matters to you, then your health details. About 15 minutes.</li>'
+              : '<p class="hdlv2-s1-lede">Your gauge is a snapshot. The next two stages turn it into a plan.</p>'
+              +   '<ol class="hdlv2-s1-next-list">'
+              +     '<li><strong>Stage 2 \u2014 Your WHY.</strong> Tell us what motivates you. We capture your reasons in your own words. ~10 minutes.</li>'
+              +     '<li><strong>Stage 3 \u2014 Full Health Detail.</strong> Replace today\u2019s visual estimates with real measurements (body, fitness, sleep, lifestyle).</li>' )
       +         '<li><strong>Your Trajectory Plan arrives.</strong> Reviewed by your practitioner, with your weekly Flight Plan to follow.</li>'
       +       '</ol>'
       // Phase 17 (v0.22.26) two CTAs preserved.
@@ -915,7 +928,7 @@
       //     (`practitioner_cta_link` from /form/load) only rendered when
       //     a link is configured, otherwise the button is hidden.
       +       '<div class="hdlv2-s1-buttons">'
-      +         '<button id="hdlv2-goto-s2" class="hdlv2-s1-btn hdlv2-s1-btn-primary" type="button">Continue to Stage 2 \u2014 Your WHY \u2192</button>'
+      +         '<button id="hdlv2-goto-s2" class="hdlv2-s1-btn hdlv2-s1-btn-primary" type="button">' + (singleForm ? 'Continue your assessment \u2192' : 'Continue to Stage 2 \u2014 Your WHY \u2192') + '</button>'
       +         '<p class="hdlv2-s1-email-note">We\u2019ve also sent this link to your email.</p>'
       +         ( pracCtaLink
               ? '<a id="hdlv2-book-session" class="hdlv2-s1-btn hdlv2-s1-btn-secondary" href="' + esc(pracCtaLink) + '" target="_blank" rel="noopener">' + esc(pracCtaText) + '</a>'
@@ -1203,6 +1216,125 @@
   }
 
   // ══════════════════════════════════════════════════════════════
+  //  SINGLE FORM: WHAT MATTERS MOST (v0.47.92)
+  //  First page of the one questionnaire for covered practitioners'
+  //  clients. Replaces the recorded/typed WHY: 5-10 picks, the people who
+  //  matter, optional own words. Next saves with submitted:true; the server
+  //  moves the row to stage 3, so loadForm() opens the health sections.
+  // ══════════════════════════════════════════════════════════════
+
+  function isSingleFlow() {
+    return !!(serverData && serverData.stage2_data && serverData.stage2_data.form_flow === 'single');
+  }
+
+  // Pure: returns the new pick list; refuses an 11th pick.
+  function togglePick(picks, id) {
+    var next = (picks || []).slice();
+    var at = next.indexOf(id);
+    if (at !== -1) { next.splice(at, 1); return { picks: next, atLimit: false }; }
+    if (next.length >= PICK_MAX) return { picks: next, atLimit: true };
+    next.push(id);
+    return { picks: next, atLimit: next.length >= PICK_MAX };
+  }
+
+  function canContinue(picks) {
+    return Array.isArray(picks) && picks.length >= PICK_MIN && picks.length <= PICK_MAX;
+  }
+
+  function renderWhyPicks(data) {
+    setRootClasses('is-medium');
+    var d = formData;
+    // Keep only ids still on offer (a retired or hand-edited id is dropped).
+    var offered = {};
+    (data.why_options || []).forEach(function (g) { g.items.forEach(function (it) { offered[it.id] = true; }); });
+    d.why_picks = (Array.isArray(d.why_picks) ? d.why_picks : []).filter(function (id) { return offered[id] === true; }).slice(0, PICK_MAX);
+
+    var groups = (data.why_options || []).map(function (g) {
+      return '<h5 class="hdlv2-subgroup-heading">' + esc(g.title) + '</h5>'
+        + '<div class="hdlv2-checkbox-grid hdlv2-picks-grid">'
+        + g.items.map(function (it) {
+            var on = d.why_picks.indexOf(it.id) !== -1;
+            return '<label class="hdlv2-checkbox-item' + (on ? ' selected' : '') + '">'
+              + '<input type="checkbox" value="' + esc(it.id) + '"' + (on ? ' checked' : '') + '>'
+              + '<span class="hdlv2-checkbox-label">' + esc(it.label) + '</span></label>';
+          }).join('')
+        + '</div>';
+    }).join('');
+
+    root.innerHTML = '<div class="hdlv2-card">'
+      + '<div class="hdlv2-header"><h2>What matters most to you</h2><p>Choose the 5 to 10 things you would most love to still be able to do in your later years.</p></div>'
+      + '<div class="hdlv2-form-body">'
+      +   '<div role="group" aria-label="Things you would love to still be able to do">' + groups + '</div>'
+      +   '<p id="hdlv2-picks-count" class="hdlv2-picks-count" aria-live="polite"></p>'
+      +   picksTextarea('key_people_text', 'Who are the most important people you want to stay healthy and strong for?', d.key_people_text, 'e.g. my wife Jenny, my grandchildren Leo and Mia', 300)
+      +   picksTextarea('own_words', 'Anything you would add in your own words? (optional)', d.own_words, '', 600)
+      +   '<button type="button" id="hdlv2-picks-next" class="hdlv2-btn">Next &#8594;</button>'
+      + '</div>' + saveIndicator() + footer() + '</div>';
+
+    root.querySelectorAll('.hdlv2-picks-grid input[type="checkbox"]').forEach(function (cb) {
+      cb.addEventListener('change', function () {
+        var r = togglePick(d.why_picks, cb.value);
+        d.why_picks = r.picks;
+        updatePicks();
+        if (saveTimer) clearTimeout(saveTimer);
+        saveTimer = setTimeout(function () { autoSave(2); }, 1500);
+      });
+    });
+    bindFieldListeners();
+    document.getElementById('hdlv2-picks-next').addEventListener('click', submitWhyPicks);
+    updatePicks();
+  }
+
+  // Sync pills + counter with formData.why_picks; at the limit the unchosen
+  // pills are disabled.
+  function updatePicks() {
+    var picks = formData.why_picks || [];
+    var full = picks.length >= PICK_MAX;
+    root.querySelectorAll('.hdlv2-picks-grid input[type="checkbox"]').forEach(function (cb) {
+      var on = picks.indexOf(cb.value) !== -1;
+      cb.checked = on;
+      cb.disabled = full && !on;
+      cb.parentNode.classList.toggle('selected', on);
+    });
+    var count = document.getElementById('hdlv2-picks-count');
+    if (count) {
+      count.textContent = picks.length + ' of ' + PICK_MAX + ' chosen'
+        + (full ? ' \u2014 that is the most you can choose' : canContinue(picks) ? '' : ', pick at least ' + PICK_MIN);
+    }
+  }
+
+  function picksTextarea(name, label, value, placeholder, maxlength) {
+    var v = value || '';
+    return '<div class="hdlv2-field"><label for="hdlv2-f-' + name + '">' + label + '</label>'
+      + '<textarea id="hdlv2-f-' + name + '" data-field="' + name + '" rows="2" maxlength="' + maxlength + '" placeholder="' + esc(placeholder) + '">' + esc(v) + '</textarea>'
+      + '<div class="hdlv2-field-foot"><span></span><div class="hdlv2-char-count" id="hdlv2-charcount-' + name + '">' + v.length + ' / ' + maxlength + '</div></div></div>';
+  }
+
+  function submitWhyPicks() {
+    if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
+    ['key_people_text', 'own_words'].forEach(function (n) {
+      var el = document.getElementById('hdlv2-f-' + n);
+      if (el) formData[n] = el.value.trim();
+    });
+    var btn = document.getElementById('hdlv2-picks-next');
+    btn.disabled = true; btn.textContent = 'Saving\u2026';
+    function reset(msg) { btn.disabled = false; btn.innerHTML = 'Next &#8594;'; setSaveStatus('error', msg); }
+    // The server validates (5-10 known picks, text lengths) and answers with
+    // a plain message on a 400, shown in the save-status line.
+    fetch(CFG.api_base + '/save', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': CFG.nonce },
+      body: JSON.stringify({ token: token, stage: 2, data: formData, submitted: true })
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (res) {
+        if (res.success) { root.scrollIntoView({ behavior: 'smooth' }); loadForm(); return; }
+        reset(res.message || 'Could not save. Please try again.');
+      })
+      .catch(function () { reset('Connection error'); });
+  }
+
+  // ══════════════════════════════════════════════════════════════
   //  STAGE 3: FULL DETAIL (WIZARD MODE)
   // ══════════════════════════════════════════════════════════════
 
@@ -1357,9 +1489,11 @@
     }
 
     // Wizard progress dots
-    var dots = '<div class="hdlv2-wizard-progress">';
+    // v0.47.92 — a single-form client's first step (the picks) shows as done.
+    var single = isSingleFlow();
+    var dots = '<div class="hdlv2-wizard-progress">' + (single ? '<span class="hdlv2-wizard-dot done">1</span>' : '');
     for (var i = 0; i < total; i++) {
-      dots += '<span class="hdlv2-wizard-dot' + (i < wizardSection ? ' done' : i === wizardSection ? ' active' : '') + '">' + (i + 1) + '</span>';
+      dots += '<span class="hdlv2-wizard-dot' + (i < wizardSection ? ' done' : i === wizardSection ? ' active' : '') + '">' + (i + (single ? 2 : 1)) + '</span>';
     }
     dots += '</div>';
 
@@ -1373,7 +1507,7 @@
     //   - Title now reads "More Health Details \u2014 Stage 3" (was "Full Health Detail").
     //   - Skip helper line standardised: same phrasing on every section.
     root.innerHTML = '<div class="hdlv2-card">'
-      + '<div class="hdlv2-header"><h2>More Health Details \u2014 Stage 3</h2><p>' + esc(sec.title) + '</p></div>'
+      + '<div class="hdlv2-header"><h2>' + (single ? 'Your assessment' : 'More Health Details \u2014 Stage 3') + '</h2><p>' + esc(sec.title) + '</p></div>'
       + dots
       + (isFirst ? '<div class="hdlv2-wizard-info">Don\u2019t worry if you don\u2019t know the details. Just do your best. Your practitioner or the report can still be generated if you haven\u2019t got all these details.</div>' : '')
       + '<div class="hdlv2-form-body">' + content

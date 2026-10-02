@@ -27,7 +27,9 @@ function body(name) {
 const limits = (src.match(/  var PICK_MIN = \d+, PICK_MAX = \d+;/) || [''])[0];
 ok(limits !== '', 'PICK_MIN / PICK_MAX declared');
 const ctx = {};
-vm.runInNewContext(limits + '\n' + body('togglePick') + '\n' + body('canContinue') + '\nthis.togglePick = togglePick; this.canContinue = canContinue;', ctx);
+try {
+  vm.runInNewContext(limits + '\n' + body('togglePick') + '\n' + body('canContinue') + '\nthis.togglePick = togglePick; this.canContinue = canContinue;', ctx);
+} catch (e) { /* missing functions: reported below */ }
 const { togglePick, canContinue } = ctx;
 ok(typeof togglePick === 'function' && typeof canContinue === 'function', 'togglePick() and canContinue() exist');
 

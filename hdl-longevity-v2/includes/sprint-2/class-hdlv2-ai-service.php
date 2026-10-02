@@ -194,6 +194,7 @@ class HDLV2_AI_Service {
             . "Top positive factors (score >= 4): %s\n"
             . "Top negative factors (score <= 2): %s\n"
             . "%s"
+            . "%s"
             . "\nGenerate three sections as HTML paragraphs (use <p>, <strong>, <ul>, <li> tags):\n\n"
             . "AWAKEN: Current state assessment. Where are they now? What does their biological age mean? "
             . "What is their trajectory if nothing changes? Be honest but compassionate. Only name metrics from the whitelist above.\n\n"
@@ -207,7 +208,11 @@ class HDLV2_AI_Service {
             $scores_text,
             implode( ', ', $positives ) ?: 'none identified',
             implode( ', ', $negatives ) ?: 'none identified',
-            $background_block
+            $background_block,
+            // v0.47.92 — single-form picks block (HDLV2_Why_Picks::prompt_block,
+            // pinned by tests/single-form). '' for every other client, so
+            // their prompt text is unchanged. Approved by Quim 2026-10-02, STBY.
+            (string) ( $why_profile['picks_block'] ?? '' )
         );
 
         $system = 'You are a longevity report writer for HealthDataLab. You ONLY reference the 21 whitelisted metrics in the input — you never invent clinical markers like HRV or cortisol. You respect severity bands (2/5 is a focus area, not an emergency). Generate personalised, evidence-informed '

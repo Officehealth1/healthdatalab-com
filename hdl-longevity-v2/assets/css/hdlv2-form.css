@@ -525,12 +525,13 @@
 }
 
 .hdlv2-checkbox-grid.error {
-  outline: 2px solid #e74c3c;
+  outline: 2px solid #dc2626;
   border-radius: 8px;
   padding: 4px;
 }
 
 .hdlv2-checkbox-item {
+  position: relative;
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -547,13 +548,37 @@
 
 .hdlv2-checkbox-item:hover { border-color: #3d8da0; }
 
-.hdlv2-checkbox-item input[type="checkbox"] { display: none; }
+/* v0.47.92 — visually hidden but still focusable (was display:none, which
+   took the pills out of the keyboard order). */
+.hdlv2-checkbox-item input[type="checkbox"] {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  margin: 0;
+}
+.hdlv2-checkbox-item:has(input:focus-visible) { outline: 2px solid #3d8da0; outline-offset: 2px; }
+.hdlv2-checkbox-item:has(input:disabled) { opacity: 0.5; cursor: not-allowed; }
+.hdlv2-checkbox-item:has(input:disabled):hover { border-color: #e4e6ea; }
 
 .hdlv2-checkbox-item.selected {
   background: rgba(61, 141, 160, 0.1);
   border-color: #3d8da0;
   color: #3d8da0;
   font-weight: 500;
+}
+
+/* v0.47.92 — single-form "What matters most" pick list. */
+.hdlv2-picks-grid .hdlv2-checkbox-item { max-width: 100%; line-height: 1.35; }
+.hdlv2-picks-count {
+  font-size: 13px;
+  font-weight: 600;
+  color: #2c3e50;
+  margin: 18px 0 8px;
+}
+@media (max-width: 480px) {
+  .hdlv2-picks-grid { flex-direction: column; }
+  .hdlv2-picks-grid .hdlv2-checkbox-item { border-radius: 12px; }
 }
 
 /* ── VIDEO EMBED ── */
