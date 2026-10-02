@@ -371,11 +371,7 @@ class HDLV2_Final_Report {
                 // v0.47.93 — plus the single-form picks + focus areas ('' for
                 // everyone else), from the scores just recalculated. Added to
                 // a copy: the WHY the PDF sections and Make receive is as before.
-                array( 'picks_block' => HDLV2_Why_Picks::prompt_block(
-                    json_decode( (string) $progress->stage2_data, true ) ?: array(),
-                    $s1_data['server_result']['raw'] ?? array(),
-                    $calc_result['scores'] ?? array()
-                ) ) + $why_profile,
+                array( 'picks_block' => HDLV2_Why_Picks::block_for_row( $progress, $calc_result['scores'] ?? array(), true ) ) + $why_profile,
                 $recommendations,
                 $age
             );
@@ -896,11 +892,7 @@ class HDLV2_Final_Report {
         $calc_result = HDLV2_Rate_Calculator::calculate_full( $age, $calc_data, $gender );
 
         // v0.47.93 — same picks block as generate() Step 3.
-        $why_profile['picks_block'] = HDLV2_Why_Picks::prompt_block(
-            json_decode( (string) $progress->stage2_data, true ) ?: array(),
-            $s1_data['server_result']['raw'] ?? array(),
-            $calc_result['scores'] ?? array()
-        );
+        $why_profile['picks_block'] = HDLV2_Why_Picks::block_for_row( $progress, $calc_result['scores'] ?? array(), true );
         $milestones = HDLV2_AI_Service::generate_milestones( $calc_result, $why_profile, $recommendations, $age );
         if ( ! is_array( $milestones ) || empty( $milestones ) ) {
             return new WP_Error( 'hdlv2_ai_generation_failed', 'Milestone generation failed (AI unavailable). Please retry.', array( 'status' => 503 ) );

@@ -1007,12 +1007,9 @@ class HDLV2_Staged_Form {
         // Read from the row itself so the picks still reach the draft when
         // the WHY extraction failed and there is no why_profiles row.
         // v0.47.93 — with the saved Stage 1 + Stage 3 scores, so the block
-        // names the focus areas; generate_milestones() below reads it too.
-        $why_profile['picks_block'] = HDLV2_Why_Picks::prompt_block(
-            json_decode( (string) $progress->stage2_data, true ) ?: array(),
-            $s1_data['server_result']['raw'] ?? array(),
-            $calc_result['scores'] ?? array()
-        );
+        // names the focus areas; generate_milestones() below gets the same
+        // facts with its own instruction.
+        $why_profile['picks_block'] = HDLV2_Why_Picks::block_for_row( $progress, $calc_result['scores'] ?? array() );
         if ( $single && ! $why_row ) {
             error_log( sprintf( '[HDLV2] Draft for progress %d written without a WHY: single-form extraction did not land.', (int) $progress->id ) );
         }
@@ -1031,7 +1028,7 @@ class HDLV2_Staged_Form {
         // Generate AI-suggested milestones
         $milestones = HDLV2_AI_Service::generate_milestones(
             $calc_result,
-            $why_profile,
+            array( 'picks_block' => HDLV2_Why_Picks::block_for_row( $progress, $calc_result['scores'] ?? array(), true ) ) + $why_profile,
             array(), // no practitioner recommendations yet (draft)
             $s1_data['q1_age'] ?? $s1_data['age'] ?? 0
         );

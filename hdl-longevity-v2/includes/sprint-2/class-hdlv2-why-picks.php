@@ -316,11 +316,15 @@ class HDLV2_Why_Picks {
         return array_values( $out );
     }
 
-    /** Focus ability ids from abilities_profile() rows, strongest claim first. */
+    /**
+     * Focus ability ids from abilities_profile() rows, strongest claim first.
+     * An ability with only a nearest measure (INDIRECT) is never a focus: its
+     * number belongs to another ability, which would otherwise be counted twice.
+     */
     private static function focus_ids( $rows ) {
         $weight = array();
         foreach ( $rows as $a ) {
-            if ( null !== $a['score'] && $a['score'] <= self::FOCUS_MAX_SCORE ) $weight[ $a['id'] ] = $a['count'] * ( 5 - $a['score'] );
+            if ( null !== $a['score'] && $a['score'] <= self::FOCUS_MAX_SCORE && empty( $a['indirect'] ) ) $weight[ $a['id'] ] = $a['count'] * ( 5 - $a['score'] );
         }
         // Weight desc; ties keep NEEDS order (stable sort, PHP 8+).
         arsort( $weight );
@@ -339,12 +343,44 @@ class HDLV2_Why_Picks {
     }
 
     /**
+     * Stage 1 raw scores that come from a real answer. calculate_quick()
+     * fills a missing or invalid q3-q9 with 3; those are dropped here so a
+     * question nobody answered is never reported as measured.
+     *
+     * @param array $stage1_data Decoded form_progress.stage1_data.
+     */
+    public static function stage1_raw( $stage1_data ) {
+        $raw = is_array( $stage1_data ) ? ( $stage1_data['server_result']['raw'] ?? array() ) : array();
+        if ( ! is_array( $raw ) ) return array();
+        foreach ( $raw as $key => $v ) {
+            // 'q5_sts' is scored from the answer stored under 'q5'.
+            $answer = $stage1_data[ strtok( (string) $key, '_' ) ] ?? '';
+            if ( ! is_string( $answer ) || ! preg_match( '/^[a-e]$/i', $answer ) ) unset( $raw[ $key ] );
+        }
+        return $raw;
+    }
+
+    /**
+     * prompt_block() for a form_progress row and its freshly calculated
+     * Stage 3 scores: the one call the draft and milestones callers make.
+     */
+    public static function block_for_row( $progress, $stage3_scores, $for_milestones = false ) {
+        return self::prompt_block(
+            json_decode( (string) ( $progress->stage2_data ?? '' ), true ) ?: array(),
+            self::stage1_raw( json_decode( (string) ( $progress->stage1_data ?? '' ), true ) ?: array() ),
+            is_array( $stage3_scores ) ? $stage3_scores : array(),
+            $for_milestones
+        );
+    }
+
+    /**
      * Optional block for the draft-report and milestones prompts. '' unless
      * the data is a single-form submit with picks, so every other prompt
      * stays byte-identical. With the saved scores it also says what was
-     * measured for each ability and names the focus areas.
+     * measured for each ability and names the focus areas. The milestones
+     * prompt has no LIFT / THRIVE sections, so it gets its own instruction.
      */
-    public static function prompt_block( $stage2_data, $stage1_raw = array(), $stage3_scores = array() ) {
+    public static function prompt_block( $stage2_data, $stage1_raw = array(), $stage3_scores = array(), $for_milestones = false ) {
         if ( ! self::is_single( $stage2_data ) || ! is_array( $stage2_data['why_picks'] ?? null ) ) return '';
         $items = self::labels( array_slice( $stage2_data['why_picks'], 0, self::MAX_PICKS ) );
         if ( ! $items ) return '';
@@ -366,27 +402,36 @@ class HDLV2_Why_Picks {
 
         $people = self::plain( $stage2_data['key_people_text'] ?? '', self::MAX_PEOPLE_LEN );
         if ( '' !== $people ) $block .= 'People they named: ' . $people . "\n";
-        $block .= "In LIFT, where one of their weakest scores limits an ability these choices depend on, say so in one clause and name the choice. In THRIVE, use their choices and the people they named. Do not invent choices or people that are not listed here.\n";
+        $block .= $for_milestones
+            ? "Do not invent choices or people that are not listed here.\n"
+            : "In LIFT, where one of their weakest scores limits an ability these choices depend on, say so in one clause and name the choice. In THRIVE, use their choices and the people they named. Do not invent choices or people that are not listed here.\n";
 
-        if ( $stage1_raw || $stage3_scores ) {
-            $block .= "What their choices depend on, with what was measured (0-5, higher is better):\n";
+        $scored = $stage1_raw || $stage3_scores;
+        $focus  = array();
+        if ( $scored ) {
+            $block .= "What their choices depend on, with what was measured (out of 5, higher is better; Stage 1 answers run 1 to 5, Stage 3 answers 0 to 5):\n";
             $profile = self::abilities_profile( array_column( $items, 'id' ), $stage1_raw, $stage3_scores );
             foreach ( $profile as $a ) {
                 $from = array();
                 foreach ( $a['measures'] as $m ) {
-                    if ( null !== $m['score'] ) $from[] = $m['label'] . ' ' . $m['score'] . '/5';
+                    if ( null !== $m['score'] ) $from[] = $m['label'] . ( 'stage1' === $m['source'] ? ' (Stage 1) ' : ' ' ) . $m['score'] . '/5';
                 }
                 $block .= '- ' . $a['label'] . ': ' . $a['count'] . ' of their choices; '
                     . ( null === $a['score']
-                        ? 'not measured by the questionnaire'
+                        ? 'no answer recorded'
                         : ( $a['indirect'] ? 'nearest measure ' : 'measured ' ) . $a['score'] . '/5 from ' . implode( ', ', $from ) )
                     . "\n";
             }
-            $focus = array();
             foreach ( self::focus_ids( $profile ) as $id ) $focus[] = self::ABILITY_LABELS[ $id ];
             if ( $focus ) $block .= 'Focus areas (most chosen, weakest measured): ' . implode( ', ', $focus ) . "\n";
-            $block .= "Use the focus areas to decide what LIFT puts first and what the milestones aim at. Name the choice each one serves. Do not quote these ability scores as if they were one of the 21 health scores; they are averages for your guidance.\n";
         }
+        // An instruction about focus areas is only given when some are named.
+        if ( $for_milestones ) {
+            $block .= 'Aim the milestones at what this client chose' . ( $focus ? ', starting with the focus areas' : '' ) . ", and keep every milestone within its word limit.\n";
+        } elseif ( $focus ) {
+            $block .= "Use the focus areas to decide what LIFT puts first. Name the choice each one serves.\n";
+        }
+        if ( $scored ) $block .= "Do not quote these ability scores as if they were one of the 21 health scores; they are averages for your guidance.\n";
         return $block . "\n";
     }
 

@@ -2479,12 +2479,12 @@
         }).join('');
         var abilities = (s2.choices.abilities || []).map(function (a) {
           var measured = (a.measures || []).filter(function (m) { return m.score != null; })
-            .map(function (m) { return m.label + ' ' + m.score + '/5'; }).join(', ');
+            .map(function (m) { return m.label + (m.source === 'stage1' ? ' (Stage 1) ' : ' ') + m.score + '/5'; }).join(', ');
           return '<div class="hdlv2-score-row hdlv2-why-ability">'
             + '<span>' + esc(a.label) + (a.focus ? '<span class="hdlv2-tab-new">Focus</span>' : '')
             +   '<small>' + esc(a.count) + ' of their choices</small></span>'
             + (a.score == null
-                ? '<span class="hdlv2-score-val">not measured yet</span>'
+                ? '<span class="hdlv2-score-val">no answer yet</span>'
                 : '<span class="hdlv2-score-val">' + esc(a.score) + '/5'
                   + '<small>' + esc((a.indirect ? 'nearest measure: ' : '') + measured) + '</small></span>')
             + '</div>';
@@ -2492,7 +2492,8 @@
         choices = '<div class="hdlv2-why-choices">'
           + '<div class="hdlv2-score-group"><h4>What they chose</h4>' + picked + '</div>'
           + '<div class="hdlv2-score-group"><h4>Abilities their choices depend on</h4>' + abilities
-          +   (s2.choices.stage3_done ? '' : '<div class="hdlv2-consult-caption">Stage 3 not finished: based on Stage 1 answers only</div>')
+          +   '<div class="hdlv2-consult-caption">Scores are out of 5. Stage 1 answers run 1 to 5, Stage 3 answers 0 to 5.'
+          +     (s2.choices.stage3_done ? '' : ' Stage 3 not finished: based on Stage 1 answers only.') + '</div>'
           + '</div>'
           + '</div>';
       }

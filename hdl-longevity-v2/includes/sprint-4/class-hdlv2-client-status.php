@@ -607,7 +607,7 @@ class HDLV2_Client_Status {
                 'picks'       => HDLV2_Why_Picks::picks_for_display( $s2_form['why_picks'] ),
                 'abilities'   => HDLV2_Why_Picks::abilities_profile(
                     $s2_form['why_picks'],
-                    $s1_raw,
+                    HDLV2_Why_Picks::stage1_raw( $s1 ), // real answers only
                     isset( $s3_calc['scores'] ) && is_array( $s3_calc['scores'] ) ? $s3_calc['scores'] : array()
                 ),
                 'stage3_done' => ! empty( $progress->stage3_completed_at ),
