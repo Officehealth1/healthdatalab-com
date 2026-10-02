@@ -50,6 +50,8 @@
   var wizardSection = 0;
   // v0.47.92 — single-form WHY picks; HDLV2_Why_Picks holds the same limits.
   var PICK_MIN = 5, PICK_MAX = 10;
+  // v0.47.93 — ids of the theme tiles open on the picks page.
+  var openThemes = [];
 
   // v0.40.2 — Centralised width modifier for .hdlv2-assessment-root.
   // Three states: '' (default 620px), 'is-medium' (760px), 'is-wide' (full).
@@ -1221,6 +1223,9 @@
   //  clients. Replaces the recorded/typed WHY: 5-10 picks, the people who
   //  matter, optional own words. Next saves with submitted:true; the server
   //  moves the row to stage 3, so loadForm() opens the health sections.
+  //  v0.47.93 — themes first (six tiles, each opens its statements), a
+  //  chosen statement shows the abilities it stands for, and a panel adds
+  //  up what the choices depend on. Counts only: no scores on this page.
   // ══════════════════════════════════════════════════════════════
 
   function isSingleFlow() {
@@ -1241,36 +1246,91 @@
     return Array.isArray(picks) && picks.length >= PICK_MIN && picks.length <= PICK_MAX;
   }
 
+  // Pure: ids of the themes that hold at least one pick (open at the start).
+  function themesWithPicks(groups, picks) {
+    return (groups || []).filter(function (g) {
+      return g.items.some(function (it) { return (picks || []).indexOf(it.id) !== -1; });
+    }).map(function (g) { return g.id; });
+  }
+
+  // Pure: opens a closed theme, closes an open one. The picks are not touched.
+  function toggleTheme(open, id) {
+    var next = (open || []).slice();
+    var at = next.indexOf(id);
+    if (at !== -1) next.splice(at, 1); else next.push(id);
+    return next;
+  }
+
+  // Pure: the abilities the picks depend on, most-needed first; ties keep the
+  // server's ability order (HDLV2_Why_Picks::NEEDS).
+  function abilityCounts(picks, groups, abilities) {
+    var counts = {};
+    (groups || []).forEach(function (g) {
+      g.items.forEach(function (it) {
+        if ((picks || []).indexOf(it.id) === -1) return;
+        (it.needs || []).forEach(function (n) { counts[n] = (counts[n] || 0) + 1; });
+      });
+    });
+    return Object.keys(abilities || {})
+      .filter(function (id) { return counts[id] > 0; })
+      .map(function (id) { return { id: id, label: abilities[id], count: counts[id] }; })
+      .sort(function (a, b) { return b.count - a.count; });
+  }
+
   function renderWhyPicks(data) {
     setRootClasses('is-medium');
     var d = formData;
+    var groups = data.why_options || [];
+    var names = data.why_abilities || {};
     // Keep only ids still on offer (a retired or hand-edited id is dropped).
     var offered = {};
-    (data.why_options || []).forEach(function (g) { g.items.forEach(function (it) { offered[it.id] = true; }); });
+    groups.forEach(function (g) { g.items.forEach(function (it) { offered[it.id] = true; }); });
     d.why_picks = (Array.isArray(d.why_picks) ? d.why_picks : []).filter(function (id) { return offered[id] === true; }).slice(0, PICK_MAX);
+    openThemes = themesWithPicks(groups, d.why_picks);
 
-    var groups = (data.why_options || []).map(function (g) {
-      return '<h5 class="hdlv2-subgroup-heading">' + esc(g.title) + '</h5>'
+    var tiles = groups.map(function (g) {
+      return '<button type="button" class="hdlv2-theme-tile" aria-pressed="false" aria-controls="hdlv2-theme-' + esc(g.id) + '" data-theme="' + esc(g.id) + '">'
+        + '<span class="hdlv2-theme-title">' + esc(g.short || g.title) + '</span>'
+        + '<span class="hdlv2-theme-count"></span></button>';
+    }).join('');
+
+    // Every theme's statements are in the page from the start; a closed
+    // theme is only hidden, so its picks stay chosen and counted.
+    var panels = groups.map(function (g) {
+      return '<div class="hdlv2-theme-panel" id="hdlv2-theme-' + esc(g.id) + '" hidden>'
+        + '<h5 class="hdlv2-subgroup-heading">' + esc(g.title) + '</h5>'
         + '<div class="hdlv2-checkbox-grid hdlv2-picks-grid">'
         + g.items.map(function (it) {
             var on = d.why_picks.indexOf(it.id) !== -1;
+            // What the statement stands for; the CSS shows it once chosen.
+            var needs = (it.needs || []).map(function (n) { return names[n] || n; }).join(' \u00b7 ').toLowerCase();
             return '<label class="hdlv2-checkbox-item' + (on ? ' selected' : '') + '">'
               + '<input type="checkbox" value="' + esc(it.id) + '"' + (on ? ' checked' : '') + '>'
-              + '<span class="hdlv2-checkbox-label">' + esc(it.label) + '</span></label>';
+              + '<span class="hdlv2-checkbox-label">' + esc(it.label)
+              + (needs ? '<span class="hdlv2-pick-needs">' + esc(needs) + '</span>' : '') + '</span></label>';
           }).join('')
-        + '</div>';
+        + '</div></div>';
     }).join('');
 
-    root.innerHTML = '<div class="hdlv2-card">'
-      + '<div class="hdlv2-header"><h2>What matters most to you</h2><p>Choose the 5 to 10 things you would most love to still be able to do in your later years.</p></div>'
+    root.innerHTML = '<div class="hdlv2-card hdlv2-why">'
+      + '<div class="hdlv2-header"><h2>What matters most to you</h2><p>Tap the parts of life you care about, then choose the 5 to 10 things you would most love to still be able to do.</p></div>'
       + '<div class="hdlv2-form-body">'
-      +   '<div role="group" aria-label="Things you would love to still be able to do">' + groups + '</div>'
+      +   '<div class="hdlv2-theme-grid" role="group" aria-label="Parts of life">' + tiles + '</div>'
+      +   '<p id="hdlv2-themes-hint" class="hdlv2-themes-hint">Start with one or two that matter to you.</p>'
+      +   '<div role="group" aria-label="Things you would love to still be able to do">' + panels + '</div>'
       +   '<p id="hdlv2-picks-count" class="hdlv2-picks-count" aria-live="polite"></p>'
+      +   '<div id="hdlv2-abilities" class="hdlv2-abilities" hidden></div>'
       +   picksTextarea('key_people_text', 'Who are the most important people you want to stay healthy and strong for?', d.key_people_text, 'e.g. my wife Jenny, my grandchildren Leo and Mia', 300)
       +   picksTextarea('own_words', 'Anything you would add in your own words? (optional)', d.own_words, '', 600)
       +   '<button type="button" id="hdlv2-picks-next" class="hdlv2-btn">Next &#8594;</button>'
       + '</div>' + saveIndicator() + footer() + '</div>';
 
+    root.querySelectorAll('.hdlv2-theme-tile').forEach(function (tile) {
+      tile.addEventListener('click', function () {
+        openThemes = toggleTheme(openThemes, tile.getAttribute('data-theme'));
+        updatePicks();
+      });
+    });
     root.querySelectorAll('.hdlv2-picks-grid input[type="checkbox"]').forEach(function (cb) {
       cb.addEventListener('change', function () {
         var r = togglePick(d.why_picks, cb.value);
@@ -1285,21 +1345,45 @@
     updatePicks();
   }
 
-  // Sync pills + counter with formData.why_picks; at the limit the unchosen
-  // pills are disabled.
+  // Sync tiles, pills, counter and the abilities panel with openThemes and
+  // formData.why_picks; at the limit the unchosen pills are disabled.
   function updatePicks() {
     var picks = formData.why_picks || [];
     var full = picks.length >= PICK_MAX;
+    var groups = serverData.why_options || [];
     root.querySelectorAll('.hdlv2-picks-grid input[type="checkbox"]').forEach(function (cb) {
       var on = picks.indexOf(cb.value) !== -1;
       cb.checked = on;
       cb.disabled = full && !on;
       cb.parentNode.classList.toggle('selected', on);
     });
+    // Tiles are drawn in group order, so tile i belongs to groups[i].
+    root.querySelectorAll('.hdlv2-theme-tile').forEach(function (tile, i) {
+      var g = groups[i];
+      var isOpen = openThemes.indexOf(g.id) !== -1;
+      var chosen = g.items.filter(function (it) { return picks.indexOf(it.id) !== -1; }).length;
+      tile.setAttribute('aria-pressed', isOpen ? 'true' : 'false');
+      tile.querySelector('.hdlv2-theme-count').textContent = chosen ? chosen + ' chosen' : '';
+      document.getElementById(tile.getAttribute('aria-controls')).hidden = !isOpen;
+    });
+    var hint = document.getElementById('hdlv2-themes-hint');
+    if (hint) hint.hidden = openThemes.length > 0 || picks.length > 0;
     var count = document.getElementById('hdlv2-picks-count');
     if (count) {
       count.textContent = picks.length + ' of ' + PICK_MAX + ' chosen'
         + (full ? ' \u2014 that is the most you can choose' : canContinue(picks) ? '' : ', pick at least ' + PICK_MIN);
+    }
+    var panel = document.getElementById('hdlv2-abilities');
+    if (panel) {
+      var rows = abilityCounts(picks, groups, serverData.why_abilities);
+      panel.hidden = !rows.length;
+      panel.innerHTML = !rows.length ? '' : '<h3>What your choices ask of your body</h3>'
+        + '<p>Each thing you chose depends on abilities like these. Your plan will focus on the ones your health answers show need the most work.</p>'
+        + '<div class="hdlv2-ability-list" role="list">' + rows.map(function (r) {
+            return '<div class="hdlv2-ability" role="listitem"><span class="hdlv2-ability-name">' + esc(r.label) + '</span>'
+              + '<span class="hdlv2-ability-count">' + r.count + ' of your choices</span>'
+              + '<span class="hdlv2-ability-meter" aria-hidden="true"><span style="width:' + Math.round(r.count / picks.length * 100) + '%"></span></span></div>';
+          }).join('') + '</div>';
     }
   }
 

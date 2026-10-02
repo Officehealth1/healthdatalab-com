@@ -848,6 +848,7 @@ class HDLV2_AI_Service {
             . "Client: Age %s, Rate of ageing: %s\n"
             . "Key weak areas: %s\n"
             . "WHY: %s\n"
+            . "%s"
             . "Practitioner priority areas: %s\n\n"
             . "Return ONLY valid JSON:\n"
             . "{\n"
@@ -862,6 +863,11 @@ class HDLV2_AI_Service {
             $age, $rate,
             implode( ', ', $weak ) ?: 'none identified',
             $why_profile['distilled_why'] ?? 'Not provided',
+            // v0.47.93 — single-form picks block with the focus areas
+            // (HDLV2_Why_Picks::prompt_block, pinned by tests/single-form).
+            // '' for every other client, so their prompt text is unchanged.
+            // Approved by Quim 2026-10-02, STBY.
+            (string) ( $why_profile['picks_block'] ?? '' ),
             implode( ', ', array_unique( $rec_cats ) ) ?: 'general health'
         );
 

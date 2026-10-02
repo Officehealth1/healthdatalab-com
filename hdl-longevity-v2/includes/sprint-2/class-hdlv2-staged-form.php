@@ -205,6 +205,9 @@ class HDLV2_Staged_Form {
         if ( empty( $progress->stage2_completed_at ) && HDLV2_Why_Picks::row_uses_single_form( $progress ) ) {
             $response['single_form'] = true;
             $response['why_options'] = HDLV2_Why_Picks::options_for_page();
+            // v0.47.93 — ability id → display name, for the captions and the
+            // "what your choices ask of your body" panel.
+            $response['why_abilities'] = HDLV2_Why_Picks::ABILITY_LABELS;
         }
 
         return rest_ensure_response( $response );
@@ -1003,7 +1006,13 @@ class HDLV2_Staged_Form {
         // v0.47.92 — single-form picks for the draft prompt ('' otherwise).
         // Read from the row itself so the picks still reach the draft when
         // the WHY extraction failed and there is no why_profiles row.
-        $why_profile['picks_block'] = HDLV2_Why_Picks::prompt_block( json_decode( (string) $progress->stage2_data, true ) ?: array() );
+        // v0.47.93 — with the saved Stage 1 + Stage 3 scores, so the block
+        // names the focus areas; generate_milestones() below reads it too.
+        $why_profile['picks_block'] = HDLV2_Why_Picks::prompt_block(
+            json_decode( (string) $progress->stage2_data, true ) ?: array(),
+            $s1_data['server_result']['raw'] ?? array(),
+            $calc_result['scores'] ?? array()
+        );
         if ( $single && ! $why_row ) {
             error_log( sprintf( '[HDLV2] Draft for progress %d written without a WHY: single-form extraction did not land.', (int) $progress->id ) );
         }

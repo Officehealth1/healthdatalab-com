@@ -468,7 +468,7 @@ class HDLV2_Client_Status {
         // code path with a stale ID).
         $progress = $wpdb->get_row( $wpdb->prepare(
             "SELECT id, token, client_user_id, practitioner_user_id, client_email, client_name,
-                    stage1_data, stage3_data, stage1_completed_at, stage3_completed_at, created_at,
+                    stage1_data, stage2_data, stage3_data, stage1_completed_at, stage3_completed_at, created_at,
                     stage1_pdf_url,
                     has_flags, flags, flags_scan_status,
                     visitor_country, visitor_region
@@ -597,6 +597,22 @@ class HDLV2_Client_Status {
             'released'      => (int) ( $why->released ?? 0 ) === 1,
             'pdf_url'       => (string) ( $why->pdf_url ?? '' ), // D-2 — practitioner-only WHY PDF
         ) : null;
+
+        // v0.47.93 — single-form clients: what they chose and the abilities
+        // those choices depend on, worked out fresh from the saved answers
+        // (HDLV2_Why_Picks::abilities_profile). Absent for every other row.
+        $s2_form = json_decode( (string) ( $progress->stage2_data ?? '' ), true );
+        if ( $stage2 && class_exists( 'HDLV2_Why_Picks' ) && HDLV2_Why_Picks::is_single( $s2_form ) && is_array( $s2_form['why_picks'] ?? null ) ) {
+            $stage2['choices'] = array(
+                'picks'       => HDLV2_Why_Picks::picks_for_display( $s2_form['why_picks'] ),
+                'abilities'   => HDLV2_Why_Picks::abilities_profile(
+                    $s2_form['why_picks'],
+                    $s1_raw,
+                    isset( $s3_calc['scores'] ) && is_array( $s3_calc['scores'] ) ? $s3_calc['scores'] : array()
+                ),
+                'stage3_done' => ! empty( $progress->stage3_completed_at ),
+            );
+        }
 
         // ── Stage 3 ─────────────────────────────────────────────
         // D-2 — draft-report PDF for the practitioner Stage-3 tab download.

@@ -186,7 +186,7 @@ check( 'AP3 choices with no number → score null, never a focus',
 $s1_only = $profile( array( 'lift_grandchild' ), $raw1, array() );
 check( 'AP4 Stage 3 scores empty → Stage 1 measures only',
     is_array( $s1_only ) && 2.0 === ( $s1_only[0]['score'] ?? null ) && array( null, 2 ) === array_column( $s1_only[0]['measures'], 'score' )
-    && null === ( $s1_only[1]['score'] ?? 0 ) && 'balance' === ( $s1_only[1]['id'] ?? '' ) );
+    && 'balance' === ( $s1_only[1]['id'] ?? '' ) && array_key_exists( 'score', $s1_only[1] ) && null === $s1_only[1]['score'] );
 $skip = $profile( array( 'lift_grandchild' ), array( 'q5_sts' => 'skip' ), array( 'sitToStand' => 'n/a', 'balance' => '' ) );
 check( 'AP5 "skip" / non-numeric / empty scores are treated as missing',
     is_array( $skip ) && null === $skip[0]['score'] && null === $skip[1]['score'] && array( null, null ) === array_column( $skip[0]['measures'], 'score' ) );

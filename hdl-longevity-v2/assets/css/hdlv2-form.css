@@ -581,6 +581,110 @@
   .hdlv2-picks-grid .hdlv2-checkbox-item { border-radius: 12px; }
 }
 
+/* v0.47.93 — themes first: six tiles, each opens its statements below.
+   --hdl-ease is the Stage 1 easing; that block scopes it to .hdlv2-s1, so
+   the picks card declares the same value for itself. */
+.hdlv2-why { --hdl-ease: cubic-bezier(0.2, 0.6, 0.2, 1); }
+.hdlv2-theme-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 14px;
+}
+@media (min-width: 700px) {
+  .hdlv2-theme-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+.hdlv2-theme-tile {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 64px;
+  padding: 14px 32px 14px 16px;
+  background: #fff;
+  border: 1px solid #e4e6ea;
+  border-radius: 12px;
+  font-family: inherit;
+  text-align: left;
+  color: #2c3e50;
+  cursor: pointer;
+  transition:
+    background-color 160ms var(--hdl-ease),
+    border-color 160ms var(--hdl-ease),
+    color 160ms var(--hdl-ease);
+}
+.hdlv2-theme-tile:hover { border-color: #3d8da0; }
+.hdlv2-theme-tile:focus-visible { outline: 2px solid #3d8da0; outline-offset: 2px; }
+.hdlv2-theme-tile[aria-pressed="true"] {
+  background: #f0fbfc;
+  border-color: #3d8da0;
+  color: #004F59;
+}
+.hdlv2-theme-tile[aria-pressed="true"]::after {
+  content: '\2713';
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  font-size: 13px;
+  line-height: 1;
+  color: #3d8da0;
+}
+.hdlv2-theme-title { font-size: 14px; font-weight: 600; line-height: 1.3; }
+.hdlv2-theme-count { min-height: 16px; font-size: 12px; font-weight: 500; color: #3d8da0; }
+.hdlv2-themes-hint { margin: 0 0 6px; font-size: 13px; color: #888; }
+.hdlv2-theme-panel { margin-bottom: 6px; }
+@media (prefers-reduced-motion: reduce) {
+  .hdlv2-theme-tile { transition: none; }
+}
+
+/* What a chosen statement stands for, under its text. */
+.hdlv2-pick-needs { display: none; margin-top: 2px; font-size: 12px; font-weight: 400; color: #666; }
+.hdlv2-checkbox-item.selected .hdlv2-pick-needs { display: block; }
+
+/* "What your choices ask of your body": the abilities behind the choices,
+   most-needed first. Counts only; no scores are shown on this page. */
+.hdlv2-abilities {
+  margin: 4px 0 20px;
+  padding: 16px 18px;
+  background: #f8f9fb;
+  border: 1px solid #e4e6ea;
+  border-radius: 12px;
+}
+.hdlv2-abilities h3 {
+  font-family: 'Poppins', sans-serif;
+  margin: 0 0 4px;
+  padding: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: #111;
+  line-height: 1.35;
+}
+.hdlv2-abilities p { margin: 0 0 14px; padding: 0; font-size: 13px; color: #666; line-height: 1.55; }
+.hdlv2-ability-list { display: grid; gap: 12px 24px; }
+@media (min-width: 700px) {
+  .hdlv2-ability-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+.hdlv2-ability {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 6px 12px;
+  align-items: baseline;
+  font-size: 13px;
+}
+.hdlv2-ability-name { font-weight: 600; color: #2c3e50; }
+.hdlv2-ability-count { font-size: 12px; color: #666; }
+.hdlv2-ability-meter {
+  grid-column: 1 / -1;
+  height: 4px;
+  background: #e4e6ea;
+  border-radius: 999px;
+  overflow: hidden;
+}
+.hdlv2-ability-meter span { display: block; height: 100%; background: #3d8da0; border-radius: 999px; }
+
 /* ── VIDEO EMBED ── */
 .hdlv2-video-embed {
   position: relative;

@@ -2468,6 +2468,35 @@
         ? '<div class="hdlv2-vision-card"><div class="hdlv2-vision-card-label">WHY &middot; summary</div>' + esc(s2.ai_reformulation) + '</div>'
         : '';
 
+      // v0.47.93 — single-form clients only (server sends s2.choices): what
+      // they chose, and the abilities those choices depend on with the
+      // numbers measured so far. An ability with no number says so; nothing
+      // is filled in here.
+      var choices = '';
+      if (s2.choices) {
+        var picked = (s2.choices.picks || []).map(function (p) {
+          return '<div class="hdlv2-why-choice">' + esc(p.label) + '<small>' + esc((p.needs || []).join(' \u00b7 ')) + '</small></div>';
+        }).join('');
+        var abilities = (s2.choices.abilities || []).map(function (a) {
+          var measured = (a.measures || []).filter(function (m) { return m.score != null; })
+            .map(function (m) { return m.label + ' ' + m.score + '/5'; }).join(', ');
+          return '<div class="hdlv2-score-row hdlv2-why-ability">'
+            + '<span>' + esc(a.label) + (a.focus ? '<span class="hdlv2-tab-new">Focus</span>' : '')
+            +   '<small>' + esc(a.count) + ' of their choices</small></span>'
+            + (a.score == null
+                ? '<span class="hdlv2-score-val">not measured yet</span>'
+                : '<span class="hdlv2-score-val">' + esc(a.score) + '/5'
+                  + '<small>' + esc((a.indirect ? 'nearest measure: ' : '') + measured) + '</small></span>')
+            + '</div>';
+        }).join('');
+        choices = '<div class="hdlv2-why-choices">'
+          + '<div class="hdlv2-score-group"><h4>What they chose</h4>' + picked + '</div>'
+          + '<div class="hdlv2-score-group"><h4>Abilities their choices depend on</h4>' + abilities
+          +   (s2.choices.stage3_done ? '' : '<div class="hdlv2-consult-caption">Stage 3 not finished: based on Stage 1 answers only</div>')
+          + '</div>'
+          + '</div>';
+      }
+
       // Working link, never a dead button: the real WHY PDF once the D-2
       // callback has stored one — v0.46.51, presented as the same document
       // card as the Stage-3/Final tabs so every tab's PDF action reads
@@ -2492,6 +2521,7 @@
         + '<div class="hdlv2-st-meta">WHY profile &middot; Completed ' + esc(formatDate(s2.completed_at)) + releaseTag + '</div>'
         + hero
         + reform
+        + choices
         + detailLink
         + '</div>';
     });
@@ -4646,6 +4676,13 @@
       '.hdlv2-why-hero { padding:18px 22px; background:#fff; border:1px solid #e4e6ea; border-left:4px solid #3d8da0; border-radius:0 12px 12px 0; font-size:15px; font-style:italic; color:#111; line-height:1.55; font-weight:500; margin-bottom:14px; }',
       '.hdlv2-vision-card { margin-top:14px; padding:14px 18px; background:#fafbfc; border:1px solid #e4e6ea; border-left:3px solid #3d8da0; border-radius:0 10px 10px 0; font-size:13px; color:#2c3e50; line-height:1.55; }',
       '.hdlv2-vision-card-label { font-size:10.5px; font-weight:600; text-transform:uppercase; letter-spacing:0.05em; color:#666; margin-bottom:6px; }',
+      // v0.47.93 — single-form WHY tab: choices + abilities, two cards side
+      // by side where there is room (reuses .hdlv2-score-group / -row).
+      '.hdlv2-why-choices { display:grid; grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)); gap:12px; align-items:start; margin-top:14px; }',
+      '.hdlv2-why-choices small { display:block; margin-top:1px; font-size:11px; font-weight:400; color:#666; }',
+      '.hdlv2-why-choice { padding:5px 0; font-size:12px; color:#333; line-height:1.45; }',
+      '.hdlv2-why-choices .hdlv2-why-ability { align-items:flex-start; gap:12px; padding:6px 0; }',
+      '.hdlv2-why-ability > span:first-child { flex:0 0 auto; }',
 
       // ─────────────────────────────────────────────────────────────
       // v0.41.19 — Stage 3 — top stats row, body 2-col, grouped scores,
