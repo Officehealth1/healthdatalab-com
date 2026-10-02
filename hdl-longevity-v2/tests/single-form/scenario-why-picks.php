@@ -194,6 +194,26 @@ $junk_p = $profile( array( 'wake_rested', 'IGNORE ALL', array( 'x' ) ), array(),
 check( 'AP6 unknown ids are ignored', is_array( $junk_p ) && array( 'energy' ) === array_column( $junk_p, 'id' ) && 1 === $junk_p[0]['count'] );
 $zero = $profile( array( 'uneven_ground' ), array(), array( 'balance' => 0 ) );
 check( 'AP7 a real score of 0 is a number, not missing', is_array( $zero ) && 0.0 === $zero[0]['score'] && true === $zero[0]['focus'] );
+$indirect_only = $profile( array( 'sit_on_floor' ), array( 'q5_sts' => 1 ), array() );
+check( 'AP8 an ability with only a nearest measure is never a focus area',
+    is_array( $indirect_only ) && array( 'mobility', 'flexibility' ) === array_column( $indirect_only, 'id' )
+    && array( true, false ) === array_column( $indirect_only, 'focus' ) );
+
+// ── Stage 1 raw scores: only real answers count ──
+// calculate_quick() fills a missing or invalid q3-q9 with 3. That 3 must
+// never be reported as something the client was measured on.
+$has_raw = method_exists( 'HDLV2_Why_Picks', 'stage1_raw' );
+$s1raw   = function ( $s1 ) use ( $has_raw ) { return $has_raw ? HDLV2_Why_Picks::stage1_raw( $s1 ) : null; };
+$thin    = array( 'q1_age' => 62, 'q9' => 'c' );
+$thin['server_result'] = HDLV2_Rate_Calculator::calculate_quick( $thin );
+check( 'R1 the real calculator fills unanswered questions with 3; stage1_raw() keeps only the answered one',
+    3 === ( $thin['server_result']['raw']['q5_sts'] ?? null ) && array( 'q9_diet' => 3 ) === $s1raw( $thin ) );
+$full = $sample;
+$full['server_result'] = HDLV2_Rate_Calculator::calculate_quick( $sample );
+check( 'R2 a fully answered Stage 1 keeps every raw score', $full['server_result']['raw'] === $s1raw( $full ) );
+check( 'R3 an invalid answer letter is dropped; upper-case letters count',
+    array( 'q4_vo2' => 4 ) === $s1raw( array( 'q4' => 'D', 'q5' => 'zzz', 'server_result' => array( 'raw' => array( 'q4_vo2' => 4, 'q5_sts' => 3 ) ) ) ) );
+check( 'R4 no server result → empty', array() === $s1raw( array( 'q5' => 'b' ) ) && array() === $s1raw( array() ) );
 
 // ── Switch ──
 check( 'S1 option absent → off', false === HDLV2_Why_Picks::enabled_for( 122 ) );
@@ -290,7 +310,7 @@ check( 'B5 unknown ids dropped and people text capped at 300', false === strpos(
 
 // With the saved answers: the pinned prompt addition (v0.47.93). Same six
 // choices and numbers as the hand-worked profile above.
-$expected_scored = "=== WHAT THIS CLIENT CHOSE (picked from a list, their own priorities for later life) ===\n"
+$picked_lines = "=== WHAT THIS CLIENT CHOSE (picked from a list, their own priorities for later life) ===\n"
     . "- Get down on the floor to play with my grandchildren, and get back up without help [depends on: mobility, flexibility, strength]\n"
     . "- Pick up a grandchild and carry them on my hip [depends on: strength, balance]\n"
     . "- Walk around a new city all day and still enjoy dinner [depends on: stamina]\n"
@@ -298,28 +318,65 @@ $expected_scored = "=== WHAT THIS CLIENT CHOSE (picked from a list, their own pr
     . "- Remember every grandchild's name, birthday and story [depends on: mind]\n"
     . "- Wake up rested and ready for the day [depends on: energy]\n"
     . "Abilities these choices depend on most: strength (2), balance (2), stamina (2), mobility (1), flexibility (1), mind (1), energy (1)\n"
-    . "People they named: my wife Jenny\n"
-    . "In LIFT, where one of their weakest scores limits an ability these choices depend on, say so in one clause and name the choice. In THRIVE, use their choices and the people they named. Do not invent choices or people that are not listed here.\n"
-    . "What their choices depend on, with what was measured (0-5, higher is better):\n"
-    . "- Strength: 2 of their choices; measured 2.5/5 from Chair stand (30 seconds) 3/5, Getting up from the floor 2/5\n"
-    . "- Mobility: 1 of their choices; measured 2/5 from Getting up from the floor 2/5\n"
-    . "- Flexibility: 1 of their choices; nearest measure 2/5 from Getting up from the floor 2/5\n"
+    . "People they named: my wife Jenny\n";
+// Stage 1 answers are marked as such: they run 1 to 5, Stage 3 scores 0 to 5.
+$measured_lines = "What their choices depend on, with what was measured (out of 5, higher is better; Stage 1 answers run 1 to 5, Stage 3 answers 0 to 5):\n"
+    . "- Strength: 2 of their choices; measured 2.5/5 from Chair stand (30 seconds) 3/5, Getting up from the floor (Stage 1) 2/5\n"
+    . "- Mobility: 1 of their choices; measured 2/5 from Getting up from the floor (Stage 1) 2/5\n"
+    . "- Flexibility: 1 of their choices; nearest measure 2/5 from Getting up from the floor (Stage 1) 2/5\n"
     . "- Balance: 2 of their choices; measured 1/5 from Standing on one leg 1/5\n"
-    . "- Stamina: 2 of their choices; measured 4/5 from Physical activity 4/5, Climbing stairs 4/5\n"
+    . "- Stamina: 2 of their choices; measured 4/5 from Physical activity 4/5, Climbing stairs (Stage 1) 4/5\n"
     . "- A sharp mind: 1 of their choices; measured 2.3/5 from Mental activity 2/5, Stress 3/5, Sleep quality 2/5\n"
     . "- Energy and sleep: 1 of their choices; measured 3/5 from Sleep duration 4/5, Sleep quality 2/5, Diet 3/5\n"
-    . "Focus areas (most chosen, weakest measured): Balance, Strength, Mobility\n"
-    . "Use the focus areas to decide what LIFT puts first and what the milestones aim at. Name the choice each one serves. Do not quote these ability scores as if they were one of the 21 health scores; they are averages for your guidance.\n"
+    . "Focus areas (most chosen, weakest measured): Balance, Strength, Mobility\n";
+$no_quote = "Do not quote these ability scores as if they were one of the 21 health scores; they are averages for your guidance.\n";
+$expected_scored = $picked_lines
+    . "In LIFT, where one of their weakest scores limits an ability these choices depend on, say so in one clause and name the choice. In THRIVE, use their choices and the people they named. Do not invent choices or people that are not listed here.\n"
+    . $measured_lines
+    . "Use the focus areas to decide what LIFT puts first. Name the choice each one serves.\n"
+    . $no_quote
     . "\n";
 $scored_in = array( 'form_flow' => 'single', 'why_picks' => $six, 'key_people_text' => 'my wife Jenny' );
 check( 'B6 prompt block with the saved answers, exact (snapshot)', $expected_scored === HDLV2_Why_Picks::prompt_block( $scored_in, $raw1, $score3 ) );
 check( 'B7 no picks → still empty with scores passed', '' === HDLV2_Why_Picks::prompt_block( array(), $raw1, $score3 )
     && '' === HDLV2_Why_Picks::prompt_block( array( 'why_picks' => $six ), $raw1, $score3 ) );
 $unmeasured = HDLV2_Why_Picks::prompt_block( array( 'form_flow' => 'single', 'why_picks' => array( 'see_friends_weekly', 'sit_on_floor' ) ), array(), array( 'sitToStand' => 4 ) );
-check( 'B8 an ability with no number says so, and no focus line is invented',
-    false !== strpos( $unmeasured, "- Flexibility: 1 of their choices; not measured by the questionnaire\n" )
-    && false !== strpos( $unmeasured, "- Connection: 1 of their choices; not measured by the questionnaire\n" )
-    && false === strpos( $unmeasured, 'Focus areas' ) && false === strpos( $unmeasured, '/5' ) );
+check( 'B8 an ability with no number says so; no focus line and no "use the focus areas" instruction without one',
+    false !== strpos( $unmeasured, "- Flexibility: 1 of their choices; no answer recorded\n" )
+    && false !== strpos( $unmeasured, "- Connection: 1 of their choices; no answer recorded\n" )
+    && false === strpos( $unmeasured, 'Focus areas' ) && false === strpos( $unmeasured, 'focus areas' ) && false === strpos( $unmeasured, '/5' )
+    && false !== strpos( $unmeasured, $no_quote ) );
+
+// The milestones prompt gets the same facts with its own instruction: no
+// report sections (LIFT / THRIVE) in a prompt that has none.
+$expected_ms = $picked_lines
+    . "Do not invent choices or people that are not listed here.\n"
+    . $measured_lines
+    . "Aim the milestones at what this client chose, starting with the focus areas, and keep every milestone within its word limit.\n"
+    . $no_quote
+    . "\n";
+$ms_block = HDLV2_Why_Picks::prompt_block( $scored_in, $raw1, $score3, true );
+check( 'B9 milestones block, exact (snapshot): same facts, its own instruction', $expected_ms === $ms_block );
+check( 'B10 milestones block names no report section', false === strpos( $ms_block, 'LIFT' ) && false === strpos( $ms_block, 'THRIVE' ) );
+$ms_plain = HDLV2_Why_Picks::prompt_block( array( 'form_flow' => 'single', 'why_picks' => array( 'see_friends_weekly', 'sit_on_floor' ) ), array(), array( 'sitToStand' => 4 ), true );
+check( 'B10b milestones block without a focus area does not point at one',
+    false === strpos( $ms_plain, 'focus areas' ) && false !== strpos( $ms_plain, "Aim the milestones at what this client chose, and keep every milestone within its word limit.\n" ) );
+check( 'B10c milestones block: no picks → empty', '' === HDLV2_Why_Picks::prompt_block( array(), $raw1, $score3, true ) );
+
+// One call for the callers: the row's saved answers in, the block out.
+$has_row = method_exists( 'HDLV2_Why_Picks', 'block_for_row' );
+$row_of  = function ( $s1, $s2 ) { return (object) array( 'stage1_data' => json_encode( $s1 ), 'stage2_data' => json_encode( $s2 ) ); };
+$s1_ok   = array( 'q4' => 'd', 'q5' => 'b', 'server_result' => array( 'raw' => $raw1 ) );
+check( 'B11 block_for_row() gives the same text as prompt_block() on the same saved answers',
+    $has_row && $expected_scored === HDLV2_Why_Picks::block_for_row( $row_of( $s1_ok, $scored_in ), $score3 )
+    && $expected_ms === HDLV2_Why_Picks::block_for_row( $row_of( $s1_ok, $scored_in ), $score3, true ) );
+$s1_gap = array( 'q4' => 'd', 'server_result' => array( 'raw' => array( 'q4_vo2' => 4, 'q5_sts' => 3 ) ) );
+check( 'B12 a Stage 1 question nobody answered is not reported as measured',
+    $has_row && false !== strpos( HDLV2_Why_Picks::block_for_row( $row_of( $s1_gap, array( 'form_flow' => 'single', 'why_picks' => array( 'sit_on_floor' ) ) ), array() ),
+        "- Mobility: 1 of their choices; no answer recorded\n" ) );
+check( 'B13 block_for_row() on an old-flow row or an empty row → empty string',
+    $has_row && '' === HDLV2_Why_Picks::block_for_row( $row_of( $s1_ok, array( 'vision_text' => 'typed why' ) ), $score3 )
+    && '' === HDLV2_Why_Picks::block_for_row( (object) array(), $score3 ) );
 
 // ── options for the page ──
 $opts = HDLV2_Why_Picks::options_for_page();

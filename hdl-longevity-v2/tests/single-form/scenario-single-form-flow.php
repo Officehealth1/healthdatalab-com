@@ -430,26 +430,30 @@ HDLV2_AI_Service::$draft_ok = true;
 
 // ════════ Abilities reach the draft, the milestones and the practitioner (v0.47.93) ════════
 // By hand, for $FIVE with these answers: strength 3 choices, (2+2)/2 = 2.0 → 3×3 = 9 ·
-// flexibility 2 choices, 2.0 → 6 · mobility 1, 2.0 → 3 · mind 1, 3.0 → 2 ·
-// stamina (4+4)/2 = 4.0 and energy (4+3+4)/3 = 3.7 are above 3.
-$S1 = array( 'q1_age' => '55', 'server_result' => array( 'raw' => array( 'q4_vo2' => 4, 'q5_sts' => 2 ) ) );
+// flexibility 2 choices, 2.0, nearest measure only → never a focus · mobility 1, 2.0 → 3 ·
+// mind 1, 3.0 → 2 · stamina (4+4)/2 = 4.0 and energy (4+3+4)/3 = 3.7 are above 3.
+$S1 = array( 'q1_age' => '55', 'q4' => 'd', 'q5' => 'b', 'server_result' => array( 'raw' => array( 'q4_vo2' => 4, 'q5_sts' => 2 ) ) );
 $SCORES = array( 'sitToStand' => 2, 'balance' => 3, 'physicalActivity' => 4, 'cognitiveActivity' => 3, 'stressLevels' => 3,
     'sleepQuality' => 3, 'sleepDuration' => 4, 'dietQuality' => 4, 'socialConnections' => 4 );
 $SINGLE_S2 = json_encode( array( 'form_flow' => 'single', 'why_picks' => $FIVE, 'key_people_text' => 'my wife Jenny',
     'vision_text' => HDLV2_Why_Picks::compose_vision_text( $FIVE, 'my wife Jenny', '' ) ) );
-$FOCUS_LINE = "Focus areas (most chosen, weakest measured): Strength, Flexibility, Mobility\n";
+$FOCUS_LINE = "Focus areas (most chosen, weakest measured): Strength, Mobility, A sharp mind\n";
 $wpdb->rows[40] = make_row( 40, array( 'stage1_data' => json_encode( $S1 ), 'stage2_data' => $SINGLE_S2,
     'stage3_data' => json_encode( array( 'sitToStand' => '2', 'server_result' => array( 'rate' => 1.1, 'scores' => $SCORES ) ) ),
     'stage2_completed_at' => '2026-10-02 00:00:00', 'stage3_completed_at' => '2026-10-02 01:00:00', 'current_stage' => 3 ) );
 $form->generate_draft_for_progress( clone $wpdb->rows[40] );
 $draft_block = (string) ( end( HDLV2_AI_Service::$draft_why )['picks_block'] ?? '' );
 check( 'D8 single row: the draft block carries the client\'s focus line', false !== strpos( $draft_block, $FOCUS_LINE ) );
-check( 'D9 single row: milestones receive the same block', '' !== $draft_block && $draft_block === ( end( HDLV2_AI_Service::$ms_why )['picks_block'] ?? null ) );
+$ms_block = (string) ( end( HDLV2_AI_Service::$ms_why )['picks_block'] ?? '' );
+check( 'D9 single row: milestones receive the same facts with their own instruction, the draft keeps its own',
+    false !== strpos( $ms_block, $FOCUS_LINE ) && false !== strpos( $ms_block, 'Aim the milestones' ) && false === strpos( $ms_block, 'LIFT' )
+    && false !== strpos( $draft_block, 'In LIFT' ) && false === strpos( $draft_block, 'Aim the milestones' ) );
 
 // The other two milestone callers (final report, consultation preview) and
 // the milestones prompt itself: wiring in the shipped files.
 $fr = file_get_contents( __DIR__ . '/../../includes/sprint-2c/class-hdlv2-final-report.php' );
-check( 'W1 final report: both generate_milestones() callers build the picks block', 2 === substr_count( $fr, 'HDLV2_Why_Picks::prompt_block(' ) );
+check( 'W1 final report: both generate_milestones() callers build the milestones block from the row',
+    2 === substr_count( $fr, "HDLV2_Why_Picks::block_for_row( \$progress, \$calc_result['scores'] ?? array(), true )" ) );
 $ai = file_get_contents( __DIR__ . '/../../includes/sprint-2/class-hdlv2-ai-service.php' );
 $ms_fn = substr( $ai, (int) strpos( $ai, 'public static function generate_milestones(' ) );
 $ms_fn = substr( $ms_fn, 0, (int) strpos( $ms_fn, "\n    }\n" ) );
@@ -472,7 +476,7 @@ check( 'C3 single row: abilities are the profile of the saved answers (counts, s
     && array( 'strength', 'mobility', 'flexibility', 'stamina', 'mind', 'energy' ) === array_column( $abil, 'id' )
     && array( 3, 1, 2, 1, 1, 1 ) === array_column( $abil, 'count' )
     && array( 2.0, 2.0, 2.0, 4.0, 3.0, 3.7 ) === array_column( $abil, 'score' )
-    && array( true, true, true, false, false, false ) === array_column( $abil, 'focus' ) );
+    && array( true, true, false, false, true, false ) === array_column( $abil, 'focus' ) );
 check( 'C4 single row, Stage 3 finished: stage3_done true', true === ( $ch['stage3_done'] ?? null ) );
 
 $wpdb->rows[41] = make_row( 41, array( 'stage1_data' => json_encode( $S1 ), 'stage2_data' => $SINGLE_S2,
@@ -482,6 +486,17 @@ $mid = $status->rest_get_client_record( array( 'progress_id' => 41 ) )['stage2']
 check( 'C5 single row mid-questionnaire: stage3_done false, numbers from Stage 1 only',
     false === ( $mid['stage3_done'] ?? null )
     && array( 2.0, 2.0, 2.0, 4.0, null, null ) === array_column( $mid['abilities'] ?? array(), 'score' ) );
+
+// A Stage 1 question nobody answered: calculate_quick() stored a 3 for it.
+$S1_GAP = array( 'q1_age' => '55', 'q4' => 'd', 'server_result' => array( 'raw' => array( 'q4_vo2' => 4, 'q5_sts' => 3 ) ) );
+$wpdb->rows[43] = make_row( 43, array( 'stage1_data' => json_encode( $S1_GAP ), 'stage2_data' => $SINGLE_S2,
+    'stage3_data' => json_encode( array( 'sitToStand' => '2' ) ), 'stage2_completed_at' => '2026-10-02 00:00:00', 'current_stage' => 3 ) );
+$wpdb->why[43] = array( 'form_progress_id' => 43, 'distilled_why' => 'x', 'released' => 1 );
+$gap = $status->rest_get_client_record( array( 'progress_id' => 43 ) )['stage2']['choices']['abilities'] ?? array();
+check( 'C9 a filled-in Stage 1 score is not shown as measured: no number, no focus',
+    array( 'strength', 'mobility', 'flexibility' ) === array_slice( array_column( $gap, 'id' ), 0, 3 )
+    && array( null, null, null ) === array_slice( array_column( $gap, 'score' ), 0, 3 )
+    && array( false, false, false ) === array_slice( array_column( $gap, 'focus' ), 0, 3 ) );
 
 $old_rec = $status->rest_get_client_record( array( 'progress_id' => 21 ) );
 check( 'C6 old-flow row with a WHY: stage2 has no choices key',
