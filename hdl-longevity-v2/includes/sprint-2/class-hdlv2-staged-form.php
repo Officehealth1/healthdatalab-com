@@ -210,6 +210,13 @@ class HDLV2_Staged_Form {
             $response['why_abilities'] = HDLV2_Why_Picks::ABILITY_LABELS;
         }
 
+        // v0.47.94 — the tap-card second form orders its questions and writes
+        // its reason lines from the client's choices.
+        $s2 = $response['stage2_data'];
+        if ( empty( $progress->stage3_completed_at ) && HDLV2_Why_Picks::is_single( $s2 ) ) {
+            $response['second_form_ties'] = HDLV2_Why_Picks::second_form_ties( $s2['why_picks'] ?? array() );
+        }
+
         return rest_ensure_response( $response );
     }
 

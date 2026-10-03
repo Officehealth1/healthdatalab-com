@@ -435,6 +435,39 @@ class HDLV2_Why_Picks {
         return $block . "\n";
     }
 
+    /**
+     * v0.47.94 — for each second-form question that measures an ability:
+     * the ability most of the choices need (ties: NEEDS order), how many
+     * choices need it, and the first of them in pick order. Questions no
+     * choice reaches are left out. The tap-card form orders its questions
+     * and writes its reason lines from this.
+     *
+     * @return array field => [ ability, count, choice ]
+     */
+    public static function second_form_ties( $pick_ids ) {
+        $counts = array_fill_keys( self::NEEDS, 0 );
+        $first  = array();
+        foreach ( self::labels( array_slice( (array) $pick_ids, 0, self::MAX_PICKS ) ) as $it ) {
+            foreach ( $it['needs'] as $n ) {
+                if ( ! isset( $counts[ $n ] ) ) continue;
+                $counts[ $n ]++;
+                if ( ! isset( $first[ $n ] ) ) $first[ $n ] = $it['label'];
+            }
+        }
+        $out = array();
+        foreach ( self::NEEDS as $ability ) {
+            if ( ! $counts[ $ability ] ) continue;
+            foreach ( self::MEASURES[ $ability ] as $m ) {
+                // heartRateScore is worked out from the heart rate, not asked.
+                if ( 'stage3' !== $m['source'] || 'heartRateScore' === $m['key'] ) continue;
+                if ( ! isset( $out[ $m['key'] ] ) || $counts[ $ability ] > $out[ $m['key'] ]['count'] ) {
+                    $out[ $m['key'] ] = array( 'ability' => $ability, 'count' => $counts[ $ability ], 'choice' => $first[ $ability ] );
+                }
+            }
+        }
+        return $out;
+    }
+
     /** Catalogue entries (retired included) for known string ids, in pick order. */
     private static function labels( $pick_ids ) {
         $by_id = array();
