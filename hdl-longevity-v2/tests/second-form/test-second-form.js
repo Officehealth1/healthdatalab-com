@@ -225,6 +225,10 @@ ok(/aria-expanded/.test(src) && /aria-controls="hdlv2-tap-opts-/.test(src), 'Cha
 ok(/completeStage3\(data\)/.test(fn('renderTapStep')) || /completeStage3\(data\)/.test(src.slice(src.indexOf('function renderTapStep'))), 'screen 13 completes with today\'s completeStage3()');
 ok(/metaKey|ctrlKey/.test(src.slice(src.indexOf('tapKeyHandler = function'), src.indexOf('tapKeyHandler = function') + 600)), 'A–F keys ignore Cmd/Ctrl shortcuts');
 
+ok(/if \(saving\) \{ setTimeout\(tapSave, 300\); return; \}/.test(fn('tapSave')) && /tapSave\(\);/.test(fn('tapGo')) && !/autoSave/.test(fn('tapGo')),
+  'leaving a screen waits for a save in flight instead of dropping it');
+ok(/if \(saving\) \{ setTimeout\(finish, 300\); return; \}\s*completeStage3\(data\);/.test(step), 'Complete waits for a save in flight');
+
 // ── 8. No native popups ──
 ok(!/\b(alert|confirm|prompt)\(/.test(src), 'the shipped file has no alert( / confirm( / prompt(');
 

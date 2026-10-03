@@ -1736,11 +1736,18 @@
     if (tapKeyHandler) { document.removeEventListener('keydown', tapKeyHandler); tapKeyHandler = null; }
   }
 
+  // autoSave() drops a call while one is in flight; fast taps hit that, so
+  // wait for it (as submitWhyPicks does) and send the whole formData after.
+  function tapSave() {
+    if (saving) { setTimeout(tapSave, 300); return; }
+    autoSave(3);
+  }
+
   // Leaving a screen saves once: the whole formData, as the wizard's Next does.
   function tapGo(data, delta) {
     tapLeave();
     if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
-    autoSave(3);
+    tapSave();
     tapStep = Math.max(0, Math.min(TAP_STEPS - 1, tapStep + delta));
     tapOpenRow = null;
     renderTapStep(data, true);
@@ -1807,10 +1814,13 @@
     else {
       bindFieldListeners();
       var done = document.getElementById('hdlv2-complete-s3');
-      if (done) done.addEventListener('click', function () {
+      // Complete waits for a save in flight, so an older one cannot land after it.
+      var finish = function () {
         if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
+        if (saving) { setTimeout(finish, 300); return; }
         completeStage3(data);
-      });
+      };
+      if (done) done.addEventListener('click', finish);
     }
     // Keyboard and screen-reader users hear where they are after each step.
     if (moveFocus) document.getElementById('hdlv2-tap-title').focus({ preventScroll: true });
