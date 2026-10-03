@@ -1398,6 +1398,94 @@
 }
 
 /* ──────────────────────────────────────────────────────────────
+   v0.47.94 — Second form as tap cards (single-flow rows only).
+   Reuses the Stage 1 card styles above; these cover the screen-1
+   rows, the reason line, the "How to do it" text and Skip.
+   ────────────────────────────────────────────────────────────── */
+.hdlv2-s1-options[hidden] { display: none; }
+
+.hdlv2-tap-heading:focus { outline: none; }
+
+.hdlv2-tap-rows { margin: 8px 0 0; }
+
+.hdlv2-tap-row {
+  padding: 14px 0;
+  border-bottom: 1px solid #e4e6ea;
+}
+
+.hdlv2-tap-row-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+}
+
+.hdlv2-tap-row-label {
+  flex: 1 1 100%;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--hdl-ink-500);
+}
+
+.hdlv2-tap-row-value {
+  flex: 1 1 0;
+  min-width: 0;
+  font-size: 15px;
+  color: var(--hdl-ink-900);
+  line-height: 1.45;
+}
+
+.hdlv2-tap-row-value.is-empty { color: #888; font-style: italic; }
+
+.hdlv2-tap-row .hdlv2-s1-options { margin-top: 12px; }
+
+.hdlv2-tap-change,
+.hdlv2-tap-skip {
+  background: none;
+  border: 0;
+  padding: 6px 4px;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--hdl-teal-500);
+  cursor: pointer;
+  border-radius: 6px;
+}
+
+.hdlv2-tap-change:hover,
+.hdlv2-tap-skip:hover { color: var(--hdl-teal-900); text-decoration: underline; }
+
+.hdlv2-tap-change:focus-visible,
+.hdlv2-tap-skip:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px #fff, 0 0 0 4px var(--hdl-teal-500);
+}
+
+.hdlv2-tap-change[aria-expanded="true"] { color: var(--hdl-teal-900); }
+
+.hdlv2-tap-reason {
+  font-size: 15px;
+  color: var(--hdl-teal-900);
+  line-height: 1.5;
+  margin: 0 0 16px;
+}
+
+.hdlv2-tap-how {
+  font-size: 14px;
+  color: var(--hdl-ink-700);
+  line-height: 1.55;
+  background: #f8f9fb;
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin: 0 0 20px;
+}
+
+.hdlv2-tap-skip {
+  display: block;
+  margin: 16px auto 0;
+}
+
+/* ──────────────────────────────────────────────────────────────
  * v0.22.0 — Stage 1 RESULT page (premium, mirrors Final Report shell)
  * Local design tokens kept in this block so we don't pollute global
  * scope and don't depend on hdlv2-draft-report.css being loaded.

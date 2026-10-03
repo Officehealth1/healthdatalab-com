@@ -27,6 +27,8 @@ const src = fs.readFileSync(path.join(__dirname, '..', '..', 'assets', 'js', 'hd
 const old = execFileSync('git', ['show', 'b0b1352:' + REL], { cwd: __dirname, encoding: 'utf8', maxBuffer: 8 << 20 });
 
 function fnIn(text, name) {
+  const one = text.match(new RegExp('\\n(  function ' + name + '\\([^)]*\\) \\{[^\\n]*\\})\\n'));
+  if (one) return one[1];
   const m = text.match(new RegExp('  function ' + name + '\\([^)]*\\) \\{[\\s\\S]*?\\n  \\}'));
   return m ? m[0] : '';
 }
@@ -59,7 +61,7 @@ function context(extra) {
     + HELPERS.concat(NEW_FNS).map(fn).join('\n') + '\n'
     + (extra || '')
     + '\nthis.setFormData = function (d) { formData = d; };';
-  try { vm.runInNewContext(code, ctx); } catch (e) { console.log('  (context error: ' + e.message + ')'); }
+  try { vm.runInNewContext(code, ctx); } catch (e) { console.log('  (context error: ' + e.stack.split('\n').slice(0, 3).join(' / ') + ')'); }
   // Top-level var/function declarations are properties of the context.
   ctx.get = (n) => ctx[n];
   return ctx;
@@ -217,7 +219,7 @@ ok(/var TAP_STEPS = 13;/.test(src), 'thirteen steps');
 ok(src.indexOf('Here is what you told us') !== -1 && src.indexOf('We filled these in from your first answers. If one is not right, tap Change.') !== -1, 'screen 1 copy as written');
 ok(src.indexOf('Looks right, carry on') !== -1 && src.indexOf('Not answered yet') !== -1, 'screen 1 button and empty-row text as written');
 ok(src.indexOf('Skip this one') !== -1 && /Press <kbd>A<\/kbd>–<kbd>F<\/kbd> to choose/.test(src), 'Skip and the key hint as written');
-ok(src.indexOf('Your measurements') !== -1 && src.indexOf('Use a tape measure and, if you have one, a blood pressure monitor. Skip anything you don\\u2019t have to hand.') !== -1, 'screen 12 copy as written');
+ok(src.indexOf('Your measurements') !== -1 && src.replace(/\\u2019/g, '\u2019').indexOf('Use a tape measure and, if you have one, a blood pressure monitor. Skip anything you don\u2019t have to hand.') !== -1, 'screen 12 copy as written');
 ok(src.indexOf('Your health background') !== -1, 'screen 13 heading as written');
 ok(/aria-expanded/.test(src) && /aria-controls="hdlv2-tap-opts-/.test(src), 'Change buttons carry aria-expanded and aria-controls');
 ok(/completeStage3\(data\)/.test(fn('renderTapStep')) || /completeStage3\(data\)/.test(src.slice(src.indexOf('function renderTapStep'))), 'screen 13 completes with today\'s completeStage3()');

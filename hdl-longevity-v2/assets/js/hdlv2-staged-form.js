@@ -48,6 +48,10 @@
   var saving = false;
   var serverData = {};
   var wizardSection = 0;
+  // v0.47.94 — tap-card second form: current step (0-12), the order of the
+  // ten question screens, the open screen-1 row, the A-F key handler and the
+  // 200 ms advance timer (cancelled by Back, as in the first check).
+  var tapStep = 0, tapOrder = [], tapOpenRow = null, tapKeyHandler = null, tapAdvanceTimer = null;
   // v0.47.92 — single-form WHY picks; HDLV2_Why_Picks holds the same limits.
   var PICK_MIN = 5, PICK_MAX = 10;
   // v0.47.93 — ids of the theme tiles open on the picks page.
@@ -352,6 +356,48 @@
       opts:[{v:'a',t:'Rarely \u2014 I feel isolated most of the time'},{v:'b',t:'Once or twice a month'},{v:'c',t:'About once a week'},{v:'d',t:'Several times a week'},{v:'e',t:'Daily \u2014 strong, regular connections'}] },
     q9: { category:'Nutrition', title:'Diet Pattern', text:'Which best describes your typical eating pattern?',
       opts:[{v:'a',t:'Mostly processed or fast food, very few vegetables'},{v:'b',t:'Mixed \u2014 some healthy meals, a lot of convenience food'},{v:'c',t:'Reasonably healthy \u2014 I cook most meals'},{v:'d',t:'Mostly whole foods, plenty of vegetables'},{v:'e',t:'Very clean \u2014 whole foods, diverse vegetables, minimal processed'}] }
+  };
+
+  // How to do each test: the wizard's tooltip and the tap screen's open text.
+  var TEST_HOW = {
+    sitToStand: 'Using a standard chair (about 43 cm seat height, no armrests), sit with feet flat on the floor and arms crossed on your shoulders. On "go", stand up fully and sit back down as many times as possible in 30 seconds. Count only complete reps. Measures lower-body strength.',
+    breathHold: 'After a normal exhale, hold your breath for as long as comfortable. Use a stopwatch. Take your best safe attempt — don’t push past discomfort.',
+    balance: 'Stand on one leg without support and time how long you can hold it. Use a stopwatch. Take your best attempt. Stand near something for safety in case you wobble.',
+    skinElasticity: 'Gently pinch the skin on the back of your hand for 2 seconds, release, and time how long it takes to flatten back. Use a stopwatch.'
+  };
+
+  // v0.47.94 — the single-flow second form as tap cards: screen 1 confirms
+  // the six answers carried over from the first check, screens 2-11 ask one
+  // question each, screens 12-13 are today's body and background sections.
+  var TAP_STEPS = 13;
+  var TAP_FIRST = ['physicalActivity', 'sleepDuration', 'sleepQuality', 'smokingStatus', 'socialConnections', 'dietQuality'];
+  var TAP_FIRST_LABELS = {
+    physicalActivity: 'How active you are',
+    sleepDuration: 'How long you sleep',
+    sleepQuality: 'How well you sleep',
+    smokingStatus: 'Smoking',
+    socialConnections: 'Time with people you care about',
+    dietQuality: 'How you eat'
+  };
+  // Screens 2-11 in today's order; tapQuestionOrder() moves tied ones first.
+  var TAP_ORDER = ['sitToStand', 'breathHold', 'balance', 'skinElasticity', 'stressLevels', 'cognitiveActivity', 'alcoholConsumption', 'supplementIntake', 'sunlightExposure', 'dailyHydration'];
+  var TAP_TITLES = {
+    sitToStand: { title: 'How many times can you stand up from a chair in 30 seconds?', plain: 'This test shows how strong your legs are.', how: TEST_HOW.sitToStand },
+    breathHold: { title: 'How long can you hold your breath after breathing out normally?', plain: 'A quick check of your breathing.', how: TEST_HOW.breathHold },
+    balance: { title: 'How long can you stand on one leg?', plain: 'This shows how steady you are on your feet.', how: TEST_HOW.balance },
+    skinElasticity: { title: 'Pinch the skin on the back of your hand. How long does it take to flatten?', plain: 'A quick check of your skin.', how: TEST_HOW.skinElasticity },
+    stressLevels: { title: 'How stressed do you feel on most days?', plain: 'Stress plays a part in how fast you age.' },
+    cognitiveActivity: { title: 'How often do you give your brain something new to work on?', hint: 'e.g. reading, learning new skills, puzzles, problem-solving at work.', plain: 'Keeping your brain busy is part of ageing well.' },
+    alcoholConsumption: { title: 'How many alcoholic drinks do you have in a usual week?', plain: 'Alcohol plays a part in how fast you age.' },
+    supplementIntake: { title: 'How often do you take vitamins or supplements?', plain: 'Tells your practitioner what you already take.' },
+    sunlightExposure: { title: 'When do you usually get daylight outdoors?', plain: 'Daylight helps your sleep and your body clock.' },
+    dailyHydration: { title: 'How much water do you drink in a day?', plain: 'Water helps your energy and concentration.' }
+  };
+  // Reason line when the person's choices need the ability a question measures.
+  var ABILITY_SENTENCES = {
+    strength: 'This test shows how strong your legs are for that.',
+    balance: 'This shows how steady you are on your feet for that.',
+    mind: 'This helps us see how to keep your mind sharp for that.'
   };
 
   var S3_SECTIONS = [
@@ -1444,6 +1490,8 @@
     // (with Stage 1 q3 pre-fill via S1_TO_S3_DEFAULTS), so no preamble mapping
     // is needed here. The legacy hack that wrote formData.physicalActivity
     // straight from q3 was removed in v0.22.23 — s1Prefill() handles it.
+    // v0.47.94 — single-flow rows get the same fields as tap cards.
+    if (isSingleFlow()) { renderTapForm(data); return; }
     wizardSection = 0;
     renderWizardSection(data);
   }
@@ -1459,6 +1507,51 @@
     var total = S3_SECTIONS.length;
 
     // Section content
+    var content = wizardSectionContent(sec, s1d, d);
+
+    // Wizard progress dots
+    // v0.47.92 — a single-form client's first step (the picks) shows as done.
+    var single = isSingleFlow();
+    var dots = '<div class="hdlv2-wizard-progress">' + (single ? '<span class="hdlv2-wizard-dot done">1</span>' : '');
+    for (var i = 0; i < total; i++) {
+      dots += '<span class="hdlv2-wizard-dot' + (i < wizardSection ? ' done' : i === wizardSection ? ' active' : '') + '">' + (i + (single ? 2 : 1)) + '</span>';
+    }
+    dots += '</div>';
+
+    var isFirst = wizardSection === 0;
+    var isLast = wizardSection === total - 1;
+
+    // v0.38.0 \u2014 Stage 3 wizard chrome trimmed per spec:
+    //   - Drop the 3-step progressBar (Quick Insight / Your WHY / Full Detail).
+    //     The 1-N dots below are sufficient orientation.
+    //   - Drop the "Section X of N" sub-line (dots convey position).
+    //   - Title now reads "More Health Details \u2014 Stage 3" (was "Full Health Detail").
+    //   - Skip helper line standardised: same phrasing on every section.
+    root.innerHTML = '<div class="hdlv2-card">'
+      + '<div class="hdlv2-header"><h2>' + (single ? 'Your assessment' : 'More Health Details \u2014 Stage 3') + '</h2><p>' + esc(sec.title) + '</p></div>'
+      + dots
+      + (isFirst ? '<div class="hdlv2-wizard-info">Don\u2019t worry if you don\u2019t know the details. Just do your best. Your practitioner or the report can still be generated if you haven\u2019t got all these details.</div>' : '')
+      + '<div class="hdlv2-form-body">' + content
+      + '<p class="hdlv2-wizard-skip-note">Don\u2019t know or not sure? That\u2019s fine \u2014 skip what you don\u2019t know and keep going.</p>'
+      + '<div class="hdlv2-wizard-nav">'
+      + (isFirst ? '<span></span>' : '<button type="button" id="hdlv2-wizard-prev" class="hdlv2-nav-back" aria-label="Go back to previous section">&#8592; Previous</button>')
+      + (isLast ? '<button id="hdlv2-complete-s3" class="hdlv2-btn" style="width:auto;padding:13px 32px;">Complete Assessment &#10003;</button>' : '<button type="button" id="hdlv2-wizard-next" class="hdlv2-btn" style="width:auto;padding:13px 32px;">Next &#8594;</button>')
+      + '</div></div>' + saveIndicator() + footer() + '</div>';
+
+    bindFieldListeners();
+    // v0.38.0 — bindSkipCheckboxes() removed; "I don't know" checkbox dropped
+    // from numeric inputs per spec. The single section-level helper line now
+    // covers skip semantics. Stored 'skip' values still load (back-compat).
+    bindRangeSlider();
+
+    if (!isFirst) document.getElementById('hdlv2-wizard-prev').addEventListener('click', function(){ wizardSection--; renderWizardSection(data); root.scrollIntoView({behavior:'smooth'}); });
+    if (isLast) document.getElementById('hdlv2-complete-s3').addEventListener('click', function(){ completeStage3(data); });
+    else document.getElementById('hdlv2-wizard-next').addEventListener('click', function(){ autoSave(3); wizardSection++; renderWizardSection(data); root.scrollIntoView({behavior:'smooth'}); });
+  }
+
+  // The six old sections' content, by section. renderWizardSection draws
+  // them in turn; the tap-card form draws the body and background ones.
+  function wizardSectionContent(sec, s1d, d) {
     var content = '';
     if (sec.id === 'body') {
       // v0.38.0 \u2014 Section 1 regrouped per spec:
@@ -1514,17 +1607,17 @@
         + fieldSelect('physicalActivity','Physical Activity Level',S3_OPTIONS.physicalActivity, s1Prefill('physicalActivity', s1d, d.physicalActivity))
         + '</div><div class="hdlv2-field-grid cols-2">'
         + fieldSelect('sitToStand','Sit-to-Stand Test',S3_OPTIONS.sitToStand,d.sitToStand, {
-            tooltip: 'Using a standard chair (about 43 cm seat height, no armrests), sit with feet flat on the floor and arms crossed on your shoulders. On "go", stand up fully and sit back down as many times as possible in 30 seconds. Count only complete reps. Measures lower-body strength.'
+            tooltip: TEST_HOW.sitToStand
           })
         + fieldSelect('breathHold','Breath Hold Test',S3_OPTIONS.breathHold,d.breathHold, {
-            tooltip: 'After a normal exhale, hold your breath for as long as comfortable. Use a stopwatch. Take your best safe attempt — don’t push past discomfort.'
+            tooltip: TEST_HOW.breathHold
           })
         + '</div><div class="hdlv2-field-grid cols-2">'
         + fieldSelect('balance','Balance Test',S3_OPTIONS.balance,d.balance, {
-            tooltip: 'Stand on one leg without support and time how long you can hold it. Use a stopwatch. Take your best attempt. Stand near something for safety in case you wobble.'
+            tooltip: TEST_HOW.balance
           })
         + fieldSelect('skinElasticity','Skin Elasticity',S3_OPTIONS.skinElasticity,d.skinElasticity, {
-            tooltip: 'Gently pinch the skin on the back of your hand for 2 seconds, release, and time how long it takes to flatten back. Use a stopwatch.'
+            tooltip: TEST_HOW.skinElasticity
           })
         + '</div>';
     } else if (sec.id === 'sleep') {
@@ -1574,45 +1667,231 @@
         + fieldTextarea('existing_conditions', 'Existing conditions / diagnoses', d.existing_conditions, 'Anything ongoing you’d want me to know.', 600)
         + '</div>';
     }
+    return content;
+  }
 
-    // Wizard progress dots
-    // v0.47.92 — a single-form client's first step (the picks) shows as done.
-    var single = isSingleFlow();
-    var dots = '<div class="hdlv2-wizard-progress">' + (single ? '<span class="hdlv2-wizard-dot done">1</span>' : '');
-    for (var i = 0; i < total; i++) {
-      dots += '<span class="hdlv2-wizard-dot' + (i < wizardSection ? ' done' : i === wizardSection ? ' active' : '') + '">' + (i + (single ? 2 : 1)) + '</span>';
+  // ══════════════════════════════════════════════════════════════
+  //  SINGLE FORM: THE SECOND FORM AS TAP CARDS (v0.47.94)
+  //  Only for isSingleFlow() rows. Same fields, same values and the same
+  //  autoSave(3) as the wizard; only the screens differ. The person's
+  //  choices set the order of screens 2-11 and their reason line; no
+  //  question is ever hidden.
+  // ══════════════════════════════════════════════════════════════
+
+  // The six screen-1 values: the saved answer, else the first-check mapping
+  // (s1Prefill also writes it into formData, as the old sections did).
+  function tapFirstValues(s1d, d) {
+    var out = {};
+    TAP_FIRST.forEach(function (f) { out[f] = s1Prefill(f, s1d, d[f]) || ''; });
+    return out;
+  }
+
+  // Pure: tied questions first, most choices first; equal counts and the
+  // untied questions keep today's order.
+  function tapQuestionOrder(ties) {
+    var t = ties || {};
+    function count(f) { return (t[f] && t[f].count) || 0; }
+    return TAP_ORDER.filter(function (f) { return count(f) > 0; })
+      .sort(function (a, b) { return count(b) - count(a) || TAP_ORDER.indexOf(a) - TAP_ORDER.indexOf(b); })
+      .concat(TAP_ORDER.filter(function (f) { return !count(f); }));
+  }
+
+  // Why we ask: the person's own choice when one ties to the question.
+  function tapReason(field, ties) {
+    var tie = ties && ties[field];
+    var sentence = tie && tie.count > 0 && ABILITY_SENTENCES[tie.ability];
+    if (!sentence) return TAP_TITLES[field].plain;
+    return 'You chose “' + esc(tie.choice) + '”'
+      + (tie.count > 1 ? ' and ' + (tie.count - 1) + ' more like it' : '') + '. ' + sentence;
+  }
+
+  // Pure: where a reload lands — screen 1 until its six are saved, then the
+  // first unanswered question in the order, then the measurements.
+  function tapLandingStep(saved, order) {
+    var s = saved || {};
+    if (TAP_FIRST.some(function (f) { return !s[f]; })) return 0;
+    for (var i = 0; i < order.length; i++) if (!s[order[i]]) return i + 1;
+    return order.length + 1;
+  }
+
+  // Six answer cards from S3_OPTIONS: value '0' is chip A ... '5' is F.
+  function tapCards(field, value) {
+    return S3_OPTIONS[field].filter(function (o) { return o.v !== ''; }).map(function (o) {
+      var sel = String(value) === o.v;
+      return '<button type="button" class="hdlv2-s1-opt' + (sel ? ' selected' : '') + '" data-val="' + o.v + '" role="radio" aria-checked="' + sel + '">'
+        + '<span class="hdlv2-s1-chip" aria-hidden="true">' + String.fromCharCode(65 + Number(o.v)) + '</span>'
+        + '<span class="hdlv2-s1-opt-text">' + esc(o.l) + '</span></button>';
+    }).join('');
+  }
+
+  function renderTapForm(data) {
+    tapOrder = tapQuestionOrder(data.second_form_ties);
+    tapOpenRow = null;
+    tapStep = tapLandingStep(data.stage3_data, tapOrder);
+    renderTapStep(data, false);
+  }
+
+  function tapLeave() {
+    if (tapAdvanceTimer) { clearTimeout(tapAdvanceTimer); tapAdvanceTimer = null; }
+    if (tapKeyHandler) { document.removeEventListener('keydown', tapKeyHandler); tapKeyHandler = null; }
+  }
+
+  // Leaving a screen saves once: the whole formData, as the wizard's Next does.
+  function tapGo(data, delta) {
+    tapLeave();
+    if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
+    autoSave(3);
+    tapStep = Math.max(0, Math.min(TAP_STEPS - 1, tapStep + delta));
+    tapOpenRow = null;
+    renderTapStep(data, true);
+    root.scrollIntoView({ behavior: 'smooth' });
+  }
+
+  function tapHeading(text) {
+    return '<h3 class="hdlv2-s1-title hdlv2-tap-heading" id="hdlv2-tap-title" tabindex="-1">' + text + '</h3>';
+  }
+
+  function tapSection(id) {
+    return S3_SECTIONS.filter(function (s) { return s.id === id; })[0];
+  }
+
+  function renderTapStep(data, moveFocus) {
+    setRootClasses('is-medium');
+    tapLeave();
+    var s1d = (data && data.stage1_data) || {};
+    var d = formData;
+    var field = tapStep >= 1 && tapStep <= tapOrder.length ? tapOrder[tapStep - 1] : null;
+    var screen;
+    if (tapStep === 0) {
+      screen = tapHeading('Here is what you told us')
+        + '<p class="hdlv2-s1-prompt">We filled these in from your first answers. If one is not right, tap Change.</p>'
+        + '<div id="hdlv2-tap-rows" class="hdlv2-tap-rows">' + tapFirstRows(tapFirstValues(s1d, d)) + '</div>'
+        + '<button type="button" id="hdlv2-tap-next" class="hdlv2-btn hdlv2-s1-next">Looks right, carry on</button>';
+    } else if (field) {
+      var q = TAP_TITLES[field];
+      screen = tapHeading(esc(q.title))
+        + (q.hint ? '<p class="hdlv2-s1-prompt">' + esc(q.hint) + '</p>' : '')
+        + '<p class="hdlv2-tap-reason">' + tapReason(field, data.second_form_ties) + '</p>'
+        + (q.how ? '<p class="hdlv2-tap-how"><strong>How to do it:</strong> ' + esc(q.how) + '</p>' : '')
+        + '<div class="hdlv2-s1-options" role="radiogroup" aria-labelledby="hdlv2-tap-title">' + tapCards(field, d[field]) + '</div>'
+        + '<button type="button" id="hdlv2-tap-skip" class="hdlv2-tap-skip">Skip this one</button>'
+        + '<p class="hdlv2-s1-kbd-hint">Press <kbd>A</kbd>–<kbd>F</kbd> to choose</p>';
+    } else if (tapStep === TAP_STEPS - 2) {
+      screen = tapHeading('Your measurements')
+        + '<p class="hdlv2-s1-prompt">Use a tape measure and, if you have one, a blood pressure monitor. Skip anything you don’t have to hand.</p>'
+        + wizardSectionContent(tapSection('body'), s1d, d)
+        + '<button type="button" id="hdlv2-tap-next" class="hdlv2-btn hdlv2-s1-next">Next &#8594;</button>';
+    } else {
+      screen = tapHeading('Your health background')
+        + wizardSectionContent(tapSection('background'), s1d, d)
+        + '<button id="hdlv2-complete-s3" class="hdlv2-btn hdlv2-s1-next">Complete Assessment &#10003;</button>';
     }
-    dots += '</div>';
 
-    var isFirst = wizardSection === 0;
-    var isLast = wizardSection === total - 1;
-
-    // v0.38.0 \u2014 Stage 3 wizard chrome trimmed per spec:
-    //   - Drop the 3-step progressBar (Quick Insight / Your WHY / Full Detail).
-    //     The 1-N dots below are sufficient orientation.
-    //   - Drop the "Section X of N" sub-line (dots convey position).
-    //   - Title now reads "More Health Details \u2014 Stage 3" (was "Full Health Detail").
-    //   - Skip helper line standardised: same phrasing on every section.
     root.innerHTML = '<div class="hdlv2-card">'
-      + '<div class="hdlv2-header"><h2>' + (single ? 'Your assessment' : 'More Health Details \u2014 Stage 3') + '</h2><p>' + esc(sec.title) + '</p></div>'
-      + dots
-      + (isFirst ? '<div class="hdlv2-wizard-info">Don\u2019t worry if you don\u2019t know the details. Just do your best. Your practitioner or the report can still be generated if you haven\u2019t got all these details.</div>' : '')
-      + '<div class="hdlv2-form-body">' + content
-      + '<p class="hdlv2-wizard-skip-note">Don\u2019t know or not sure? That\u2019s fine \u2014 skip what you don\u2019t know and keep going.</p>'
-      + '<div class="hdlv2-wizard-nav">'
-      + (isFirst ? '<span></span>' : '<button type="button" id="hdlv2-wizard-prev" class="hdlv2-nav-back" aria-label="Go back to previous section">&#8592; Previous</button>')
-      + (isLast ? '<button id="hdlv2-complete-s3" class="hdlv2-btn" style="width:auto;padding:13px 32px;">Complete Assessment &#10003;</button>' : '<button type="button" id="hdlv2-wizard-next" class="hdlv2-btn" style="width:auto;padding:13px 32px;">Next &#8594;</button>')
-      + '</div></div>' + saveIndicator() + footer() + '</div>';
+      + '<div class="hdlv2-header"><h2>Your assessment</h2></div>'
+      + '<div class="hdlv2-s1">'
+      +   '<div class="hdlv2-s1-header">'
+      +     (tapStep > 0 ? '<button type="button" id="hdlv2-tap-back" class="hdlv2-nav-back hdlv2-s1-back-btn" aria-label="Go back to the previous step">&#8592; Previous</button>' : '')
+      +     '<p class="hdlv2-s1-counter">Step ' + (tapStep + 1) + ' of ' + TAP_STEPS + '</p>'
+      +     '<div class="hdlv2-s1-progress"><div class="hdlv2-s1-progress-fill" style="width:' + Math.round(tapStep / TAP_STEPS * 100) + '%;"></div></div>'
+      +   '</div>'
+      +   '<div class="hdlv2-form-body" id="hdlv2-tap-body">' + screen + '</div>'
+      + '</div>' + saveIndicator() + footer() + '</div>';
 
-    bindFieldListeners();
-    // v0.38.0 — bindSkipCheckboxes() removed; "I don't know" checkbox dropped
-    // from numeric inputs per spec. The single section-level helper line now
-    // covers skip semantics. Stored 'skip' values still load (back-compat).
-    bindRangeSlider();
+    var back = document.getElementById('hdlv2-tap-back');
+    if (back) back.addEventListener('click', function () { tapGo(data, -1); });
+    var next = document.getElementById('hdlv2-tap-next');
+    if (next) next.addEventListener('click', function () { tapGo(data, 1); });
+    if (tapStep === 0) bindTapRows(data);
+    else if (field) bindTapQuestion(data, field);
+    else {
+      bindFieldListeners();
+      var done = document.getElementById('hdlv2-complete-s3');
+      if (done) done.addEventListener('click', function () {
+        if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
+        completeStage3(data);
+      });
+    }
+    // Keyboard and screen-reader users hear where they are after each step.
+    if (moveFocus) document.getElementById('hdlv2-tap-title').focus({ preventScroll: true });
+  }
 
-    if (!isFirst) document.getElementById('hdlv2-wizard-prev').addEventListener('click', function(){ wizardSection--; renderWizardSection(data); root.scrollIntoView({behavior:'smooth'}); });
-    if (isLast) document.getElementById('hdlv2-complete-s3').addEventListener('click', function(){ completeStage3(data); });
-    else document.getElementById('hdlv2-wizard-next').addEventListener('click', function(){ autoSave(3); wizardSection++; renderWizardSection(data); root.scrollIntoView({behavior:'smooth'}); });
+  // Screen 1 rows: label, current answer, Change. An unanswered row's cards
+  // are open from the start; otherwise one row is open at a time.
+  function tapFirstRows(vals) {
+    return TAP_FIRST.map(function (f) {
+      var opt = S3_OPTIONS[f].filter(function (o) { return o.v !== '' && o.v === vals[f]; })[0];
+      var open = !opt || tapOpenRow === f;
+      return '<div class="hdlv2-tap-row">'
+        + '<div class="hdlv2-tap-row-head">'
+        +   '<span class="hdlv2-tap-row-label" id="hdlv2-tap-label-' + f + '">' + esc(TAP_FIRST_LABELS[f]) + '</span>'
+        +   '<span class="hdlv2-tap-row-value' + (opt ? '' : ' is-empty') + '">' + esc(opt ? opt.l : 'Not answered yet') + '</span>'
+        +   (opt ? '<button type="button" class="hdlv2-tap-change" id="hdlv2-tap-change-' + f + '" data-row="' + f + '" aria-expanded="' + open + '" aria-controls="hdlv2-tap-opts-' + f + '">Change</button>' : '')
+        + '</div>'
+        + '<div class="hdlv2-s1-options" id="hdlv2-tap-opts-' + f + '" role="radiogroup" aria-labelledby="hdlv2-tap-label-' + f + '" data-row="' + f + '"' + (open ? '' : ' hidden') + '>'
+        +   tapCards(f, vals[f])
+        + '</div></div>';
+    }).join('');
+  }
+
+  function bindTapRows(data) {
+    var rows = document.getElementById('hdlv2-tap-rows');
+    var s1d = (data && data.stage1_data) || {};
+    function redraw(focusId) {
+      rows.innerHTML = tapFirstRows(tapFirstValues(s1d, formData));
+      bind();
+      var el = document.getElementById(focusId);
+      if (el) el.focus();
+    }
+    function bind() {
+      rows.querySelectorAll('.hdlv2-tap-change').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          var f = btn.getAttribute('data-row');
+          tapOpenRow = tapOpenRow === f ? null : f;
+          redraw(btn.id);
+        });
+      });
+      rows.querySelectorAll('.hdlv2-s1-opt').forEach(function (opt) {
+        opt.addEventListener('click', function () {
+          var f = opt.parentNode.getAttribute('data-row');
+          formData[f] = opt.getAttribute('data-val');
+          tapOpenRow = null;
+          redraw('hdlv2-tap-change-' + f);
+        });
+      });
+    }
+    bind();
+  }
+
+  // Screens 2-11: a tap saves the value and moves on after 200 ms (Back
+  // cancels it); tapping the chosen card again also moves on. A-F keys pick,
+  // except while typing or with a modifier held.
+  function bindTapQuestion(data, field) {
+    var body = document.getElementById('hdlv2-tap-body');
+    body.querySelectorAll('.hdlv2-s1-opt').forEach(function (opt) {
+      opt.addEventListener('click', function () {
+        formData[field] = opt.getAttribute('data-val');
+        body.querySelectorAll('.hdlv2-s1-opt').forEach(function (o) {
+          o.classList.remove('selected');
+          o.setAttribute('aria-checked', 'false');
+        });
+        opt.classList.add('selected');
+        opt.setAttribute('aria-checked', 'true');
+        if (tapAdvanceTimer) clearTimeout(tapAdvanceTimer);
+        tapAdvanceTimer = setTimeout(function () { tapAdvanceTimer = null; tapGo(data, 1); }, 200);
+      });
+    });
+    document.getElementById('hdlv2-tap-skip').addEventListener('click', function () { tapGo(data, 1); });
+    tapKeyHandler = function (e) {
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      var ae = document.activeElement;
+      if (ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA' || ae.isContentEditable)) return;
+      var key = (e.key || '').toLowerCase();
+      if (key.length !== 1 || 'abcdef'.indexOf(key) === -1) return;
+      var opt = body.querySelector('.hdlv2-s1-opt[data-val="' + 'abcdef'.indexOf(key) + '"]');
+      if (opt) { e.preventDefault(); opt.click(); }
+    };
+    document.addEventListener('keydown', tapKeyHandler);
   }
 
   // v0.38.0 — bindSkipCheckboxes() removed: numeric "I don't know"
