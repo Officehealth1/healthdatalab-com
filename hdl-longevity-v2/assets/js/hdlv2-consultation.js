@@ -904,11 +904,12 @@
   //   refresh is wired into Final_Report::regenerate() server-side, so by
   //   the time the page renders post-Save-and-Update-Plan the timestamp
   //   should be fresh.
+  // Nothing loads behind an empty brief, so it gets a line, not a skeleton.
+  var BRIEF_EMPTY = '<p class="hdlv2-consult-hint">The summary could not be written just now. Press Refresh summary to try again.</p>';
+
   function renderClientBrief(data) {
     var brief = (data && data.pre_consult_summary) || null;
-    var body = brief
-      ? renderBriefBody(brief)
-      : HDLV2Loading.skeleton('brief');
+    var body = brief ? renderBriefBody(brief) : BRIEF_EMPTY;
 
     var meta = renderBriefMeta(data);
 
@@ -1133,6 +1134,12 @@
       var original = btn.textContent;
       btn.textContent = 'Refreshing…';
       setBriefSaveStatus('saving');
+      // With no brief yet, the box shows the skeleton while the first one is
+      // written and the line again if that fails.
+      var hadBrief = !!(state.data && state.data.pre_consult_summary);
+      var briefBody = document.getElementById('hdlv2-client-brief-body');
+      if (!hadBrief && briefBody) briefBody.innerHTML = HDLV2Loading.skeleton('brief');
+      function restoreEmpty() { if (!hadBrief && briefBody) briefBody.innerHTML = BRIEF_EMPTY; }
       fetch(CFG.api_base + '/refresh-brief', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': CFG.nonce },
@@ -1155,12 +1162,14 @@
           bindBriefAutoSaveListeners();
           setBriefSaveStatus('saved');
         } else {
+          restoreEmpty();
           setBriefSaveStatus('error', (res && res.message) || 'Refresh failed');
         }
       })
       .catch(function () {
         btn.disabled = false;
         btn.textContent = original;
+        restoreEmpty();
         setBriefSaveStatus('error', 'Connection error');
       });
     });

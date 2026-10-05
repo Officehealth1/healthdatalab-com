@@ -95,8 +95,8 @@ class HDLV2_My_Report {
         $slug   = apply_filters( 'hdlv2_final_report_slug', 'longevity-draft-report' );
         $target = home_url( '/' . trim( $slug, '/' ) . '/?t=' . rawurlencode( $token ) );
         return '<div style="max-width:560px;margin:60px auto;padding:40px 32px;text-align:center;font-family:Inter,-apple-system,sans-serif;">'
-             . '<p style="color:#666;">Loading your report…</p>'
-             . '<p><a href="' . esc_url( $target ) . '" style="color:#3d8da0;font-weight:500;">Click here if you are not redirected</a></p>'
+             . '<p style="color:#666;">Your report is on its own page.</p>'
+             . '<p><a href="' . esc_url( $target ) . '" style="color:#3d8da0;font-weight:500;">Open your report</a></p>'
              . '</div>';
     }
 

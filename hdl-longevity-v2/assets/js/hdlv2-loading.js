@@ -43,7 +43,7 @@
   // Mirrors hdlv2-dr (hero + pace + section + section + section).
   function skeletonReport() {
     return ''
-      + '<div class="hdlv2-skel-container" aria-busy="true" aria-label="Loading your report">'
+      + '<div class="hdlv2-skel-container" role="status" aria-busy="true" aria-label="Loading your report">'
       +   heading()
       +   line('l') + line('m')
       +   '<div style="margin:24px 0;">' + block() + '</div>'
@@ -71,7 +71,7 @@
         + '</div>';
     }
     return ''
-      + '<div class="hdlv2-skel-container hdlv2-skel-card" aria-busy="true" aria-label="Loading your flight plan">'
+      + '<div class="hdlv2-skel-container hdlv2-skel-card" role="status" aria-busy="true" aria-label="Loading your flight plan">'
       +   '<div style="display:flex;align-items:center;gap:12px;margin-bottom:10px;">'
       +     pill()
       +     '<div class="hdlv2-skel hdlv2-skel-line" style="width:140px;margin:0;"></div>'
@@ -84,7 +84,7 @@
   // Consultation = left brief panel + right draft-report skeleton.
   function skeletonConsultation() {
     return ''
-      + '<div class="hdlv2-skel-container" aria-busy="true" aria-label="Loading consultation" style="display:grid;grid-template-columns:1fr;gap:18px;">'
+      + '<div class="hdlv2-skel-container" role="status" aria-busy="true" aria-label="Loading consultation" style="display:grid;grid-template-columns:1fr;gap:18px;">'
       +   '<div class="hdlv2-skel-card">'
       +     heading()
       +     line('l') + line('m') + line('s')
@@ -109,7 +109,7 @@
         + '</div>';
     }
     return ''
-      + '<div class="hdlv2-skel-container hdlv2-skel-card" aria-busy="true" aria-label="Loading clients">'
+      + '<div class="hdlv2-skel-container hdlv2-skel-card" role="status" aria-busy="true" aria-label="Loading clients">'
       +   rows
       + '</div>';
   }
@@ -117,7 +117,7 @@
   // Check-in = single card with heading + 3 lines + audio block placeholder.
   function skeletonCheckin() {
     return ''
-      + '<div class="hdlv2-skel-container hdlv2-skel-card" aria-busy="true" aria-label="Loading check-in">'
+      + '<div class="hdlv2-skel-container hdlv2-skel-card" role="status" aria-busy="true" aria-label="Loading check-in">'
       +   heading()
       +   line('l') + line('l') + line('m')
       +   '<div style="margin:20px 0;">' + block() + '</div>'
@@ -132,7 +132,7 @@
       opts += '<div class="hdlv2-skel hdlv2-skel-block" style="height:56px;margin:0;"></div>';
     }
     return ''
-      + '<div class="hdlv2-skel-container hdlv2-skel-card" aria-busy="true" aria-label="Loading your assessment">'
+      + '<div class="hdlv2-skel-container hdlv2-skel-card" role="status" aria-busy="true" aria-label="Loading your assessment">'
       +   heading()
       +   line('m')
       +   '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin:20px 0;">' + opts + '</div>'
@@ -144,7 +144,7 @@
   // it sits inside the card that will hold the text.
   function skeletonBrief() {
     return ''
-      + '<div class="hdlv2-skel-container" aria-busy="true" aria-label="Preparing">'
+      + '<div class="hdlv2-skel-container" role="status" aria-busy="true" aria-label="Preparing">'
       +   line('l') + line('l') + line('m') + line('l') + line('s')
       + '</div>';
   }
@@ -152,7 +152,7 @@
   // Client detail tab = two headings with three lines each.
   function skeletonTab() {
     return ''
-      + '<div class="hdlv2-skel-container" aria-busy="true" aria-label="Loading" style="padding:16px 0;">'
+      + '<div class="hdlv2-skel-container" role="status" aria-busy="true" aria-label="Loading" style="padding:16px 0;">'
       +   heading() + line('l') + line('m') + line('s')
       +   '<div style="margin-top:22px;">' + heading() + '</div>'
       +   line('l') + line('l') + line('m')
@@ -166,7 +166,7 @@
       rows += '<div class="hdlv2-skel-row">' + avatar()
         + '<div class="hdlv2-skel-row-body">' + line('m') + line('s') + '</div></div>';
     }
-    return '<div class="hdlv2-skel-container" aria-busy="true" aria-label="Loading">' + rows + '</div>';
+    return '<div class="hdlv2-skel-container" role="status" aria-busy="true" aria-label="Loading">' + rows + '</div>';
   }
 
   // One pulsing bar for banners and buttons. A span, so it is valid inside

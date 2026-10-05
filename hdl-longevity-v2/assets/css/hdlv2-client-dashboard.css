@@ -565,11 +565,33 @@
   gap: 10px;
 }
 
-.hdlv2-inbox-loading,
 .hdlv2-inbox-empty {
   color: var(--hdlv2-cd-ink-muted);
   font-size: 14px;
   margin: 10px 2px;
+}
+
+/* Three message-shaped bars until the thread arrives (hdlv2-inbox.js clears them). */
+.hdlv2-inbox-loading {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 10px 2px;
+}
+.hdlv2-inbox-loading span {
+  display: block;
+  height: 14px;
+  border-radius: 7px;
+  background: var(--hdlv2-cd-teal-lighter);
+  animation: hdlv2-inbox-pulse 1.4s ease-in-out infinite;
+}
+.hdlv2-inbox-loading span:nth-child(1) { width: 70%; }
+.hdlv2-inbox-loading span:nth-child(2) { width: 55%; align-self: flex-end; animation-delay: 0.15s; }
+.hdlv2-inbox-loading span:nth-child(3) { width: 40%; animation-delay: 0.3s; }
+
+@keyframes hdlv2-inbox-pulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.45; }
 }
 
 .hdlv2-inbox-msg { display: flex; }
@@ -835,6 +857,7 @@ body.hdlv2-inbox-standalone {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .hdlv2-inbox-loading span { animation: none; }
   .hdlv2-inbox-bubble { animation: none; }
   .hdlv2-inbox-send { transition: none; }
 }
