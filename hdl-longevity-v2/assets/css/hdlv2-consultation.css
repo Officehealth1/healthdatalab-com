@@ -1209,7 +1209,9 @@ body.hdlv2-wide-page .hdlv2-consult-layout {
   overflow: hidden;
 }
 
-.hdlv2-consultation-root .cl-table {
+/* Wrap class in the selector: Divi's .entry-content table:not(.variations)
+   otherwise outranks it and adds a border and a 15px gap under the list. */
+.hdlv2-consultation-root .cl-table-wrap .cl-table {
   width: 100%;
   margin: 0;
   border: 0;
@@ -1248,11 +1250,13 @@ body.hdlv2-wide-page .hdlv2-consult-layout {
 
 .hdlv2-consultation-root .cl-name {
   display: block;
+  overflow-wrap: anywhere;
   font-weight: 600;
   color: #2c3e50;
 }
 .hdlv2-consultation-root .cl-prac {
   display: block;
+  overflow-wrap: anywhere;
   margin-top: 2px;
   font-size: 13px;
   color: #888;

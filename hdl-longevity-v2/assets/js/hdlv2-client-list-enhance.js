@@ -2491,7 +2491,7 @@
         choices = '<div class="hdlv2-why-choices">'
           + '<div class="hdlv2-score-group"><h4>What they chose</h4>' + picked + '</div>'
           + '<div class="hdlv2-score-group"><h4>Abilities their choices depend on</h4>' + abilities
-          +   '<div class="hdlv2-consult-caption">Scores are out of 5. Stage 1 answers run 1 to 5, Stage 3 answers 0 to 5.'
+          +   '<div class="hdlv2-consult-caption">Scores are out of 5, averaged from the answers listed. They are not a test of the ability itself. Stage 1 answers run 1 to 5, Stage 3 answers 0 to 5.'
           +     (s2.choices.stage3_done ? '' : ' Stage 3 not finished: based on Stage 1 answers only.') + '</div>'
           + '</div>'
           + '</div>';
