@@ -202,10 +202,11 @@ class HDLV2_Widget_Config {
         wp_enqueue_script(
             'hdlv2-dashboard',
             HDLV2_PLUGIN_URL . 'assets/js/hdlv2-dashboard.js',
-            array(),
+            array( 'hdlv2-loading' ),
             HDLV2_VERSION,
             true
         );
+        wp_enqueue_style( 'hdlv2-loading-css' );
 
         wp_enqueue_script(
             'hdlv2-widget',

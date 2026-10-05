@@ -48,25 +48,19 @@
     var params = new URLSearchParams(window.location.search);
     state.progressId = parseInt(params.get('progress_id') || params.get('client'), 10);
     if (state.progressId) {
-      showLoading('Loading consultation data...');
+      showLoading();
       loadConsultation();
     } else {
-      showLoading('Loading consultations...');
+      showLoading();
       loadList();
     }
   }
 
-  function showLoading(msg) {
-    // v0.37.0 — shaped skeleton replaces blank spinner during the 2-5s mount.
-    // The skeleton mirrors the consultation layout (single content card with
-    // a heading, paragraph lines, and a body block) so the user sees the
-    // shape of what's loading rather than a void. Falls back to the original
-    // spinner when HDLV2Loading isn't on the page (cached pages mid-deploy).
-    if (window.HDLV2Loading && typeof HDLV2Loading.skeleton === 'function') {
-      root.innerHTML = HDLV2Loading.skeleton('consultation');
-    } else {
-      root.innerHTML = '<div style="text-align:center;padding:60px;"><div class="hdlv2-spinner" style="width:36px;height:36px;border:3px solid #e4e6ea;border-top-color:#3d8da0;border-radius:50%;margin:0 auto 16px;animation:hdlv2spin 0.8s linear infinite;"></div><p style="color:#888;margin:0;">' + esc(msg || 'Loading...') + '</p></div>';
-    }
+  function showLoading() {
+    // Shaped skeleton during the 2-5s mount: the consultation layout (one
+    // content card with a heading, paragraph lines and a body block), so the
+    // practitioner sees the shape of what is loading rather than a void.
+    root.innerHTML = HDLV2Loading.skeleton('consultation');
   }
 
   function loadConsultation() {
@@ -1780,7 +1774,7 @@
             if (kind === 'regen') {
               // Re-load the consultation so the refreshed report + the new
               // addendum in the timeline render from fresh server state.
-              showLoading('Loading your updated report…');
+              showLoading();
               loadConsultation();
             } else {
               renderFinalReport();
@@ -1815,7 +1809,7 @@
       + '</div>'
       + '</div>';
     var btn = document.getElementById('hdlv2-report-retry');
-    if (btn) btn.addEventListener('click', function () { showLoading('Loading consultation data...'); loadConsultation(); });
+    if (btn) btn.addEventListener('click', function () { showLoading(); loadConsultation(); });
   }
 
   function showReportTimeout(kind) {
@@ -1831,7 +1825,7 @@
       + '</div>'
       + '</div>';
     var btn = document.getElementById('hdlv2-report-refresh');
-    if (btn) btn.addEventListener('click', function () { showLoading('Loading consultation data...'); loadConsultation(); });
+    if (btn) btn.addEventListener('click', function () { showLoading(); loadConsultation(); });
   }
 
   // ── UTILS ──

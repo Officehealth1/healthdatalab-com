@@ -40,12 +40,9 @@
   var weekData = null;
 
   function init() {
-    // v0.37.0 — shaped skeleton on initial mount replaces the blank
-    // spinner. ~1-3s wait; once /checkin/load resolves, real content
-    // replaces the skeleton in-place.
-    root.innerHTML = (window.HDLV2Loading && typeof HDLV2Loading.skeleton === 'function')
-      ? HDLV2Loading.skeleton('checkin')
-      : '<div class="hdlv2-card"><div class="hdlv2-loading"><div class="hdlv2-spinner"></div><p style="color:#888;">Loading...</p></div></div>';
+    // Shaped skeleton on initial mount (~1-3s); once /checkin/load resolves,
+    // real content replaces it in place.
+    root.innerHTML = HDLV2Loading.skeleton('checkin');
     fetch(CFG.api_base + '/load?token=' + encodeURIComponent(token), { headers: { 'X-WP-Nonce': CFG.nonce } })
       .then(function (r) { return r.json(); })
       .then(function (data) {

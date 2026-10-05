@@ -71,13 +71,10 @@
 
   function init() {
     if (!clientId && !token) { root.innerHTML = '<p style="color:#888;">No client specified.</p>'; return; }
-    // v0.37.0 \u2014 shaped skeleton (week pill + identity line + 5 action rows)
-    // replaces blank spinner on initial mount. The repair-poll and tick-poll
-    // re-render via renderPlan() \u2014 they do NOT re-trigger init(), so the
-    // skeleton never re-flashes during background sync.
-    root.innerHTML = (window.HDLV2Loading && typeof HDLV2Loading.skeleton === 'function')
-      ? HDLV2Loading.skeleton('flightPlan')
-      : '<div class="hdlv2-card"><div class="hdlv2-loading"><div class="hdlv2-spinner"></div><p style="color:#888;">Loading flight plan\u2026</p></div></div>';
+    // Shaped skeleton (week pill + identity line + 5 action rows) on initial
+    // mount. The repair-poll and tick-poll re-render via renderPlan() \u2014
+    // they do NOT re-trigger init(), so the skeleton never re-flashes.
+    root.innerHTML = HDLV2Loading.skeleton('flightPlan');
     loadCurrent();
   }
 
