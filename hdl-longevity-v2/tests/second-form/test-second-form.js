@@ -51,7 +51,7 @@ const DOC = 'var document = { createElement: function () { var t = ""; return {'
 
 const HELPERS = ['fieldInputWithSkip', 'renderTooltip', 'fieldSelect', 'fieldTextarea', 'fieldReadonly', 'prefillHint', 'esc', 's1Prefill'];
 const VARS = ['NONE_SENTINEL', 'S3_OPTIONS', 'S1_TO_S3_DEFAULTS', 'S3_SECTIONS'];
-const NEW_NAMES = ['TAP_FIRST', 'TAP_FIRST_LABELS', 'TAP_ORDER', 'TEST_HOW', 'TAP_TITLES', 'ABILITY_SENTENCES'];
+const NEW_NAMES = ['TAP_FIRST', 'TAP_FIRST_LABELS', 'TAP_ORDER', 'TEST_HOW', 'TAP_NEUTRAL', 'TAP_TITLES', 'ABILITY_SENTENCES'];
 const NEW_FNS = ['tapFirstValues', 'tapCards', 'tapQuestionOrder', 'tapReason', 'tapLandingStep', 'wizardSectionContent'];
 
 function context(extra) {
@@ -155,7 +155,7 @@ if (has('tapQuestionOrder')) {
 if (has('tapReason')) {
   const r = get('tapReason');
   ok(r('sitToStand', {}) === 'This test shows how strong your legs are.', 'no tie → the plain line');
-  ok(r('dailyHydration', { sitToStand: { ability: 'strength', count: 1, choice: 'x' } }) === 'Water helps your energy and concentration.', 'another field\'s tie does not leak');
+  ok(r('dailyHydration', { sitToStand: { ability: 'strength', count: 1, choice: 'x' } }) === 'This answer goes into your rate of ageing result.', 'another field\'s tie does not leak');
   ok(r('sitToStand', { sitToStand: { ability: 'strength', count: 1, choice: 'Carry my own shopping' } })
     === 'You chose “Carry my own shopping”. This test shows how strong your legs are for that.', 'one choice');
   ok(r('stressLevels', { stressLevels: { ability: 'mind', count: 3, choice: 'Read a book' } })
@@ -164,6 +164,13 @@ if (has('tapReason')) {
     === 'You chose “Ride a &lt;b&gt;bike&lt;/b&gt; &amp; more” and 1 more like it. This shows how steady you are on your feet for that.', 'the choice text is escaped');
   const titles = get('TAP_TITLES') || {};
   ok(TODAY.every((f) => titles[f] && titles[f].title && titles[f].plain), 'every question on screens 2–11 has a title and a plain line');
+  // v0.47.98 — no health claim without a source: five lines become neutral.
+  const NEUTRAL = ['stressLevels', 'cognitiveActivity', 'alcoholConsumption', 'sunlightExposure', 'dailyHydration'];
+  ok(get('TAP_NEUTRAL') === 'This answer goes into your rate of ageing result.'
+    && NEUTRAL.every((f) => titles[f] && titles[f].plain === get('TAP_NEUTRAL')), 'the five scored lifestyle questions carry the one neutral line');
+  ok(J(TODAY.filter((f) => NEUTRAL.indexOf(f) === -1).map((f) => titles[f] && titles[f].plain)) === J(['This test shows how strong your legs are.',
+    'A quick check of your breathing.', 'This shows how steady you are on your feet.', 'A quick check of your skin.', 'Tells your practitioner what you already take.']),
+    'the other five lines unchanged');
 }
 
 // ── 6. Landing screen on reload ──
@@ -227,7 +234,112 @@ ok(/metaKey|ctrlKey/.test(src.slice(src.indexOf('tapKeyHandler = function'), src
 
 ok(/if \(saving\) \{ setTimeout\(tapSave, 300\); return; \}/.test(fn('tapSave')) && /tapSave\(\);/.test(fn('tapGo')) && !/autoSave/.test(fn('tapGo')),
   'leaving a screen waits for a save in flight instead of dropping it');
-ok(/if \(saving\) \{ setTimeout\(finish, 300\); return; \}\s*completeStage3\(data\);/.test(step), 'Complete waits for a save in flight');
+ok(/bindTapComplete\(data\)/.test(step), 'screen 13 binds Complete through bindTapComplete()');
+
+// ── 9. Double taps, held keys and Complete (v0.47.98, gate T1 + T2) ──
+// The REAL bindTapQuestion() / bindTapComplete() under a fake clock and DOM.
+function tapHarness() {
+  const H = { clock: 0, timers: [], gone: [], completes: 0, status: [] };
+  const listeners = {};
+  function el(attrs) {
+    const ls = {};
+    return { attrs: Object.assign({}, attrs), disabled: false, textContent: '', isConnected: true,
+      classList: { add() {}, remove() {} },
+      setAttribute(k, val) { this.attrs[k] = val; }, getAttribute(k) { return this.attrs[k]; },
+      addEventListener(t, f) { (ls[t] = ls[t] || []).push(f); },
+      click() { (ls.click || []).forEach((f) => f({})); } };
+  }
+  const opts = [0, 1, 2, 3, 4].map((i) => el({ 'data-val': String(i) }));
+  const body = el({});
+  body.querySelectorAll = () => opts;
+  body.querySelector = (sel) => { const m = sel.match(/data-val="(\d)"/); return m ? opts[+m[1]] : null; };
+  const skip = el({}), done = el({});
+  done.textContent = 'Complete Assessment ✓';
+  const ids = { 'hdlv2-tap-body': body, 'hdlv2-tap-skip': skip, 'hdlv2-complete-s3': done };
+  const sb = {
+    H, Date: { now: () => H.clock },
+    document: { getElementById: (id) => ids[id] || null, addEventListener: (t, f) => { listeners[t] = f; }, activeElement: null },
+    setTimeout: (f, ms) => { const t = { at: H.clock + ms, f }; H.timers.push(t); return t; },
+    clearTimeout: (t) => { H.timers = H.timers.filter((x) => x !== t); }
+  };
+  const code = v('TAP_SETTLE_MS') + '\n' + v('TAP_COMPLETE_WAIT_MS') + '\n'
+    + 'var tapAdvanceTimer = null, tapKeyHandler = null, saveTimer = null, saving = false, formData = {};\n'
+    + 'function tapGo(d, delta) { H.gone.push(delta); }\n'
+    + 'function completeStage3(d) { H.completes++; }\n'
+    + 'function setSaveStatus(c, t) { H.status.push([c, t]); }\n'
+    + fn('bindTapQuestion') + '\n' + fn('bindTapComplete') + '\n';
+  try { vm.runInNewContext(code, sb); } catch (e) { console.log('  (harness error: ' + e.message + ')'); }
+  H.advance = (ms) => {
+    const end = H.clock + ms;
+    for (;;) {
+      H.timers.sort((a, b) => a.at - b.at);
+      const t = H.timers[0];
+      if (!t || t.at > end) break;
+      H.timers.shift(); H.clock = t.at; t.f();
+    }
+    H.clock = end;
+  };
+  H.key = (k, repeat) => listeners.keydown && listeners.keydown({ key: k, repeat: !!repeat, preventDefault() {} });
+  return Object.assign(H, { opts, skip, done, sb });
+}
+ok(/^  var TAP_SETTLE_MS = 400;$/m.test(src) && /^  var TAP_COMPLETE_WAIT_MS = 5000;$/m.test(src), 'one named constant each: 400 ms settle, 5 s Complete wait');
+if (fn('bindTapQuestion') && fn('bindTapComplete') && v('TAP_SETTLE_MS')) {
+  let h = tapHarness();
+  h.sb.bindTapQuestion({}, 'balance');
+  h.advance(300); h.opts[2].click(); h.advance(1000);
+  ok(h.sb.formData.balance === undefined && h.gone.length === 0, 'a second tap 300 ms after the card appears changes nothing and does not advance');
+  h.advance(100); h.opts[2].click();
+  ok(h.sb.formData.balance === '2' && h.gone.length === 0, 'a tap 400 ms after the card appears picks the answer');
+  h.advance(200);
+  ok(J(h.gone) === '[1]', '...and moves on 200 ms later, once');
+
+  h = tapHarness();
+  h.sb.bindTapQuestion({}, 'balance');
+  h.advance(500); h.key('c', true); h.advance(1000);
+  ok(h.sb.formData.balance === undefined && h.gone.length === 0, 'a held key (repeat) does nothing');
+  h.key('c', false); h.advance(200);
+  ok(h.sb.formData.balance === '2' && J(h.gone) === '[1]', 'a fresh key press still picks');
+
+  h = tapHarness();
+  h.sb.bindTapQuestion({}, 'balance');
+  h.advance(100); h.skip.click();
+  ok(h.gone.length === 0, 'Skip within 400 ms does nothing');
+  h.advance(350); h.skip.click();
+  ok(J(h.gone) === '[1]', 'Skip after 400 ms moves on');
+
+  h = tapHarness();
+  h.sb.saving = true;
+  h.sb.bindTapComplete({});
+  h.done.click(); h.done.click(); h.done.click();
+  ok(h.done.disabled === true && h.done.textContent === 'Saving…' && h.completes === 0, 'Complete during a save: disabled, "Saving…", nothing sent yet');
+  h.advance(1200); h.sb.saving = false; h.advance(300);
+  ok(h.completes === 1, 'pressed three times: completeStage3 runs once, after the save clears');
+  h.advance(10000); h.done.click();
+  ok(h.completes === 1, 'no second completion afterwards');
+
+  h = tapHarness();
+  h.sb.saving = true;
+  h.sb.bindTapComplete({});
+  h.done.click();
+  h.advance(4800);
+  ok(h.done.disabled === true && h.completes === 0, 'save still in flight at 4.8 s: still waiting');
+  h.advance(400);
+  ok(h.done.disabled === false && h.done.textContent === 'Complete Assessment ✓' && h.completes === 0,
+    'save never clears: after 5 s the button is back with its label and nothing was completed');
+  ok(J(h.status[h.status.length - 1]) === J(['error', 'The connection is slow. Please press Complete again.']), '...with the slow-connection message');
+  h.advance(30000);
+  ok(h.completes === 0 && h.timers.length === 0, '...and nothing keeps waiting in the background');
+
+  h = tapHarness();
+  h.sb.bindTapComplete({});
+  h.done.click();
+  ok(h.completes === 1, 'no save in flight: Complete runs at once');
+} else ok(false, 'bindTapQuestion(), bindTapComplete() and TAP_SETTLE_MS exist');
+
+// ── 10. Side bar ──
+const formCss = fs.readFileSync(path.join(__dirname, '..', '..', 'assets', 'css', 'hdlv2-form.css'), 'utf8');
+ok(/#hdlv2-tap-body \.hdlv2-section-intro \{ border-left: 0; border-radius: 8px; \}/.test(formCss), 'tap screens drop the section intro\'s teal side bar');
+ok(/\.hdlv2-section-intro \{\s*background: #f8f9fb;\s*border-left: 3px solid #3d8da0;/.test(formCss), 'the old form keeps it');
 
 // ── 8. No native popups ──
 ok(!/\b(alert|confirm|prompt)\(/.test(src), 'the shipped file has no alert( / confirm( / prompt(');

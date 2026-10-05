@@ -114,13 +114,18 @@ if (typeof themesWithPicks === 'function' && typeof toggleTheme === 'function') 
 }
 ok(/<button type="button"[^>]*aria-pressed="/.test(page), 'theme tiles are real buttons with aria-pressed');
 ok(/\.hidden = /.test(body('updatePicks')), 'a closed theme is hidden, not removed (its checkboxes stay in the page)');
-ok(page.indexOf('Tap the parts of life you care about, then choose the 5 to 10 things you would most love to still be able to do.') !== -1, 'lead copy as written');
+ok(page.indexOf('Tap the parts of life you care about, then choose the 5 to 10 things you would most love to still be able to do in your last decade of life.') !== -1, 'lead copy as written (Matthew\'s words, v0.47.98)');
+ok(page.indexOf("picksTextarea('key_people_text', 'Who are the most important people you want to stay healthy and strong for? Their first names help us make your report personal.'") !== -1, 'people label asks for first names (v0.47.98)');
 ok(src.indexOf('Start with one or two that matter to you.') !== -1, 'quiet line for a fresh page');
 ok(src.indexOf('What your choices ask of your body') !== -1
   && src.indexOf('Each thing you chose depends on abilities like these. Your plan will focus on the ones your health answers show need the most work.') !== -1,
   'summary panel title and sentence as written');
 ok(/of your choices/.test(body('updatePicks')), 'summary panel is redrawn with the picks (updatePicks)');
 ok(!/\b(alert|confirm|prompt)\(/.test(src), 'the shipped file has no alert( / confirm( / prompt(');
+const cle = fs.readFileSync(path.join(__dirname, '..', '..', 'assets', 'js', 'hdlv2-client-list-enhance.js'), 'utf8');
+ok(cle.indexOf("'<div class=\"hdlv2-consult-caption\">Scores are out of 5, averaged from the answers listed. They are not a test of the ability itself. Stage 1 answers run 1 to 5, Stage 3 answers 0 to 5.'") !== -1
+  && /\(s2\.choices\.stage3_done \? '' : ' Stage 3 not finished: based on Stage 1 answers only\.'\)/.test(cle),
+  'practitioner caption says the numbers are averages, not a test (v0.47.98); the Stage 3 sentence stays');
 
 const submit = body('submitWhyPicks');
 ok(submit !== '', 'submitWhyPicks() exists');

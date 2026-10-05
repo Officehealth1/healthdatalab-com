@@ -60,6 +60,12 @@ KINDS.forEach((k) => {
   ok(/aria-busy="true"/.test(html) && /aria-label="[^"]+"/.test(html), "skeleton('" + k + "') — aria-busy + aria-label");
 });
 ok(L.skeleton('nope') === L.skeleton('report'), 'unknown kind falls back to report');
+// v0.47.98 — a label on a plain div is not read out; role="status" is.
+KINDS.filter((k) => k !== 'inline').forEach((k) => {
+  ok(/<div class="hdlv2-skel-container[^"]*" role="status" aria-busy="true"/.test(L.skeleton(k)),
+    "skeleton('" + k + "') — the container has role=\"status\"");
+});
+ok(!/role="status"/.test(L.skeleton('inline')), "skeleton('inline') stays a plain span (it sits inside buttons, beside words)");
 ok(/^<span\b/.test(L.skeleton('inline')) && !/<div\b/.test(L.skeleton('inline')), "skeleton('inline') is a span (valid inside a button)");
 ok(new Set(KINDS.map((k) => L.skeleton(k))).size === KINDS.length, 'ten distinct shapes');
 
@@ -108,6 +114,21 @@ phpFiles('includes').concat(['hdl-longevity-v2.php']).forEach((f) => {
   }
 });
 LOADER_HANDLES.forEach((h) => ok(seen.has(h), "enqueue of '" + h + "' found"));
+
+// v0.47.98 — the PHP the server renders: no line that is only loading words.
+const PHP_BARE = />\s*(Loading|Preparing)[^<]{0,40}(…|\.\.\.|&hellip;|\\u2026)\s*</;
+phpFiles('includes').concat(['hdl-longevity-v2.php']).forEach((f) => {
+  const bare = read(f).split('\n').filter((l) => PHP_BARE.test(l));
+  ok(bare.length === 0, f + ' — no rendered loading-only line' + (bare.length ? ': ' + bare[0].trim().slice(0, 90) : ''));
+});
+const shell = read('includes/sprint-4/class-hdlv2-message-thread-view.php');
+ok(shell.indexOf('<div class="hdlv2-inbox-loading" role="status" aria-label="Loading your messages"><span></span><span></span><span></span></div>') !== -1,
+  'Messages placeholder is three bars with a spoken label');
+const cdCss = read('assets/css/hdlv2-client-dashboard.css');
+ok(/\.hdlv2-inbox-loading \{/.test(cdCss) && !/\.hdlv2-inbox-loading,\s*\.hdlv2-inbox-empty/.test(cdCss), 'the bars have their own rule, split from the empty line');
+ok(/@media \(prefers-reduced-motion: reduce\) \{[^}]*\.hdlv2-inbox-loading span \{ animation: none; \}/.test(cdCss), 'the bars stop pulsing for reduced motion');
+const myReport = read('includes/sprint-2c/class-hdlv2-my-report.php');
+ok(myReport.indexOf('Your report is on its own page.') !== -1 && myReport.indexOf('>Open your report</a>') !== -1, 'report fall-back: a plain line and an "Open your report" link');
 
 // ── 4. Not loaders: untouched ──
 ok(/'Give us a moment'/.test(read('assets/js/hdlv2-rate-limit.js')), '429 modal title unchanged');

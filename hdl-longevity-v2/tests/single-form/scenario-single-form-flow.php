@@ -85,6 +85,7 @@ class HDLV2_AI_Service {
     public static $why_calls = array();
     public static $draft_why = array();
     public static $draft_ok  = true;
+    public static $fears     = array();
     public static function extract_why( $stage2_data ) {
         self::$why_calls[] = $stage2_data;
         if ( ! self::$draft_ok ) {
@@ -94,7 +95,7 @@ class HDLV2_AI_Service {
         return array(
             'key_people'       => array( array( 'name' => 'Jenny', 'relationship' => 'wife' ) ),
             'motivations'      => array( 'Play on the floor with the grandchildren' ),
-            'fears'            => array(),
+            'fears'            => self::$fears,
             'distilled_why'    => 'I want to keep up with my family.',
             'ai_reformulation' => '<p>You want to keep up.</p>',
         );
@@ -403,6 +404,32 @@ $wpdb->rows[13] = make_row( 13, array( 'stage2_data' => json_encode( array( 'for
 HDLV2_Staged_Form::run_single_stage2_extraction( 13 );
 check( 'X4 single row, Claude failed: no placeholder WHY row written', ! isset( $wpdb->why[13] ) );
 HDLV2_AI_Service::$draft_ok = true;
+
+// v0.47.98 — a choices-page client can only write a fear in the own-words
+// box; the extraction reads "without fear of falling" in a ticked statement
+// as a fear (row 256 on the test site). Nothing typed there → no fears kept.
+HDLV2_AI_Service::$fears = array( 'fear of falling (on cobbles, sand or a rocky path)' );
+$picks_fear = array( 'uneven_ground', 'read_for_an_hour', 'floor_grandkids', 'carry_shopping', 'wake_rested' );
+$single_row = function ( $id, $own ) use ( $picks_fear ) {
+    return make_row( $id, array( 'stage2_data' => json_encode( array( 'form_flow' => 'single', 'why_picks' => $picks_fear, 'key_people_text' => 'Jenny', 'own_words' => $own,
+        'vision_text' => HDLV2_Why_Picks::compose_vision_text( $picks_fear, 'Jenny', $own ) ) ), 'stage2_completed_at' => '2026-10-05 00:00:00', 'current_stage' => 3 ) );
+};
+$wpdb->rows[70] = $single_row( 70, '' );
+HDLV2_Staged_Form::run_single_stage2_extraction( 70 );
+check( 'X5 single row, own words empty: the extraction\'s fears are not stored (fears = [])', '[]' === ( $wpdb->why[70]['fears'] ?? null ) );
+check( 'X5b the rest of that row is stored as returned', '[{"name":"Jenny","relationship":"wife"}]' === ( $wpdb->why[70]['key_people'] ?? null )
+    && '["Play on the floor with the grandchildren"]' === ( $wpdb->why[70]['motivations'] ?? null ) );
+$wpdb->rows[71] = $single_row( 71, '   ' );
+HDLV2_Staged_Form::run_single_stage2_extraction( 71 );
+check( 'X6 single row, own words only spaces: fears = []', '[]' === ( $wpdb->why[71]['fears'] ?? null ) );
+HDLV2_AI_Service::$fears = array( 'ending up in a care home' );
+$wpdb->rows[72] = $single_row( 72, 'I am afraid of ending up in a care home.' );
+HDLV2_Staged_Form::run_single_stage2_extraction( 72 );
+check( 'X7 single row with own words: fears stored as returned', '["ending up in a care home"]' === ( $wpdb->why[72]['fears'] ?? null ) );
+$wpdb->rows[73] = make_row( 73, array( 'practitioner_user_id' => 206, 'stage2_data' => json_encode( array( 'vision_text' => $LONG ) ) ) );
+HDLV2_Staged_Form::run_single_stage2_extraction( 73 );
+check( 'X8 old-flow row (not a choices page): fears stored as returned', '["ending up in a care home"]' === ( $wpdb->why[73]['fears'] ?? null ) );
+HDLV2_AI_Service::$fears = array();
 
 // ════════ Draft generation ════════
 $calls = count( HDLV2_AI_Service::$why_calls );

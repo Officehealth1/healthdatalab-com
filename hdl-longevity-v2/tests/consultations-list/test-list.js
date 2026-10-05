@@ -167,6 +167,12 @@ ok(statusRules.length > 0, '.cl-status rules found');
 ok(statusColours.length > 0 && statusColours.every(c => PALETTE.indexOf(c.toLowerCase()) !== -1), 'only the nine palette colours in .cl-status rules (got ' + statusColours.join(' ') + ')');
 ok(!/#f59e0b|#dbeafe|#1e40af|#dcfce7|#166534/i.test(clRules.join('\n')), 'old off-palette colours gone from .cl- rules');
 
+// v0.47.98 — a long name with no space (an e-mail used as a name) wraps.
+['cl-name', 'cl-prac'].forEach(k => {
+  const r = clRules.filter(x => new RegExp('\\.' + k + '\\s*\\{').test(x));
+  ok(r.length === 1 && /overflow-wrap:\s*anywhere;/.test(r[0]), '.' + k + ' wraps a long unbroken name');
+});
+
 // The list's loading state is the list-shaped skeleton.
 ok(/skeleton\('list'\)/.test(body('init')), "list loads under HDLV2Loading.skeleton('list')");
 
