@@ -56,8 +56,9 @@ class HDLV2_Consultation {
         add_shortcode( 'hdlv2_consultation', array( $this, 'render_shortcode' ) );
         add_filter( 'body_class', array( $this, 'maybe_add_wide_body_class' ) );
         // v0.47.96 — the /consultation/ page has no post title, so the tab read
-        // " | HealthDataLab".
-        add_filter( 'document_title_parts', array( $this, 'filter_document_title' ) );
+        // " | HealthDataLab". Divi builds the title on pre_get_document_title
+        // (priority 10), so run after it.
+        add_filter( 'pre_get_document_title', array( $this, 'filter_document_title' ), 20 );
         // v0.46.7 — surface a "Consultations" link in the practitioner top menu
         // so the (already-built) /consultation/ hub is reachable without typing
         // the URL by hand. Role-gated to practitioners/admins inside the method.
@@ -172,17 +173,19 @@ class HDLV2_Consultation {
      * list, and "Consultation" for a single client when the page has no title
      * of its own.
      */
-    public function filter_document_title( $parts ) {
+    public function filter_document_title( $title ) {
         global $post;
         if ( ! is_singular() || ! $post || ! has_shortcode( $post->post_content, 'hdlv2_consultation' ) ) {
-            return $parts;
+            return $title;
         }
         if ( empty( $_GET['progress_id'] ) && empty( $_GET['client'] ) ) {
-            $parts['title'] = 'Consultations';
-        } elseif ( empty( $parts['title'] ) ) {
-            $parts['title'] = 'Consultation';
+            $name = 'Consultations';
+        } elseif ( '' === trim( get_the_title( $post ) ) ) {
+            $name = 'Consultation';
+        } else {
+            return $title;
         }
-        return $parts;
+        return $name . ' | ' . get_bloginfo( 'name' );
     }
 
     /**
