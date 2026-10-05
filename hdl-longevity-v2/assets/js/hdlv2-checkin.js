@@ -163,32 +163,29 @@
   }
 
   function submitCheckin(summary, extraParams) {
-    // v0.37.0 — progress-bar illusion + step ladder for the 5-15s Claude
-    // extract-themes wait. Previously a blank spinner — now the user
-    // sees concrete steps so the wait feels productive.
+    // Progress bar + step ladder for the 5-15s Claude extract-themes wait,
+    // above a skeleton of the check-in card being written.
     root.innerHTML = ''
       + '<div class="hdlv2-card">'
-      +   '<div class="hdlv2-loading">'
-      +     '<div class="hdlv2-spinner" aria-hidden="true"></div>'
+      +   '<div style="text-align:center;margin-bottom:20px;">'
       +     '<h3 style="margin:0 0 6px;color:#2c3e50;font-weight:600;">Analysing your check-in</h3>'
       +     '<p style="color:#555;margin:0;font-size:14px;">Pulling out the wins, obstacles, and key signals.</p>'
       +     '<div id="hdlv2-checkin-progress-mount" style="display:flex;justify-content:center;"></div>'
       +   '</div>'
-      + '</div>';
-    if (window.HDLV2Loading) {
-      var mount = document.getElementById('hdlv2-checkin-progress-mount');
-      if (mount) {
-        HDLV2Loading.progress(mount, {
-          steps: [
-            'Reading your check-in',
-            'Spotting wins and obstacles',
-            'Scoring adherence',
-            'Drafting your summary'
-          ],
-          capPercent: 90,
-          stepMs: 3500
-        });
-      }
+      + '</div>'
+      + HDLV2Loading.skeleton('checkin');
+    var mount = document.getElementById('hdlv2-checkin-progress-mount');
+    if (mount) {
+      HDLV2Loading.progress(mount, {
+        steps: [
+          'Reading your check-in',
+          'Spotting wins and obstacles',
+          'Scoring adherence',
+          'Drafting your summary'
+        ],
+        capPercent: 90,
+        stepMs: 3500
+      });
     }
     var body = { token: token };
     if (summary) body.audio_summary = summary;

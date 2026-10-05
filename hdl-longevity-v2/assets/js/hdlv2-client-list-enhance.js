@@ -598,8 +598,6 @@
       + '.hdlv2-iris-manage{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:#3d8da0;background:none;border:none;cursor:pointer;padding:0;font-family:Inter,sans-serif;}'
       + '.hdlv2-iris-manage:hover{text-decoration:underline;}'
       + '.hdlv2-iris-msg{font-size:12px;color:#dc2626;}'
-      + '.hdlv2-iris-spin{display:inline-block;width:15px;height:15px;border:2px solid #cfeaf0;border-top-color:#3d8da0;border-radius:50%;margin-right:8px;vertical-align:-2px;animation:hdlv2IrisSpin .8s linear infinite;}'
-      + '@keyframes hdlv2IrisSpin{to{transform:rotate(360deg)}}'
       // ── itshover-sourced motif icons (github.com/itshover/itshover) + CSS hover motion ──
       + '.hdlv2-ico{width:16px;height:16px;display:inline-block;vertical-align:-2px;overflow:visible;flex:0 0 auto;}'
       + '.hdlv2-ico path,.hdlv2-ico g,.hdlv2-ico circle{transform-box:fill-box;transform-origin:center;transition:transform .35s ease;}'
@@ -739,7 +737,8 @@
       + irisLogo()
       + '<div class="hdlv2-iris-main">'
       +   '<p class="hdlv2-iris-eyebrow">Setting up</p>'
-      +   '<h3 class="hdlv2-iris-title"><span class="hdlv2-iris-spin" aria-hidden="true"></span>Setting up your Iris Analysis…</h3>'
+      +   '<h3 class="hdlv2-iris-title">Setting up your Iris Analysis…</h3>'
+      +   HDLV2Loading.skeleton('inline')
       +   '<p class="hdlv2-iris-pitch" data-role="msg">' + esc(msg || 'This usually takes a few seconds.') + '</p>'
       + '</div>';
   }
@@ -2292,7 +2291,7 @@
   }
 
   function loadTab(tab, c, target) {
-    target.innerHTML = '<div class="hdlv2-detail-loading">Loading…</div>';
+    target.innerHTML = HDLV2Loading.skeleton('tab');
     // v0.47.13 — stamp the rendered report-tab signature (from the SAME
     // cached record the loader renders from) so the poll refresher
     // (maybeRefreshActiveReportTabs) re-renders only on a genuine change.
@@ -2804,7 +2803,7 @@
     // B11.1 → v0.46.51 — same document card as the Stage-2/3/Final download
     // surfaces (icon tile + title + meta + solid teal action) so every tab's
     // PDF action reads identically. The button keeps the .hdlv2-fn-btn
-    // loading machinery (content/spinner swap + downloadFlightNotes wiring);
+    // loading machinery (content/skeleton swap + downloadFlightNotes wiring);
     // --solid restyles it to match the cards' primary download button.
     target.innerHTML = '<div class="hdlv2-st-card">'
       + '<div class="hdlv2-dl-doc">'
@@ -2815,7 +2814,7 @@
       +   '</div>'
       +   '<button type="button" class="hdlv2-fn-btn hdlv2-fn-btn--solid" title="Download this client\'s FLIGHT consultation notes (PDF)" aria-label="Download ' + esc(c.name) + ' flight consultation notes">'
       +     '<span class="hdlv2-fn-content">' + flightNotesIconSVG() + '<span class="hdlv2-fn-label">Download PDF</span></span>'
-      +     '<span class="hdlv2-fn-loading"><span class="hdlv2-fn-ring" aria-hidden="true"></span><span>Preparing&hellip;</span></span>'
+      +     '<span class="hdlv2-fn-loading">' + HDLV2Loading.skeleton('inline') + '<span>Preparing PDF&hellip;</span></span>'
       +   '</button>'
       + '</div>'
       + '</div>';
@@ -4358,7 +4357,7 @@
       '.hdlv2-detail-tab:hover { color:#3d8da0; }',
       '.hdlv2-detail-tab.active { color:#3d8da0; border-bottom-color:#3d8da0; }',
       '.hdlv2-detail-content { min-height: 120px; font-size: 13px; line-height: 1.6; color: #333; }',
-      '.hdlv2-detail-loading, .hdlv2-detail-empty { padding: 24px; text-align: center; color: #888; font-size: 13px; }',
+      '.hdlv2-detail-empty { padding: 24px; text-align: center; color: #888; font-size: 13px; }',
       '.hdlv2-detail-deeplink { display:inline-flex; align-items:center; gap:7px; margin-top:14px; padding:8px 18px; border:1px solid #3d8da0; border-radius:24px; color:#3d8da0; text-decoration:none; font: 500 13px/1 Inter, -apple-system, sans-serif; transition: all 0.15s; }',
       '.hdlv2-detail-deeplink:hover { background:#3d8da0; color:#fff; }',
       // v0.46.49 — download pills carry the shared download icon (same glyph
@@ -4575,17 +4574,14 @@
       // hover). Icon + loading ring use currentColor → invert correctly.
       '.hdlv2-consult-card .hdlv2-fn-btn { height:auto; padding:8px 16px 8px 13px; border-radius:24px; font: 500 13px/1 Inter, -apple-system, sans-serif; letter-spacing:0; margin-top:14px; transition: all 0.15s; }',
       '.hdlv2-consult-card .hdlv2-fn-btn:hover:not(:disabled) { background:#3d8da0; color:#fff; }',
-      '.hdlv2-consult-card .hdlv2-fn-btn:hover:not(:disabled) .hdlv2-fn-ring { border-color:rgba(255,255,255,0.35); border-top-color:#fff; }',
       '.hdlv2-fn-btn:hover { background:rgba(61,141,160,0.08); }',
       '.hdlv2-fn-btn:disabled { cursor:default; opacity:0.85; }',
       // v0.46.51 — Flight Notes button inside the document card: solid teal
       // primary, matching .hdlv2-dl-btn exactly. Keeps the .hdlv2-fn-btn
-      // loading machinery (content/spinner swap); ring inverts to white on
-      // the solid fill. Placed after the base rules so the modifier wins.
+      // loading machinery (content/skeleton swap). Placed after the base rules so the modifier wins.
       '.hdlv2-fn-btn--solid { height:auto; padding:10px 18px; border-radius:24px; background:#3d8da0; border-color:#3d8da0; color:#fff; font: 600 13px/1 Inter, -apple-system, sans-serif; letter-spacing:0; gap:7px; transition: background .15s, border-color .15s; }',
       '.hdlv2-fn-btn--solid:hover:not(:disabled) { background:#004F59; border-color:#004F59; color:#fff; }',
       '.hdlv2-fn-btn--solid .hdlv2-fn-ico { width:15px; height:15px; }',
-      '.hdlv2-fn-btn--solid .hdlv2-fn-ring, .hdlv2-fn-btn--solid:hover:not(:disabled) .hdlv2-fn-ring { border-color:rgba(255,255,255,0.35); border-top-color:#fff; }',
       '.hdlv2-fn-content, .hdlv2-fn-loading { display:inline-flex; align-items:center; gap:6px; }',
       '.hdlv2-fn-loading { display:none; }',
       '.hdlv2-fn-btn.is-loading .hdlv2-fn-content { display:none; }',
@@ -4593,9 +4589,7 @@
       '.hdlv2-fn-ico { display:block; }',
       '.hdlv2-fn-ico .fn-ico-stem, .hdlv2-fn-ico .fn-ico-head { transition: transform .2s ease; }',
       '.hdlv2-fn-btn:hover .fn-ico-stem, .hdlv2-fn-btn:hover .fn-ico-head { animation: hdlv2-fn-bounce 0.7s ease infinite; }',
-      '.hdlv2-fn-ring { width:13px; height:13px; border-radius:50%; border:2px solid rgba(61,141,160,0.25); border-top-color:#3d8da0; animation: hdlv2-fn-spin 0.7s linear infinite; }',
       '@keyframes hdlv2-fn-bounce { 0%,80%,100%{transform:translateY(0)} 40%{transform:translateY(3px)} }',
-      '@keyframes hdlv2-fn-spin { to { transform: rotate(360deg) } }',
 
       // ─────────────────────────────────────────────────────────────
       // v0.41.19 — Snapshot strip (4 KPI tiles) above the tab strip

@@ -446,7 +446,7 @@
 
   // ── LOADING / ERROR ──
   function showLoading() {
-    root.innerHTML = '<div class="hdlv2-card"><div class="hdlv2-loading"><div class="hdlv2-spinner"></div><p style="color:#888;margin:0;">Loading your assessment...</p></div></div>';
+    root.innerHTML = HDLV2Loading.skeleton('form');
   }
 
   function showError(title, message) {
@@ -954,8 +954,7 @@
       +       '<h2>What This Means For You</h2>'
       +       '<p class="hdlv2-s1-lede">A plain-English read of your gauge.</p>'
       +       '<div id="hdlv2-s1-commentary" class="hdlv2-s1-commentary hdlv2-s1-commentary-loading">'
-      +         '<div class="hdlv2-spinner" style="margin:0 auto 14px;"></div>'
-      +         '<p style="text-align:center;color:#888;font-size:13px;margin:0;">Personalising your read\u2026</p>'
+      +         HDLV2Loading.skeleton('brief')
       +       '</div>'
       +     '</div>'
       +     '<div class="hdlv2-s1-card">'
@@ -1938,7 +1937,7 @@
           // workers race to claim).
           //
           // We don't wait for the response — Thank-You renders immediately so
-          // the client sees acknowledgement instead of a 20-45s spinner. PDF
+          // the client sees acknowledgement instead of a 20-45s wait. PDF
           // email arrives a couple of minutes later.
           fetch(CFG.api_base+'/generate-report', {
             method: 'POST',
@@ -1953,19 +1952,6 @@
           setSaveStatus('error', res.message||'Please try again');
         }
       }).catch(function(){btn.disabled=false;btn.textContent='Complete Assessment \u2713';setSaveStatus('error','Connection error');});
-  }
-
-  function showReportLoading() {
-    // v0.37.0 — replaces a static spinner-on-blank with a progress-bar
-    // illusion + rotating step ladder so the 20-45s Claude wait feels
-    // active. The bar fills asymptotically toward 92%, snaps to 100%
-    // only when /generate-report responds (or moot — we redirect to
-    // /longevity-draft-report/ before that frame is visible).
-    //
-    // v0.39.0 — Kept as a stub for any path that might still call it
-    // (none today; completeStage3 now renders Thank-You directly). The
-    // legacy "Generating your personalised draft report" loading screen
-    // is retired alongside the heavy browser draft view.
   }
 
   // ────────────────────────────────────────────────────────────────────

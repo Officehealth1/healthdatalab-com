@@ -181,7 +181,7 @@
     // plan once it lands — usually within 15-30s.
     if (plan.is_regenerating) {
       html += '<div class="fp-repair-banner hdlv2-fp-noprint" role="status" aria-live="polite">'
-        + '<div class="fp-repair-spinner" aria-hidden="true"></div>'
+        + HDLV2Loading.skeleton('inline')
         + '<div><strong>Updating your plan…</strong> we noticed some days were missing actions. Your full week will appear here in a moment — no need to refresh.</div>'
         + '</div>';
     } else if (plan.is_sparse) {

@@ -930,7 +930,7 @@
       + '<h4 style="margin:0;font-size:14px;font-weight:600;">Sent Invites</h4>'
       + '<span id="hdlv2-invites-freshness" style="font-size:11px;color:#9ca3af;">&nbsp;</span>'
       + '</div>'
-      + '<div id="hdlv2-invite-list" style="font-size:13px;color:#888;">Loading...</div>'
+      + '<div id="hdlv2-invite-list" style="font-size:13px;color:#888;">' + HDLV2Loading.skeleton('list') + '</div>'
       + '</div>';
   }
 
@@ -955,7 +955,7 @@
       +   '<span id="hdlv2-pending-freshness" style="font-size:11px;color:#9ca3af;">&nbsp;</span>'
       + '</div>'
       + '<p style="font-size:11px;color:#888;margin:0 0 10px;line-height:1.45;"><strong style="color:#444;">Confirm</strong> to email the client their next-step magic link, or <strong style="color:#444;">Reject</strong> to silently drop spam.</p>'
-      + '<div id="hdlv2-pending-list" style="font-size:13px;color:#888;">Loading…</div>'
+      + '<div id="hdlv2-pending-list" style="font-size:13px;color:#888;">' + HDLV2Loading.skeleton('list') + '</div>'
       + '</div>';
   }
 
@@ -970,7 +970,7 @@
     var countEl = document.getElementById('hdlv2-pending-count');
     var freshEl = document.getElementById('hdlv2-pending-freshness');
     if (!listEl) return;
-    listEl.innerHTML = '<p style="color:#aaa;font-size:12px;margin:0;">Loading…</p>';
+    listEl.innerHTML = HDLV2Loading.skeleton('list');
 
     var url = (CFG.rest_base || '/wp-json/') + 'hdl-v2/v1/widget/leads/pending';
     fetch(url, {
@@ -1530,11 +1530,11 @@
     return iconHtml + 'Link sent to ' + emailHtml + " — they'll receive it shortly.";
   }
 
-  // silent=true → poll refresh; keep current UI on failure, don't flash "Loading..."
+  // silent=true → poll refresh; keep current UI on failure, don't flash the skeleton
   function loadInvites(silent) {
     var list = document.getElementById('hdlv2-invite-list');
     if (!list) return;
-    if (!silent) list.innerHTML = 'Loading...';
+    if (!silent) list.innerHTML = HDLV2Loading.skeleton('list');
 
     var data = new FormData();
     data.append('action', 'hdlv2_get_invites');

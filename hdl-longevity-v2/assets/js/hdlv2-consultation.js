@@ -102,11 +102,7 @@
     root.innerHTML = '<div class="hdlv2-consult-layout">'
       + '<div class="hdlv2-consult-left">'
       + '<div id="hdlv2-draft-report-root" class="hdlv2-dr">'
-      +   '<div class="hdlv2-dr-loading" data-hdlv2-state="loading">'
-      +     '<div class="hdlv2-dr-loading-icon"></div>'
-      +     '<h3>Loading client report</h3>'
-      +     '<p>Same layout your client sees<span class="hdlv2-dr-loading-dots"></span></p>'
-      +   '</div>'
+      +   HDLV2Loading.skeleton('report')
       + '</div>'
       + '</div>'
 
@@ -122,7 +118,7 @@
 
       // Client Brief — pre-consultation snapshot from client data + scores.
       // Collapsible. Loads from cache or generates on first open via the
-      // REST endpoint (practitioner sees a spinner in this card only).
+      // REST endpoint (practitioner sees a skeleton in this card only).
       + '<div class="hdlv2-consult-section hdlv2-client-brief">'
       +   renderClientBrief(data)
       + '</div>'
@@ -707,11 +703,10 @@
           briefAutoSavePending = false;
 
           var edited = collectOrganisedFromDom();
-          var SPINNER = '<span class="hdlv2-spinner" aria-hidden="true"></span>';
 
           // v0.46.0 — the report now generates ASYNC on the job queue, so the
           // old fake setTimeout "progress ladder" is gone. The /approve write
-          // is quick (no Claude) so a brief honest spinner is fine; once
+          // is quick (no Claude) so a brief disabled label is fine; once
           // /finalise hands back a job_id we switch to the real preparing UI
           // (showReportPreparing) and poll for completion (pollReportJob).
           //
@@ -721,7 +716,7 @@
           var idemKey = 'fin-' + state.consultId + '-' + state.progressId;
 
           finBtn.disabled = true;
-          finBtn.innerHTML = SPINNER + '<span class="hdlv2-spinner-label">Saving your edits…</span>';
+          finBtn.textContent = 'Saving your edits…';
           setOrganiseStatus('loading', 'Saving your edits…');
 
           fetch(CFG.api_base + '/approve', {
@@ -913,7 +908,7 @@
     var brief = (data && data.pre_consult_summary) || null;
     var body = brief
       ? renderBriefBody(brief)
-      : '<div class="hdlv2-client-brief-loading"><span class="hdlv2-spinner" style="width:14px;height:14px;display:inline-block;border:2px solid #e4e6ea;border-top-color:#3d8da0;border-radius:50%;animation:hdlv2spin 0.8s linear infinite;vertical-align:middle;"></span> <span style="vertical-align:middle;margin-left:6px;">Preparing client brief…</span></div>';
+      : HDLV2Loading.skeleton('brief');
 
     var meta = renderBriefMeta(data);
 
@@ -1555,10 +1550,9 @@
     var btn = document.getElementById('hdlv2-generate-final');
     if (!btn) return;
 
-    // Spinner + label markup. Honest progression: one message change at 8s.
-    var SPINNER = '<span class="hdlv2-spinner" aria-hidden="true"></span>';
-    function showSpinner( labelText ) {
-      btn.innerHTML = SPINNER + '<span class="hdlv2-spinner-label">' + labelText + '</span>';
+    // Disabled-button label. Honest progression: one message change at 8s.
+    function showBusyLabel( labelText ) {
+      btn.textContent = labelText;
     }
     function restoreButton() {
       btn.disabled = false;
@@ -1579,12 +1573,12 @@
       ask.then(function (confirmed) {
         if (!confirmed) return;
         btn.disabled = true;
-        showSpinner('Generating Trajectory Plan…');
+        showBusyLabel('Generating Trajectory Plan…');
 
         // After 8s, swap to a softer "still working" message so the practitioner
         // knows the request hasn't hung. Cleared on response.
         var almostTimer = setTimeout(function () {
-          if (btn.disabled) showSpinner('Almost there…');
+          if (btn.disabled) showBusyLabel('Almost there…');
         }, 8000);
 
         // Save notes first
@@ -1650,7 +1644,7 @@
   //  a second (the PHP worker is freed at once — many practitioners can
   //  generate reports without freezing the site). Here we replace the old
   //  fake setTimeout "progress ladder" with an honest preparing state
-  //  (spinner + skeleton + a message telling the practitioner WHERE the
+  //  (skeleton + a message telling the practitioner WHERE the
   //  report will appear) and poll /jobs/{id}/status until it's ready.
   //
   //  Poll loop mirrors hdlv2-audio-component.js pollTranscriptionJob():
@@ -1684,19 +1678,15 @@
   // Replace the whole consultation panel with an honest "preparing" card.
   function showReportPreparing(kind) {
     var title = (kind === 'regen') ? 'Updating the Trajectory Plan…' : 'Preparing the final report…';
-    var skel = (window.HDLV2Loading && typeof HDLV2Loading.skeleton === 'function')
-      ? HDLV2Loading.skeleton('consultation')
-      : '';
     root.innerHTML =
       '<div class="hdlv2-report-preparing" style="max-width:680px;margin:40px auto;padding:0 20px;font-family:Inter,-apple-system,BlinkMacSystemFont,sans-serif;">'
       + '<div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:14px;padding:26px 24px;text-align:center;">'
-      +   '<div class="hdlv2-spinner" aria-hidden="true" style="width:30px;height:30px;border:3px solid #bfdbfe;border-top-color:#3b82f6;border-radius:50%;margin:0 auto 16px;animation:hdlv2spin 0.8s linear infinite;"></div>'
       +   '<h3 style="font-family:Poppins,Inter,sans-serif;font-size:18px;font-weight:600;color:#1e3a5f;margin:0 0 10px;">' + esc(title) + '</h3>'
       +   '<p style="color:#2c3e50;font-size:14px;line-height:1.55;margin:0 0 8px;">This usually takes a minute or two. You can stay on this page &mdash; <strong>the report will appear here automatically</strong> when it&rsquo;s ready. You don&rsquo;t need to refresh.</p>'
       +   '<p style="color:#5b6b7b;font-size:13px;line-height:1.5;margin:0;">It is also saved to the client&rsquo;s Trajectory Plan, so it is safe to leave this page and come back later.</p>'
       +   '<p class="hdlv2-rp-status" id="hdlv2-rp-status" role="status" aria-live="polite" style="color:#3b82f6;font-size:13px;font-weight:600;margin:16px 0 0;">' + esc(REPORT_PREP_MESSAGES[0]) + '</p>'
       + '</div>'
-      + (skel ? '<div aria-hidden="true" style="margin-top:18px;opacity:0.65;">' + skel + '</div>' : '')
+      + '<div aria-hidden="true" style="margin-top:18px;opacity:0.65;">' + HDLV2Loading.skeleton('consultation') + '</div>'
       + '</div>';
     startReportPrepTicker(document.getElementById('hdlv2-rp-status'));
   }
@@ -2466,7 +2456,6 @@
     var submitBtn = document.getElementById('hdlv2-addendum-submit');
     if (!submitBtn) return;
 
-    var SPINNER = '<span class="hdlv2-spinner" aria-hidden="true"></span>';
     function restoreButton() {
       submitBtn.disabled = false;
       submitBtn.textContent = 'Save & Update Plan';
@@ -2484,7 +2473,7 @@
     // doesn't clobber it with the generic 'Connection error' message.
     var handled = false;
     submitBtn.disabled = true;
-    submitBtn.innerHTML = SPINNER + '<span class="hdlv2-spinner-label">' + firstMsg + '</span>';
+    submitBtn.textContent = firstMsg;
     setAddendumStatus('loading', firstMsg);
 
     // Step 1 — POST /consultation/addendum (only when there is new text).
