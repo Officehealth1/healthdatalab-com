@@ -1392,8 +1392,8 @@
     var n = data.spokes.length, top = data.top;
     var dir = data.spokes.map(function (s, i) {
       var a = (-90 + 360 / n * i) * Math.PI / 180;
-      // ponytail: name width is estimated (0.6em a letter, on the wide side), not measured
-      return { c: Math.cos(a), s: Math.sin(a), hw: Math.max(IC, s.label.length * F * 0.6) / 2 };
+      // ponytail: name width is estimated (0.56em a letter; the widest measured, Connection, is 0.55em), not measured
+      return { c: Math.cos(a), s: Math.sin(a), hw: Math.max(IC, s.label.length * F * 0.56) / 2 };
     });
     // Each name block sits just outside the end of its spoke, touching it.
     var place = function (R, d) {
