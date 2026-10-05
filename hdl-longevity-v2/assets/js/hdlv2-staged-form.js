@@ -54,8 +54,6 @@
   var tapStep = 0, tapOrder = [], tapOpenRow = null, tapKeyHandler = null, tapAdvanceTimer = null, tapSaveTimer = null;
   // v0.47.92 — single-form WHY picks; HDLV2_Why_Picks holds the same limits.
   var PICK_MIN = 5, PICK_MAX = 10;
-  // v0.47.93 — ids of the theme tiles open on the picks page.
-  var openThemes = [];
 
   // v0.40.2 — Centralised width modifier for .hdlv2-assessment-root.
   // Three states: '' (default 620px), 'is-medium' (760px), 'is-wide' (full).
@@ -1282,9 +1280,9 @@
   //  clients. Replaces the recorded/typed WHY: 5-10 picks, the people who
   //  matter, optional own words. Next saves with submitted:true; the server
   //  moves the row to stage 3, so loadForm() opens the health sections.
-  //  v0.47.93 — themes first (six tiles, each opens its statements), a
-  //  chosen statement shows the abilities it stands for, and a panel adds
-  //  up what the choices depend on. Counts only: no scores on this page.
+  //  v0.48.0 — far fewer words (Matthew is a little dyslexic): 24 short
+  //  statements in three groups, all on the page from the start, and a
+  //  polar chart of what the picks need. Counts only: no scores here.
   // ══════════════════════════════════════════════════════════════
 
   function isSingleFlow() {
@@ -1305,21 +1303,6 @@
     return Array.isArray(picks) && picks.length >= PICK_MIN && picks.length <= PICK_MAX;
   }
 
-  // Pure: ids of the themes that hold at least one pick (open at the start).
-  function themesWithPicks(groups, picks) {
-    return (groups || []).filter(function (g) {
-      return g.items.some(function (it) { return (picks || []).indexOf(it.id) !== -1; });
-    }).map(function (g) { return g.id; });
-  }
-
-  // Pure: opens a closed theme, closes an open one. The picks are not touched.
-  function toggleTheme(open, id) {
-    var next = (open || []).slice();
-    var at = next.indexOf(id);
-    if (at !== -1) next.splice(at, 1); else next.push(id);
-    return next;
-  }
-
   // Pure: the abilities the picks depend on, most-needed first; ties keep the
   // server's ability order (HDLV2_Why_Picks::NEEDS).
   function abilityCounts(picks, groups, abilities) {
@@ -1336,60 +1319,118 @@
       .sort(function (a, b) { return b.count - a.count; });
   }
 
+  // Pure: the line under the statements.
+  function pickCountLine(n) {
+    if (n >= PICK_MAX) return n + ' picked. That is the most.';
+    return n + ' picked.' + (n < PICK_MIN ? ' Pick at least ' + PICK_MIN + '.' : '');
+  }
+
+  // Pure: one wedge per ability, in the server's order. Size = count over
+  // the larger of 3 and the highest count, so one pick never fills the wheel.
+  function wedgeSizes(rows, names) {
+    var counts = {}, top = 3;
+    (rows || []).forEach(function (r) { counts[r.id] = r.count; top = Math.max(top, r.count); });
+    return Object.keys(names || {}).map(function (id) {
+      var c = counts[id] || 0;
+      return { id: id, label: names[id], count: c, size: c / top };
+    });
+  }
+
+  // Pure: the chart said in words, for a screen reader.
+  function chartLabel(wedges) {
+    var parts = wedges.filter(function (w) { return w.count > 0; }).map(function (w) { return w.label + ' ' + w.count; });
+    return parts.length ? 'What your picks need: ' + parts.join(', ') + '.' : 'Nothing picked yet.';
+  }
+
+  // v0.48.0 — pictures for the choices page: static SVG on a 24 grid,
+  // decoration beside a word (aria-hidden), the way iconSparkles() is done.
+  // itshover.com (github.com/itshover/itshover, Apache-2.0): stamina, mind,
+  // energy, connection and the three group pictures.
+  // Tabler Icons (github.com/tabler/tabler-icons, MIT): strength (barbell),
+  // mobility (walk), flexibility (stretching), balance (yoga); itshover has none.
+  var ICONS = {
+    stamina: '<path d="M19.5 12.572l-7.5 7.428l-7.5 -7.428a5 5 0 1 1 7.5 -6.566a5 5 0 1 1 7.5 6.572"/>',
+    mind: '<path d="M12 5a3 3 0 1 0-5.997.125 4 4 0 0 0-2.526 5.77 4 4 0 0 0 .556 6.588A4 4 0 1 0 12 18Z"/><path d="M9 13a4.5 4.5 0 0 0 3-4"/><path d="M6.003 5.125A3 3 0 0 0 6.401 6.5"/><path d="M3.477 10.896a4 4 0 0 1 .585-.396"/><path d="M6 18a4 4 0 0 1-1.967-.516"/><path d="M12 13h4"/><path d="M12 18h6a2 2 0 0 1 2 2v1"/><path d="M12 8h8"/><path d="M16 8V5a2 2 0 0 1 2-2"/><circle cx="16" cy="13" r=".5"/><circle cx="18" cy="3" r=".5"/><circle cx="20" cy="21" r=".5"/><circle cx="20" cy="8" r=".5"/>',
+    energy: '<path d="M12 3c.132 0 .263 0 .393 0a7.5 7.5 0 0 0 7.92 12.446a9 9 0 1 1 -8.313 -12.454z"/>',
+    connection: '<path d="M9 7m-4 0a4 4 0 1 0 8 0a4 4 0 1 0 -8 0"/><path d="M3 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/><path d="M21 21v-2a4 4 0 0 0 -3 -3.85"/>',
+    strength: '<path d="M2 12h1"/><path d="M6 8h-2a1 1 0 0 0 -1 1v6a1 1 0 0 0 1 1h2"/><path d="M6 7v10a1 1 0 0 0 1 1h1a1 1 0 0 0 1 -1v-10a1 1 0 0 0 -1 -1h-1a1 1 0 0 0 -1 1"/><path d="M9 12h6"/><path d="M15 7v10a1 1 0 0 0 1 1h1a1 1 0 0 0 1 -1v-10a1 1 0 0 0 -1 -1h-1a1 1 0 0 0 -1 1"/><path d="M18 8h2a1 1 0 0 1 1 1v6a1 1 0 0 1 -1 1h-2"/><path d="M22 12h-1"/>',
+    mobility: '<path d="M12 4a1 1 0 1 0 2 0a1 1 0 1 0 -2 0"/><path d="M7 21l3 -4"/><path d="M16 21l-2 -4l-3 -3l1 -6"/><path d="M6 12l2 -3l4 -1l3 3l3 1"/>',
+    flexibility: '<path d="M15 5a1 1 0 1 0 2 0a1 1 0 1 0 -2 0"/><path d="M5 20l5 -.5l1 -2"/><path d="M18 20v-5h-5.5l2.5 -6.5l-5.5 1l1.5 2"/>',
+    balance: '<path d="M4 20h4l1.5 -3"/><path d="M17 20l-1 -5h-5l1 -7"/><path d="M4 10l4 -1l4 -1l4 1.5l4 1.5"/><path d="M10.007 5a2 2 0 1 0 4 0a2 2 0 1 0 -4 0"/>',
+    people: '<path d="M10 13a2 2 0 1 0 4 0a2 2 0 0 0 -4 0"/><path d="M8 21v-1a2 2 0 0 1 2 -2h4a2 2 0 0 1 2 2v1"/><path d="M15 5a2 2 0 1 0 4 0a2 2 0 0 0 -4 0"/><path d="M17 10h2a2 2 0 0 1 2 2v1"/><path d="M5 5a2 2 0 1 0 4 0a2 2 0 0 0 -4 0"/><path d="M3 13v-1a2 2 0 0 1 2 -2h2"/>',
+    freedom: '<path d="M5 12l-2 0l9 -9l9 9l-2 0"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-7"/><path d="M9 21v-6a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v6"/>',
+    things: '<path d="M12 17.75l-6.172 3.245l1.179 -6.873l-5 -4.867l6.9 -1l3.086 -6.253l3.086 6.253l6.9 1l-5 4.867l1.179 6.873z"/>'
+  };
+
+  // The picture for a name, or '' when there is none. x/y place it inside the chart.
+  function pickIcon(name, x, y) {
+    if (!ICONS[name]) return '';
+    return '<svg class="hdlv2-why-icon"' + (x == null ? '' : ' x="' + x + '" y="' + y + '"') + ' width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">'
+      + ICONS[name] + '</svg>';
+  }
+
+  // The polar chart: one 45° wedge per ability (2° apart, from the top),
+  // three guide rings, a picture and a one-word name outside each wedge.
+  // A wedge with no picks is not drawn. No library, no animation.
+  function polarChart(wedges) {
+    var C = 170, R = 92, L = 136;
+    var pt = function (r, deg) {
+      var a = deg * Math.PI / 180;
+      return (C + r * Math.cos(a)).toFixed(1) + ' ' + (C + r * Math.sin(a)).toFixed(1);
+    };
+    var out = '<svg class="hdlv2-why-wheel" viewBox="0 0 340 340" role="img" aria-label="' + esc(chartLabel(wedges)) + '">';
+    [1, 2, 3].forEach(function (k) {
+      out += '<circle cx="' + C + '" cy="' + C + '" r="' + (R * k / 3).toFixed(1) + '" fill="none" stroke="#e4e6ea"/>';
+    });
+    wedges.forEach(function (w, i) {
+      var from = -90 + 45 * i + 1, to = from + 43, mid = from + 21.5;
+      var r = w.size * R;
+      if (w.count > 0) {
+        out += '<path d="M' + C + ' ' + C + ' L' + pt(r, from) + ' A' + r.toFixed(1) + ' ' + r.toFixed(1) + ' 0 0 1 ' + pt(r, to) + ' Z" fill="#3d8da0"/>';
+      }
+      var a = mid * Math.PI / 180, x = C + L * Math.cos(a), y = C + L * Math.sin(a);
+      out += '<g class="hdlv2-why-spoke' + (w.count > 0 ? ' has-picks' : '') + '">'
+        + pickIcon(w.id, (x - 12).toFixed(1), (y - 26).toFixed(1))
+        + '<text x="' + x.toFixed(1) + '" y="' + (y + 14).toFixed(1) + '" text-anchor="middle">' + esc(w.label) + '</text></g>';
+    });
+    return out + '</svg>';
+  }
+
   function renderWhyPicks(data) {
     setRootClasses('is-medium');
     var d = formData;
     var groups = data.why_options || [];
-    var names = data.why_abilities || {};
     // Keep only ids still on offer (a retired or hand-edited id is dropped).
     var offered = {};
     groups.forEach(function (g) { g.items.forEach(function (it) { offered[it.id] = true; }); });
     d.why_picks = (Array.isArray(d.why_picks) ? d.why_picks : []).filter(function (id) { return offered[id] === true; }).slice(0, PICK_MAX);
-    openThemes = themesWithPicks(groups, d.why_picks);
 
-    var tiles = groups.map(function (g) {
-      return '<button type="button" class="hdlv2-theme-tile" aria-pressed="false" aria-controls="hdlv2-theme-' + esc(g.id) + '" data-theme="' + esc(g.id) + '">'
-        + '<span class="hdlv2-theme-title">' + esc(g.short || g.title) + '</span>'
-        + '<span class="hdlv2-theme-count"></span></button>';
-    }).join('');
-
-    // Every theme's statements are in the page from the start; a closed
-    // theme is only hidden, so its picks stay chosen and counted.
-    var panels = groups.map(function (g) {
-      return '<div class="hdlv2-theme-panel" id="hdlv2-theme-' + esc(g.id) + '" hidden>'
-        + '<h5 class="hdlv2-subgroup-heading">' + esc(g.title) + '</h5>'
+    // Every statement is on the page from the start: nothing opens or hides.
+    var columns = groups.map(function (g) {
+      return '<div class="hdlv2-why-group" role="group" aria-labelledby="hdlv2-why-group-' + esc(g.id) + '">'
+        + '<h3 class="hdlv2-subgroup-heading" id="hdlv2-why-group-' + esc(g.id) + '">' + pickIcon(g.id) + '<span>' + esc(g.title) + '</span></h3>'
         + '<div class="hdlv2-checkbox-grid hdlv2-picks-grid">'
         + g.items.map(function (it) {
             var on = d.why_picks.indexOf(it.id) !== -1;
-            // What the statement stands for; the CSS shows it once chosen.
-            var needs = (it.needs || []).map(function (n) { return names[n] || n; }).join(' \u00b7 ').toLowerCase();
             return '<label class="hdlv2-checkbox-item' + (on ? ' selected' : '') + '">'
               + '<input type="checkbox" value="' + esc(it.id) + '"' + (on ? ' checked' : '') + '>'
-              + '<span class="hdlv2-checkbox-label">' + esc(it.label)
-              + (needs ? '<span class="hdlv2-pick-needs">' + esc(needs) + '</span>' : '') + '</span></label>';
+              + '<span class="hdlv2-checkbox-label">' + esc(it.label) + '</span></label>';
           }).join('')
         + '</div></div>';
     }).join('');
+    var wedges = wedgeSizes(abilityCounts(d.why_picks, groups, data.why_abilities), data.why_ability_short || data.why_abilities);
 
     root.innerHTML = '<div class="hdlv2-card hdlv2-why">'
-      + '<div class="hdlv2-header"><h2>What matters most to you</h2><p>Tap the parts of life you care about, then choose the 5 to 10 things you would most love to still be able to do in your last decade of life.</p></div>'
+      + '<div class="hdlv2-header"><h2>What matters most to you</h2><p>Pick the 5 to 10 that matter most to you in your last decade of life.</p></div>'
       + '<div class="hdlv2-form-body">'
-      +   '<div class="hdlv2-theme-grid" role="group" aria-label="Parts of life">' + tiles + '</div>'
-      +   '<p id="hdlv2-themes-hint" class="hdlv2-themes-hint">Start with one or two that matter to you.</p>'
-      +   '<div role="group" aria-label="Things you would love to still be able to do">' + panels + '</div>'
+      +   '<div class="hdlv2-why-groups">' + columns + '</div>'
       +   '<p id="hdlv2-picks-count" class="hdlv2-picks-count" aria-live="polite"></p>'
-      +   '<div id="hdlv2-abilities" class="hdlv2-abilities" hidden></div>'
-      +   picksTextarea('key_people_text', 'Who are the most important people you want to stay healthy and strong for? Their first names help us make your report personal.', d.key_people_text, 'e.g. my wife Jenny, my grandchildren Leo and Mia', 300)
-      +   picksTextarea('own_words', 'Anything you would add in your own words? (optional)', d.own_words, '', 600)
+      +   '<div class="hdlv2-why-chart"><h3>What your picks need</h3><div id="hdlv2-why-wheel">' + polarChart(wedges) + '</div></div>'
+      +   picksTextarea('key_people_text', 'Who are you doing this for? First names.', d.key_people_text, 'Jenny, Leo, Mia', 300)
+      +   picksTextarea('own_words', 'Anything else? (optional)', d.own_words, '', 600)
       +   '<button type="button" id="hdlv2-picks-next" class="hdlv2-btn">Next &#8594;</button>'
       + '</div>' + saveIndicator() + footer() + '</div>';
 
-    root.querySelectorAll('.hdlv2-theme-tile').forEach(function (tile) {
-      tile.addEventListener('click', function () {
-        openThemes = toggleTheme(openThemes, tile.getAttribute('data-theme'));
-        updatePicks();
-      });
-    });
     root.querySelectorAll('.hdlv2-picks-grid input[type="checkbox"]').forEach(function (cb) {
       cb.addEventListener('change', function () {
         var r = togglePick(d.why_picks, cb.value);
@@ -1405,8 +1446,8 @@
     updatePicks();
   }
 
-  // Sync tiles, pills, counter and the abilities panel with openThemes and
-  // formData.why_picks; at the limit the unchosen pills are disabled.
+  // Sync the statements, the count line and the chart with
+  // formData.why_picks; at the limit the unchosen statements are disabled.
   function updatePicks() {
     var picks = formData.why_picks || [];
     var full = picks.length >= PICK_MAX;
@@ -1417,34 +1458,12 @@
       cb.disabled = full && !on;
       cb.parentNode.classList.toggle('selected', on);
     });
-    // Tiles are drawn in group order, so tile i belongs to groups[i].
-    root.querySelectorAll('.hdlv2-theme-tile').forEach(function (tile, i) {
-      var g = groups[i];
-      var isOpen = openThemes.indexOf(g.id) !== -1;
-      var chosen = g.items.filter(function (it) { return picks.indexOf(it.id) !== -1; }).length;
-      tile.setAttribute('aria-pressed', isOpen ? 'true' : 'false');
-      tile.classList.toggle('has-picks', chosen > 0);
-      tile.querySelector('.hdlv2-theme-count').textContent = chosen ? chosen + ' chosen' : g.items.length + ' ideas';
-      document.getElementById(tile.getAttribute('aria-controls')).hidden = !isOpen;
-    });
-    var hint = document.getElementById('hdlv2-themes-hint');
-    if (hint) hint.hidden = openThemes.length > 0 || picks.length > 0;
     var count = document.getElementById('hdlv2-picks-count');
-    if (count) {
-      count.textContent = picks.length + ' of ' + PICK_MAX + ' chosen'
-        + (full ? ' \u2014 that is the most you can choose' : canContinue(picks) ? '' : ', pick at least ' + PICK_MIN);
-    }
-    var panel = document.getElementById('hdlv2-abilities');
-    if (panel) {
-      var rows = abilityCounts(picks, groups, serverData.why_abilities);
-      panel.hidden = !rows.length;
-      panel.innerHTML = !rows.length ? '' : '<h3>What your choices ask of your body</h3>'
-        + '<p>Each thing you chose depends on abilities like these. Your plan will focus on the ones your health answers show need the most work.</p>'
-        + '<div class="hdlv2-ability-list" role="list">' + rows.map(function (r) {
-            return '<div class="hdlv2-ability" role="listitem"><span class="hdlv2-ability-name">' + esc(r.label) + '</span>'
-              + '<span class="hdlv2-ability-count">' + r.count + ' of your choices</span>'
-              + '<span class="hdlv2-ability-meter" aria-hidden="true"><span style="width:' + Math.round(r.count / picks.length * 100) + '%"></span></span></div>';
-          }).join('') + '</div>';
+    if (count) count.textContent = pickCountLine(picks.length);
+    var wheel = document.getElementById('hdlv2-why-wheel');
+    if (wheel) {
+      wheel.innerHTML = polarChart(wedgeSizes(abilityCounts(picks, groups, serverData.why_abilities),
+        serverData.why_ability_short || serverData.why_abilities));
     }
   }
 

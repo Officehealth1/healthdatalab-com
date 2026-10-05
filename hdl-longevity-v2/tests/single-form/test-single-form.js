@@ -141,7 +141,7 @@ const pageCtx = {
   bindFieldListeners: function () {}, submitWhyPicks: function () {}, clearSaveError: function () {}, autoSave: function () {},
   esc: function (s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
 };
-const PAGE_FNS = ['togglePick', 'canContinue', 'abilityCounts', 'pickCountLine', 'wedgeSizes', 'chartLabel', 'polarChart', 'renderWhyPicks', 'updatePicks', 'picksTextarea'];
+const PAGE_FNS = ['togglePick', 'canContinue', 'abilityCounts', 'pickCountLine', 'wedgeSizes', 'chartLabel', 'pickIcon', 'polarChart', 'renderWhyPicks', 'updatePicks', 'picksTextarea'];
 const ICON_SRC = (src.match(/  var ICONS = \{[\s\S]*?\n  \};/) || [''])[0];
 let html = '';
 try {
