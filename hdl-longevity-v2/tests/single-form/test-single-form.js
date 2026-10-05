@@ -201,7 +201,7 @@ ok((src.match(/setRootClasses\('is-picks'\)/g) || []).length === 1, 'no other pa
 // The page markup: run the REAL renderWhyPicks() against a fake root.
 function fakeEl() {
   return { hidden: false, textContent: '', innerHTML: '', disabled: false, checked: false, value: '', parentNode: { classList: { toggle: function () {} } },
-    classList: { add: function () {}, remove: function () {}, toggle: function () {} }, setAttribute: function () {}, addEventListener: function () {} };
+    classList: { add: function () {}, remove: function () {}, toggle: function () {} }, setAttribute: function () {}, addEventListener: function () {}, querySelectorAll: function () { return []; } };
 }
 const fakeRoot = Object.assign(fakeEl(), { querySelectorAll: function () { return []; } });
 const pageCtx = {
@@ -268,33 +268,94 @@ const bad = whyRules.filter(function (r) {
 });
 ok(bad.length === 0, 'under .hdlv2-why no rule sets capitals, italics, letter-spacing, centred or justified text' + (bad.length ? ' — ' + bad.join(' | ') : ''));
 const stmt = whyRules.filter(function (r) { return /\.hdlv2-why \.hdlv2-checkbox-item\s*\{/.test(r); }).join('');
-ok(/font-size:\s*17px/.test(stmt) && /min-height:\s*60px/.test(stmt) && /padding:\s*16px 18px/.test(stmt), 'statement text is 17px, at least 60px high, padding 16px 18px');
+ok(/font-size:\s*17px/.test(stmt) && /min-height:\s*60px/.test(stmt) && /padding:\s*16px;/.test(stmt), 'statement text is 17px, at least 60px high, padding 16px (0.48.2: on the 8px scale)');
 // v0.48.1 — room (Design 1).
 const flat = css.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\s+/g, ' ');
 ok(/\.hdlv2-assessment-root\.is-picks \{ max-width: 1080px; \}/.test(flat), 'is-picks card is up to 1080px wide');
-ok(/\.hdlv2-why \.hdlv2-form-body \{ padding: 0 20px 24px; \}/.test(flat) && /@media \(min-width: 760px\) \{[^@]*\.hdlv2-why \.hdlv2-form-body \{ padding: 0 24px 32px; \}/.test(flat)
+ok(/\.hdlv2-why \.hdlv2-form-body \{ padding: 0 16px 24px; \}/.test(flat) && /@media \(min-width: 760px\) \{[^@]*\.hdlv2-why \.hdlv2-form-body \{ padding: 0 24px 32px; \}/.test(flat)
   && /@media \(min-width: 1000px\) \{[^@]*\.hdlv2-why \.hdlv2-form-body \{ padding: 0 32px 32px; \}/.test(flat),
-  'card sides: 20px below 760px, 24px from 760px (columns stay 230px+ at 820), 32px from 1000px');
+  'card sides: 16px below 760px, 24px from 760px (columns stay 230px+ at 820), 32px from 1000px');
 ok(/window\.addEventListener\('resize', redrawRadar\)/.test(body('renderWhyPicks')) && /redrawRadar\(\)/.test(body('updatePicks')),
   'the radar is redrawn at its real width on every tap and when the screen turns round');
-ok(/\.hdlv2-why-groups \{ display: grid; gap: 28px; \}/.test(flat) && /@media \(min-width: 760px\) \{ \.hdlv2-why-groups \{ grid-template-columns: repeat\(3, minmax\(0, 1fr\)\); gap: 16px; \} \}/.test(flat)
-  && /@media \(min-width: 1000px\) \{ \.hdlv2-why-groups \{ gap: 28px; \} \}/.test(flat), 'groups: 28px stacked, 16px at 760-999, 28px from 1000');
-ok(/\.hdlv2-why \.hdlv2-picks-grid \{[^}]*gap: 14px/.test(flat), 'statements 14px apart');
-ok(/\.hdlv2-why \.hdlv2-header p \{ margin: 0 0 28px; \}/.test(flat), '28px between the opening line and the groups');
-ok(/\.hdlv2-why \.hdlv2-subgroup-heading \{[^}]*margin: 0 0 14px/.test(flat), '14px under each group heading');
-ok(/\.hdlv2-why \.hdlv2-picks-count \{[^}]*margin: 20px 0 8px/.test(flat), '20px above the count line');
-ok(/\.hdlv2-why \.hdlv2-field \{ margin-top: 28px; \}/.test(flat), '28px above each field under the charts');
-ok(/\.hdlv2-why-needs \{[^}]*margin: 36px 0 0[^}]*padding: 24px[^}]*border: 1px solid #e4e6ea[^}]*border-radius: 12px/.test(flat), 'the section panel: 36px above, padding 24px, 1px #e4e6ea, radius 12px');
+ok(/\.hdlv2-why-groups \{ display: grid; gap: 24px; \}/.test(flat) && /@media \(min-width: 760px\) \{ \.hdlv2-why-groups \{ grid-template-columns: repeat\(3, minmax\(0, 1fr\)\); gap: 16px; \} \}/.test(flat)
+  && /@media \(min-width: 1000px\) \{ \.hdlv2-why-groups \{ gap: 24px; \} \}/.test(flat), 'groups: 24px stacked, 16px at 760-999, 24px from 1000');
+ok(/\.hdlv2-why \.hdlv2-picks-grid \{[^}]*gap: 16px/.test(flat), 'statements 16px apart');
+ok(/\.hdlv2-why \.hdlv2-header p \{[^}]*margin: 0 0 24px;/.test(flat), '24px between the opening line and the groups');
+ok(/\.hdlv2-why \.hdlv2-subgroup-heading \{[^}]*margin: 0 0 16px/.test(flat), '16px under each group heading');
+ok(/\.hdlv2-why \.hdlv2-picks-count \{[^}]*margin: 24px 0 8px/.test(flat), '24px above the count line');
+ok(/\.hdlv2-why \.hdlv2-field \{ margin-top: 32px; \}/.test(flat), '32px above each field under the charts');
+ok(/\.hdlv2-why-needs \{[^}]*margin: 32px 0 0[^}]*padding: 24px[^}]*border: 1px solid #e4e6ea[^}]*border-radius: 16px/.test(flat), 'the section panel: 32px above, padding 24px, 1px #e4e6ea, radius 16px');
 ok(/@media \(min-width: 900px\) \{ \.hdlv2-why-needs-body \{ grid-template-columns: repeat\(2, minmax\(0, 1fr\)\); gap: 32px; \} \}/.test(flat), 'bars and radar side by side from 900px, 32px apart');
 ok(/\.hdlv2-why-wheel-svg \{[^}]*max-width: 440px/.test(flat), 'radar up to 440px wide');
 ok(/\.hdlv2-why-needs h3 \{[^}]*font-size: 20px[^}]*font-weight: 700[^}]*color: #004F59/.test(flat)
   && /\.hdlv2-why-needs p \{[^}]*font-size: 17px[^}]*color: #2c3e50/.test(flat)
   && /\.hdlv2-why \.hdlv2-why-caption \{[^}]*font-size: 16px[^}]*color: #666/.test(flat), 'section type: heading 20px bold #004F59, lines 17px #2c3e50, caption 16px #666');
-ok(/\.hdlv2-ability-meter \{[^}]*height: 8px/.test(flat) && /\.hdlv2-ability-name \{[^}]*font-size: 17px[^}]*font-weight: 600/.test(flat) && /\.hdlv2-ability-count \{[^}]*font-size: 16px[^}]*color: #666/.test(flat),
-  'bars: name 17px 600, count 16px #666, meter 8px');
+ok(/\.hdlv2-ability-meter \{[^}]*height: 10px/.test(flat) && /\.hdlv2-ability-name \{[^}]*font-size: 17px[^}]*font-weight: 600/.test(flat) && /\.hdlv2-ability-count \{[^}]*font-size: 16px[^}]*color: #666/.test(flat),
+  'bars: name 17px 600, count 16px #666, meter 10px');
 ok(!/hdlv2-why-wheel \{|hdlv2-why-chart/.test(flat), 'the wedge chart styles are gone');
 ok(/\.hdlv2-why \.hdlv2-subgroup-heading\s*\{[^}]*text-transform:\s*none/.test(css) && /\.hdlv2-why \.hdlv2-subgroup-heading\s*\{[^}]*letter-spacing:\s*0/.test(css),
   'the shared group heading has its capitals and letter-spacing undone on this page');
+
+// ── v0.48.2: one icon family and a finished feel ──
+// Design 1 — the pictures: Phosphor duotone, on the 256 grid, filled.
+const iconNames = Object.keys((function () { const c = {}; try { vm.runInNewContext(ICON_SRC + '\nthis.ICONS = ICONS;', c); } catch (e) { /* reported below */ } return c.ICONS || {}; })());
+ok(J(iconNames.sort()) === J(['balance', 'connection', 'energy', 'flexibility', 'freedom', 'mind', 'mobility', 'people', 'stamina', 'strength', 'things']),
+  'ICONS holds exactly the eleven names (8 abilities + 3 groups)');
+ok(/Phosphor/.test(ICON_SRC) && /MIT/.test(ICON_SRC) && !/itshover|Tabler/i.test(ICON_SRC), 'the ICONS comment names Phosphor and MIT; no itshover or Tabler left');
+ok(!/stroke-linecap|\d -\d|M\d+ \d+[lh]/.test(ICON_SRC) && (ICON_SRC.match(/opacity="0\.2"/g) || []).length === 11,
+  'no stroke-only 24-grid path is left; each picture keeps its duotone 0.2 layer');
+const oneIcon = (function () { const c = {}; try { vm.runInNewContext(ICON_SRC + '\n' + body('pickIcon') + '\nthis.out = pickIcon("strength");', c); } catch (e) { /* reported below */ } return c.out || ''; })();
+ok(/viewBox="0 0 256 256"/.test(oneIcon) && /fill="currentColor"/.test(oneIcon) && !/stroke=/.test(oneIcon) && /width="28" height="28"/.test(oneIcon)
+  && /aria-hidden="true"/.test(oneIcon), 'pickIcon(): 28px, viewBox 0 0 256 256, fill currentColor, no stroke, aria-hidden');
+
+// Design 2 — a real tick control on each statement, in both states.
+const tickCount = (html.match(/<span class="hdlv2-tick" aria-hidden="true">/g) || []).length;
+ok(tickCount === 24, 'each of the 24 statements carries the tick circle (got ' + tickCount + ')');
+const whyFlat = flat;
+ok(!/\.hdlv2-why \.hdlv2-checkbox-item\.selected::after/.test(whyFlat) && whyFlat.indexOf("'\\2713'") === -1, 'the selected rule no longer uses a text glyph');
+const selRule = (whyFlat.match(/\.hdlv2-why \.hdlv2-checkbox-item\.selected \{[^}]*\}/) || [''])[0];
+ok(selRule !== '' && !/border(-width)?:\s*\d/.test(selRule), 'a chosen statement changes colour only, never border width');
+ok(/\.hdlv2-why \.hdlv2-tick \{[^}]*width: 22px[^}]*height: 22px[^}]*border: 1\.5px solid #888[^}]*border-radius: 50%/.test(whyFlat)
+  && /\.hdlv2-why \.hdlv2-checkbox-item\.selected \.hdlv2-tick \{[^}]*background: #3d8da0[^}]*border-color: #3d8da0/.test(whyFlat),
+  'tick: 22px ring #888 (3.5:1 on white), filled #3d8da0 when chosen');
+ok(/\.hdlv2-why \.hdlv2-checkbox-item \{[^}]*border-radius: 14px/.test(whyFlat), 'statements radius 14px');
+ok(/\.hdlv2-why \.hdlv2-checkbox-item:active \{ transform: scale\(0\.985\); \}/.test(whyFlat) && /\.hdlv2-why \.hdlv2-checkbox-item \{[^}]*transition: transform 80ms/.test(whyFlat),
+  'press: the statement eases to 0.985 over 80ms');
+
+// Design 3 — the bars.
+ok(/\.hdlv2-ability-meter span \{[^}]*transition: width 240ms/.test(whyFlat), 'meter width eases over 240ms');
+ok(/\.hdlv2-ability-count \{[^}]*font-variant-numeric: tabular-nums[^}]*text-align: right/.test(whyFlat), 'count in tabular numerals, right aligned');
+ok(/\.hdlv2-ability \{[^}]*grid-template-columns: 28px/.test(whyFlat) && /\.hdlv2-ability \{[^}]*min-height: 56px/.test(whyFlat), 'bar rows 56px, 28px picture column');
+if (typeof abilityCounts === 'function') {
+  const TIE = [{ id: 'g', title: 'G', items: [{ id: 'a', needs: ['mind', 'strength', 'energy'] }, { id: 'b', needs: ['balance'] }] }];
+  ok(J(abilityCounts(['a', 'b'], TIE, SHORT).map(function (r) { return r.id; })) === J(['strength', 'balance', 'mind', 'energy']),
+    'equal counts keep the server\'s order (Strength, Balance, Mind, Energy)');
+}
+const upd = body('updatePicks');
+ok(/data-id/.test(body('abilityBars')) && /offsetWidth/.test(upd), 'a tap starts each meter at its old width so the change eases (not a fresh draw)');
+
+// Design 4 — the radar lined up.
+ok(/@media \(min-width: 900px\) \{[^@]*\.hdlv2-why-needs-body \{[^}]*align-items: center/.test(whyFlat), 'from 900px the radar is centred against the bars');
+ok(/IC = 28/.test(body('radarChart')) && /IC \+ 6/.test(body('radarChart')), 'radar: 28px pictures, each name 6px under its picture');
+
+// Design 5 — one finish.
+const scaleBad = [];
+(whyFlat.match(/[^{}]*\{[^{}]*\}/g) || []).forEach(function (r) {
+  const sel = r.slice(0, r.indexOf('{'));
+  if (!/\.hdlv2-why|\.hdlv2-ability/.test(sel)) return;
+  (r.match(/(?:^|[ ;{])(?:margin|padding|gap|row-gap|column-gap)(?:-[a-z]+)?:\s*[^;}]+/g) || []).forEach(function (d) {
+    (d.match(/-?\d+(?:\.\d+)?px/g) || []).forEach(function (v) { if ([0, 8, 16, 24, 32, 48].indexOf(Math.abs(parseFloat(v))) === -1) scaleBad.push(sel.trim() + ' → ' + d.trim()); });
+  });
+});
+ok(scaleBad.length === 0, 'every margin, gap and padding on this page is 8, 16, 24, 32 or 48px' + (scaleBad.length ? ' — ' + scaleBad.join(' | ') : ''));
+const whyAll = (whyFlat.match(/[^{}]*\{[^{}]*\}/g) || []).filter(function (r) { return /\.hdlv2-why|\.hdlv2-ability/.test(r.slice(0, r.indexOf('{'))); });
+ok(whyAll.every(function (r) { return !/box-shadow:\s*(?!none)/.test(r); }) && /\.hdlv2-card\.hdlv2-why \{[^}]*box-shadow: none/.test(whyFlat), 'one elevation: no shadow on this page (the shared card shadow is removed)');
+ok(whyAll.every(function (r) { return !/gradient\(/.test(r); }), 'no gradient on this page');
+ok(/\.hdlv2-why \.hdlv2-header h2 \{[^}]*font-family: 'Poppins'[^}]*font-size: 28px[^}]*line-height: 1\.2[^}]*letter-spacing: -0\.01em/.test(whyFlat), 'title Poppins 28px, line height 1.2, -0.01em');
+ok(/\.hdlv2-why \.hdlv2-header p \{[^}]*font-size: 18px/.test(whyFlat), 'opening line 18px');
+const rm = (whyFlat.match(/@media \(prefers-reduced-motion: reduce\) \{(.*?\}) \}/) || ['', ''])[1];
+ok(/\.hdlv2-why \.hdlv2-checkbox-item/.test(rm) && /\.hdlv2-why \.hdlv2-tick/.test(rm) && /\.hdlv2-ability-meter span/.test(rm) && /transition: none/.test(rm) && /transform: none/.test(rm),
+  'reduced motion: every transition and transform on this page is off');
 
 const submit = body('submitWhyPicks');
 ok(submit !== '', 'submitWhyPicks() exists');
