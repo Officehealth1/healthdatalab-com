@@ -1503,7 +1503,22 @@
     });
     bindFieldListeners();
     document.getElementById('hdlv2-picks-next').addEventListener('click', submitWhyPicks);
+    // Same function each time, so the browser keeps one listener however often the page renders.
+    window.addEventListener('resize', redrawRadar);
     updatePicks();
+  }
+
+  // The radar is drawn at its real width. A tap always redraws it; a resize
+  // (a phone or iPad turned round) only when that width changed. Does nothing
+  // once the page has gone.
+  function redrawRadar(resized) {
+    var radar = document.getElementById('hdlv2-why-radar');
+    if (!radar) return;
+    var w = Math.min(440, radar.clientWidth || 440);
+    if (resized && radar.getAttribute('data-w') === String(w)) return;
+    var names = serverData.why_ability_short || serverData.why_abilities;
+    radar.setAttribute('data-w', w);
+    radar.innerHTML = radarChart(radarData(abilityCounts(formData.why_picks || [], serverData.why_options || [], names), names), w);
   }
 
   // Sync the statements, the count line, the bars and the radar with
@@ -1524,8 +1539,7 @@
     var rows = abilityCounts(picks, groups, names);
     var bars = document.getElementById('hdlv2-abilities');
     if (bars) bars.innerHTML = abilityBars(rows, picks.length);
-    var radar = document.getElementById('hdlv2-why-radar');
-    if (radar) radar.innerHTML = radarChart(radarData(rows, names), Math.min(440, radar.clientWidth || 440));
+    redrawRadar();
   }
 
   function picksTextarea(name, label, value, placeholder, maxlength) {

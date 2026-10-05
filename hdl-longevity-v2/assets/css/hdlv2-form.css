@@ -575,7 +575,14 @@
 .hdlv2-why .hdlv2-footer { text-align: left; padding: 12px 20px; font-size: 14px; color: #666; }
 .hdlv2-why .hdlv2-footer a { color: #666; }
 .hdlv2-why .hdlv2-field { margin-top: 28px; }
+/* 24px sides from 760px keep each of the three columns at 230px or more on
+   an iPad (820); 32px once there is room. */
 @media (min-width: 760px) {
+  .hdlv2-why .hdlv2-form-body { padding: 0 24px 32px; }
+  .hdlv2-why .hdlv2-header,
+  .hdlv2-why .hdlv2-footer { padding-left: 24px; padding-right: 24px; }
+}
+@media (min-width: 1000px) {
   .hdlv2-why .hdlv2-form-body { padding: 0 32px 32px; }
   .hdlv2-why .hdlv2-header,
   .hdlv2-why .hdlv2-footer { padding-left: 32px; padding-right: 32px; }

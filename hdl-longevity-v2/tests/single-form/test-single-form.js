@@ -206,12 +206,12 @@ function fakeEl() {
 const fakeRoot = Object.assign(fakeEl(), { querySelectorAll: function () { return []; } });
 const pageCtx = {
   root: fakeRoot, formData: {}, serverData: {}, saveTimer: null, PICK_MIN: 5, PICK_MAX: 10,
-  document: { getElementById: function () { return fakeEl(); } },
+  document: { getElementById: function () { return fakeEl(); } }, window: { addEventListener: function () {} },
   setRootClasses: function () {}, saveIndicator: function () { return ''; }, footer: function () { return ''; },
   bindFieldListeners: function () {}, submitWhyPicks: function () {}, clearSaveError: function () {}, autoSave: function () {},
   esc: function (s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
 };
-const PAGE_FNS = ['togglePick', 'canContinue', 'abilityCounts', 'pickCountLine', 'radarData', 'chartLabel', 'pickIcon', 'radarChart', 'abilityBars', 'renderWhyPicks', 'updatePicks', 'picksTextarea'];
+const PAGE_FNS = ['togglePick', 'canContinue', 'abilityCounts', 'pickCountLine', 'radarData', 'chartLabel', 'pickIcon', 'radarChart', 'abilityBars', 'renderWhyPicks', 'redrawRadar', 'updatePicks', 'picksTextarea'];
 const ICON_SRC = (src.match(/  var ICONS = \{[\s\S]*?\n  \};/) || [''])[0];
 let html = '';
 try {
@@ -272,8 +272,11 @@ ok(/font-size:\s*17px/.test(stmt) && /min-height:\s*60px/.test(stmt) && /padding
 // v0.48.1 — room (Design 1).
 const flat = css.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\s+/g, ' ');
 ok(/\.hdlv2-assessment-root\.is-picks \{ max-width: 1080px; \}/.test(flat), 'is-picks card is up to 1080px wide');
-ok(/\.hdlv2-why \.hdlv2-form-body \{ padding: 0 20px 24px; \}/.test(flat) && /@media \(min-width: 760px\) \{[^@]*\.hdlv2-why \.hdlv2-form-body \{ padding: 0 32px 32px; \}/.test(flat),
-  'card sides: 20px below 760px, 32px from 760px');
+ok(/\.hdlv2-why \.hdlv2-form-body \{ padding: 0 20px 24px; \}/.test(flat) && /@media \(min-width: 760px\) \{[^@]*\.hdlv2-why \.hdlv2-form-body \{ padding: 0 24px 32px; \}/.test(flat)
+  && /@media \(min-width: 1000px\) \{[^@]*\.hdlv2-why \.hdlv2-form-body \{ padding: 0 32px 32px; \}/.test(flat),
+  'card sides: 20px below 760px, 24px from 760px (columns stay 230px+ at 820), 32px from 1000px');
+ok(/window\.addEventListener\('resize', redrawRadar\)/.test(body('renderWhyPicks')) && /redrawRadar\(\)/.test(body('updatePicks')),
+  'the radar is redrawn at its real width on every tap and when the screen turns round');
 ok(/\.hdlv2-why-groups \{ display: grid; gap: 28px; \}/.test(flat) && /@media \(min-width: 760px\) \{ \.hdlv2-why-groups \{ grid-template-columns: repeat\(3, minmax\(0, 1fr\)\); gap: 16px; \} \}/.test(flat)
   && /@media \(min-width: 1000px\) \{ \.hdlv2-why-groups \{ gap: 28px; \} \}/.test(flat), 'groups: 28px stacked, 16px at 760-999, 28px from 1000');
 ok(/\.hdlv2-why \.hdlv2-picks-grid \{[^}]*gap: 14px/.test(flat), 'statements 14px apart');
