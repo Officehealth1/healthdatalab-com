@@ -1468,6 +1468,9 @@
   margin: 16px auto 0;
 }
 
+/* The background screen's intro, without the old form's side bar. */
+#hdlv2-tap-body .hdlv2-section-intro { border-left: 0; border-radius: 8px; }
+
 /* ──────────────────────────────────────────────────────────────
  * v0.22.0 — Stage 1 RESULT page (premium, mirrors Final Report shell)
  * Local design tokens kept in this block so we don't pollute global

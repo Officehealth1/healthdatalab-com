@@ -370,6 +370,11 @@
   // the six answers carried over from the first check, screens 2-11 ask one
   // question each, screens 12-13 are today's body and background sections.
   var TAP_STEPS = 13;
+  // A tap or key this soon after a question appears is the tail of the last
+  // one (a slow double tap), so it is ignored.
+  var TAP_SETTLE_MS = 400;
+  // Complete gives a save in flight this long before handing the button back.
+  var TAP_COMPLETE_WAIT_MS = 5000;
   var TAP_FIRST = ['physicalActivity', 'sleepDuration', 'sleepQuality', 'smokingStatus', 'socialConnections', 'dietQuality'];
   var TAP_FIRST_LABELS = {
     physicalActivity: 'How active you are',
@@ -381,17 +386,19 @@
   };
   // Screens 2-11 in today's order; tapQuestionOrder() moves tied ones first.
   var TAP_ORDER = ['sitToStand', 'breathHold', 'balance', 'skinElasticity', 'stressLevels', 'cognitiveActivity', 'alcoholConsumption', 'supplementIntake', 'sunlightExposure', 'dailyHydration'];
+  // These answers are scored; the line says so without a health claim.
+  var TAP_NEUTRAL = 'This answer goes into your rate of ageing result.';
   var TAP_TITLES = {
     sitToStand: { title: 'How many times can you stand up from a chair in 30 seconds?', plain: 'This test shows how strong your legs are.', how: TEST_HOW.sitToStand },
     breathHold: { title: 'How long can you hold your breath after breathing out normally?', plain: 'A quick check of your breathing.', how: TEST_HOW.breathHold },
     balance: { title: 'How long can you stand on one leg?', plain: 'This shows how steady you are on your feet.', how: TEST_HOW.balance },
     skinElasticity: { title: 'Pinch the skin on the back of your hand. How long does it take to flatten?', plain: 'A quick check of your skin.', how: TEST_HOW.skinElasticity },
-    stressLevels: { title: 'How stressed do you feel on most days?', plain: 'Stress plays a part in how fast you age.' },
-    cognitiveActivity: { title: 'How often do you give your brain something new to work on?', hint: 'e.g. reading, learning new skills, puzzles, problem-solving at work.', plain: 'Keeping your brain busy is part of ageing well.' },
-    alcoholConsumption: { title: 'How many alcoholic drinks do you have in a usual week?', plain: 'Alcohol plays a part in how fast you age.' },
+    stressLevels: { title: 'How stressed do you feel on most days?', plain: TAP_NEUTRAL },
+    cognitiveActivity: { title: 'How often do you give your brain something new to work on?', hint: 'e.g. reading, learning new skills, puzzles, problem-solving at work.', plain: TAP_NEUTRAL },
+    alcoholConsumption: { title: 'How many alcoholic drinks do you have in a usual week?', plain: TAP_NEUTRAL },
     supplementIntake: { title: 'How often do you take vitamins or supplements?', plain: 'Tells your practitioner what you already take.' },
-    sunlightExposure: { title: 'When do you usually get daylight outdoors?', plain: 'Daylight helps your sleep and your body clock.' },
-    dailyHydration: { title: 'How much water do you drink in a day?', plain: 'Water helps your energy and concentration.' }
+    sunlightExposure: { title: 'When do you usually get daylight outdoors?', plain: TAP_NEUTRAL },
+    dailyHydration: { title: 'How much water do you drink in a day?', plain: TAP_NEUTRAL }
   };
   // Reason line when the person's choices need the ability a question measures.
   var ABILITY_SENTENCES = {
@@ -1812,14 +1819,7 @@
     else if (field) bindTapQuestion(data, field);
     else {
       bindFieldListeners();
-      var done = document.getElementById('hdlv2-complete-s3');
-      // Complete waits for a save in flight, so an older one cannot land after it.
-      var finish = function () {
-        if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
-        if (saving) { setTimeout(finish, 300); return; }
-        completeStage3(data);
-      };
-      if (done) done.addEventListener('click', finish);
+      bindTapComplete(data);
     }
     // Keyboard and screen-reader users hear where they are after each step.
     if (moveFocus) document.getElementById('hdlv2-tap-title').focus({ preventScroll: true });
@@ -1874,11 +1874,15 @@
 
   // Screens 2-11: a tap saves the value and moves on after 200 ms (Back
   // cancels it); tapping the chosen card again also moves on. A-F keys pick,
-  // except while typing or with a modifier held.
+  // except while typing, with a modifier held or while the key is held down.
+  // Taps and Skip in the first TAP_SETTLE_MS of a question are ignored.
   function bindTapQuestion(data, field) {
     var body = document.getElementById('hdlv2-tap-body');
+    var shownAt = Date.now();
+    function settled() { return Date.now() - shownAt >= TAP_SETTLE_MS; }
     body.querySelectorAll('.hdlv2-s1-opt').forEach(function (opt) {
       opt.addEventListener('click', function () {
+        if (!settled()) return;
         formData[field] = opt.getAttribute('data-val');
         body.querySelectorAll('.hdlv2-s1-opt').forEach(function (o) {
           o.classList.remove('selected');
@@ -1890,9 +1894,11 @@
         tapAdvanceTimer = setTimeout(function () { tapAdvanceTimer = null; tapGo(data, 1); }, 200);
       });
     });
-    document.getElementById('hdlv2-tap-skip').addEventListener('click', function () { tapGo(data, 1); });
+    document.getElementById('hdlv2-tap-skip').addEventListener('click', function () {
+      if (settled()) tapGo(data, 1);
+    });
     tapKeyHandler = function (e) {
-      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      if (e.repeat || e.metaKey || e.ctrlKey || e.altKey) return;
       var ae = document.activeElement;
       if (ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA' || ae.isContentEditable)) return;
       var key = (e.key || '').toLowerCase();
@@ -1901,6 +1907,38 @@
       if (opt) { e.preventDefault(); opt.click(); }
     };
     document.addEventListener('keydown', tapKeyHandler);
+  }
+
+  // Complete waits for a save in flight, so an older one cannot land after
+  // it, and never completes while one is still going: after
+  // TAP_COMPLETE_WAIT_MS the button comes back with a message instead.
+  function bindTapComplete(data) {
+    var done = document.getElementById('hdlv2-complete-s3');
+    if (!done) return;
+    var label = done.textContent;
+    var startedAt = 0;
+    function finish() {
+      if (!done.isConnected) return;
+      if (saving) {
+        if (Date.now() - startedAt >= TAP_COMPLETE_WAIT_MS) {
+          done.disabled = false;
+          done.textContent = label;
+          setSaveStatus('error', 'The connection is slow. Please press Complete again.');
+          return;
+        }
+        setTimeout(finish, 300);
+        return;
+      }
+      completeStage3(data);
+    }
+    done.addEventListener('click', function () {
+      if (done.disabled) return;
+      if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
+      done.disabled = true;
+      done.textContent = 'Saving\u2026';
+      startedAt = Date.now();
+      finish();
+    });
   }
 
   // v0.38.0 — bindSkipCheckboxes() removed: numeric "I don't know"
