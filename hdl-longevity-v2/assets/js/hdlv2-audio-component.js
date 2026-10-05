@@ -1271,7 +1271,8 @@ window.HDLAudioComponent = (function () {
       + '<div class="hdlv2-ac-progress" style="display:flex;justify-content:center;"></div>'
       + HDLV2Loading.skeleton('brief')
       + '</div>';
-    HDLV2Loading.progress(this.el.querySelector('.hdlv2-ac-progress'), { steps: [msg || 'Working on it'] });
+    // The ladder animates its own dots, so a trailing "..." is dropped.
+    HDLV2Loading.progress(this.el.querySelector('.hdlv2-ac-progress'), { steps: [(msg || 'Working on it').replace(/(\.\.\.|\u2026)$/, '')] });
   };
 
   // ── State: async processing (server-side Deepgram pipeline, v0.17.0) ──
