@@ -301,7 +301,8 @@ ok(/\.hdlv2-why \.hdlv2-subgroup-heading\s*\{[^}]*text-transform:\s*none/.test(c
 const iconNames = Object.keys((function () { const c = {}; try { vm.runInNewContext(ICON_SRC + '\nthis.ICONS = ICONS;', c); } catch (e) { /* reported below */ } return c.ICONS || {}; })());
 ok(J(iconNames.sort()) === J(['balance', 'connection', 'energy', 'flexibility', 'freedom', 'mind', 'mobility', 'people', 'stamina', 'strength', 'things']),
   'ICONS holds exactly the eleven names (8 abilities + 3 groups)');
-ok(/Phosphor/.test(ICON_SRC) && /MIT/.test(ICON_SRC) && !/itshover|Tabler/i.test(ICON_SRC), 'the ICONS comment names Phosphor and MIT; no itshover or Tabler left');
+const ICON_NOTE = src.slice(Math.max(0, src.indexOf('  var ICONS = {') - 500), src.indexOf('  var ICONS = {'));
+ok(/Phosphor/.test(ICON_NOTE) && /MIT/.test(ICON_NOTE) && !/itshover|Tabler/i.test(ICON_NOTE + ICON_SRC), 'the ICONS comment names Phosphor and MIT; no itshover or Tabler left');
 ok(!/stroke-linecap|\d -\d|M\d+ \d+[lh]/.test(ICON_SRC) && (ICON_SRC.match(/opacity="0\.2"/g) || []).length === 11,
   'no stroke-only 24-grid path is left; each picture keeps its duotone 0.2 layer');
 const oneIcon = (function () { const c = {}; try { vm.runInNewContext(ICON_SRC + '\n' + body('pickIcon') + '\nthis.out = pickIcon("strength");', c); } catch (e) { /* reported below */ } return c.out || ''; })();
