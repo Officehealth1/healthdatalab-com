@@ -37,14 +37,17 @@ Never the Flat UI defaults (`#2ecc71`, `#e67e22`, `#e74c3c`, `#c0392b`).
 - Body: Inter 400/500/600
 - Email-safe stack: `'Poppins', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif`
 
-Note: the older V1 Clients page renders in the system stack. V2 surfaces use
-Poppins/Inter; match the Clients page's sizes and weights, not its font.
+Note: the older V1 Clients page renders in the system stack and a few greys
+outside the palette (`#1d1d1f`, `#e5e5e7`, `#f5f7fa`, `#555`). V2 surfaces use
+Poppins/Inter and map those greys to the palette: text `#2c3e50`, borders
+`#e4e6ea`, fills `#f8f9fb`, header labels `#888`. Match the Clients page's
+sizes and weights, not its font or greys.
 
 ### Hierarchy (practitioner pages)
-- Page title: 32px / 700, line-height 1, colour `#1d1d1f`, 8px below
-- Sub-line under title: 18px, `#86868b`
-- Table header: 14px / 700, upper case, letter-spacing 0.5px, `#555`
-- Table cell: 15px; the name cell 600, `#1d1d1f`
+- Page title: 32px / 700, line-height 1, colour `#2c3e50`, 8px below
+- Sub-line under title: 18px, `#888`
+- Table header: 14px / 700, upper case, letter-spacing 0.5px, `#888`
+- Table cell: 15px; the name cell 600, `#2c3e50`
 - Pill: 11px / 600, upper case, letter-spacing 0.5px
 
 ## Layout
@@ -55,12 +58,12 @@ Poppins/Inter; match the Clients page's sizes and weights, not its font.
 - ≤ 640px: 24px left/right, 32px top
 
 ### Table container
-- Radius 12px, border `1px solid #e5e5e7`, background white,
+- Radius 12px, border `1px solid #e4e6ea`, background white,
   shadow `0 1px 3px rgba(0,0,0,0.1)`, overflow hidden
-- Header row: fill `#f5f7fa`, bottom border `1px solid #e5e5e7`,
+- Header row: fill `#f8f9fb`, bottom border `1px solid #e4e6ea`,
   cell padding `9px 24px`, height about 60px
 - Body rows: about 60px tall, cell padding `6px 24px`,
-  divider `1px solid #f5f7fa`, no row cards, no avatars
+  divider `1px solid #e4e6ea`, no row cards, no avatars
 
 ## Elevation
 
