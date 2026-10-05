@@ -6,6 +6,7 @@
  *   HDLV2Loading.skeleton(kind)
  *     Returns innerHTML string for a shaped placeholder.
  *     kind ∈ 'report' | 'flightPlan' | 'consultation' | 'dashboard' | 'checkin'
+ *          | 'form' | 'brief' | 'tab' | 'list' | 'inline'
  *
  *   HDLV2Loading.progress(container, opts)
  *     Mounts a progress-bar illusion + step ladder inside `container`.
@@ -124,6 +125,56 @@
       + '</div>';
   }
 
+  // Assessment form = one card: heading, intro line, six option cards, footer.
+  function skeletonForm() {
+    var opts = '';
+    for (var i = 0; i < 6; i++) {
+      opts += '<div class="hdlv2-skel hdlv2-skel-block" style="height:56px;margin:0;"></div>';
+    }
+    return ''
+      + '<div class="hdlv2-skel-container hdlv2-skel-card" aria-busy="true" aria-label="Loading your assessment">'
+      +   heading()
+      +   line('m')
+      +   '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin:20px 0;">' + opts + '</div>'
+      +   line('s')
+      + '</div>';
+  }
+
+  // Text being written (client brief, AI commentary) = five lines, no card;
+  // it sits inside the card that will hold the text.
+  function skeletonBrief() {
+    return ''
+      + '<div class="hdlv2-skel-container" aria-busy="true" aria-label="Preparing">'
+      +   line('l') + line('l') + line('m') + line('l') + line('s')
+      + '</div>';
+  }
+
+  // Client detail tab = two headings with three lines each.
+  function skeletonTab() {
+    return ''
+      + '<div class="hdlv2-skel-container" aria-busy="true" aria-label="Loading" style="padding:16px 0;">'
+      +   heading() + line('l') + line('m') + line('s')
+      +   '<div style="margin-top:22px;">' + heading() + '</div>'
+      +   line('l') + line('l') + line('m')
+      + '</div>';
+  }
+
+  // Short list (invites, pending leads) = three rows.
+  function skeletonList() {
+    var rows = '';
+    for (var i = 0; i < 3; i++) {
+      rows += '<div class="hdlv2-skel-row">' + avatar()
+        + '<div class="hdlv2-skel-row-body">' + line('m') + line('s') + '</div></div>';
+    }
+    return '<div class="hdlv2-skel-container" aria-busy="true" aria-label="Loading">' + rows + '</div>';
+  }
+
+  // One pulsing bar for banners and buttons. A span, so it is valid inside
+  // a <button>.
+  function skeletonInline() {
+    return '<span class="hdlv2-skel hdlv2-skel-inline" aria-busy="true" aria-label="Working"></span>';
+  }
+
   function skeleton(kind) {
     switch (kind) {
       case 'report':         return skeletonReport();
@@ -131,6 +182,11 @@
       case 'consultation':   return skeletonConsultation();
       case 'dashboard':      return skeletonDashboard();
       case 'checkin':        return skeletonCheckin();
+      case 'form':           return skeletonForm();
+      case 'brief':          return skeletonBrief();
+      case 'tab':            return skeletonTab();
+      case 'list':           return skeletonList();
+      case 'inline':         return skeletonInline();
       default:               return skeletonReport(); // sensible default
     }
   }
@@ -179,8 +235,11 @@
     var stepIdx = 0;
     var stopped = false;
 
+    // A caller that swaps the container's innerHTML without cancel() leaves
+    // this node detached; each tick checks and stops the timers for good.
     var fillTick = setInterval(function () {
       if (stopped) return;
+      if (wrap.isConnected === false) { stop(); return; }
       pct = pct + (cap - pct) * 0.08;
       if (pct > cap - 0.5) pct = cap - 0.5;
       if (fill) fill.style.width = pct.toFixed(2) + '%';
@@ -188,6 +247,7 @@
 
     var stepTick = setInterval(function () {
       if (stopped) return;
+      if (wrap.isConnected === false) { stop(); return; }
       stepIdx = (stepIdx + 1) % steps.length;
       if (stepEl) stepEl.firstChild
         ? (stepEl.firstChild.nodeValue = steps[stepIdx])

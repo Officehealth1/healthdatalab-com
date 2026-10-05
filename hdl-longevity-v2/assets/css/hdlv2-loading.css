@@ -62,6 +62,16 @@
   margin: 0 0 14px;
 }
 
+/* One bar for banners and buttons (kind 'inline'). */
+.hdlv2-skel-inline {
+  display: inline-block;
+  width: 88px;
+  height: 10px;
+  border-radius: 999px;
+  vertical-align: middle;
+  flex-shrink: 0;
+}
+
 .hdlv2-skel-avatar {
   width: 44px;
   height: 44px;
