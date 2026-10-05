@@ -131,6 +131,7 @@
         self.poll();
       })
       .catch(function () {
+        self.clearLoading();
         self.setNote('Could not load messages. Please try again shortly.');
       });
   };
@@ -268,6 +269,7 @@
    */
   Inbox.prototype.fail = function (res) {
     if (this.cfg.mode !== 'token') {
+      this.clearLoading();
       this.setNote('Could not load messages. Please refresh the page.');
       return;
     }
@@ -277,6 +279,12 @@
     this.thread.appendChild(el('p', 'hdlv2-inbox-empty',
       'This message link has expired. No problem — reply directly to the email you received and it will reach your practitioner.'));
     if (this.form) this.form.setAttribute('hidden', 'hidden');
+  };
+
+  // The server-rendered loading bars; renderThread replaces them on success.
+  Inbox.prototype.clearLoading = function () {
+    var box = this.thread && this.thread.querySelector('.hdlv2-inbox-loading');
+    if (box && box.parentNode) box.parentNode.removeChild(box);
   };
 
   Inbox.prototype.setNote = function (msg) {
