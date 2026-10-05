@@ -1358,14 +1358,14 @@
     }).join('');
 
     root.innerHTML = '<div class="hdlv2-card hdlv2-why">'
-      + '<div class="hdlv2-header"><h2>What matters most to you</h2><p>Tap the parts of life you care about, then choose the 5 to 10 things you would most love to still be able to do.</p></div>'
+      + '<div class="hdlv2-header"><h2>What matters most to you</h2><p>Tap the parts of life you care about, then choose the 5 to 10 things you would most love to still be able to do in your last decade of life.</p></div>'
       + '<div class="hdlv2-form-body">'
       +   '<div class="hdlv2-theme-grid" role="group" aria-label="Parts of life">' + tiles + '</div>'
       +   '<p id="hdlv2-themes-hint" class="hdlv2-themes-hint">Start with one or two that matter to you.</p>'
       +   '<div role="group" aria-label="Things you would love to still be able to do">' + panels + '</div>'
       +   '<p id="hdlv2-picks-count" class="hdlv2-picks-count" aria-live="polite"></p>'
       +   '<div id="hdlv2-abilities" class="hdlv2-abilities" hidden></div>'
-      +   picksTextarea('key_people_text', 'Who are the most important people you want to stay healthy and strong for?', d.key_people_text, 'e.g. my wife Jenny, my grandchildren Leo and Mia', 300)
+      +   picksTextarea('key_people_text', 'Who are the most important people you want to stay healthy and strong for? Their first names help us make your report personal.', d.key_people_text, 'e.g. my wife Jenny, my grandchildren Leo and Mia', 300)
       +   picksTextarea('own_words', 'Anything you would add in your own words? (optional)', d.own_words, '', 600)
       +   '<button type="button" id="hdlv2-picks-next" class="hdlv2-btn">Next &#8594;</button>'
       + '</div>' + saveIndicator() + footer() + '</div>';

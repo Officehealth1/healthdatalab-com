@@ -395,7 +395,7 @@ $ret = Why_Picks_With_Retired::options_for_page();
 check( 'O2 retired items are not offered', ! in_array( 'old_item', array_column( $ret[0]['items'], 'id' ), true ) );
 
 // ── v0.47.98: four retired, two added, three re-tagged, one reworded ──
-$RETIRED = array( 'live_in_own_home', 'trip_short_notice', 'steady_in_body', 'intimate_life' );
+$RETIRED = array( 'live_in_own_home', 'trip_short_notice', 'intimate_life', 'steady_in_body' ); // catalogue order
 $retired_ids = array(); $offered_by_theme = array(); $tag_counts = array();
 foreach ( $cat as $g ) {
     foreach ( $g['items'] as $it ) if ( ! empty( $it['retired'] ) ) $retired_ids[] = $it['id'];

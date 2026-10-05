@@ -15,7 +15,7 @@
  * that marker, not the option, decides its handling.
  *
  * Pure functions, no database writes. Ids are permanent (rows store them): a
- * dropped statement is marked `retired`, never deleted.
+ * dropped statement is marked `retired` (a fourth slot, `true`), never deleted.
  *
  * Slice 2 (v0.47.93): every statement stands for abilities (NEEDS), and a
  * fixed table (MEASURES) names the health answers that measure each one.
@@ -113,8 +113,8 @@ class HDLV2_Why_Picks {
                 array( 'lift_grandchild', 'Pick up a grandchild and carry them on my hip', 'strength,balance' ),
                 array( 'keep_up_children', 'Keep up with the children at the park without needing to sit down', 'stamina' ),
                 array( 'dance_wedding', 'Dance at a family wedding until the last song', 'stamina,balance' ),
-                array( 'host_family_meal', 'Cook and host a big family meal on my own', 'stamina,strength' ),
-                array( 'walk_with_partner', 'Walk hand in hand with my partner for an hour', 'stamina,mobility' ),
+                array( 'host_family_meal', 'Cook and host a big family meal on my own', 'stamina,connection' ),
+                array( 'walk_with_partner', 'Walk hand in hand with my partner for an hour', 'stamina,connection' ),
                 array( 'carer_not_cared_for', 'Be the one who looks after my partner, not the one being looked after', 'strength,stamina' ),
                 array( 'remember_family', 'Remember every grandchild\'s name, birthday and story', 'mind' ),
                 array( 'teach_grandchild', 'Teach a grandchild something I am good at', 'mind,connection' ),
@@ -129,8 +129,9 @@ class HDLV2_Why_Picks {
                 array( 'reach_top_cupboard', 'Reach the top cupboard and lift something down', 'flexibility,strength' ),
                 array( 'keep_driving', 'Keep driving safely, including turning to look over my shoulder', 'mind,flexibility' ),
                 array( 'manage_own_affairs', 'Manage my own money, appointments and paperwork', 'mind' ),
-                array( 'live_in_own_home', 'Live in my own home for as long as I choose', 'strength,balance,mind' ),
+                array( 'live_in_own_home', 'Live in my own home for as long as I choose', 'strength,balance,mind', true ),
                 array( 'up_after_fall', 'Get up from the floor by myself if I ever fall', 'strength,mobility' ),
+                array( 'walk_to_shops', 'Walk to the shops and back without stopping to rest', 'stamina' ),
             ) ),
             'travel' => array( 'Travel and adventure', 'Travel', array(
                 array( 'lift_suitcase', 'Lift my own suitcase into the overhead locker', 'strength' ),
@@ -139,8 +140,9 @@ class HDLV2_Why_Picks {
                 array( 'hike_hills', 'Hike a hill or a coastal path with friends', 'stamina,balance' ),
                 array( 'swim_in_sea', 'Swim in the sea', 'stamina,strength' ),
                 array( 'uneven_ground', 'Walk on cobbles, sand or a rocky path without fear of falling', 'balance' ),
-                array( 'trip_short_notice', 'Say yes to a trip at short notice', 'energy,stamina' ),
+                array( 'trip_short_notice', 'Say yes to a trip at short notice', 'energy,stamina', true ),
                 array( 'ride_bicycle', 'Ride a bicycle', 'balance,stamina' ),
+                array( 'visit_far_family', 'Travel to see family or friends who live far away', 'stamina,connection' ),
             ) ),
             'movement' => array( 'Sport, movement and things I enjoy', 'Sport and hobbies', array(
                 array( 'keep_my_sport', 'Keep playing my sport: golf, tennis, bowls, skiing', 'mobility,strength,balance' ),
@@ -150,8 +152,8 @@ class HDLV2_Why_Picks {
                 array( 'do_own_diy', 'Do my own repairs at home: climb a ladder, carry tools', 'balance,strength' ),
                 array( 'walk_dog_daily', 'Walk the dog every day, whatever the weather', 'stamina' ),
                 array( 'sit_on_floor', 'Sit cross-legged on the floor and get up easily', 'flexibility,mobility' ),
-                array( 'steady_hands_craft', 'Keep playing my instrument or doing my craft with steady hands', 'mind,mobility' ),
-                array( 'intimate_life', 'Keep an active intimate life with my partner', 'stamina,energy' ),
+                array( 'steady_hands_craft', 'Keep playing my instrument or doing my craft with steady hands', 'mind' ),
+                array( 'intimate_life', 'Keep an active intimate life with my partner', 'stamina,energy', true ),
             ) ),
             'mind' => array( 'Mind, work and purpose', 'Mind and purpose', array(
                 array( 'sharp_conversation', 'Stay sharp in conversation and follow a fast discussion', 'mind' ),
@@ -159,7 +161,7 @@ class HDLV2_Why_Picks {
                 array( 'learn_something_new', 'Learn something new: a language, an instrument, a skill', 'mind' ),
                 array( 'read_for_an_hour', 'Read a book for an hour without losing concentration', 'mind' ),
                 array( 'volunteer_mentor', 'Volunteer or mentor, and be useful to others', 'energy,connection' ),
-                array( 'never_lost_for_words', 'Not be lost for a word or a name mid-sentence', 'mind' ),
+                array( 'never_lost_for_words', 'Find the right word or name the moment I want it', 'mind' ),
                 array( 'write_life_story', 'Write down my life story for my family', 'mind' ),
             ) ),
             'everyday' => array( 'Everyday energy and feeling well', 'Everyday energy', array(
@@ -167,7 +169,7 @@ class HDLV2_Why_Picks {
                 array( 'energy_in_evening', 'Have energy left in the evening for the people I love', 'energy' ),
                 array( 'move_without_aches', 'Move through the day without aches deciding what I do', 'mobility' ),
                 array( 'see_friends_weekly', 'See my friends every week', 'connection' ),
-                array( 'steady_in_body', 'Feel confident and steady in my own body', 'balance,strength' ),
+                array( 'steady_in_body', 'Feel confident and steady in my own body', 'balance,strength', true ),
                 array( 'calm_under_pressure', 'Stay calm and good-humoured under pressure', 'mind' ),
             ) ),
         );
@@ -176,7 +178,7 @@ class HDLV2_Why_Picks {
         foreach ( $groups as $gid => $g ) {
             $items = array();
             foreach ( $g[2] as $it ) {
-                $items[] = array( 'id' => $it[0], 'label' => $it[1], 'needs' => explode( ',', $it[2] ), 'retired' => false );
+                $items[] = array( 'id' => $it[0], 'label' => $it[1], 'needs' => explode( ',', $it[2] ), 'retired' => ! empty( $it[3] ) );
             }
             $out[] = array( 'id' => $gid, 'title' => $g[0], 'short' => $g[1], 'items' => $items );
         }
