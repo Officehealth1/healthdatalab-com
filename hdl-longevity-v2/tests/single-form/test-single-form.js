@@ -350,7 +350,7 @@ const scaleBad = [];
 });
 ok(scaleBad.length === 0, 'every margin, gap and padding on this page is 8, 16, 24, 32 or 48px' + (scaleBad.length ? ' — ' + scaleBad.join(' | ') : ''));
 const whyAll = (whyFlat.match(/[^{}]*\{[^{}]*\}/g) || []).filter(function (r) { return /\.hdlv2-why|\.hdlv2-ability/.test(r.slice(0, r.indexOf('{'))); });
-ok(whyAll.every(function (r) { return !/box-shadow:\s*(?!none)/.test(r); }) && /\.hdlv2-card\.hdlv2-why \{[^}]*box-shadow: none/.test(whyFlat), 'one elevation: no shadow on this page (the shared card shadow is removed)');
+ok(whyAll.every(function (r) { return !/box-shadow:(?!\s*none)/.test(r); }) && /\.hdlv2-card\.hdlv2-why \{[^}]*box-shadow: none/.test(whyFlat), 'one elevation: no shadow on this page (the shared card shadow is removed)');
 ok(whyAll.every(function (r) { return !/gradient\(/.test(r); }), 'no gradient on this page');
 ok(/\.hdlv2-why \.hdlv2-header h2 \{[^}]*font-family: 'Poppins'[^}]*font-size: 28px[^}]*line-height: 1\.2[^}]*letter-spacing: -0\.01em/.test(whyFlat), 'title Poppins 28px, line height 1.2, -0.01em');
 ok(/\.hdlv2-why \.hdlv2-header p \{[^}]*font-size: 18px/.test(whyFlat), 'opening line 18px');

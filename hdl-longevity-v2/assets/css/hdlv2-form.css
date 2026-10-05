@@ -560,21 +560,25 @@
    17px plain type, left aligned, no capitals or italics, a soft card. Every
    rule is scoped under .hdlv2-why: .hdlv2-checkbox-item and
    .hdlv2-subgroup-heading are shared with the other forms. */
-.hdlv2-card.hdlv2-why { background: #fafbfc; }
-.hdlv2-why .hdlv2-form-body { padding: 0 20px 24px; }
-.hdlv2-why .hdlv2-header { padding: 24px 20px 0; text-align: left; }
-.hdlv2-why .hdlv2-header p,
-.hdlv2-why .hdlv2-field label {
-  font-size: 17px;
-  line-height: 1.4;
-  color: #2c3e50;
+/* v0.48.2 — one finish: spacing on the 8px scale (8/16/24/32/48), one
+   elevation (a 1px border, no shadow), quiet motion only on the press, the
+   meter and the tick, and none under prefers-reduced-motion. */
+.hdlv2-card.hdlv2-why { background: #fafbfc; box-shadow: none; }
+.hdlv2-why .hdlv2-form-body { padding: 0 16px 24px; }
+.hdlv2-why .hdlv2-header { padding: 24px 16px 0; text-align: left; }
+.hdlv2-why .hdlv2-header h2 {
+  margin: 0 0 8px;
+  font-family: 'Poppins', 'Inter', sans-serif;
+  font-size: 28px;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
 }
-.hdlv2-why .hdlv2-header p { margin: 0 0 28px; }
-.hdlv2-why .hdlv2-field label { margin-bottom: 8px; }
+.hdlv2-why .hdlv2-header p { margin: 0 0 24px; font-size: 18px; line-height: 1.4; color: #2c3e50; }
+.hdlv2-why .hdlv2-field label { margin-bottom: 8px; font-size: 17px; line-height: 1.4; color: #2c3e50; }
 .hdlv2-why .hdlv2-char-count { font-size: 14px; color: #666; }
-.hdlv2-why .hdlv2-footer { text-align: left; padding: 12px 20px; font-size: 14px; color: #666; }
+.hdlv2-why .hdlv2-footer { text-align: left; padding: 8px 16px; font-size: 14px; color: #666; }
 .hdlv2-why .hdlv2-footer a { color: #666; }
-.hdlv2-why .hdlv2-field { margin-top: 28px; }
+.hdlv2-why .hdlv2-field { margin-top: 32px; }
 /* 24px sides from 760px keep each of the three columns at 230px or more on
    an iPad (820); 32px once there is room. */
 @media (min-width: 760px) {
@@ -589,18 +593,18 @@
 }
 
 /* The three groups: side by side from 760px, stacked below, in order. */
-.hdlv2-why-groups { display: grid; gap: 28px; }
+.hdlv2-why-groups { display: grid; gap: 24px; }
 @media (min-width: 760px) {
   .hdlv2-why-groups { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
 }
 @media (min-width: 1000px) {
-  .hdlv2-why-groups { gap: 28px; }
+  .hdlv2-why-groups { gap: 24px; }
 }
 .hdlv2-why .hdlv2-subgroup-heading {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin: 0 0 14px;
+  margin: 0 0 16px;
   padding: 0;
   border: 0;
   font-family: 'Poppins', 'Inter', sans-serif;
@@ -611,15 +615,15 @@
   text-transform: none;
   color: #004F59;
 }
-.hdlv2-why .hdlv2-picks-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; margin: 0; }
+.hdlv2-why .hdlv2-picks-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; margin: 0; }
 .hdlv2-why .hdlv2-checkbox-item {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
+  gap: 8px;
   box-sizing: border-box;
   min-height: 60px;
-  padding: 16px 18px;
+  padding: 16px;
   border-radius: 14px;
   background: #fff;
   font-size: 17px;
@@ -651,7 +655,7 @@
 .hdlv2-why .hdlv2-checkbox-item.selected .hdlv2-tick { background: #3d8da0; border-color: #3d8da0; }
 .hdlv2-why .hdlv2-checkbox-item.selected .hdlv2-tick svg { opacity: 1; }
 .hdlv2-why .hdlv2-picks-count {
-  margin: 20px 0 8px;
+  margin: 24px 0 8px;
   font-size: 17px;
   font-weight: 600;
   color: #2c3e50;
@@ -660,11 +664,11 @@
 /* v0.48.1 — "What your picks need from your body": the bars and a radar
    drawn like the report's radar, side by side from 900px, bars first below. */
 .hdlv2-why-needs {
-  margin: 36px 0 0;
+  margin: 32px 0 0;
   padding: 24px;
   background: #fff;
   border: 1px solid #e4e6ea;
-  border-radius: 12px;
+  border-radius: 16px;
 }
 .hdlv2-why-needs h3 {
   margin: 0 0 8px;
@@ -676,24 +680,24 @@
   color: #004F59;
 }
 .hdlv2-why-needs p {
-  margin: 0 0 20px;
+  margin: 0 0 24px;
   padding: 0;
   font-size: 17px;
   line-height: 1.4;
   color: #2c3e50;
 }
 @media (max-width: 759px) {
-  .hdlv2-why-needs { padding: 20px 16px; }
+  .hdlv2-why-needs { padding: 24px 16px; }
 }
-.hdlv2-why-needs-body { display: grid; gap: 28px; align-items: start; }
+.hdlv2-why-needs-body { display: grid; gap: 24px; align-items: start; }
 @media (min-width: 900px) {
   .hdlv2-why-needs-body { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 32px; align-items: center; }
 }
-.hdlv2-ability-list { display: grid; gap: 16px; }
+.hdlv2-ability-list { display: grid; gap: 8px; }
 .hdlv2-ability {
   display: grid;
   grid-template-columns: 28px minmax(0, 1fr) auto;
-  gap: 8px 10px;
+  gap: 8px;
   align-items: center;
   align-content: center;
   min-height: 56px;
@@ -716,8 +720,15 @@
 .hdlv2-why-spoke text { font-family: 'Inter', sans-serif; font-size: 14px; font-weight: 500; fill: currentColor; }
 .hdlv2-why-spoke.has-picks text { font-weight: 600; }
 .hdlv2-why-tick { font-family: 'Inter', sans-serif; font-size: 9px; fill: #999; }
-.hdlv2-why .hdlv2-why-caption { margin: 12px 0 0; font-size: 16px; color: #666; }
+.hdlv2-why .hdlv2-why-caption { margin: 16px 0 0; font-size: 16px; color: #666; }
 .hdlv2-why-icon { flex: none; color: inherit; }
+@media (prefers-reduced-motion: reduce) {
+  .hdlv2-why .hdlv2-checkbox-item,
+  .hdlv2-why .hdlv2-tick,
+  .hdlv2-why .hdlv2-tick svg,
+  .hdlv2-ability-meter span { transition: none; }
+  .hdlv2-why .hdlv2-checkbox-item:active { transform: none; }
+}
 
 /* ── VIDEO EMBED ── */
 .hdlv2-video-embed {
