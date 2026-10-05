@@ -55,6 +55,9 @@ class HDLV2_Consultation {
         add_action( 'rest_api_init', array( $this, 'register_rest_routes' ) );
         add_shortcode( 'hdlv2_consultation', array( $this, 'render_shortcode' ) );
         add_filter( 'body_class', array( $this, 'maybe_add_wide_body_class' ) );
+        // v0.47.96 — the /consultation/ page has no post title, so the tab read
+        // " | HealthDataLab".
+        add_filter( 'document_title_parts', array( $this, 'filter_document_title' ) );
         // v0.46.7 — surface a "Consultations" link in the practitioner top menu
         // so the (already-built) /consultation/ hub is reachable without typing
         // the URL by hand. Role-gated to practitioners/admins inside the method.
@@ -162,6 +165,24 @@ class HDLV2_Consultation {
             $classes[] = 'hdlv2-wide-page';
         }
         return $classes;
+    }
+
+    /**
+     * v0.47.96 — Tab title on the consultation page: "Consultations" for the
+     * list, and "Consultation" for a single client when the page has no title
+     * of its own.
+     */
+    public function filter_document_title( $parts ) {
+        global $post;
+        if ( ! is_singular() || ! $post || ! has_shortcode( $post->post_content, 'hdlv2_consultation' ) ) {
+            return $parts;
+        }
+        if ( empty( $_GET['progress_id'] ) && empty( $_GET['client'] ) ) {
+            $parts['title'] = 'Consultations';
+        } elseif ( empty( $parts['title'] ) ) {
+            $parts['title'] = 'Consultation';
+        }
+        return $parts;
     }
 
     /**
