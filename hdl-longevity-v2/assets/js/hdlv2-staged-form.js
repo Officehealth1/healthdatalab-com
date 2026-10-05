@@ -1365,8 +1365,9 @@
 
   // v0.48.2 — the tick circle at the right of every statement, in both
   // states; CSS draws the ring and fills it when the statement is chosen.
-  var TICK = '<span class="hdlv2-tick" aria-hidden="true"><svg viewBox="0 0 16 16" width="14" height="14" focusable="false">'
-    + '<path d="M3.5 8.5l3 3 6-6.5" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>';
+  // The tick is Phosphor's check (bold weight), the same family as ICONS.
+  var TICK = '<span class="hdlv2-tick" aria-hidden="true"><svg viewBox="0 0 256 256" width="14" height="14" fill="#fff" focusable="false">'
+    + '<path d="M232.49,80.49l-128,128a12,12,0,0,1-17,0l-56-56a12,12,0,1,1,17-17L96,183,215.51,63.51a12,12,0,0,1,17,17Z"/></svg></span>';
 
   // The picture for a name, or '' when there is none. x/y place it inside the chart.
   function pickIcon(name, x, y) {
