@@ -65,6 +65,10 @@ KINDS.filter((k) => k !== 'inline').forEach((k) => {
   ok(/<div class="hdlv2-skel-container[^"]*" role="status" aria-busy="true"/.test(L.skeleton(k)),
     "skeleton('" + k + "') — the container has role=\"status\"");
 });
+KINDS.filter((k) => k !== 'inline').forEach((k) => {
+  const label = (L.skeleton(k).match(/role="status" aria-busy="true" aria-label="([^"]+)"[^>]*><span style="position:absolute;[^"]*">([^<]+)<\/span>/) || []);
+  ok(label[1] && label[1] === label[2], "skeleton('" + k + "') — the status region holds its label as hidden text (announced)");
+});
 ok(!/role="status"/.test(L.skeleton('inline')), "skeleton('inline') stays a plain span (it sits inside buttons, beside words)");
 ok(/^<span\b/.test(L.skeleton('inline')) && !/<div\b/.test(L.skeleton('inline')), "skeleton('inline') is a span (valid inside a button)");
 ok(new Set(KINDS.map((k) => L.skeleton(k))).size === KINDS.length, 'ten distinct shapes');
@@ -122,8 +126,9 @@ phpFiles('includes').concat(['hdl-longevity-v2.php']).forEach((f) => {
   ok(bare.length === 0, f + ' — no rendered loading-only line' + (bare.length ? ': ' + bare[0].trim().slice(0, 90) : ''));
 });
 const shell = read('includes/sprint-4/class-hdlv2-message-thread-view.php');
-ok(shell.indexOf('<div class="hdlv2-inbox-loading" role="status" aria-label="Loading your messages"><span></span><span></span><span></span></div>') !== -1,
-  'Messages placeholder is three bars with a spoken label');
+ok(shell.indexOf('<div class="hdlv2-inbox-loading" role="status" aria-label="Loading your messages"><span></span><span></span><span></span><span class="hdlv2-inbox-sr">Loading your messages</span></div>') !== -1,
+  'Messages placeholder is three bars plus a hidden line a screen reader announces');
+ok(/\.hdlv2-inbox-loading \.hdlv2-inbox-sr \{[^}]*clip: rect\(0, 0, 0, 0\)/.test(read('assets/css/hdlv2-client-dashboard.css')), 'that line is visually hidden (and outranks the bar rule)');
 const cdCss = read('assets/css/hdlv2-client-dashboard.css');
 ok(/\.hdlv2-inbox-loading \{/.test(cdCss) && !/\.hdlv2-inbox-loading,\s*\.hdlv2-inbox-empty/.test(cdCss), 'the bars have their own rule, split from the empty line');
 ok(/@media \(prefers-reduced-motion: reduce\) \{[^}]*\.hdlv2-inbox-loading span \{ animation: none; \}/.test(cdCss), 'the bars stop pulsing for reduced motion');

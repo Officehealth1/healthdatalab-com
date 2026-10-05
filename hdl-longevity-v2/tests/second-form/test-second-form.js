@@ -336,6 +336,8 @@ if (fn('bindTapQuestion') && fn('bindTapComplete') && v('TAP_SETTLE_MS')) {
   ok(h.completes === 1, 'no save in flight: Complete runs at once');
 } else ok(false, 'bindTapQuestion(), bindTapComplete() and TAP_SETTLE_MS exist');
 
+ok(/id="hdlv2-save-indicator" class="hdlv2-save-status" role="status" aria-live="polite"/.test(src), 'the save line (where the slow-connection message goes) is announced');
+
 // ── 10. Side bar ──
 const formCss = fs.readFileSync(path.join(__dirname, '..', '..', 'assets', 'css', 'hdlv2-form.css'), 'utf8');
 ok(/#hdlv2-tap-body \.hdlv2-section-intro \{ border-left: 0; border-radius: 8px; \}/.test(formCss), 'tap screens drop the section intro\'s teal side bar');

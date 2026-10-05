@@ -588,6 +588,10 @@
 .hdlv2-inbox-loading span:nth-child(1) { width: 70%; }
 .hdlv2-inbox-loading span:nth-child(2) { width: 55%; align-self: flex-end; animation-delay: 0.15s; }
 .hdlv2-inbox-loading span:nth-child(3) { width: 40%; animation-delay: 0.3s; }
+.hdlv2-inbox-loading .hdlv2-inbox-sr {
+  position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0;
+  overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+}
 
 @keyframes hdlv2-inbox-pulse {
   0%, 100% { opacity: 1; }

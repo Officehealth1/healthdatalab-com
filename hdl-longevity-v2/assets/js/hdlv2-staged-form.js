@@ -576,7 +576,7 @@
   // v0.36.20 — added Terms of Service link to the staged-form footer
   // (applies across every stage that renders footer()).
   function footer() { return '<div class="hdlv2-footer">Powered by <a href="https://healthdatalab.com" target="_blank" rel="noopener">HealthDataLab</a> &middot; <a href="https://healthdatalab.com/terms" target="_blank" rel="noopener">Terms of Service</a></div>'; }
-  function saveIndicator() { return '<div id="hdlv2-save-indicator" class="hdlv2-save-status"></div>'; }
+  function saveIndicator() { return '<div id="hdlv2-save-indicator" class="hdlv2-save-status" role="status" aria-live="polite"></div>'; }
 
   // ══════════════════════════════════════════════════════════════
   //  STAGE 1: QUICK INSIGHT — 9 evidence-based questions
