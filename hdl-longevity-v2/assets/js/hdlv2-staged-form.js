@@ -509,6 +509,12 @@
       .catch(function(){ saving=false; setSaveStatus('error','Connection error'); });
   }
 
+  // A pick answers a refused Next: the red line goes; a "Saved" line stays.
+  function clearSaveError() {
+    var el = document.getElementById('hdlv2-save-indicator');
+    if (el && /(^| )error( |$)/.test(el.className)) setSaveStatus('', '');
+  }
+
   function setSaveStatus(cls, text) {
     var el = document.getElementById('hdlv2-save-indicator');
     if (!el) return;
@@ -576,7 +582,8 @@
   // v0.36.20 — added Terms of Service link to the staged-form footer
   // (applies across every stage that renders footer()).
   function footer() { return '<div class="hdlv2-footer">Powered by <a href="https://healthdatalab.com" target="_blank" rel="noopener">HealthDataLab</a> &middot; <a href="https://healthdatalab.com/terms" target="_blank" rel="noopener">Terms of Service</a></div>'; }
-  function saveIndicator() { return '<div id="hdlv2-save-indicator" class="hdlv2-save-status" role="status" aria-live="polite"></div>'; }
+  // live: announced to screen readers (the tap cards' slow-connection message).
+  function saveIndicator(live) { return '<div id="hdlv2-save-indicator" class="hdlv2-save-status"' + (live ? ' role="status" aria-live="polite"' : '') + '></div>'; }
 
   // ══════════════════════════════════════════════════════════════
   //  STAGE 1: QUICK INSIGHT — 9 evidence-based questions
@@ -1388,6 +1395,7 @@
         var r = togglePick(d.why_picks, cb.value);
         d.why_picks = r.picks;
         updatePicks();
+        clearSaveError();
         if (saveTimer) clearTimeout(saveTimer);
         saveTimer = setTimeout(function () { autoSave(2); }, 1500);
       });
@@ -1810,7 +1818,7 @@
       +     '<div class="hdlv2-s1-progress"><div class="hdlv2-s1-progress-fill" style="width:' + Math.round(tapStep / TAP_STEPS * 100) + '%;"></div></div>'
       +   '</div>'
       +   '<div class="hdlv2-form-body" id="hdlv2-tap-body">' + screen + '</div>'
-      + '</div>' + saveIndicator() + footer() + '</div>';
+      + '</div>' + saveIndicator(true) + footer() + '</div>';
 
     var back = document.getElementById('hdlv2-tap-back');
     if (back) back.addEventListener('click', function () { tapGo(data, -1); });
