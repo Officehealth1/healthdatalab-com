@@ -215,7 +215,7 @@ const PAGE_FNS = ['togglePick', 'canContinue', 'abilityCounts', 'pickCountLine',
 const ICON_SRC = (src.match(/  var ICONS = \{[\s\S]*?\n  \};/) || [''])[0];
 let html = '';
 try {
-  vm.runInNewContext(ICON_SRC + '\n' + PAGE_FNS.map(body).join('\n') + '\nthis.renderWhyPicks = renderWhyPicks;', pageCtx);
+  vm.runInNewContext(ICON_SRC + '\n' + (src.match(/  var TICK = [\s\S]*?;\n/) || [''])[0] + PAGE_FNS.map(body).join('\n') + '\nthis.renderWhyPicks = renderWhyPicks;', pageCtx);
   const g8 = function (gid, title) {
     const items = [];
     for (let i = 0; i < 8; i++) items.push({ id: gid + i, label: title + ' statement ' + i, needs: ['strength'] });
@@ -285,7 +285,7 @@ ok(/\.hdlv2-why \.hdlv2-subgroup-heading \{[^}]*margin: 0 0 16px/.test(flat), '1
 ok(/\.hdlv2-why \.hdlv2-picks-count \{[^}]*margin: 24px 0 8px/.test(flat), '24px above the count line');
 ok(/\.hdlv2-why \.hdlv2-field \{ margin-top: 32px; \}/.test(flat), '32px above each field under the charts');
 ok(/\.hdlv2-why-needs \{[^}]*margin: 32px 0 0[^}]*padding: 24px[^}]*border: 1px solid #e4e6ea[^}]*border-radius: 16px/.test(flat), 'the section panel: 32px above, padding 24px, 1px #e4e6ea, radius 16px');
-ok(/@media \(min-width: 900px\) \{ \.hdlv2-why-needs-body \{ grid-template-columns: repeat\(2, minmax\(0, 1fr\)\); gap: 32px; \} \}/.test(flat), 'bars and radar side by side from 900px, 32px apart');
+ok(/@media \(min-width: 900px\) \{ \.hdlv2-why-needs-body \{ grid-template-columns: repeat\(2, minmax\(0, 1fr\)\); gap: 32px;[^}]*\} \}/.test(flat), 'bars and radar side by side from 900px, 32px apart');
 ok(/\.hdlv2-why-wheel-svg \{[^}]*max-width: 440px/.test(flat), 'radar up to 440px wide');
 ok(/\.hdlv2-why-needs h3 \{[^}]*font-size: 20px[^}]*font-weight: 700[^}]*color: #004F59/.test(flat)
   && /\.hdlv2-why-needs p \{[^}]*font-size: 17px[^}]*color: #2c3e50/.test(flat)

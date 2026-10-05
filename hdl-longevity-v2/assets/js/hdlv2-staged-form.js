@@ -1363,6 +1363,11 @@
     things: '<path d="M229.06,108.79l-48.7,42,14.88,62.79a8.4,8.4,0,0,1-12.52,9.17L128,189.09,73.28,222.74a8.4,8.4,0,0,1-12.52-9.17l14.88-62.79-48.7-42A8.46,8.46,0,0,1,31.73,94L95.64,88.8l24.62-59.6a8.36,8.36,0,0,1,15.48,0l24.62,59.6L224.27,94A8.46,8.46,0,0,1,229.06,108.79Z" opacity="0.2"/><path d="M239.18,97.26A16.38,16.38,0,0,0,224.92,86l-59-4.76L143.14,26.15a16.36,16.36,0,0,0-30.27,0L90.11,81.23,31.08,86a16.46,16.46,0,0,0-9.37,28.86l45,38.83L53,211.75a16.38,16.38,0,0,0,24.5,17.82L128,198.49l50.53,31.08A16.4,16.4,0,0,0,203,211.75l-13.76-58.07,45-38.83A16.43,16.43,0,0,0,239.18,97.26Zm-15.34,5.47-48.7,42a8,8,0,0,0-2.56,7.91l14.88,62.8a.37.37,0,0,1-.17.48c-.18.14-.23.11-.38,0l-54.72-33.65a8,8,0,0,0-8.38,0L69.09,215.94c-.15.09-.19.12-.38,0a.37.37,0,0,1-.17-.48l14.88-62.8a8,8,0,0,0-2.56-7.91l-48.7-42c-.12-.1-.23-.19-.13-.5s.18-.27.33-.29l63.92-5.16A8,8,0,0,0,103,91.86l24.62-59.61c.08-.17.11-.25.35-.25s.27.08.35.25L153,91.86a8,8,0,0,0,6.75,4.92l63.92,5.16c.15,0,.24,0,.33.29S224,102.63,223.84,102.73Z"/>'
   };
 
+  // v0.48.2 — the tick circle at the right of every statement, in both
+  // states; CSS draws the ring and fills it when the statement is chosen.
+  var TICK = '<span class="hdlv2-tick" aria-hidden="true"><svg viewBox="0 0 16 16" width="14" height="14" focusable="false">'
+    + '<path d="M3.5 8.5l3 3 6-6.5" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>';
+
   // The picture for a name, or '' when there is none. x/y place it inside the chart.
   function pickIcon(name, x, y) {
     if (!ICONS[name]) return '';
@@ -1375,7 +1380,7 @@
   function abilityBars(rows, total) {
     if (!rows.length) return '<p class="hdlv2-why-empty">Tap a few above to see what they need.</p>';
     return '<div class="hdlv2-ability-list" role="list">' + rows.map(function (r) {
-      return '<div class="hdlv2-ability" role="listitem">' + pickIcon(r.id)
+      return '<div class="hdlv2-ability" role="listitem" data-id="' + esc(r.id) + '">' + pickIcon(r.id)
         + '<span class="hdlv2-ability-name">' + esc(r.label) + '</span>'
         + '<span class="hdlv2-ability-count">' + r.count + ' of your picks</span>'
         + '<span class="hdlv2-ability-meter" aria-hidden="true"><span style="width:' + Math.round(r.count / total * 100) + '%"></span></span></div>';
@@ -1388,7 +1393,7 @@
   // no library, no animation. Drawn one unit per pixel at the width it is
   // given, so the names stay 14px on a phone; the web takes what room is left.
   function radarChart(data, width) {
-    var F = 14, GAP = 8, IC = 24, BH = IC + 4 + F;   // name size, clear space, picture, name block height
+    var F = 14, GAP = 8, IC = 28, BH = IC + 6 + F;   // name size, clear space, picture, name block height (name 6px under the picture)
     var n = data.spokes.length, top = data.top;
     var dir = data.spokes.map(function (s, i) {
       var a = (-90 + 360 / n * i) * Math.PI / 180;
@@ -1442,7 +1447,7 @@
       var p = place(R, dir[i]), x = cx + p.x, y = cy + p.y - BH / 2;
       out += '<g class="hdlv2-why-spoke' + (s.count > 0 ? ' has-picks' : '') + '">'
         + pickIcon(s.id, f(x - IC / 2), f(y))
-        + '<text x="' + f(x) + '" y="' + f(y + BH - 3) + '" text-anchor="middle">' + esc(s.label) + '</text></g>';
+        + '<text x="' + f(x) + '" y="' + f(y + IC + 6 + Math.round(F * 0.73)) + '" text-anchor="middle">' + esc(s.label) + '</text></g>';
     });
     return out + '</svg>';
   }
@@ -1465,7 +1470,7 @@
             var on = d.why_picks.indexOf(it.id) !== -1;
             return '<label class="hdlv2-checkbox-item' + (on ? ' selected' : '') + '">'
               + '<input type="checkbox" value="' + esc(it.id) + '"' + (on ? ' checked' : '') + '>'
-              + '<span class="hdlv2-checkbox-label">' + esc(it.label) + '</span></label>';
+              + '<span class="hdlv2-checkbox-label">' + esc(it.label) + '</span>' + TICK + '</label>';
           }).join('')
         + '</div></div>';
     }).join('');
@@ -1538,7 +1543,21 @@
     var names = serverData.why_ability_short || serverData.why_abilities;
     var rows = abilityCounts(picks, groups, names);
     var bars = document.getElementById('hdlv2-abilities');
-    if (bars) bars.innerHTML = abilityBars(rows, picks.length);
+    if (bars) {
+      // Start each meter at its old width (a new row at 0), then let the CSS
+      // transition ease it to the new one.
+      var was = {};
+      bars.querySelectorAll('.hdlv2-ability').forEach(function (row) {
+        was[row.getAttribute('data-id')] = row.querySelector('.hdlv2-ability-meter span').style.width;
+      });
+      bars.innerHTML = abilityBars(rows, picks.length);
+      bars.querySelectorAll('.hdlv2-ability').forEach(function (row) {
+        var m = row.querySelector('.hdlv2-ability-meter span'), to = m.style.width;
+        m.style.width = was[row.getAttribute('data-id')] || '0%';
+        void m.offsetWidth;
+        m.style.width = to;
+      });
+    }
     redrawRadar();
   }
 
