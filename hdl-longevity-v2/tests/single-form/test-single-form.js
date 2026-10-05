@@ -186,7 +186,7 @@ if (typeof bctx.abilityBars === 'function') {
   ok(/class="hdlv2-ability-meter" aria-hidden="true"><span style="width:40%">/.test(rowsB[0]) && /width:20%/.test(rowsB[1]),
     'bars: the meter width is count ÷ number of picks (2 of 5 = 40%), and it is aria-hidden');
   ok(bars.indexOf('>Strength<') < bars.indexOf('>Balance<'), 'bars: in the order given (most picks first)');
-  ok(bctx.abilityBars([], 0) === '<p class="hdlv2-why-empty">Tap a few above to see what they need.</p>', 'bars: nothing picked → the one empty line');
+  ok(bctx.abilityBars([], 0) === '', 'bars: nothing picked → nothing (0.48.3: the section is hidden instead)');
 } else ok(false, 'abilityBars() exists');
 
 // v0.48.1 — the page width class.
@@ -240,7 +240,10 @@ ok(html.indexOf('<p>Each thing you picked needs some of these. Your plan starts 
 ok(html.indexOf('<p class="hdlv2-why-caption">The further out, the more of your picks need it.</p>') !== -1, 'radar caption, as written');
 ok(/id="hdlv2-abilities"/.test(html) && /id="hdlv2-why-radar"/.test(html) && html.indexOf('id="hdlv2-abilities"') < html.indexOf('id="hdlv2-why-radar"'),
   'the bars (#hdlv2-abilities) and the radar are both on the page, bars first');
-ok(html.indexOf('Tap a few above to see what they need.') !== -1, 'nothing picked: the bars show the empty line');
+ok(/<section class="hdlv2-why-needs" id="hdlv2-why-needs" hidden>/.test(html) && src.indexOf('Tap a few above') === -1,
+  'nothing picked: the whole section (bars and radar) is hidden, and the "Tap a few above" line is gone');
+ok(/needs\.hidden = !rows\.length;[\s\S]*redrawRadar\(\)/.test(body('updatePicks')),
+  'a tap shows the section once an ability has a pick (and hides it at none), before the radar is measured and redrawn');
 ok(/class="hdlv2-why-radar"[\s\S]*class="hdlv2-why-caption"/.test(html), 'the caption sits under the radar');
 ok(html.indexOf("Who are you doing this for? First names.") !== -1 && html.indexOf('placeholder="Jenny, Leo, Mia"') !== -1, 'people label and placeholder, as written');
 ok(html.indexOf('Anything else? (optional)') !== -1, 'own-words label, as written');
@@ -357,6 +360,8 @@ ok(/\.hdlv2-why \.hdlv2-header p \{[^}]*font-size: 18px/.test(whyFlat), 'opening
 const rm = (whyFlat.match(/@media \(prefers-reduced-motion: reduce\) \{(.*?\}) \}/) || ['', ''])[1];
 ok(/\.hdlv2-why \.hdlv2-checkbox-item/.test(rm) && /\.hdlv2-why \.hdlv2-tick/.test(rm) && /\.hdlv2-ability-meter span/.test(rm) && /transition: none/.test(rm) && /transform: none/.test(rm),
   'reduced motion: every transition and transform on this page is off');
+
+ok(!/hdlv2-why-empty/.test(css + src), 'no styles or markup left for the old empty line');
 
 const submit = body('submitWhyPicks');
 ok(submit !== '', 'submitWhyPicks() exists');
