@@ -124,6 +124,7 @@ class FakeWpdb {
     public $rows = array();
     public $why = array();       // form_progress_id => row array
     public $updates = array();
+    public $after_read = null;   // runs once, right after the next token read (a write landing in between)
 
     public function prepare( $sql, ...$args ) {
         if ( 1 === count( $args ) && is_array( $args[0] ) ) $args = $args[0];
@@ -139,7 +140,9 @@ class FakeWpdb {
             foreach ( $this->rows as $r ) {
                 if ( $r->token !== $m[1] ) continue;
                 if ( null !== $r->deleted_at ) return null;
-                return clone $r;  // like a fresh DB read
+                $copy = clone $r;  // like a fresh DB read
+                if ( $this->after_read ) { $f = $this->after_read; $this->after_read = null; $f( $r ); }
+                return $copy;
             }
             return null;
         }
@@ -179,6 +182,12 @@ class FakeWpdb {
         return null;
     }
     public function query( $sql ) {
+        if ( preg_match( "/SET stage3_data = '(.*)'\s+WHERE id = (\d+)\s+AND \(stage3_completed_at IS NULL OR stage3_completed_at = ''\)/s", $sql, $m ) ) {
+            $row = $this->rows[ (int) $m[2] ] ?? null;
+            if ( ! $row || ( null !== $row->stage3_completed_at && '' !== $row->stage3_completed_at ) ) return 0;
+            $row->stage3_data = $m[1];
+            return 1;
+        }
         if ( preg_match( "/SET stage2_data = '(.*)'\s+WHERE id = (\d+)\s+AND \(stage2_completed_at IS NULL/s", $sql, $m ) ) {
             $row = $this->rows[ (int) $m[2] ] ?? null;
             if ( ! $row || ( null !== $row->stage2_completed_at && '' !== $row->stage2_completed_at ) ) return 0;
@@ -425,11 +434,45 @@ check( 'X6 single row, own words only spaces: fears = []', '[]' === ( $wpdb->why
 HDLV2_AI_Service::$fears = array( 'ending up in a care home' );
 $wpdb->rows[72] = $single_row( 72, 'I am afraid of ending up in a care home.' );
 HDLV2_Staged_Form::run_single_stage2_extraction( 72 );
-check( 'X7 single row with own words: fears stored as returned', '["ending up in a care home"]' === ( $wpdb->why[72]['fears'] ?? null ) );
+check( 'X7 single row with own words: fears = [] (v0.47.99: the extraction also files ticked statements as fears)', '[]' === ( $wpdb->why[72]['fears'] ?? null ) );
+check( 'X7b ...the own words stay in vision_text', false !== strpos( (string) ( $wpdb->why[72]['vision_text'] ?? '' ), 'I am afraid of ending up in a care home.' ) );
 $wpdb->rows[73] = make_row( 73, array( 'practitioner_user_id' => 206, 'stage2_data' => json_encode( array( 'vision_text' => $LONG ) ) ) );
 HDLV2_Staged_Form::run_single_stage2_extraction( 73 );
 check( 'X8 old-flow row (not a choices page): fears stored as returned', '["ending up in a care home"]' === ( $wpdb->why[73]['fears'] ?? null ) );
 HDLV2_AI_Service::$fears = array();
+
+// ════════ v0.47.99: a late stage-3 save cannot overwrite a finished form ════════
+function save3( $form, $row, $data, $stage = 3 ) {
+    return $form->rest_save_form( req( array( 'token' => $row->token, 'stage' => $stage, 'data' => $data ) ) );
+}
+$FINISHED = json_encode( array( 'sleepQuality' => '3', 'balance' => '2', 'server_result' => array( 'rate' => 1.04, 'bio_age' => 57.2 ) ) );
+$wpdb->rows[80] = make_row( 80, array( 'current_stage' => 3, 'stage2_completed_at' => '2026-10-05 00:00:00', 'stage3_data' => '{"sleepQuality":"3"}' ) );
+$r = save3( $form, $wpdb->rows[80], array( 'balance' => '2' ) );
+check( 'F1a open form: a stage-3 save merges as today', true === ( $r['success'] ?? null )
+    && array( 'sleepQuality' => '3', 'balance' => '2' ) === json_decode( $wpdb->rows[80]->stage3_data, true ) );
+
+$wpdb->rows[81] = make_row( 81, array( 'current_stage' => 3, 'stage2_completed_at' => '2026-10-05 00:00:00',
+    'stage3_completed_at' => '2026-10-05 01:00:00', 'stage3_data' => $FINISHED ) );
+$r = save3( $form, $wpdb->rows[81], array( 'balance' => '0' ) );
+check( 'F1b finished form: a late stage-3 save leaves stage3_data untouched, server_result included', $FINISHED === $wpdb->rows[81]->stage3_data );
+check( 'F1c ...and still answers as a success', true === ( $r['success'] ?? null ) );
+
+// The race itself: the save reads the open row, the finish lands, then the save writes.
+$wpdb->rows[82] = make_row( 82, array( 'current_stage' => 3, 'stage2_completed_at' => '2026-10-05 00:00:00', 'stage3_data' => '{"sleepQuality":"3","balance":"2"}' ) );
+$wpdb->after_read = function ( $live ) use ( $FINISHED ) {
+    $live->stage3_data = $FINISHED;
+    $live->stage3_completed_at = '2026-10-05 01:00:00';
+};
+$r = save3( $form, $wpdb->rows[82], array( 'balance' => '2' ) );
+check( 'F1d save read before the finish, written after it: the scores survive', $FINISHED === $wpdb->rows[82]->stage3_data
+    && true === ( $r['success'] ?? null ) );
+
+$wpdb->rows[83] = make_row( 83, array( 'practitioner_user_id' => 206, 'stage1_completed_at' => '2026-10-05 00:00:00', 'stage1_data' => '{"q1_age":"55"}' ) );
+save3( $form, $wpdb->rows[83], array( 'q2' => 'b' ), 1 );
+check( 'F1e stage-1 save behaves as today (written, even after stage 1 finished)', array( 'q1_age' => '55', 'q2' => 'b' ) === json_decode( $wpdb->rows[83]->stage1_data, true ) );
+$wpdb->rows[84] = make_row( 84, array( 'practitioner_user_id' => 206, 'stage2_data' => '{"vision_text":"x"}' ) );
+save3( $form, $wpdb->rows[84], array( 'audio_note' => 'y' ), 2 );
+check( 'F1f old-flow stage-2 save behaves as today', array( 'vision_text' => 'x', 'audio_note' => 'y' ) === json_decode( $wpdb->rows[84]->stage2_data, true ) );
 
 // ════════ Draft generation ════════
 $calls = count( HDLV2_AI_Service::$why_calls );

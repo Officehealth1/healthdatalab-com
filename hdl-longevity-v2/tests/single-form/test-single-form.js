@@ -144,5 +144,20 @@ const s1 = body('renderStage1Result');
 ok(/single_form/.test(s1) && /Continue your assessment/.test(s1), 'Stage 1 result has the covered-row copy');
 ok(src.indexOf('Continue to Stage 2 \\u2014 Your WHY \\u2192') !== -1, 'Stage 1 result keeps today\'s button for other rows');
 
+// ── v0.47.99: a pick clears the "choose at least 5" line ──
+// Runs the REAL clearSaveError() + setSaveStatus() against a fake save line.
+const line = { className: '', textContent: '' };
+const lineCtx = { document: { getElementById: (id) => (id === 'hdlv2-save-indicator' ? line : null) } };
+try { vm.runInNewContext(body('setSaveStatus') + '\n' + body('clearSaveError') + '\nthis.setSaveStatus = setSaveStatus; this.clearSaveError = clearSaveError;', lineCtx); } catch (e) { /* reported below */ }
+if (typeof lineCtx.clearSaveError === 'function') {
+  lineCtx.setSaveStatus('error', 'Please choose at least 5.');
+  lineCtx.clearSaveError();
+  ok(line.className === 'hdlv2-save-status' && line.textContent === '', 'after a refused Next, the next pick clears the red line');
+  lineCtx.setSaveStatus('saved', 'Saved');
+  lineCtx.clearSaveError();
+  ok(line.className === 'hdlv2-save-status saved' && line.textContent === 'Saved', 'a "Saved" line is left alone by a pick');
+} else ok(false, 'clearSaveError() exists');
+ok(/updatePicks\(\);\s*clearSaveError\(\);/.test(body('renderWhyPicks')), 'the pick handler calls clearSaveError() right after updatePicks()');
+
 console.log('\n' + PASS + ' passed, ' + FAIL + ' failed');
 process.exit(FAIL ? 1 : 0);

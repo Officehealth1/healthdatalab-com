@@ -239,7 +239,7 @@ ok(/bindTapComplete\(data\)/.test(step), 'screen 13 binds Complete through bindT
 // ── 9. Double taps, held keys and Complete (v0.47.98, gate T1 + T2) ──
 // The REAL bindTapQuestion() / bindTapComplete() under a fake clock and DOM.
 function tapHarness() {
-  const H = { clock: 0, timers: [], gone: [], completes: 0, status: [] };
+  const H = { clock: 0, timers: [], gone: [], completes: 0, status: [], autosaves: 0 };
   const listeners = {};
   function el(attrs) {
     const ls = {};
@@ -258,13 +258,15 @@ function tapHarness() {
   const ids = { 'hdlv2-tap-body': body, 'hdlv2-tap-skip': skip, 'hdlv2-complete-s3': done };
   const sb = {
     H, Date: { now: () => H.clock },
-    document: { getElementById: (id) => ids[id] || null, addEventListener: (t, f) => { listeners[t] = f; }, activeElement: null },
+    document: { getElementById: (id) => ids[id] || null, addEventListener: (t, f) => { listeners[t] = f; }, removeEventListener() {}, activeElement: null },
     setTimeout: (f, ms) => { const t = { at: H.clock + ms, f }; H.timers.push(t); return t; },
     clearTimeout: (t) => { H.timers = H.timers.filter((x) => x !== t); }
   };
   const code = v('TAP_SETTLE_MS') + '\n' + v('TAP_COMPLETE_WAIT_MS') + '\n'
-    + 'var tapAdvanceTimer = null, tapKeyHandler = null, saveTimer = null, saving = false, formData = {};\n'
+    + 'var tapAdvanceTimer = null, tapKeyHandler = null, tapSaveTimer = null, saveTimer = null, saving = false, formData = {};\n'
     + 'function tapGo(d, delta) { H.gone.push(delta); }\n'
+    + 'function autoSave(s) { H.autosaves++; }\n'
+    + fn('tapSave') + '\n' + fn('tapLeave') + '\n'
     + 'function completeStage3(d) { H.completes++; }\n'
     + 'function setSaveStatus(c, t) { H.status.push([c, t]); }\n'
     + fn('bindTapQuestion') + '\n' + fn('bindTapComplete') + '\n';
@@ -334,9 +336,51 @@ if (fn('bindTapQuestion') && fn('bindTapComplete') && v('TAP_SETTLE_MS')) {
   h.sb.bindTapComplete({});
   h.done.click();
   ok(h.completes === 1, 'no save in flight: Complete runs at once');
+
+  // v0.47.99 — a save queued by tapSave() behind one in flight must never
+  // fire after Complete (it would land on a finished form).
+  h = tapHarness();
+  h.sb.saving = true;
+  h.sb.tapSave();
+  h.sb.bindTapComplete({});
+  h.done.click();
+  h.advance(200); h.sb.saving = false; h.advance(2000);
+  ok(h.completes === 1 && h.sb.H.autosaves === 0, 'Complete pressed while a tapSave() poll is queued: completes once, the queued save never fires');
+
+  h = tapHarness();
+  h.sb.saving = true;
+  h.sb.tapSave();
+  h.sb.tapLeave();
+  h.sb.saving = false; h.advance(2000);
+  ok(h.sb.H.autosaves === 0, 'leaving a screen clears the queued tapSave() poll');
+
+  h = tapHarness();
+  h.sb.saving = true;
+  h.sb.tapSave();
+  h.advance(400); h.sb.saving = false; h.advance(400);
+  ok(h.sb.H.autosaves === 1, 'with no Complete and no leave, the queued save still fires once the first one clears');
+
+  h = tapHarness();
+  h.sb.saving = true;
+  h.sb.bindTapComplete({});
+  h.done.click();
+  h.advance(600); h.done.isConnected = false; // Previous re-renders the screen
+  h.sb.saving = false; h.advance(6000);
+  ok(h.completes === 0 && h.timers.length === 0, 'Previous during the Complete wait: the wait stops and nothing is completed');
 } else ok(false, 'bindTapQuestion(), bindTapComplete() and TAP_SETTLE_MS exist');
 
-ok(/id="hdlv2-save-indicator" class="hdlv2-save-status" role="status" aria-live="polite"/.test(src), 'the save line (where the slow-connection message goes) is announced');
+// v0.47.99 — the save line is a spoken status on the tap screens only; every
+// other caller gets the 3b5582b markup back, byte for byte.
+const OLD_LINE = '<div id="hdlv2-save-indicator" class="hdlv2-save-status"></div>';
+const lineCtx = {};
+try { vm.runInNewContext(fn('saveIndicator') + '\nthis.saveIndicator = saveIndicator;', lineCtx); } catch (e) { /* reported below */ }
+ok(typeof lineCtx.saveIndicator === 'function' && lineCtx.saveIndicator() === OLD_LINE, 'saveIndicator(): the old markup exactly');
+ok(typeof lineCtx.saveIndicator === 'function'
+  && lineCtx.saveIndicator(true) === '<div id="hdlv2-save-indicator" class="hdlv2-save-status" role="status" aria-live="polite"></div>',
+  'saveIndicator(true): the announced line (where the slow-connection message goes)');
+ok(/saveIndicator\(true\)/.test(fn('renderTapStep')) && (src.match(/saveIndicator\(true\)/g) || []).length === 1,
+  'only the tap-card frame asks for the announced line');
+ok((src.match(/saveIndicator\(\)/g) || []).length === 4, 'the four other frames call saveIndicator() as before');
 
 // ── 10. Side bar ──
 const formCss = fs.readFileSync(path.join(__dirname, '..', '..', 'assets', 'css', 'hdlv2-form.css'), 'utf8');
