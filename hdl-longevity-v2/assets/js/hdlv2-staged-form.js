@@ -51,7 +51,7 @@
   // v0.47.94 — tap-card second form: current step (0-12), the order of the
   // ten question screens, the open screen-1 row, the A-F key handler and the
   // 200 ms advance timer (cancelled by Back, as in the first check).
-  var tapStep = 0, tapOrder = [], tapOpenRow = null, tapKeyHandler = null, tapAdvanceTimer = null;
+  var tapStep = 0, tapOrder = [], tapOpenRow = null, tapKeyHandler = null, tapAdvanceTimer = null, tapSaveTimer = null;
   // v0.47.92 — single-form WHY picks; HDLV2_Why_Picks holds the same limits.
   var PICK_MIN = 5, PICK_MAX = 10;
   // v0.47.93 — ids of the theme tiles open on the picks page.
@@ -1745,7 +1745,8 @@
   // autoSave() drops a call while one is in flight; fast taps hit that, so
   // wait for it (as submitWhyPicks does) and send the whole formData after.
   function tapSave() {
-    if (saving) { setTimeout(tapSave, 300); return; }
+    tapSaveTimer = null;
+    if (saving) { tapSaveTimer = setTimeout(tapSave, 300); return; }
     autoSave(3);
   }
 
@@ -1934,6 +1935,9 @@
     done.addEventListener('click', function () {
       if (done.disabled) return;
       if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
+      // completeStage3 sends the whole formData itself; a queued save must
+      // not land after it.
+      if (tapSaveTimer) { clearTimeout(tapSaveTimer); tapSaveTimer = null; }
       done.disabled = true;
       done.textContent = 'Saving\u2026';
       startedAt = Date.now();

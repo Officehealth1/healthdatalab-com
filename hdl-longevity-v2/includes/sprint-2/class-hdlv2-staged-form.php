@@ -264,13 +264,23 @@ class HDLV2_Staged_Form {
         $merged       = array_merge( $existing, $data );
 
         global $wpdb;
-        $wpdb->update(
-            $wpdb->prefix . 'hdlv2_form_progress',
-            array( $column => wp_json_encode( $merged ) ),
-            array( 'id' => $progress->id ),
-            array( '%s' ),
-            array( '%d' )
-        );
+        if ( $stage === 3 ) {
+            // v0.47.99 — conditional on the form still being open: a save that
+            // read the row before Complete and lands after it would put the row
+            // back without the server_result Complete just wrote.
+            $wpdb->query( $wpdb->prepare(
+                "UPDATE {$wpdb->prefix}hdlv2_form_progress SET stage3_data = %s WHERE id = %d AND (stage3_completed_at IS NULL OR stage3_completed_at = '')",
+                wp_json_encode( $merged ), (int) $progress->id
+            ) );
+        } else {
+            $wpdb->update(
+                $wpdb->prefix . 'hdlv2_form_progress',
+                array( $column => wp_json_encode( $merged ) ),
+                array( 'id' => $progress->id ),
+                array( '%s' ),
+                array( '%d' )
+            );
+        }
 
         // Fire Stage 2 webhook to Make.com — only on explicit Submit, not auto-save
         // Guard: skip if webhook already fired for identical text (prevents duplicate PDFs/emails)

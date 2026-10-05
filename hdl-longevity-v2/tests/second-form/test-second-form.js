@@ -232,7 +232,7 @@ ok(/aria-expanded/.test(src) && /aria-controls="hdlv2-tap-opts-/.test(src), 'Cha
 ok(/completeStage3\(data\)/.test(fn('renderTapStep')) || /completeStage3\(data\)/.test(src.slice(src.indexOf('function renderTapStep'))), 'screen 13 completes with today\'s completeStage3()');
 ok(/metaKey|ctrlKey/.test(src.slice(src.indexOf('tapKeyHandler = function'), src.indexOf('tapKeyHandler = function') + 600)), 'A–F keys ignore Cmd/Ctrl shortcuts');
 
-ok(/if \(saving\) \{ setTimeout\(tapSave, 300\); return; \}/.test(fn('tapSave')) && /tapSave\(\);/.test(fn('tapGo')) && !/autoSave/.test(fn('tapGo')),
+ok(/if \(saving\) \{ tapSaveTimer = setTimeout\(tapSave, 300\); return; \}/.test(fn('tapSave')) && /tapSave\(\);/.test(fn('tapGo')) && !/autoSave/.test(fn('tapGo')),
   'leaving a screen waits for a save in flight instead of dropping it');
 ok(/bindTapComplete\(data\)/.test(step), 'screen 13 binds Complete through bindTapComplete()');
 
@@ -352,7 +352,7 @@ if (fn('bindTapQuestion') && fn('bindTapComplete') && v('TAP_SETTLE_MS')) {
   h.sb.tapSave();
   h.sb.tapLeave();
   h.sb.saving = false; h.advance(2000);
-  ok(h.sb.H.autosaves === 0, 'leaving a screen clears the queued tapSave() poll');
+  ok(h.sb.H.autosaves === 1, 'a re-render (tapLeave runs on every render, right after tapGo queues its save) keeps the queued save');
 
   h = tapHarness();
   h.sb.saving = true;
