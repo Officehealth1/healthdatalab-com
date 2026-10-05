@@ -3,8 +3,8 @@
  * Consultations list in the Clients-page theme (v0.47.96).
  *
  * Extracts and runs the REAL list helpers from
- * assets/js/hdlv2-consultation.js (sortConsultations, listSentence,
- * listRowModel, renderListTable) plus the real esc() and
+ * assets/js/hdlv2-consultation.js (sortConsultations, listActivityAt,
+ * listSentence, listRowModel, renderListTable) plus the real esc() and
  * formatRelativeTime(), then scans the list code and the .cl-* CSS for
  * what the redesign removed (tiles, count pills, avatars, the orange rail,
  * "Stage 3" wording, off-palette colours).
@@ -46,7 +46,7 @@ const fakeDocument = {
   }
 };
 
-const NAMES = ['esc', 'formatRelativeTime', 'sortConsultations', 'listSentence', 'listRowModel', 'renderListTable'];
+const NAMES = ['esc', 'formatRelativeTime', 'listActivityAt', 'sortConsultations', 'listSentence', 'listRowModel', 'renderListTable'];
 const ctx = { document: fakeDocument, Date: Date, Math: Math, Number: Number, String: String, isNaN: isNaN, encodeURIComponent: encodeURIComponent };
 let loaded = true;
 try {
