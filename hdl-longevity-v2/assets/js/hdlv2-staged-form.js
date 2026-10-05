@@ -1326,20 +1326,20 @@
     return n + ' picked.' + (n < PICK_MIN ? ' Pick at least ' + PICK_MIN + '.' : '');
   }
 
-  // Pure: one wedge per ability, in the server's order. Size = count over
-  // the larger of 3 and the highest count, so one pick never fills the wheel.
-  function wedgeSizes(rows, names) {
+  // Pure: the radar's numbers. Every ability in the server's order with its
+  // count, and the scale top: the larger of 3 and the highest count, so one
+  // pick never reaches the edge.
+  function radarData(rows, names) {
     var counts = {}, top = 3;
     (rows || []).forEach(function (r) { counts[r.id] = r.count; top = Math.max(top, r.count); });
-    return Object.keys(names || {}).map(function (id) {
-      var c = counts[id] || 0;
-      return { id: id, label: names[id], count: c, size: c / top };
-    });
+    return { top: top, spokes: Object.keys(names || {}).map(function (id) {
+      return { id: id, label: names[id], count: counts[id] || 0 };
+    }) };
   }
 
   // Pure: the chart said in words, for a screen reader.
-  function chartLabel(wedges) {
-    var parts = wedges.filter(function (w) { return w.count > 0; }).map(function (w) { return w.label + ' ' + w.count; });
+  function chartLabel(spokes) {
+    var parts = spokes.filter(function (w) { return w.count > 0; }).map(function (w) { return w.label + ' ' + w.count; });
     return parts.length ? 'What your picks need: ' + parts.join(', ') + '.' : 'Nothing picked yet.';
   }
 
@@ -1370,29 +1370,79 @@
       + ICONS[name] + '</svg>';
   }
 
-  // The polar chart: one 45° wedge per ability (2° apart, from the top),
-  // three guide rings, a picture and a one-word name outside each wedge.
-  // A wedge with no picks is not drawn. No library, no animation.
-  function polarChart(wedges) {
-    var C = 170, R = 92, L = 136;
-    var pt = function (r, deg) {
-      var a = deg * Math.PI / 180;
-      return (C + r * Math.cos(a)).toFixed(1) + ' ' + (C + r * Math.sin(a)).toFixed(1);
-    };
-    var out = '<svg class="hdlv2-why-wheel" viewBox="0 0 340 340" role="img" aria-label="' + esc(chartLabel(wedges)) + '">';
-    [1, 2, 3].forEach(function (k) {
-      out += '<circle cx="' + C + '" cy="' + C + '" r="' + (R * k / 3).toFixed(1) + '" fill="none" stroke="#e4e6ea"/>';
+  // v0.48.1 — the bars: one row per ability with a pick, most picks first.
+  // The meter is count over the number of picks; the words carry the number.
+  function abilityBars(rows, total) {
+    if (!rows.length) return '<p class="hdlv2-why-empty">Tap a few above to see what they need.</p>';
+    return '<div class="hdlv2-ability-list" role="list">' + rows.map(function (r) {
+      return '<div class="hdlv2-ability" role="listitem">' + pickIcon(r.id)
+        + '<span class="hdlv2-ability-name">' + esc(r.label) + '</span>'
+        + '<span class="hdlv2-ability-count">' + r.count + ' of your picks</span>'
+        + '<span class="hdlv2-ability-meter" aria-hidden="true"><span style="width:' + Math.round(r.count / total * 100) + '%"></span></span></div>';
+    }).join('') + '</div>';
+  }
+
+  // v0.48.1 — the radar, drawn the way the report's radar is (Chart.js on
+  // screen, QuickChart in the PDF; see build_radar_chart_url()): straight-line
+  // web, a pale teal shape with a teal outline and a dot per point. Inline SVG,
+  // no library, no animation. Drawn one unit per pixel at the width it is
+  // given, so the names stay 14px on a phone; the web takes what room is left.
+  function radarChart(data, width) {
+    var F = 14, GAP = 8, IC = 24, BH = IC + 4 + F;   // name size, clear space, picture, name block height
+    var n = data.spokes.length, top = data.top;
+    var dir = data.spokes.map(function (s, i) {
+      var a = (-90 + 360 / n * i) * Math.PI / 180;
+      // ponytail: name width is estimated (0.6em a letter, on the wide side), not measured
+      return { c: Math.cos(a), s: Math.sin(a), hw: Math.max(IC, s.label.length * F * 0.6) / 2 };
     });
-    wedges.forEach(function (w, i) {
-      var from = -90 + 45 * i + 1, to = from + 43, mid = from + 21.5;
-      var r = w.size * R;
-      if (w.count > 0) {
-        out += '<path d="M' + C + ' ' + C + ' L' + pt(r, from) + ' A' + r.toFixed(1) + ' ' + r.toFixed(1) + ' 0 0 1 ' + pt(r, to) + ' Z" fill="#3d8da0"/>';
-      }
-      var a = mid * Math.PI / 180, x = C + L * Math.cos(a), y = C + L * Math.sin(a);
-      out += '<g class="hdlv2-why-spoke' + (w.count > 0 ? ' has-picks' : '') + '">'
-        + pickIcon(w.id, (x - 12).toFixed(1), (y - 26).toFixed(1))
-        + '<text x="' + x.toFixed(1) + '" y="' + (y + 14).toFixed(1) + '" text-anchor="middle">' + esc(w.label) + '</text></g>';
+    // Each name block sits just outside the end of its spoke, touching it.
+    var place = function (R, d) {
+      var t = 1 / Math.max(Math.abs(d.c) / d.hw, Math.abs(d.s) / (BH / 2));
+      return { x: (R + GAP) * d.c + t * d.c, y: (R + GAP) * d.s + t * d.s };
+    };
+    var edges = function (R) {
+      var e = { l: 0, r: 0, t: 0, b: 0 };
+      dir.forEach(function (d) {
+        var p = place(R, d);
+        e.l = Math.min(e.l, p.x - d.hw); e.r = Math.max(e.r, p.x + d.hw);
+        e.t = Math.min(e.t, p.y - BH / 2); e.b = Math.max(e.b, p.y + BH / 2);
+      });
+      return e;
+    };
+    var R = Math.floor(width / 2), e = edges(R);
+    while (R > 30 && e.r - e.l > width - 4) { R--; e = edges(R); }
+    var cx = (width - (e.r - e.l)) / 2 - e.l, cy = 2 - e.t, h = e.b - e.t + 4;
+    var f = function (v) { return v.toFixed(1); };
+    var pt = function (r, d) { return f(cx + r * d.c) + ',' + f(cy + r * d.s); };
+    var web = 'stroke="rgba(0,0,0,0.08)" stroke-width="1"';
+
+    var out = '<svg class="hdlv2-why-wheel-svg" viewBox="0 0 ' + width + ' ' + f(h) + '" data-cx="' + f(cx) + '" data-cy="' + f(cy) + '" data-r="' + R + '"'
+      + ' role="img" aria-label="' + esc(chartLabel(data.spokes)) + '">';
+    for (var k = 1; k <= top; k++) {
+      out += '<polygon class="hdlv2-why-ring" points="' + dir.map(function (d) { return pt(R * k / top, d); }).join(' ') + '" fill="none" ' + web + '/>';
+    }
+    dir.forEach(function (d) {
+      out += '<line class="hdlv2-why-axis" x1="' + f(cx) + '" y1="' + f(cy) + '" x2="' + f(cx + R * d.c) + '" y2="' + f(cy + R * d.s) + '" ' + web + '/>';
+    });
+    var step = Math.ceil(12 / (R / top));            // keep ring numbers 12px apart
+    for (k = step; k <= top; k += step) {
+      out += '<text class="hdlv2-why-tick" x="' + f(cx + 4) + '" y="' + f(cy - R * k / top + 3) + '">' + k + '</text>';
+    }
+    if (data.spokes.some(function (s) { return s.count > 0; })) {
+      out += '<polygon class="hdlv2-why-shape" points="' + data.spokes.map(function (s, i) { return pt(R * s.count / top, dir[i]); }).join(' ')
+        + '" fill="rgba(61, 141, 160, 0.15)" stroke="rgba(61, 141, 160, 0.9)" stroke-width="2" stroke-linejoin="round"/>';
+      data.spokes.forEach(function (s, i) {
+        if (s.count > 0) {
+          var p = pt(R * s.count / top, dir[i]).split(',');
+          out += '<circle class="hdlv2-why-dot" cx="' + p[0] + '" cy="' + p[1] + '" r="4.5" fill="#3d8da0" stroke="#fff" stroke-width="1.5"/>';
+        }
+      });
+    }
+    data.spokes.forEach(function (s, i) {
+      var p = place(R, dir[i]), x = cx + p.x, y = cy + p.y - BH / 2;
+      out += '<g class="hdlv2-why-spoke' + (s.count > 0 ? ' has-picks' : '') + '">'
+        + pickIcon(s.id, f(x - IC / 2), f(y))
+        + '<text x="' + f(x) + '" y="' + f(y + BH - 3) + '" text-anchor="middle">' + esc(s.label) + '</text></g>';
     });
     return out + '</svg>';
   }
@@ -1419,14 +1469,23 @@
           }).join('')
         + '</div></div>';
     }).join('');
-    var wedges = wedgeSizes(abilityCounts(d.why_picks, groups, data.why_abilities), data.why_ability_short || data.why_abilities);
+    var names = data.why_ability_short || data.why_abilities;
+    var rows = abilityCounts(d.why_picks, groups, names);
 
     root.innerHTML = '<div class="hdlv2-card hdlv2-why">'
       + '<div class="hdlv2-header"><h2>What matters most to you</h2><p>Pick the 5 to 10 that matter most to you in your last decade of life.</p></div>'
       + '<div class="hdlv2-form-body">'
       +   '<div class="hdlv2-why-groups">' + columns + '</div>'
       +   '<p id="hdlv2-picks-count" class="hdlv2-picks-count" aria-live="polite"></p>'
-      +   '<div class="hdlv2-why-chart"><h3>What your picks need</h3><div id="hdlv2-why-wheel">' + polarChart(wedges) + '</div></div>'
+      +   '<section class="hdlv2-why-needs">'
+      +     '<h3>What your picks need from your body</h3>'
+      +     '<p>Each thing you picked needs some of these. Your plan starts with the ones your health answers show are weakest.</p>'
+      +     '<div class="hdlv2-why-needs-body">'
+      +       '<div id="hdlv2-abilities" class="hdlv2-abilities">' + abilityBars(rows, d.why_picks.length) + '</div>'
+      +       '<div class="hdlv2-why-radar"><div id="hdlv2-why-radar">' + radarChart(radarData(rows, names), 440) + '</div>'
+      +       '<p class="hdlv2-why-caption">The further out, the more of your picks need it.</p></div>'
+      +     '</div>'
+      +   '</section>'
       +   picksTextarea('key_people_text', 'Who are you doing this for? First names.', d.key_people_text, 'Jenny, Leo, Mia', 300)
       +   picksTextarea('own_words', 'Anything else? (optional)', d.own_words, '', 600)
       +   '<button type="button" id="hdlv2-picks-next" class="hdlv2-btn">Next &#8594;</button>'
@@ -1447,7 +1506,7 @@
     updatePicks();
   }
 
-  // Sync the statements, the count line and the chart with
+  // Sync the statements, the count line, the bars and the radar with
   // formData.why_picks; at the limit the unchosen statements are disabled.
   function updatePicks() {
     var picks = formData.why_picks || [];
@@ -1461,11 +1520,12 @@
     });
     var count = document.getElementById('hdlv2-picks-count');
     if (count) count.textContent = pickCountLine(picks.length);
-    var wheel = document.getElementById('hdlv2-why-wheel');
-    if (wheel) {
-      wheel.innerHTML = polarChart(wedgeSizes(abilityCounts(picks, groups, serverData.why_abilities),
-        serverData.why_ability_short || serverData.why_abilities));
-    }
+    var names = serverData.why_ability_short || serverData.why_abilities;
+    var rows = abilityCounts(picks, groups, names);
+    var bars = document.getElementById('hdlv2-abilities');
+    if (bars) bars.innerHTML = abilityBars(rows, picks.length);
+    var radar = document.getElementById('hdlv2-why-radar');
+    if (radar) radar.innerHTML = radarChart(radarData(rows, names), Math.min(440, radar.clientWidth || 440));
   }
 
   function picksTextarea(name, label, value, placeholder, maxlength) {

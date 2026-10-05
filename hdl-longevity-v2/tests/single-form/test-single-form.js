@@ -108,7 +108,7 @@ if (typeof pickCountLine === 'function') {
 
 // v0.48.1 — the radar's numbers: every ability in the server's order with its
 // count, and the scale top = the larger of 3 and the highest count.
-ok(body('wedgeSizes') === '' && body('polarChart') === '' && !/wedgeSizes|polarChart|hdlv2-why-wheel"|hdlv2-why-spoke/.test(src),
+ok(body('wedgeSizes') === '' && body('polarChart') === '' && !/wedgeSizes|polarChart|id="hdlv2-why-wheel"/.test(src),
   'the wedge chart is gone: no wedgeSizes(), no polarChart(), no wedge styles hooks');
 if (typeof radarData === 'function') {
   const zero = radarData([], SHORT);

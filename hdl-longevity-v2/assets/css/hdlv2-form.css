@@ -637,9 +637,16 @@
   color: #2c3e50;
 }
 
-/* "What your picks need": the polar chart. */
-.hdlv2-why-chart { margin: 8px 0 24px; }
-.hdlv2-why-chart h3 {
+/* v0.48.1 — "What your picks need from your body": the bars and a radar
+   drawn like the report's radar, side by side from 900px, bars first below. */
+.hdlv2-why-needs {
+  margin: 36px 0 0;
+  padding: 24px;
+  background: #fff;
+  border: 1px solid #e4e6ea;
+  border-radius: 12px;
+}
+.hdlv2-why-needs h3 {
   margin: 0 0 8px;
   padding: 0;
   font-family: 'Poppins', 'Inter', sans-serif;
@@ -648,10 +655,43 @@
   line-height: 1.3;
   color: #004F59;
 }
-.hdlv2-why-wheel { display: block; width: 100%; max-width: 340px; height: auto; margin: 0 auto; }
-.hdlv2-why-spoke { color: #666; }
+.hdlv2-why-needs p {
+  margin: 0 0 20px;
+  padding: 0;
+  font-size: 17px;
+  line-height: 1.4;
+  color: #2c3e50;
+}
+.hdlv2-why-needs-body { display: grid; gap: 28px; align-items: start; }
+@media (min-width: 900px) {
+  .hdlv2-why-needs-body { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 32px; }
+}
+.hdlv2-ability-list { display: grid; gap: 16px; }
+.hdlv2-ability {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr) auto;
+  gap: 8px 10px;
+  align-items: center;
+  color: #004F59;
+}
+.hdlv2-ability-name { font-size: 17px; font-weight: 600; line-height: 1.3; color: #2c3e50; }
+.hdlv2-ability-count { font-size: 16px; color: #666; }
+.hdlv2-ability-meter {
+  grid-column: 1 / -1;
+  height: 8px;
+  background: #e4e6ea;
+  border-radius: 999px;
+  overflow: hidden;
+}
+.hdlv2-ability-meter span { display: block; height: 100%; background: #3d8da0; border-radius: 999px; }
+.hdlv2-why-needs .hdlv2-why-empty { margin: 0; }
+.hdlv2-why-wheel-svg { display: block; width: 100%; max-width: 440px; height: auto; margin: 0 auto; }
+.hdlv2-why-spoke { color: #2c3e50; }
 .hdlv2-why-spoke.has-picks { color: #004F59; }
-.hdlv2-why-spoke text { font-family: 'Inter', sans-serif; font-size: 14px; font-weight: 600; fill: currentColor; }
+.hdlv2-why-spoke text { font-family: 'Inter', sans-serif; font-size: 14px; font-weight: 500; fill: currentColor; }
+.hdlv2-why-spoke.has-picks text { font-weight: 600; }
+.hdlv2-why-tick { font-family: 'Inter', sans-serif; font-size: 9px; fill: #999; }
+.hdlv2-why .hdlv2-why-caption { margin: 12px 0 0; font-size: 16px; color: #666; }
 .hdlv2-why-icon { flex: none; color: inherit; }
 
 /* ── VIDEO EMBED ── */
