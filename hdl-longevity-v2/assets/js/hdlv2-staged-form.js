@@ -56,12 +56,13 @@
   var PICK_MIN = 5, PICK_MAX = 10;
 
   // v0.40.2 — Centralised width modifier for .hdlv2-assessment-root.
-  // Three states: '' (default 620px), 'is-medium' (760px), 'is-wide' (full).
+  // Four states: '' (default 620px), 'is-medium' (760px), 'is-wide' (full),
+  // 'is-picks' (1080px, v0.48.1 — the choices page only).
   // Each renderer calls this at its entry so navigation between stages can't
   // leave the root in a stale wider/narrower state.
   function setRootClasses(modifier) {
     if (!root) return;
-    root.classList.remove('is-wide', 'is-medium');
+    root.classList.remove('is-wide', 'is-medium', 'is-picks');
     if (modifier) root.classList.add(modifier);
   }
 
@@ -1397,7 +1398,7 @@
   }
 
   function renderWhyPicks(data) {
-    setRootClasses('is-medium');
+    setRootClasses('is-picks');
     var d = formData;
     var groups = data.why_options || [];
     // Keep only ids still on offer (a retired or hand-edited id is dropped).
