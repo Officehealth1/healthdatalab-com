@@ -54,6 +54,18 @@ class HDLV2_Why_Picks {
         'connection'  => 'Connection',
     );
 
+    /** v0.48.0 — one-word names for the chart on the picks page. */
+    const ABILITY_SHORT = array(
+        'strength'    => 'Strength',
+        'mobility'    => 'Mobility',
+        'flexibility' => 'Flexibility',
+        'balance'     => 'Balance',
+        'stamina'     => 'Stamina',
+        'mind'        => 'Mind',
+        'energy'      => 'Energy',
+        'connection'  => 'Connection',
+    );
+
     /**
      * Which saved answers measure each ability. `stage3` keys are
      * HDLV2_Rate_Calculator::calculate_full() scores (0-5), `stage1` keys are
@@ -102,75 +114,76 @@ class HDLV2_Why_Picks {
     const FOCUS_LIMIT     = 3;
 
     /**
-     * Groups in display order: title, short title (the theme tile), items.
-     * Draft copy for Matthew to edit (labels may be reworded; ids may not
-     * change).
+     * Groups in display order: title, short title, items.
+     * v0.48.0 (Matthew, 2026-10-05: fewer words, an emotional pull, three
+     * columns): the page offers 24 short statements in three groups. Every
+     * earlier statement stays below, retired, with its old wording and tags,
+     * so saved rows keep reading it. Draft copy for Matthew to edit (labels
+     * may be reworded; ids may not change).
      */
     public static function catalogue() {
         $groups = array(
-            'family' => array( 'Family and the people I love', 'Family', array(
-                array( 'floor_grandkids', 'Get down on the floor to play with my grandchildren, and get back up without help', 'mobility,flexibility,strength' ),
-                array( 'lift_grandchild', 'Pick up a grandchild and carry them on my hip', 'strength,balance' ),
-                array( 'keep_up_children', 'Keep up with the children at the park without needing to sit down', 'stamina' ),
-                array( 'dance_wedding', 'Dance at a family wedding until the last song', 'stamina,balance' ),
-                array( 'host_family_meal', 'Cook and host a big family meal on my own', 'stamina,connection' ),
-                array( 'walk_with_partner', 'Walk hand in hand with my partner for an hour', 'stamina,connection' ),
-                array( 'carer_not_cared_for', 'Be the one who looks after my partner, not the one being looked after', 'strength,stamina' ),
-                array( 'remember_family', 'Remember every grandchild\'s name, birthday and story', 'mind' ),
-                array( 'teach_grandchild', 'Teach a grandchild something I am good at', 'mind,connection' ),
-                array( 'present_big_moments', 'Be fully present at the big moments: graduations, weddings, great-grandchildren', 'energy,mind' ),
+            'people' => array( 'People I love', 'People I love', array(
+                array( 'floor_grandkids', 'Play on the floor with my grandkids', 'mobility,flexibility,strength' ),
+                array( 'lift_grandchild', 'Scoop up a grandchild for a hug', 'strength,balance' ),
+                array( 'keep_up_children', 'Chase the kids around the park', 'stamina' ),
+                array( 'dance_wedding', 'Dance all night at a family wedding', 'stamina,balance' ),
+                array( 'remember_family', 'Remember every grandchild\'s name and story', 'mind' ),
+                array( 'walk_with_partner', 'Walk hand in hand with my partner', 'stamina,connection' ),
+                array( 'see_friends_weekly', 'Laugh with my friends every week', 'connection' ),
+                array( 'present_big_moments', 'Be there for every big family moment', 'energy,connection' ),
             ) ),
-            'home' => array( 'Staying independent at home', 'Independence', array(
-                array( 'stairs_no_rail', 'Climb the stairs in my own home without holding the rail', 'strength,balance' ),
-                array( 'carry_shopping', 'Carry my own shopping from the car to the kitchen', 'strength' ),
-                array( 'up_from_low_seat', 'Get up from a low sofa without using my hands', 'strength,mobility' ),
-                array( 'dress_myself', 'Dress myself, socks and shoelaces included', 'flexibility,balance' ),
-                array( 'bath_shower_alone', 'Get in and out of the bath or shower safely on my own', 'balance,mobility' ),
-                array( 'reach_top_cupboard', 'Reach the top cupboard and lift something down', 'flexibility,strength' ),
-                array( 'keep_driving', 'Keep driving safely, including turning to look over my shoulder', 'mind,flexibility' ),
-                array( 'manage_own_affairs', 'Manage my own money, appointments and paperwork', 'mind' ),
-                array( 'live_in_own_home', 'Live in my own home for as long as I choose', 'strength,balance,mind', true ),
-                array( 'up_after_fall', 'Get up from the floor by myself if I ever fall', 'strength,mobility' ),
-                array( 'walk_to_shops', 'Walk to the shops and back without stopping to rest', 'stamina' ),
+            'freedom' => array( 'My freedom', 'My freedom', array(
+                array( 'not_a_burden', 'Never be a burden on my family', 'strength,balance,mind' ),
+                array( 'live_in_own_home', 'Stay in my own home, on my terms', 'strength,balance,mind' ),
+                array( 'stairs_no_rail', 'Climb my stairs without holding on', 'strength,balance' ),
+                array( 'up_after_fall', 'Get back up by myself if I fall', 'strength,mobility' ),
+                array( 'keep_driving', 'Drive myself wherever I want', 'mind,flexibility' ),
+                array( 'manage_own_affairs', 'Stay sharp and run my own life', 'mind' ),
+                array( 'dress_myself', 'Wash and dress myself, with dignity', 'flexibility,balance,mobility' ),
+                array( 'uneven_ground', 'Walk anywhere without fear of falling', 'balance' ),
             ) ),
-            'travel' => array( 'Travel and adventure', 'Travel', array(
-                array( 'lift_suitcase', 'Lift my own suitcase into the overhead locker', 'strength' ),
-                array( 'walk_city_all_day', 'Walk around a new city all day and still enjoy dinner', 'stamina' ),
-                array( 'long_flight', 'Take a long flight and feel fine the next day', 'energy' ),
-                array( 'hike_hills', 'Hike a hill or a coastal path with friends', 'stamina,balance' ),
+            'things' => array( 'Things I love', 'Things I love', array(
+                array( 'keep_my_sport', 'Keep playing the sport I love', 'mobility,strength,balance' ),
+                array( 'day_in_garden', 'Spend a whole day in my garden', 'strength,mobility' ),
+                array( 'hike_hills', 'Hike the hills with my friends', 'stamina,balance' ),
                 array( 'swim_in_sea', 'Swim in the sea', 'stamina,strength' ),
-                array( 'uneven_ground', 'Walk on cobbles, sand or a rocky path without fear of falling', 'balance' ),
+                array( 'walk_city_all_day', 'Explore a new city all day', 'stamina' ),
+                array( 'keep_working', 'Keep doing work that matters to me', 'mind,energy' ),
+                array( 'learn_something_new', 'Learn something new every year', 'mind' ),
+                array( 'wake_rested', 'Wake up full of energy', 'energy' ),
+            ) ),
+            // Retired in v0.48.0 (or earlier), in their 0.47.99 order. Never offered.
+            'retired' => array( 'Earlier statements', 'Earlier statements', array(
+                array( 'host_family_meal', 'Cook and host a big family meal on my own', 'stamina,connection', true ),
+                array( 'carer_not_cared_for', 'Be the one who looks after my partner, not the one being looked after', 'strength,stamina', true ),
+                array( 'teach_grandchild', 'Teach a grandchild something I am good at', 'mind,connection', true ),
+                array( 'carry_shopping', 'Carry my own shopping from the car to the kitchen', 'strength', true ),
+                array( 'up_from_low_seat', 'Get up from a low sofa without using my hands', 'strength,mobility', true ),
+                array( 'bath_shower_alone', 'Get in and out of the bath or shower safely on my own', 'balance,mobility', true ),
+                array( 'reach_top_cupboard', 'Reach the top cupboard and lift something down', 'flexibility,strength', true ),
+                array( 'walk_to_shops', 'Walk to the shops and back without stopping to rest', 'stamina', true ),
+                array( 'lift_suitcase', 'Lift my own suitcase into the overhead locker', 'strength', true ),
+                array( 'long_flight', 'Take a long flight and feel fine the next day', 'energy', true ),
                 array( 'trip_short_notice', 'Say yes to a trip at short notice', 'energy,stamina', true ),
-                array( 'ride_bicycle', 'Ride a bicycle', 'balance,stamina' ),
-                array( 'visit_far_family', 'Travel to see family or friends who live far away', 'stamina,connection' ),
-            ) ),
-            'movement' => array( 'Sport, movement and things I enjoy', 'Sport and hobbies', array(
-                array( 'keep_my_sport', 'Keep playing my sport: golf, tennis, bowls, skiing', 'mobility,strength,balance' ),
-                array( 'day_in_garden', 'Spend a full day in the garden: digging, kneeling, lifting', 'strength,mobility' ),
-                array( 'run_for_bus', 'Run for a bus or a train, and catch it', 'stamina' ),
-                array( 'dance_regularly', 'Dance regularly', 'balance,stamina' ),
-                array( 'do_own_diy', 'Do my own repairs at home: climb a ladder, carry tools', 'balance,strength' ),
-                array( 'walk_dog_daily', 'Walk the dog every day, whatever the weather', 'stamina' ),
-                array( 'sit_on_floor', 'Sit cross-legged on the floor and get up easily', 'flexibility,mobility' ),
-                array( 'steady_hands_craft', 'Keep playing my instrument or doing my craft with steady hands', 'mind' ),
+                array( 'ride_bicycle', 'Ride a bicycle', 'balance,stamina', true ),
+                array( 'visit_far_family', 'Travel to see family or friends who live far away', 'stamina,connection', true ),
+                array( 'run_for_bus', 'Run for a bus or a train, and catch it', 'stamina', true ),
+                array( 'dance_regularly', 'Dance regularly', 'balance,stamina', true ),
+                array( 'do_own_diy', 'Do my own repairs at home: climb a ladder, carry tools', 'balance,strength', true ),
+                array( 'walk_dog_daily', 'Walk the dog every day, whatever the weather', 'stamina', true ),
+                array( 'sit_on_floor', 'Sit cross-legged on the floor and get up easily', 'flexibility,mobility', true ),
+                array( 'steady_hands_craft', 'Keep playing my instrument or doing my craft with steady hands', 'mind', true ),
                 array( 'intimate_life', 'Keep an active intimate life with my partner', 'stamina,energy', true ),
-            ) ),
-            'mind' => array( 'Mind, work and purpose', 'Mind and purpose', array(
-                array( 'sharp_conversation', 'Stay sharp in conversation and follow a fast discussion', 'mind' ),
-                array( 'keep_working', 'Keep working, or running my business, for as long as I want', 'mind,energy' ),
-                array( 'learn_something_new', 'Learn something new: a language, an instrument, a skill', 'mind' ),
-                array( 'read_for_an_hour', 'Read a book for an hour without losing concentration', 'mind' ),
-                array( 'volunteer_mentor', 'Volunteer or mentor, and be useful to others', 'energy,connection' ),
-                array( 'never_lost_for_words', 'Find the right word or name the moment I want it', 'mind' ),
-                array( 'write_life_story', 'Write down my life story for my family', 'mind' ),
-            ) ),
-            'everyday' => array( 'Everyday energy and feeling well', 'Everyday energy', array(
-                array( 'wake_rested', 'Wake up rested and ready for the day', 'energy' ),
-                array( 'energy_in_evening', 'Have energy left in the evening for the people I love', 'energy' ),
-                array( 'move_without_aches', 'Move through the day without aches deciding what I do', 'mobility' ),
-                array( 'see_friends_weekly', 'See my friends every week', 'connection' ),
+                array( 'sharp_conversation', 'Stay sharp in conversation and follow a fast discussion', 'mind', true ),
+                array( 'read_for_an_hour', 'Read a book for an hour without losing concentration', 'mind', true ),
+                array( 'volunteer_mentor', 'Volunteer or mentor, and be useful to others', 'energy,connection', true ),
+                array( 'never_lost_for_words', 'Find the right word or name the moment I want it', 'mind', true ),
+                array( 'write_life_story', 'Write down my life story for my family', 'mind', true ),
+                array( 'energy_in_evening', 'Have energy left in the evening for the people I love', 'energy', true ),
+                array( 'move_without_aches', 'Move through the day without aches deciding what I do', 'mobility', true ),
                 array( 'steady_in_body', 'Feel confident and steady in my own body', 'balance,strength', true ),
-                array( 'calm_under_pressure', 'Stay calm and good-humoured under pressure', 'mind' ),
+                array( 'calm_under_pressure', 'Stay calm and good-humoured under pressure', 'mind', true ),
             ) ),
         );
 
@@ -185,7 +198,7 @@ class HDLV2_Why_Picks {
         return $out;
     }
 
-    /** What /form/load sends the page: groups with their active items. */
+    /** What /form/load sends the page: groups with active items, and only those items. */
     public static function options_for_page() {
         $out = array();
         foreach ( static::catalogue() as $g ) {
@@ -193,7 +206,7 @@ class HDLV2_Why_Picks {
             foreach ( $g['items'] as $it ) {
                 if ( empty( $it['retired'] ) ) $items[] = array( 'id' => $it['id'], 'label' => $it['label'], 'needs' => $it['needs'] );
             }
-            $out[] = array( 'id' => $g['id'], 'title' => $g['title'], 'short' => $g['short'], 'items' => $items );
+            if ( $items ) $out[] = array( 'id' => $g['id'], 'title' => $g['title'], 'short' => $g['short'], 'items' => $items );
         }
         return $out;
     }
@@ -265,7 +278,7 @@ class HDLV2_Why_Picks {
     /** The first-person paragraph the existing WHY extraction reads. */
     public static function compose_vision_text( $pick_ids, $people, $own_words ) {
         $labels = self::labels( $pick_ids );
-        $text   = "In my later years, I want to be able to:\n- " . implode( "\n- ", array_column( $labels, 'label' ) );
+        $text   = "In my later years, I want to:\n- " . implode( "\n- ", array_column( $labels, 'label' ) );
         $people = self::plain( $people, self::MAX_PEOPLE_LEN );
         $own    = self::plain( $own_words, self::MAX_OWN_WORDS_LEN );
         if ( '' !== $people ) $text .= "\nThe people I most want to stay healthy and strong for: " . $people;

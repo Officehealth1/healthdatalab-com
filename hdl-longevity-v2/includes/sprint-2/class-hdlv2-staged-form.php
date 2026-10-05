@@ -208,6 +208,8 @@ class HDLV2_Staged_Form {
             // v0.47.93 — ability id → display name, for the captions and the
             // "what your choices ask of your body" panel.
             $response['why_abilities'] = HDLV2_Why_Picks::ABILITY_LABELS;
+            // v0.48.0 — one-word names for the polar chart on that page.
+            $response['why_ability_short'] = HDLV2_Why_Picks::ABILITY_SHORT;
         }
 
         // v0.47.94 — the tap-card second form orders its questions and writes
