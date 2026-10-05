@@ -1378,8 +1378,9 @@
 
   // v0.48.1 — the bars: one row per ability with a pick, most picks first.
   // The meter is count over the number of picks; the words carry the number.
+  // v0.48.3 — nothing picked: nothing here; the whole section is hidden.
   function abilityBars(rows, total) {
-    if (!rows.length) return '<p class="hdlv2-why-empty">Tap a few above to see what they need.</p>';
+    if (!rows.length) return '';
     return '<div class="hdlv2-ability-list" role="list">' + rows.map(function (r) {
       return '<div class="hdlv2-ability" role="listitem" data-id="' + esc(r.id) + '">' + pickIcon(r.id)
         + '<span class="hdlv2-ability-name">' + esc(r.label) + '</span>'
@@ -1483,7 +1484,7 @@
       + '<div class="hdlv2-form-body">'
       +   '<div class="hdlv2-why-groups">' + columns + '</div>'
       +   '<p id="hdlv2-picks-count" class="hdlv2-picks-count" aria-live="polite"></p>'
-      +   '<section class="hdlv2-why-needs">'
+      +   '<section class="hdlv2-why-needs" id="hdlv2-why-needs"' + (rows.length ? '' : ' hidden') + '>'
       +     '<h3>What your picks need from your body</h3>'
       +     '<p>Each thing you picked needs some of these. Your plan starts with the ones your health answers show are weakest.</p>'
       +     '<div class="hdlv2-why-needs-body">'
@@ -1543,6 +1544,10 @@
     if (count) count.textContent = pickCountLine(picks.length);
     var names = serverData.why_ability_short || serverData.why_abilities;
     var rows = abilityCounts(picks, groups, names);
+    // v0.48.3 — the bars and radar show once an ability has a pick. Shown
+    // before the redraw below, so the radar is measured at its real width.
+    var needs = document.getElementById('hdlv2-why-needs');
+    if (needs) needs.hidden = !rows.length;
     var bars = document.getElementById('hdlv2-abilities');
     if (bars) {
       // Start each meter at its old width (a new row at 0), then let the CSS

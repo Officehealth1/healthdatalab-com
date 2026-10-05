@@ -713,7 +713,6 @@
   overflow: hidden;
 }
 .hdlv2-ability-meter span { display: block; height: 100%; background: #3d8da0; border-radius: 999px; transition: width 240ms ease-out; }
-.hdlv2-why-needs .hdlv2-why-empty { margin: 0; }
 .hdlv2-why-wheel-svg { display: block; width: 100%; max-width: 440px; height: auto; margin: 0 auto; }
 .hdlv2-why-spoke { color: #2c3e50; }
 .hdlv2-why-spoke.has-picks { color: #004F59; }
