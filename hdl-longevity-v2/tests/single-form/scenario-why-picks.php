@@ -47,7 +47,7 @@ class Why_Picks_With_Retired extends HDLV2_Why_Picks {
     }
 }
 
-// ── Catalogue ──
+// ── Catalogue (v0.48.0: 24 short statements in three groups) ──
 $cat    = HDLV2_Why_Picks::catalogue();
 $active = 0; $ids = array(); $item_ok = true; $group_ok = true;
 $allowed = array( 'strength', 'mobility', 'flexibility', 'balance', 'stamina', 'mind', 'energy', 'connection' );
@@ -66,13 +66,68 @@ foreach ( $cat as $g ) {
         }
     }
 }
-check( 'C1 catalogue has 40-60 active items', $active >= 40 && $active <= 60 );
+check( 'C1 catalogue has 24 active items', 24 === $active );
 check( 'C2 ids unique', count( $ids ) === count( array_unique( $ids ) ) );
 check( 'C3 every item: lower-case id, label <=110, 1-3 allowed needs', $item_ok );
 check( 'C4 every group has an id, a title and >=4 items', $group_ok );
-check( 'C5 the six groups in Appendix A order',
-    array( 'family', 'home', 'travel', 'movement', 'mind', 'everyday' ) === array_column( $cat, 'id' ) );
-check( 'C6 52 rows (v0.47.98: 2 added, none deleted), floor_grandkids first, intimate_life kept', 52 === count( $ids ) && 'floor_grandkids' === $ids[0] && in_array( 'intimate_life', $ids, true ) );
+check( 'C5 the three offered groups come first, in order', array( 'people', 'freedom', 'things' ) === array_slice( array_column( $cat, 'id' ), 0, 3 ) );
+check( 'C6 53 rows (v0.48.0: 1 added, none deleted), 29 retired', 53 === count( $ids ) && 29 === count( $ids ) - $active );
+
+// The 24 on the page, exactly (Design 1 of the 0.48.0 plan): id, wording, tags.
+$OFFERED = array(
+    'people' => array( 'People I love', array(
+        array( 'floor_grandkids', 'Play on the floor with my grandkids', 'mobility,flexibility,strength' ),
+        array( 'lift_grandchild', 'Scoop up a grandchild for a hug', 'strength,balance' ),
+        array( 'keep_up_children', 'Chase the kids around the park', 'stamina' ),
+        array( 'dance_wedding', 'Dance all night at a family wedding', 'stamina,balance' ),
+        array( 'remember_family', 'Remember every grandchild\'s name and story', 'mind' ),
+        array( 'walk_with_partner', 'Walk hand in hand with my partner', 'stamina,connection' ),
+        array( 'see_friends_weekly', 'Laugh with my friends every week', 'connection' ),
+        array( 'present_big_moments', 'Be there for every big family moment', 'energy,connection' ),
+    ) ),
+    'freedom' => array( 'My freedom', array(
+        array( 'not_a_burden', 'Never be a burden on my family', 'strength,balance,mind' ),
+        array( 'live_in_own_home', 'Stay in my own home, on my terms', 'strength,balance,mind' ),
+        array( 'stairs_no_rail', 'Climb my stairs without holding on', 'strength,balance' ),
+        array( 'up_after_fall', 'Get back up by myself if I fall', 'strength,mobility' ),
+        array( 'keep_driving', 'Drive myself wherever I want', 'mind,flexibility' ),
+        array( 'manage_own_affairs', 'Stay sharp and run my own life', 'mind' ),
+        array( 'dress_myself', 'Wash and dress myself, with dignity', 'flexibility,balance,mobility' ),
+        array( 'uneven_ground', 'Walk anywhere without fear of falling', 'balance' ),
+    ) ),
+    'things' => array( 'Things I love', array(
+        array( 'keep_my_sport', 'Keep playing the sport I love', 'mobility,strength,balance' ),
+        array( 'day_in_garden', 'Spend a whole day in my garden', 'strength,mobility' ),
+        array( 'hike_hills', 'Hike the hills with my friends', 'stamina,balance' ),
+        array( 'swim_in_sea', 'Swim in the sea', 'stamina,strength' ),
+        array( 'walk_city_all_day', 'Explore a new city all day', 'stamina' ),
+        array( 'keep_working', 'Keep doing work that matters to me', 'mind,energy' ),
+        array( 'learn_something_new', 'Learn something new every year', 'mind' ),
+        array( 'wake_rested', 'Wake up full of energy', 'energy' ),
+    ) ),
+);
+$want_opts = array();
+foreach ( $OFFERED as $gid => $g ) {
+    $items = array();
+    foreach ( $g[1] as $it ) $items[] = array( 'id' => $it[0], 'label' => $it[1], 'needs' => explode( ',', $it[2] ) );
+    $want_opts[] = array( 'id' => $gid, 'title' => $g[0], 'items' => $items );
+}
+$got_opts = array_map( function ( $g ) {
+    return array( 'id' => $g['id'], 'title' => $g['title'], 'items' => $g['items'] );
+}, HDLV2_Why_Picks::options_for_page() );
+check( 'C7 the page gets exactly the three groups and 24 statements of the plan (ids, order, wording, tags)', $want_opts === $got_opts );
+$longest = 0;
+foreach ( $got_opts as $g ) foreach ( $g['items'] as $it ) $longest = max( $longest, str_word_count( $it['label'], 0, "'" ) );
+check( 'C8 no offered statement is longer than 8 words', $longest > 0 && $longest <= 8 && 24 === count( array_merge( ...array_column( $got_opts, 'items' ) ) ) );
+
+// Every other row keeps its old wording and tags, retired (pinned hash of
+// id|label|tags in the 0.47.99 catalogue order).
+$retired_rows = array();
+foreach ( $cat as $g ) foreach ( $g['items'] as $it ) {
+    if ( ! empty( $it['retired'] ) ) $retired_rows[] = $it['id'] . '|' . $it['label'] . '|' . implode( ',', $it['needs'] );
+}
+check( 'C9 the 29 retired rows carry their 0.47.99 wording and tags, in the old order (pinned hash)',
+    29 === count( $retired_rows ) && 'c086997fac4f11f66d1eb59d42520c2b' === md5( implode( "\n", $retired_rows ) ) );
 
 // ── Abilities (v0.47.93) ──
 $needs_const  = defined( 'HDLV2_Why_Picks::NEEDS' ) ? HDLV2_Why_Picks::NEEDS : array();
@@ -84,31 +139,12 @@ check( 'A2 every ability has its display name', array(
     'strength' => 'Strength', 'mobility' => 'Mobility', 'flexibility' => 'Flexibility', 'balance' => 'Balance',
     'stamina' => 'Stamina', 'mind' => 'A sharp mind', 'energy' => 'Energy and sleep', 'connection' => 'Connection',
 ) === $labels_const );
-$needs_of = array(); $labels_all = array(); $other_tags = array();
-$retagged = array(
-    'floor_grandkids'    => array( 'mobility', 'flexibility', 'strength' ),
-    'dress_myself'       => array( 'flexibility', 'balance' ),
-    'reach_top_cupboard' => array( 'flexibility', 'strength' ),
-    'keep_driving'       => array( 'mind', 'flexibility' ),
-    'sit_on_floor'       => array( 'flexibility', 'mobility' ),
-);
-foreach ( $cat as $g ) {
-    foreach ( $g['items'] as $it ) {
-        $needs_of[ $it['id'] ] = $it['needs'];
-        $labels_all[]          = $it['label'];
-        if ( ! isset( $retagged[ $it['id'] ] ) ) $other_tags[] = $it['id'] . ':' . implode( ',', $it['needs'] );
-    }
-}
-check( 'A3 the five retagged statements carry exactly the new tags', $retagged === array_intersect_key( $needs_of, $retagged ) );
-check( 'A4 slice 1 ids unchanged, the two new ones at the end of their theme (pinned list, same order)',
-    'floor_grandkids lift_grandchild keep_up_children dance_wedding host_family_meal walk_with_partner carer_not_cared_for remember_family teach_grandchild present_big_moments '
-    . 'stairs_no_rail carry_shopping up_from_low_seat dress_myself bath_shower_alone reach_top_cupboard keep_driving manage_own_affairs live_in_own_home up_after_fall walk_to_shops '
-    . 'lift_suitcase walk_city_all_day long_flight hike_hills swim_in_sea uneven_ground trip_short_notice ride_bicycle visit_far_family '
-    . 'keep_my_sport day_in_garden run_for_bus dance_regularly do_own_diy walk_dog_daily sit_on_floor steady_hands_craft intimate_life '
-    . 'sharp_conversation keep_working learn_something_new read_for_an_hour volunteer_mentor never_lost_for_words write_life_story '
-    . 'wake_rested energy_in_evening move_without_aches see_friends_weekly steady_in_body calm_under_pressure' === implode( ' ', $ids ) );
-check( 'A5 labels as of v0.47.98: one reworded, two added (pinned hash)', '5d516b426fdb8e46545c7c642ce9dc4f' === md5( implode( "\n", $labels_all ) ) );
-check( 'A6 the other 47 statements carry the v0.47.98 tags (pinned hash)', '9ff83367870197a2064aa04e1bb71bed' === md5( implode( '|', $other_tags ) ) );
+check( 'A3 ABILITY_SHORT: the page\'s one-word names (v0.48.0)', array(
+    'strength' => 'Strength', 'mobility' => 'Mobility', 'flexibility' => 'Flexibility', 'balance' => 'Balance',
+    'stamina' => 'Stamina', 'mind' => 'Mind', 'energy' => 'Energy', 'connection' => 'Connection',
+) === ( defined( 'HDLV2_Why_Picks::ABILITY_SHORT' ) ? HDLV2_Why_Picks::ABILITY_SHORT : null ) );
+$needs_of = array();
+foreach ( $cat as $g ) foreach ( $g['items'] as $it ) $needs_of[ $it['id'] ] = $it['needs'];
 
 // ── The ability → measure table (draft for Matthew) ──
 $m = function ( $source, $key, $label ) { return array( 'source' => $source, 'key' => $key, 'label' => $label ); };
@@ -248,15 +284,15 @@ check( 'R6 switch on, row already at stage 3 without marker → old form',
 unset( $GLOBALS['options']['hdlv2_ff_single_form'] );
 
 // ── validate ──
-$five = array( 'floor_grandkids', 'carry_shopping', 'wake_rested', 'keep_driving', 'swim_in_sea' );
-$ten  = array_merge( $five, array( 'hike_hills', 'ride_bicycle', 'dance_regularly', 'read_for_an_hour', 'see_friends_weekly' ) );
+$five = array( 'floor_grandkids', 'stairs_no_rail', 'wake_rested', 'keep_driving', 'swim_in_sea' );
+$ten  = array_merge( $five, array( 'hike_hills', 'dance_wedding', 'day_in_garden', 'learn_something_new', 'see_friends_weekly' ) );
 $v = function ( $data ) { return HDLV2_Why_Picks::validate( $data ); };
 $err = function ( $r ) { return is_wp_error( $r ) && 'invalid_why_picks' === $r->code && 400 === ( $r->data['status'] ?? 0 ); };
 check( 'V1 4 picks → error', $err( $v( array( 'why_picks' => array_slice( $five, 0, 4 ) ) ) ) );
 check( 'V1b 4 picks → plain message', 'Please choose at least 5.' === $v( array( 'why_picks' => array_slice( $five, 0, 4 ) ) )->message );
 check( 'V2 5 picks → ok', true === $v( array( 'why_picks' => $five ) ) );
 check( 'V3 10 picks → ok', true === $v( array( 'why_picks' => $ten ) ) );
-check( 'V4 11 picks → error', $err( $v( array( 'why_picks' => array_merge( $ten, array( 'lift_suitcase' ) ) ) ) ) );
+check( 'V4 11 picks → error', $err( $v( array( 'why_picks' => array_merge( $ten, array( 'keep_working' ) ) ) ) ) );
 check( 'V5 unknown id → error', $err( $v( array( 'why_picks' => array_merge( array_slice( $five, 0, 4 ), array( 'not_a_thing' ) ) ) ) ) );
 check( 'V6 duplicated id → error', $err( $v( array( 'why_picks' => array_merge( $five, array( 'wake_rested' ) ) ) ) ) );
 check( 'V7 retired id → error', $err( Why_Picks_With_Retired::validate( array( 'why_picks' => array_merge( array_slice( $five, 0, 4 ), array( 'old_item' ) ) ) ) ) );
@@ -272,13 +308,14 @@ check( 'V12 non-string people → error', $err( $v( array( 'why_picks' => $five,
 
 // ── compose_vision_text ──
 $picks3 = array( 'floor_grandkids', 'carry_shopping', 'wake_rested' );
-$expected = "In my later years, I want to be able to:\n"
-    . "- Get down on the floor to play with my grandchildren, and get back up without help\n"
+// carry_shopping is retired: a saved row still reads its old wording.
+$expected = "In my later years, I want to:\n"
+    . "- Play on the floor with my grandkids\n"
     . "- Carry my own shopping from the car to the kitchen\n"
-    . "- Wake up rested and ready for the day\n"
+    . "- Wake up full of energy\n"
     . "The people I most want to stay healthy and strong for: my wife Jenny, Leo and Mia\n"
     . "In my own words: I'd like to keep up with them.";
-check( 'P1 composed paragraph, exact', $expected === HDLV2_Why_Picks::compose_vision_text( $picks3, 'my wife Jenny, Leo and Mia', "I'd like to keep up with them." ) );
+check( 'P1 composed paragraph, exact (v0.48.0 opening words)', $expected === HDLV2_Why_Picks::compose_vision_text( $picks3, 'my wife Jenny, Leo and Mia', "I'd like to keep up with them." ) );
 $bare = HDLV2_Why_Picks::compose_vision_text( $picks3, '', '  ' );
 check( 'P2 empty text fields → no people / own-words lines',
     false === strpos( $bare, 'The people' ) && false === strpos( $bare, 'In my own words' ) );
@@ -293,9 +330,9 @@ check( 'B1b old-flow data without the marker → empty string',
     '' === HDLV2_Why_Picks::prompt_block( array( 'why_picks' => $picks3, 'vision_text' => 'typed why' ) ) );
 $block_in = array( 'form_flow' => 'single', 'why_picks' => $picks3, 'key_people_text' => 'my wife Jenny' );
 $expected_block = "=== WHAT THIS CLIENT CHOSE (picked from a list, their own priorities for later life) ===\n"
-    . "- Get down on the floor to play with my grandchildren, and get back up without help [depends on: mobility, flexibility, strength]\n"
+    . "- Play on the floor with my grandkids [depends on: mobility, flexibility, strength]\n"
     . "- Carry my own shopping from the car to the kitchen [depends on: strength]\n"
-    . "- Wake up rested and ready for the day [depends on: energy]\n"
+    . "- Wake up full of energy [depends on: energy]\n"
     . "Abilities these choices depend on most: strength (2), mobility (1), flexibility (1), energy (1)\n"
     . "People they named: my wife Jenny\n"
     . "In LIFT, where one of their weakest scores limits an ability these choices depend on, say so in one clause and name the choice. In THRIVE, use their choices and the people they named. Do not invent choices or people that are not listed here.\n"
@@ -311,12 +348,12 @@ check( 'B5 unknown ids dropped and people text capped at 300', false === strpos(
 // With the saved answers: the pinned prompt addition (v0.47.93). Same six
 // choices and numbers as the hand-worked profile above.
 $picked_lines = "=== WHAT THIS CLIENT CHOSE (picked from a list, their own priorities for later life) ===\n"
-    . "- Get down on the floor to play with my grandchildren, and get back up without help [depends on: mobility, flexibility, strength]\n"
-    . "- Pick up a grandchild and carry them on my hip [depends on: strength, balance]\n"
-    . "- Walk around a new city all day and still enjoy dinner [depends on: stamina]\n"
-    . "- Hike a hill or a coastal path with friends [depends on: stamina, balance]\n"
-    . "- Remember every grandchild's name, birthday and story [depends on: mind]\n"
-    . "- Wake up rested and ready for the day [depends on: energy]\n"
+    . "- Play on the floor with my grandkids [depends on: mobility, flexibility, strength]\n"
+    . "- Scoop up a grandchild for a hug [depends on: strength, balance]\n"
+    . "- Explore a new city all day [depends on: stamina]\n"
+    . "- Hike the hills with my friends [depends on: stamina, balance]\n"
+    . "- Remember every grandchild's name and story [depends on: mind]\n"
+    . "- Wake up full of energy [depends on: energy]\n"
     . "Abilities these choices depend on most: strength (2), balance (2), stamina (2), mobility (1), flexibility (1), mind (1), energy (1)\n"
     . "People they named: my wife Jenny\n";
 // Stage 1 answers are marked as such: they run 1 to 5, Stage 3 scores 0 to 5.
@@ -382,53 +419,39 @@ check( 'B13 block_for_row() on an old-flow row or an empty row → empty string'
 $opts = HDLV2_Why_Picks::options_for_page();
 $flat = array();
 foreach ( $opts as $g ) foreach ( $g['items'] as $it ) $flat[] = $it;
-check( 'O1 page options carry id + label + needs, grouped', isset( $opts[0]['title'] ) && array( 'id', 'label', 'needs' ) === array_keys( $flat[0] ) && 48 === count( $flat ) );
-check( 'O3 every group has its short tile title',
-    array( 'Family', 'Independence', 'Travel', 'Sport and hobbies', 'Mind and purpose', 'Everyday energy' ) === array_column( $opts, 'short' )
-    && array( 'Family', 'Independence', 'Travel', 'Sport and hobbies', 'Mind and purpose', 'Everyday energy' ) === array_column( $cat, 'short' ) );
-$needs_ok = true;
-foreach ( $flat as $it ) {
-    if ( ( $it['needs'] ?? null ) !== ( $needs_of[ $it['id'] ] ?? array() ) ) $needs_ok = false;
-}
-check( 'O4 every item carries its needs (the catalogue\'s tags)', $needs_ok );
+check( 'O1 page options carry id + label + needs, grouped', isset( $opts[0]['title'] ) && array( 'id', 'label', 'needs' ) === array_keys( $flat[0] ) && 24 === count( $flat ) );
+check( 'O3 the page gets three groups of 8', array( 8, 8, 8 ) === array_map( function ( $g ) { return count( $g['items'] ); }, $opts ) );
 $ret = Why_Picks_With_Retired::options_for_page();
 check( 'O2 retired items are not offered', ! in_array( 'old_item', array_column( $ret[0]['items'], 'id' ), true ) );
 
-// ── v0.47.98: four retired, two added, three re-tagged, one reworded ──
-$RETIRED = array( 'live_in_own_home', 'trip_short_notice', 'intimate_life', 'steady_in_body' ); // catalogue order
-$retired_ids = array(); $offered_by_theme = array(); $tag_counts = array();
-foreach ( $cat as $g ) {
-    foreach ( $g['items'] as $it ) if ( ! empty( $it['retired'] ) ) $retired_ids[] = $it['id'];
-}
-foreach ( $opts as $g ) {
-    $offered_by_theme[] = count( $g['items'] );
-    foreach ( $g['items'] as $it ) foreach ( $it['needs'] as $t ) $tag_counts[ $t ] = ( $tag_counts[ $t ] ?? 0 ) + 1;
-}
+// ── v0.48.0: 24 offered, 29 retired, one added, one back ──
+$tag_counts = array();
+foreach ( $flat as $it ) foreach ( $it['needs'] as $t ) $tag_counts[ $t ] = ( $tag_counts[ $t ] ?? 0 ) + 1;
 ksort( $tag_counts );
-check( 'R1 exactly the four agreed statements are retired', $RETIRED === $retired_ids );
-check( 'R2 the page offers 48 in 6 themes: 10, 10, 8, 8, 7, 5', array( 10, 10, 8, 8, 7, 5 ) === $offered_by_theme );
-check( 'R3 tags over the 48: stamina 14, strength 13, mind 13, balance 11, mobility 8, energy 6, connection 6, flexibility 5',
-    array( 'balance' => 11, 'connection' => 6, 'energy' => 6, 'flexibility' => 5, 'mind' => 13, 'mobility' => 8, 'stamina' => 14, 'strength' => 13 ) === $tag_counts );
+check( 'R3 tags over the 24: strength 9, balance 9, mind 7, stamina 6, mobility 5, flexibility 3, energy 3, connection 3',
+    array( 'balance' => 9, 'connection' => 3, 'energy' => 3, 'flexibility' => 3, 'mind' => 7, 'mobility' => 5, 'stamina' => 6, 'strength' => 9 ) === $tag_counts );
 $flat_ids = array_column( $flat, 'id' );
-$base5    = array( 'floor_grandkids', 'carry_shopping', 'wake_rested', 'keep_driving', 'swim_in_sea' );
-$all_refused = true; $all_resolve = true;
-foreach ( $RETIRED as $rid ) {
+$base5    = array( 'floor_grandkids', 'stairs_no_rail', 'wake_rested', 'keep_driving', 'swim_in_sea' );
+$all_refused = true; $all_resolve = true; $n_retired = 0;
+foreach ( $cat as $g ) foreach ( $g['items'] as $it ) {
+    if ( empty( $it['retired'] ) ) continue;
+    $n_retired++;
+    $rid = $it['id'];
     if ( in_array( $rid, $flat_ids, true ) ) $all_refused = false;
     if ( ! is_wp_error( HDLV2_Why_Picks::validate( array( 'why_picks' => array_merge( array_slice( $base5, 0, 4 ), array( $rid ) ) ) ) ) ) $all_refused = false;
     $shown = HDLV2_Why_Picks::picks_for_display( array( $rid ) );
-    if ( 1 !== count( $shown ) || '' === $shown[0]['label'] || ! $shown[0]['needs'] ) $all_resolve = false;
+    if ( 1 !== count( $shown ) || $it['label'] !== $shown[0]['label'] || ! $shown[0]['needs'] ) $all_resolve = false;
 }
-check( 'R4 a retired id is not offered and validate() refuses it', $all_refused );
-check( 'R5 a retired id still resolves to its label and abilities (saved rows keep reading)', $all_resolve
-    && array( array( 'label' => 'Keep an active intimate life with my partner', 'needs' => array( 'Stamina', 'Energy and sleep' ) ) ) === HDLV2_Why_Picks::picks_for_display( array( 'intimate_life' ) ) );
-check( 'R6 the two new statements are offered with their tags, under Independence and Travel',
-    in_array( array( 'id' => 'walk_to_shops', 'label' => 'Walk to the shops and back without stopping to rest', 'needs' => array( 'stamina' ) ), $opts[1]['items'], true )
-    && in_array( array( 'id' => 'visit_far_family', 'label' => 'Travel to see family or friends who live far away', 'needs' => array( 'stamina', 'connection' ) ), $opts[2]['items'], true )
-    && true === HDLV2_Why_Picks::validate( array( 'why_picks' => array_merge( array_slice( $base5, 0, 3 ), array( 'walk_to_shops', 'visit_far_family' ) ) ) ) );
-check( 'R7 the three tag fixes', array( 'stamina', 'connection' ) === $needs_of['host_family_meal']
-    && array( 'stamina', 'connection' ) === $needs_of['walk_with_partner'] && array( 'mind' ) === $needs_of['steady_hands_craft'] );
-check( 'R8 never_lost_for_words reworded, same id', array( array( 'label' => 'Find the right word or name the moment I want it', 'needs' => array( 'A sharp mind' ) ) )
-    === HDLV2_Why_Picks::picks_for_display( array( 'never_lost_for_words' ) ) );
+check( 'R4 each of the 29 retired ids is not offered and validate() refuses it', 29 === $n_retired && $all_refused );
+check( 'R5 a retired id still resolves to its old label and abilities (saved rows keep reading)', $all_resolve
+    && array( array( 'label' => 'Keep an active intimate life with my partner', 'needs' => array( 'Stamina', 'Energy and sleep' ) ) ) === HDLV2_Why_Picks::picks_for_display( array( 'intimate_life' ) )
+    && array( array( 'label' => 'Walk the dog every day, whatever the weather', 'needs' => array( 'Stamina' ) ) ) === HDLV2_Why_Picks::picks_for_display( array( 'walk_dog_daily' ) ) );
+check( 'R6 live_in_own_home is offered again and accepted', in_array( 'live_in_own_home', $flat_ids, true )
+    && true === HDLV2_Why_Picks::validate( array( 'why_picks' => array_merge( array_slice( $base5, 0, 4 ), array( 'live_in_own_home' ) ) ) ) );
+check( 'R7 not_a_burden exists, is offered and accepted', isset( $needs_of['not_a_burden'] )
+    && true === HDLV2_Why_Picks::validate( array( 'why_picks' => array_merge( array_slice( $base5, 0, 4 ), array( 'not_a_burden' ) ) ) ) );
+check( 'R8 a kept id reads its new wording on a saved row', array( array( 'label' => 'Drive myself wherever I want', 'needs' => array( 'A sharp mind', 'Flexibility' ) ) )
+    === HDLV2_Why_Picks::picks_for_display( array( 'keep_driving' ) ) );
 
 echo "\n" . ( $fail ? "SCENARIO: FAIL ($fail)\n" : "SCENARIO: PASS ($pass)\n" );
 exit( $fail ? 1 : 0 );

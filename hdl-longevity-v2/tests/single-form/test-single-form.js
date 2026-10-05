@@ -67,28 +67,28 @@ ok(/type="checkbox"/.test(page), 'every statement is a real checkbox');
 ok(/aria-live="polite"/.test(page), 'the counter is announced (aria-live)');
 ok(!/\b(alert|confirm|prompt)\(/.test(page), 'no native popups on the new page');
 
-// ── v0.47.93: themes first, and what each choice stands for ──
+// ── v0.48.0: every statement on the page, far fewer words, the polar chart ──
 const ctx2 = {};
 try {
-  vm.runInNewContext(body('themesWithPicks') + '\n' + body('toggleTheme') + '\n' + body('abilityCounts')
-    + '\nthis.themesWithPicks = themesWithPicks; this.toggleTheme = toggleTheme; this.abilityCounts = abilityCounts;', ctx2);
+  vm.runInNewContext(limits + '\n' + body('abilityCounts') + '\n' + body('pickCountLine') + '\n' + body('wedgeSizes') + '\n' + body('chartLabel')
+    + '\nthis.abilityCounts = abilityCounts; this.pickCountLine = pickCountLine; this.wedgeSizes = wedgeSizes; this.chartLabel = chartLabel;', ctx2);
 } catch (e) { /* missing functions: reported below */ }
-const { themesWithPicks, toggleTheme, abilityCounts } = ctx2;
-ok(typeof themesWithPicks === 'function' && typeof toggleTheme === 'function' && typeof abilityCounts === 'function',
-  'themesWithPicks(), toggleTheme() and abilityCounts() exist');
+const { abilityCounts, pickCountLine, wedgeSizes, chartLabel } = ctx2;
+ok(typeof abilityCounts === 'function', 'abilityCounts() exists (it feeds the chart)');
+ok(body('toggleTheme') === '' && body('themesWithPicks') === '' && !/openThemes/.test(src), 'toggleTheme(), themesWithPicks() and openThemes are gone');
 
 const GROUPS = [
-  { id: 'family', items: [{ id: 'a', needs: ['mobility', 'flexibility', 'strength'] }, { id: 'b', needs: ['strength', 'balance'] }] },
-  { id: 'travel', items: [{ id: 'c', needs: ['stamina'] }, { id: 'd', needs: ['stamina', 'balance'] }] },
-  { id: 'mind', items: [{ id: 'e', needs: ['mind'] }] }
+  { id: 'people', items: [{ id: 'a', needs: ['mobility', 'flexibility', 'strength'] }, { id: 'b', needs: ['strength', 'balance'] }] },
+  { id: 'freedom', items: [{ id: 'c', needs: ['stamina'] }, { id: 'd', needs: ['stamina', 'balance'] }] },
+  { id: 'things', items: [{ id: 'e', needs: ['mind'] }] }
 ];
 const ABILITIES = { strength: 'Strength', mobility: 'Mobility', flexibility: 'Flexibility', balance: 'Balance',
   stamina: 'Stamina', mind: 'A sharp mind', energy: 'Energy and sleep', connection: 'Connection' };
+const SHORT = { strength: 'Strength', mobility: 'Mobility', flexibility: 'Flexibility', balance: 'Balance',
+  stamina: 'Stamina', mind: 'Mind', energy: 'Energy', connection: 'Connection' };
 const J = JSON.stringify;
 
 if (typeof abilityCounts === 'function') {
-  // By hand for a, b, d, e: strength 2 (a, b), balance 2 (b, d), then one each
-  // for mobility, flexibility (a), stamina (d), mind (e), in the server's order.
   ok(J(abilityCounts(['a', 'b', 'd', 'e'], GROUPS, ABILITIES)) === J([
     { id: 'strength', label: 'Strength', count: 2 }, { id: 'balance', label: 'Balance', count: 2 },
     { id: 'mobility', label: 'Mobility', count: 1 }, { id: 'flexibility', label: 'Flexibility', count: 1 },
@@ -97,35 +97,104 @@ if (typeof abilityCounts === 'function') {
   ok(J(abilityCounts([], GROUPS, ABILITIES)) === '[]' && J(abilityCounts(null, GROUPS, ABILITIES)) === '[]', 'no picks → empty list');
   ok(J(abilityCounts(['zzz', 'c'], GROUPS, ABILITIES)) === J([{ id: 'stamina', label: 'Stamina', count: 1 }]), 'an id not on offer counts for nothing');
 }
-if (typeof themesWithPicks === 'function' && typeof toggleTheme === 'function') {
-  ok(J(themesWithPicks(GROUPS, ['b', 'e'])) === '["family","mind"]', 'themes holding saved picks are open at start');
-  ok(J(themesWithPicks(GROUPS, [])) === '[]' && J(themesWithPicks(GROUPS, null)) === '[]', 'nothing saved → no theme open');
-  let open = toggleTheme([], 'travel');
-  ok(J(open) === '["travel"]', 'tapping a closed theme opens it');
-  open = toggleTheme(open, 'family');
-  ok(J(open) === '["travel","family"]', 'several themes can be open');
-  const before = ['travel', 'family'];
-  open = toggleTheme(before, 'travel');
-  ok(J(open) === '["family"]' && before.length === 2, 'tapping an open theme closes it, without mutating its input');
-  const picks = ['a', 'b'];
-  const closed = toggleTheme(themesWithPicks(GROUPS, picks), 'family');
-  ok(J(closed) === '[]' && J(picks) === '["a","b"]' && J(abilityCounts(picks, GROUPS, ABILITIES)[0]) === J({ id: 'strength', label: 'Strength', count: 2 }),
-    'closing a theme does not remove its picks (still chosen and counted)');
+
+// The count line, in its three states (Design 3).
+if (typeof pickCountLine === 'function') {
+  ok(pickCountLine(0) === '0 picked. Pick at least 5.', 'count line: none picked');
+  ok(pickCountLine(3) === '3 picked. Pick at least 5.', 'count line: under 5');
+  ok(pickCountLine(6) === '6 picked.', 'count line: 5 to 9');
+  ok(pickCountLine(10) === '10 picked. That is the most.', 'count line: at 10');
+} else ok(false, 'pickCountLine() exists');
+
+// The chart's size function: count ÷ max(3, highest count), in the server's
+// ability order, every ability present.
+if (typeof wedgeSizes === 'function') {
+  const zero = wedgeSizes([], SHORT);
+  ok(J(zero.map(function (w) { return w.id; })) === J(Object.keys(SHORT)) && zero.every(function (w) { return w.size === 0 && w.count === 0; }),
+    'chart sizes: zero picks → eight abilities, all 0, in the server\'s order');
+  const one = wedgeSizes([{ id: 'stamina', count: 1 }], SHORT);
+  ok(one[4].id === 'stamina' && Math.abs(one[4].size - 1 / 3) < 1e-9 && one.filter(function (w) { return w.size > 0; }).length === 1,
+    'chart sizes: one ability with one pick → 1/3 (the divide-by-3 floor)');
+  const floor = wedgeSizes([{ id: 'strength', count: 2 }, { id: 'balance', count: 1 }], SHORT);
+  ok(Math.abs(floor[0].size - 2 / 3) < 1e-9 && Math.abs(floor[3].size - 1 / 3) < 1e-9, 'chart sizes: highest count 2 still divides by 3');
+  const big = wedgeSizes([{ id: 'strength', count: 5 }, { id: 'balance', count: 2 }], SHORT);
+  ok(big[0].size === 1 && Math.abs(big[3].size - 2 / 5) < 1e-9, 'chart sizes: a count above 3 divides by the highest count');
+  ok(big[0].label === 'Strength' && big[5].label === 'Mind', 'chart sizes carry the short names');
+} else ok(false, 'wedgeSizes() exists');
+
+if (typeof chartLabel === 'function' && typeof wedgeSizes === 'function') {
+  ok(chartLabel(wedgeSizes([], SHORT)) === 'Nothing picked yet.', 'chart aria-label with no picks');
+  ok(chartLabel(wedgeSizes([{ id: 'strength', count: 2 }, { id: 'balance', count: 1 }], SHORT)) === 'What your picks need: Strength 2, Balance 1.',
+    'chart aria-label says it in words, in the server\'s order');
+} else ok(false, 'chartLabel() exists');
+
+// The page markup: run the REAL renderWhyPicks() against a fake root.
+function fakeEl() {
+  return { hidden: false, textContent: '', innerHTML: '', disabled: false, checked: false, value: '', parentNode: { classList: { toggle: function () {} } },
+    classList: { add: function () {}, remove: function () {}, toggle: function () {} }, setAttribute: function () {}, addEventListener: function () {} };
 }
-ok(/<button type="button"[^>]*aria-pressed="/.test(page), 'theme tiles are real buttons with aria-pressed');
-ok(/\.hidden = /.test(body('updatePicks')), 'a closed theme is hidden, not removed (its checkboxes stay in the page)');
-ok(page.indexOf('Tap the parts of life you care about, then choose the 5 to 10 things you would most love to still be able to do in your last decade of life.') !== -1, 'lead copy as written (Matthew\'s words, v0.47.98)');
-ok(page.indexOf("picksTextarea('key_people_text', 'Who are the most important people you want to stay healthy and strong for? Their first names help us make your report personal.'") !== -1, 'people label asks for first names (v0.47.98)');
-ok(src.indexOf('Start with one or two that matter to you.') !== -1, 'quiet line for a fresh page');
-ok(src.indexOf('What your choices ask of your body') !== -1
-  && src.indexOf('Each thing you chose depends on abilities like these. Your plan will focus on the ones your health answers show need the most work.') !== -1,
-  'summary panel title and sentence as written');
-ok(/of your choices/.test(body('updatePicks')), 'summary panel is redrawn with the picks (updatePicks)');
+const fakeRoot = Object.assign(fakeEl(), { querySelectorAll: function () { return []; } });
+const pageCtx = {
+  root: fakeRoot, formData: {}, serverData: {}, saveTimer: null, PICK_MIN: 5, PICK_MAX: 10,
+  document: { getElementById: function () { return fakeEl(); } },
+  setRootClasses: function () {}, saveIndicator: function () { return ''; }, footer: function () { return ''; },
+  bindFieldListeners: function () {}, submitWhyPicks: function () {}, clearSaveError: function () {}, autoSave: function () {},
+  esc: function (s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+};
+const PAGE_FNS = ['togglePick', 'canContinue', 'abilityCounts', 'pickCountLine', 'wedgeSizes', 'chartLabel', 'polarChart', 'renderWhyPicks', 'updatePicks', 'picksTextarea'];
+const ICON_SRC = (src.match(/  var ICONS = \{[\s\S]*?\n  \};/) || [''])[0];
+let html = '';
+try {
+  vm.runInNewContext(ICON_SRC + '\n' + PAGE_FNS.map(body).join('\n') + '\nthis.renderWhyPicks = renderWhyPicks;', pageCtx);
+  const g8 = function (gid, title) {
+    const items = [];
+    for (let i = 0; i < 8; i++) items.push({ id: gid + i, label: title + ' statement ' + i, needs: ['strength'] });
+    return { id: gid, title: title, items: items };
+  };
+  const data = { why_options: [g8('people', 'People I love'), g8('freedom', 'My freedom'), g8('things', 'Things I love')], why_abilities: ABILITIES, why_ability_short: SHORT };
+  pageCtx.serverData = data;
+  pageCtx.renderWhyPicks(data);
+  html = fakeRoot.innerHTML;
+} catch (e) { console.log('      renderWhyPicks threw: ' + e.message); }
+ok(html !== '', 'renderWhyPicks() draws the page');
+const groupsHtml = html.split('class="hdlv2-why-group"').slice(1);
+ok(groupsHtml.length === 3 && groupsHtml.every(function (g) { return (g.match(/type="checkbox"/g) || []).length === 8; }),
+  'three groups with 8 statements each, all in the page from the start');
+ok(!/ hidden[ >]|hidden=""/.test(html.split('id="hdlv2-picks-count"')[0]), 'no group or statement is hidden');
+ok(!/hdlv2-theme-|hdlv2-pick-needs|hdlv2-ability-/.test(html), 'no theme tile, no "needs" words, no ability bars');
+ok(/<h2>What matters most to you<\/h2>/.test(html), 'title: What matters most to you');
+ok(html.indexOf('<p>Pick the 5 to 10 that matter most to you in your last decade of life.</p>') !== -1, 'one opening line, as written');
+ok(/People I love[\s\S]*My freedom[\s\S]*Things I love/.test(html), 'group headings in order');
+ok(html.indexOf('>What your picks need</') !== -1, 'chart heading: What your picks need');
+ok(html.indexOf("Who are you doing this for? First names.") !== -1 && html.indexOf('placeholder="Jenny, Leo, Mia"') !== -1, 'people label and placeholder, as written');
+ok(html.indexOf('Anything else? (optional)') !== -1, 'own-words label, as written');
+ok(/>Next</.test(html) || />Next &#8594;</.test(html), 'Next button');
+ok(/role="img"[^>]*aria-label="Nothing picked yet\."/.test(html), 'the chart is on the page from the start, empty, with its spoken label');
+ok((html.match(/<svg[^>]*aria-hidden="true"/g) || []).length >= 11, 'every picture is decoration (aria-hidden): 3 group + 8 ability pictures');
+ok(/type="checkbox"/.test(page), 'every statement is a real checkbox');
+ok(/aria-live="polite"/.test(page), 'the counter is announced (aria-live)');
 ok(!/\b(alert|confirm|prompt)\(/.test(src), 'the shipped file has no alert( / confirm( / prompt(');
+ok(src.indexOf('Tap the parts of life you care about') === -1 && src.indexOf('Start with one or two that matter to you.') === -1
+  && src.indexOf('What your choices ask of your body') === -1, 'the old long copy is gone');
 const cle = fs.readFileSync(path.join(__dirname, '..', '..', 'assets', 'js', 'hdlv2-client-list-enhance.js'), 'utf8');
 ok(cle.indexOf("'<div class=\"hdlv2-consult-caption\">Scores are out of 5, averaged from the answers listed. They are not a test of the ability itself. Stage 1 answers run 1 to 5, Stage 3 answers 0 to 5.'") !== -1
   && /\(s2\.choices\.stage3_done \? '' : ' Stage 3 not finished: based on Stage 1 answers only\.'\)/.test(cle),
-  'practitioner caption says the numbers are averages, not a test (v0.47.98); the Stage 3 sentence stays');
+  'practitioner caption unchanged');
+
+// ── Style rules on this page (dyslexia: no capitals, italics, centring) ──
+const css = fs.readFileSync(path.join(__dirname, '..', '..', 'assets', 'css', 'hdlv2-form.css'), 'utf8');
+const whyRules = css.replace(/\/\*[\s\S]*?\*\//g, '').match(/[^{}]*\.hdlv2-why[^{}]*\{[^}]*\}/g) || [];
+ok(whyRules.length > 0, 'the page has its own rules under .hdlv2-why');
+const bad = whyRules.filter(function (r) {
+  const decl = r.slice(r.indexOf('{'));
+  return /text-transform:\s*uppercase|font-style:\s*italic|text-align:\s*(center|justify)|letter-spacing:\s*0?\.\d/.test(decl)
+    && !/hdlv2-why-chart(\s|\{|,)/.test(r.slice(0, r.indexOf('{')));
+});
+ok(bad.length === 0, 'under .hdlv2-why no rule sets capitals, italics, letter-spacing, centred or justified text' + (bad.length ? ' — ' + bad.join(' | ') : ''));
+const stmt = whyRules.filter(function (r) { return /\.hdlv2-why \.hdlv2-checkbox-item\s*\{/.test(r); }).join('');
+ok(/font-size:\s*17px/.test(stmt) && /min-height:\s*56px/.test(stmt), 'statement text is 17px and each statement at least 56px high');
+ok(/\.hdlv2-why \.hdlv2-subgroup-heading\s*\{[^}]*text-transform:\s*none/.test(css) && /\.hdlv2-why \.hdlv2-subgroup-heading\s*\{[^}]*letter-spacing:\s*0/.test(css),
+  'the shared group heading has its capitals and letter-spacing undone on this page');
 
 const submit = body('submitWhyPicks');
 ok(submit !== '', 'submitWhyPicks() exists');

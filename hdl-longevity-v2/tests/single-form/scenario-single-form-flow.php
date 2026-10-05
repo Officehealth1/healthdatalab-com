@@ -282,8 +282,11 @@ function check( $label, $ok ) {
     $ok ? $pass++ : $fail++;
 }
 
+// Saved rows (made directly below) keep carry_shopping: retired in v0.48.0,
+// so it still reads its old wording. A submit can only send offered ids.
 $FIVE  = array( 'floor_grandkids', 'carry_shopping', 'wake_rested', 'keep_driving', 'swim_in_sea' );
-$PICKS = array( 'why_picks' => $FIVE, 'key_people_text' => "my wife <b>Jenny</b>, O'Neill family", 'own_words' => 'Keep up with them.' );
+$FIVE_NEW = array( 'floor_grandkids', 'stairs_no_rail', 'wake_rested', 'keep_driving', 'swim_in_sea' );
+$PICKS = array( 'why_picks' => $FIVE_NEW, 'key_people_text' => "my wife <b>Jenny</b>, O'Neill family", 'own_words' => 'Keep up with them.' );
 $TODAY_KEYS = array( 'current_stage', 'client_name', 'client_email', 'stage1_data', 'stage1_completed_at', 'stage2_data',
     'stage2_completed_at', 'stage3_data', 'stage3_completed_at', 'practitioner_name', 'practitioner_email',
     'practitioner_cta_link', 'practitioner_cta_text', 'practitioner_logo_url' );
@@ -304,11 +307,14 @@ check( 'L3 switch on, WHY open: why_options present', ! empty( $r['why_options']
 check( 'L5 switch on, WHY open: why_abilities = the eight display names, in order',
     array( 'strength' => 'Strength', 'mobility' => 'Mobility', 'flexibility' => 'Flexibility', 'balance' => 'Balance',
         'stamina' => 'Stamina', 'mind' => 'A sharp mind', 'energy' => 'Energy and sleep', 'connection' => 'Connection' ) === ( $r['why_abilities'] ?? null ) );
-check( 'L6 switch on, WHY open: only the three new keys beside today\'s list',
-    array_merge( $TODAY_KEYS, array( 'single_form', 'why_options', 'why_abilities' ) ) === array_keys( $r ) );
+check( 'L6 switch on, WHY open: only the four new keys beside today\'s list',
+    array_merge( $TODAY_KEYS, array( 'single_form', 'why_options', 'why_abilities', 'why_ability_short' ) ) === array_keys( $r ) );
+check( 'L8 switch on, WHY open: why_ability_short = the one-word names for the chart (v0.48.0)',
+    array( 'strength' => 'Strength', 'mobility' => 'Mobility', 'flexibility' => 'Flexibility', 'balance' => 'Balance',
+        'stamina' => 'Stamina', 'mind' => 'Mind', 'energy' => 'Energy', 'connection' => 'Connection' ) === ( $r['why_ability_short'] ?? null ) );
 $wpdb->rows[2] = make_row( 2, array( 'stage2_completed_at' => '2026-10-01 10:00:00', 'stage2_data' => '{"vision_text":"typed the old way"}' ) );
 $r = $form->rest_load_form( req( array( 'token' => $wpdb->rows[2]->token ) ) );
-check( 'L4 switch on, WHY already sent the old way: neither key', ! isset( $r['single_form'] ) && ! isset( $r['why_options'] ) );
+check( 'L4 switch on, WHY already sent the old way: none of the new keys', ! isset( $r['single_form'] ) && ! isset( $r['why_options'] ) && ! isset( $r['why_ability_short'] ) );
 check( 'L7 switch on, WHY already sent the old way: keys are exactly today\'s list', $TODAY_KEYS === array_keys( $r ) );
 
 // ════════ Submit on a covered row ════════
@@ -317,9 +323,9 @@ $res = save( $form, $row, $PICKS + array( 'vision_text' => 'CLIENT MADE THIS UP'
 $d   = s2( $row );
 check( 'F1 submit: success', is_array( $res ) && ! empty( $res['success'] ) );
 check( 'F2 submit: form_flow single written', 'single' === ( $d['form_flow'] ?? '' ) );
-check( 'F3 submit: picks + both text fields stored', $FIVE === $d['why_picks'] && isset( $d['key_people_text'], $d['own_words'] ) );
+check( 'F3 submit: picks + both text fields stored', $FIVE_NEW === $d['why_picks'] && isset( $d['key_people_text'], $d['own_words'] ) );
 check( 'F4 submit: server-built vision_text (client value ignored)',
-    HDLV2_Why_Picks::compose_vision_text( $FIVE, $d['key_people_text'], $d['own_words'] ) === $d['vision_text']
+    HDLV2_Why_Picks::compose_vision_text( $FIVE_NEW, $d['key_people_text'], $d['own_words'] ) === $d['vision_text']
     && false === strpos( $d['vision_text'], 'CLIENT MADE' ) );
 check( 'F5 submit: text fields stored as plain text', false === strpos( $d['key_people_text'], '<' ) && false !== strpos( $d['key_people_text'], "O'Neill" ) );
 check( 'F6 submit: completion claimed', ! empty( $row->stage2_completed_at ) );
@@ -341,11 +347,11 @@ check( 'F13 stale autosave after submit: stage2_data unchanged', $before === $ro
 
 // Invalid picks
 $bad = $wpdb->rows[11] = make_row( 11 );
-$res = save( $form, $bad, array( 'why_picks' => array_slice( $FIVE, 0, 4 ) ), true );
+$res = save( $form, $bad, array( 'why_picks' => array_slice( $FIVE_NEW, 0, 4 ) ), true );
 check( 'F14 invalid picks: 400 with the message', is_wp_error( $res ) && 400 === ( $res->data['status'] ?? 0 ) && 'Please choose at least 5.' === $res->message );
 check( 'F15 invalid picks: nothing claimed, stage 2, nothing scheduled, no marker',
     empty( $bad->stage2_completed_at ) && 2 === (int) $bad->current_stage && 0 === scheduled_for( 11 ) && ! isset( s2( $bad )['form_flow'] ) );
-$res = save( $form, $bad, array( 'why_picks' => $FIVE, 'own_words' => str_repeat( 'x', 5000 ) ), true );
+$res = save( $form, $bad, array( 'why_picks' => $FIVE_NEW, 'own_words' => str_repeat( 'x', 5000 ) ), true );
 check( 'F16 5,000-char own words: 400, nothing claimed', is_wp_error( $res ) && empty( $bad->stage2_completed_at ) );
 
 // Autosave of picks before submit (covered row): stored, no completion, no fire
@@ -535,10 +541,11 @@ $status = HDLV2_Client_Status::get_instance();
 $rec    = $status->rest_get_client_record( array( 'progress_id' => 40 ) );
 $ch     = is_array( $rec ) ? ( $rec['stage2']['choices'] ?? null ) : null;
 check( 'C1 single row: stage2.choices has picks, abilities, stage3_done', is_array( $ch ) && array( 'picks', 'abilities', 'stage3_done' ) === array_keys( $ch ) );
-check( 'C2 single row: each pick is its label plus ability display names',
+check( 'C2 single row: each pick is its label plus ability display names (a retired pick keeps its old wording, a kept one reads the new)',
     5 === count( $ch['picks'] ?? array() )
-    && array( 'label' => 'Get down on the floor to play with my grandchildren, and get back up without help', 'needs' => array( 'Mobility', 'Flexibility', 'Strength' ) ) === $ch['picks'][0]
-    && array( 'label' => 'Keep driving safely, including turning to look over my shoulder', 'needs' => array( 'A sharp mind', 'Flexibility' ) ) === $ch['picks'][3] );
+    && array( 'label' => 'Play on the floor with my grandkids', 'needs' => array( 'Mobility', 'Flexibility', 'Strength' ) ) === $ch['picks'][0]
+    && array( 'label' => 'Carry my own shopping from the car to the kitchen', 'needs' => array( 'Strength' ) ) === $ch['picks'][1]
+    && array( 'label' => 'Drive myself wherever I want', 'needs' => array( 'A sharp mind', 'Flexibility' ) ) === $ch['picks'][3] );
 $abil = $ch['abilities'] ?? array();
 check( 'C3 single row: abilities are the profile of the saved answers (counts, scores, focus by hand)',
     method_exists( 'HDLV2_Why_Picks', 'abilities_profile' )
