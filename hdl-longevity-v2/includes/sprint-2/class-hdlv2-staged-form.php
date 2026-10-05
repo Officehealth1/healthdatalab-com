@@ -2855,14 +2855,12 @@ class HDLV2_Staged_Form {
             // summary as plain paragraphs like the Make-callback rows (the
             // dashboard WHY tab escapes it and would print the <p> tags).
             $row['ai_reformulation'] = trim( wp_strip_all_tags( preg_replace( '#</p>\s*#i', "\n\n", (string) ( $extracted['ai_reformulation'] ?? '' ) ) ) );
-            // A choices-page client can only have written a fear in the own-words
-            // box. Without it, the extraction reads "without fear of falling" in a
-            // ticked statement as a fear the client raised.
-            // ponytail: with own words present the AI may still file a statement's
-            // wording as a fear; if that shows up, extract fears from own_words alone.
-            if ( '' === trim( (string) ( $stage2_data['own_words'] ?? '' ) ) ) {
-                $row['fears'] = wp_json_encode( array() );
-            }
+            // A choices-page client is never asked about fears, and the extraction
+            // reads "without fear of falling" in a ticked statement as one. Store none.
+            // What they typed in the own-words box stays in vision_text and the summary.
+            // ponytail: a fear typed in own words is not listed as a fear; listing it
+            // needs an extraction from own_words alone, which is a prompt decision.
+            $row['fears'] = wp_json_encode( array() );
         }
         $inserted = $wpdb->insert( $table, $row, $formats );
 
