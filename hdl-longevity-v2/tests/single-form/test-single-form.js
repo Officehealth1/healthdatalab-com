@@ -362,6 +362,7 @@ ok(/\.hdlv2-why \.hdlv2-checkbox-item/.test(rm) && /\.hdlv2-why \.hdlv2-tick/.te
   'reduced motion: every transition and transform on this page is off');
 
 ok(!/hdlv2-why-empty/.test(css + src), 'no styles or markup left for the old empty line');
+ok(/\.hdlv2-why-needs\[hidden\] \{ display: none; \}/.test(flat), 'the hidden section really hides (a page reset sets display on section)');
 
 const submit = body('submitWhyPicks');
 ok(submit !== '', 'submitWhyPicks() exists');

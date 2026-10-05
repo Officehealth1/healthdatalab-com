@@ -670,6 +670,10 @@
   border: 1px solid #e4e6ea;
   border-radius: 16px;
 }
+/* v0.48.3 — hidden until an ability has a pick. A reset inlined on the page
+   sets section { display: block }, which beats the browser's own [hidden]
+   rule, so say it here. */
+.hdlv2-why-needs[hidden] { display: none; }
 .hdlv2-why-needs h3 {
   margin: 0 0 8px;
   padding: 0;
