@@ -175,6 +175,9 @@ class HDLV2_Practitioner_Dashboard {
             HDLV2_VERSION,
             true
         );
+        // Skeleton CSS for the detail tabs + flight-notes button, enqueued
+        // directly so it never depends on which page registered hdlv2-flight-plan first.
+        wp_enqueue_style( 'hdlv2-loading-css' );
 
         $consultation_slug = apply_filters( 'hdlv2_consultation_slug', 'consultation' );
         $flight_plan_slug  = apply_filters( 'hdlv2_flight_plan_slug', 'my-flight-plan' );
