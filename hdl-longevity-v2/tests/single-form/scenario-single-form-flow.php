@@ -481,7 +481,7 @@ check( 'F1d save read before the finish, written after it: the scores survive', 
 
 $wpdb->rows[83] = make_row( 83, array( 'practitioner_user_id' => 206, 'stage1_completed_at' => '2026-10-05 00:00:00', 'stage1_data' => '{"q1_age":"55"}' ) );
 save3( $form, $wpdb->rows[83], array( 'q2' => 'b' ), 1 );
-check( 'F1e stage-1 save behaves as today (written, even after stage 1 finished)', array( 'q1_age' => '55', 'q2' => 'b' ) === json_decode( $wpdb->rows[83]->stage1_data, true ) );
+check( 'F1e v0.48.7: a stage-1 save after stage 1 finished is ignored, like stage 3 (old flow, practitioner 206)', array( 'q1_age' => '55' ) === json_decode( $wpdb->rows[83]->stage1_data, true ) );
 $wpdb->rows[84] = make_row( 84, array( 'practitioner_user_id' => 206, 'stage2_data' => '{"vision_text":"x"}' ) );
 save3( $form, $wpdb->rows[84], array( 'audio_note' => 'y' ), 2 );
 check( 'F1f old-flow stage-2 save behaves as today', array( 'vision_text' => 'x', 'audio_note' => 'y' ) === json_decode( $wpdb->rows[84]->stage2_data, true ) );
@@ -638,6 +638,14 @@ $rec53 = HDLV2_Client_Status::get_instance()->rest_get_client_record( array( 'pr
 check( 'G4g practitioner client record shows the stored wording',
     in_array( $OLD_WORDS, array_column( $rec53['stage2']['choices']['picks'] ?? array(), 'label' ), true ) );
 
+// G1 — a late stage-1 save after the first check finished changes nothing.
+$wpdb->rows[54] = make_row( 54, array( 'stage1_data' => '{"q1_age":"55","server_result":{"rate":1.1}}', 'current_stage' => 2 ) );
+$before54 = clone $wpdb->rows[54];
+$form->rest_save_form( req( array( 'token' => $wpdb->rows[54]->token, 'stage' => 1, 'data' => array( 'q1_age' => '99' ) ) ) );
+check( 'G1a a stage-1 save after completion leaves the row byte-identical', $before54 == $wpdb->rows[54] );
+$wpdb->rows[55] = make_row( 55, array( 'stage1_completed_at' => null, 'current_stage' => 1 ) );
+$form->rest_save_form( req( array( 'token' => $wpdb->rows[55]->token, 'stage' => 1, 'data' => array( 'q2' => 'b' ) ) ) );
+check( 'G1b a stage-1 save before completion still lands', 'b' === ( json_decode( $wpdb->rows[55]->stage1_data, true )['q2'] ?? '' ) );
 unset( $GLOBALS['options']['hdlv2_ff_single_form'] );
 
 // ════════ Retry cron ════════

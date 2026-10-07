@@ -266,12 +266,14 @@ class HDLV2_Staged_Form {
         $merged       = array_merge( $existing, $data );
 
         global $wpdb;
-        if ( $stage === 3 ) {
-            // v0.47.99 — conditional on the form still being open: a save that
-            // read the row before Complete and lands after it would put the row
-            // back without the server_result Complete just wrote.
+        if ( $stage === 1 || $stage === 3 ) {
+            // v0.47.99 (stage 3), v0.48.7 (stage 1) — conditional on the stage
+            // still being open: a save that read the row before Complete and
+            // lands after it would put the row back without the server_result
+            // Complete just wrote (for stage 1, the nine answers that feed the
+            // full ageing score). $stage is 1 or 3 here, never client text.
             $wpdb->query( $wpdb->prepare(
-                "UPDATE {$wpdb->prefix}hdlv2_form_progress SET stage3_data = %s WHERE id = %d AND (stage3_completed_at IS NULL OR stage3_completed_at = '')",
+                "UPDATE {$wpdb->prefix}hdlv2_form_progress SET stage{$stage}_data = %s WHERE id = %d AND (stage{$stage}_completed_at IS NULL OR stage{$stage}_completed_at = '')",
                 wp_json_encode( $merged ), (int) $progress->id
             ) );
         } else {
