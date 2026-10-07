@@ -2384,6 +2384,9 @@ class HDLV2_Staged_Form {
         $payload['callback_url']    = rest_url( 'hdl-v2/v1/reports/pdf-callback' );
         $payload['callback_secret'] = defined( 'HDLV2_MAKE_CALLBACK_SECRET' ) ? HDLV2_MAKE_CALLBACK_SECRET : '';
 
+        // v0.48.10 — what a choices-page client chose, for the draft PDF (all '' otherwise).
+        $payload += HDLV2_Why_Picks::payload_fields( $progress, $scores );
+
         // v0.27.2 — Sanitise text fields for Make.com raw JSON template.
         // See class-hdlv2-final-report.php fire_webhook for full rationale.
         $html_safe_fields = array( 'awaken_content', 'lift_content', 'thrive_content' );
@@ -2891,6 +2894,14 @@ class HDLV2_Staged_Form {
             // ponytail: a fear typed in own words is not listed as a fear; listing it
             // needs an extraction from own_words alone, which is a prompt decision.
             $row['fears'] = wp_json_encode( array() );
+            // v0.48.10 — the motivations ARE the ticked statements, word for
+            // word in pick order; whatever the model returned is not kept.
+            if ( is_array( $stage2_data['why_picks'] ?? null ) ) {
+                $row['motivations'] = wp_json_encode( array_column( HDLV2_Why_Picks::picks_for_display(
+                    array_slice( $stage2_data['why_picks'], 0, HDLV2_Why_Picks::MAX_PICKS ),
+                    $stage2_data['why_pick_labels'] ?? array()
+                ), 'label' ) );
+            }
         }
         $inserted = $wpdb->insert( $table, $row, $formats );
 

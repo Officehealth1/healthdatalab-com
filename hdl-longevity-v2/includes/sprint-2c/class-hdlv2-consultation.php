@@ -489,6 +489,10 @@ class HDLV2_Consultation {
             "SELECT distilled_why, ai_reformulation FROM {$wpdb->prefix}hdlv2_why_profiles WHERE form_progress_id = %d LIMIT 1",
             $progress->id
         ), ARRAY_A );
+        // v0.48.10 — single-form picks block, facts use. Set only when non-empty,
+        // so every other client's brief prompt is unchanged.
+        $picks = HDLV2_Why_Picks::block_for_row( $progress, $calc['scores'] ?? array(), 'facts' );
+        if ( '' !== $picks ) $why['picks_block'] = $picks;
 
         // v0.33.0 — Fetch all addenda for this client's active consultation
         // so the Brief reflects post-Final clinical observations, not just
