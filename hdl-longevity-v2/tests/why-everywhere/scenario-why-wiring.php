@@ -65,7 +65,7 @@ check( 'Y5 final: Make and the direct PDF service share build_pdf_payload (same 
     && false !== strpos( method( $fr, 'fire_webhook' ), 'self::build_pdf_payload(' ) );
 $br = method( src( 'includes/sprint-2c/class-hdlv2-consultation.php' ), 'get_or_build_pre_consult_summary' );
 check( 'R3 brief caller: facts block for the row, set only when non-empty (old-flow facts unchanged)',
-    1 === preg_match( '/\$picks = HDLV2_Why_Picks::block_for_row\( \$progress, \$calc\['scores'\] \?\? array\(\), 'facts' \);\s*if \( '' !== \$picks \) \$why\['picks_block'\] = \$picks;.*?generate_pre_consultation_summary\(/s', $br ) );
+    1 === preg_match( '/\$picks = HDLV2_Why_Picks::block_for_row\( \$progress, \$calc\[\'scores\'\] \?\? array\(\), \'facts\' \);\s*if \( \'\' !== \$picks \) \$why\[\'picks_block\'\] = \$picks;.*?generate_pre_consultation_summary\(/s', $br ) );
 
 $main = file_get_contents( $root . '/hdl-longevity-v2.php' );
 check( 'V1 version 0.48.10 in header and constant', false !== strpos( $main, '* Version: 0.48.10' ) && false !== strpos( $main, "define( 'HDLV2_VERSION', '0.48.10' );" ) );

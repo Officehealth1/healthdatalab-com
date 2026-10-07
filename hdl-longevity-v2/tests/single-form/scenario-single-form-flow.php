@@ -555,9 +555,9 @@ $ch     = is_array( $rec ) ? ( $rec['stage2']['choices'] ?? null ) : null;
 check( 'C1 single row: stage2.choices has picks, abilities, stage3_done', is_array( $ch ) && array( 'picks', 'abilities', 'stage3_done' ) === array_keys( $ch ) );
 check( 'C2 single row: each pick is its label plus ability display names (a retired pick keeps its old wording, a kept one reads the new)',
     5 === count( $ch['picks'] ?? array() )
-    && array( 'label' => 'Play on the floor with my grandkids', 'needs' => array( 'Mobility', 'Flexibility', 'Strength' ) ) === $ch['picks'][0]
-    && array( 'label' => 'Carry my own shopping from the car to the kitchen', 'needs' => array( 'Strength' ) ) === $ch['picks'][1]
-    && array( 'label' => 'Drive safely', 'needs' => array( 'A sharp mind', 'Flexibility' ) ) === $ch['picks'][3] );
+    && array( 'label' => 'Play on the floor with my grandkids', 'needs' => array( 'Mobility', 'Flexibility', 'Strength' ), 'group' => 'People I love' ) === $ch['picks'][0]
+    && array( 'label' => 'Carry my own shopping from the car to the kitchen', 'needs' => array( 'Strength' ), 'group' => '' ) === $ch['picks'][1]
+    && array( 'label' => 'Drive safely', 'needs' => array( 'A sharp mind', 'Flexibility' ), 'group' => 'My freedom' ) === $ch['picks'][3] );
 $abil = $ch['abilities'] ?? array();
 check( 'C3 single row: abilities are the profile of the saved answers (counts, scores, focus by hand)',
     method_exists( 'HDLV2_Why_Picks', 'abilities_profile' )
@@ -632,9 +632,9 @@ $disp = HDLV2_Why_Picks::picks_for_display( $FIVE, $S2_STORED['why_pick_labels']
 check( 'G4c practitioner list: a stored wording is shown, a bad entry falls back to the catalogue',
     $OLD_WORDS === $disp[3]['label'] && 'Play on the floor with my grandkids' === $disp[0]['label'] );
 $blk = HDLV2_Why_Picks::prompt_block( $S2_STORED );
-check( 'G4d prompt block names the stored wording, not today\'s', false !== strpos( $blk, '- ' . $OLD_WORDS . ' [depends on: mind, flexibility]' ) && false === strpos( $blk, 'Drive safely' ) );
+check( 'G4d prompt block names the stored wording, not today\'s', false !== strpos( $blk, '- ' . $OLD_WORDS . ' (My freedom) [depends on: mind, flexibility]' ) && false === strpos( $blk, 'Drive safely' ) );
 check( 'G4e a row with no stored map reads the catalogue as before',
-    false !== strpos( HDLV2_Why_Picks::prompt_block( array_diff_key( $S2_STORED, array( 'why_pick_labels' => 1 ) ) ), '- Drive safely [' ) );
+    false !== strpos( HDLV2_Why_Picks::prompt_block( array_diff_key( $S2_STORED, array( 'why_pick_labels' => 1 ) ) ), '- Drive safely (My freedom) [' ) );
 $wpdb->rows[53] = make_row( 53, array( 'stage2_data' => json_encode( $S2_STORED ), 'stage2_completed_at' => '2026-10-02 00:00:00', 'current_stage' => 3 ) );
 $ld = $form->rest_load_form( req( array( 'token' => $wpdb->rows[53]->token ) ) );
 $tie_choices = array_column( $ld['second_form_ties'] ?? array(), 'choice' );

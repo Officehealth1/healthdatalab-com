@@ -336,13 +336,16 @@ check( 'B1 no picks → empty string', '' === HDLV2_Why_Picks::prompt_block( arr
 check( 'B1b old-flow data without the marker → empty string',
     '' === HDLV2_Why_Picks::prompt_block( array( 'why_picks' => $picks3, 'vision_text' => 'typed why' ) ) );
 $block_in = array( 'form_flow' => 'single', 'why_picks' => $picks3, 'key_people_text' => 'my wife Jenny' );
+// v0.48.10 — every use ends its facts with this paragraph (approved by Quim, 2026-10-07).
+$how = "HOW TO USE THESE CHOICES: this client has one assessment, so describe where they stand today against what each choice needs, not a trend. For each focus area, name the choice it serves (quote the statement word for word), the measure that drags it, and what keeping that ability over the coming years needs. Where a measure is above what a choice needs, say so in one clause and name the choice. Explain the client's position in terms of their choices, never in abilities alone. Do not invent choices or people that are not listed here.\n";
 $expected_block = "=== WHAT THIS CLIENT CHOSE (picked from a list, their own priorities for later life) ===\n"
-    . "- Play on the floor with my grandkids [depends on: mobility, flexibility, strength]\n"
+    . "- Play on the floor with my grandkids (People I love) [depends on: mobility, flexibility, strength]\n"
     . "- Carry my own shopping from the car to the kitchen [depends on: strength]\n"
-    . "- Wake up full of energy [depends on: energy]\n"
+    . "- Wake up full of energy (Things I love) [depends on: energy]\n"
     . "Abilities these choices depend on most: strength (2), mobility (1), flexibility (1), energy (1)\n"
     . "People they named: my wife Jenny\n"
     . "In LIFT, where one of their weakest scores limits an ability these choices depend on, say so in one clause and name the choice. In THRIVE, use their choices and the people they named. Do not invent choices or people that are not listed here.\n"
+    . $how
     . "\n";
 check( 'B2 one-argument call: the block without scores, exact (snapshot)', $expected_block === HDLV2_Why_Picks::prompt_block( $block_in ) );
 $no_people = HDLV2_Why_Picks::prompt_block( array( 'form_flow' => 'single', 'why_picks' => $picks3 ) );
@@ -355,12 +358,12 @@ check( 'B5 unknown ids dropped and people text capped at 300', false === strpos(
 // With the saved answers: the pinned prompt addition (v0.47.93). Same six
 // choices and numbers as the hand-worked profile above.
 $picked_lines = "=== WHAT THIS CLIENT CHOSE (picked from a list, their own priorities for later life) ===\n"
-    . "- Play on the floor with my grandkids [depends on: mobility, flexibility, strength]\n"
-    . "- Pick up a grandchild for a hug [depends on: strength, balance]\n"
-    . "- Explore new places [depends on: stamina]\n"
-    . "- Hike the hills with friends [depends on: stamina, balance, connection]\n"
-    . "- Remember every grandchild's name and story [depends on: mind]\n"
-    . "- Wake up full of energy [depends on: energy]\n"
+    . "- Play on the floor with my grandkids (People I love) [depends on: mobility, flexibility, strength]\n"
+    . "- Pick up a grandchild for a hug (People I love) [depends on: strength, balance]\n"
+    . "- Explore new places (Things I love) [depends on: stamina]\n"
+    . "- Hike the hills with friends (Things I love) [depends on: stamina, balance, connection]\n"
+    . "- Remember every grandchild's name and story (People I love) [depends on: mind]\n"
+    . "- Wake up full of energy (Things I love) [depends on: energy]\n"
     . "Abilities these choices depend on most: strength (2), balance (2), stamina (2), mobility (1), flexibility (1), mind (1), energy (1), connection (1)\n"
     . "People they named: my wife Jenny\n";
 // Stage 1 answers are marked as such: they run 1 to 5, Stage 3 scores 0 to 5.
@@ -378,6 +381,7 @@ $no_quote = "Do not quote these ability scores as if they were one of the 21 hea
 $expected_scored = $picked_lines
     . "In LIFT, where one of their weakest scores limits an ability these choices depend on, say so in one clause and name the choice. In THRIVE, use their choices and the people they named. Do not invent choices or people that are not listed here.\n"
     . $measured_lines
+    . $how
     . "Use the focus areas to decide what LIFT puts first. Name the choice each one serves.\n"
     . $no_quote
     . "\n";
@@ -395,8 +399,8 @@ check( 'B8 an ability with no number says so; no focus line and no "use the focu
 // The milestones prompt gets the same facts with its own instruction: no
 // report sections (LIFT / THRIVE) in a prompt that has none.
 $expected_ms = $picked_lines
-    . "Do not invent choices or people that are not listed here.\n"
     . $measured_lines
+    . $how
     . "Aim the milestones at what this client chose, starting with the focus areas, and keep every milestone within its word limit.\n"
     . $no_quote
     . "\n";
@@ -453,20 +457,20 @@ foreach ( $cat as $g ) foreach ( $g['items'] as $it ) {
 }
 check( 'R4 each of the 34 retired ids is not offered and validate() refuses it', 34 === $n_retired && $all_refused );
 check( 'R5 a retired id still resolves to its old label and abilities (saved rows keep reading)', $all_resolve
-    && array( array( 'label' => 'Keep an active intimate life with my partner', 'needs' => array( 'Stamina', 'Energy and sleep' ) ) ) === HDLV2_Why_Picks::picks_for_display( array( 'intimate_life' ) )
-    && array( array( 'label' => 'Walk the dog every day, whatever the weather', 'needs' => array( 'Stamina' ) ) ) === HDLV2_Why_Picks::picks_for_display( array( 'walk_dog_daily' ) )
+    && array( array( 'label' => 'Keep an active intimate life with my partner', 'needs' => array( 'Stamina', 'Energy and sleep' ) , 'group' => '' ) ) === HDLV2_Why_Picks::picks_for_display( array( 'intimate_life' ) )
+    && array( array( 'label' => 'Walk the dog every day, whatever the weather', 'needs' => array( 'Stamina' ) , 'group' => '' ) ) === HDLV2_Why_Picks::picks_for_display( array( 'walk_dog_daily' ) )
     && array(
-        array( 'label' => 'Chase the kids around the park', 'needs' => array( 'Stamina' ) ),
-        array( 'label' => 'Walk hand in hand with my partner', 'needs' => array( 'Stamina', 'Connection' ) ),
-        array( 'label' => 'Laugh with my friends every week', 'needs' => array( 'Connection' ) ),
-        array( 'label' => 'Be there for every big family moment', 'needs' => array( 'Energy and sleep', 'Connection' ) ),
-        array( 'label' => 'Learn something new every year', 'needs' => array( 'A sharp mind' ) ),
+        array( 'label' => 'Chase the kids around the park', 'needs' => array( 'Stamina' ) , 'group' => '' ),
+        array( 'label' => 'Walk hand in hand with my partner', 'needs' => array( 'Stamina', 'Connection' ) , 'group' => '' ),
+        array( 'label' => 'Laugh with my friends every week', 'needs' => array( 'Connection' ) , 'group' => '' ),
+        array( 'label' => 'Be there for every big family moment', 'needs' => array( 'Energy and sleep', 'Connection' ) , 'group' => '' ),
+        array( 'label' => 'Learn something new every year', 'needs' => array( 'A sharp mind' ) , 'group' => '' ),
     ) === HDLV2_Why_Picks::picks_for_display( array( 'keep_up_children', 'walk_with_partner', 'see_friends_weekly', 'present_big_moments', 'learn_something_new' ) ) );
 check( 'R6 live_in_own_home is offered again and accepted', in_array( 'live_in_own_home', $flat_ids, true )
     && true === HDLV2_Why_Picks::validate( array( 'why_picks' => array_merge( array_slice( $base5, 0, 4 ), array( 'live_in_own_home' ) ) ) ) );
 check( 'R7 not_a_burden exists, is offered and accepted', isset( $needs_of['not_a_burden'] )
     && true === HDLV2_Why_Picks::validate( array( 'why_picks' => array_merge( array_slice( $base5, 0, 4 ), array( 'not_a_burden' ) ) ) ) );
-check( 'R8 a kept id reads its new wording on a saved row', array( array( 'label' => 'Drive safely', 'needs' => array( 'A sharp mind', 'Flexibility' ) ) )
+check( 'R8 a kept id reads its new wording on a saved row', array( array( 'label' => 'Drive safely', 'needs' => array( 'A sharp mind', 'Flexibility' ), 'group' => 'My freedom' ) )
     === HDLV2_Why_Picks::picks_for_display( array( 'keep_driving' ) ) );
 
 // ── v0.48.9: Matthew's wording (2026-10-07) ──
