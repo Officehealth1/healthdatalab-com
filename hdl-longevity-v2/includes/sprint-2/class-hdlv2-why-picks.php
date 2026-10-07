@@ -349,13 +349,13 @@ class HDLV2_Why_Picks {
         return array_slice( array_keys( $weight ), 0, self::FOCUS_LIMIT );
     }
 
-    /** The chosen statements for the practitioner: label + ability names. */
+    /** The chosen statements for the practitioner: label + ability names + group title. */
     public static function picks_for_display( $pick_ids, $stored_labels = array() ) {
         $out = array();
         foreach ( self::labels( $pick_ids, $stored_labels ) as $it ) {
             $names = array();
             foreach ( $it['needs'] as $n ) $names[] = self::ABILITY_LABELS[ $n ];
-            $out[] = array( 'label' => $it['label'], 'needs' => $names );
+            $out[] = array( 'label' => $it['label'], 'needs' => $names, 'group' => $it['group'] );
         }
         return $out;
     }
@@ -393,8 +393,8 @@ class HDLV2_Why_Picks {
     }
 
     /**
-     * v0.48.8 — what a single-form row chose, for the PDFs: picks (labels in
-     * pick order), abilities [ label, short, count, score|null, focus ],
+     * v0.48.8 — what a single-form row chose, for the PDFs: picks ({ label,
+     * group } in pick order, v0.48.10), abilities [ label, short, count, score|null, focus ],
      * focus_areas (labels), people, own_words. Empty array for every other
      * row. Read from picks_for_display() + abilities_profile(); nothing new
      * is worked out here.
@@ -410,8 +410,10 @@ class HDLV2_Why_Picks {
             $abilities[] = array( 'label' => $a['label'], 'short' => self::ABILITY_SHORT[ $a['id'] ], 'count' => $a['count'], 'score' => $a['score'], 'focus' => $a['focus'] );
             if ( $a['focus'] ) $focus[] = $a['label'];
         }
+        $picks = array();
+        foreach ( self::picks_for_display( $ids, $s2['why_pick_labels'] ?? array() ) as $p ) $picks[] = array( 'label' => $p['label'], 'group' => $p['group'] );
         return array(
-            'picks'       => array_column( self::picks_for_display( $ids, $s2['why_pick_labels'] ?? array() ), 'label' ),
+            'picks'       => $picks,
             'abilities'   => $abilities,
             'focus_areas' => $focus,
             'people'      => self::plain( $s2['key_people_text'] ?? '', self::MAX_PEOPLE_LEN ),
@@ -420,22 +422,33 @@ class HDLV2_Why_Picks {
     }
 
     /**
-     * summary_for_row() as five flat strings for the PDF payloads. Make's
+     * summary_for_row() as eight flat strings for the PDF payloads. Make's
      * PDFMonkey step is a JSON text template, so lists go as one string
-     * (" | " between items, a template splits on it). All '' for every row
-     * that did not use the choices page.
+     * (" | " between items, a template splits on it). v0.48.10 — the three
+     * why_picks_<group> keys hold the statements under each heading, so the
+     * PDFs print them from data. All '' for every row that did not use the
+     * choices page.
      */
     public static function payload_fields( $progress, $stage3_scores ) {
-        $s   = self::summary_for_row( $progress, $stage3_scores );
-        $abs = array();
+        $s     = self::summary_for_row( $progress, $stage3_scores );
+        $picks = $s['picks'] ?? array();
+        $abs   = array();
         foreach ( $s['abilities'] ?? array() as $a ) $abs[] = $a['label'] . ' (' . $a['count'] . ( $a['focus'] ? ', focus area' : '' ) . ')';
-        return array(
-            'why_picks'       => implode( ' | ', $s['picks'] ?? array() ),
+        $out = array(
+            'why_picks'       => implode( ' | ', array_column( $picks, 'label' ) ),
             'why_abilities'   => implode( ' | ', $abs ),
             'why_focus_areas' => implode( ', ', $s['focus_areas'] ?? array() ),
             'why_people'      => $s['people'] ?? '',
             'why_own_words'   => $s['own_words'] ?? '',
         );
+        // ponytail: a retired statement has no heading, so it is in why_picks only.
+        foreach ( static::catalogue() as $g ) {
+            if ( 'retired' === $g['id'] ) continue;
+            $in = array();
+            foreach ( $picks as $p ) if ( $g['title'] === $p['group'] ) $in[] = $p['label'];
+            $out[ 'why_picks_' . $g['id'] ] = implode( ' | ', $in );
+        }
+        return $out;
     }
 
     /**
@@ -457,7 +470,7 @@ class HDLV2_Why_Picks {
         $block  = "=== WHAT THIS CLIENT CHOSE (picked from a list, their own priorities for later life) ===\n";
         $counts = array_fill_keys( self::NEEDS, 0 );
         foreach ( $items as $it ) {
-            $block .= '- ' . $it['label'] . ' [depends on: ' . implode( ', ', $it['needs'] ) . "]\n";
+            $block .= '- ' . $it['label'] . ( '' !== $it['group'] ? ' (' . $it['group'] . ')' : '' ) . ' [depends on: ' . implode( ', ', $it['needs'] ) . "]\n";
             foreach ( $it['needs'] as $n ) {
                 if ( isset( $counts[ $n ] ) ) $counts[ $n ]++;
             }
@@ -471,9 +484,9 @@ class HDLV2_Why_Picks {
 
         $people = self::plain( $stage2_data['key_people_text'] ?? '', self::MAX_PEOPLE_LEN );
         if ( '' !== $people ) $block .= 'People they named: ' . $people . "\n";
-        $block .= 'draft' !== $use
-            ? "Do not invent choices or people that are not listed here.\n"
-            : "In LIFT, where one of their weakest scores limits an ability these choices depend on, say so in one clause and name the choice. In THRIVE, use their choices and the people they named. Do not invent choices or people that are not listed here.\n";
+        if ( 'draft' === $use ) {
+            $block .= "In LIFT, where one of their weakest scores limits an ability these choices depend on, say so in one clause and name the choice. In THRIVE, use their choices and the people they named. Do not invent choices or people that are not listed here.\n";
+        }
 
         $scored = $stage1_raw || $stage3_scores;
         $focus  = array();
@@ -494,6 +507,9 @@ class HDLV2_Why_Picks {
             foreach ( self::focus_ids( $profile ) as $id ) $focus[] = self::ABILITY_LABELS[ $id ];
             if ( $focus ) $block .= 'Focus areas (most chosen, weakest measured): ' . implode( ', ', $focus ) . "\n";
         }
+        // v0.48.10 (Quim, 2026-10-07): the choices explain the results. One
+        // assessment is a position, not a trend.
+        $block .= "HOW TO USE THESE CHOICES: this client has one assessment, so describe where they stand today against what each choice needs, not a trend. For each focus area, name the choice it serves (quote the statement word for word), the measure that drags it, and what keeping that ability over the coming years needs. Where a measure is above what a choice needs, say so in one clause and name the choice. Explain the client's position in terms of their choices, never in abilities alone. Do not invent choices or people that are not listed here.\n";
         // An instruction about focus areas is only given when some are named.
         if ( 'milestones' === $use ) {
             $block .= 'Aim the milestones at what this client chose' . ( $focus ? ', starting with the focus areas' : '' ) . ", and keep every milestone within its word limit.\n";
@@ -556,7 +572,8 @@ class HDLV2_Why_Picks {
     private static function labels( $pick_ids, $stored = array() ) {
         $by_id = array();
         foreach ( static::catalogue() as $g ) {
-            foreach ( $g['items'] as $it ) $by_id[ $it['id'] ] = $it;
+            // v0.48.10 — the heading it is offered under; a retired statement has none.
+            foreach ( $g['items'] as $it ) $by_id[ $it['id'] ] = $it + array( 'group' => $it['retired'] ? '' : $g['title'] );
         }
         $stored = is_array( $stored ) ? $stored : array();
         $out    = array();
