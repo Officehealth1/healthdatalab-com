@@ -439,8 +439,12 @@ $single_row = function ( $id, $own ) use ( $picks_fear ) {
 $wpdb->rows[70] = $single_row( 70, '' );
 HDLV2_Staged_Form::run_single_stage2_extraction( 70 );
 check( 'X5 single row, own words empty: the extraction\'s fears are not stored (fears = [])', '[]' === ( $wpdb->why[70]['fears'] ?? null ) );
-check( 'X5b the rest of that row is stored as returned', '[{"name":"Jenny","relationship":"wife"}]' === ( $wpdb->why[70]['key_people'] ?? null )
-    && '["Play on the floor with the grandchildren"]' === ( $wpdb->why[70]['motivations'] ?? null ) );
+check( 'X5b the people are stored as returned', '[{"name":"Jenny","relationship":"wife"}]' === ( $wpdb->why[70]['key_people'] ?? null ) );
+// v0.48.10 — the model paraphrased ("Play on the floor with the grandchildren");
+// a choices row stores the ticked statements word for word, in pick order.
+check( 'X5c single row: motivations = the ticked statements verbatim, in pick order (model paraphrase discarded)',
+    json_encode( array_column( HDLV2_Why_Picks::picks_for_display( $picks_fear ), 'label' ) ) === ( $wpdb->why[70]['motivations'] ?? null )
+    && 5 === count( json_decode( $wpdb->why[70]['motivations'], true ) ) );
 $wpdb->rows[71] = $single_row( 71, '   ' );
 HDLV2_Staged_Form::run_single_stage2_extraction( 71 );
 check( 'X6 single row, own words only spaces: fears = []', '[]' === ( $wpdb->why[71]['fears'] ?? null ) );
@@ -452,6 +456,7 @@ check( 'X7b ...the own words stay in vision_text', false !== strpos( (string) ( 
 $wpdb->rows[73] = make_row( 73, array( 'practitioner_user_id' => 206, 'stage2_data' => json_encode( array( 'vision_text' => $LONG ) ) ) );
 HDLV2_Staged_Form::run_single_stage2_extraction( 73 );
 check( 'X8 old-flow row (not a choices page): fears stored as returned', '["ending up in a care home"]' === ( $wpdb->why[73]['fears'] ?? null ) );
+check( 'X8b old-flow row: motivations stored as the model returned them', '["Play on the floor with the grandchildren"]' === ( $wpdb->why[73]['motivations'] ?? null ) );
 HDLV2_AI_Service::$fears = array();
 
 // ════════ v0.47.99: a late stage-3 save cannot overwrite a finished form ════════
@@ -697,10 +702,10 @@ $pl   = json_decode( $fire[0]['body'] ?? '{}', true );
 check( 'W2 switch on: exactly one Stage 2 fire, after the WHY row exists', isset( $w3->why[81] ) && 1 === stage2_fires( $w3->rows[81] ) );
 check( 'W3 fired_at + text hash stamped (the old flow\'s claim)', null !== $w3->rows[81]->stage2_webhook_fired_at );
 $pf = HDLV2_Why_Picks::payload_fields( $w3->rows[81], array() );
-check( 'W4 payload: form_flow single + the five choice fields from payload_fields()', 'single' === ( $pl['form_flow'] ?? '' )
-    && $pf === array_intersect_key( $pl, $pf ) && '' !== $pl['why_picks'] );
+check( 'W4 payload: form_flow single + the eight choice fields from payload_fields()', 'single' === ( $pl['form_flow'] ?? '' )
+    && $pf === array_intersect_key( $pl, $pf ) && '' !== $pl['why_picks'] && 8 === count( $pf ) && '' !== $pl['why_picks_freedom'] );
 check( 'W5 payload: the WHY row\'s summary fields, flat', 'I want to keep up with my family.' === ( $pl['distilled_why'] ?? '' )
-    && 'Jenny' === ( $pl['key_people_csv'] ?? '' ) && 'Play on the floor with the grandchildren' === ( $pl['motivations_csv'] ?? '' )
+    && 'Jenny' === ( $pl['key_people_csv'] ?? '' ) && implode( ', ', HDLV2_Why_Picks::label_map( $picks_w ) ) === ( $pl['motivations_csv'] ?? '' )
     && 'You want to keep up.' === ( $pl['ai_reformulation'] ?? '' ) );
 check( 'W6 payload: today\'s keys still there (token, vision_text, callback)', $w3->rows[81]->token === ( $pl['token'] ?? '' )
     && false !== strpos( (string) ( $pl['vision_text'] ?? '' ), 'In my later years' ) && ! empty( $pl['callback_url'] ) );

@@ -113,7 +113,8 @@ if ( in_array( '--snapshot', $argv ?? array(), true ) ) {
 // ════════ S: one structured source ════════
 $sum = HDLV2_Why_Picks::summary_for_row( $single, $s3_scores );
 check( 'S1 summary keys', array( 'picks', 'abilities', 'focus_areas', 'people', 'own_words' ) === array_keys( $sum ) );
-check( 'S2 picks are the labels, in pick order', 5 === count( $sum['picks'] ) && HDLV2_Why_Picks::label_map( $PICKS ) === array_combine( $PICKS, $sum['picks'] ) );
+check( 'S2 picks are { label, group }, labels in pick order (0.48.10)', 5 === count( $sum['picks'] ) && HDLV2_Why_Picks::label_map( $PICKS ) === array_combine( $PICKS, array_column( $sum['picks'], 'label' ) )
+    && array( 'label', 'group' ) === array_keys( $sum['picks'][0] ) );
 $ab0 = $sum['abilities'][0] ?? array();
 check( 'S3 each ability row = label, short, count, score, focus', array( 'label', 'short', 'count', 'score', 'focus' ) === array_keys( $ab0 ) );
 $prof = HDLV2_Why_Picks::abilities_profile( $PICKS, HDLV2_Why_Picks::stage1_raw( $s1 ), $s3_scores );
@@ -126,15 +127,15 @@ check( 'S7 old-flow row: empty array', array() === HDLV2_Why_Picks::summary_for_
 check( 'S8 junk row: empty array', array() === HDLV2_Why_Picks::summary_for_row( (object) array(), array() ) );
 
 $pf = HDLV2_Why_Picks::payload_fields( $single, $s3_scores );
-$KEYS5 = array( 'why_picks', 'why_abilities', 'why_focus_areas', 'why_people', 'why_own_words' );
-check( 'S9 payload fields: the five keys, all strings', $KEYS5 === array_keys( $pf ) && count( array_filter( $pf, 'is_string' ) ) === 5 );
-check( 'S10 why_picks joins the statements with " | "', implode( ' | ', $sum['picks'] ) === $pf['why_picks'] );
+$KEYS5 = array( 'why_picks', 'why_abilities', 'why_focus_areas', 'why_people', 'why_own_words', 'why_picks_people', 'why_picks_freedom', 'why_picks_things' );
+check( 'S9 payload fields: the eight keys (0.48.10), all strings', $KEYS5 === array_keys( $pf ) && count( array_filter( $pf, 'is_string' ) ) === 8 );
+check( 'S10 why_picks joins the statements with " | "', implode( ' | ', array_column( $sum['picks'], 'label' ) ) === $pf['why_picks'] );
 $first = $sum['abilities'][0];
 check( 'S11 why_abilities reads "Label (count)" and marks focus areas', 0 === strpos( $pf['why_abilities'], $first['label'] . ' (' . $first['count'] )
     && substr_count( $pf['why_abilities'], ', focus area)' ) === count( $sum['focus_areas'] )
     && count( explode( ' | ', $pf['why_abilities'] ) ) === count( $sum['abilities'] ) );
 check( 'S12 why_focus_areas csv', implode( ', ', $sum['focus_areas'] ) === $pf['why_focus_areas'] );
-check( 'S13 old-flow payload fields: same five keys, all empty', array_fill_keys( $KEYS5, '' ) === HDLV2_Why_Picks::payload_fields( $old, $s3_scores ) );
+check( 'S13 old-flow payload fields: same eight keys, all empty', array_fill_keys( $KEYS5, '' ) === HDLV2_Why_Picks::payload_fields( $old, $s3_scores ) );
 
 // ════════ B: 'facts' use of the block ════════
 $facts = HDLV2_Why_Picks::block_for_row( $single, $s3_scores, 'facts' );

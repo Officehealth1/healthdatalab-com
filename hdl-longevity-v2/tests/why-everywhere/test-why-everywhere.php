@@ -9,7 +9,7 @@
 error_reporting( E_ALL & ~E_DEPRECATED & ~E_WARNING & ~E_NOTICE );
 
 $code = 0;
-foreach ( array( 'scenario-why-sources.php', 'scenario-why-wiring.php' ) as $f ) {
+foreach ( array( 'scenario-why-sources.php', 'scenario-why-wiring.php', '../why-reasoning/scenario-why-reasoning.php' ) as $f ) {
     $out = array();
     exec( escapeshellarg( PHP_BINARY ) . ' ' . escapeshellarg( __DIR__ . '/' . $f ) . ' 2>/dev/null', $out, $c );
     echo implode( "\n", $out ) . "\n";

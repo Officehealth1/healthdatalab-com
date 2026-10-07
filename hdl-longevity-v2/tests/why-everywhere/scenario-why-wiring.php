@@ -55,8 +55,20 @@ $ai = method( src( 'includes/sprint-2c/class-hdlv2-flight-notes-service.php' ), 
 check( 'N2 consultation-notes inputs carry the facts block, only when non-empty (old-flow cache hash unchanged)',
     1 === preg_match( '/block_for_row\( \$row, \$calc\[\'scores\'\] \?\? array\(\), \'facts\' \).*?if \( \'\' !== \$picks \) \$why\[\'picks_block\'\] = \$picks;/s', $ai ) );
 
+// v0.48.10 — the draft payload and the practitioner's brief.
+$dw = method( src( 'includes/sprint-2/class-hdlv2-staged-form.php' ), 'fire_make_webhook' );
+$dm = strpos( $dw, '$payload += HDLV2_Why_Picks::payload_fields( $progress, $scores );' );
+check( 'Y4 draft payload adds payload_fields() (eight keys, empty for the old flow)', false !== $dm );
+check( 'Y4b ...before the quote-safe text pass', false !== $dm && $dm < strpos( $dw, '$html_safe_fields = array(' ) );
+check( 'Y5 final: Make and the direct PDF service share build_pdf_payload (same eight keys by construction)',
+    false !== strpos( src( 'includes/sprint-2c/class-hdlv2-final-report-pdf-service.php' ), 'HDLV2_Final_Report::build_pdf_payload(' )
+    && false !== strpos( method( $fr, 'fire_webhook' ), 'self::build_pdf_payload(' ) );
+$br = method( src( 'includes/sprint-2c/class-hdlv2-consultation.php' ), 'get_or_build_pre_consult_summary' );
+check( 'R3 brief caller: facts block for the row, set only when non-empty (old-flow facts unchanged)',
+    1 === preg_match( '/\$picks = HDLV2_Why_Picks::block_for_row\( \$progress, \$calc\['scores'\] \?\? array\(\), 'facts' \);\s*if \( '' !== \$picks \) \$why\['picks_block'\] = \$picks;.*?generate_pre_consultation_summary\(/s', $br ) );
+
 $main = file_get_contents( $root . '/hdl-longevity-v2.php' );
-check( 'V1 version 0.48.8 in header and constant', false !== strpos( $main, '* Version: 0.48.8' ) && false !== strpos( $main, "define( 'HDLV2_VERSION', '0.48.8' );" ) );
+check( 'V1 version 0.48.10 in header and constant', false !== strpos( $main, '* Version: 0.48.10' ) && false !== strpos( $main, "define( 'HDLV2_VERSION', '0.48.10' );" ) );
 
 echo "\n" . ( $fail ? "WHY WIRING: FAIL ($fail)\n" : "WHY WIRING: PASS ($pass)\n" );
 exit( $fail ? 1 : 0 );
