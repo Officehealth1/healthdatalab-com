@@ -551,7 +551,7 @@ check( 'C2 single row: each pick is its label plus ability display names (a reti
     5 === count( $ch['picks'] ?? array() )
     && array( 'label' => 'Play on the floor with my grandkids', 'needs' => array( 'Mobility', 'Flexibility', 'Strength' ) ) === $ch['picks'][0]
     && array( 'label' => 'Carry my own shopping from the car to the kitchen', 'needs' => array( 'Strength' ) ) === $ch['picks'][1]
-    && array( 'label' => 'Drive myself wherever I want', 'needs' => array( 'A sharp mind', 'Flexibility' ) ) === $ch['picks'][3] );
+    && array( 'label' => 'Drive safely', 'needs' => array( 'A sharp mind', 'Flexibility' ) ) === $ch['picks'][3] );
 $abil = $ch['abilities'] ?? array();
 check( 'C3 single row: abilities are the profile of the saved answers (counts, scores, focus by hand)',
     method_exists( 'HDLV2_Why_Picks', 'abilities_profile' )
@@ -626,13 +626,25 @@ $disp = HDLV2_Why_Picks::picks_for_display( $FIVE, $S2_STORED['why_pick_labels']
 check( 'G4c practitioner list: a stored wording is shown, a bad entry falls back to the catalogue',
     $OLD_WORDS === $disp[3]['label'] && 'Play on the floor with my grandkids' === $disp[0]['label'] );
 $blk = HDLV2_Why_Picks::prompt_block( $S2_STORED );
-check( 'G4d prompt block names the stored wording, not today\'s', false !== strpos( $blk, '- ' . $OLD_WORDS . ' [depends on: mind, flexibility]' ) && false === strpos( $blk, 'Drive myself wherever I want' ) );
+check( 'G4d prompt block names the stored wording, not today\'s', false !== strpos( $blk, '- ' . $OLD_WORDS . ' [depends on: mind, flexibility]' ) && false === strpos( $blk, 'Drive safely' ) );
 check( 'G4e a row with no stored map reads the catalogue as before',
-    false !== strpos( HDLV2_Why_Picks::prompt_block( array_diff_key( $S2_STORED, array( 'why_pick_labels' => 1 ) ) ), '- Drive myself wherever I want [' ) );
+    false !== strpos( HDLV2_Why_Picks::prompt_block( array_diff_key( $S2_STORED, array( 'why_pick_labels' => 1 ) ) ), '- Drive safely [' ) );
 $wpdb->rows[53] = make_row( 53, array( 'stage2_data' => json_encode( $S2_STORED ), 'stage2_completed_at' => '2026-10-02 00:00:00', 'current_stage' => 3 ) );
 $ld = $form->rest_load_form( req( array( 'token' => $wpdb->rows[53]->token ) ) );
 $tie_choices = array_column( $ld['second_form_ties'] ?? array(), 'choice' );
-check( 'G4f tap-card reason lines use the stored wording', in_array( $OLD_WORDS, $tie_choices, true ) && ! in_array( 'Drive myself wherever I want', $tie_choices, true ) );
+check( 'G4f tap-card reason lines use the stored wording', in_array( $OLD_WORDS, $tie_choices, true ) && ! in_array( 'Drive safely', $tie_choices, true ) );
+
+// v0.48.9: a row submitted on 0.48.5 stored the 0.48.5 wording; the 0.48.9
+// rewording (and a statement retired since) does not change what it shows.
+$S2_048 = array( 'form_flow' => 'single', 'why_picks' => array( 'lift_grandchild', 'keep_driving', 'see_friends_weekly', 'wake_rested', 'swim_in_sea' ),
+    'why_pick_labels' => array( 'lift_grandchild' => 'Scoop up a grandchild for a hug', 'keep_driving' => 'Drive myself wherever I want',
+        'see_friends_weekly' => 'Laugh with my friends every week', 'wake_rested' => 'Wake up full of energy', 'swim_in_sea' => 'Swim in the sea' ) );
+check( 'G4h a 0.48.5 row keeps the wording it stored, though the catalogue was reworded',
+    array( 'Scoop up a grandchild for a hug', 'Drive myself wherever I want', 'Laugh with my friends every week', 'Wake up full of energy', 'Swim in the sea' )
+    === array_column( HDLV2_Why_Picks::picks_for_display( $S2_048['why_picks'], $S2_048['why_pick_labels'] ), 'label' ) );
+check( 'G4i the same picks without a stored map: kept ids read the new wording, a retired id its old one',
+    array( 'Pick up a grandchild for a hug', 'Drive safely', 'Laugh with my friends every week', 'Wake up full of energy', 'Swim in the sea' )
+    === array_column( HDLV2_Why_Picks::picks_for_display( $S2_048['why_picks'] ), 'label' ) );
 $wpdb->why[53] = array( 'form_progress_id' => 53, 'distilled_why' => 'x', 'released' => 1 );
 $rec53 = HDLV2_Client_Status::get_instance()->rest_get_client_record( array( 'progress_id' => 53 ) );
 check( 'G4g practitioner client record shows the stored wording',

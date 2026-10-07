@@ -216,20 +216,22 @@ const ICON_SRC = (src.match(/  var ICONS = \{[\s\S]*?\n  \};/) || [''])[0];
 let html = '';
 try {
   vm.runInNewContext(ICON_SRC + '\n' + (src.match(/  var TICK = [\s\S]*?;\n/) || [''])[0] + PAGE_FNS.map(body).join('\n') + '\nthis.renderWhyPicks = renderWhyPicks;', pageCtx);
-  const g8 = function (gid, title) {
+  // v0.48.9: the groups are uneven (6 / 8 / 7); the page draws what it is sent.
+  const gN = function (gid, title, n) {
     const items = [];
-    for (let i = 0; i < 8; i++) items.push({ id: gid + i, label: title + ' statement ' + i, needs: ['strength'] });
+    for (let i = 0; i < n; i++) items.push({ id: gid + i, label: title + ' statement ' + i, needs: ['strength'] });
     return { id: gid, title: title, items: items };
   };
-  const data = { why_options: [g8('people', 'People I love'), g8('freedom', 'My freedom'), g8('things', 'Things I love')], why_abilities: ABILITIES, why_ability_short: SHORT };
+  const data = { why_options: [gN('people', 'People I love', 6), gN('freedom', 'My freedom', 8), gN('things', 'Things I love', 7)], why_abilities: ABILITIES, why_ability_short: SHORT };
   pageCtx.serverData = data;
   pageCtx.renderWhyPicks(data);
   html = fakeRoot.innerHTML;
 } catch (e) { console.log('      renderWhyPicks threw: ' + e.message); }
 ok(html !== '', 'renderWhyPicks() draws the page');
 const groupsHtml = html.split('class="hdlv2-why-group"').slice(1);
-ok(groupsHtml.length === 3 && groupsHtml.every(function (g) { return (g.match(/type="checkbox"/g) || []).length === 8; }),
-  'three groups with 8 statements each, all in the page from the start');
+ok(groupsHtml.length === 3 && J(groupsHtml.map(function (g) { return (g.match(/type="checkbox"/g) || []).length; })) === J([6, 8, 7]),
+  'three groups drawn exactly as sent (6 / 8 / 7), all in the page from the start');
+ok(!/\b8\b|\b24\b/.test(body('renderWhyPicks')), 'renderWhyPicks() assumes no fixed number of statements');
 ok(!/ hidden[ >]|hidden=""/.test(html.split('id="hdlv2-picks-count"')[0]), 'no group or statement is hidden');
 ok(!/hdlv2-theme-|hdlv2-pick-needs/.test(html), 'no theme tile, no "needs" words');
 ok(/<h2>What matters most to you<\/h2>/.test(html), 'title: What matters most to you');
@@ -314,7 +316,7 @@ ok(/viewBox="0 0 256 256"/.test(oneIcon) && /fill="currentColor"/.test(oneIcon) 
 
 // Design 2 — a real tick control on each statement, in both states.
 const tickCount = (html.match(/<span class="hdlv2-tick" aria-hidden="true">/g) || []).length;
-ok(tickCount === 24, 'each of the 24 statements carries the tick circle (got ' + tickCount + ')');
+ok(tickCount === 21, 'each of the 21 statements carries the tick circle (got ' + tickCount + ')');
 const whyFlat = flat;
 ok(!/\.hdlv2-why \.hdlv2-checkbox-item\.selected::after/.test(whyFlat) && whyFlat.indexOf("'\\2713'") === -1, 'the selected rule no longer uses a text glyph');
 const selRule = (whyFlat.match(/\.hdlv2-why \.hdlv2-checkbox-item\.selected \{[^}]*\}/) || [''])[0];
