@@ -131,19 +131,18 @@ $cc = new ReflectionMethod( 'HDLV2_AI_Service', 'call_claude' );
 $cc->setAccessible( true );
 $GLOBALS['reply'] = $OK_REPLY;
 $GLOBALS['posts'] = array();
-$out = $cc->invoke( null, 'k', 'S', 'U', 2500 );
+$out = $cc->invoke( null, 'k', 'S', 'U' );
 $b   = last_body();
 check( 'B1a call_claude: Opus 5.5, medium, a thinking block before the text is skipped',
     '{"ok":true}' === $out && 'claude-opus-5-5' === ( $b['model'] ?? '' ) && 'medium' === ( $b['output_config']['effort'] ?? '' ) && clean_shape( $b ) );
-check( 'B1b call_claude: an answer under 4,000 tokens gets a 6,000 ceiling', 6000 === ( $b['max_tokens'] ?? 0 ) );
-$cc->invoke( null, 'k', 'S', 'U', 4500 );
-check( 'B1c call_claude: a 4,000-4,500 answer gets an 8,000 ceiling', 8000 === ( last_body()['max_tokens'] ?? 0 ) );
+check( 'B1b call_claude: one 16,000 ceiling for thinking and answer (6,000 cut the PDF sections off on STBY)', 16000 === ( $b['max_tokens'] ?? 0 ) );
+check( 'B1c call_claude: no caller passes a size any more', 0 === preg_match( '/self::call_claude\\([^;]*,\\s*\\d+\\s*(,\\s*true\\s*)?\\);/', file_get_contents( $root . '/includes/sprint-2/class-hdlv2-ai-service.php' ) ) );
 check( 'B1d call_claude in the background (the default): medium, 300 s', 300 === last_timeout() );
-$cc->invoke( null, 'k', 'S', 'U', 800, true );
+$cc->invoke( null, 'k', 'S', 'U', true );
 check( 'B1e call_claude in a web request: low effort, 95 s (under Cloudflare\'s 100 s on LIVE)',
     'low' === ( last_body()['output_config']['effort'] ?? '' ) && 95 === last_timeout() && 95 === HDLV2_AI_Service::WEB_TIMEOUT );
 $GLOBALS['reply'] = array( 'content' => array(), 'stop_reason' => 'refusal', 'stop_details' => array( 'category' => 'cyber', 'explanation' => 'No.' ) );
-$r = $cc->invoke( null, 'k', 'S', 'U', 800 );
+$r = $cc->invoke( null, 'k', 'S', 'U' );
 check( 'B1f call_claude: a refusal comes back as a WP_Error', is_wp_error( $r ) && 'claude_refusal' === $r->get_error_code() );
 
 $ai = file_get_contents( $root . '/includes/sprint-2/class-hdlv2-ai-service.php' );
@@ -153,8 +152,8 @@ preg_match_all( '/self::call_claude\(([^;]*)\);/', $ai, $calls );
 $web = array_values( array_filter( $calls[1], function ( $a ) { return (bool) preg_match( '/,\s*true\s*$/', $a ); } ) );
 check( 'B1g five web-request call sites ask for web mode; the other eight stay background (got ' . count( $web ) . ' of ' . count( $calls[1] ) . ')',
     5 === count( $web ) && 13 === count( $calls[1] )
-    && 1 === preg_match( '/user_prompt, 800, true/', implode( '|', $web ) ) && 2 === preg_match_all( '/user, 4000, true/', implode( '|', $web ) )
-    && 1 === preg_match( '/user_prompt, 1500, true/', implode( '|', $web ) ) && 1 === preg_match( '/facts, 3000, true/', implode( '|', $web ) ) );
+    && 2 === preg_match_all( '/user_prompt, true/', implode( '|', $web ) ) && 2 === preg_match_all( '/user, true/', implode( '|', $web ) )
+    && 1 === preg_match( '/facts, true/', implode( '|', $web ) ) );
 
 // B2 HDLV2_Auto_Consultation::call_claude_json, run for real.
 $acRef = new ReflectionClass( 'HDLV2_Auto_Consultation' );

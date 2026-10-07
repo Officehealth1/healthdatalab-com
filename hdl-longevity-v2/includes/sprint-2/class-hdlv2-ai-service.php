@@ -82,7 +82,7 @@ class HDLV2_AI_Service {
             . 'You never compress for length. You never invent facts nor modify inputs. '
             . 'Always return valid JSON only — no markdown, no code fences.';
 
-        $response = self::call_claude( $key, $system, $user_prompt, 2500 );
+        $response = self::call_claude( $key, $system, $user_prompt );
         if ( is_wp_error( $response ) ) {
             error_log( '[HDLV2 AI] WHY extraction failed: ' . $response->get_error_message() );
             return self::why_placeholder();
@@ -225,7 +225,7 @@ class HDLV2_AI_Service {
             . 'Be warm but professional. Use HTML formatting (p, strong, ul, li). '
             . 'Always return valid JSON only — no markdown, no code fences.';
 
-        $response = self::call_claude( $key, $system, $user_prompt, 2000 );
+        $response = self::call_claude( $key, $system, $user_prompt );
         if ( is_wp_error( $response ) ) {
             error_log( '[HDLV2 AI] Draft report failed: ' . $response->get_error_message() );
             return self::report_placeholder();
@@ -448,7 +448,7 @@ class HDLV2_AI_Service {
 
         $system = 'You are a longevity coach writing a personalised interactive draft report. You ONLY reference the 21 whitelisted metrics in the input — you never invent clinical markers. You respect severity bands (2/5 is a focus area, not an emergency). You ground trajectory commentary in the actual rate + chart status. Return JSON only — no prose outside the JSON object.';
 
-        $response = self::call_claude( $key, $system, $user_prompt, 2200 );
+        $response = self::call_claude( $key, $system, $user_prompt );
         if ( is_wp_error( $response ) ) {
             error_log( '[HDLV2 AI] Client draft narrative failed: ' . $response->get_error_message() );
             return null;
@@ -774,7 +774,7 @@ class HDLV2_AI_Service {
             . 'Be specific, actionable, warm, empowering. Do NOT make medical diagnoses. British English. '
             . 'Always return valid JSON only — no markdown, no code fences.';
 
-        $response = self::call_claude( $key, $system, $user_prompt, 2500 );
+        $response = self::call_claude( $key, $system, $user_prompt );
         if ( is_wp_error( $response ) ) {
             error_log( '[HDLV2 AI] Final report failed: ' . $response->get_error_message() );
             return self::report_placeholder();
@@ -899,7 +899,7 @@ class HDLV2_AI_Service {
 
         // C1 — 1200→1500: the conditional framing adds ~6-10 words per
         // milestone; headroom prevents truncated JSON → placeholder fallback.
-        $response = self::call_claude( $key, $system, $user_prompt, 1500, true ); // REST milestones preview (also the final-report job)
+        $response = self::call_claude( $key, $system, $user_prompt, true ); // REST milestones preview (also the final-report job)
         if ( is_wp_error( $response ) ) {
             error_log( '[HDLV2 AI] Milestones failed: ' . $response->get_error_message() );
             return self::milestones_placeholder();
@@ -1143,7 +1143,7 @@ class HDLV2_AI_Service {
         $user_prompt = $data_block . $json_spec;
 
         // max_tokens 3000 = [200]'s proven budget for these 16 sections. No temperature.
-        $response = self::call_claude( $key, $system, $user_prompt, 3000 );
+        $response = self::call_claude( $key, $system, $user_prompt );
         if ( is_wp_error( $response ) ) {
             error_log( '[HDLV2 AI] PDF sections failed: ' . $response->get_error_message() );
             return array();
@@ -1244,7 +1244,7 @@ class HDLV2_AI_Service {
 
         $user = "Raw consultation notes to organise:\n\n" . $raw_notes;
 
-        $raw = self::call_claude( $api_key, $system, $user, 4000, true ); // REST /consultation/organise (also the regenerate job)
+        $raw = self::call_claude( $api_key, $system, $user, true ); // REST /consultation/organise (also the regenerate job)
         if ( is_wp_error( $raw ) ) {
             return $raw;
         }
@@ -1279,7 +1279,7 @@ class HDLV2_AI_Service {
                 . "20-minute daily walk; 'evening grazing' → kitchen-closes-after-dinner habit). Mark "
                 . "any inferred recommendation with category='Inferred (review)' so the practitioner "
                 . "can edit or remove it. The recommendations array must have length >= 1.";
-            $retry_raw = self::call_claude( $api_key, $stricter_system, $user, 4000, true );
+            $retry_raw = self::call_claude( $api_key, $stricter_system, $user, true );
             if ( ! is_wp_error( $retry_raw ) ) {
                 $retry_parsed = json_decode( $retry_raw, true );
                 if ( is_array( $retry_parsed ) && ! empty( $retry_parsed['recommendations'] ) && is_array( $retry_parsed['recommendations'] ) ) {
@@ -1465,7 +1465,7 @@ class HDLV2_AI_Service {
             . $addenda_block
             . "\n\nIntegrate the addenda into the existing summary per the principles. Return the merged JSON.";
 
-        $raw = self::call_claude( $api_key, $system, $user, 4500 );
+        $raw = self::call_claude( $api_key, $system, $user );
         if ( is_wp_error( $raw ) ) {
             return $raw;
         }
@@ -1617,7 +1617,7 @@ class HDLV2_AI_Service {
             . '{"health_summary":"plain text","health_history":"plain text","recommendations":[{"text":"...","category":"Nutrition|Movement|Supplements|Lifestyle|Mental/Emotional|Sleep|Testing|Referral|Other","secondary_category":"optional","priority":"High|Medium|Low","frequency":"Daily|Weekly|One-off|Ongoing|Not specified"}],"follow_up_actions":["...","..."],"additional_notes":"plain text"}'
             . "\n\nReturn JSON only — no preamble, no markdown fences.";
 
-        $raw = self::call_claude( $api_key, $system, $facts, 3000, true ); // REST: consultation page load + Refresh summary
+        $raw = self::call_claude( $api_key, $system, $facts, true ); // REST: consultation page load + Refresh summary
         if ( is_wp_error( $raw ) ) return $raw;
 
         $parsed = json_decode( $raw, true );
@@ -1758,7 +1758,7 @@ class HDLV2_AI_Service {
             $name_first ?: 'the client'
         );
 
-        $response = self::call_claude( $key, $system, $user_prompt, 800, true ); // REST: Stage-3 result page
+        $response = self::call_claude( $key, $system, $user_prompt, true ); // REST: Stage-3 result page
         if ( is_wp_error( $response ) ) {
             error_log( '[HDLV2 AI] Stage 3 commentary failed: ' . $response->get_error_message() );
             return null;
@@ -1805,7 +1805,7 @@ class HDLV2_AI_Service {
             . "warrants a medical conversation. Return ONLY the JSON array described in your instructions "
             . "(an empty array [] if nothing warrants attention). Data:\n\n" . $data;
 
-        $response = self::call_claude( $key, self::redflag_system_prompt(), $user_prompt, 2000 );
+        $response = self::call_claude( $key, self::redflag_system_prompt(), $user_prompt );
         if ( is_wp_error( $response ) ) {
             error_log( '[HDLV2 AI] Red-flag scan API error: ' . $response->get_error_message() );
             return $response;
@@ -1918,11 +1918,12 @@ PROMPT;
         return $text;
     }
 
-    // $max_tokens is the answer's size; thinking shares the ceiling on Opus
-    // 5.5, so answers up to 3,000 tokens get 6,000 and longer ones 8,000.
+    // One 16,000-token ceiling for every caller: Opus 5.5's thinking shares
+    // it with the answer, and a tighter one cut the PDF sections off mid-JSON
+    // on STBY (2026-10-07). Billing follows the tokens used, not the ceiling.
     // $in_web_request: see WEB_TIMEOUT.
-    private static function call_claude( $api_key, $system, $user_prompt, $max_tokens = 1000, $in_web_request = false ) {
-        $body = self::request_body( $system, $user_prompt, $max_tokens >= 4000 ? 8000 : 6000, $in_web_request ? 'low' : 'medium' );
+    private static function call_claude( $api_key, $system, $user_prompt, $in_web_request = false ) {
+        $body = self::request_body( $system, $user_prompt, 16000, $in_web_request ? 'low' : 'medium' );
 
         $response = wp_remote_post( self::API_URL, array(
             'headers' => array(
@@ -2123,7 +2124,7 @@ PROMPT;
             . '{"flags":[{"label":"string","detail":"string","severity":"high|moderate|info"}],"session_outcomes":["string"],"pre_consult_notes":["string"],"tailored":{"frame":"string","listen":"string","inspect":"string","goals":"string","health":"string","trajectory":"string"}}'
             . "\n\nReturn JSON only — no preamble, no markdown fences.";
 
-        $raw = self::call_claude( $api_key, $system, $facts, 3000 );
+        $raw = self::call_claude( $api_key, $system, $facts );
         if ( is_wp_error( $raw ) ) {
             error_log( '[HDLV2] generate_flight_consult_notes: ' . $raw->get_error_message() );
             return self::flight_notes_empty();
