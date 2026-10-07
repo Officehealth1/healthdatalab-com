@@ -713,11 +713,9 @@ class HDLV2_Flight_Plan {
         $context['start_day_of_week'] = $start_day;
 
         $prompt = $this->build_prompt( $context );
-        // v0.46.24 — Opus 4.8 (was Sonnet 4.6). Same Messages API, same
-        // anthropic-version header (2023-06-01), same max_tokens semantics.
-        // No temperature/top_p/top_k sent here, so Opus-safe. POST timeout is
-        // already 120s below — adequate for Opus on the 12k-token plan.
-        $model  = 'claude-opus-4-8';
+        // v0.48.6 — Opus 5.5 (HDLV2_AI_Service::MODEL), medium effort,
+        // through HDLV2_AI_Service::request_body() / reply_text().
+        $model  = HDLV2_AI_Service::MODEL;
 
         // v0.31.0 — wrap the Claude call in a validated try/retry loop.
         //   1st attempt: standard prompt.
@@ -748,13 +746,9 @@ class HDLV2_Flight_Plan {
                 'headers' => array(
                     'x-api-key' => $api_key, 'anthropic-version' => '2023-06-01', 'content-type' => 'application/json',
                 ),
-                'body' => wp_json_encode( array(
-                    'model'      => $model,
-                    'max_tokens' => 12000,
-                    'system'     => $system_prompt,
-                    'messages'   => array( array( 'role' => 'user', 'content' => $user_prompt ) ),
-                ) ),
-                'timeout' => 120,
+                // 12,000 → 20,000: Opus 5.5's thinking shares the ceiling.
+                'body' => wp_json_encode( HDLV2_AI_Service::request_body( $system_prompt, $user_prompt, 20000, 'medium' ) ),
+                'timeout' => 300,
             ) );
 
             if ( is_wp_error( $response ) ) {
@@ -768,7 +762,11 @@ class HDLV2_Flight_Plan {
                 break;
             }
 
-            $content = $body['content'][0]['text'] ?? '';
+            $content = HDLV2_AI_Service::reply_text( $body );
+            if ( is_wp_error( $content ) ) {
+                $last_error = $content;
+                break; // a refusal does not change on a retry
+            }
             // Strip markdown code fences if present (```json ... ```)
             $content = preg_replace( '/^\s*```(?:json)?\s*/i', '', $content );
             $content = preg_replace( '/\s*```\s*$/', '', $content );

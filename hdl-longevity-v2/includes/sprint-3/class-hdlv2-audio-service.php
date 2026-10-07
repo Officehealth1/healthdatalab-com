@@ -33,26 +33,18 @@ class HDLV2_Audio_Service {
     // NOTE: also requires php.ini upload_max_filesize/post_max_size >= 60M.
     const MAX_FILE_SIZE = 60 * 1024 * 1024; // 60MB upload cap
 
-    /** Claude model per context type.
-     *  v0.46.24 — unified to Opus 4.8 (claude-opus-4-8) (was Sonnet 4.6). weekly_checkin was Haiku
-     *  4.5 before the 2026-05-07 promotion; now Opus 4.8 like everything else.
-     */
-    const MODELS = array(
-        'why_collection'     => 'claude-opus-4-8',
-        'consultation_notes' => 'claude-opus-4-8',
-        'weekly_checkin'     => 'claude-opus-4-8',
-    );
-
     /** Max tokens per context type.
      *  Bumped 2026-04-23 (v0.19.0) — previous caps compressed 10-minute audio
      *  down to ~1000 words of output, losing 80% of client content. See
      *  docs/ai-prompts/FIXES.md and QUIM-BRIEF-Flight-Plan-and-Checkin.md
      *  ("preserve specifics and nuance" rule).
+     *  v0.48.6 — doubled for Opus 5.5 (HDLV2_AI_Service::MODEL, the one model
+     *  for every context), whose thinking shares this ceiling with the answer.
      */
     const MAX_TOKENS = array(
-        'why_collection'     => 4000,
-        'consultation_notes' => 4000,
-        'weekly_checkin'     => 3000,
+        'why_collection'     => 8000,
+        'consultation_notes' => 8000,
+        'weekly_checkin'     => 6000,
     );
 
     private static $instance = null;
@@ -317,7 +309,7 @@ class HDLV2_Audio_Service {
             return new WP_Error( 'no_text', 'Text input is required.', array( 'status' => 400 ) );
         }
 
-        if ( ! isset( self::MODELS[ $context_type ] ) ) {
+        if ( ! isset( self::MAX_TOKENS[ $context_type ] ) ) {
             return new WP_Error( 'invalid_context', 'Invalid context_type. Must be: why_collection, consultation_notes, or weekly_checkin.', array( 'status' => 400 ) );
         }
 
@@ -441,19 +433,14 @@ class HDLV2_Audio_Service {
             return new WP_Error( 'invalid_context', "Unknown context type: {$context_type}" );
         }
 
-        $model      = self::MODELS[ $context_type ] ?? 'claude-opus-4-8';
-        $max_tokens = self::MAX_TOKENS[ $context_type ] ?? 1000;
+        $model      = HDLV2_AI_Service::MODEL;
+        $max_tokens = self::MAX_TOKENS[ $context_type ] ?? 6000;
 
         $user_prompt = str_replace( '{client_input}', $text, $prompt['user'] );
 
-        $body = array(
-            'model'      => $model,
-            'max_tokens' => $max_tokens,
-            'system'     => $prompt['system'],
-            'messages'   => array(
-                array( 'role' => 'user', 'content' => $user_prompt ),
-            ),
-        );
+        // Runs inside REST requests (/audio/extract, the check-in submit): low
+        // effort and the web timeout (HDLV2_AI_Service::WEB_TIMEOUT).
+        $body = HDLV2_AI_Service::request_body( $prompt['system'], $user_prompt, $max_tokens, 'low' );
 
         $response = wp_remote_post( 'https://api.anthropic.com/v1/messages', array(
             'headers' => array(
@@ -462,7 +449,7 @@ class HDLV2_Audio_Service {
                 'content-type'      => 'application/json',
             ),
             'body'    => wp_json_encode( $body ),
-            'timeout' => 120, // v0.46.24 — bumped 60→120 for Opus 4.8 (up to 4k-token theme extraction).
+            'timeout' => HDLV2_AI_Service::WEB_TIMEOUT, // v0.48.6 — was 120; under Cloudflare's 100 s on LIVE.
         ) );
 
         if ( is_wp_error( $response ) ) {
@@ -479,7 +466,8 @@ class HDLV2_Audio_Service {
             return new WP_Error( 'claude_error', $err );
         }
 
-        $content = $data['content'][0]['text'] ?? '';
+        $content = HDLV2_AI_Service::reply_text( $data );
+        if ( is_wp_error( $content ) ) return $content;
         if ( ! $content ) {
             return new WP_Error( 'empty_response', 'Claude returned empty response.' );
         }

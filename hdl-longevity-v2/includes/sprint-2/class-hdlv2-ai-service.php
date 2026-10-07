@@ -1,6 +1,6 @@
 <?php
 /**
- * AI Service — Claude Opus 4.8 (claude-opus-4-8) API wrapper.
+ * AI Service — Claude API wrapper (model: HDLV2_AI_Service::MODEL, Opus 5.5 from v0.48.6).
  *
  * Handles WHY extraction (Stage 2) and draft report generation (Stage 3).
  * API key: define HDLV2_ANTHROPIC_API_KEY in wp-config.php.
@@ -19,15 +19,20 @@ class HDLV2_AI_Service {
     // v0.46.24 — switched every AI surface to Opus 4.8 (Stage 2 WHY, draft
     // report, final report, consultation organise/refresh/regenerate, Stage 3
     // commentary helper).
-    // 2026-07-19 — renamed the old MODEL_HAIKU alias to MODEL_COMMENTARY. The
-    // old name implied Haiku but the value was Opus 4.8, which misled cost
-    // audits (verification #1). The Stage-3 commentary call is the single
-    // surface a future cost-optimisation can flip to a genuinely cheaper model
-    // by changing MODEL_COMMENTARY alone, without touching any caller of MODEL.
-    // NOTE: Opus 4.8 rejects `temperature`/`top_p`/`top_k` (HTTP 400). call_claude
-    // sends none of them, so it is Opus-safe as-is.
-    const MODEL            = 'claude-opus-4-8';
-    const MODEL_COMMENTARY = 'claude-opus-4-8'; // Stage-3 commentary only — flip here to go cheaper
+    // v0.48.6 — Opus 5.5 everywhere (was claude-opus-4-8), the one model id
+    // in the plugin: the auto-consultation, audio, monthly-summary and
+    // flight-plan builders read it too. MODEL_COMMENTARY is gone; the Stage-3
+    // commentary now asks for low effort instead of a second model.
+    // Opus 5.5 always thinks: `thinking: disabled`, `temperature`/`top_p`/
+    // `top_k`, a forced `tool_choice` and an assistant prefill are HTTP 400,
+    // so request_body() sends none of them.
+    const MODEL = 'claude-opus-5-5';
+
+    // v0.48.6 — a Claude call made inside a web request (a practitioner or
+    // client waiting on the page) must answer before Cloudflare's 100 s
+    // origin limit on LIVE (a 524 otherwise), so it runs at low effort with a
+    // 95 s timeout. Calls in the job queue / WP-CLI cron run at medium, 300 s.
+    const WEB_TIMEOUT = 95;
 
     // ──────────────────────────────────────────────────────────────
     //  PUBLIC: WHY EXTRACTION
@@ -894,7 +899,7 @@ class HDLV2_AI_Service {
 
         // C1 — 1200→1500: the conditional framing adds ~6-10 words per
         // milestone; headroom prevents truncated JSON → placeholder fallback.
-        $response = self::call_claude( $key, $system, $user_prompt, 1500 );
+        $response = self::call_claude( $key, $system, $user_prompt, 1500, true ); // REST milestones preview (also the final-report job)
         if ( is_wp_error( $response ) ) {
             error_log( '[HDLV2 AI] Milestones failed: ' . $response->get_error_message() );
             return self::milestones_placeholder();
@@ -1239,7 +1244,7 @@ class HDLV2_AI_Service {
 
         $user = "Raw consultation notes to organise:\n\n" . $raw_notes;
 
-        $raw = self::call_claude( $api_key, $system, $user, 4000 );
+        $raw = self::call_claude( $api_key, $system, $user, 4000, true ); // REST /consultation/organise (also the regenerate job)
         if ( is_wp_error( $raw ) ) {
             return $raw;
         }
@@ -1274,7 +1279,7 @@ class HDLV2_AI_Service {
                 . "20-minute daily walk; 'evening grazing' → kitchen-closes-after-dinner habit). Mark "
                 . "any inferred recommendation with category='Inferred (review)' so the practitioner "
                 . "can edit or remove it. The recommendations array must have length >= 1.";
-            $retry_raw = self::call_claude( $api_key, $stricter_system, $user, 4000 );
+            $retry_raw = self::call_claude( $api_key, $stricter_system, $user, 4000, true );
             if ( ! is_wp_error( $retry_raw ) ) {
                 $retry_parsed = json_decode( $retry_raw, true );
                 if ( is_array( $retry_parsed ) && ! empty( $retry_parsed['recommendations'] ) && is_array( $retry_parsed['recommendations'] ) ) {
@@ -1612,7 +1617,7 @@ class HDLV2_AI_Service {
             . '{"health_summary":"plain text","health_history":"plain text","recommendations":[{"text":"...","category":"Nutrition|Movement|Supplements|Lifestyle|Mental/Emotional|Sleep|Testing|Referral|Other","secondary_category":"optional","priority":"High|Medium|Low","frequency":"Daily|Weekly|One-off|Ongoing|Not specified"}],"follow_up_actions":["...","..."],"additional_notes":"plain text"}'
             . "\n\nReturn JSON only — no preamble, no markdown fences.";
 
-        $raw = self::call_claude( $api_key, $system, $facts, 3000 );
+        $raw = self::call_claude( $api_key, $system, $facts, 3000, true ); // REST: consultation page load + Refresh summary
         if ( is_wp_error( $raw ) ) return $raw;
 
         $parsed = json_decode( $raw, true );
@@ -1753,7 +1758,7 @@ class HDLV2_AI_Service {
             $name_first ?: 'the client'
         );
 
-        $response = self::call_claude( $key, $system, $user_prompt, 800, self::MODEL_COMMENTARY );
+        $response = self::call_claude( $key, $system, $user_prompt, 800, true ); // REST: Stage-3 result page
         if ( is_wp_error( $response ) ) {
             error_log( '[HDLV2 AI] Stage 3 commentary failed: ' . $response->get_error_message() );
             return null;
@@ -1868,15 +1873,56 @@ PROMPT;
     //  PRIVATE: API CALL
     // ──────────────────────────────────────────────────────────────
 
-    private static function call_claude( $api_key, $system, $user_prompt, $max_tokens = 1000, $model = null ) {
-        $body = array(
-            'model'      => $model ?: self::MODEL,
-            'max_tokens' => $max_tokens,
-            'system'     => $system,
-            'messages'   => array(
+    /**
+     * v0.48.6 — the one request shape every Claude call sends. Thinking is on
+     * by default on Opus 5.5 and is left to the model; effort is said out
+     * loud (the model's own default is medium). $max_tokens is the ceiling
+     * for thinking and answer together.
+     */
+    public static function request_body( $system, $user_prompt, $max_tokens, $effort = 'medium' ) {
+        return array(
+            'model'         => self::MODEL,
+            'max_tokens'    => (int) $max_tokens,
+            'system'        => $system,
+            'messages'      => array(
                 array( 'role' => 'user', 'content' => $user_prompt ),
             ),
+            'output_config' => array( 'effort' => $effort ),
         );
+    }
+
+    /**
+     * v0.48.6 — the answer text from a decoded Messages reply. On Opus 5.5
+     * thinking blocks come before the text block, so the first `text` block
+     * is read, never content[0]. A declined request (stop_reason `refusal`)
+     * is an error naming its category; a reply cut off at max_tokens is
+     * logged and returned as it is (the callers' JSON repair paths stay).
+     *
+     * @return string|WP_Error '' when there is no text block.
+     */
+    public static function reply_text( $reply ) {
+        $stop = (string) ( $reply['stop_reason'] ?? '' );
+        if ( 'refusal' === $stop ) {
+            $details  = is_array( $reply['stop_details'] ?? null ) ? $reply['stop_details'] : array();
+            $category = (string) ( $details['category'] ?? '' ) ?: 'unknown';
+            error_log( '[HDLV2 AI] Claude declined a request: category ' . $category );
+            return new WP_Error( 'claude_refusal', sprintf( 'Claude declined this request (category: %s). %s', $category, (string) ( $details['explanation'] ?? '' ) ) );
+        }
+        $text = '';
+        foreach ( (array) ( $reply['content'] ?? array() ) as $block ) {
+            if ( 'text' === ( $block['type'] ?? '' ) ) { $text = (string) ( $block['text'] ?? '' ); break; }
+        }
+        if ( 'max_tokens' === $stop ) {
+            error_log( '[HDLV2 AI] Claude reply cut off at ' . (int) ( $reply['usage']['output_tokens'] ?? 0 ) . ' tokens' );
+        }
+        return $text;
+    }
+
+    // $max_tokens is the answer's size; thinking shares the ceiling on Opus
+    // 5.5, so answers up to 3,000 tokens get 6,000 and longer ones 8,000.
+    // $in_web_request: see WEB_TIMEOUT.
+    private static function call_claude( $api_key, $system, $user_prompt, $max_tokens = 1000, $in_web_request = false ) {
+        $body = self::request_body( $system, $user_prompt, $max_tokens >= 4000 ? 8000 : 6000, $in_web_request ? 'low' : 'medium' );
 
         $response = wp_remote_post( self::API_URL, array(
             'headers' => array(
@@ -1885,7 +1931,7 @@ PROMPT;
                 'content-type'       => 'application/json',
             ),
             'body'    => wp_json_encode( $body ),
-            'timeout' => 120, // v0.46.24 — bumped 60→120; Opus 4.8 is slower on 2.5k–4.5k-token reports.
+            'timeout' => $in_web_request ? self::WEB_TIMEOUT : 300, // v0.48.6 — was 120; Opus 5.5 thinks before it answers.
         ) );
 
         if ( is_wp_error( $response ) ) {
@@ -1900,7 +1946,8 @@ PROMPT;
             return new WP_Error( 'claude_api_error', $err_msg );
         }
 
-        $content = $body['content'][0]['text'] ?? '';
+        $content = self::reply_text( $body );
+        if ( is_wp_error( $content ) ) return $content;
         if ( ! $content ) {
             return new WP_Error( 'claude_empty', 'Empty response from Claude API' );
         }

@@ -374,24 +374,24 @@ class HDLV2_Context_Builder {
                 $input .= "Week of {$ci->week_start}: " . $ci->summary . " | Adherence: " . $ci->adherence_scores . " | Comfort: {$ci->comfort_zone}\n\n";
             }
 
-            // v0.46.24 — Opus 4.8 (claude-opus-4-8) (was Sonnet 4.6, was Haiku 4.5).
-            // Promoted per "all AI analyzation on one model" directive.
+            // v0.48.6 — Opus 5.5 (HDLV2_AI_Service::MODEL) at low effort; the
+            // ceiling holds thinking and the 200-300 word summary together.
             $response = wp_remote_post( 'https://api.anthropic.com/v1/messages', array(
                 'headers' => array( 'x-api-key' => $api_key, 'anthropic-version' => '2023-06-01', 'content-type' => 'application/json' ),
-                'body'    => wp_json_encode( array(
-                    'model'      => 'claude-opus-4-8',
-                    'max_tokens' => 500,
-                    'system'     => 'Summarise this client\'s last 4 weekly check-ins into a single monthly summary. Preserve: key trends, comfort zone shifts, major obstacles, wins, flag history, adherence pattern. Output: 200-300 words max.',
-                    'messages'   => array( array( 'role' => 'user', 'content' => $input ) ),
+                'body'    => wp_json_encode( HDLV2_AI_Service::request_body(
+                    'Summarise this client\'s last 4 weekly check-ins into a single monthly summary. Preserve: key trends, comfort zone shifts, major obstacles, wins, flag history, adherence pattern. Output: 200-300 words max.',
+                    $input,
+                    4000,
+                    'low'
                 ) ),
-                'timeout' => 60,
+                'timeout' => 300,
             ) );
 
             if ( is_wp_error( $response ) || wp_remote_retrieve_response_code( $response ) !== 200 ) continue;
 
             $body = json_decode( wp_remote_retrieve_body( $response ), true );
-            $summary = $body['content'][0]['text'] ?? '';
-            if ( ! $summary ) continue;
+            $summary = HDLV2_AI_Service::reply_text( $body );
+            if ( is_wp_error( $summary ) || ! $summary ) continue;
 
             $month_start = $checkins[0]->week_start;
             $month_end   = $checkins[ count( $checkins ) - 1 ]->week_start;

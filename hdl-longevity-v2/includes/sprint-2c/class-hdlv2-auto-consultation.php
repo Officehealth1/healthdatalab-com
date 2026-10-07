@@ -402,7 +402,7 @@ class HDLV2_Auto_Consultation {
     }
 
     /**
-     * Claude Opus 4.8 (claude-opus-4-8) call — generates 5 recommendations + 4 milestones.
+     * Claude call (HDLV2_AI_Service::MODEL) — generates 5 recommendations + 4 milestones.
      * Returns WP_Error on transport / parse failure (caller falls back to
      * heuristic). On success returns array(recommendations[], milestones{}).
      */
@@ -454,10 +454,10 @@ class HDLV2_Auto_Consultation {
             . "  }\n"
             . "}";
 
-        $parsed = $this->call_claude_json( HDLV2_ANTHROPIC_API_KEY, $system, $user_prompt, 1500, 0.4, 'claude-opus-4-8' );
+        $parsed = $this->call_claude_json( HDLV2_ANTHROPIC_API_KEY, $system, $user_prompt, 6000 );
         if ( is_wp_error( $parsed ) ) {
             // Retry once.
-            $parsed = $this->call_claude_json( HDLV2_ANTHROPIC_API_KEY, $system, $user_prompt, 1500, 0.4, 'claude-opus-4-8' );
+            $parsed = $this->call_claude_json( HDLV2_ANTHROPIC_API_KEY, $system, $user_prompt, 6000 );
         }
         if ( is_wp_error( $parsed ) ) {
             return $parsed;
@@ -476,20 +476,13 @@ class HDLV2_Auto_Consultation {
     /**
      * Claude API call with JSON parse. Self-contained so we don't have to
      * extend HDLV2_AI_Service::call_claude. 120s timeout matches AI service.
-     * v0.46.24 — `temperature` removed from the request body: Opus 4.8 rejects
-     * it (HTTP 400 "temperature is deprecated for this model"). The $temperature
-     * parameter is retained in the signature for call-site compatibility but is
-     * no longer sent. Determinism is now steered by the prompt + low max_tokens.
+     * v0.48.6 — Opus 5.5 through HDLV2_AI_Service::request_body() and
+     * reply_text(); the unsent $temperature and the $model argument are gone.
+     * $max_tokens holds thinking and the answer together.
      */
-    private function call_claude_json( $api_key, $system, $user_prompt, $max_tokens, $temperature, $model ) {
-        $body = array(
-            'model'       => $model,
-            'max_tokens'  => $max_tokens,
-            'system'      => $system,
-            'messages'    => array(
-                array( 'role' => 'user', 'content' => $user_prompt ),
-            ),
-        );
+    private function call_claude_json( $api_key, $system, $user_prompt, $max_tokens ) {
+        // Runs inside POST /auto-consultation/submit: low effort, web timeout.
+        $body = HDLV2_AI_Service::request_body( $system, $user_prompt, $max_tokens, 'low' );
 
         $response = wp_remote_post( 'https://api.anthropic.com/v1/messages', array(
             'headers' => array(
@@ -498,7 +491,7 @@ class HDLV2_Auto_Consultation {
                 'content-type'      => 'application/json',
             ),
             'body'    => wp_json_encode( $body ),
-            'timeout' => 120, // v0.46.24 — bumped 60→120 for Opus 4.8.
+            'timeout' => HDLV2_AI_Service::WEB_TIMEOUT, // v0.48.6 — was 120; under Cloudflare's 100 s on LIVE.
         ) );
 
         if ( is_wp_error( $response ) ) {
@@ -511,7 +504,8 @@ class HDLV2_Auto_Consultation {
             return new WP_Error( 'claude_api_error', $msg );
         }
 
-        $text = $resp_body['content'][0]['text'] ?? '';
+        $text = HDLV2_AI_Service::reply_text( $resp_body );
+        if ( is_wp_error( $text ) ) return $text;
         if ( $text === '' ) {
             return new WP_Error( 'claude_empty', 'Claude returned empty content.' );
         }

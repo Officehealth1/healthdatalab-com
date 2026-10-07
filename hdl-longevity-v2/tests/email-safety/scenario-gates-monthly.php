@@ -32,7 +32,7 @@ function add_action() {}
 function wp_json_encode( $x ) { return json_encode( $x ); }
 function wp_remote_post( $url, $args = array() ) {
     $GLOBALS['http_posts'][] = $url;
-    return array( 'response' => array( 'code' => 200 ), 'body' => json_encode( array( 'content' => array( array( 'text' => 'QA summary' ) ) ) ) );
+    return array( 'response' => array( 'code' => 200 ), 'body' => json_encode( array( 'content' => array( array( 'type' => 'text', 'text' => 'QA summary' ) ) ) ) );
 }
 function is_wp_error( $x ) { return false; }
 function wp_remote_retrieve_response_code( $r ) { return $r['response']['code'] ?? 0; }
@@ -72,6 +72,7 @@ class FakeWpdb {
 }
 
 require __DIR__ . '/../../includes/class-hdlv2-env.php';
+require __DIR__ . '/../../includes/sprint-2/class-hdlv2-ai-service.php'; // v0.48.6 — the summary call is built by request_body()
 require __DIR__ . '/../../includes/class-hdlv2-context-builder.php';
 
 $pass = 0; $fail = 0;

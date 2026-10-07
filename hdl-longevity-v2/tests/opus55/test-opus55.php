@@ -138,17 +138,23 @@ check( 'B1a call_claude: Opus 5.5, medium, a thinking block before the text is s
 check( 'B1b call_claude: an answer under 4,000 tokens gets a 6,000 ceiling', 6000 === ( $b['max_tokens'] ?? 0 ) );
 $cc->invoke( null, 'k', 'S', 'U', 4500 );
 check( 'B1c call_claude: a 4,000-4,500 answer gets an 8,000 ceiling', 8000 === ( last_body()['max_tokens'] ?? 0 ) );
-check( 'B1d call_claude: 300 s HTTP timeout (it runs in the background queue)', 300 === last_timeout() );
-$cc->invoke( null, 'k', 'S', 'U', 800, 'low' );
-check( 'B1e call_claude: a caller can ask for low effort', 'low' === ( last_body()['output_config']['effort'] ?? '' ) );
+check( 'B1d call_claude in the background (the default): medium, 300 s', 300 === last_timeout() );
+$cc->invoke( null, 'k', 'S', 'U', 800, true );
+check( 'B1e call_claude in a web request: low effort, 95 s (under Cloudflare\'s 100 s on LIVE)',
+    'low' === ( last_body()['output_config']['effort'] ?? '' ) && 95 === last_timeout() && 95 === HDLV2_AI_Service::WEB_TIMEOUT );
 $GLOBALS['reply'] = array( 'content' => array(), 'stop_reason' => 'refusal', 'stop_details' => array( 'category' => 'cyber', 'explanation' => 'No.' ) );
 $r = $cc->invoke( null, 'k', 'S', 'U', 800 );
 check( 'B1f call_claude: a refusal comes back as a WP_Error', is_wp_error( $r ) && 'claude_refusal' === $r->get_error_code() );
 
 $ai = file_get_contents( $root . '/includes/sprint-2/class-hdlv2-ai-service.php' );
-check( 'B1g the Stage-3 commentary asks for low effort; every other caller keeps medium',
-    1 === substr_count( $ai, "self::call_claude( \$key, \$system, \$user_prompt, 800, 'low' )" )
-    && 0 === preg_match_all( "/self::call_claude\([^;]*'(high|xhigh|max)'/", $ai ) );
+// The callers reachable from a REST request: Stage-3 commentary, organise
+// notes (and its retry), milestones (preview), pre-consultation summary.
+preg_match_all( '/self::call_claude\(([^;]*)\);/', $ai, $calls );
+$web = array_values( array_filter( $calls[1], function ( $a ) { return (bool) preg_match( '/,\s*true\s*$/', $a ); } ) );
+check( 'B1g five web-request call sites ask for web mode; the other eight stay background (got ' . count( $web ) . ' of ' . count( $calls[1] ) . ')',
+    5 === count( $web ) && 13 === count( $calls[1] )
+    && 1 === preg_match( '/user_prompt, 800, true/', implode( '|', $web ) ) && 2 === preg_match_all( '/user, 4000, true/', implode( '|', $web ) )
+    && 1 === preg_match( '/user_prompt, 1500, true/', implode( '|', $web ) ) && 1 === preg_match( '/facts, 3000, true/', implode( '|', $web ) ) );
 
 // B2 HDLV2_Auto_Consultation::call_claude_json, run for real.
 $acRef = new ReflectionClass( 'HDLV2_Auto_Consultation' );
@@ -158,10 +164,11 @@ $cj->setAccessible( true );
 $GLOBALS['reply'] = $OK_REPLY;
 $parsed = $cj->getNumberOfParameters() >= 3 ? $cj->invokeArgs( $ac, array_slice( array( 'k', 'S', 'U', 1500, 0.4, 'claude-opus-4-8' ), 0, $cj->getNumberOfParameters() ) ) : null;
 $b = last_body();
-check( 'B2a auto-consultation: Opus 5.5 from MODEL, medium, nothing Opus 5.5 refuses, reads the text block',
-    array( 'ok' => true ) === $parsed && 'claude-opus-5-5' === ( $b['model'] ?? '' ) && 'medium' === ( $b['output_config']['effort'] ?? '' ) && clean_shape( $b ) );
-check( 'B2b auto-consultation: 6,000 ceiling, 300 s timeout', 6000 === ( $b['max_tokens'] ?? 0 ) && 300 === last_timeout() );
+check( 'B2a auto-consultation (a REST request): Opus 5.5, low effort, nothing Opus 5.5 refuses, reads the text block',
+    array( 'ok' => true ) === $parsed && 'claude-opus-5-5' === ( $b['model'] ?? '' ) && 'low' === ( $b['output_config']['effort'] ?? '' ) && clean_shape( $b ) );
 $acSrc = file_get_contents( $root . '/includes/sprint-2c/class-hdlv2-auto-consultation.php' );
+check( 'B2b auto-consultation: both calls ask for a 6,000 ceiling; web timeout 95 s',
+    2 === substr_count( $acSrc, '$this->call_claude_json( HDLV2_ANTHROPIC_API_KEY, $system, $user_prompt, 6000 )' ) && 95 === last_timeout() );
 check( 'B2c auto-consultation: the unused temperature and model arguments are gone', false === strpos( $acSrc, '0.4, ' ) && false === strpos( $acSrc, 'claude-opus' ) );
 
 // B3 HDLV2_Audio_Service::extract_summary, run for real for each context.
@@ -171,9 +178,9 @@ foreach ( $want as $ctx => $mt ) {
     $GLOBALS['reply'] = $OK_REPLY;
     $res = $audio->extract_summary( 'I walk the dog every day.', $ctx );
     $b   = last_body();
-    check( "B3 audio $ctx: Opus 5.5, medium, $mt ceiling, 300 s, text block read",
-        '{"ok":true}' === $res && 'claude-opus-5-5' === ( $b['model'] ?? '' ) && 'medium' === ( $b['output_config']['effort'] ?? '' )
-        && $mt === ( $b['max_tokens'] ?? 0 ) && 300 === last_timeout() && clean_shape( $b ) );
+    check( "B3 audio $ctx (a REST request): Opus 5.5, low, $mt ceiling, 95 s, text block read",
+        '{"ok":true}' === $res && 'claude-opus-5-5' === ( $b['model'] ?? '' ) && 'low' === ( $b['output_config']['effort'] ?? '' )
+        && $mt === ( $b['max_tokens'] ?? 0 ) && 95 === last_timeout() && clean_shape( $b ) );
 }
 check( 'B3d audio: the MODELS map is gone (one model)', ! defined( 'HDLV2_Audio_Service::MODELS' ) );
 
