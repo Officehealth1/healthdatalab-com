@@ -188,6 +188,12 @@ class FakeWpdb {
             $row->stage3_data = $m[1];
             return 1;
         }
+        if ( preg_match( "/SET stage1_data = '(.*)'\s+WHERE id = (\d+)\s+AND \(stage1_completed_at IS NULL OR stage1_completed_at = ''\)/s", $sql, $m ) ) {
+            $row = $this->rows[ (int) $m[2] ] ?? null;
+            if ( ! $row || ( null !== $row->stage1_completed_at && '' !== $row->stage1_completed_at ) ) return 0;
+            $row->stage1_data = $m[1];
+            return 1;
+        }
         if ( preg_match( "/SET stage2_data = '(.*)'\s+WHERE id = (\d+)\s+AND \(stage2_completed_at IS NULL/s", $sql, $m ) ) {
             $row = $this->rows[ (int) $m[2] ] ?? null;
             if ( ! $row || ( null !== $row->stage2_completed_at && '' !== $row->stage2_completed_at ) ) return 0;
@@ -584,6 +590,55 @@ check( 'C7 old-flow row: stage2 keys are exactly today\'s list',
 $wpdb->rows[42] = make_row( 42, array( 'practitioner_user_id' => 206, 'stage2_data' => json_encode( array( 'why_picks' => $FIVE, 'vision_text' => $LONG ) ) ) );
 $wpdb->why[42] = array( 'form_progress_id' => 42, 'distilled_why' => 'x', 'released' => 0 );
 check( 'C8 picks without the marker: no choices key', ! array_key_exists( 'choices', $status->rest_get_client_record( array( 'progress_id' => 42 ) )['stage2'] ?? array( 'choices' => 1 ) ) );
+
+// ════════ v0.48.5 gate fixes (2026-10-07) ════════
+$GLOBALS['options']['hdlv2_ff_single_form'] = '122';
+// G5 — a stage-2 autosave keeps only the three page fields; picks are strings, unique, at most 10.
+$wpdb->rows[50] = make_row( 50 );
+$junk = array( 'why_picks' => array( 'floor_grandkids', 'floor_grandkids', 7, array( 'x' ), 'a1', 'a2', 'a3', 'a4', 'a5', 'a6', 'a7', 'a8', 'a9', 'a10' ),
+    'key_people_text' => 'Jenny', 'own_words' => 'more', 'distilled_why' => 'FAKE', 'why_pick_labels' => array( 'floor_grandkids' => 'FAKE' ), 'anything' => 1 );
+save( $form, $wpdb->rows[50], $junk, false );
+$d50 = s2( $wpdb->rows[50] );
+check( 'G5a autosave stores only why_picks, key_people_text, own_words', array( 'why_picks', 'key_people_text', 'own_words' ) === array_keys( $d50 ) );
+check( 'G5b autosave picks: strings only, duplicates gone, at most 10',
+    array( 'floor_grandkids', 'a1', 'a2', 'a3', 'a4', 'a5', 'a6', 'a7', 'a8', 'a9' ) === ( $d50['why_picks'] ?? null ) );
+$wpdb->rows[51] = make_row( 51 );
+save( $form, $wpdb->rows[51], array( 'key_people_text' => str_repeat( 'x', 400 ), 'own_words' => array( 'no' ) ), false );
+$d51 = s2( $wpdb->rows[51] );
+check( 'G5c autosave text: capped at its length, a non-string dropped',
+    300 === mb_strlen( $d51['key_people_text'] ?? '' ) && ! array_key_exists( 'own_words', $d51 ) && ! array_key_exists( 'why_picks', $d51 ) );
+
+// G4 — the wording the client read is stored at submit and read back first.
+$wpdb->rows[52] = make_row( 52 );
+save( $form, $wpdb->rows[52], $PICKS + array( 'why_pick_labels' => array( 'keep_driving' => 'HACKED' ) ), true );
+$d52 = s2( $wpdb->rows[52] );
+$want = array();
+foreach ( HDLV2_Why_Picks::catalogue() as $g ) foreach ( $g['items'] as $it ) if ( in_array( $it['id'], $FIVE_NEW, true ) ) $want[ $it['id'] ] = $it['label'];
+$want = array_merge( array_flip( $FIVE_NEW ), $want );
+check( 'G4a submit stores why_pick_labels: each pick id → the wording offered that day, in pick order', $want === ( $d52['why_pick_labels'] ?? null ) );
+check( 'G4b a client-sent label map is ignored', 'HACKED' !== ( $d52['why_pick_labels']['keep_driving'] ?? '' ) );
+
+$OLD_WORDS = 'Keep driving safely, including turning to look over my shoulder';
+$S2_STORED = array( 'form_flow' => 'single', 'why_picks' => $FIVE, 'key_people_text' => 'my wife Jenny',
+    'why_pick_labels' => array( 'keep_driving' => $OLD_WORDS, 'floor_grandkids' => array( 'not a string' ) ),
+    'vision_text' => HDLV2_Why_Picks::compose_vision_text( $FIVE, 'my wife Jenny', '' ) );
+$disp = HDLV2_Why_Picks::picks_for_display( $FIVE, $S2_STORED['why_pick_labels'] );
+check( 'G4c practitioner list: a stored wording is shown, a bad entry falls back to the catalogue',
+    $OLD_WORDS === $disp[3]['label'] && 'Play on the floor with my grandkids' === $disp[0]['label'] );
+$blk = HDLV2_Why_Picks::prompt_block( $S2_STORED );
+check( 'G4d prompt block names the stored wording, not today\'s', false !== strpos( $blk, '- ' . $OLD_WORDS . ' [depends on: mind, flexibility]' ) && false === strpos( $blk, 'Drive myself wherever I want' ) );
+check( 'G4e a row with no stored map reads the catalogue as before',
+    false !== strpos( HDLV2_Why_Picks::prompt_block( array_diff_key( $S2_STORED, array( 'why_pick_labels' => 1 ) ) ), '- Drive myself wherever I want [' ) );
+$wpdb->rows[53] = make_row( 53, array( 'stage2_data' => json_encode( $S2_STORED ), 'stage2_completed_at' => '2026-10-02 00:00:00', 'current_stage' => 3 ) );
+$ld = $form->rest_load_form( req( array( 'token' => $wpdb->rows[53]->token ) ) );
+$tie_choices = array_column( $ld['second_form_ties'] ?? array(), 'choice' );
+check( 'G4f tap-card reason lines use the stored wording', in_array( $OLD_WORDS, $tie_choices, true ) && ! in_array( 'Drive myself wherever I want', $tie_choices, true ) );
+$wpdb->why[53] = array( 'form_progress_id' => 53, 'distilled_why' => 'x', 'released' => 1 );
+$rec53 = HDLV2_Client_Status::get_instance()->rest_get_client_record( array( 'progress_id' => 53 ) );
+check( 'G4g practitioner client record shows the stored wording',
+    in_array( $OLD_WORDS, array_column( $rec53['stage2']['choices']['picks'] ?? array(), 'label' ), true ) );
+
+unset( $GLOBALS['options']['hdlv2_ff_single_form'] );
 
 // ════════ Retry cron ════════
 $w2 = new FakeWpdb();

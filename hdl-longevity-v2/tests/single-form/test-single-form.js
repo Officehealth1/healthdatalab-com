@@ -323,8 +323,9 @@ ok(/\.hdlv2-why \.hdlv2-tick \{[^}]*width: 22px[^}]*height: 22px[^}]*border: 1\.
   && /\.hdlv2-why \.hdlv2-checkbox-item\.selected \.hdlv2-tick \{[^}]*background: #3d8da0[^}]*border-color: #3d8da0/.test(whyFlat),
   'tick: 22px ring #888 (3.5:1 on white), filled #3d8da0 when chosen');
 ok(/\.hdlv2-why \.hdlv2-checkbox-item \{[^}]*border-radius: 14px/.test(whyFlat), 'statements radius 14px');
-ok(/\.hdlv2-why \.hdlv2-checkbox-item:active \{ transform: scale\(0\.985\); \}/.test(whyFlat) && /\.hdlv2-why \.hdlv2-checkbox-item \{[^}]*transition: transform 80ms/.test(whyFlat),
+ok(/\.hdlv2-why \.hdlv2-checkbox-item:not\(:has\(input:disabled\)\):active \{ transform: scale\(0\.985\); \}/.test(whyFlat) && /\.hdlv2-why \.hdlv2-checkbox-item \{[^}]*transition: transform 80ms/.test(whyFlat),
   'press: the statement eases to 0.985 over 80ms');
+ok(!/\.hdlv2-why \.hdlv2-checkbox-item:active \{ transform: scale/.test(whyFlat), 'P7: a statement switched off at ten picks does not squeeze on press');
 
 // Design 3 — the bars.
 ok(/\.hdlv2-ability-meter span \{[^}]*transition: width 240ms/.test(whyFlat), 'meter width eases over 240ms');
@@ -366,7 +367,9 @@ ok(/\.hdlv2-why-needs\[hidden\] \{ display: none; \}/.test(flat), 'the hidden se
 
 const submit = body('submitWhyPicks');
 ok(submit !== '', 'submitWhyPicks() exists');
-ok(crypto.createHash('md5').update(submit).digest('hex') === '4272960dae0c9b8ec8070936887e661f', 'submitWhyPicks() is byte-for-byte slice 1\'s');
+// v0.48.5 — the slice-1 byte pin gave way to two named changes (G2, P6).
+ok(/if \(queuedSaveTimer\) \{ clearTimeout\(queuedSaveTimer\); queuedSaveTimer = null; \}/.test(submit), 'G2: Next drops a queued autosave so it cannot land after the submit');
+ok(/prefers-reduced-motion: reduce/.test(submit) && /'auto'/.test(submit), 'P6: Next scrolls without the smooth glide when reduced motion is asked for');
 ok(/submitted:\s*true/.test(submit), 'Next sends the submitted save');
 ok(/loadForm\(\)/.test(submit), 'Next goes on to loadForm() (the health sections)');
 ok(!/renderStage2ThankYou/.test(submit), 'Next never shows the Stage 2 thank-you card');
@@ -395,6 +398,138 @@ if (typeof lineCtx.clearSaveError === 'function') {
   ok(line.className === 'hdlv2-save-status saved' && line.textContent === 'Saved', 'a "Saved" line is left alone by a pick');
 } else ok(false, 'clearSaveError() exists');
 ok(/updatePicks\(\);\s*clearSaveError\(\);/.test(body('renderWhyPicks')), 'the pick handler calls clearSaveError() right after updatePicks()');
+
+// ── v0.48.5: gate fixes (2026-10-07) ──
+// G6 + P5 + G2 — the page wiring, run for real against a small fake page.
+function wiringHarness() {
+  const H = { clock: 0, timers: [], saves: [], widths: {} };
+  const cbs = [];
+  const root = { innerHTML: '', scrollIntoView() {},
+    querySelectorAll(sel) { return /checkbox/.test(sel) ? cbs : []; } };
+  Object.defineProperty(root, 'innerHTML', { get() { return this._h || ''; }, set(h) {
+    this._h = h; cbs.length = 0;
+    (h.match(/<input type="checkbox" value="[^"]*"[^>]*>/g) || []).forEach(function (tag) {
+      const ls = [];
+      const cb = { value: tag.match(/value="([^"]*)"/)[1], checked: / checked/.test(tag), disabled: false,
+        parentNode: { classList: { toggle() {} } }, addEventListener(t, f) { if (t === 'change') ls.push(f); },
+        fire() { ls.forEach(function (f) { f({ target: cb }); }); } };
+      cbs.push(cb);
+    });
+  } });
+  function el() { return { hidden: false, textContent: '', clientWidth: 440, attrs: {}, setAttribute(k, v) { this.attrs[k] = String(v); }, getAttribute(k) { return this.attrs[k]; }, addEventListener() {}, innerHTML: '' }; }
+  const bars = el(), rows = [];
+  Object.defineProperty(bars, 'innerHTML', { get() { return ''; }, set(h) {
+    rows.length = 0;
+    h.split('role="listitem"').slice(1).forEach(function (part) {
+      const id = part.match(/data-id="([^"]*)"/)[1];
+      const w = { v: part.match(/width:(\d+%)/)[1] };
+      const style = {}; Object.defineProperty(style, 'width', { get() { return w.v; }, set(v) { w.v = v; (H.widths[id] = H.widths[id] || []).push(v); } });
+      rows.push({ getAttribute() { return id; }, querySelector() { return { style: style, offsetWidth: 0 }; } });
+    });
+  } });
+  bars.querySelectorAll = function () { return rows; };
+  const ids = { 'hdlv2-picks-count': el(), 'hdlv2-why-needs': el(), 'hdlv2-abilities': bars, 'hdlv2-why-radar': el(), 'hdlv2-picks-next': el() };
+  const sb = {
+    H, root, formData: {}, serverData: {}, saveTimer: null, queuedSaveTimer: null, saving: false,
+    document: { getElementById: (id) => ids[id] || null }, window: { addEventListener() {} },
+    setTimeout: (f, ms) => { const t = { at: H.clock + ms, f }; H.timers.push(t); return t; },
+    clearTimeout: (t) => { H.timers = H.timers.filter((x) => x !== t); },
+    setRootClasses() {}, saveIndicator() { return ''; }, footer() { return ''; }, bindFieldListeners() {}, submitWhyPicks() {}, clearSaveError() {},
+    // Like the real autoSave(): a call while a save is in flight is dropped.
+    autoSave(stage) { if (sb.saving) return; H.saves.push({ stage: stage, picks: JSON.stringify(sb.formData.why_picks) }); },
+    esc: pageCtx.esc
+  };
+  try {
+    vm.runInNewContext(limits + '\n' + ICON_SRC + '\n' + (src.match(/  var TICK = [\s\S]*?;\n/) || [''])[0] + PAGE_FNS.map(body).join('\n') + '\n' + body('saveWhenFree')
+      + '\nthis.renderWhyPicks = renderWhyPicks; this.formData = formData;', sb);
+  } catch (e) { console.log('      wiring harness threw: ' + e.message); }
+  H.advance = (ms) => {
+    const end = H.clock + ms;
+    for (;;) { H.timers.sort((a, b) => a.at - b.at); const t = H.timers[0]; if (!t || t.at > end) break; H.timers.shift(); H.clock = t.at; t.f(); }
+    H.clock = end;
+  };
+  H.cb = (v) => cbs.filter((c) => c.value === v)[0];
+  return { H, sb, root, ids, cbs };
+}
+const hostile = '<img src=x onerror=alert(1)>"';
+function page8(title) {
+  const items = [];
+  for (let i = 0; i < 8; i++) items.push({ id: title + i, label: (i === 0 ? hostile : title + ' statement ' + i), needs: [['strength', 'balance', 'mind', 'stamina'][i % 4]] });
+  return { id: title, title: title === 'people' ? hostile : title, items: items };
+}
+const WDATA = { why_options: [page8('people'), page8('freedom'), page8('things')], why_abilities: ABILITIES, why_ability_short: SHORT };
+if (typeof body('saveWhenFree') === 'string' && body('renderWhyPicks')) {
+  let w = wiringHarness();
+  w.sb.serverData = WDATA;
+  w.sb.formData = { why_picks: ['people1', 'freedom2', 'retired_or_typed'], key_people_text: '</textarea><script>x</script>' };
+  try { vm.runInNewContext('formData = this.fd; renderWhyPicks(this.wd);', Object.assign(w.sb, { fd: w.sb.formData, wd: WDATA })); } catch (e) { console.log('      render threw: ' + e.message); }
+  const h = w.root.innerHTML;
+  ok(h !== '' && h.indexOf('<img') === -1 && h.indexOf('&lt;img src=x onerror=alert(1)&gt;&quot;') !== -1, 'G6: a hostile statement label and group title are escaped');
+  ok(h.indexOf('<script>') === -1 && h.indexOf('&lt;/textarea&gt;&lt;script&gt;') !== -1, 'G6: a hostile name in the people box is escaped');
+  ok(w.H.cb('people1') && w.H.cb('people1').checked && w.H.cb('freedom2').checked && !w.H.cb('people2').checked, 'G6: saved picks come back ticked');
+  ok(JSON.stringify(vm.runInNewContext('formData.why_picks', w.sb)) === '["people1","freedom2"]', 'G6: an id not on offer is dropped on render');
+  ok(w.ids['hdlv2-picks-count'].textContent === '2 picked. Pick at least 5.', 'G6: the count line shows on render');
+
+  // A pick: stored, the count moves, a save is scheduled through saveWhenFree(2).
+  const c = w.H.cb('people2'); c.checked = true; c.fire();
+  ok(JSON.stringify(vm.runInNewContext('formData.why_picks', w.sb)) === '["people1","freedom2","people2"]', 'G6: the change handler stores the pick');
+  w.H.advance(1499);
+  ok(w.H.saves.length === 0, 'G6: no save before 1.5 s');
+  w.H.advance(1);
+  ok(w.H.saves.length === 1 && w.H.saves[0].stage === 2, 'G6: one stage-2 save at 1.5 s');
+  // P5 — the meters ease from their old width (a new row from 0%) to count ÷ picks.
+  // picks people1 (balance) + freedom2 (mind), then people2 (mind): 2 of 3 and 1 of 3.
+  ok(JSON.stringify((w.H.widths.mind || []).slice(-2)) === '["50%","67%"]', 'P5: the mind meter starts at its old width (1 of 2) and eases to 2 of 3 (67%) (got ' + JSON.stringify(w.H.widths.mind) + ')');
+  ok(JSON.stringify((w.H.widths.balance || []).slice(-2)) === '["50%","33%"]', 'P5: the balance meter eases from 50% to 33% (got ' + JSON.stringify(w.H.widths.balance) + ')');
+
+  // The eleventh pick is refused, and the box stays unticked.
+  w = wiringHarness();
+  w.sb.serverData = WDATA;
+  const ten = ['people1', 'people2', 'people3', 'people4', 'people5', 'people6', 'people7', 'freedom1', 'freedom2', 'freedom3'];
+  try { vm.runInNewContext('formData = this.fd; renderWhyPicks(this.wd);', Object.assign(w.sb, { fd: { why_picks: ten.slice() }, wd: WDATA })); } catch (e) { /* reported below */ }
+  const eleventh = w.H.cb('things1');
+  ok(eleventh && eleventh.disabled === true, 'G6: at ten picks the other statements are switched off');
+  if (eleventh) { eleventh.checked = true; eleventh.fire(); }
+  ok(vm.runInNewContext('formData.why_picks.length', w.sb) === 10 && eleventh && eleventh.checked === false, 'G6: an eleventh pick is refused and its box unticked');
+
+  // G2 — pick then un-pick while a slow save is in flight: the last state is sent, once.
+  w = wiringHarness();
+  w.sb.serverData = WDATA;
+  try { vm.runInNewContext('formData = this.fd; renderWhyPicks(this.wd);', Object.assign(w.sb, { fd: { why_picks: ['people1'] }, wd: WDATA })); } catch (e) { /* reported below */ }
+  vm.runInNewContext('saving = true', w.sb); w.sb.saving = true;
+  const a = w.H.cb('people2'); a.checked = true; a.fire();
+  w.H.advance(1600);
+  a.checked = false; a.fire();
+  w.H.advance(1600);
+  vm.runInNewContext('saving = false', w.sb); w.sb.saving = false;
+  w.H.advance(2000);
+  ok(w.H.saves.length === 1 && w.H.saves[0].picks === '["people1"]', 'G2: a pick and un-pick during a slow save end in one save of the last state (got ' + JSON.stringify(w.H.saves) + ')');
+  ok(w.H.timers.length === 0, 'G2: nothing left waiting');
+} else ok(false, 'saveWhenFree() and renderWhyPicks() exist');
+
+// G7 — the refusal line is announced.
+ok(/saveIndicator\(true\)/.test(body('renderWhyPicks')), 'G7: the choices page save line is a spoken status (role="status")');
+
+// P1 — the Phosphor licence in full beside the pictures.
+const LIC = src.slice(Math.max(0, src.indexOf('  var ICONS = {') - 2500), src.indexOf('  var ICONS = {'));
+ok(LIC.indexOf('Copyright (c) 2023 Phosphor Icons') !== -1 && LIC.indexOf('Permission is hereby granted, free of charge, to any person obtaining a copy') !== -1
+  && LIC.indexOf('The above copyright notice and this permission notice shall be included in all') !== -1 && LIC.indexOf('THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR') !== -1,
+  'P1: Phosphor\'s copyright line and the MIT permission notice sit above ICONS');
+
+// P2 — the tick follows the text colour (high-contrast themes keep it).
+const tickSrc = (src.match(/  var TICK = [\s\S]*?;\n/) || [''])[0];
+ok(/fill="currentColor"/.test(tickSrc) && !/fill="#fff"/.test(tickSrc), 'P2: the tick is drawn in currentColor');
+ok(/\.hdlv2-why \.hdlv2-tick \{[^}]*color: #fff/.test(whyFlat), 'P2: the tick circle sets color #fff');
+
+// P3, P6, P8, G8 — the stylesheet.
+ok(/\.hdlv2-why \.hdlv2-subgroup-heading:first-child \{ margin-top: 0; \}/.test(whyFlat), 'P3: the first group heading has no 4px top margin');
+ok(/\.hdlv2-why \.hdlv2-btn/.test(rm) && /\.hdlv2-why \.hdlv2-field textarea/.test(rm), 'P6: reduced motion also stops the Next fade and the text-box border fade');
+ok(/@media \(hover: hover\) \{ \.hdlv2-checkbox-item:hover \{ border-color: #3d8da0; \}/.test(whyFlat) && !/(^|\} )\.hdlv2-checkbox-item:hover \{/.test(whyFlat.replace(/@media \(hover: hover\) \{[^@]*?\} \}/, '')),
+  'P8: the hover border only where a real pointer hovers');
+ok(/\.hdlv2-checkbox-item:focus-within \{ outline: 2px solid #3d8da0; outline-offset: 2px; \}/.test(whyFlat)
+  && /\.hdlv2-checkbox-item:has\(input:focus:not\(:focus-visible\)\) \{ outline: none; \}/.test(whyFlat)
+  && whyFlat.indexOf('.hdlv2-checkbox-item:focus-within') < whyFlat.indexOf('.hdlv2-checkbox-item:has(input:focus:not(:focus-visible))'),
+  'G8: a :focus-within ring for browsers without :has(), hidden again for mouse focus where :has() works');
 
 console.log('\n' + PASS + ' passed, ' + FAIL + ' failed');
 process.exit(FAIL ? 1 : 0);

@@ -232,14 +232,18 @@ ok(/aria-expanded/.test(src) && /aria-controls="hdlv2-tap-opts-/.test(src), 'Cha
 ok(/completeStage3\(data\)/.test(fn('renderTapStep')) || /completeStage3\(data\)/.test(src.slice(src.indexOf('function renderTapStep'))), 'screen 13 completes with today\'s completeStage3()');
 ok(/metaKey|ctrlKey/.test(src.slice(src.indexOf('tapKeyHandler = function'), src.indexOf('tapKeyHandler = function') + 600)), 'A–F keys ignore Cmd/Ctrl shortcuts');
 
-ok(/if \(saving\) \{ tapSaveTimer = setTimeout\(tapSave, 300\); return; \}/.test(fn('tapSave')) && /tapSave\(\);/.test(fn('tapGo')) && !/autoSave/.test(fn('tapGo')),
+ok(/if \(saving\) \{ queuedSaveTimer = setTimeout\(function \(\) \{ saveWhenFree\(stage\); \}, 300\); return; \}/.test(fn('saveWhenFree')) && /saveWhenFree\(3\);/.test(fn('tapGo')) && !/autoSave/.test(fn('tapGo')),
   'leaving a screen waits for a save in flight instead of dropping it');
+// v0.48.5 (gate G3) — one queued save at a time: a second call drops the first's timer.
+ok(/^  function saveWhenFree\(stage\) \{\n    if \(queuedSaveTimer\) clearTimeout\(queuedSaveTimer\);/.test(fn('saveWhenFree')),
+  'saveWhenFree() clears any queued save first');
+ok(fn('tapSave') === '' && !/tapSaveTimer/.test(src), 'tapSave() and tapSaveTimer are gone (one function serves both pages)');
 ok(/bindTapComplete\(data\)/.test(step), 'screen 13 binds Complete through bindTapComplete()');
 
 // ── 9. Double taps, held keys and Complete (v0.47.98, gate T1 + T2) ──
 // The REAL bindTapQuestion() / bindTapComplete() under a fake clock and DOM.
 function tapHarness() {
-  const H = { clock: 0, timers: [], gone: [], completes: 0, status: [], autosaves: 0 };
+  const H = { clock: 0, timers: [], gone: [], completes: 0, status: [], autosaves: 0, saveStages: [] };
   const listeners = {};
   function el(attrs) {
     const ls = {};
@@ -263,10 +267,10 @@ function tapHarness() {
     clearTimeout: (t) => { H.timers = H.timers.filter((x) => x !== t); }
   };
   const code = v('TAP_SETTLE_MS') + '\n' + v('TAP_COMPLETE_WAIT_MS') + '\n'
-    + 'var tapAdvanceTimer = null, tapKeyHandler = null, tapSaveTimer = null, saveTimer = null, saving = false, formData = {};\n'
+    + 'var tapAdvanceTimer = null, tapKeyHandler = null, queuedSaveTimer = null, saveTimer = null, saving = false, formData = {};\n'
     + 'function tapGo(d, delta) { H.gone.push(delta); }\n'
-    + 'function autoSave(s) { H.autosaves++; }\n'
-    + fn('tapSave') + '\n' + fn('tapLeave') + '\n'
+    + 'function autoSave(s) { H.autosaves++; H.saveStages.push(s); }\n'
+    + fn('saveWhenFree') + '\n' + fn('tapLeave') + '\n'
     + 'function completeStage3(d) { H.completes++; }\n'
     + 'function setSaveStatus(c, t) { H.status.push([c, t]); }\n'
     + fn('bindTapQuestion') + '\n' + fn('bindTapComplete') + '\n';
@@ -341,22 +345,34 @@ if (fn('bindTapQuestion') && fn('bindTapComplete') && v('TAP_SETTLE_MS')) {
   // fire after Complete (it would land on a finished form).
   h = tapHarness();
   h.sb.saving = true;
-  h.sb.tapSave();
+  h.sb.saveWhenFree(3);
   h.sb.bindTapComplete({});
   h.done.click();
   h.advance(200); h.sb.saving = false; h.advance(2000);
-  ok(h.completes === 1 && h.sb.H.autosaves === 0, 'Complete pressed while a tapSave() poll is queued: completes once, the queued save never fires');
+  ok(h.completes === 1 && h.sb.H.autosaves === 0, 'Complete pressed while a saveWhenFree() poll is queued: completes once, the queued save never fires');
+
+  // v0.48.5 (gate G3) — two quick screen changes during one slow save, then Complete.
+  h = tapHarness();
+  h.sb.saving = true;
+  h.sb.saveWhenFree(3);
+  h.advance(100);
+  h.sb.saveWhenFree(3);
+  h.sb.bindTapComplete({});
+  h.done.click();
+  h.advance(200); h.sb.saving = false; h.advance(3000);
+  ok(h.completes === 1 && h.sb.H.autosaves === 0 && h.timers.length === 0,
+    'two screen changes during one slow save, then Complete: completes once, no queued save fires, nothing left waiting');
 
   h = tapHarness();
   h.sb.saving = true;
-  h.sb.tapSave();
+  h.sb.saveWhenFree(3);
   h.sb.tapLeave();
   h.sb.saving = false; h.advance(2000);
   ok(h.sb.H.autosaves === 1, 'a re-render (tapLeave runs on every render, right after tapGo queues its save) keeps the queued save');
 
   h = tapHarness();
   h.sb.saving = true;
-  h.sb.tapSave();
+  h.sb.saveWhenFree(3);
   h.advance(400); h.sb.saving = false; h.advance(400);
   ok(h.sb.H.autosaves === 1, 'with no Complete and no leave, the queued save still fires once the first one clears');
 
@@ -378,9 +394,10 @@ ok(typeof lineCtx.saveIndicator === 'function' && lineCtx.saveIndicator() === OL
 ok(typeof lineCtx.saveIndicator === 'function'
   && lineCtx.saveIndicator(true) === '<div id="hdlv2-save-indicator" class="hdlv2-save-status" role="status" aria-live="polite"></div>',
   'saveIndicator(true): the announced line (where the slow-connection message goes)');
-ok(/saveIndicator\(true\)/.test(fn('renderTapStep')) && (src.match(/saveIndicator\(true\)/g) || []).length === 1,
-  'only the tap-card frame asks for the announced line');
-ok((src.match(/saveIndicator\(\)/g) || []).length === 4, 'the four other frames call saveIndicator() as before');
+// v0.48.5 (gate G7) — the choices page announces its line too ("Please choose at least 5.").
+ok(/saveIndicator\(true\)/.test(fn('renderTapStep')) && /saveIndicator\(true\)/.test(fn('renderWhyPicks')) && (src.match(/saveIndicator\(true\)/g) || []).length === 2,
+  'only the tap-card frame and the choices page ask for the announced line');
+ok((src.match(/saveIndicator\(\)/g) || []).length === 3, 'the three other frames call saveIndicator() as before');
 
 // ── 10. Side bar ──
 const formCss = fs.readFileSync(path.join(__dirname, '..', '..', 'assets', 'css', 'hdlv2-form.css'), 'utf8');
