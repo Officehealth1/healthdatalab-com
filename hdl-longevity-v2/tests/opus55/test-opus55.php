@@ -253,7 +253,14 @@ $now = array();
 foreach ( $PROMPT_FILES as $f ) $now[ $f ] = file_get_contents( $root . '/' . $f );
 $filtered = array();
 foreach ( $now as $f => $code ) $filtered[ $f ] = str_replace( $OWN, "''", $code );
-$SNAPSHOT_0AF0FF5 = '918de85806c9453236738f4c0c865de4470ff416ab191597e8a64bd45ed2633b';
+// v0.48.8 (WHY everywhere, plan memory/prompts/2026-10-07_why_everywhere_v1.md):
+// the only long literal that changed is the context builder's WHY SELECT
+// (three fp.stage*_data columns added). No prompt wording changed; the picks
+// block is appended at run time, approved by Quim 2026-10-07 ("make sure all
+// the changes on Stage 2 and 3 are included to the results PDF and to make
+// scenario specially to the AI prompts"). Old-flow prompts are pinned
+// byte-identical in tests/why-everywhere. Was 918de858…2633b at 0af0ff5.
+$SNAPSHOT_0AF0FF5 = '60c19dd97ab999d1d548f0926ee1825d86afa3ad90ad73bb7e341d05e718280b';
 if ( in_array( '--snapshot', $argv ?? array(), true ) ) { echo prompt_literals_hash( $filtered ) . "\n"; exit( 0 ); }
 check( 'P1 prompt text in the six prompt-building files is byte-identical to 0af0ff5', $SNAPSHOT_0AF0FF5 === prompt_literals_hash( $filtered ) );
 

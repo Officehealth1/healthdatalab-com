@@ -252,7 +252,9 @@ class HDLV2_Final_Report {
             $health_changes,
             $typed_notes,
             $recommendations,
-            $why_profile,
+            // v0.48.8 — plus the single-form picks block ('' for everyone
+            // else), on a copy like the milestones call below.
+            array( 'picks_block' => HDLV2_Why_Picks::block_for_row( $progress, $calc_result['scores'] ?? array() ) ) + $why_profile,
             $progress->client_name ?: '',
             $age
         );
@@ -389,7 +391,8 @@ class HDLV2_Final_Report {
         // any blank section, so the report still ships.
         $pdf_sections = HDLV2_AI_Service::generate_pdf_sections(
             $calc_result,
-            $why_profile,
+            // v0.48.8 — single-form picks block, facts use (no LIFT/THRIVE here).
+            array( 'picks_block' => HDLV2_Why_Picks::block_for_row( $progress, $calc_result['scores'] ?? array(), 'facts' ) ) + $why_profile,
             $recommendations,
             $milestones,
             $s3_data,
@@ -1370,6 +1373,12 @@ class HDLV2_Final_Report {
                 $payload = array_merge( $payload, $iris_pdf );
             }
         }
+
+        // v0.48.8 — what a single-form client chose: why_picks, why_abilities,
+        // why_focus_areas, why_people, why_own_words. Plain text, '' for every
+        // other client; before the pass below so a quote cannot break Make's
+        // JSON template.
+        $payload = array_merge( $payload, HDLV2_Why_Picks::payload_fields( $progress, $calc_result['scores'] ?? array() ) );
 
         $html_safe_fields = array(
             'awaken_content', 'lift_content', 'thrive_content',

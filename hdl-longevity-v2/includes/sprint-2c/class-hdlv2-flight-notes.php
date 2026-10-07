@@ -192,6 +192,15 @@ class HDLV2_Flight_Notes {
 			'why_quote'          => self::dash( $why_quote ),
 		);
 
+		// v0.48.8 — a single-form client's choices + focus areas for the line
+		// under the WHY quote. Absent for everyone else, so their payload (and
+		// the render cache keyed on it) is unchanged.
+		if ( HDLV2_Why_Picks::is_single( json_decode( (string) $progress->stage2_data, true ) ) ) {
+			$why_fields = HDLV2_Why_Picks::payload_fields( $progress, $calc['scores'] ?? array() );
+			$payload['why_picks']       = $why_fields['why_picks'];
+			$payload['why_focus_areas'] = $why_fields['why_focus_areas'];
+		}
+
 		return $payload;
 	}
 

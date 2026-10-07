@@ -448,6 +448,10 @@ class HDLV2_Flight_Notes_Service {
 			$wpdb->prepare( "SELECT distilled_why FROM {$wpdb->prefix}hdlv2_why_profiles WHERE form_progress_id = %d LIMIT 1", $pid )
 		);
 		$why = array( 'distilled_why' => $why_row ? (string) $why_row->distilled_why : '' );
+		// v0.48.8 — single-form picks block, facts use. Set only when non-empty:
+		// $in feeds the render cache hash, which stays the same for everyone else.
+		$picks = $row ? HDLV2_Why_Picks::block_for_row( $row, $calc['scores'] ?? array(), 'facts' ) : '';
+		if ( '' !== $picks ) $why['picks_block'] = $picks;
 
 		// Consultation addenda (chronological) so the aid reflects the latest plan.
 		$addenda = array();

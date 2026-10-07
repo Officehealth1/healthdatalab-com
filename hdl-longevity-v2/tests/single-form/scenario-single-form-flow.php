@@ -256,6 +256,7 @@ function req( $body ) {
         private $b;
         public function __construct( $b ) { $this->b = $b; }
         public function get_json_params() { return $this->b; }
+        public function get_header( $k ) { return $this->b['_headers'][ strtolower( $k ) ] ?? null; }
         public function get_param( $k ) { return $this->b[ $k ] ?? null; }
     };
 }
@@ -659,6 +660,81 @@ HDLV2_Staged_Form::run_stage2_extraction_retry();
 check( 'Y1 single row: local extraction on the first attempt', isset( $w2->why[30] ) && count( HDLV2_AI_Service::$why_calls ) === $calls + 1 );
 check( 'Y2 single row: Make never re-fired', 0 === stage2_fires( $w2->rows[30] ) );
 check( 'Y3 old-flow row: Make re-fire on attempt 1 as today', 1 === stage2_fires( $w2->rows[31] ) && ! isset( $w2->why[31] ) );
+
+// ════════ v0.48.8: Stage 2 PDF for a choices-page client (WHY everywhere) ════════
+// Behind option hdlv2_ff_stage2_pdf_single (absent = off) so the plugin can
+// land before Make v31's single-form branch exists. On: fired ONCE, right
+// after the WHY row is written, with the same fired_at claim as the old flow;
+// the callback stores the PDF only and never touches the WHY.
+class HDLV2_Report_PDF {
+    public static $stored = array();
+    public static function store_why_pdf( $id, $url ) { self::$stored[] = array( $id, $url ); return array(); }
+}
+$w3 = new FakeWpdb();
+$GLOBALS['wpdb'] = $w3;
+HDLV2_Webhook_Monitor::$fires = array();
+$picks_w = array( 'floor_grandkids', 'stairs_no_rail', 'wake_rested', 'keep_driving', 'swim_in_sea' );
+$s2_w    = array( 'form_flow' => 'single', 'why_picks' => $picks_w, 'why_pick_labels' => HDLV2_Why_Picks::label_map( $picks_w ),
+    'key_people_text' => 'Jenny', 'own_words' => 'Keep up with them.', 'vision_text' => HDLV2_Why_Picks::compose_vision_text( $picks_w, 'Jenny', 'Keep up with them.' ) );
+$w_row = function ( $id ) use ( $s2_w ) {
+    return make_row( $id, array( 'stage2_data' => json_encode( $s2_w ), 'stage2_completed_at' => '2026-10-07 00:00:00', 'current_stage' => 3,
+        'stage1_data' => json_encode( array( 'q1_age' => '58', 'q3' => 'b', 'server_result' => array( 'raw' => array( 'q3' => 2 ) ) ) ) ) );
+};
+
+$w3->rows[80] = $w_row( 80 );
+HDLV2_Staged_Form::run_single_stage2_extraction( 80 );
+check( 'W1 switch off: WHY written, no Stage 2 fire, fired_at untouched', isset( $w3->why[80] ) && 0 === stage2_fires( $w3->rows[80] ) && null === $w3->rows[80]->stage2_webhook_fired_at );
+
+$GLOBALS['options']['hdlv2_ff_stage2_pdf_single'] = '1';
+$w3->rows[81] = $w_row( 81 );
+HDLV2_Staged_Form::run_single_stage2_extraction( 81 );
+$fire = array_values( array_filter( HDLV2_Webhook_Monitor::$fires, function ( $f ) { return HDLV2_MAKE_STAGE2_WHY === $f['url']; } ) );
+$pl   = json_decode( $fire[0]['body'] ?? '{}', true );
+check( 'W2 switch on: exactly one Stage 2 fire, after the WHY row exists', isset( $w3->why[81] ) && 1 === stage2_fires( $w3->rows[81] ) );
+check( 'W3 fired_at + text hash stamped (the old flow\'s claim)', null !== $w3->rows[81]->stage2_webhook_fired_at );
+$pf = HDLV2_Why_Picks::payload_fields( $w3->rows[81], array() );
+check( 'W4 payload: form_flow single + the five choice fields from payload_fields()', 'single' === ( $pl['form_flow'] ?? '' )
+    && $pf === array_intersect_key( $pl, $pf ) && '' !== $pl['why_picks'] );
+check( 'W5 payload: the WHY row\'s summary fields, flat', 'I want to keep up with my family.' === ( $pl['distilled_why'] ?? '' )
+    && 'Jenny' === ( $pl['key_people_csv'] ?? '' ) && 'Play on the floor with the grandchildren' === ( $pl['motivations_csv'] ?? '' )
+    && 'You want to keep up.' === ( $pl['ai_reformulation'] ?? '' ) );
+check( 'W6 payload: today\'s keys still there (token, vision_text, callback)', $w3->rows[81]->token === ( $pl['token'] ?? '' )
+    && false !== strpos( (string) ( $pl['vision_text'] ?? '' ), 'In my later years' ) && ! empty( $pl['callback_url'] ) );
+check( 'W7 payload: no practitioner Release link (no Release step for these rows)', '' === ( $pl['practitioner_dashboard_url'] ?? null ) );
+
+HDLV2_Staged_Form::run_single_stage2_extraction( 81 );
+check( 'W8 run again: no second fire', 1 === stage2_fires( $w3->rows[81] ) );
+$w3->rows[82] = $w_row( 82 );
+$w3->rows[82]->stage2_webhook_fired_at = '2026-10-07 01:00:00';
+HDLV2_Staged_Form::run_single_stage2_extraction( 82 );
+check( 'W9 already claimed: WHY written, no fire', isset( $w3->why[82] ) && 0 === stage2_fires( $w3->rows[82] ) );
+HDLV2_AI_Service::$draft_ok = false;
+$w3->rows[83] = $w_row( 83 );
+HDLV2_Staged_Form::run_single_stage2_extraction( 83 );
+check( 'W10 extraction failed: no fire, fired_at untouched', 0 === stage2_fires( $w3->rows[83] ) && null === $w3->rows[83]->stage2_webhook_fired_at );
+HDLV2_AI_Service::$draft_ok = true;
+$w3->rows[84] = make_row( 84, array( 'practitioner_user_id' => 206, 'stage2_data' => json_encode( array( 'vision_text' => $LONG ) ) ) );
+HDLV2_Staged_Form::run_single_stage2_extraction( 84 );
+check( 'W11 old-flow row, switch on: local extraction never fires Make (as today)', 0 === stage2_fires( $w3->rows[84] ) );
+
+// Callback
+$auth = array( 'authorization' => 'Bearer test-callback-secret' );
+$why_before = $w3->why[81];
+$s2c_before = $w3->rows[81]->stage2_completed_at;
+$res = $form->rest_stage2_callback( req( array( '_headers' => $auth, 'token' => $w3->rows[81]->token, 'pdf_url' => 'https://pdf.example.test/w.pdf',
+    'distilled_why' => 'MAKE WROTE THIS', 'key_fears' => array( 'x' ) ) ) );
+check( 'W12 callback, single row at stage 3: PDF stored', array( array( 81, 'https://pdf.example.test/w.pdf' ) ) === HDLV2_Report_PDF::$stored && ! empty( $res['success'] ) );
+check( 'W13 callback never touches the WHY (fears stay [], distilled_why kept)', $why_before === $w3->why[81] && '[]' === $w3->why[81]['fears'] );
+check( 'W14 callback leaves stage2_completed_at alone', $s2c_before === $w3->rows[81]->stage2_completed_at );
+HDLV2_Report_PDF::$stored = array();
+$form->rest_stage2_callback( req( array( '_headers' => $auth, 'token' => $w3->rows[81]->token ) ) );
+check( 'W15 callback without pdf_url: nothing stored', array() === HDLV2_Report_PDF::$stored );
+$w3->rows[85] = make_row( 85, array( 'practitioner_user_id' => 206, 'current_stage' => 3, 'stage2_data' => json_encode( array( 'vision_text' => $LONG ) ) ) );
+$res = $form->rest_stage2_callback( req( array( '_headers' => $auth, 'token' => $w3->rows[85]->token, 'pdf_url' => 'https://pdf.example.test/o.pdf' ) ) );
+check( 'W16 callback, old-flow row at stage 3: already_processed as today, nothing stored', ! empty( $res['already_processed'] ) && array() === HDLV2_Report_PDF::$stored );
+$res = $form->rest_stage2_callback( req( array( '_headers' => array( 'authorization' => 'Bearer wrong' ), 'token' => $w3->rows[81]->token, 'pdf_url' => 'https://x' ) ) );
+check( 'W17 callback with a wrong secret: refused, nothing stored', is_wp_error( $res ) && array() === HDLV2_Report_PDF::$stored );
+unset( $GLOBALS['options']['hdlv2_ff_stage2_pdf_single'] );
 
 echo "\n" . ( $fail ? "SCENARIO: FAIL ($fail)\n" : "SCENARIO: PASS ($pass)\n" );
 exit( $fail ? 1 : 0 );

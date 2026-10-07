@@ -377,14 +377,61 @@ class HDLV2_Why_Picks {
 
     /**
      * prompt_block() for a form_progress row and its freshly calculated
-     * Stage 3 scores: the one call the draft and milestones callers make.
+     * Stage 3 scores: the one call every prompt caller makes. $use as in
+     * prompt_block().
      */
-    public static function block_for_row( $progress, $stage3_scores, $for_milestones = false ) {
+    public static function block_for_row( $progress, $stage3_scores, $use = false ) {
         return self::prompt_block(
             json_decode( (string) ( $progress->stage2_data ?? '' ), true ) ?: array(),
             self::stage1_raw( json_decode( (string) ( $progress->stage1_data ?? '' ), true ) ?: array() ),
             is_array( $stage3_scores ) ? $stage3_scores : array(),
-            $for_milestones
+            $use
+        );
+    }
+
+    /**
+     * v0.48.8 — what a single-form row chose, for the PDFs: picks (labels in
+     * pick order), abilities [ label, short, count, score|null, focus ],
+     * focus_areas (labels), people, own_words. Empty array for every other
+     * row. Read from picks_for_display() + abilities_profile(); nothing new
+     * is worked out here.
+     */
+    public static function summary_for_row( $progress, $stage3_scores ) {
+        $s2 = json_decode( (string) ( $progress->stage2_data ?? '' ), true ) ?: array();
+        if ( ! self::is_single( $s2 ) || ! is_array( $s2['why_picks'] ?? null ) ) return array();
+        $ids = array_slice( $s2['why_picks'], 0, self::MAX_PICKS );
+
+        $abilities = array(); $focus = array();
+        $profile   = self::abilities_profile( $ids, self::stage1_raw( json_decode( (string) ( $progress->stage1_data ?? '' ), true ) ?: array() ), is_array( $stage3_scores ) ? $stage3_scores : array() );
+        foreach ( $profile as $a ) {
+            $abilities[] = array( 'label' => $a['label'], 'short' => self::ABILITY_SHORT[ $a['id'] ], 'count' => $a['count'], 'score' => $a['score'], 'focus' => $a['focus'] );
+            if ( $a['focus'] ) $focus[] = $a['label'];
+        }
+        return array(
+            'picks'       => array_column( self::picks_for_display( $ids, $s2['why_pick_labels'] ?? array() ), 'label' ),
+            'abilities'   => $abilities,
+            'focus_areas' => $focus,
+            'people'      => self::plain( $s2['key_people_text'] ?? '', self::MAX_PEOPLE_LEN ),
+            'own_words'   => self::plain( $s2['own_words'] ?? '', self::MAX_OWN_WORDS_LEN ),
+        );
+    }
+
+    /**
+     * summary_for_row() as five flat strings for the PDF payloads. Make's
+     * PDFMonkey step is a JSON text template, so lists go as one string
+     * (" | " between items, a template splits on it). All '' for every row
+     * that did not use the choices page.
+     */
+    public static function payload_fields( $progress, $stage3_scores ) {
+        $s   = self::summary_for_row( $progress, $stage3_scores );
+        $abs = array();
+        foreach ( $s['abilities'] ?? array() as $a ) $abs[] = $a['label'] . ' (' . $a['count'] . ( $a['focus'] ? ', focus area' : '' ) . ')';
+        return array(
+            'why_picks'       => implode( ' | ', $s['picks'] ?? array() ),
+            'why_abilities'   => implode( ' | ', $abs ),
+            'why_focus_areas' => implode( ', ', $s['focus_areas'] ?? array() ),
+            'why_people'      => $s['people'] ?? '',
+            'why_own_words'   => $s['own_words'] ?? '',
         );
     }
 
@@ -394,11 +441,15 @@ class HDLV2_Why_Picks {
      * stays byte-identical. With the saved scores it also says what was
      * measured for each ability and names the focus areas. The milestones
      * prompt has no LIFT / THRIVE sections, so it gets its own instruction.
+     * $use: false = draft and final report (LIFT / THRIVE), true = milestones,
+     * 'facts' (v0.48.8) = the same data with no section instruction, for the
+     * PDF sections, weekly flight plan and consultation-notes prompts.
      */
-    public static function prompt_block( $stage2_data, $stage1_raw = array(), $stage3_scores = array(), $for_milestones = false ) {
+    public static function prompt_block( $stage2_data, $stage1_raw = array(), $stage3_scores = array(), $use = false ) {
         if ( ! self::is_single( $stage2_data ) || ! is_array( $stage2_data['why_picks'] ?? null ) ) return '';
         $items = self::labels( array_slice( $stage2_data['why_picks'], 0, self::MAX_PICKS ), $stage2_data['why_pick_labels'] ?? array() );
         if ( ! $items ) return '';
+        $use = true === $use ? 'milestones' : ( 'facts' === $use ? 'facts' : 'draft' );
 
         $block  = "=== WHAT THIS CLIENT CHOSE (picked from a list, their own priorities for later life) ===\n";
         $counts = array_fill_keys( self::NEEDS, 0 );
@@ -417,7 +468,7 @@ class HDLV2_Why_Picks {
 
         $people = self::plain( $stage2_data['key_people_text'] ?? '', self::MAX_PEOPLE_LEN );
         if ( '' !== $people ) $block .= 'People they named: ' . $people . "\n";
-        $block .= $for_milestones
+        $block .= 'draft' !== $use
             ? "Do not invent choices or people that are not listed here.\n"
             : "In LIFT, where one of their weakest scores limits an ability these choices depend on, say so in one clause and name the choice. In THRIVE, use their choices and the people they named. Do not invent choices or people that are not listed here.\n";
 
@@ -441,9 +492,9 @@ class HDLV2_Why_Picks {
             if ( $focus ) $block .= 'Focus areas (most chosen, weakest measured): ' . implode( ', ', $focus ) . "\n";
         }
         // An instruction about focus areas is only given when some are named.
-        if ( $for_milestones ) {
+        if ( 'milestones' === $use ) {
             $block .= 'Aim the milestones at what this client chose' . ( $focus ? ', starting with the focus areas' : '' ) . ", and keep every milestone within its word limit.\n";
-        } elseif ( $focus ) {
+        } elseif ( 'draft' === $use && $focus ) {
             $block .= "Use the focus areas to decide what LIFT puts first. Name the choice each one serves.\n";
         }
         if ( $scored ) $block .= "Do not quote these ability scores as if they were one of the 21 health scores; they are averages for your guidance.\n";
