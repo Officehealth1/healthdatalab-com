@@ -108,7 +108,7 @@ $load = $lm[0] ?? '';
 check( 'L1 rest_load_form adds second_form_ties', false !== strpos( $load, "\$response['second_form_ties'] = HDLV2_Why_Picks::second_form_ties(" ) );
 check( 'L2 only for a single-flow, unfinished row',
     (bool) preg_match( "/if \( empty\( \\\$progress->stage3_completed_at \) && HDLV2_Why_Picks::is_single\( \\\$s2 \) \) \{\s*\\\$response\['second_form_ties'\]/", $load ) );
-check( 'L3 from the row\'s why_picks', false !== strpos( $load, "second_form_ties( \$s2['why_picks'] ?? array() )" ) );
+check( 'L3 from the row\'s why_picks and, v0.48.5, the wording stored at submit', false !== strpos( $load, "second_form_ties( \$s2['why_picks'] ?? array(), \$s2['why_pick_labels'] ?? array() )" ) );
 
 echo "\n$pass passed, $fail failed\n";
 echo ( $fail ? "SUITE: FAIL\n" : "SUITE: PASS\n" );

@@ -216,7 +216,7 @@ class HDLV2_Staged_Form {
         // its reason lines from the client's choices.
         $s2 = $response['stage2_data'];
         if ( empty( $progress->stage3_completed_at ) && HDLV2_Why_Picks::is_single( $s2 ) ) {
-            $response['second_form_ties'] = HDLV2_Why_Picks::second_form_ties( $s2['why_picks'] ?? array() );
+            $response['second_form_ties'] = HDLV2_Why_Picks::second_form_ties( $s2['why_picks'] ?? array(), $s2['why_pick_labels'] ?? array() );
         }
 
         return rest_ensure_response( $response );
@@ -463,10 +463,21 @@ class HDLV2_Staged_Form {
             return rest_ensure_response( array( 'success' => true, 'already_submitted' => true ) );
         }
 
-        unset( $data['vision_text'], $data['legacy_vision_text'] ); // server-written only
+        // v0.48.5 — only the page's three fields come from the browser; the
+        // marker, vision_text and the label map are server-written.
+        $data   = array_intersect_key( $data, array_flip( array( 'why_picks', 'key_people_text', 'own_words' ) ) );
         $merged = array_merge( $existing, $data );
 
         if ( ! $submitted ) {
+            // Picks as the page sends them (strings, once each, at most 10);
+            // text capped at its limit. Submit validates the rest.
+            $fields = array();
+            if ( is_array( $data['why_picks'] ?? null ) ) {
+                $fields['why_picks'] = array_slice( array_values( array_unique( array_filter( $data['why_picks'], 'is_string' ) ) ), 0, HDLV2_Why_Picks::MAX_PICKS );
+            }
+            if ( is_string( $data['key_people_text'] ?? null ) ) $fields['key_people_text'] = mb_substr( $data['key_people_text'], 0, HDLV2_Why_Picks::MAX_PEOPLE_LEN );
+            if ( is_string( $data['own_words'] ?? null ) ) $fields['own_words'] = mb_substr( $data['own_words'], 0, HDLV2_Why_Picks::MAX_OWN_WORDS_LEN );
+            $merged = array_merge( $existing, $fields );
             // Conditional on the WHY still being open: an autosave that read
             // the row before a submit and lands after it must not wipe the
             // marker and vision_text the submit just wrote.
@@ -495,6 +506,9 @@ class HDLV2_Staged_Form {
         $merged['why_picks']       = array_values( $merged['why_picks'] );
         $merged['key_people_text'] = sanitize_textarea_field( (string) ( $merged['key_people_text'] ?? '' ) );
         $merged['own_words']       = sanitize_textarea_field( (string) ( $merged['own_words'] ?? '' ) );
+        // v0.48.5 — the wording each pick had today, so a later rewording
+        // never changes what the practitioner and the report read.
+        $merged['why_pick_labels'] = HDLV2_Why_Picks::label_map( $merged['why_picks'] );
         $merged['form_flow']       = HDLV2_Why_Picks::FLOW;
         $merged['vision_text']     = HDLV2_Why_Picks::compose_vision_text( $merged['why_picks'], $merged['key_people_text'], $merged['own_words'] );
         $wpdb->update( $table, array( 'stage2_data' => wp_json_encode( $merged ) ), array( 'id' => $progress->id ), array( '%s' ), array( '%d' ) );

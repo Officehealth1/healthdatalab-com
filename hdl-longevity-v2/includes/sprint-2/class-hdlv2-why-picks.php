@@ -347,9 +347,9 @@ class HDLV2_Why_Picks {
     }
 
     /** The chosen statements for the practitioner: label + ability names. */
-    public static function picks_for_display( $pick_ids ) {
+    public static function picks_for_display( $pick_ids, $stored_labels = array() ) {
         $out = array();
-        foreach ( self::labels( $pick_ids ) as $it ) {
+        foreach ( self::labels( $pick_ids, $stored_labels ) as $it ) {
             $names = array();
             foreach ( $it['needs'] as $n ) $names[] = self::ABILITY_LABELS[ $n ];
             $out[] = array( 'label' => $it['label'], 'needs' => $names );
@@ -397,7 +397,7 @@ class HDLV2_Why_Picks {
      */
     public static function prompt_block( $stage2_data, $stage1_raw = array(), $stage3_scores = array(), $for_milestones = false ) {
         if ( ! self::is_single( $stage2_data ) || ! is_array( $stage2_data['why_picks'] ?? null ) ) return '';
-        $items = self::labels( array_slice( $stage2_data['why_picks'], 0, self::MAX_PICKS ) );
+        $items = self::labels( array_slice( $stage2_data['why_picks'], 0, self::MAX_PICKS ), $stage2_data['why_pick_labels'] ?? array() );
         if ( ! $items ) return '';
 
         $block  = "=== WHAT THIS CLIENT CHOSE (picked from a list, their own priorities for later life) ===\n";
@@ -459,10 +459,10 @@ class HDLV2_Why_Picks {
      *
      * @return array field => [ ability, count, choice ]
      */
-    public static function second_form_ties( $pick_ids ) {
+    public static function second_form_ties( $pick_ids, $stored_labels = array() ) {
         $counts = array_fill_keys( self::NEEDS, 0 );
         $first  = array();
-        foreach ( self::labels( array_slice( (array) $pick_ids, 0, self::MAX_PICKS ) ) as $it ) {
+        foreach ( self::labels( array_slice( (array) $pick_ids, 0, self::MAX_PICKS ), $stored_labels ) as $it ) {
             foreach ( $it['needs'] as $n ) {
                 if ( ! isset( $counts[ $n ] ) ) continue;
                 $counts[ $n ]++;
@@ -483,15 +483,34 @@ class HDLV2_Why_Picks {
         return $out;
     }
 
-    /** Catalogue entries (retired included) for known string ids, in pick order. */
-    private static function labels( $pick_ids ) {
+    /**
+     * v0.48.5 — id => wording for known picks as offered today, in pick
+     * order. Stored beside why_picks at submit (why_pick_labels).
+     */
+    public static function label_map( $pick_ids ) {
+        $map = array();
+        foreach ( self::labels( $pick_ids ) as $it ) $map[ $it['id'] ] = $it['label'];
+        return $map;
+    }
+
+    /**
+     * Catalogue entries (retired included) for known string ids, in pick
+     * order. v0.48.5 — a wording stored at submit ($stored, id => label)
+     * replaces today's, so a reworded statement still reads as the client
+     * saw it; rows without one read the catalogue.
+     */
+    private static function labels( $pick_ids, $stored = array() ) {
         $by_id = array();
         foreach ( static::catalogue() as $g ) {
             foreach ( $g['items'] as $it ) $by_id[ $it['id'] ] = $it;
         }
-        $out = array();
+        $stored = is_array( $stored ) ? $stored : array();
+        $out    = array();
         foreach ( (array) $pick_ids as $id ) {
-            if ( is_string( $id ) && isset( $by_id[ $id ] ) ) $out[] = $by_id[ $id ];
+            if ( ! is_string( $id ) || ! isset( $by_id[ $id ] ) ) continue;
+            $it = $by_id[ $id ];
+            if ( is_string( $stored[ $id ] ?? null ) && '' !== trim( $stored[ $id ] ) ) $it['label'] = $stored[ $id ];
+            $out[] = $it;
         }
         return $out;
     }

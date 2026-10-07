@@ -604,7 +604,7 @@ class HDLV2_Client_Status {
         $s2_form = json_decode( (string) ( $progress->stage2_data ?? '' ), true );
         if ( $stage2 && class_exists( 'HDLV2_Why_Picks' ) && HDLV2_Why_Picks::is_single( $s2_form ) && is_array( $s2_form['why_picks'] ?? null ) ) {
             $stage2['choices'] = array(
-                'picks'       => HDLV2_Why_Picks::picks_for_display( $s2_form['why_picks'] ),
+                'picks'       => HDLV2_Why_Picks::picks_for_display( $s2_form['why_picks'], $s2_form['why_pick_labels'] ?? array() ),
                 'abilities'   => HDLV2_Why_Picks::abilities_profile(
                     $s2_form['why_picks'],
                     HDLV2_Why_Picks::stage1_raw( $s1 ), // real answers only

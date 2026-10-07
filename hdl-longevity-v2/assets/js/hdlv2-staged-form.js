@@ -51,7 +51,7 @@
   // v0.47.94 — tap-card second form: current step (0-12), the order of the
   // ten question screens, the open screen-1 row, the A-F key handler and the
   // 200 ms advance timer (cancelled by Back, as in the first check).
-  var tapStep = 0, tapOrder = [], tapOpenRow = null, tapKeyHandler = null, tapAdvanceTimer = null, tapSaveTimer = null;
+  var tapStep = 0, tapOrder = [], tapOpenRow = null, tapKeyHandler = null, tapAdvanceTimer = null, queuedSaveTimer = null;
   // v0.47.92 — single-form WHY picks; HDLV2_Why_Picks holds the same limits.
   var PICK_MIN = 5, PICK_MAX = 10;
 
@@ -506,6 +506,17 @@
     }).then(function(r){ return r.json(); })
       .then(function(res){ saving=false; if(res.success){setSaveStatus('saved','Saved');setTimeout(function(){setSaveStatus('','');},3000);}else{setSaveStatus('error','Save failed');}})
       .catch(function(){ saving=false; setSaveStatus('error','Connection error'); });
+  }
+
+  // autoSave() drops a call while one is in flight; fast taps hit that, so
+  // wait for it (as submitWhyPicks does) and send the whole formData after.
+  // v0.48.5 — serves the choices page and the tap cards; one queued save at a
+  // time, so Complete or Next can always cancel the one that is waiting.
+  function saveWhenFree(stage) {
+    if (queuedSaveTimer) clearTimeout(queuedSaveTimer);
+    queuedSaveTimer = null;
+    if (saving) { queuedSaveTimer = setTimeout(function () { saveWhenFree(stage); }, 300); return; }
+    autoSave(stage);
   }
 
   // A pick answers a refused Next: the red line goes; a "Saved" line stays.
@@ -1343,6 +1354,30 @@
     return parts.length ? 'What your picks need: ' + parts.join(', ') + '.' : 'Nothing picked yet.';
   }
 
+  // Phosphor Icons licence (github.com/phosphor-icons/core/blob/main/LICENSE):
+  //
+  // MIT License
+  //
+  // Copyright (c) 2023 Phosphor Icons
+  //
+  // Permission is hereby granted, free of charge, to any person obtaining a copy
+  // of this software and associated documentation files (the "Software"), to deal
+  // in the Software without restriction, including without limitation the rights
+  // to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+  // copies of the Software, and to permit persons to whom the Software is
+  // furnished to do so, subject to the following conditions:
+  //
+  // The above copyright notice and this permission notice shall be included in all
+  // copies or substantial portions of the Software.
+  //
+  // THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+  // IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+  // FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+  // AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+  // LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+  // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+  // SOFTWARE.
+  //
   // v0.48.2 — pictures for the choices page, all from one family: Phosphor
   // Icons, duotone weight (github.com/phosphor-icons/core, MIT). Static SVG on
   // the 256 grid, filled, the soft layer at the file's own 0.2 opacity;
@@ -1366,7 +1401,7 @@
   // v0.48.2 — the tick circle at the right of every statement, in both
   // states; CSS draws the ring and fills it when the statement is chosen.
   // The tick is Phosphor's check (bold weight), the same family as ICONS.
-  var TICK = '<span class="hdlv2-tick" aria-hidden="true"><svg viewBox="0 0 256 256" width="14" height="14" fill="#fff" focusable="false">'
+  var TICK = '<span class="hdlv2-tick" aria-hidden="true"><svg viewBox="0 0 256 256" width="14" height="14" fill="currentColor" focusable="false">'
     + '<path d="M232.49,80.49l-128,128a12,12,0,0,1-17,0l-56-56a12,12,0,1,1,17-17L96,183,215.51,63.51a12,12,0,0,1,17,17Z"/></svg></span>';
 
   // The picture for a name, or '' when there is none. x/y place it inside the chart.
@@ -1496,7 +1531,7 @@
       +   picksTextarea('key_people_text', 'Who are you doing this for? First names.', d.key_people_text, 'Jenny, Leo, Mia', 300)
       +   picksTextarea('own_words', 'Anything else? (optional)', d.own_words, '', 600)
       +   '<button type="button" id="hdlv2-picks-next" class="hdlv2-btn">Next &#8594;</button>'
-      + '</div>' + saveIndicator() + footer() + '</div>';
+      + '</div>' + saveIndicator(true) + footer() + '</div>';
 
     root.querySelectorAll('.hdlv2-picks-grid input[type="checkbox"]').forEach(function (cb) {
       cb.addEventListener('change', function () {
@@ -1505,7 +1540,7 @@
         updatePicks();
         clearSaveError();
         if (saveTimer) clearTimeout(saveTimer);
-        saveTimer = setTimeout(function () { autoSave(2); }, 1500);
+        saveTimer = setTimeout(function () { saveWhenFree(2); }, 1500);
       });
     });
     bindFieldListeners();
@@ -1576,6 +1611,7 @@
 
   function submitWhyPicks() {
     if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
+    if (queuedSaveTimer) { clearTimeout(queuedSaveTimer); queuedSaveTimer = null; }
     // Let an in-flight autosave finish first so it cannot land after Next.
     if (saving) { setTimeout(submitWhyPicks, 300); return; }
     ['key_people_text', 'own_words'].forEach(function (n) {
@@ -1594,7 +1630,12 @@
     })
       .then(function (r) { return r.json(); })
       .then(function (res) {
-        if (res.success) { root.scrollIntoView({ behavior: 'smooth' }); loadForm(); return; }
+        if (res.success) {
+          var still = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+          root.scrollIntoView({ behavior: still ? 'auto' : 'smooth' });
+          loadForm();
+          return;
+        }
         reset(res.message || 'Could not save. Please try again.');
       })
       .catch(function () { reset('Connection error'); });
@@ -1869,19 +1910,11 @@
     if (tapKeyHandler) { document.removeEventListener('keydown', tapKeyHandler); tapKeyHandler = null; }
   }
 
-  // autoSave() drops a call while one is in flight; fast taps hit that, so
-  // wait for it (as submitWhyPicks does) and send the whole formData after.
-  function tapSave() {
-    tapSaveTimer = null;
-    if (saving) { tapSaveTimer = setTimeout(tapSave, 300); return; }
-    autoSave(3);
-  }
-
   // Leaving a screen saves once: the whole formData, as the wizard's Next does.
   function tapGo(data, delta) {
     tapLeave();
     if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
-    tapSave();
+    saveWhenFree(3);
     tapStep = Math.max(0, Math.min(TAP_STEPS - 1, tapStep + delta));
     tapOpenRow = null;
     renderTapStep(data, true);
@@ -2064,7 +2097,7 @@
       if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
       // completeStage3 sends the whole formData itself; a queued save must
       // not land after it.
-      if (tapSaveTimer) { clearTimeout(tapSaveTimer); tapSaveTimer = null; }
+      if (queuedSaveTimer) { clearTimeout(queuedSaveTimer); queuedSaveTimer = null; }
       done.disabled = true;
       done.textContent = 'Saving\u2026';
       startedAt = Date.now();
