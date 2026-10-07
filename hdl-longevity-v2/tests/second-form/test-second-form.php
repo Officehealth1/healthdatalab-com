@@ -86,8 +86,13 @@ preg_match( '/var S3_SECTIONS = \[([\s\S]*?)\n  \];/', $js, $m );
 preg_match_all( '/fields: \[([^\]]*)\]/', $m[1] ?? '', $lists );
 preg_match_all( "/'([A-Za-z_]+)'/", implode( ',', $lists[1] ), $f );
 $fields = $f[1];
+// One offered statement per ability (at most 8 picks, under the cap of 10),
+// so the check does not depend on the catalogue's order.
 $all = array();
-foreach ( HDLV2_Why_Picks::catalogue() as $g ) foreach ( $g['items'] as $it ) $all[] = $it['id'];
+foreach ( HDLV2_Why_Picks::options_for_page() as $g ) foreach ( $g['items'] as $it ) {
+    foreach ( $it['needs'] as $n ) if ( ! isset( $all[ $n ] ) ) $all[ $n ] = $it['id'];
+}
+$all = array_values( array_unique( $all ) );
 $t = HDLV2_Why_Picks::second_form_ties( $all );
 // S3_SECTIONS names 23: height, weight and waist are drawn without being listed.
 check( 'T9 S3_SECTIONS parsed (23 listed fields)', 23 === count( $fields ) );
