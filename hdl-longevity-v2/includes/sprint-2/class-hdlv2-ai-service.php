@@ -722,6 +722,9 @@ class HDLV2_AI_Service {
             . "PRACTITIONER RECOMMENDATIONS (context only — these render on Page 13, do NOT restate in prose):\n%s\n"
             . "CLIENT'S WHY: %s\n"
             . "CLIENT'S FEARS: %s\n\n"
+            // v0.48.8 — single-form picks block ('' for everyone else, so
+            // their prompt is byte-identical). HDLV2_Why_Picks::prompt_block.
+            . '%s'
             . "=== OUTPUT INSTRUCTIONS ===\n"
             . "Three sections, three pages:\n\n"
             . "AWAKEN — Page 3 intro narrative\n"
@@ -760,6 +763,7 @@ class HDLV2_AI_Service {
             $recs_text ?: '(none)',
             $why_text,
             $fears ?: '(none identified)',
+            (string) ( $why_profile['picks_block'] ?? '' ),
             'kitchen-close protocol'
         );
 
@@ -1072,6 +1076,7 @@ class HDLV2_AI_Service {
             . "Distilled WHY: %s\n"
             . "Key people from WHY: %s\n"
             . "Motivations: %s\n"
+            . '%s' // v0.48.8 — single-form picks block, facts use ('' otherwise)
             . "Practitioner notes (full, free-typed — may be long): %s\n"
             . "Consultation summary (500 char): %s\n\n"
             . "STAGE 3 HEALTH BACKGROUND (client-typed, optional, NOT scored)\n"
@@ -1102,6 +1107,7 @@ class HDLV2_AI_Service {
             $why_profile['distilled_why'] ?? 'Not provided',
             $key_people ?: '(none named)',
             $motivations ?: '(none named)',
+            (string) ( $why_profile['picks_block'] ?? '' ),
             $health_summary ?: '(no organised notes)',
             $consult_summary ?: '(none)',
             trim( (string) ( $s3_raw['family_history'] ?? '' ) ) ?: '(none provided)',
@@ -2014,6 +2020,8 @@ PROMPT;
         if ( $rate !== null )   $facts .= "Rate of ageing: $rate\n";
         if ( $bioage !== null ) $facts .= "Biological age: $bioage\n";
         if ( $why )             $facts .= "Client WHY: $why\n";
+        // v0.48.8 — single-form picks block, facts use (set only when non-empty).
+        if ( is_array( $why_profile ) ) $facts .= (string) ( $why_profile['picks_block'] ?? '' );
 
         // +1 inferred-metabolic line (NO bloods) — only when the panel shows.
         if ( class_exists( 'HDLV2_Rate_Calculator' ) ) {

@@ -1358,6 +1358,17 @@ class HDLV2_Staged_Form {
             return new WP_Error( 'invalid_token', 'Assessment not found.', array( 'status' => 404 ) );
         }
 
+        // v0.48.8 — a single-form row's WHY was written by the plugin and is
+        // already in use (it is at stage 3 from the submit): Make only sends
+        // its Stage 2 PDF back. Store that and never touch the WHY.
+        if ( HDLV2_Why_Picks::is_single( json_decode( (string) $progress->stage2_data, true ) ) ) {
+            $why_pdf = isset( $params['pdf_url'] ) ? esc_url_raw( $params['pdf_url'] ) : '';
+            if ( $why_pdf && class_exists( 'HDLV2_Report_PDF' ) ) {
+                HDLV2_Report_PDF::store_why_pdf( (int) $progress->id, $why_pdf );
+            }
+            return rest_ensure_response( array( 'success' => true, 'pdf_only' => true ) );
+        }
+
         // Guard: already past Stage 2
         if ( (int) $progress->current_stage >= 3 ) {
             return rest_ensure_response( array( 'success' => true, 'already_processed' => true ) );
@@ -2480,7 +2491,7 @@ class HDLV2_Staged_Form {
      * progress row without instantiating HDLV2_Staged_Form. No $this access
      * inside the body, so this conversion is safe.
      */
-    public static function fire_stage2_webhook( $progress, $stage2_data ) {
+    public static function fire_stage2_webhook( $progress, $stage2_data, $extra = array() ) {
         $webhook_url = defined( 'HDLV2_MAKE_STAGE2_WHY' ) ? HDLV2_MAKE_STAGE2_WHY : '';
         if ( empty( $webhook_url ) ) {
             error_log( '[HDLV2] Stage 2 webhook skipped — HDLV2_MAKE_STAGE2_WHY not configured.' );
@@ -2522,7 +2533,8 @@ class HDLV2_Staged_Form {
         // hdl-longevity-v2.php `?prac_login=` init handler for the full
         // auto-login chain. Replaces the previous bare /client-dashboard/
         // URL that 404'd AND required prior login.
-        $practitioner_dashboard_url = self::build_practitioner_release_url(
+        // v0.48.8 — a single-form row has no Release step: no login link minted.
+        $practitioner_dashboard_url = array_key_exists( 'practitioner_dashboard_url', $extra ) ? '' : self::build_practitioner_release_url(
             (int) $progress->practitioner_user_id,
             (int) $progress->id
         );
@@ -2563,6 +2575,8 @@ class HDLV2_Staged_Form {
             'callback_url'          => rest_url( 'hdl-v2/v1/form/stage2-callback' ),
             'callback_secret'       => defined( 'HDLV2_MAKE_CALLBACK_SECRET' ) ? HDLV2_MAKE_CALLBACK_SECRET : '',
         );
+        // v0.48.8 — single-form fields (fire_single_stage2_pdf); none otherwise.
+        $payload = array_merge( $payload, $extra );
 
         HDLV2_Webhook_Monitor::fire(
             $webhook_url,
@@ -2882,7 +2896,59 @@ class HDLV2_Staged_Form {
 
         if ( $got_lock ) $wpdb->query( $wpdb->prepare( "SELECT RELEASE_LOCK(%s)", $lock_name ) );
 
+        if ( $inserted && $single ) self::fire_single_stage2_pdf( $progress_id, $vision_text );
+
         return $inserted ? 'SUCCESS' : 'DB insert FAILED';
+    }
+
+    /**
+     * v0.48.8 — the Stage 2 PDF for a single-form row, built by Make from the
+     * WHY row just written (no second AI call). Off until option
+     * hdlv2_ff_stage2_pdf_single is set, so the plugin can land before Make's
+     * single-form branch exists (the old branch would email a Release link).
+     * Fired once: the same atomic stage2_webhook_fired_at claim as the old
+     * flow's deferred fire; a retried or repeated extraction finds it taken.
+     */
+    private static function fire_single_stage2_pdf( $progress_id, $vision_text ) {
+        if ( ! get_option( 'hdlv2_ff_stage2_pdf_single' ) ) return;
+        global $wpdb;
+        $claimed = $wpdb->query( $wpdb->prepare(
+            "UPDATE {$wpdb->prefix}hdlv2_form_progress
+                SET stage2_webhook_fired_at = %s, stage2_text_hash = %s
+              WHERE id = %d
+                AND (stage2_webhook_fired_at IS NULL OR stage2_webhook_fired_at = '')",
+            current_time( 'mysql' ), md5( $vision_text ), (int) $progress_id
+        ) );
+        if ( 1 !== (int) $claimed ) return;
+
+        $progress = $wpdb->get_row( $wpdb->prepare(
+            "SELECT * FROM {$wpdb->prefix}hdlv2_form_progress WHERE id = %d LIMIT 1",
+            (int) $progress_id
+        ) );
+        $why = $wpdb->get_row( $wpdb->prepare(
+            "SELECT distilled_why, key_people, motivations, ai_reformulation FROM {$wpdb->prefix}hdlv2_why_profiles WHERE form_progress_id = %d LIMIT 1",
+            (int) $progress_id
+        ), ARRAY_A );
+        if ( ! $progress || ! $why ) return;
+
+        $s3   = json_decode( (string) $progress->stage3_data, true ) ?: array();
+        $flat = function ( $json, $key ) {
+            return implode( ', ', array_filter( array_map( function ( $v ) use ( $key ) {
+                return is_array( $v ) ? (string) ( $v[ $key ] ?? '' ) : (string) $v;
+            }, (array) ( json_decode( (string) $json, true ) ?: array() ) ) ) );
+        };
+        self::fire_stage2_webhook(
+            $progress,
+            json_decode( (string) $progress->stage2_data, true ) ?: array(),
+            array(
+                'form_flow'                  => HDLV2_Why_Picks::FLOW,
+                'practitioner_dashboard_url' => '',
+                'distilled_why'              => (string) $why['distilled_why'],
+                'key_people_csv'             => $flat( $why['key_people'], 'name' ),
+                'motivations_csv'            => $flat( $why['motivations'], 'text' ),
+                'ai_reformulation'           => (string) $why['ai_reformulation'],
+            ) + HDLV2_Why_Picks::payload_fields( $progress, $s3['server_result']['scores'] ?? array() )
+        );
     }
 
     /**

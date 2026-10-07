@@ -1825,6 +1825,17 @@ class HDLV2_Flight_Plan {
     }
 
     // ── 5.2: Build expanded prompt from Context Builder data ──
+    /** The WHY lines of the weekly plan prompt, from the context builder's why_profile. */
+    public static function why_text( $wp ) {
+        if ( empty( $wp ) ) return '(not available)';
+        $why_text = "Distilled WHY: " . ( $wp['distilled_why'] ?? '' ) . "\n";
+        if ( ! empty( $wp['key_people'] ) ) $why_text .= "Key people: " . wp_json_encode( $wp['key_people'] ) . "\n";
+        if ( ! empty( $wp['motivations'] ) ) $why_text .= "Motivations: " . wp_json_encode( $wp['motivations'] ) . "\n";
+        if ( ! empty( $wp['fears'] ) ) $why_text .= "Fears: " . wp_json_encode( $wp['fears'] ) . "\n";
+        // v0.48.8 — single-form picks block, facts use (context builder; absent otherwise).
+        return $why_text . (string) ( $wp['picks_block'] ?? '' );
+    }
+
     private function build_prompt( $context ) {
         // Format check-in summaries
         $checkin_text = '';
@@ -1852,15 +1863,7 @@ class HDLV2_Flight_Plan {
             $notes_text .= $context['latest_note'];
         }
 
-        // Format WHY profile
-        $why_text = '(not available)';
-        if ( ! empty( $context['why_profile'] ) ) {
-            $wp = $context['why_profile'];
-            $why_text = "Distilled WHY: " . ( $wp['distilled_why'] ?? '' ) . "\n";
-            if ( ! empty( $wp['key_people'] ) ) $why_text .= "Key people: " . wp_json_encode( $wp['key_people'] ) . "\n";
-            if ( ! empty( $wp['motivations'] ) ) $why_text .= "Motivations: " . wp_json_encode( $wp['motivations'] ) . "\n";
-            if ( ! empty( $wp['fears'] ) ) $why_text .= "Fears: " . wp_json_encode( $wp['fears'] ) . "\n";
-        }
+        $why_text = self::why_text( $context['why_profile'] ?? null );
 
         // Format comfort zone trend
         $comfort_text = '';
