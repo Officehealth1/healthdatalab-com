@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 """v0.48.10 PDF templates: the choices block, built from the 2026-10-07 backup.
+v0.48.12: the abilities chart picture (why_chart_url) inside the block on
+Stage 2 WHY, Draft and Final, guarded so an empty URL prints nothing.
 
   python3 templates.py build <backup_dir> <out_dir>   write the four candidate bodies
   python3 templates.py check <backup_dir> <out_dir>   T1: assert them (exit 0 = pass)
@@ -67,6 +69,12 @@ def col(var, cls, num, title):
 
 
 NONE_GROUPED = "why_picks_people == blank and why_picks_freedom == blank and why_picks_things == blank"
+
+# v0.48.12 — the abilities chart (needed vs you now). Inline size: the
+# stylesheets are not changed. The alt text stands in if QuickChart is down.
+def chart_img(width):
+    return ('{% if why_chart_url != blank %}<img src="{{ why_chart_url }}" alt="What the choices need against where they are now, out of 5" '
+            f'style="display:block;width:{width};height:auto;margin:8px auto 0">{{% endif %}}')
 
 STAGE2_NEW = (
     """{%- comment -%} v0.48.10: a choices-page client (why_picks sent) gets their ticked statements
@@ -144,6 +152,7 @@ STAGE2_NEW = (
           {% if ability contains "focus area" %}<li><strong>{{ ability }}</strong></li>{% else %}<li>{{ ability }}</li>{% endif %}
         {% endfor %}
       </ul>
+      """ + chart_img("62mm") + """
     </div>
     {% endif %}
   </div>
@@ -232,6 +241,7 @@ DRAFT_BLOCK = (
 """
     + grouped_line("", "\n    <p class=\"step__body\">", "</p>\n    ").replace("{% endif %}{% if", "{% endif %}\n    {% if") + "\n"
     + """    {% if why_focus_areas != blank %}<p class="step__body"><strong>Where we start:</strong> {{ why_focus_areas }}</p>{% endif %}
+    """ + chart_img("70mm") + """
   </div>
   {% endif %}
 """
@@ -243,7 +253,8 @@ FINAL_BLOCK = (
     + grouped_line(". ")
     + """{% if why_abilities != blank %}<br><strong>Abilities these depend on most:</strong> {{ why_abilities | replace: " | ", "; " }}{% endif %}"""
     + """{% if why_focus_areas != blank %}<br><strong>Focus areas:</strong> {{ why_focus_areas }}{% endif %}"""
-    + """{% if why_people != blank %}<br><strong>For:</strong> {{ why_people }}{% endif %}{% endif %}"""
+    + """{% if why_people != blank %}<br><strong>For:</strong> {{ why_people }}{% endif %}"""
+    + chart_img("55mm") + """{% endif %}"""
 )
 
 NOTES_ANCHOR = """      {% if why_quote != blank %}
@@ -299,7 +310,7 @@ def main():
             head, _, rest = cand.partition("{% else %}\n")
             if rest[: -len(STAGE2_END)] != orig or not rest.endswith(STAGE2_END):
                 fails.append(f"{tid}: else branch is not the backup byte for byte")
-            for h in ("People I love", "My freedom", "Things I love", "{% if why_picks != blank %}"):
+            for h in ("People I love", "My freedom", "Things I love", "{% if why_picks != blank %}", "{% if why_chart_url != blank %}<img"):
                 if h not in head:
                     fails.append(f"{tid}: missing {h}")
         else:
@@ -308,6 +319,8 @@ def main():
                 fails.append(f"{tid}: removing the block does not give the backup")
             if not block.strip().startswith("{% if why_picks != blank %}"):
                 fails.append(f"{tid}: block not guarded by why_picks")
+            if tid != NOTES and chart_img("") .split("<img")[0] not in block:
+                fails.append(f"{tid}: chart picture not inside the block")
             if tid != NOTES:
                 for h in ("People I love", "My freedom", "Things I love"):
                     if h not in block:

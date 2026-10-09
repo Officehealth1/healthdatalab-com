@@ -44,6 +44,8 @@ const AB = {
 
 // B-8 the section.
 ok(ctx.section(undefined) === '' && ctx.section({ rows: [] }) === '', 'B-8 no abilities data (old-flow client) → no section');
+const noChart = ctx.section({ rows: AB.rows, series: null });
+ok(noChart.indexOf('<canvas') === -1 && noChart.indexOf('the line is where') === -1 && noChart.indexOf('hdlv2-dr-ability') !== -1, 'B-8l no series (under two measured) → rows, no canvas, no "line" words');
 const html = ctx.section(AB);
 ok(html.indexOf('<h2>What your choices need, and where you are</h2>') !== -1 && html.indexOf('id="hdlv2-dr-abilities"') !== -1, 'B-8b section heading and chart canvas');
 ok(html.indexOf('need 3.3 of 5 · now 3.5 · about 1.6 at 90 on today&#39;s path · keeping it to 90 needs 5 or more now') !== -1, 'B-8c a row: need, now, at 90, needed now (capped)');

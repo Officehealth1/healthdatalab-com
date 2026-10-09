@@ -814,8 +814,8 @@
     }).join('');
     return '<section class="hdlv2-dr-section">'
       + '<h2>What your choices need, and where you are</h2>'
-      + '<p class="hdlv2-dr-section-sub">Out of 5. The shaded shape is what the life you chose asks of each ability; the line is where your answers put you today.</p>'
-      + '<div class="hdlv2-dr-radar-wrap hdlv2-dr-abilities-wrap"><canvas id="hdlv2-dr-abilities" role="img" aria-label="What your choices need against where you are now, out of 5"></canvas></div>'
+      + '<p class="hdlv2-dr-section-sub">Out of 5. ' + (ab.series ? 'The shaded shape is what the life you chose asks of each ability; the line is where your answers put you today.' : 'What the life you chose asks of each ability, and where your answers put you today.') + '</p>'
+      + (ab.series ? '<div class="hdlv2-dr-radar-wrap hdlv2-dr-abilities-wrap"><canvas id="hdlv2-dr-abilities" role="img" aria-label="What your choices need against where you are now, out of 5"></canvas></div>' : '')
       + '<ul class="hdlv2-dr-ability-list">' + rows + '</ul>'
       + '<p class="hdlv2-dr-section-sub">The age-90 figures assume about 20% less each decade. They are arithmetic on today\'s numbers, not a measurement.</p>'
       + '</section>';

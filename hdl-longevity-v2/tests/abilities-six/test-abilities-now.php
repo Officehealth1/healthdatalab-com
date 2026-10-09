@@ -143,6 +143,11 @@ check( 'B-7 single row: the draft data carries why_abilities { rows, series }', 
     && array( 'rows', 'series' ) === array_keys( $r['why_abilities'] ?? array() )
     && $r['why_abilities']['rows'] === HDLV2_Why_Picks::abilities_profile( $worked, $raw, $s3, '55' )
     && $r['why_abilities']['series'] === HDLV2_Why_Picks::ability_chart_series( $r['why_abilities']['rows'], $raw, $s3 ) );
+$wpdb->progress = $progress( array( 'form_flow' => 'single', 'why_picks' => $worked ) );
+$wpdb->progress->stage1_data = json_encode( array( 'q1_age' => '55' ) );
+$wpdb->progress->stage3_data = json_encode( array( 'server_result' => array( 'rate' => 1.1, 'scores' => array( 'balance' => 2 ) ) ) );
+$r = HDLV2_Client_Draft_View::get_instance()->rest_get_draft( new Req() );
+check( 'B-7c one measured ability → rows kept, no chart (same rule as the PDF picture)', ! empty( $r['why_abilities']['rows'] ) && null === $r['why_abilities']['series'] );
 $wpdb->progress = $progress( array( 'vision_text' => 'typed the old way' ) );
 $r = HDLV2_Client_Draft_View::get_instance()->rest_get_draft( new Req() );
 check( 'B-7b old-flow row: no why_abilities key at all', is_array( $r ) && 'ready' === ( $r['status'] ?? '' ) && ! array_key_exists( 'why_abilities', $r ) );

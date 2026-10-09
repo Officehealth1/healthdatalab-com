@@ -322,7 +322,9 @@ class HDLV2_Client_Draft_View {
             $raw  = HDLV2_Why_Picks::stage1_raw( $s1_data );
             $rows = HDLV2_Why_Picks::abilities_profile( array_slice( $s2_data['why_picks'], 0, HDLV2_Why_Picks::MAX_PICKS ), $raw, $calc['scores'], $chrono_age );
             if ( $rows ) {
-                $response['why_abilities'] = array( 'rows' => $rows, 'series' => HDLV2_Why_Picks::ability_chart_series( $rows, $raw, $calc['scores'] ) );
+                // No chart under two measured abilities, the same rule as the PDF picture (chart_url()).
+                $series = HDLV2_Why_Picks::ability_chart_series( $rows, $raw, $calc['scores'] );
+                $response['why_abilities'] = array( 'rows' => $rows, 'series' => count( array_filter( $series['now'], 'is_numeric' ) ) >= 2 ? $series : null );
             }
         }
 
