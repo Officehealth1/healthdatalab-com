@@ -608,7 +608,8 @@ class HDLV2_Client_Status {
                 'abilities'   => HDLV2_Why_Picks::abilities_profile(
                     $s2_form['why_picks'],
                     HDLV2_Why_Picks::stage1_raw( $s1 ), // real answers only
-                    isset( $s3_calc['scores'] ) && is_array( $s3_calc['scores'] ) ? $s3_calc['scores'] : array()
+                    isset( $s3_calc['scores'] ) && is_array( $s3_calc['scores'] ) ? $s3_calc['scores'] : array(),
+                    HDLV2_Why_Picks::age_of( $s1 ) // v0.48.12 — projection to 90
                 ),
                 'stage3_done' => ! empty( $progress->stage3_completed_at ),
             );

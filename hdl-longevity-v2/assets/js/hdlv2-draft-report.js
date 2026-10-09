@@ -341,6 +341,10 @@
         ) +
       '</section>';
 
+    // v0.48.12 — choices-page clients: what their choices need beside where
+    // they are now (Matthew, 2026-10-09). Absent for every other client.
+    html += renderAbilitiesSection(data.why_abilities);
+
     // Radar
     html +=
       '<section class="hdlv2-dr-section">' +
@@ -470,6 +474,7 @@
     setTimeout(function () {
       renderTrajectory(calc);
       renderRadar(calc);
+      renderAbilitiesChart(data.why_abilities);
       renderMetabolicSignal(calc.metabolic);
     }, 50);
 
@@ -795,6 +800,54 @@
   }
 
   // ── Radar chart ──
+  // v0.48.12 — the abilities section: chart + one line per ability.
+  function renderAbilitiesSection(ab) {
+    if (!ab || !ab.rows || !ab.rows.length) return '';
+    var rows = ab.rows.map(function (a) {
+      var parts = ['need ' + a.need + ' of 5'];
+      if (a.score != null) parts.push('now ' + a.score);
+      if (a.at_90 != null) parts.push('about ' + a.at_90 + ' at 90 on today\'s path');
+      if (a.need_now != null) parts.push('keeping it to 90 needs ' + (a.need_now_capped ? '5 or more' : 'about ' + a.need_now) + ' now');
+      return '<li class="hdlv2-dr-ability">'
+        + '<span class="hdlv2-dr-ability-name">' + escape(a.label) + (a.focus ? ' <span class="hdlv2-dr-ability-focus">Focus</span>' : '') + '</span>'
+        + '<span class="hdlv2-dr-ability-nums">' + escape(parts.join(' \u00b7 ')) + '</span></li>';
+    }).join('');
+    return '<section class="hdlv2-dr-section">'
+      + '<h2>What your choices need, and where you are</h2>'
+      + '<p class="hdlv2-dr-section-sub">Out of 5. The shaded shape is what the life you chose asks of each ability; the line is where your answers put you today.</p>'
+      + '<div class="hdlv2-dr-radar-wrap hdlv2-dr-abilities-wrap"><canvas id="hdlv2-dr-abilities" role="img" aria-label="What your choices need against where you are now, out of 5"></canvas></div>'
+      + '<ul class="hdlv2-dr-ability-list">' + rows + '</ul>'
+      + '<p class="hdlv2-dr-section-sub">The age-90 figures assume about 20% less each decade. They are arithmetic on today\'s numbers, not a measurement.</p>'
+      + '</section>';
+  }
+
+  function renderAbilitiesChart(ab) {
+    if (!ab || !ab.series) return;
+    if (typeof Chart === 'undefined') { setTimeout(function () { renderAbilitiesChart(ab); }, 150); return; }
+    var canvas = document.getElementById('hdlv2-dr-abilities');
+    if (!canvas) return;
+    var s = ab.series;
+    new Chart(canvas.getContext('2d'), {
+      type: 'radar',
+      data: {
+        labels: s.labels,
+        datasets: [
+          { label: 'What your choices need', data: s.needed, fill: true, backgroundColor: 'rgba(61, 141, 160, 0.15)', borderColor: '#3d8da0', borderWidth: 2, pointBackgroundColor: '#3d8da0', pointRadius: 4 },
+          { label: 'You now', data: s.now, fill: false, borderColor: '#d97706', borderWidth: 2, borderDash: [6, 4], pointBackgroundColor: '#d97706', pointRadius: 4, spanGaps: true }
+        ]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: true, aspectRatio: 1,
+        animation: { duration: 600 },
+        plugins: { legend: { display: true, position: 'bottom', labels: { font: { family: 'Inter', size: 13 }, color: '#2C3E50' } } },
+        scales: { r: { min: 0, max: s.scale || 5, beginAtZero: true,
+          ticks: { stepSize: 1, showLabelBackdrop: false, color: '#888', font: { size: 11 } },
+          grid: { color: 'rgba(0,0,0,0.08)' }, angleLines: { color: 'rgba(0,0,0,0.08)' },
+          pointLabels: { font: { family: 'Inter', size: 13, weight: '600' }, color: '#2C3E50' } } }
+      }
+    });
+  }
+
   function renderRadar(calc) {
     if (typeof Chart === 'undefined') {
       setTimeout(function () { renderRadar(calc); }, 150);

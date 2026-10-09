@@ -200,7 +200,8 @@ $score3 = array( 'sitToStand' => 3, 'balance' => 1, 'physicalActivity' => 4, 'he
     'stressLevels' => 3, 'sleepQuality' => 2, 'sleepDuration' => 4, 'dietQuality' => 3, 'socialConnections' => 5 );
 $ms = function ( $label, $score, $source ) { return array( 'label' => $label, 'score' => $score, 'source' => $source ); };
 $ab = function ( $id, $label, $count, $need, $score, $measures, $focus ) {
-    return array( 'id' => $id, 'label' => $label, 'count' => $count, 'need' => $need, 'score' => $score, 'measures' => $measures, 'focus' => $focus );
+    return array( 'id' => $id, 'label' => $label, 'count' => $count, 'need' => $need, 'score' => $score, 'measures' => $measures, 'focus' => $focus,
+        'at_90' => null, 'need_now' => null, 'need_now_capped' => false ); // no age passed: no projection (0.48.12)
 };
 $floor = $ms( 'Getting up from the floor', 2, 'stage1' );
 // By hand (v0.48.11, six picks, weights from the table): need = round(50 x sum / 18) / 10.

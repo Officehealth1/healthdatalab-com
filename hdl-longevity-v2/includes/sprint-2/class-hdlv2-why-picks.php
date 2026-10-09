@@ -77,6 +77,16 @@ class HDLV2_Why_Picks {
     const MAX_NEED       = 5;
 
     /**
+     * v0.48.12 — the projection to 90 (Matthew, 2026-10-09: "every decade
+     * you lose ... Twenty percent I think. Anyway, double check that.").
+     * Research puts strength loss at about 15% a decade in the fifties and
+     * about 26% after 60 (von Haehling, Morley, Anker 2010), so 0.20 is his
+     * round figure and his to change. Same for the target age.
+     */
+    const LOSS_PER_DECADE = 0.20;
+    const TARGET_AGE      = 90;
+
+    /**
      * Which saved answers measure each ability. `stage3` keys are
      * HDLV2_Rate_Calculator::calculate_full() scores (0-5), `stage1` keys are
      * calculate_quick() raw scores (1-5); tests/single-form checks every key
@@ -319,32 +329,25 @@ class HDLV2_Why_Picks {
      * measures [ label, score|null, source ], focus ]. Focus = the
      * FOCUS_LIMIT abilities with a score at or under FOCUS_MAX_SCORE and the
      * highest need x (5 - score). A missing number is never filled in.
+     * v0.48.12 — with the client's age, each row also carries projection().
      *
      * @param array $pick_ids      stage2_data.why_picks
      * @param array $stage1_raw    stage1_data.server_result.raw
      * @param array $stage3_scores stage3_data.server_result.scores
      */
-    public static function abilities_profile( $pick_ids, $stage1_raw = array(), $stage3_scores = array() ) {
-        $answers = array( 'stage1' => (array) $stage1_raw, 'stage3' => (array) $stage3_scores );
-
+    public static function abilities_profile( $pick_ids, $stage1_raw = array(), $stage3_scores = array(), $age = null ) {
         $out = array();
         foreach ( self::tally( self::labels( $pick_ids ) ) as $id => $t ) {
-            $measures = array(); $numbers = array();
-            foreach ( self::MEASURES[ $id ] as $m ) {
-                $v = $answers[ $m['source'] ][ $m['key'] ] ?? null;
-                $v = is_numeric( $v ) ? $v + 0 : null;
-                if ( null !== $v ) $numbers[] = $v;
-                $measures[] = array( 'label' => $m['label'], 'score' => $v, 'source' => $m['source'] );
-            }
+            $m         = self::measured( $id, $stage1_raw, $stage3_scores );
             $out[ $id ] = array(
                 'id'       => $id,
                 'label'    => self::ABILITY_LABELS[ $id ],
                 'count'    => $t['count'],
                 'need'     => $t['need'],
-                'score'    => $numbers ? round( array_sum( $numbers ) / count( $numbers ), 1 ) : null,
-                'measures' => $measures,
+                'score'    => $m['score'],
+                'measures' => $m['measures'],
                 'focus'    => false,
-            );
+            ) + self::projection( $t['need'], $m['score'], $age );
         }
         foreach ( self::focus_ids( $out ) as $id ) $out[ $id ]['focus'] = true;
         return array_values( $out );
@@ -374,6 +377,110 @@ class HDLV2_Why_Picks {
             $need      = round( self::MAX_NEED * 10 * $sum[ $n ] / ( self::MAX_WEIGHT * count( $items ) ) ) / 10;
             $out[ $n ] = array( 'count' => $c, 'sum' => $sum[ $n ], 'need' => min( (float) self::MAX_NEED, $need ) );
         }
+        return $out;
+    }
+
+    /** One ability's measures from the saved answers, and their 1-decimal average (null when none has a number). */
+    private static function measured( $id, $stage1_raw, $stage3_scores ) {
+        $answers  = array( 'stage1' => (array) $stage1_raw, 'stage3' => (array) $stage3_scores );
+        $measures = array(); $numbers = array();
+        foreach ( self::MEASURES[ $id ] as $m ) {
+            $v = $answers[ $m['source'] ][ $m['key'] ] ?? null;
+            $v = is_numeric( $v ) ? $v + 0 : null;
+            if ( null !== $v ) $numbers[] = $v;
+            $measures[] = array( 'label' => $m['label'], 'score' => $v, 'source' => $m['source'] );
+        }
+        return array( 'measures' => $measures, 'score' => $numbers ? round( array_sum( $numbers ) / count( $numbers ), 1 ) : null );
+    }
+
+    /**
+     * v0.48.12 — Matthew's "age adjusted redundancy", on the 0-5 scale:
+     * at_90 = today's score after LOSS_PER_DECADE for each decade to
+     * TARGET_AGE (null when unmeasured); need_now = what the need asks for
+     * today so that it is still there at TARGET_AGE, capped at MAX_NEED
+     * (need_now_capped says the cap was hit). Arithmetic on one assessment,
+     * not a measured trend. No usable age: both null.
+     */
+    public static function projection( $need, $score, $age ) {
+        if ( ! is_numeric( $age ) || $age <= 0 ) return array( 'at_90' => null, 'need_now' => null, 'need_now_capped' => false );
+        $keep = pow( 1 - self::LOSS_PER_DECADE, max( 0, ( self::TARGET_AGE - $age ) / 10 ) );
+        $want = $need / $keep;
+        return array(
+            'at_90'           => null === $score ? null : round( $score * $keep, 1 ),
+            'need_now'        => round( min( (float) self::MAX_NEED, $want ), 1 ),
+            'need_now_capped' => $want > self::MAX_NEED,
+        );
+    }
+
+    /** The client's age from decoded stage1_data, or null. */
+    public static function age_of( $stage1_data ) {
+        $age = is_array( $stage1_data ) ? ( $stage1_data['q1_age'] ?? $stage1_data['age'] ?? null ) : null;
+        return is_numeric( $age ) && $age > 0 ? $age + 0 : null;
+    }
+
+    /**
+     * v0.48.12 — the abilities chart's two series, one source for the report
+     * page (Chart.js) and the PDFs (chart_url()): every ability in NEEDS
+     * order, needed = its need (0 when no choice needs it), now = its
+     * measured score (null when nothing measured it), scale 5.
+     */
+    public static function ability_chart_series( $profile, $stage1_raw = array(), $stage3_scores = array() ) {
+        $need = array_column( (array) $profile, 'need', 'id' );
+        $out  = array( 'labels' => array(), 'needed' => array(), 'now' => array(), 'scale' => self::MAX_NEED );
+        foreach ( self::NEEDS as $id ) {
+            $out['labels'][] = self::ABILITY_SHORT[ $id ];
+            $out['needed'][] = (float) ( $need[ $id ] ?? 0 );
+            $out['now'][]    = self::measured( $id, $stage1_raw, $stage3_scores )['score'];
+        }
+        return $out;
+    }
+
+    /**
+     * QuickChart picture of ability_chart_series() for the PDFs, drawn like
+     * HDLV2_Final_Report::build_radar_chart_url() (Chart.js v4, 0-5, 540px).
+     * '' when fewer than two abilities have a number: no picture beats a
+     * one-spoke "you now".
+     */
+    public static function chart_url( $series ) {
+        if ( count( array_filter( (array) ( $series['now'] ?? array() ), 'is_numeric' ) ) < 2 ) return '';
+        $cfg = array(
+            'type'    => 'radar',
+            'data'    => array(
+                'labels'   => $series['labels'],
+                'datasets' => array(
+                    array( 'label' => 'What your choices need', 'data' => $series['needed'], 'fill' => true,
+                        'backgroundColor' => 'rgba(61,141,160,0.15)', 'borderColor' => '#3d8da0', 'borderWidth' => 2,
+                        'pointBackgroundColor' => '#3d8da0', 'pointRadius' => 3 ),
+                    array( 'label' => 'You now', 'data' => $series['now'], 'fill' => false,
+                        'borderColor' => '#d97706', 'borderWidth' => 2, 'borderDash' => array( 6, 4 ),
+                        'pointBackgroundColor' => '#d97706', 'pointRadius' => 3, 'spanGaps' => true ),
+                ),
+            ),
+            'options' => array(
+                'scales'  => array( 'r' => array(
+                    'min' => 0, 'max' => 5, 'beginAtZero' => true,
+                    'ticks'       => array( 'stepSize' => 1, 'showLabelBackdrop' => false, 'font' => array( 'size' => 9 ), 'color' => '#999', 'precision' => 0 ),
+                    'grid'        => array( 'color' => 'rgba(0,0,0,0.08)' ),
+                    'angleLines'  => array( 'color' => 'rgba(0,0,0,0.08)' ),
+                    'pointLabels' => array( 'font' => array( 'size' => 11, 'family' => "'Inter',sans-serif", 'weight' => '600' ), 'color' => '#2c3e50' ),
+                ) ),
+                'plugins' => array(
+                    'legend'  => array( 'display' => true, 'position' => 'bottom', 'labels' => array( 'font' => array( 'size' => 11, 'family' => "'Inter',sans-serif" ), 'color' => '#2c3e50', 'boxWidth' => 14 ) ),
+                    'title'   => array( 'display' => false ),
+                    'tooltip' => array( 'enabled' => false ),
+                ),
+                'maintainAspectRatio' => true,
+                'aspectRatio'         => 1,
+            ),
+        );
+        return 'https://quickchart.io/chart?c=' . rawurlencode( wp_json_encode( $cfg ) ) . '&w=540&h=540&bkg=white&v=4';
+    }
+
+    /** "about 1.6 at 90 on today's path" / "needs about 1.3 now to keep it" words for a profile row, '' parts left out. */
+    private static function projection_words( $a, $per5 = '' ) {
+        $out = array();
+        if ( null !== ( $a['at_90'] ?? null ) ) $out['at_90'] = 'about ' . $a['at_90'] . $per5 . ' at ' . self::TARGET_AGE . " on today's path";
+        if ( null !== ( $a['need_now'] ?? null ) ) $out['need_now'] = ! empty( $a['need_now_capped'] ) ? '5 or more' : 'about ' . $a['need_now'] . $per5;
         return $out;
     }
 
@@ -423,11 +530,13 @@ class HDLV2_Why_Picks {
      * prompt_block().
      */
     public static function block_for_row( $progress, $stage3_scores, $use = false ) {
+        $s1 = json_decode( (string) ( $progress->stage1_data ?? '' ), true ) ?: array();
         return self::prompt_block(
             json_decode( (string) ( $progress->stage2_data ?? '' ), true ) ?: array(),
-            self::stage1_raw( json_decode( (string) ( $progress->stage1_data ?? '' ), true ) ?: array() ),
+            self::stage1_raw( $s1 ),
             is_array( $stage3_scores ) ? $stage3_scores : array(),
-            $use
+            $use,
+            self::age_of( $s1 )
         );
     }
 
@@ -444,9 +553,13 @@ class HDLV2_Why_Picks {
         $ids = array_slice( $s2['why_picks'], 0, self::MAX_PICKS );
 
         $abilities = array(); $focus = array();
-        $profile   = self::abilities_profile( $ids, self::stage1_raw( json_decode( (string) ( $progress->stage1_data ?? '' ), true ) ?: array() ), is_array( $stage3_scores ) ? $stage3_scores : array() );
+        $s1        = json_decode( (string) ( $progress->stage1_data ?? '' ), true ) ?: array();
+        $raw       = self::stage1_raw( $s1 );
+        $scores    = is_array( $stage3_scores ) ? $stage3_scores : array();
+        $profile   = self::abilities_profile( $ids, $raw, $scores, self::age_of( $s1 ) );
         foreach ( $profile as $a ) {
-            $abilities[] = array( 'label' => $a['label'], 'short' => self::ABILITY_SHORT[ $a['id'] ], 'count' => $a['count'], 'need' => $a['need'], 'score' => $a['score'], 'focus' => $a['focus'] );
+            $abilities[] = array( 'label' => $a['label'], 'short' => self::ABILITY_SHORT[ $a['id'] ], 'count' => $a['count'], 'need' => $a['need'], 'score' => $a['score'], 'focus' => $a['focus'],
+                'at_90' => $a['at_90'], 'need_now' => $a['need_now'], 'need_now_capped' => $a['need_now_capped'] );
             if ( $a['focus'] ) $focus[] = $a['label'];
         }
         $picks = array();
@@ -457,11 +570,13 @@ class HDLV2_Why_Picks {
             'focus_areas' => $focus,
             'people'      => self::plain( $s2['key_people_text'] ?? '', self::MAX_PEOPLE_LEN ),
             'own_words'   => self::plain( $s2['own_words'] ?? '', self::MAX_OWN_WORDS_LEN ),
+            'chart_url'   => self::chart_url( self::ability_chart_series( $profile, $raw, $scores ) ),
         );
     }
 
     /**
-     * summary_for_row() as eight flat strings for the PDF payloads. Make's
+     * summary_for_row() as nine flat strings for the PDF payloads (v0.48.12:
+     * why_chart_url, the abilities chart picture, '' when it has none). Make's
      * PDFMonkey step is a JSON text template, so lists go as one string
      * (" | " between items, a template splits on it). v0.48.10 — the three
      * why_picks_<group> keys hold the statements under each heading, so the
@@ -472,7 +587,14 @@ class HDLV2_Why_Picks {
         $s     = self::summary_for_row( $progress, $stage3_scores );
         $picks = $s['picks'] ?? array();
         $abs   = array();
-        foreach ( $s['abilities'] ?? array() as $a ) $abs[] = $a['label'] . ' (need ' . $a['need'] . ' of 5' . ( $a['focus'] ? ', focus area' : '' ) . ')';
+        foreach ( $s['abilities'] ?? array() as $a ) {
+            $w     = self::projection_words( $a );
+            $abs[] = $a['label'] . ' (need ' . $a['need'] . ' of 5'
+                . ( null !== $a['score'] ? ', now ' . $a['score'] : '' )
+                . ( isset( $w['at_90'] ) ? ', ' . $w['at_90'] : '' )
+                . ( isset( $w['need_now'] ) ? ', needs ' . $w['need_now'] . ' now to keep it' : '' )
+                . ( $a['focus'] ? ', focus area' : '' ) . ')';
+        }
         $out = array(
             'why_picks'       => implode( ' | ', array_column( $picks, 'label' ) ),
             'why_abilities'   => implode( ' | ', $abs ),
@@ -487,6 +609,7 @@ class HDLV2_Why_Picks {
             foreach ( $picks as $p ) if ( $g['title'] === $p['group'] ) $in[] = $p['label'];
             $out[ 'why_picks_' . $g['id'] ] = implode( ' | ', $in );
         }
+        $out['why_chart_url'] = $s['chart_url'] ?? '';
         return $out;
     }
 
@@ -500,7 +623,7 @@ class HDLV2_Why_Picks {
      * 'facts' (v0.48.8) = the same data with no section instruction, for the
      * PDF sections, weekly flight plan and consultation-notes prompts.
      */
-    public static function prompt_block( $stage2_data, $stage1_raw = array(), $stage3_scores = array(), $use = false ) {
+    public static function prompt_block( $stage2_data, $stage1_raw = array(), $stage3_scores = array(), $use = false, $age = null ) {
         if ( ! self::is_single( $stage2_data ) || ! is_array( $stage2_data['why_picks'] ?? null ) ) return '';
         $items = self::labels( array_slice( $stage2_data['why_picks'], 0, self::MAX_PICKS ), $stage2_data['why_pick_labels'] ?? array() );
         if ( ! $items ) return '';
@@ -527,15 +650,18 @@ class HDLV2_Why_Picks {
         $focus  = array();
         if ( $scored ) {
             $block .= "What their choices depend on, with what was measured (out of 5, higher is better; Stage 1 answers run 1 to 5, Stage 3 answers 0 to 5):\n";
-            $profile = self::abilities_profile( array_column( $items, 'id' ), $stage1_raw, $stage3_scores );
+            $profile = self::abilities_profile( array_column( $items, 'id' ), $stage1_raw, $stage3_scores, $age );
             foreach ( $profile as $a ) {
                 $from = array();
                 foreach ( $a['measures'] as $m ) {
                     if ( null !== $m['score'] ) $from[] = $m['label'] . ( 'stage1' === $m['source'] ? ' (Stage 1) ' : ' ' ) . $m['score'] . '/5';
                 }
                 $block .= '- ' . $a['label'] . ': needed ' . $a['need'] . '/5 by their choices (' . $a['count'] . ' of ' . count( $items ) . ' picks); '
-                    . ( null === $a['score'] ? 'no answer recorded' : 'measured ' . $a['score'] . '/5 from ' . implode( ', ', $from ) )
-                    . "\n";
+                    . ( null === $a['score'] ? 'no answer recorded' : 'measured ' . $a['score'] . '/5 from ' . implode( ', ', $from ) );
+                $w = self::projection_words( $a, '/5' );
+                if ( isset( $w['at_90'] ) ) $block .= '; ' . $w['at_90'];
+                if ( isset( $w['need_now'] ) ) $block .= '; keeping it to ' . self::TARGET_AGE . ' needs ' . $w['need_now'] . ' now';
+                $block .= "\n";
             }
             foreach ( self::focus_ids( $profile ) as $id ) $focus[] = self::ABILITY_LABELS[ $id ];
             if ( $focus ) $block .= 'Focus areas (most needed, weakest measured): ' . implode( ', ', $focus ) . "\n";
@@ -543,6 +669,10 @@ class HDLV2_Why_Picks {
         // v0.48.10 (Quim, 2026-10-07): the choices explain the results. One
         // assessment is a position, not a trend.
         $block .= "HOW TO USE THESE CHOICES: this client has one assessment, so describe where they stand today against what each choice needs, not a trend. For each focus area, name the choice it serves (quote the statement word for word), the measure that drags it, and what keeping that ability over the coming years needs. Where a measure is above what a choice needs, say so in one clause and name the choice. Explain the client's position in terms of their choices, never in abilities alone. Do not invent choices or people that are not listed here.\n";
+        // v0.48.12 — only when the block carries projections (an age is known).
+        if ( $scored && null !== $age && is_numeric( $age ) && $age > 0 ) {
+            $block .= "The projection to " . self::TARGET_AGE . " is arithmetic on today's number (about " . round( self::LOSS_PER_DECADE * 100 ) . "% less each decade), not a trend: use it to say what keeping the ability needs, never as a measured change.\n";
+        }
         // An instruction about focus areas is only given when some are named.
         if ( 'milestones' === $use ) {
             $block .= 'Aim the milestones at what this client chose' . ( $focus ? ', starting with the focus areas' : '' ) . ", and keep every milestone within its word limit.\n";

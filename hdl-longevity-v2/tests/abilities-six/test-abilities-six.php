@@ -17,6 +17,7 @@ error_reporting( E_ALL & ~E_DEPRECATED );
 define( 'ABSPATH', __DIR__ . '/' );
 function get_option( $k, $default = false ) { return $default; }
 function wp_strip_all_tags( $s ) { return trim( strip_tags( (string) $s ) ); }
+function wp_json_encode( $x ) { return json_encode( $x ); }
 class WP_Error {
     public $code; public $message; public $data;
     public function __construct( $code = '', $message = '', $data = null ) { $this->code = $code; $this->message = $message; $this->data = $data; }
@@ -132,7 +133,8 @@ check( 'A-6b count is still the number of choices, choice the first in pick orde
 $row = (object) array( 'stage1_data' => '{}', 'stage2_data' => json_encode( array( 'form_flow' => 'single', 'why_picks' => $worked ) ) );
 $pf  = HDLV2_Why_Picks::payload_fields( $row, $s3 );
 check( 'A-7 why_abilities reads "Label (need N of 5[, focus area])"',
-    'Strength (need 3.3 of 5, focus area) | Mobility and flexibility (need 3.3 of 5) | Balance (need 3.3 of 5, focus area) | Stamina and energy (need 2.7 of 5, focus area) | A sharp mind (need 1 of 5) | Connection (need 1 of 5)' === $pf['why_abilities'] );
+    // 0.48.12 adds "now N" where measured (no age on this row, so no projection words).
+    'Strength (need 3.3 of 5, now 2, focus area) | Mobility and flexibility (need 3.3 of 5) | Balance (need 3.3 of 5, now 2, focus area) | Stamina and energy (need 2.7 of 5, now 1, focus area) | A sharp mind (need 1 of 5, now 1) | Connection (need 1 of 5, now 1)' === $pf['why_abilities'] );
 
 // A-8 prompt block.
 $blk = HDLV2_Why_Picks::prompt_block( array( 'form_flow' => 'single', 'why_picks' => $worked ), $raw, $s3, 'facts' );

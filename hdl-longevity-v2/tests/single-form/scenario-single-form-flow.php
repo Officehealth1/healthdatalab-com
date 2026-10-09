@@ -562,7 +562,7 @@ check( 'C2 single row: each pick is its label plus ability display names (a reti
 $abil = $ch['abilities'] ?? array();
 check( 'C3 single row: abilities are the profile of the saved answers (counts, scores, focus by hand)',
     method_exists( 'HDLV2_Why_Picks', 'abilities_profile' )
-    && $abil === HDLV2_Why_Picks::abilities_profile( $FIVE, $S1['server_result']['raw'], $SCORES )
+    && $abil === HDLV2_Why_Picks::abilities_profile( $FIVE, $S1['server_result']['raw'], $SCORES, 55 )
     && array( 'strength', 'mobility', 'balance', 'stamina', 'mind', 'connection' ) === array_column( $abil, 'id' )
     && array( 3, 3, 2, 3, 2, 1 ) === array_column( $abil, 'count' )
     && array( 2.0, 2.3, 0.7, 2.3, 1.3, 0.3 ) === array_column( $abil, 'need' )
@@ -706,8 +706,8 @@ $pl   = json_decode( $fire[0]['body'] ?? '{}', true );
 check( 'W2 switch on: exactly one Stage 2 fire, after the WHY row exists', isset( $w3->why[81] ) && 1 === stage2_fires( $w3->rows[81] ) );
 check( 'W3 fired_at + text hash stamped (the old flow\'s claim)', null !== $w3->rows[81]->stage2_webhook_fired_at );
 $pf = HDLV2_Why_Picks::payload_fields( $w3->rows[81], array() );
-check( 'W4 payload: form_flow single + the eight choice fields from payload_fields()', 'single' === ( $pl['form_flow'] ?? '' )
-    && $pf === array_intersect_key( $pl, $pf ) && '' !== $pl['why_picks'] && 8 === count( $pf ) && '' !== $pl['why_picks_freedom'] );
+check( 'W4 payload: form_flow single + the nine choice fields from payload_fields() (0.48.12: + why_chart_url)', 'single' === ( $pl['form_flow'] ?? '' )
+    && $pf === array_intersect_key( $pl, $pf ) && '' !== $pl['why_picks'] && 9 === count( $pf ) && '' !== $pl['why_picks_freedom'] );
 check( 'W5 payload: the WHY row\'s summary fields, flat', 'I want to keep up with my family.' === ( $pl['distilled_why'] ?? '' )
     && 'Jenny' === ( $pl['key_people_csv'] ?? '' ) && implode( ', ', HDLV2_Why_Picks::label_map( $picks_w ) ) === ( $pl['motivations_csv'] ?? '' )
     && 'You want to keep up.' === ( $pl['ai_reformulation'] ?? '' ) );

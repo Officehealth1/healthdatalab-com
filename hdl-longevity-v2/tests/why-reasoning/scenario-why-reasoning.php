@@ -165,14 +165,14 @@ HDLV2_AI_Service::generate_pre_consultation_summary( $s1, $s3, $calc, $why_old +
 check( 'R2 an empty block changes nothing', $prompts['brief']() === last_request() );
 
 // ════════ Y: payload fields ════════
-$KEYS8 = array( 'why_picks', 'why_abilities', 'why_focus_areas', 'why_people', 'why_own_words', 'why_picks_people', 'why_picks_freedom', 'why_picks_things' );
+$KEYS8 = array( 'why_picks', 'why_abilities', 'why_focus_areas', 'why_people', 'why_own_words', 'why_picks_people', 'why_picks_freedom', 'why_picks_things', 'why_chart_url' ); // 0.48.12: nine
 $pf = HDLV2_Why_Picks::payload_fields( $single, $s3_scores );
-check( 'Y1 eight keys, all strings', $KEYS8 === array_keys( $pf ) && 8 === count( array_filter( $pf, 'is_string' ) ) );
+check( 'Y1 nine keys, all strings', $KEYS8 === array_keys( $pf ) && 9 === count( array_filter( $pf, 'is_string' ) ) );
 check( 'Y2 grouped keys hold that group\'s labels in pick order', 'Dance with my grandkids at their wedding' === $pf['why_picks_people']
     && 'Stay sharp and run my life with enthusiasm | Feel robust and get back up by myself if I trip' === $pf['why_picks_freedom']
     && 'Hike the hills with friends | Wake up full of energy' === $pf['why_picks_things'] );
 check( 'Y2b why_picks keeps every statement in pick order', implode( ' | ', $LABELS ) === $pf['why_picks'] );
-check( 'Y3 old flow: the eight keys, all empty', array_fill_keys( $KEYS8, '' ) === HDLV2_Why_Picks::payload_fields( $old, $s3_scores ) );
+check( 'Y3 old flow: the nine keys, all empty', array_fill_keys( $KEYS8, '' ) === HDLV2_Why_Picks::payload_fields( $old, $s3_scores ) );
 $sum = HDLV2_Why_Picks::summary_for_row( $single, $s3_scores );
 check( 'Y4 summary picks are { label, group }', array( 'label' => 'Hike the hills with friends', 'group' => 'Things I love' ) === $sum['picks'][0] );
 
