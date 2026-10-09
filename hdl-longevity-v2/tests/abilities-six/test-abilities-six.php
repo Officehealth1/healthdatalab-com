@@ -61,6 +61,8 @@ check( 'A-3 parse_tags: weight read, bare tag = 2, alias, larger weight kept',
     array( 'mobility' => 3 ) === HDLV2_Why_Picks::parse_tags( 'mobility:3' )
     && array( 'strength' => 2 ) === HDLV2_Why_Picks::parse_tags( 'strength' )
     && array( 'mobility' => 3, 'stamina' => 1 ) === HDLV2_Why_Picks::parse_tags( 'flexibility:1,mobility:3,energy:1' ) );
+check( 'A-3c a weight outside 1-3 is pulled inside it (review fix)',
+    array( 'mobility' => 1, 'strength' => 3, 'mind' => 1 ) === HDLV2_Why_Picks::parse_tags( 'mobility:0,strength:7,mind:x' ) );
 
 // The draft table for Matthew, exactly (plan A2): strength, mobility, balance, stamina, mind, connection.
 $TABLE = array(

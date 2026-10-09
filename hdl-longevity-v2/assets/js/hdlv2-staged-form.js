@@ -1325,9 +1325,10 @@
       g.items.forEach(function (it) {
         if ((picks || []).indexOf(it.id) === -1) return;
         n++;
+        var w = it.weights || {};
         (it.needs || []).forEach(function (a) {
           counts[a] = (counts[a] || 0) + 1;
-          sums[a] = (sums[a] || 0) + ((it.weights || {})[a] || 2);
+          sums[a] = (sums[a] || 0) + (a in w ? w[a] : 2);
         });
       });
     });
@@ -1866,7 +1867,9 @@
   }
 
   // Pure: tied questions first, most choices first; equal counts and the
-  // untied questions keep today's order.
+  // untied questions keep today's order. v0.48.11 — count is the winning
+  // ability's; every tap question is measured for one ability only, so the
+  // summed weight that picks the winner cannot reorder them.
   function tapQuestionOrder(ties) {
     var t = ties || {};
     function count(f) { return (t[f] && t[f].count) || 0; }

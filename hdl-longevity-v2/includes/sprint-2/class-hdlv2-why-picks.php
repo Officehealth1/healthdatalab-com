@@ -209,14 +209,15 @@ class HDLV2_Why_Picks {
     /**
      * v0.48.11 — 'strength:3,balance' → [ strength => 3, balance => 2 ], ids
      * read through ALIASES. An id named twice (flexibility + mobility) keeps
-     * its larger weight, so a merge never counts one statement twice.
+     * its larger weight, so a merge never counts one statement twice. A
+     * weight outside 1-MAX_WEIGHT is pulled inside it.
      */
     public static function parse_tags( $tags ) {
         $out = array();
         foreach ( explode( ',', (string) $tags ) as $tag ) {
             $parts = explode( ':', trim( $tag ), 2 );
             $id    = self::ALIASES[ $parts[0] ] ?? $parts[0];
-            $w     = isset( $parts[1] ) ? (int) $parts[1] : self::DEFAULT_WEIGHT;
+            $w     = isset( $parts[1] ) ? max( 1, min( self::MAX_WEIGHT, (int) $parts[1] ) ) : self::DEFAULT_WEIGHT;
             $out[ $id ] = max( $out[ $id ] ?? 0, $w );
         }
         return $out;
