@@ -23,6 +23,12 @@
  * each time and never stored, for the picks page, the practitioner's WHY tab
  * and the draft + milestones prompts. Tags and table are draft for Matthew.
  *
+ * v0.48.11 (Matthew, 2026-10-09): six abilities, not eight (flexibility is
+ * read as mobility, energy as stamina, through ALIASES, so saved rows and
+ * retired statements are never rewritten). Each tag carries a weight 1-3
+ * (`mobility:3`; a bare tag reads as 2) and an ability's need is the share
+ * of the chosen life that leans on it, 0 to 5 whatever the number of picks.
+ *
  * @package HDL_Longevity_V2
  * @since 0.47.92
  */
@@ -41,30 +47,34 @@ class HDLV2_Why_Picks {
     const FLOW               = 'single';
 
     /** Ability ids, in the order they are listed and ties are broken. */
-    const NEEDS = array( 'strength', 'mobility', 'flexibility', 'balance', 'stamina', 'mind', 'energy', 'connection' );
+    const NEEDS = array( 'strength', 'mobility', 'balance', 'stamina', 'mind', 'connection' );
 
     const ABILITY_LABELS = array(
-        'strength'    => 'Strength',
-        'mobility'    => 'Mobility',
-        'flexibility' => 'Flexibility',
-        'balance'     => 'Balance',
-        'stamina'     => 'Stamina',
-        'mind'        => 'A sharp mind',
-        'energy'      => 'Energy and sleep',
-        'connection'  => 'Connection',
+        'strength'   => 'Strength',
+        'mobility'   => 'Mobility and flexibility',
+        'balance'    => 'Balance',
+        'stamina'    => 'Stamina and energy',
+        'mind'       => 'A sharp mind',
+        'connection' => 'Connection',
     );
 
     /** v0.48.0 — one-word names for the chart on the picks page. */
     const ABILITY_SHORT = array(
-        'strength'    => 'Strength',
-        'mobility'    => 'Mobility',
-        'flexibility' => 'Flexibility',
-        'balance'     => 'Balance',
-        'stamina'     => 'Stamina',
-        'mind'        => 'Mind',
-        'energy'      => 'Energy',
-        'connection'  => 'Connection',
+        'strength'   => 'Strength',
+        'mobility'   => 'Mobility',
+        'balance'    => 'Balance',
+        'stamina'    => 'Stamina',
+        'mind'       => 'Mind',
+        'connection' => 'Connection',
     );
+
+    /** v0.48.11 — ids merged into another; tags are read through this. */
+    const ALIASES = array( 'flexibility' => 'mobility', 'energy' => 'stamina' );
+
+    /** Weight of a tag written without one (`stamina` = `stamina:2`). */
+    const DEFAULT_WEIGHT = 2;
+    const MAX_WEIGHT     = 3;
+    const MAX_NEED       = 5;
 
     /**
      * Which saved answers measure each ability. `stage3` keys are
@@ -80,9 +90,6 @@ class HDLV2_Why_Picks {
         'mobility'    => array(
             array( 'source' => 'stage1', 'key' => 'q5_sts', 'label' => 'Getting up from the floor' ),
         ),
-        'flexibility' => array(
-            array( 'source' => 'stage1', 'key' => 'q5_sts', 'label' => 'Getting up from the floor' ),
-        ),
         'balance'     => array(
             array( 'source' => 'stage3', 'key' => 'balance', 'label' => 'Standing on one leg' ),
         ),
@@ -90,31 +97,28 @@ class HDLV2_Why_Picks {
             array( 'source' => 'stage3', 'key' => 'physicalActivity', 'label' => 'Physical activity' ),
             array( 'source' => 'stage1', 'key' => 'q4_vo2', 'label' => 'Climbing stairs' ),
             array( 'source' => 'stage3', 'key' => 'heartRateScore', 'label' => 'Resting heart rate' ),
+            array( 'source' => 'stage3', 'key' => 'sleepDuration', 'label' => 'Sleep duration' ),
+            array( 'source' => 'stage3', 'key' => 'sleepQuality', 'label' => 'Sleep quality' ),
+            array( 'source' => 'stage3', 'key' => 'dietQuality', 'label' => 'Diet' ),
         ),
         'mind'        => array(
             array( 'source' => 'stage3', 'key' => 'cognitiveActivity', 'label' => 'Mental activity' ),
             array( 'source' => 'stage3', 'key' => 'stressLevels', 'label' => 'Stress' ),
             array( 'source' => 'stage3', 'key' => 'sleepQuality', 'label' => 'Sleep quality' ),
         ),
-        'energy'      => array(
-            array( 'source' => 'stage3', 'key' => 'sleepDuration', 'label' => 'Sleep duration' ),
-            array( 'source' => 'stage3', 'key' => 'sleepQuality', 'label' => 'Sleep quality' ),
-            array( 'source' => 'stage3', 'key' => 'dietQuality', 'label' => 'Diet' ),
-        ),
         'connection'  => array(
             array( 'source' => 'stage3', 'key' => 'socialConnections', 'label' => 'Time with people' ),
         ),
     );
-
-    /** No question measures these directly; their measure is the nearest one. */
-    const INDIRECT = array( 'flexibility' );
 
     /** An ability is a focus area only when its measured score is at or under this. */
     const FOCUS_MAX_SCORE = 3.0;
     const FOCUS_LIMIT     = 3;
 
     /**
-     * Groups in display order: title, short title, items.
+     * Groups in display order: title, short title, items. Tags are
+     * `ability:weight` (weight 1-3: 3 = the statement leans on it, 1 = it
+     * helps a little), in NEEDS order; v0.48.11 weights are draft for Matthew.
      * v0.48.0 (Matthew, 2026-10-05: fewer words, an emotional pull, three
      * columns): the page offers 24 short statements in three groups. Every
      * earlier statement stays below, retired, with its old wording and tags,
@@ -124,31 +128,31 @@ class HDLV2_Why_Picks {
     public static function catalogue() {
         $groups = array(
             'people' => array( 'People I love', 'People I love', array(
-                array( 'floor_grandkids', 'Play on the floor with my grandkids', 'mobility,flexibility,strength' ),
-                array( 'lift_grandchild', 'Pick up a grandchild for a hug', 'strength,balance' ),
-                array( 'fetch_with_dog', 'Play fetch with the dog in the park', 'stamina' ),
-                array( 'dance_wedding', 'Dance with my grandkids at their wedding', 'stamina,balance,connection' ),
-                array( 'remember_family', 'Remember every grandchild\'s name and story', 'mind' ),
-                array( 'help_loved_one', 'Help a loved one who has hurt themselves', 'strength,balance,mobility,connection' ),
+                array( 'floor_grandkids', 'Play on the floor with my grandkids', 'strength:2,mobility:3,balance:1,stamina:1,connection:1' ),
+                array( 'lift_grandchild', 'Pick up a grandchild for a hug', 'strength:3,mobility:1,balance:2' ),
+                array( 'fetch_with_dog', 'Play fetch with the dog in the park', 'strength:1,mobility:1,balance:1,stamina:3' ),
+                array( 'dance_wedding', 'Dance with my grandkids at their wedding', 'mobility:2,balance:2,stamina:2,connection:2' ),
+                array( 'remember_family', 'Remember every grandchild\'s name and story', 'mind:3,connection:2' ),
+                array( 'help_loved_one', 'Help a loved one who has hurt themselves', 'strength:3,mobility:2,balance:2,mind:1,connection:1' ),
+                array( 'not_a_burden', 'Never burden loved ones in my last decade', 'strength:2,mobility:2,balance:2,stamina:1,mind:2,connection:1' ),
             ) ),
             'freedom' => array( 'My freedom', 'My freedom', array(
-                array( 'not_a_burden', 'Never burden loved ones in my last decade', 'strength,balance,mind' ),
-                array( 'live_in_own_home', 'Stay in my own home, on my terms', 'strength,balance,mind' ),
-                array( 'stairs_no_rail', 'Walk anywhere and climb stairs with confidence', 'strength,balance' ),
-                array( 'up_after_fall', 'Feel robust and get back up by myself if I trip', 'strength,mobility' ),
-                array( 'keep_driving', 'Drive safely', 'mind,flexibility' ),
-                array( 'manage_own_affairs', 'Stay sharp and run my life with enthusiasm', 'mind,energy' ),
-                array( 'dress_myself', 'Wash and dress myself, with dignity', 'flexibility,balance,mobility' ),
-                array( 'uneven_ground', 'Live without fear of falling', 'balance' ),
+                array( 'live_in_own_home', 'Stay in my own home, on my terms', 'strength:2,mobility:2,balance:3,stamina:1,mind:3' ),
+                array( 'stairs_no_rail', 'Walk anywhere and climb stairs with confidence', 'strength:2,mobility:2,balance:3,stamina:2' ),
+                array( 'up_after_fall', 'Feel robust and get back up by myself if I trip', 'strength:3,mobility:3,balance:2' ),
+                array( 'keep_driving', 'Drive safely', 'mobility:2,balance:1,mind:3' ),
+                array( 'manage_own_affairs', 'Stay sharp and run my life with enthusiasm', 'stamina:2,mind:3,connection:1' ),
+                array( 'dress_myself', 'Wash and dress myself, with dignity', 'strength:1,mobility:3,balance:2' ),
+                array( 'uneven_ground', 'Live without fear of falling', 'strength:2,mobility:1,balance:3' ),
             ) ),
             'things' => array( 'Things I love', 'Things I love', array(
-                array( 'keep_my_sport', 'Keep playing the sport I love', 'mobility,strength,balance' ),
-                array( 'day_in_garden', 'Spend a whole day pottering in my garden', 'strength,mobility' ),
-                array( 'hike_hills', 'Hike the hills with friends', 'stamina,balance,connection' ),
-                array( 'swim_in_sea', 'Swim in the sea', 'stamina,strength' ),
-                array( 'walk_city_all_day', 'Explore new places', 'stamina' ),
-                array( 'keep_working', 'Keep doing work that matters to me', 'mind,energy' ),
-                array( 'wake_rested', 'Wake up full of energy', 'energy' ),
+                array( 'keep_my_sport', 'Keep playing the sport I love', 'strength:2,mobility:3,balance:2,stamina:3' ),
+                array( 'day_in_garden', 'Spend a whole day pottering in my garden', 'strength:2,mobility:3,balance:1,stamina:2' ),
+                array( 'hike_hills', 'Hike the hills with friends', 'strength:1,mobility:1,balance:2,stamina:3,connection:2' ),
+                array( 'swim_in_sea', 'Swim in the sea', 'strength:2,mobility:2,stamina:3' ),
+                array( 'walk_city_all_day', 'Explore new places', 'mobility:1,stamina:3,mind:1' ),
+                array( 'keep_working', 'Keep doing work that matters to me', 'stamina:2,mind:3,connection:1' ),
+                array( 'wake_rested', 'Wake up full of energy', 'stamina:3,mind:1' ),
             ) ),
             // Retired in v0.48.0 (or earlier), in their 0.47.99 order. Never offered.
             'retired' => array( 'Earlier statements', 'Earlier statements', array(
@@ -194,9 +198,26 @@ class HDLV2_Why_Picks {
         foreach ( $groups as $gid => $g ) {
             $items = array();
             foreach ( $g[2] as $it ) {
-                $items[] = array( 'id' => $it[0], 'label' => $it[1], 'needs' => explode( ',', $it[2] ), 'retired' => ! empty( $it[3] ) );
+                $weights = self::parse_tags( $it[2] );
+                $items[] = array( 'id' => $it[0], 'label' => $it[1], 'needs' => array_keys( $weights ), 'weights' => $weights, 'retired' => ! empty( $it[3] ) );
             }
             $out[] = array( 'id' => $gid, 'title' => $g[0], 'short' => $g[1], 'items' => $items );
+        }
+        return $out;
+    }
+
+    /**
+     * v0.48.11 — 'strength:3,balance' → [ strength => 3, balance => 2 ], ids
+     * read through ALIASES. An id named twice (flexibility + mobility) keeps
+     * its larger weight, so a merge never counts one statement twice.
+     */
+    public static function parse_tags( $tags ) {
+        $out = array();
+        foreach ( explode( ',', (string) $tags ) as $tag ) {
+            $parts = explode( ':', trim( $tag ), 2 );
+            $id    = self::ALIASES[ $parts[0] ] ?? $parts[0];
+            $w     = isset( $parts[1] ) ? (int) $parts[1] : self::DEFAULT_WEIGHT;
+            $out[ $id ] = max( $out[ $id ] ?? 0, $w );
         }
         return $out;
     }
@@ -207,7 +228,7 @@ class HDLV2_Why_Picks {
         foreach ( static::catalogue() as $g ) {
             $items = array();
             foreach ( $g['items'] as $it ) {
-                if ( empty( $it['retired'] ) ) $items[] = array( 'id' => $it['id'], 'label' => $it['label'], 'needs' => $it['needs'] );
+                if ( empty( $it['retired'] ) ) $items[] = array( 'id' => $it['id'], 'label' => $it['label'], 'needs' => $it['needs'], 'weights' => $it['weights'] );
             }
             if ( $items ) $out[] = array( 'id' => $g['id'], 'title' => $g['title'], 'short' => $g['short'], 'items' => $items );
         }
@@ -292,11 +313,11 @@ class HDLV2_Why_Picks {
     /**
      * What the chosen statements depend on, joined to the saved scores.
      * Abilities with at least one choice, in NEEDS order:
-     * [ id, label, count, score (1-decimal average of the measures that have
-     * a number, or null), measures [ label, score|null, source ], indirect,
-     * focus ]. Focus = the FOCUS_LIMIT abilities with a score at or under
-     * FOCUS_MAX_SCORE and the highest count x (5 - score). A missing number
-     * is never filled in.
+     * [ id, label, count (choices that need it), need (0-5, see tally()),
+     * score (1-decimal average of the measures that have a number, or null),
+     * measures [ label, score|null, source ], focus ]. Focus = the
+     * FOCUS_LIMIT abilities with a score at or under FOCUS_MAX_SCORE and the
+     * highest need x (5 - score). A missing number is never filled in.
      *
      * @param array $pick_ids      stage2_data.why_picks
      * @param array $stage1_raw    stage1_data.server_result.raw
@@ -304,15 +325,9 @@ class HDLV2_Why_Picks {
      */
     public static function abilities_profile( $pick_ids, $stage1_raw = array(), $stage3_scores = array() ) {
         $answers = array( 'stage1' => (array) $stage1_raw, 'stage3' => (array) $stage3_scores );
-        $counts  = array_fill_keys( self::NEEDS, 0 );
-        foreach ( self::labels( $pick_ids ) as $it ) {
-            foreach ( $it['needs'] as $n ) {
-                if ( isset( $counts[ $n ] ) ) $counts[ $n ]++;
-            }
-        }
 
         $out = array();
-        foreach ( array_filter( $counts ) as $id => $count ) {
+        foreach ( self::tally( self::labels( $pick_ids ) ) as $id => $t ) {
             $measures = array(); $numbers = array();
             foreach ( self::MEASURES[ $id ] as $m ) {
                 $v = $answers[ $m['source'] ][ $m['key'] ] ?? null;
@@ -323,10 +338,10 @@ class HDLV2_Why_Picks {
             $out[ $id ] = array(
                 'id'       => $id,
                 'label'    => self::ABILITY_LABELS[ $id ],
-                'count'    => $count,
+                'count'    => $t['count'],
+                'need'     => $t['need'],
                 'score'    => $numbers ? round( array_sum( $numbers ) / count( $numbers ), 1 ) : null,
                 'measures' => $measures,
-                'indirect' => in_array( $id, self::INDIRECT, true ),
                 'focus'    => false,
             );
         }
@@ -335,14 +350,37 @@ class HDLV2_Why_Picks {
     }
 
     /**
-     * Focus ability ids from abilities_profile() rows, strongest claim first.
-     * An ability with only a nearest measure (INDIRECT) is never a focus: its
-     * number belongs to another ability, which would otherwise be counted twice.
+     * v0.48.11 — per ability the picks need, in NEEDS order, abilities no
+     * pick needs left out: count = choices that need it, need = the share of
+     * the choices that lean on it, 5 x (sum of its weights) / (MAX_WEIGHT x
+     * picks), 1 decimal. 5 only when every pick leans on it fully, so the
+     * number of picks never fills the chart. Worked out on whole numbers
+     * first so the page (hdlv2-staged-form.js abilityCounts) rounds the same.
+     *
+     * @param array $items labels() entries.
      */
+    private static function tally( $items ) {
+        $sum = array_fill_keys( self::NEEDS, 0 ); $count = $sum;
+        foreach ( $items as $it ) {
+            foreach ( $it['weights'] as $n => $w ) {
+                if ( ! isset( $sum[ $n ] ) ) continue;
+                $sum[ $n ] += $w;
+                $count[ $n ]++;
+            }
+        }
+        $out = array();
+        foreach ( array_filter( $count ) as $n => $c ) {
+            $need      = round( self::MAX_NEED * 10 * $sum[ $n ] / ( self::MAX_WEIGHT * count( $items ) ) ) / 10;
+            $out[ $n ] = array( 'count' => $c, 'sum' => $sum[ $n ], 'need' => min( (float) self::MAX_NEED, $need ) );
+        }
+        return $out;
+    }
+
+    /** Focus ability ids from abilities_profile() rows, strongest claim first. */
     private static function focus_ids( $rows ) {
         $weight = array();
         foreach ( $rows as $a ) {
-            if ( null !== $a['score'] && $a['score'] <= self::FOCUS_MAX_SCORE && empty( $a['indirect'] ) ) $weight[ $a['id'] ] = $a['count'] * ( 5 - $a['score'] );
+            if ( null !== $a['score'] && $a['score'] <= self::FOCUS_MAX_SCORE ) $weight[ $a['id'] ] = $a['need'] * ( 5 - $a['score'] );
         }
         // Weight desc; ties keep NEEDS order (stable sort, PHP 8+).
         arsort( $weight );
@@ -394,7 +432,7 @@ class HDLV2_Why_Picks {
 
     /**
      * v0.48.8 — what a single-form row chose, for the PDFs: picks ({ label,
-     * group } in pick order, v0.48.10), abilities [ label, short, count, score|null, focus ],
+     * group } in pick order, v0.48.10), abilities [ label, short, count, need, score|null, focus ],
      * focus_areas (labels), people, own_words. Empty array for every other
      * row. Read from picks_for_display() + abilities_profile(); nothing new
      * is worked out here.
@@ -407,7 +445,7 @@ class HDLV2_Why_Picks {
         $abilities = array(); $focus = array();
         $profile   = self::abilities_profile( $ids, self::stage1_raw( json_decode( (string) ( $progress->stage1_data ?? '' ), true ) ?: array() ), is_array( $stage3_scores ) ? $stage3_scores : array() );
         foreach ( $profile as $a ) {
-            $abilities[] = array( 'label' => $a['label'], 'short' => self::ABILITY_SHORT[ $a['id'] ], 'count' => $a['count'], 'score' => $a['score'], 'focus' => $a['focus'] );
+            $abilities[] = array( 'label' => $a['label'], 'short' => self::ABILITY_SHORT[ $a['id'] ], 'count' => $a['count'], 'need' => $a['need'], 'score' => $a['score'], 'focus' => $a['focus'] );
             if ( $a['focus'] ) $focus[] = $a['label'];
         }
         $picks = array();
@@ -433,7 +471,7 @@ class HDLV2_Why_Picks {
         $s     = self::summary_for_row( $progress, $stage3_scores );
         $picks = $s['picks'] ?? array();
         $abs   = array();
-        foreach ( $s['abilities'] ?? array() as $a ) $abs[] = $a['label'] . ' (' . $a['count'] . ( $a['focus'] ? ', focus area' : '' ) . ')';
+        foreach ( $s['abilities'] ?? array() as $a ) $abs[] = $a['label'] . ' (need ' . $a['need'] . ' of 5' . ( $a['focus'] ? ', focus area' : '' ) . ')';
         $out = array(
             'why_picks'       => implode( ' | ', array_column( $picks, 'label' ) ),
             'why_abilities'   => implode( ' | ', $abs ),
@@ -468,19 +506,15 @@ class HDLV2_Why_Picks {
         $use = true === $use ? 'milestones' : ( 'facts' === $use ? 'facts' : 'draft' );
 
         $block  = "=== WHAT THIS CLIENT CHOSE (picked from a list, their own priorities for later life) ===\n";
-        $counts = array_fill_keys( self::NEEDS, 0 );
         foreach ( $items as $it ) {
             $block .= '- ' . $it['label'] . ( '' !== $it['group'] ? ' (' . $it['group'] . ')' : '' ) . ' [depends on: ' . implode( ', ', $it['needs'] ) . "]\n";
-            foreach ( $it['needs'] as $n ) {
-                if ( isset( $counts[ $n ] ) ) $counts[ $n ]++;
-            }
         }
-        // Count desc; ties keep NEEDS order (stable sort, PHP 8+).
-        $counts = array_filter( $counts );
-        uasort( $counts, function ( $a, $b ) { return $b <=> $a; } );
+        // Need desc; ties keep NEEDS order (stable sort, PHP 8+).
+        $tally = self::tally( $items );
+        uasort( $tally, function ( $a, $b ) { return $b['need'] <=> $a['need']; } );
         $parts = array();
-        foreach ( $counts as $n => $c ) $parts[] = "$n ($c)";
-        $block .= 'Abilities these choices depend on most: ' . implode( ', ', $parts ) . "\n";
+        foreach ( $tally as $n => $t ) $parts[] = $n . ' ' . $t['need'];
+        $block .= 'What these choices need of each ability, out of 5 (5 = every choice leans on it fully): ' . implode( ', ', $parts ) . "\n";
 
         $people = self::plain( $stage2_data['key_people_text'] ?? '', self::MAX_PEOPLE_LEN );
         if ( '' !== $people ) $block .= 'People they named: ' . $people . "\n";
@@ -498,14 +532,12 @@ class HDLV2_Why_Picks {
                 foreach ( $a['measures'] as $m ) {
                     if ( null !== $m['score'] ) $from[] = $m['label'] . ( 'stage1' === $m['source'] ? ' (Stage 1) ' : ' ' ) . $m['score'] . '/5';
                 }
-                $block .= '- ' . $a['label'] . ': ' . $a['count'] . ' of their choices; '
-                    . ( null === $a['score']
-                        ? 'no answer recorded'
-                        : ( $a['indirect'] ? 'nearest measure ' : 'measured ' ) . $a['score'] . '/5 from ' . implode( ', ', $from ) )
+                $block .= '- ' . $a['label'] . ': needed ' . $a['need'] . '/5 by their choices (' . $a['count'] . ' of ' . count( $items ) . ' picks); '
+                    . ( null === $a['score'] ? 'no answer recorded' : 'measured ' . $a['score'] . '/5 from ' . implode( ', ', $from ) )
                     . "\n";
             }
             foreach ( self::focus_ids( $profile ) as $id ) $focus[] = self::ABILITY_LABELS[ $id ];
-            if ( $focus ) $block .= 'Focus areas (most chosen, weakest measured): ' . implode( ', ', $focus ) . "\n";
+            if ( $focus ) $block .= 'Focus areas (most needed, weakest measured): ' . implode( ', ', $focus ) . "\n";
         }
         // v0.48.10 (Quim, 2026-10-07): the choices explain the results. One
         // assessment is a position, not a trend.
@@ -522,31 +554,30 @@ class HDLV2_Why_Picks {
 
     /**
      * v0.47.94 — for each second-form question that measures an ability:
-     * the ability most of the choices need (ties: NEEDS order), how many
-     * choices need it, and the first of them in pick order. Questions no
+     * the ability the choices need most (v0.48.11: by summed weight; ties:
+     * NEEDS order), how many choices need it, and the first of them in pick
+     * order. Questions no
      * choice reaches are left out. The tap-card form orders its questions
      * and writes its reason lines from this.
      *
      * @return array field => [ ability, count, choice ]
      */
     public static function second_form_ties( $pick_ids, $stored_labels = array() ) {
-        $counts = array_fill_keys( self::NEEDS, 0 );
-        $first  = array();
-        foreach ( self::labels( array_slice( (array) $pick_ids, 0, self::MAX_PICKS ), $stored_labels ) as $it ) {
+        $items = self::labels( array_slice( (array) $pick_ids, 0, self::MAX_PICKS ), $stored_labels );
+        $first = array();
+        foreach ( $items as $it ) {
             foreach ( $it['needs'] as $n ) {
-                if ( ! isset( $counts[ $n ] ) ) continue;
-                $counts[ $n ]++;
                 if ( ! isset( $first[ $n ] ) ) $first[ $n ] = $it['label'];
             }
         }
-        $out = array();
-        foreach ( self::NEEDS as $ability ) {
-            if ( ! $counts[ $ability ] ) continue;
+        $out = array(); $best = array();
+        foreach ( self::tally( $items ) as $ability => $t ) {
             foreach ( self::MEASURES[ $ability ] as $m ) {
                 // heartRateScore is worked out from the heart rate, not asked.
                 if ( 'stage3' !== $m['source'] || 'heartRateScore' === $m['key'] ) continue;
-                if ( ! isset( $out[ $m['key'] ] ) || $counts[ $ability ] > $out[ $m['key'] ]['count'] ) {
-                    $out[ $m['key'] ] = array( 'ability' => $ability, 'count' => $counts[ $ability ], 'choice' => $first[ $ability ] );
+                if ( ! isset( $best[ $m['key'] ] ) || $t['sum'] > $best[ $m['key'] ] ) {
+                    $best[ $m['key'] ] = $t['sum'];
+                    $out[ $m['key'] ]  = array( 'ability' => $ability, 'count' => $t['count'], 'choice' => $first[ $ability ] );
                 }
             }
         }

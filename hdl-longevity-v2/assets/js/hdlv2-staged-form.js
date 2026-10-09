@@ -1316,19 +1316,27 @@
   }
 
   // Pure: the abilities the picks depend on, most-needed first; ties keep the
-  // server's ability order (HDLV2_Why_Picks::NEEDS).
+  // server's ability order (HDLV2_Why_Picks::NEEDS). v0.48.11 — need is the
+  // share of the picks that lean on the ability, 0 to 5, the same sum and
+  // rounding as HDLV2_Why_Picks::tally() (tests/abilities-six holds both to one fixture).
   function abilityCounts(picks, groups, abilities) {
-    var counts = {};
+    var counts = {}, sums = {}, n = 0;
     (groups || []).forEach(function (g) {
       g.items.forEach(function (it) {
         if ((picks || []).indexOf(it.id) === -1) return;
-        (it.needs || []).forEach(function (n) { counts[n] = (counts[n] || 0) + 1; });
+        n++;
+        (it.needs || []).forEach(function (a) {
+          counts[a] = (counts[a] || 0) + 1;
+          sums[a] = (sums[a] || 0) + ((it.weights || {})[a] || 2);
+        });
       });
     });
     return Object.keys(abilities || {})
       .filter(function (id) { return counts[id] > 0; })
-      .map(function (id) { return { id: id, label: abilities[id], count: counts[id] }; })
-      .sort(function (a, b) { return b.count - a.count; });
+      .map(function (id) {
+        return { id: id, label: abilities[id], count: counts[id], need: Math.min(5, Math.round(50 * sums[id] / (3 * n)) / 10) };
+      })
+      .sort(function (a, b) { return b.need - a.need; });
   }
 
   // Pure: the line under the statements.
@@ -1338,20 +1346,19 @@
   }
 
   // Pure: the radar's numbers. Every ability in the server's order with its
-  // count, and the scale top: the larger of 3 and the highest count, so one
-  // pick never reaches the edge.
+  // need; v0.48.11 (Matthew, 2026-10-09) the scale always tops out at 5.
   function radarData(rows, names) {
-    var counts = {}, top = 3;
-    (rows || []).forEach(function (r) { counts[r.id] = r.count; top = Math.max(top, r.count); });
-    return { top: top, spokes: Object.keys(names || {}).map(function (id) {
-      return { id: id, label: names[id], count: counts[id] || 0 };
+    var needs = {};
+    (rows || []).forEach(function (r) { needs[r.id] = r.need; });
+    return { top: 5, spokes: Object.keys(names || {}).map(function (id) {
+      return { id: id, label: names[id], need: needs[id] || 0 };
     }) };
   }
 
   // Pure: the chart said in words, for a screen reader.
   function chartLabel(spokes) {
-    var parts = spokes.filter(function (w) { return w.count > 0; }).map(function (w) { return w.label + ' ' + w.count; });
-    return parts.length ? 'What your picks need: ' + parts.join(', ') + '.' : 'Nothing picked yet.';
+    var parts = spokes.filter(function (w) { return w.need > 0; }).map(function (w) { return w.label + ' ' + w.need; });
+    return parts.length ? 'What your picks need, out of 5: ' + parts.join(', ') + '.' : 'Nothing picked yet.';
   }
 
   // Phosphor Icons licence (github.com/phosphor-icons/core/blob/main/LICENSE):
@@ -1382,16 +1389,14 @@
   // Icons, duotone weight (github.com/phosphor-icons/core, MIT). Static SVG on
   // the 256 grid, filled, the soft layer at the file's own 0.2 opacity;
   // decoration beside a word (aria-hidden). Files: barbell, person-simple-walk,
-  // person-arms-spread, person-simple-tai-chi, heartbeat, brain, lightning,
-  // users-three; groups heart, house-line, star.
+  // person-simple-tai-chi, heartbeat, brain, users-three; groups heart,
+  // house-line, star.
   var ICONS = {
     strength: '<path d="M96,64V192a8,8,0,0,1-8,8H64a8,8,0,0,1-8-8V64a8,8,0,0,1,8-8H88A8,8,0,0,1,96,64Zm96-8H168a8,8,0,0,0-8,8V192a8,8,0,0,0,8,8h24a8,8,0,0,0,8-8V64A8,8,0,0,0,192,56Z" opacity="0.2"/><path d="M248,120h-8V88a16,16,0,0,0-16-16H208V64a16,16,0,0,0-16-16H168a16,16,0,0,0-16,16v56H104V64A16,16,0,0,0,88,48H64A16,16,0,0,0,48,64v8H32A16,16,0,0,0,16,88v32H8a8,8,0,0,0,0,16h8v32a16,16,0,0,0,16,16H48v8a16,16,0,0,0,16,16H88a16,16,0,0,0,16-16V136h48v56a16,16,0,0,0,16,16h24a16,16,0,0,0,16-16v-8h16a16,16,0,0,0,16-16V136h8a8,8,0,0,0,0-16ZM32,168V88H48v80Zm56,24H64V64H88V192Zm104,0H168V64h24V175.83c0,.06,0,.11,0,.17s0,.12,0,.17V192Zm32-24H208V88h16Z"/>',
     mobility: '<path d="M176,48a24,24,0,1,1-24-24A24,24,0,0,1,176,48Z" opacity="0.2"/><path d="M152,80a32,32,0,1,0-32-32A32,32,0,0,0,152,80Zm0-48a16,16,0,1,1-16,16A16,16,0,0,1,152,32Zm64,112a8,8,0,0,1-8,8c-35.31,0-52.95-17.81-67.12-32.12-2.74-2.77-5.36-5.4-8-7.84l-13.43,30.88,37.2,26.57A8,8,0,0,1,160,176v56a8,8,0,0,1-16,0V180.12l-31.07-22.2L79.34,235.19A8,8,0,0,1,72,240a7.84,7.84,0,0,1-3.19-.67,8,8,0,0,1-4.15-10.52l54.08-124.37c-9.31-1.65-20.92,1.2-34.7,8.58a163.88,163.88,0,0,0-30.57,21.77,8,8,0,0,1-10.95-11.66c2.5-2.35,61.69-57.22,98.72-25.08,3.83,3.32,7.48,7,11,10.58C166.19,122.7,179.36,136,208,136A8,8,0,0,1,216,144Z"/>',
-    flexibility: '<path d="M104,40a24,24,0,1,1,24,24A24,24,0,0,1,104,40ZM212,80H44c-12.87,0-16.71,17.5-5,22.9L96,128,73.13,214.93a12,12,0,0,0,21.75,10.14L128,168l33.12,57.07a12,12,0,0,0,21.75-10.14L160,128l57-25.1C228.69,97.5,224.85,80,212,80Z" opacity="0.2"/><path d="M160,40a32,32,0,1,0-32,32A32,32,0,0,0,160,40ZM128,56a16,16,0,1,1,16-16A16,16,0,0,1,128,56ZM231.5,87.71A19.62,19.62,0,0,0,212,72H44a20,20,0,0,0-8.38,38.16l.13.06,50.75,22.35-21,79.72A20,20,0,0,0,102,228.82l26-44.88,26,44.88a20,20,0,0,0,36.4-16.53l-21-79.72,50.75-22.35.13-.06A19.63,19.63,0,0,0,231.5,87.71Zm-17.8,7.9-56.93,25.07a8,8,0,0,0-4.51,9.36L175.13,217a7,7,0,0,0,.49,1.35,4,4,0,1,1-7.25,3.38c-.11-.22-.22-.43-.34-.63L134.92,164a8,8,0,0,0-13.84,0L88,221.06c-.12.2-.23.41-.34.63a4,4,0,1,1-7.25-3.38,7,7,0,0,0,.49-1.35L103.74,130a8,8,0,0,0-4.51-9.36L42.3,95.61A4,4,0,0,1,44,88H212a4,4,0,0,1,1.73,7.61Z"/>',
     balance: '<path d="M152,48a24,24,0,1,1-24-24A24,24,0,0,1,152,48Z" opacity="0.2"/><path d="M128,80A32,32,0,1,0,96,48,32,32,0,0,0,128,80Zm0-48a16,16,0,1,1-16,16A16,16,0,0,1,128,32Zm96,72a8,8,0,0,1-8,8H136v26.72l51.15,21.93A8,8,0,0,1,192,168v48a8,8,0,0,1-16,0V173.28l-46.45-19.91L53.35,222a8,8,0,1,1-10.7-11.9L120,140.44V112H40a8,8,0,0,1,0-16H216A8,8,0,0,1,224,104Z"/>',
     stamina: '<path d="M232,102c0,66-104,122-104,122S24,168,24,102A54,54,0,0,1,78,48c22.59,0,41.94,12.31,50,32,8.06-19.69,27.41-32,50-32A54,54,0,0,1,232,102Z" opacity="0.2"/><path d="M72,144H32a8,8,0,0,1,0-16H67.72l13.62-20.44a8,8,0,0,1,13.32,0l25.34,38,9.34-14A8,8,0,0,1,136,128h24a8,8,0,0,1,0,16H140.28l-13.62,20.44a8,8,0,0,1-13.32,0L88,126.42l-9.34,14A8,8,0,0,1,72,144ZM178,40c-20.65,0-38.73,8.88-50,23.89C116.73,48.88,98.65,40,78,40a62.07,62.07,0,0,0-62,62c0,.75,0,1.5,0,2.25a8,8,0,1,0,16-.5c0-.58,0-1.17,0-1.75A46.06,46.06,0,0,1,78,56c19.45,0,35.78,10.36,42.6,27a8,8,0,0,0,14.8,0c6.82-16.67,23.15-27,42.6-27a46.06,46.06,0,0,1,46,46c0,53.61-77.76,102.15-96,112.8-10.83-6.31-42.63-26-66.68-52.21a8,8,0,1,0-11.8,10.82c31.17,34,72.93,56.68,74.69,57.63a8,8,0,0,0,7.58,0C136.21,228.66,240,172,240,102A62.07,62.07,0,0,0,178,40Z"/>',
     mind: '<path d="M240,124a48,48,0,0,1-32,45.27h0V176a40,40,0,0,1-80,0,40,40,0,0,1-80,0v-6.73h0a48,48,0,0,1,0-90.54V72a40,40,0,0,1,80,0,40,40,0,0,1,80,0v6.73A48,48,0,0,1,240,124Z" opacity="0.2"/><path d="M248,124a56.11,56.11,0,0,0-32-50.61V72a48,48,0,0,0-88-26.49A48,48,0,0,0,40,72v1.39a56,56,0,0,0,0,101.2V176a48,48,0,0,0,88,26.49A48,48,0,0,0,216,176v-1.41A56.09,56.09,0,0,0,248,124ZM88,208a32,32,0,0,1-31.81-28.56A55.87,55.87,0,0,0,64,180h8a8,8,0,0,0,0-16H64A40,40,0,0,1,50.67,86.27,8,8,0,0,0,56,78.73V72a32,32,0,0,1,64,0v68.26A47.8,47.8,0,0,0,88,128a8,8,0,0,0,0,16,32,32,0,0,1,0,64Zm104-44h-8a8,8,0,0,0,0,16h8a55.87,55.87,0,0,0,7.81-.56A32,32,0,1,1,168,144a8,8,0,0,0,0-16,47.8,47.8,0,0,0-32,12.26V72a32,32,0,0,1,64,0v6.73a8,8,0,0,0,5.33,7.54A40,40,0,0,1,192,164Zm16-52a8,8,0,0,1-8,8h-4a36,36,0,0,1-36-36V80a8,8,0,0,1,16,0v4a20,20,0,0,0,20,20h4A8,8,0,0,1,208,112ZM60,120H56a8,8,0,0,1,0-16h4A20,20,0,0,0,80,84V80a8,8,0,0,1,16,0v4A36,36,0,0,1,60,120Z"/>',
-    energy: '<path d="M96,240l16-80L48,136,160,16,144,96l64,24Z" opacity="0.2"/><path d="M215.79,118.17a8,8,0,0,0-5-5.66L153.18,90.9l14.66-73.33a8,8,0,0,0-13.69-7l-112,120a8,8,0,0,0,3,13l57.63,21.61L88.16,238.43a8,8,0,0,0,13.69,7l112-120A8,8,0,0,0,215.79,118.17ZM109.37,214l10.47-52.38a8,8,0,0,0-5-9.06L62,132.71l84.62-90.66L136.16,94.43a8,8,0,0,0,5,9.06l52.8,19.8Z"/>',
     connection: '<path d="M168,144a40,40,0,1,1-40-40A40,40,0,0,1,168,144ZM64,56A32,32,0,1,0,96,88,32,32,0,0,0,64,56Zm128,0a32,32,0,1,0,32,32A32,32,0,0,0,192,56Z" opacity="0.2"/><path d="M244.8,150.4a8,8,0,0,1-11.2-1.6A51.6,51.6,0,0,0,192,128a8,8,0,0,1,0-16,24,24,0,1,0-23.24-30,8,8,0,1,1-15.5-4A40,40,0,1,1,219,117.51a67.94,67.94,0,0,1,27.43,21.68A8,8,0,0,1,244.8,150.4ZM190.92,212a8,8,0,1,1-13.85,8,57,57,0,0,0-98.15,0,8,8,0,1,1-13.84-8,72.06,72.06,0,0,1,33.74-29.92,48,48,0,1,1,58.36,0A72.06,72.06,0,0,1,190.92,212ZM128,176a32,32,0,1,0-32-32A32,32,0,0,0,128,176ZM72,120a8,8,0,0,0-8-8A24,24,0,1,1,87.24,82a8,8,0,1,0,15.5-4A40,40,0,1,0,37,117.51,67.94,67.94,0,0,0,9.6,139.19a8,8,0,1,0,12.8,9.61A51.6,51.6,0,0,1,64,128,8,8,0,0,0,72,120Z"/>',
     people: '<path d="M232,102c0,66-104,122-104,122S24,168,24,102A54,54,0,0,1,78,48c22.59,0,41.94,12.31,50,32,8.06-19.69,27.41-32,50-32A54,54,0,0,1,232,102Z" opacity="0.2"/><path d="M178,40c-20.65,0-38.73,8.88-50,23.89C116.73,48.88,98.65,40,78,40a62.07,62.07,0,0,0-62,62c0,70,103.79,126.66,108.21,129a8,8,0,0,0,7.58,0C136.21,228.66,240,172,240,102A62.07,62.07,0,0,0,178,40ZM128,214.8C109.74,204.16,32,155.69,32,102A46.06,46.06,0,0,1,78,56c19.45,0,35.78,10.36,42.6,27a8,8,0,0,0,14.8,0c6.82-16.67,23.15-27,42.6-27a46.06,46.06,0,0,1,46,46C224,155.61,146.24,204.15,128,214.8Z"/>',
     freedom: '<path d="M216,116.69V216H152V152H104v64H40V116.69l82.34-82.35a8,8,0,0,1,11.32,0Z" opacity="0.2"/><path d="M240,208H224V136l2.34,2.34A8,8,0,0,0,237.66,127L139.31,28.68a16,16,0,0,0-22.62,0L18.34,127a8,8,0,0,0,11.32,11.31L32,136v72H16a8,8,0,0,0,0,16H240a8,8,0,0,0,0-16ZM48,120l80-80,80,80v88H160V152a8,8,0,0,0-8-8H104a8,8,0,0,0-8,8v56H48Zm96,88H112V160h32Z"/>',
@@ -1411,16 +1416,16 @@
       + ICONS[name] + '</svg>';
   }
 
-  // v0.48.1 — the bars: one row per ability with a pick, most picks first.
-  // The meter is count over the number of picks; the words carry the number.
+  // v0.48.1 — the bars: one row per ability with a pick, most needed first.
+  // v0.48.11 — the meter is the need out of 5; the words carry the number.
   // v0.48.3 — nothing picked: nothing here; the whole section is hidden.
-  function abilityBars(rows, total) {
+  function abilityBars(rows) {
     if (!rows.length) return '';
     return '<div class="hdlv2-ability-list" role="list">' + rows.map(function (r) {
       return '<div class="hdlv2-ability" role="listitem" data-id="' + esc(r.id) + '">' + pickIcon(r.id)
         + '<span class="hdlv2-ability-name">' + esc(r.label) + '</span>'
-        + '<span class="hdlv2-ability-count">' + r.count + ' of your picks</span>'
-        + '<span class="hdlv2-ability-meter" aria-hidden="true"><span style="width:' + Math.round(r.count / total * 100) + '%"></span></span></div>';
+        + '<span class="hdlv2-ability-count">need ' + r.need + ' of 5 \u00b7 ' + r.count + ' of your picks</span>'
+        + '<span class="hdlv2-ability-meter" aria-hidden="true"><span style="width:' + Math.round(r.need / 5 * 100) + '%"></span></span></div>';
     }).join('') + '</div>';
   }
 
@@ -1470,19 +1475,19 @@
     for (k = step; k <= top; k += step) {
       out += '<text class="hdlv2-why-tick" x="' + f(cx + 4) + '" y="' + f(cy - R * k / top + 3) + '">' + k + '</text>';
     }
-    if (data.spokes.some(function (s) { return s.count > 0; })) {
-      out += '<polygon class="hdlv2-why-shape" points="' + data.spokes.map(function (s, i) { return pt(R * s.count / top, dir[i]); }).join(' ')
+    if (data.spokes.some(function (s) { return s.need > 0; })) {
+      out += '<polygon class="hdlv2-why-shape" points="' + data.spokes.map(function (s, i) { return pt(R * s.need / top, dir[i]); }).join(' ')
         + '" fill="rgba(61, 141, 160, 0.15)" stroke="rgba(61, 141, 160, 0.9)" stroke-width="2" stroke-linejoin="round"/>';
       data.spokes.forEach(function (s, i) {
-        if (s.count > 0) {
-          var p = pt(R * s.count / top, dir[i]).split(',');
+        if (s.need > 0) {
+          var p = pt(R * s.need / top, dir[i]).split(',');
           out += '<circle class="hdlv2-why-dot" cx="' + p[0] + '" cy="' + p[1] + '" r="4.5" fill="#3d8da0" stroke="#fff" stroke-width="1.5"/>';
         }
       });
     }
     data.spokes.forEach(function (s, i) {
       var p = place(R, dir[i]), x = cx + p.x, y = cy + p.y - BH / 2;
-      out += '<g class="hdlv2-why-spoke' + (s.count > 0 ? ' has-picks' : '') + '">'
+      out += '<g class="hdlv2-why-spoke' + (s.need > 0 ? ' has-picks' : '') + '">'
         + pickIcon(s.id, f(x - IC / 2), f(y))
         + '<text x="' + f(x) + '" y="' + f(y + IC + 6 + Math.round(F * 0.73)) + '" text-anchor="middle">' + esc(s.label) + '</text></g>';
     });
@@ -1523,9 +1528,9 @@
       +     '<h3>What your picks need from your body</h3>'
       +     '<p>Each thing you picked needs some of these. Your plan starts with the ones your health answers show are weakest.</p>'
       +     '<div class="hdlv2-why-needs-body">'
-      +       '<div id="hdlv2-abilities" class="hdlv2-abilities">' + abilityBars(rows, d.why_picks.length) + '</div>'
+      +       '<div id="hdlv2-abilities" class="hdlv2-abilities">' + abilityBars(rows) + '</div>'
       +       '<div class="hdlv2-why-radar"><div id="hdlv2-why-radar">' + radarChart(radarData(rows, names), 440) + '</div>'
-      +       '<p class="hdlv2-why-caption">The further out, the more of your picks need it.</p></div>'
+      +       '<p class="hdlv2-why-caption">5 is the most a life can ask of one ability. Your answers on the next pages show where you stand today on each one.</p></div>'
       +     '</div>'
       +   '</section>'
       +   picksTextarea('key_people_text', 'Who are you doing this for? First names.', d.key_people_text, 'Jenny, Leo, Mia', 300)
@@ -1591,7 +1596,7 @@
       bars.querySelectorAll('.hdlv2-ability').forEach(function (row) {
         was[row.getAttribute('data-id')] = row.querySelector('.hdlv2-ability-meter span').style.width;
       });
-      bars.innerHTML = abilityBars(rows, picks.length);
+      bars.innerHTML = abilityBars(rows);
       bars.querySelectorAll('.hdlv2-ability').forEach(function (row) {
         var m = row.querySelector('.hdlv2-ability-meter span'), to = m.style.width;
         m.style.width = was[row.getAttribute('data-id')] || '0%';
