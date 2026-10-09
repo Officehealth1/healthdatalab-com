@@ -68,7 +68,8 @@ check( 'R3 brief caller: facts block for the row, set only when non-empty (old-f
     1 === preg_match( '/\$picks = HDLV2_Why_Picks::block_for_row\( \$progress, \$calc\[\'scores\'\] \?\? array\(\), \'facts\' \);\s*if \( \'\' !== \$picks \) \$why\[\'picks_block\'\] = \$picks;.*?generate_pre_consultation_summary\(/s', $br ) );
 
 $main = file_get_contents( $root . '/hdl-longevity-v2.php' );
-check( 'V1 version 0.48.10 in header and constant', false !== strpos( $main, '* Version: 0.48.10' ) && false !== strpos( $main, "define( 'HDLV2_VERSION', '0.48.10' );" ) );
+preg_match( '/\* Version: (\S+)/', $main, $hv ); preg_match( "/define\( 'HDLV2_VERSION', '([^']+)' \);/", $main, $cv );
+check( 'V1 header version == HDLV2_VERSION (drift guard; 0.48.11 dropped the 0.48.10 pin)', ! empty( $hv[1] ) && ( $hv[1] ?? '' ) === ( $cv[1] ?? 'x' ) && version_compare( $hv[1], '0.48.10', '>=' ) );
 
 echo "\n" . ( $fail ? "WHY WIRING: FAIL ($fail)\n" : "WHY WIRING: PASS ($pass)\n" );
 exit( $fail ? 1 : 0 );

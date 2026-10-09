@@ -311,14 +311,14 @@ $GLOBALS['options']['hdlv2_ff_single_form'] = '122';
 $r = $form->rest_load_form( req( array( 'token' => $wpdb->rows[1]->token ) ) );
 check( 'L2 switch on, WHY open: single_form true', true === ( $r['single_form'] ?? null ) );
 check( 'L3 switch on, WHY open: why_options present', ! empty( $r['why_options'][0]['items'] ) );
-check( 'L5 switch on, WHY open: why_abilities = the eight display names, in order',
-    array( 'strength' => 'Strength', 'mobility' => 'Mobility', 'flexibility' => 'Flexibility', 'balance' => 'Balance',
-        'stamina' => 'Stamina', 'mind' => 'A sharp mind', 'energy' => 'Energy and sleep', 'connection' => 'Connection' ) === ( $r['why_abilities'] ?? null ) );
+check( 'L5 switch on, WHY open: why_abilities = the six display names, in order (v0.48.11)',
+    array( 'strength' => 'Strength', 'mobility' => 'Mobility and flexibility', 'balance' => 'Balance',
+        'stamina' => 'Stamina and energy', 'mind' => 'A sharp mind', 'connection' => 'Connection' ) === ( $r['why_abilities'] ?? null ) );
 check( 'L6 switch on, WHY open: only the four new keys beside today\'s list',
     array_merge( $TODAY_KEYS, array( 'single_form', 'why_options', 'why_abilities', 'why_ability_short' ) ) === array_keys( $r ) );
 check( 'L8 switch on, WHY open: why_ability_short = the one-word names for the chart (v0.48.0)',
-    array( 'strength' => 'Strength', 'mobility' => 'Mobility', 'flexibility' => 'Flexibility', 'balance' => 'Balance',
-        'stamina' => 'Stamina', 'mind' => 'Mind', 'energy' => 'Energy', 'connection' => 'Connection' ) === ( $r['why_ability_short'] ?? null ) );
+    array( 'strength' => 'Strength', 'mobility' => 'Mobility', 'balance' => 'Balance',
+        'stamina' => 'Stamina', 'mind' => 'Mind', 'connection' => 'Connection' ) === ( $r['why_ability_short'] ?? null ) );
 $wpdb->rows[2] = make_row( 2, array( 'stage2_completed_at' => '2026-10-01 10:00:00', 'stage2_data' => '{"vision_text":"typed the old way"}' ) );
 $r = $form->rest_load_form( req( array( 'token' => $wpdb->rows[2]->token ) ) );
 check( 'L4 switch on, WHY already sent the old way: none of the new keys', ! isset( $r['single_form'] ) && ! isset( $r['why_options'] ) && ! isset( $r['why_ability_short'] ) );
@@ -517,15 +517,16 @@ check( 'D7 no WHY row at all: picks block still in the draft prompt',
 HDLV2_AI_Service::$draft_ok = true;
 
 // ════════ Abilities reach the draft, the milestones and the practitioner (v0.47.93) ════════
-// By hand, for $FIVE with these answers: strength 3 choices, (2+2)/2 = 2.0 → 3×3 = 9 ·
-// flexibility 2 choices, 2.0, nearest measure only → never a focus · mobility 1, 2.0 → 3 ·
-// mind 1, 3.0 → 2 · stamina (4+4)/2 = 4.0 and energy (4+3+4)/3 = 3.7 are above 3.
+// By hand (v0.48.11), for $FIVE with these answers, need = round(50 x sum / 15) / 10:
+// strength 2+2+2 → 2.0, score (2+2)/2 = 2.0 → 2.0×3 = 6 · mobility 3+2+2 → 2.3, 2.0 → 6.9 ·
+// balance 1+1 → 0.7, 3.0 → 1.4 · mind 1+3 → 1.3, 3.0 → 2.6 · stamina 1+3+3 → 2.3,
+// (4+4+4+3+4)/5 = 3.8 above 3 · connection 1 → 0.3, 4 above 3. Focus: mobility, strength, mind.
 $S1 = array( 'q1_age' => '55', 'q4' => 'd', 'q5' => 'b', 'server_result' => array( 'raw' => array( 'q4_vo2' => 4, 'q5_sts' => 2 ) ) );
 $SCORES = array( 'sitToStand' => 2, 'balance' => 3, 'physicalActivity' => 4, 'cognitiveActivity' => 3, 'stressLevels' => 3,
     'sleepQuality' => 3, 'sleepDuration' => 4, 'dietQuality' => 4, 'socialConnections' => 4 );
 $SINGLE_S2 = json_encode( array( 'form_flow' => 'single', 'why_picks' => $FIVE, 'key_people_text' => 'my wife Jenny',
     'vision_text' => HDLV2_Why_Picks::compose_vision_text( $FIVE, 'my wife Jenny', '' ) ) );
-$FOCUS_LINE = "Focus areas (most chosen, weakest measured): Strength, Mobility, A sharp mind\n";
+$FOCUS_LINE = "Focus areas (most needed, weakest measured): Mobility and flexibility, Strength, A sharp mind\n";
 $wpdb->rows[40] = make_row( 40, array( 'stage1_data' => json_encode( $S1 ), 'stage2_data' => $SINGLE_S2,
     'stage3_data' => json_encode( array( 'sitToStand' => '2', 'server_result' => array( 'rate' => 1.1, 'scores' => $SCORES ) ) ),
     'stage2_completed_at' => '2026-10-02 00:00:00', 'stage3_completed_at' => '2026-10-02 01:00:00', 'current_stage' => 3 ) );
@@ -555,16 +556,17 @@ $ch     = is_array( $rec ) ? ( $rec['stage2']['choices'] ?? null ) : null;
 check( 'C1 single row: stage2.choices has picks, abilities, stage3_done', is_array( $ch ) && array( 'picks', 'abilities', 'stage3_done' ) === array_keys( $ch ) );
 check( 'C2 single row: each pick is its label plus ability display names (a retired pick keeps its old wording, a kept one reads the new)',
     5 === count( $ch['picks'] ?? array() )
-    && array( 'label' => 'Play on the floor with my grandkids', 'needs' => array( 'Mobility', 'Flexibility', 'Strength' ), 'group' => 'People I love' ) === $ch['picks'][0]
+    && array( 'label' => 'Play on the floor with my grandkids', 'needs' => array( 'Strength', 'Mobility and flexibility', 'Balance', 'Stamina and energy', 'Connection' ), 'group' => 'People I love' ) === $ch['picks'][0]
     && array( 'label' => 'Carry my own shopping from the car to the kitchen', 'needs' => array( 'Strength' ), 'group' => '' ) === $ch['picks'][1]
-    && array( 'label' => 'Drive safely', 'needs' => array( 'A sharp mind', 'Flexibility' ), 'group' => 'My freedom' ) === $ch['picks'][3] );
+    && array( 'label' => 'Drive safely', 'needs' => array( 'Mobility and flexibility', 'Balance', 'A sharp mind' ), 'group' => 'My freedom' ) === $ch['picks'][3] );
 $abil = $ch['abilities'] ?? array();
 check( 'C3 single row: abilities are the profile of the saved answers (counts, scores, focus by hand)',
     method_exists( 'HDLV2_Why_Picks', 'abilities_profile' )
     && $abil === HDLV2_Why_Picks::abilities_profile( $FIVE, $S1['server_result']['raw'], $SCORES )
-    && array( 'strength', 'mobility', 'flexibility', 'stamina', 'mind', 'energy' ) === array_column( $abil, 'id' )
-    && array( 3, 1, 2, 1, 1, 1 ) === array_column( $abil, 'count' )
-    && array( 2.0, 2.0, 2.0, 4.0, 3.0, 3.7 ) === array_column( $abil, 'score' )
+    && array( 'strength', 'mobility', 'balance', 'stamina', 'mind', 'connection' ) === array_column( $abil, 'id' )
+    && array( 3, 3, 2, 3, 2, 1 ) === array_column( $abil, 'count' )
+    && array( 2.0, 2.3, 0.7, 2.3, 1.3, 0.3 ) === array_column( $abil, 'need' )
+    && array( 2.0, 2.0, 3.0, 3.8, 3.0, 4.0 ) === array_column( $abil, 'score' )
     && array( true, true, false, false, true, false ) === array_column( $abil, 'focus' ) );
 check( 'C4 single row, Stage 3 finished: stage3_done true', true === ( $ch['stage3_done'] ?? null ) );
 
@@ -574,7 +576,7 @@ $wpdb->why[41] = array( 'form_progress_id' => 41, 'distilled_why' => 'x', 'relea
 $mid = $status->rest_get_client_record( array( 'progress_id' => 41 ) )['stage2']['choices'] ?? array();
 check( 'C5 single row mid-questionnaire: stage3_done false, numbers from Stage 1 only',
     false === ( $mid['stage3_done'] ?? null )
-    && array( 2.0, 2.0, 2.0, 4.0, null, null ) === array_column( $mid['abilities'] ?? array(), 'score' ) );
+    && array( 2.0, 2.0, null, 4.0, null, null ) === array_column( $mid['abilities'] ?? array(), 'score' ) );
 
 // A Stage 1 question nobody answered: calculate_quick() stored a 3 for it.
 $S1_GAP = array( 'q1_age' => '55', 'q4' => 'd', 'server_result' => array( 'raw' => array( 'q4_vo2' => 4, 'q5_sts' => 3 ) ) );
@@ -583,7 +585,7 @@ $wpdb->rows[43] = make_row( 43, array( 'stage1_data' => json_encode( $S1_GAP ), 
 $wpdb->why[43] = array( 'form_progress_id' => 43, 'distilled_why' => 'x', 'released' => 1 );
 $gap = $status->rest_get_client_record( array( 'progress_id' => 43 ) )['stage2']['choices']['abilities'] ?? array();
 check( 'C9 a filled-in Stage 1 score is not shown as measured: no number, no focus',
-    array( 'strength', 'mobility', 'flexibility' ) === array_slice( array_column( $gap, 'id' ), 0, 3 )
+    array( 'strength', 'mobility', 'balance' ) === array_slice( array_column( $gap, 'id' ), 0, 3 )
     && array( null, null, null ) === array_slice( array_column( $gap, 'score' ), 0, 3 )
     && array( false, false, false ) === array_slice( array_column( $gap, 'focus' ), 0, 3 ) );
 
@@ -625,20 +627,22 @@ check( 'G4a submit stores why_pick_labels: each pick id → the wording offered 
 check( 'G4b a client-sent label map is ignored', 'HACKED' !== ( $d52['why_pick_labels']['keep_driving'] ?? '' ) );
 
 $OLD_WORDS = 'Keep driving safely, including turning to look over my shoulder';
+$OLD_WAKE  = 'Wake up rested and ready for the day';
 $S2_STORED = array( 'form_flow' => 'single', 'why_picks' => $FIVE, 'key_people_text' => 'my wife Jenny',
-    'why_pick_labels' => array( 'keep_driving' => $OLD_WORDS, 'floor_grandkids' => array( 'not a string' ) ),
+    'why_pick_labels' => array( 'keep_driving' => $OLD_WORDS, 'wake_rested' => $OLD_WAKE, 'floor_grandkids' => array( 'not a string' ) ),
     'vision_text' => HDLV2_Why_Picks::compose_vision_text( $FIVE, 'my wife Jenny', '' ) );
 $disp = HDLV2_Why_Picks::picks_for_display( $FIVE, $S2_STORED['why_pick_labels'] );
 check( 'G4c practitioner list: a stored wording is shown, a bad entry falls back to the catalogue',
     $OLD_WORDS === $disp[3]['label'] && 'Play on the floor with my grandkids' === $disp[0]['label'] );
 $blk = HDLV2_Why_Picks::prompt_block( $S2_STORED );
-check( 'G4d prompt block names the stored wording, not today\'s', false !== strpos( $blk, '- ' . $OLD_WORDS . ' (My freedom) [depends on: mind, flexibility]' ) && false === strpos( $blk, 'Drive safely' ) );
+check( 'G4d prompt block names the stored wording, not today\'s', false !== strpos( $blk, '- ' . $OLD_WORDS . ' (My freedom) [depends on: mobility, balance, mind]' ) && false === strpos( $blk, 'Drive safely' ) );
 check( 'G4e a row with no stored map reads the catalogue as before',
     false !== strpos( HDLV2_Why_Picks::prompt_block( array_diff_key( $S2_STORED, array( 'why_pick_labels' => 1 ) ) ), '- Drive safely (My freedom) [' ) );
 $wpdb->rows[53] = make_row( 53, array( 'stage2_data' => json_encode( $S2_STORED ), 'stage2_completed_at' => '2026-10-02 00:00:00', 'current_stage' => 3 ) );
 $ld = $form->rest_load_form( req( array( 'token' => $wpdb->rows[53]->token ) ) );
 $tie_choices = array_column( $ld['second_form_ties'] ?? array(), 'choice' );
-check( 'G4f tap-card reason lines use the stored wording', in_array( $OLD_WORDS, $tie_choices, true ) && ! in_array( 'Drive safely', $tie_choices, true ) );
+// v0.48.11: wake_rested now also needs mind and comes first in pick order, so it is the choice the mind questions name.
+check( 'G4f tap-card reason lines use the stored wording', in_array( $OLD_WAKE, $tie_choices, true ) && ! in_array( 'Wake up full of energy', $tie_choices, true ) );
 
 // v0.48.9: a row submitted on 0.48.5 stored the 0.48.5 wording; the 0.48.9
 // rewording (and a statement retired since) does not change what it shows.

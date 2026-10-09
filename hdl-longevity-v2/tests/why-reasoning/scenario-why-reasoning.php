@@ -144,7 +144,7 @@ check( 'G1 each pick carries its group title', array( 'Things I love', 'People I
 $draft = HDLV2_Why_Picks::block_for_row( $single, $s3_scores );
 $ms    = HDLV2_Why_Picks::block_for_row( $single, $s3_scores, true );
 $facts = HDLV2_Why_Picks::block_for_row( $single, $s3_scores, 'facts' );
-check( 'G2 statement line reads "- <label> (<group>) [depends on: …]"', false !== strpos( $facts, "\n- Dance with my grandkids at their wedding (People I love) [depends on: stamina, balance, connection]\n" ) );
+check( 'G2 statement line reads "- <label> (<group>) [depends on: …]"', false !== strpos( $facts, "\n- Dance with my grandkids at their wedding (People I love) [depends on: mobility, balance, stamina, connection]\n" ) );
 foreach ( array( 'draft' => $draft, 'milestones' => $ms, 'facts' => $facts ) as $k => $b ) check( "G3 $k: HOW TO USE paragraph exactly once", 1 === substr_count( $b, $HOW ) );
 check( 'G4 facts + milestones: the lone "Do not invent" line is gone (only inside the paragraph)',
     1 === substr_count( $facts, 'Do not invent' ) && 1 === substr_count( $ms, 'Do not invent' ) );

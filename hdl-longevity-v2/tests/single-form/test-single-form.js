@@ -77,25 +77,29 @@ const { abilityCounts, pickCountLine, radarData, chartLabel } = ctx2;
 ok(typeof abilityCounts === 'function', 'abilityCounts() exists (it feeds the chart)');
 ok(body('toggleTheme') === '' && body('themesWithPicks') === '' && !/openThemes/.test(src), 'toggleTheme(), themesWithPicks() and openThemes are gone');
 
+// v0.48.11 — six abilities, weighted tags (tests/abilities-six holds the
+// page to the server's numbers on the real catalogue).
 const GROUPS = [
-  { id: 'people', items: [{ id: 'a', needs: ['mobility', 'flexibility', 'strength'] }, { id: 'b', needs: ['strength', 'balance'] }] },
-  { id: 'freedom', items: [{ id: 'c', needs: ['stamina'] }, { id: 'd', needs: ['stamina', 'balance'] }] },
-  { id: 'things', items: [{ id: 'e', needs: ['mind'] }] }
+  { id: 'people', items: [{ id: 'a', needs: ['strength', 'mobility'], weights: { strength: 2, mobility: 3 } }, { id: 'b', needs: ['strength', 'balance'], weights: { strength: 3, balance: 2 } }] },
+  { id: 'freedom', items: [{ id: 'c', needs: ['stamina'], weights: { stamina: 3 } }, { id: 'd', needs: ['balance', 'stamina'], weights: { balance: 2, stamina: 1 } }] },
+  { id: 'things', items: [{ id: 'e', needs: ['mind'], weights: { mind: 3 } }] }
 ];
-const ABILITIES = { strength: 'Strength', mobility: 'Mobility', flexibility: 'Flexibility', balance: 'Balance',
-  stamina: 'Stamina', mind: 'A sharp mind', energy: 'Energy and sleep', connection: 'Connection' };
-const SHORT = { strength: 'Strength', mobility: 'Mobility', flexibility: 'Flexibility', balance: 'Balance',
-  stamina: 'Stamina', mind: 'Mind', energy: 'Energy', connection: 'Connection' };
+const ABILITIES = { strength: 'Strength', mobility: 'Mobility and flexibility', balance: 'Balance',
+  stamina: 'Stamina and energy', mind: 'A sharp mind', connection: 'Connection' };
+const SHORT = { strength: 'Strength', mobility: 'Mobility', balance: 'Balance',
+  stamina: 'Stamina', mind: 'Mind', connection: 'Connection' };
 const J = JSON.stringify;
 
 if (typeof abilityCounts === 'function') {
+  // By hand, four picks: need = round(50 x sum / 12) / 10. strength 2+3 → 2.1 · balance 2+2 → 1.7 ·
+  // mobility 3 → 1.3 · mind 3 → 1.3 · stamina 1 → 0.4.
   ok(J(abilityCounts(['a', 'b', 'd', 'e'], GROUPS, ABILITIES)) === J([
-    { id: 'strength', label: 'Strength', count: 2 }, { id: 'balance', label: 'Balance', count: 2 },
-    { id: 'mobility', label: 'Mobility', count: 1 }, { id: 'flexibility', label: 'Flexibility', count: 1 },
-    { id: 'stamina', label: 'Stamina', count: 1 }, { id: 'mind', label: 'A sharp mind', count: 1 }
-  ]), 'ability counts and order match the hand-worked case');
+    { id: 'strength', label: 'Strength', count: 2, need: 2.1 }, { id: 'balance', label: 'Balance', count: 2, need: 1.7 },
+    { id: 'mobility', label: 'Mobility and flexibility', count: 1, need: 1.3 }, { id: 'mind', label: 'A sharp mind', count: 1, need: 1.3 },
+    { id: 'stamina', label: 'Stamina and energy', count: 1, need: 0.4 }
+  ]), 'ability counts, needs and order match the hand-worked case');
   ok(J(abilityCounts([], GROUPS, ABILITIES)) === '[]' && J(abilityCounts(null, GROUPS, ABILITIES)) === '[]', 'no picks → empty list');
-  ok(J(abilityCounts(['zzz', 'c'], GROUPS, ABILITIES)) === J([{ id: 'stamina', label: 'Stamina', count: 1 }]), 'an id not on offer counts for nothing');
+  ok(J(abilityCounts(['zzz', 'c'], GROUPS, ABILITIES)) === J([{ id: 'stamina', label: 'Stamina and energy', count: 1, need: 5 }]), 'an id not on offer counts for nothing');
 }
 
 // The count line, in its three states (Design 3).
@@ -107,26 +111,26 @@ if (typeof pickCountLine === 'function') {
 } else ok(false, 'pickCountLine() exists');
 
 // v0.48.1 — the radar's numbers: every ability in the server's order with its
-// count, and the scale top = the larger of 3 and the highest count.
+// need; v0.48.11 the scale top is always 5.
 ok(body('wedgeSizes') === '' && body('polarChart') === '' && !/wedgeSizes|polarChart|id="hdlv2-why-wheel"/.test(src),
   'the wedge chart is gone: no wedgeSizes(), no polarChart(), no wedge styles hooks');
 if (typeof radarData === 'function') {
   const zero = radarData([], SHORT);
-  ok(zero.top === 3 && J(zero.spokes.map(function (s) { return s.id; })) === J(Object.keys(SHORT)) && zero.spokes.every(function (s) { return s.count === 0; }),
-    'radar data: nothing picked → eight abilities at 0 in the server\'s order, top 3');
-  const one = radarData([{ id: 'stamina', count: 1 }], SHORT);
-  ok(one.top === 3 && one.spokes[4].id === 'stamina' && one.spokes[4].count === 1 && one.spokes.filter(function (s) { return s.count > 0; }).length === 1,
-    'radar data: one ability with one pick → count 1, top stays 3 (the floor)');
-  const floor = radarData([{ id: 'balance', count: 1 }, { id: 'strength', count: 2 }], SHORT);
-  ok(floor.top === 3 && floor.spokes[0].count === 2 && floor.spokes[3].count === 1, 'radar data: highest count 2 → top is still 3; input order does not matter');
-  const big = radarData([{ id: 'strength', count: 5 }, { id: 'balance', count: 2 }], SHORT);
-  ok(big.top === 5 && big.spokes[0].count === 5, 'radar data: a count above 3 becomes the top');
-  ok(big.spokes[0].label === 'Strength' && big.spokes[5].label === 'Mind', 'radar data carries the short names');
+  ok(zero.top === 5 && J(zero.spokes.map(function (s) { return s.id; })) === J(Object.keys(SHORT)) && zero.spokes.every(function (s) { return s.need === 0; }),
+    'radar data: nothing picked → six abilities at 0 in the server\'s order, top 5');
+  const one = radarData([{ id: 'stamina', need: 1 }], SHORT);
+  ok(one.top === 5 && one.spokes[3].id === 'stamina' && one.spokes[3].need === 1 && one.spokes.filter(function (s) { return s.need > 0; }).length === 1,
+    'radar data: one ability → its need, top 5');
+  const floor = radarData([{ id: 'balance', need: 1 }, { id: 'strength', need: 2 }], SHORT);
+  ok(floor.top === 5 && floor.spokes[0].need === 2 && floor.spokes[2].need === 1, 'radar data: input order does not matter');
+  const big = radarData([{ id: 'strength', need: 5 }, { id: 'balance', need: 2 }], SHORT);
+  ok(big.top === 5 && big.spokes[0].need === 5, 'radar data: a need of 5 reaches the edge, the top stays 5');
+  ok(big.spokes[0].label === 'Strength' && big.spokes[4].label === 'Mind', 'radar data carries the short names');
 } else ok(false, 'radarData() exists');
 
 if (typeof chartLabel === 'function' && typeof radarData === 'function') {
   ok(chartLabel(radarData([], SHORT).spokes) === 'Nothing picked yet.', 'chart aria-label with no picks');
-  ok(chartLabel(radarData([{ id: 'balance', count: 1 }, { id: 'strength', count: 2 }], SHORT).spokes) === 'What your picks need: Strength 2, Balance 1.',
+  ok(chartLabel(radarData([{ id: 'balance', need: 1 }, { id: 'strength', need: 2 }], SHORT).spokes) === 'What your picks need, out of 5: Strength 2, Balance 1.',
     'chart aria-label says it in words, in the server\'s order');
 } else ok(false, 'chartLabel() exists');
 
@@ -138,10 +142,10 @@ try {
     + '\nthis.radarChart = radarChart; this.radarData = radarData;', rctx);
 } catch (e) { /* reported below */ }
 if (typeof rctx.radarChart === 'function') {
-  const rows = [{ id: 'strength', count: 2 }, { id: 'balance', count: 1 }, { id: 'mind', count: 1 }];
+  const rows = [{ id: 'strength', need: 2 }, { id: 'balance', need: 1 }, { id: 'mind', need: 1 }];
   const svg = rctx.radarChart(rctx.radarData(rows, SHORT), 300);
-  ok((svg.match(/class="hdlv2-why-ring"/g) || []).length === 3, 'radar: one ring per whole number up to the top (3)');
-  ok((svg.match(/class="hdlv2-why-axis"/g) || []).length === 8, 'radar: eight spokes');
+  ok((svg.match(/class="hdlv2-why-ring"/g) || []).length === 5, 'radar: one ring per whole number up to the top (5)');
+  ok((svg.match(/class="hdlv2-why-axis"/g) || []).length === 6, 'radar: six spokes');
   ok(/class="hdlv2-why-ring"[^>]*stroke="rgba\(0,0,0,0\.08\)"/.test(svg) && /class="hdlv2-why-axis"[^>]*stroke="rgba\(0,0,0,0\.08\)"/.test(svg),
     'radar: web lines and spokes rgba(0,0,0,0.08), as on the report');
   ok(/<polygon class="hdlv2-why-ring"/.test(svg) && !/<circle class="hdlv2-why-ring"/.test(svg), 'radar: rings are straight lines between spokes (polygons), not circles');
@@ -151,24 +155,24 @@ if (typeof rctx.radarChart === 'function') {
   const ptsAttr = (shape.match(/points="([^"]+)"/) || ['', ''])[1].trim().split(/\s+/).map(function (p) { return p.split(',').map(Number); });
   const cx = Number((svg.match(/data-cx="([^"]+)"/) || [])[1]), cy = Number((svg.match(/data-cy="([^"]+)"/) || [])[1]), R = Number((svg.match(/data-r="([^"]+)"/) || [])[1]);
   const dist = ptsAttr.map(function (p) { return Math.round(Math.hypot(p[0] - cx, p[1] - cy) / R * 300) / 300; });
-  ok(ptsAttr.length === 8 && J(dist) === J([2 / 3, 0, 0, 1 / 3, 0, 1 / 3, 0, 0].map(function (v) { return Math.round(v * 300) / 300; })),
-    'radar: each point sits at count ÷ top along its spoke (Strength 2/3, Balance 1/3, Mind 1/3, the rest at the centre)');
-  ok(ptsAttr.length === 8 && Math.abs(ptsAttr[0][0] - cx) < 0.2 && ptsAttr[0][1] < cy, 'radar: the first ability (Strength) is on the upward spoke');
+  ok(ptsAttr.length === 6 && J(dist) === J([2 / 5, 0, 1 / 5, 0, 1 / 5, 0].map(function (v) { return Math.round(v * 300) / 300; })),
+    'radar: each point sits at need ÷ 5 along its spoke (Strength 2/5, Balance 1/5, Mind 1/5, the rest at the centre)');
+  ok(ptsAttr.length === 6 && Math.abs(ptsAttr[0][0] - cx) < 0.2 && ptsAttr[0][1] < cy, 'radar: the first ability (Strength) is on the upward spoke');
   const dots = svg.match(/<circle class="hdlv2-why-dot"[^>]*>/g) || [];
   ok(dots.length === 3 && dots.every(function (d) { return /r="4\.5"/.test(d) && /fill="#3d8da0"/.test(d) && /stroke="#fff"/.test(d) && /stroke-width="1\.5"/.test(d); }),
     'radar: a teal dot (r 4.5, white edge 1.5) only on the three spokes with a pick');
-  ok(['Strength', 'Mobility', 'Flexibility', 'Balance', 'Stamina', 'Mind', 'Energy', 'Connection'].every(function (n) { return svg.indexOf('>' + n + '</text>') !== -1; }),
-    'radar: the eight short names');
-  ok((svg.match(/class="hdlv2-why-spoke has-picks"/g) || []).length === 3 && (svg.match(/class="hdlv2-why-spoke"/g) || []).length === 5,
-    'radar: names with a pick are marked has-picks, the other five are not');
-  ok((svg.match(/<svg class="hdlv2-why-icon"/g) || []).length === 8, 'radar: a picture at each of the eight names');
-  ok(/role="img"[^>]*aria-label="What your picks need: Strength 2, Balance 1, Mind 1\."/.test(svg), 'radar: spoken label with picks');
+  ok(['Strength', 'Mobility', 'Balance', 'Stamina', 'Mind', 'Connection'].every(function (n) { return svg.indexOf('>' + n + '</text>') !== -1; }),
+    'radar: the six short names');
+  ok((svg.match(/class="hdlv2-why-spoke has-picks"/g) || []).length === 3 && (svg.match(/class="hdlv2-why-spoke"/g) || []).length === 3,
+    'radar: names with a pick are marked has-picks, the other three are not');
+  ok((svg.match(/<svg class="hdlv2-why-icon"/g) || []).length === 6, 'radar: a picture at each of the six names');
+  ok(/role="img"[^>]*aria-label="What your picks need, out of 5: Strength 2, Balance 1, Mind 1\."/.test(svg), 'radar: spoken label with picks');
   ok(!/ A[\d.]+ [\d.]+ 0 0 1 /.test(svg), 'radar: no wedge arcs left');
   const empty = rctx.radarChart(rctx.radarData([], SHORT), 300);
   ok(/role="img"[^>]*aria-label="Nothing picked yet\."/.test(empty) && !/hdlv2-why-dot/.test(empty) && !/hdlv2-why-shape/.test(empty)
-    && (empty.match(/class="hdlv2-why-axis"/g) || []).length === 8, 'radar: nothing picked → the empty web and names, no shape, no dots');
-  const five = rctx.radarChart(rctx.radarData([{ id: 'strength', count: 5 }], SHORT), 300);
-  ok((five.match(/class="hdlv2-why-ring"/g) || []).length === 5, 'radar: a top of 5 draws five rings');
+    && (empty.match(/class="hdlv2-why-axis"/g) || []).length === 6, 'radar: nothing picked → the empty web and names, no shape, no dots');
+  const five = rctx.radarChart(rctx.radarData([{ id: 'strength', need: 0.4 }], SHORT), 300);
+  ok((five.match(/class="hdlv2-why-ring"/g) || []).length === 5, 'radar: a small need still draws five rings (the scale never moves)');
   ok(/<text class="hdlv2-why-tick"[^>]*>1<\/text>/.test(svg) && /<text class="hdlv2-why-tick"[^>]*>3<\/text>/.test(svg), 'radar: ring numbers beside the upward spoke');
   const vb = (svg.match(/viewBox="([^"]+)"/) || ['', ''])[1].split(' ').map(Number);
   ok(vb.length === 4 && Math.abs(vb[2] - 300) < 0.01, 'radar: drawn one unit per pixel at the width it is given (names keep their real size)');
@@ -178,15 +182,15 @@ if (typeof rctx.radarChart === 'function') {
 const bctx = { esc: rctx.esc };
 try { vm.runInNewContext(ICON_SRC0 + '\n' + body('pickIcon') + '\n' + body('abilityBars') + '\nthis.abilityBars = abilityBars;', bctx); } catch (e) { /* reported below */ }
 if (typeof bctx.abilityBars === 'function') {
-  const bars = bctx.abilityBars([{ id: 'strength', label: 'Strength', count: 2 }, { id: 'balance', label: 'Balance', count: 1 }], 5);
+  const bars = bctx.abilityBars([{ id: 'strength', label: 'Strength', count: 2, need: 2 }, { id: 'balance', label: 'Balance', count: 1, need: 1 }]);
   const rowsB = bars.split('role="listitem"').slice(1);
   ok(/role="list"/.test(bars) && rowsB.length === 2, 'bars: a list with one row per ability that has a pick');
-  ok(/<svg class="hdlv2-why-icon"/.test(rowsB[0]) && rowsB[0].indexOf('>Strength<') !== -1 && rowsB[0].indexOf('2 of your picks') !== -1,
-    'bars: a row holds the picture, the short name and "N of your picks"');
+  ok(/<svg class="hdlv2-why-icon"/.test(rowsB[0]) && rowsB[0].indexOf('>Strength<') !== -1 && rowsB[0].indexOf('need 2 of 5 \u00b7 2 of your picks') !== -1,
+    'bars: a row holds the picture, the short name and "need N of 5 · N of your picks"');
   ok(/class="hdlv2-ability-meter" aria-hidden="true"><span style="width:40%">/.test(rowsB[0]) && /width:20%/.test(rowsB[1]),
-    'bars: the meter width is count ÷ number of picks (2 of 5 = 40%), and it is aria-hidden');
-  ok(bars.indexOf('>Strength<') < bars.indexOf('>Balance<'), 'bars: in the order given (most picks first)');
-  ok(bctx.abilityBars([], 0) === '', 'bars: nothing picked → nothing (0.48.3: the section is hidden instead)');
+    'bars: the meter width is need ÷ 5 (2 of 5 = 40%), and it is aria-hidden');
+  ok(bars.indexOf('>Strength<') < bars.indexOf('>Balance<'), 'bars: in the order given (most needed first)');
+  ok(bctx.abilityBars([]) === '', 'bars: nothing picked → nothing (0.48.3: the section is hidden instead)');
 } else ok(false, 'abilityBars() exists');
 
 // v0.48.1 — the page width class.
@@ -239,7 +243,7 @@ ok(html.indexOf('<p>Pick the 5 to 10 that matter most to you in your last decade
 ok(/People I love[\s\S]*My freedom[\s\S]*Things I love/.test(html), 'group headings in order');
 ok(html.indexOf('<h3>What your picks need from your body</h3>') !== -1, 'section heading, as written');
 ok(html.indexOf('<p>Each thing you picked needs some of these. Your plan starts with the ones your health answers show are weakest.</p>') !== -1, 'section line, as written');
-ok(html.indexOf('<p class="hdlv2-why-caption">The further out, the more of your picks need it.</p>') !== -1, 'radar caption, as written');
+ok(html.indexOf('<p class="hdlv2-why-caption">5 is the most a life can ask of one ability. Your answers on the next pages show where you stand today on each one.</p>') !== -1, 'radar caption, as written (v0.48.11)');
 ok(/id="hdlv2-abilities"/.test(html) && /id="hdlv2-why-radar"/.test(html) && html.indexOf('id="hdlv2-abilities"') < html.indexOf('id="hdlv2-why-radar"'),
   'the bars (#hdlv2-abilities) and the radar are both on the page, bars first');
 ok(/<section class="hdlv2-why-needs" id="hdlv2-why-needs" hidden>/.test(html) && src.indexOf('Tap a few above') === -1,
@@ -251,16 +255,16 @@ ok(html.indexOf("Who are you doing this for? First names.") !== -1 && html.index
 ok(html.indexOf('Anything else? (optional)') !== -1, 'own-words label, as written');
 ok(/>Next</.test(html) || />Next &#8594;</.test(html), 'Next button');
 ok(/role="img"[^>]*aria-label="Nothing picked yet\."/.test(html), 'the chart is on the page from the start, empty, with its spoken label');
-ok((html.match(/<svg[^>]*aria-hidden="true"/g) || []).length >= 11, 'every picture is decoration (aria-hidden): 3 group + 8 ability pictures');
+ok((html.match(/<svg[^>]*aria-hidden="true"/g) || []).length >= 9, 'every picture is decoration (aria-hidden): 3 group + 6 ability pictures');
 ok(/type="checkbox"/.test(page), 'every statement is a real checkbox');
 ok(/aria-live="polite"/.test(page), 'the counter is announced (aria-live)');
 ok(!/\b(alert|confirm|prompt)\(/.test(src), 'the shipped file has no alert( / confirm( / prompt(');
 ok(src.indexOf('Tap the parts of life you care about') === -1 && src.indexOf('Start with one or two that matter to you.') === -1
   && src.indexOf('What your choices ask of your body') === -1, 'the old long copy is gone');
 const cle = fs.readFileSync(path.join(__dirname, '..', '..', 'assets', 'js', 'hdlv2-client-list-enhance.js'), 'utf8');
-ok(cle.indexOf("'<div class=\"hdlv2-consult-caption\">Scores are out of 5, averaged from the answers listed. They are not a test of the ability itself. Stage 1 answers run 1 to 5, Stage 3 answers 0 to 5.'") !== -1
+ok(cle.indexOf("'<div class=\"hdlv2-consult-caption\">Need is out of 5: 5 means every choice leans on the ability fully. Scores are out of 5, averaged from the answers listed. They are not a test of the ability itself. Stage 1 answers run 1 to 5, Stage 3 answers 0 to 5.'") !== -1
   && /\(s2\.choices\.stage3_done \? '' : ' Stage 3 not finished: based on Stage 1 answers only\.'\)/.test(cle),
-  'practitioner caption unchanged');
+  'practitioner caption (v0.48.11: says what need means)');
 
 // ── Style rules on this page (dyslexia: no capitals, italics, centring) ──
 const css = fs.readFileSync(path.join(__dirname, '..', '..', 'assets', 'css', 'hdlv2-form.css'), 'utf8');
@@ -304,11 +308,11 @@ ok(/\.hdlv2-why \.hdlv2-subgroup-heading\s*\{[^}]*text-transform:\s*none/.test(c
 // ── v0.48.2: one icon family and a finished feel ──
 // Design 1 — the pictures: Phosphor duotone, on the 256 grid, filled.
 const iconNames = Object.keys((function () { const c = {}; try { vm.runInNewContext(ICON_SRC + '\nthis.ICONS = ICONS;', c); } catch (e) { /* reported below */ } return c.ICONS || {}; })());
-ok(J(iconNames.sort()) === J(['balance', 'connection', 'energy', 'flexibility', 'freedom', 'mind', 'mobility', 'people', 'stamina', 'strength', 'things']),
-  'ICONS holds exactly the eleven names (8 abilities + 3 groups)');
+ok(J(iconNames.sort()) === J(['balance', 'connection', 'freedom', 'mind', 'mobility', 'people', 'stamina', 'strength', 'things']),
+  'ICONS holds exactly the nine names (6 abilities + 3 groups)');
 const ICON_NOTE = src.slice(Math.max(0, src.indexOf('  var ICONS = {') - 500), src.indexOf('  var ICONS = {'));
 ok(/Phosphor/.test(ICON_NOTE) && /MIT/.test(ICON_NOTE) && !/itshover|Tabler/i.test(ICON_NOTE + ICON_SRC), 'the ICONS comment names Phosphor and MIT; no itshover or Tabler left');
-ok(!/stroke-linecap|\d -\d|M\d+ \d+[lh]/.test(ICON_SRC) && (ICON_SRC.match(/opacity="0\.2"/g) || []).length === 11,
+ok(!/stroke-linecap|\d -\d|M\d+ \d+[lh]/.test(ICON_SRC) && (ICON_SRC.match(/opacity="0\.2"/g) || []).length === 9,
   'no stroke-only 24-grid path is left; each picture keeps its duotone 0.2 layer');
 const oneIcon = (function () { const c = {}; try { vm.runInNewContext(ICON_SRC + '\n' + body('pickIcon') + '\nthis.out = pickIcon("strength");', c); } catch (e) { /* reported below */ } return c.out || ''; })();
 ok(/viewBox="0 0 256 256"/.test(oneIcon) && /fill="currentColor"/.test(oneIcon) && !/stroke=/.test(oneIcon) && /width="28" height="28"/.test(oneIcon)
@@ -334,9 +338,9 @@ ok(/\.hdlv2-ability-meter span \{[^}]*transition: width 240ms/.test(whyFlat), 'm
 ok(/\.hdlv2-ability-count \{[^}]*font-variant-numeric: tabular-nums[^}]*text-align: right/.test(whyFlat), 'count in tabular numerals, right aligned');
 ok(/\.hdlv2-ability \{[^}]*grid-template-columns: 28px/.test(whyFlat) && /\.hdlv2-ability \{[^}]*min-height: 56px/.test(whyFlat), 'bar rows 56px, 28px picture column');
 if (typeof abilityCounts === 'function') {
-  const TIE = [{ id: 'g', title: 'G', items: [{ id: 'a', needs: ['mind', 'strength', 'energy'] }, { id: 'b', needs: ['balance'] }] }];
-  ok(J(abilityCounts(['a', 'b'], TIE, SHORT).map(function (r) { return r.id; })) === J(['strength', 'balance', 'mind', 'energy']),
-    'equal counts keep the server\'s order (Strength, Balance, Mind, Energy)');
+  const TIE = [{ id: 'g', title: 'G', items: [{ id: 'a', needs: ['mind', 'strength', 'stamina'] }, { id: 'b', needs: ['balance'] }] }];
+  ok(J(abilityCounts(['a', 'b'], TIE, SHORT).map(function (r) { return r.id; })) === J(['strength', 'balance', 'stamina', 'mind']),
+    'equal needs keep the server\'s order (Strength, Balance, Stamina, Mind); a tag with no weight reads as 2');
 }
 const upd = body('updatePicks');
 ok(/data-id/.test(body('abilityBars')) && /offsetWidth/.test(upd), 'a tap starts each meter at its old width so the change eases (not a fresh draw)');
@@ -479,10 +483,11 @@ if (typeof body('saveWhenFree') === 'string' && body('renderWhyPicks')) {
   ok(w.H.saves.length === 0, 'G6: no save before 1.5 s');
   w.H.advance(1);
   ok(w.H.saves.length === 1 && w.H.saves[0].stage === 2, 'G6: one stage-2 save at 1.5 s');
-  // P5 — the meters ease from their old width (a new row from 0%) to count ÷ picks.
-  // picks people1 (balance) + freedom2 (mind), then people2 (mind): 2 of 3 and 1 of 3.
-  ok(JSON.stringify((w.H.widths.mind || []).slice(-2)) === '["50%","67%"]', 'P5: the mind meter starts at its old width (1 of 2) and eases to 2 of 3 (67%) (got ' + JSON.stringify(w.H.widths.mind) + ')');
-  ok(JSON.stringify((w.H.widths.balance || []).slice(-2)) === '["50%","33%"]', 'P5: the balance meter eases from 50% to 33% (got ' + JSON.stringify(w.H.widths.balance) + ')');
+  // P5 — the meters ease from their old width (a new row from 0%) to need ÷ 5.
+  // picks people1 (balance) + freedom2 (mind), bare tags = weight 2: each need 1.7 (34%);
+  // then people2 (mind): mind 2.2 (44%), balance 1.1 (22%).
+  ok(JSON.stringify((w.H.widths.mind || []).slice(-2)) === '["34%","44%"]', 'P5: the mind meter starts at its old width (34%) and eases to 44% (got ' + JSON.stringify(w.H.widths.mind) + ')');
+  ok(JSON.stringify((w.H.widths.balance || []).slice(-2)) === '["34%","22%"]', 'P5: the balance meter eases from 34% to 22% (got ' + JSON.stringify(w.H.widths.balance) + ')');
 
   // The eleventh pick is refused, and the box stays unticked.
   w = wiringHarness();

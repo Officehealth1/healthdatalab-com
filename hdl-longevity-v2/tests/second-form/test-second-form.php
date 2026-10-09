@@ -55,13 +55,16 @@ check( 'T3 two strength picks → count 2, first choice in pick order', 2 === $t
 $t = HDLV2_Why_Picks::second_form_ties( array( 'lift_suitcase', 'carry_shopping' ) );
 check( 'T3b reversed picks → the other choice is first', label_of( 'lift_suitcase' ) === $t['sitToStand']['choice'] );
 
-// sleepQuality is measured for both mind and energy.
-$t = HDLV2_Why_Picks::second_form_ties( array( 'wake_rested', 'sharp_conversation' ) );
-check( 'T4 mind 1 / energy 1 on sleepQuality → mind (NEEDS order)', 'mind' === $t['sleepQuality']['ability'] && 1 === $t['sleepQuality']['count'] );
+// sleepQuality is measured for both mind and stamina (v0.48.11: energy is read as stamina);
+// the larger summed weight wins it, ties go to NEEDS order.
+$t = HDLV2_Why_Picks::second_form_ties( array( 'swim_in_sea', 'sharp_conversation', 'read_for_an_hour' ) );
+check( 'T4 mind 2+2 beats stamina 3 on sleepQuality', 'mind' === $t['sleepQuality']['ability'] && 2 === $t['sleepQuality']['count'] );
 check( 'T4b the choice is the first MIND pick, not the first pick', label_of( 'sharp_conversation' ) === $t['sleepQuality']['choice'] );
-check( 'T4c sleepDuration (energy only) → energy', 'energy' === $t['sleepDuration']['ability'] );
+check( 'T4c sleepDuration (stamina only) → stamina', 'stamina' === $t['sleepDuration']['ability'] );
+$t = HDLV2_Why_Picks::second_form_ties( array( 'wake_rested', 'sharp_conversation' ) );
+check( 'T4d stamina 3 / mind 1+2 on sleepQuality → stamina (tie, NEEDS order)', 'stamina' === $t['sleepQuality']['ability'] );
 $t = HDLV2_Why_Picks::second_form_ties( array( 'sharp_conversation', 'wake_rested', 'energy_in_evening' ) );
-check( 'T5 energy 2 beats mind 1 on sleepQuality', 'energy' === $t['sleepQuality']['ability'] && 2 === $t['sleepQuality']['count'] );
+check( 'T5 stamina 3+2 beats mind 2+1 on sleepQuality', 'stamina' === $t['sleepQuality']['ability'] && 2 === $t['sleepQuality']['count'] );
 check( 'T5b mind still reaches stressLevels and cognitiveActivity', 'mind' === $t['stressLevels']['ability'] && 'mind' === $t['cognitiveActivity']['ability'] );
 
 $t = HDLV2_Why_Picks::second_form_ties( array( 'not_a_real_id', 42, array( 'x' ), 'carry_shopping' ) );

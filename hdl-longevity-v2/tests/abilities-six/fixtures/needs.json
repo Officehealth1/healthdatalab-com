@@ -1,0 +1,838 @@
+{
+    "groups": [
+        {
+            "id": "people",
+            "title": "People I love",
+            "short": "People I love",
+            "items": [
+                {
+                    "id": "floor_grandkids",
+                    "label": "Play on the floor with my grandkids",
+                    "needs": [
+                        "strength",
+                        "mobility",
+                        "balance",
+                        "stamina",
+                        "connection"
+                    ],
+                    "weights": {
+                        "strength": 2,
+                        "mobility": 3,
+                        "balance": 1,
+                        "stamina": 1,
+                        "connection": 1
+                    }
+                },
+                {
+                    "id": "lift_grandchild",
+                    "label": "Pick up a grandchild for a hug",
+                    "needs": [
+                        "strength",
+                        "mobility",
+                        "balance"
+                    ],
+                    "weights": {
+                        "strength": 3,
+                        "mobility": 1,
+                        "balance": 2
+                    }
+                },
+                {
+                    "id": "fetch_with_dog",
+                    "label": "Play fetch with the dog in the park",
+                    "needs": [
+                        "strength",
+                        "mobility",
+                        "balance",
+                        "stamina"
+                    ],
+                    "weights": {
+                        "strength": 1,
+                        "mobility": 1,
+                        "balance": 1,
+                        "stamina": 3
+                    }
+                },
+                {
+                    "id": "dance_wedding",
+                    "label": "Dance with my grandkids at their wedding",
+                    "needs": [
+                        "mobility",
+                        "balance",
+                        "stamina",
+                        "connection"
+                    ],
+                    "weights": {
+                        "mobility": 2,
+                        "balance": 2,
+                        "stamina": 2,
+                        "connection": 2
+                    }
+                },
+                {
+                    "id": "remember_family",
+                    "label": "Remember every grandchild's name and story",
+                    "needs": [
+                        "mind",
+                        "connection"
+                    ],
+                    "weights": {
+                        "mind": 3,
+                        "connection": 2
+                    }
+                },
+                {
+                    "id": "help_loved_one",
+                    "label": "Help a loved one who has hurt themselves",
+                    "needs": [
+                        "strength",
+                        "mobility",
+                        "balance",
+                        "mind",
+                        "connection"
+                    ],
+                    "weights": {
+                        "strength": 3,
+                        "mobility": 2,
+                        "balance": 2,
+                        "mind": 1,
+                        "connection": 1
+                    }
+                },
+                {
+                    "id": "not_a_burden",
+                    "label": "Never burden loved ones in my last decade",
+                    "needs": [
+                        "strength",
+                        "mobility",
+                        "balance",
+                        "stamina",
+                        "mind",
+                        "connection"
+                    ],
+                    "weights": {
+                        "strength": 2,
+                        "mobility": 2,
+                        "balance": 2,
+                        "stamina": 1,
+                        "mind": 2,
+                        "connection": 1
+                    }
+                }
+            ]
+        },
+        {
+            "id": "freedom",
+            "title": "My freedom",
+            "short": "My freedom",
+            "items": [
+                {
+                    "id": "live_in_own_home",
+                    "label": "Stay in my own home, on my terms",
+                    "needs": [
+                        "strength",
+                        "mobility",
+                        "balance",
+                        "stamina",
+                        "mind"
+                    ],
+                    "weights": {
+                        "strength": 2,
+                        "mobility": 2,
+                        "balance": 3,
+                        "stamina": 1,
+                        "mind": 3
+                    }
+                },
+                {
+                    "id": "stairs_no_rail",
+                    "label": "Walk anywhere and climb stairs with confidence",
+                    "needs": [
+                        "strength",
+                        "mobility",
+                        "balance",
+                        "stamina"
+                    ],
+                    "weights": {
+                        "strength": 2,
+                        "mobility": 2,
+                        "balance": 3,
+                        "stamina": 2
+                    }
+                },
+                {
+                    "id": "up_after_fall",
+                    "label": "Feel robust and get back up by myself if I trip",
+                    "needs": [
+                        "strength",
+                        "mobility",
+                        "balance"
+                    ],
+                    "weights": {
+                        "strength": 3,
+                        "mobility": 3,
+                        "balance": 2
+                    }
+                },
+                {
+                    "id": "keep_driving",
+                    "label": "Drive safely",
+                    "needs": [
+                        "mobility",
+                        "balance",
+                        "mind"
+                    ],
+                    "weights": {
+                        "mobility": 2,
+                        "balance": 1,
+                        "mind": 3
+                    }
+                },
+                {
+                    "id": "manage_own_affairs",
+                    "label": "Stay sharp and run my life with enthusiasm",
+                    "needs": [
+                        "stamina",
+                        "mind",
+                        "connection"
+                    ],
+                    "weights": {
+                        "stamina": 2,
+                        "mind": 3,
+                        "connection": 1
+                    }
+                },
+                {
+                    "id": "dress_myself",
+                    "label": "Wash and dress myself, with dignity",
+                    "needs": [
+                        "strength",
+                        "mobility",
+                        "balance"
+                    ],
+                    "weights": {
+                        "strength": 1,
+                        "mobility": 3,
+                        "balance": 2
+                    }
+                },
+                {
+                    "id": "uneven_ground",
+                    "label": "Live without fear of falling",
+                    "needs": [
+                        "strength",
+                        "mobility",
+                        "balance"
+                    ],
+                    "weights": {
+                        "strength": 2,
+                        "mobility": 1,
+                        "balance": 3
+                    }
+                }
+            ]
+        },
+        {
+            "id": "things",
+            "title": "Things I love",
+            "short": "Things I love",
+            "items": [
+                {
+                    "id": "keep_my_sport",
+                    "label": "Keep playing the sport I love",
+                    "needs": [
+                        "strength",
+                        "mobility",
+                        "balance",
+                        "stamina"
+                    ],
+                    "weights": {
+                        "strength": 2,
+                        "mobility": 3,
+                        "balance": 2,
+                        "stamina": 3
+                    }
+                },
+                {
+                    "id": "day_in_garden",
+                    "label": "Spend a whole day pottering in my garden",
+                    "needs": [
+                        "strength",
+                        "mobility",
+                        "balance",
+                        "stamina"
+                    ],
+                    "weights": {
+                        "strength": 2,
+                        "mobility": 3,
+                        "balance": 1,
+                        "stamina": 2
+                    }
+                },
+                {
+                    "id": "hike_hills",
+                    "label": "Hike the hills with friends",
+                    "needs": [
+                        "strength",
+                        "mobility",
+                        "balance",
+                        "stamina",
+                        "connection"
+                    ],
+                    "weights": {
+                        "strength": 1,
+                        "mobility": 1,
+                        "balance": 2,
+                        "stamina": 3,
+                        "connection": 2
+                    }
+                },
+                {
+                    "id": "swim_in_sea",
+                    "label": "Swim in the sea",
+                    "needs": [
+                        "strength",
+                        "mobility",
+                        "stamina"
+                    ],
+                    "weights": {
+                        "strength": 2,
+                        "mobility": 2,
+                        "stamina": 3
+                    }
+                },
+                {
+                    "id": "walk_city_all_day",
+                    "label": "Explore new places",
+                    "needs": [
+                        "mobility",
+                        "stamina",
+                        "mind"
+                    ],
+                    "weights": {
+                        "mobility": 1,
+                        "stamina": 3,
+                        "mind": 1
+                    }
+                },
+                {
+                    "id": "keep_working",
+                    "label": "Keep doing work that matters to me",
+                    "needs": [
+                        "stamina",
+                        "mind",
+                        "connection"
+                    ],
+                    "weights": {
+                        "stamina": 2,
+                        "mind": 3,
+                        "connection": 1
+                    }
+                },
+                {
+                    "id": "wake_rested",
+                    "label": "Wake up full of energy",
+                    "needs": [
+                        "stamina",
+                        "mind"
+                    ],
+                    "weights": {
+                        "stamina": 3,
+                        "mind": 1
+                    }
+                }
+            ]
+        }
+    ],
+    "short": {
+        "strength": "Strength",
+        "mobility": "Mobility",
+        "balance": "Balance",
+        "stamina": "Stamina",
+        "mind": "Mind",
+        "connection": "Connection"
+    },
+    "cases": [
+        {
+            "picks": [
+                "floor_grandkids",
+                "lift_grandchild",
+                "live_in_own_home",
+                "keep_my_sport",
+                "hike_hills"
+            ],
+            "need": {
+                "strength": 3.3,
+                "mobility": 3.3,
+                "balance": 3.3,
+                "stamina": 2.7,
+                "mind": 1.0,
+                "connection": 1.0
+            }
+        },
+        {
+            "picks": [
+                "floor_grandkids"
+            ],
+            "need": {
+                "strength": 3.3,
+                "mobility": 5.0,
+                "balance": 1.7,
+                "stamina": 1.7,
+                "connection": 1.7
+            }
+        },
+        {
+            "picks": [
+                "lift_grandchild"
+            ],
+            "need": {
+                "strength": 5.0,
+                "mobility": 1.7,
+                "balance": 3.3
+            }
+        },
+        {
+            "picks": [
+                "fetch_with_dog"
+            ],
+            "need": {
+                "strength": 1.7,
+                "mobility": 1.7,
+                "balance": 1.7,
+                "stamina": 5.0
+            }
+        },
+        {
+            "picks": [
+                "dance_wedding"
+            ],
+            "need": {
+                "mobility": 3.3,
+                "balance": 3.3,
+                "stamina": 3.3,
+                "connection": 3.3
+            }
+        },
+        {
+            "picks": [
+                "remember_family"
+            ],
+            "need": {
+                "mind": 5.0,
+                "connection": 3.3
+            }
+        },
+        {
+            "picks": [
+                "help_loved_one"
+            ],
+            "need": {
+                "strength": 5.0,
+                "mobility": 3.3,
+                "balance": 3.3,
+                "mind": 1.7,
+                "connection": 1.7
+            }
+        },
+        {
+            "picks": [
+                "not_a_burden"
+            ],
+            "need": {
+                "strength": 3.3,
+                "mobility": 3.3,
+                "balance": 3.3,
+                "stamina": 1.7,
+                "mind": 3.3,
+                "connection": 1.7
+            }
+        },
+        {
+            "picks": [
+                "live_in_own_home"
+            ],
+            "need": {
+                "strength": 3.3,
+                "mobility": 3.3,
+                "balance": 5.0,
+                "stamina": 1.7,
+                "mind": 5.0
+            }
+        },
+        {
+            "picks": [
+                "stairs_no_rail"
+            ],
+            "need": {
+                "strength": 3.3,
+                "mobility": 3.3,
+                "balance": 5.0,
+                "stamina": 3.3
+            }
+        },
+        {
+            "picks": [
+                "up_after_fall"
+            ],
+            "need": {
+                "strength": 5.0,
+                "mobility": 5.0,
+                "balance": 3.3
+            }
+        },
+        {
+            "picks": [
+                "keep_driving"
+            ],
+            "need": {
+                "mobility": 3.3,
+                "balance": 1.7,
+                "mind": 5.0
+            }
+        },
+        {
+            "picks": [
+                "manage_own_affairs"
+            ],
+            "need": {
+                "stamina": 3.3,
+                "mind": 5.0,
+                "connection": 1.7
+            }
+        },
+        {
+            "picks": [
+                "dress_myself"
+            ],
+            "need": {
+                "strength": 1.7,
+                "mobility": 5.0,
+                "balance": 3.3
+            }
+        },
+        {
+            "picks": [
+                "uneven_ground"
+            ],
+            "need": {
+                "strength": 3.3,
+                "mobility": 1.7,
+                "balance": 5.0
+            }
+        },
+        {
+            "picks": [
+                "keep_my_sport"
+            ],
+            "need": {
+                "strength": 3.3,
+                "mobility": 5.0,
+                "balance": 3.3,
+                "stamina": 5.0
+            }
+        },
+        {
+            "picks": [
+                "day_in_garden"
+            ],
+            "need": {
+                "strength": 3.3,
+                "mobility": 5.0,
+                "balance": 1.7,
+                "stamina": 3.3
+            }
+        },
+        {
+            "picks": [
+                "hike_hills"
+            ],
+            "need": {
+                "strength": 1.7,
+                "mobility": 1.7,
+                "balance": 3.3,
+                "stamina": 5.0,
+                "connection": 3.3
+            }
+        },
+        {
+            "picks": [
+                "swim_in_sea"
+            ],
+            "need": {
+                "strength": 3.3,
+                "mobility": 3.3,
+                "stamina": 5.0
+            }
+        },
+        {
+            "picks": [
+                "walk_city_all_day"
+            ],
+            "need": {
+                "mobility": 1.7,
+                "stamina": 5.0,
+                "mind": 1.7
+            }
+        },
+        {
+            "picks": [
+                "keep_working"
+            ],
+            "need": {
+                "stamina": 3.3,
+                "mind": 5.0,
+                "connection": 1.7
+            }
+        },
+        {
+            "picks": [
+                "wake_rested"
+            ],
+            "need": {
+                "stamina": 5.0,
+                "mind": 1.7
+            }
+        },
+        {
+            "picks": [
+                "floor_grandkids",
+                "lift_grandchild",
+                "fetch_with_dog",
+                "dance_wedding",
+                "remember_family"
+            ],
+            "need": {
+                "strength": 2.0,
+                "mobility": 2.3,
+                "balance": 2.0,
+                "stamina": 2.0,
+                "mind": 1.0,
+                "connection": 1.7
+            }
+        },
+        {
+            "picks": [
+                "fetch_with_dog",
+                "dance_wedding",
+                "remember_family",
+                "help_loved_one",
+                "not_a_burden"
+            ],
+            "need": {
+                "strength": 2.0,
+                "mobility": 2.3,
+                "balance": 2.3,
+                "stamina": 2.0,
+                "mind": 2.0,
+                "connection": 2.0
+            }
+        },
+        {
+            "picks": [
+                "remember_family",
+                "help_loved_one",
+                "not_a_burden",
+                "live_in_own_home",
+                "stairs_no_rail"
+            ],
+            "need": {
+                "strength": 3.0,
+                "mobility": 2.7,
+                "balance": 3.3,
+                "stamina": 1.3,
+                "mind": 3.0,
+                "connection": 1.3
+            }
+        },
+        {
+            "picks": [
+                "not_a_burden",
+                "live_in_own_home",
+                "stairs_no_rail",
+                "up_after_fall",
+                "keep_driving"
+            ],
+            "need": {
+                "strength": 3.0,
+                "mobility": 3.7,
+                "balance": 3.7,
+                "stamina": 1.3,
+                "mind": 2.7,
+                "connection": 0.3
+            }
+        },
+        {
+            "picks": [
+                "stairs_no_rail",
+                "up_after_fall",
+                "keep_driving",
+                "manage_own_affairs",
+                "dress_myself"
+            ],
+            "need": {
+                "strength": 2.0,
+                "mobility": 3.3,
+                "balance": 2.7,
+                "stamina": 1.3,
+                "mind": 2.0,
+                "connection": 0.3
+            }
+        },
+        {
+            "picks": [
+                "keep_driving",
+                "manage_own_affairs",
+                "dress_myself",
+                "uneven_ground",
+                "keep_my_sport"
+            ],
+            "need": {
+                "strength": 1.7,
+                "mobility": 3.0,
+                "balance": 2.7,
+                "stamina": 1.7,
+                "mind": 2.0,
+                "connection": 0.3
+            }
+        },
+        {
+            "picks": [
+                "dress_myself",
+                "uneven_ground",
+                "keep_my_sport",
+                "day_in_garden",
+                "hike_hills"
+            ],
+            "need": {
+                "strength": 2.7,
+                "mobility": 3.7,
+                "balance": 3.3,
+                "stamina": 2.7,
+                "connection": 0.7
+            }
+        },
+        {
+            "picks": [
+                "keep_my_sport",
+                "day_in_garden",
+                "hike_hills",
+                "swim_in_sea",
+                "walk_city_all_day"
+            ],
+            "need": {
+                "strength": 2.3,
+                "mobility": 3.3,
+                "balance": 1.7,
+                "stamina": 4.7,
+                "mind": 0.3,
+                "connection": 0.7
+            }
+        },
+        {
+            "picks": [
+                "hike_hills",
+                "swim_in_sea",
+                "walk_city_all_day",
+                "keep_working",
+                "wake_rested"
+            ],
+            "need": {
+                "strength": 1.0,
+                "mobility": 1.3,
+                "balance": 0.7,
+                "stamina": 4.7,
+                "mind": 1.7,
+                "connection": 1.0
+            }
+        },
+        {
+            "picks": [
+                "floor_grandkids",
+                "lift_grandchild",
+                "fetch_with_dog",
+                "dance_wedding",
+                "remember_family",
+                "help_loved_one",
+                "not_a_burden",
+                "live_in_own_home",
+                "stairs_no_rail",
+                "up_after_fall"
+            ],
+            "need": {
+                "strength": 3.0,
+                "mobility": 3.0,
+                "balance": 3.0,
+                "stamina": 1.7,
+                "mind": 1.5,
+                "connection": 1.2
+            }
+        },
+        {
+            "picks": [
+                "dance_wedding",
+                "remember_family",
+                "help_loved_one",
+                "not_a_burden",
+                "live_in_own_home",
+                "stairs_no_rail",
+                "up_after_fall",
+                "keep_driving",
+                "manage_own_affairs",
+                "dress_myself"
+            ],
+            "need": {
+                "strength": 2.2,
+                "mobility": 3.0,
+                "balance": 2.8,
+                "stamina": 1.3,
+                "mind": 2.5,
+                "connection": 1.2
+            }
+        },
+        {
+            "picks": [
+                "not_a_burden",
+                "live_in_own_home",
+                "stairs_no_rail",
+                "up_after_fall",
+                "keep_driving",
+                "manage_own_affairs",
+                "dress_myself",
+                "uneven_ground",
+                "keep_my_sport",
+                "day_in_garden"
+            ],
+            "need": {
+                "strength": 2.7,
+                "mobility": 3.5,
+                "balance": 3.2,
+                "stamina": 1.8,
+                "mind": 1.8,
+                "connection": 0.3
+            }
+        },
+        {
+            "picks": [
+                "up_after_fall",
+                "keep_driving",
+                "manage_own_affairs",
+                "dress_myself",
+                "uneven_ground",
+                "keep_my_sport",
+                "day_in_garden",
+                "hike_hills",
+                "swim_in_sea",
+                "walk_city_all_day"
+            ],
+            "need": {
+                "strength": 2.2,
+                "mobility": 3.2,
+                "balance": 2.2,
+                "stamina": 2.7,
+                "mind": 1.2,
+                "connection": 0.5
+            }
+        }
+    ]
+}
