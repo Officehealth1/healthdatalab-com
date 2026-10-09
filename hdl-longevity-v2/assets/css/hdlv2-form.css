@@ -719,6 +719,10 @@
 }
 .hdlv2-ability-name { font-size: 17px; font-weight: 600; line-height: 1.3; color: #2c3e50; }
 .hdlv2-ability-count { font-size: 16px; color: #666; font-variant-numeric: tabular-nums; text-align: right; }
+/* v0.48.11 — "need N of 5 · N of your picks" is too long beside the name on a phone: it takes its own line under the name. */
+@media (max-width: 479px) {
+  .hdlv2-ability-count { grid-column: 2 / -1; text-align: left; }
+}
 .hdlv2-ability-meter {
   grid-column: 1 / -1;
   height: 10px;
