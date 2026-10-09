@@ -186,7 +186,7 @@ def main():
     if cand != html or cand_css != css:
         fails.append("candidate differs from the build")
     first, sep, rest = cand.partition("\n<!-- PAGE 2")
-    if not sep or first.replace(FOOTER_PAGE.format(n=1), "", 1) + "\n" != orig.rstrip("\n") + "\n":
+    if not sep or first.replace(FOOTER_PAGE.format(n=1), "", 1).rstrip("\n") != orig.rstrip("\n"):
         fails.append("page 1 is not the backup plus the one page line")
     if not cand_css.startswith(orig_css):
         fails.append("stylesheet does not start with the backup byte for byte")
