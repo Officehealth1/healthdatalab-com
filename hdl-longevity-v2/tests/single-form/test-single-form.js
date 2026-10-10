@@ -262,7 +262,7 @@ ok(!/\b(alert|confirm|prompt)\(/.test(src), 'the shipped file has no alert( / co
 ok(src.indexOf('Tap the parts of life you care about') === -1 && src.indexOf('Start with one or two that matter to you.') === -1
   && src.indexOf('What your choices ask of your body') === -1, 'the old long copy is gone');
 const cle = fs.readFileSync(path.join(__dirname, '..', '..', 'assets', 'js', 'hdlv2-client-list-enhance.js'), 'utf8');
-ok(cle.indexOf("'<div class=\"hdlv2-consult-caption\">Need is out of 5: 5 means every choice leans on the ability fully. Scores are out of 5, averaged from the answers listed. They are not a test of the ability itself. Stage 1 answers run 1 to 5, Stage 3 answers 0 to 5. The projection to 90 uses published average losses for each ability, age and sex (about 5 to 22% a decade): an estimate.'") !== -1
+ok(cle.indexOf("'<div class=\"hdlv2-consult-caption\">Need is out of 5: 5 means every choice leans on the ability fully. Scores are out of 5, averaged from the answers listed. They are not a test of the ability itself. Stage 1 answers run 1 to 5, Stage 3 answers 0 to 5. The projection to 90 uses published average losses for each ability, age and sex (about 5 to 34% a decade): an estimate.'") !== -1
   && /\(s2\.choices\.stage3_done \? '' : ' Stage 3 not finished: based on Stage 1 answers only\.'\)/.test(cle),
   'practitioner caption (v0.48.11: says what need means; v0.48.13: per-ability rates)');
 

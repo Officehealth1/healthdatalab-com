@@ -44,14 +44,15 @@ function check( $label, $ok ) {
 
 // ── B-1 the arithmetic (v0.48.13: loss per ability, age band and sex) ──
 $W = 'HDLV2_Why_Picks';
-check( 'B-1 table: five abilities x two sexes x five age bands, every rate 0..0.3; no connection row; target 90',
+check( 'B-1 table: five abilities x two sexes x five age bands, every rate 0..0.4; no connection row; target 90',
     array( 'strength', 'mobility', 'balance', 'stamina', 'mind' ) === array_keys( $W::DECLINE ) && 90 === $W::TARGET_AGE
     && ! array_filter( $W::DECLINE, function ( $r ) { return array( 'male', 'female' ) !== array_keys( $r ) || 5 !== count( $r['male'] ) || 5 !== count( $r['female'] )
-        || max( array_merge( $r['male'], $r['female'] ) ) > 0.3 || min( array_merge( $r['male'], $r['female'] ) ) <= 0; } ) );
-// Man, 55, strength: 0.88^0.5 (55-60) x 0.84 (60s) x 0.79 (70s) x 0.79 (80s) = 0.4918.
-check( 'B-1a kept(): man 55 strength 0.492, woman 0.639, unknown = average rows 0.562', abs( $W::kept( 'strength', 55, 'male' ) - 0.4918 ) < 0.0005
-    && abs( $W::kept( 'strength', 55, 'female' ) - 0.6393 ) < 0.0005 && abs( $W::kept( 'strength', 55, '' ) - 0.5625 ) < 0.0005 );
-check( 'B-1b kept(): different abilities fade differently at 55 (mind 0.76 > strength > balance 0.48)', $W::kept( 'mind', 55 ) > $W::kept( 'strength', 55 ) && $W::kept( 'strength', 55 ) > $W::kept( 'balance', 55 ) );
+        || max( array_merge( $r['male'], $r['female'] ) ) > 0.4 || min( array_merge( $r['male'], $r['female'] ) ) <= 0; } ) );
+// Man 55 strength: 0.88^0.5 (55-60) x 0.84 x 0.79 x 0.79 = 0.4918. Woman: 0.89^0.5 x 0.89 x 0.88 x 0.88 = 0.6502.
+// Unknown sex = the average rate per band: 0.885^0.5 x 0.865 x 0.835 x 0.835 = 0.5674.
+check( 'B-1a kept(): man 55 strength 0.492, woman 0.650, unknown = average rows 0.567', abs( $W::kept( 'strength', 55, 'male' ) - 0.4918 ) < 0.0005
+    && abs( $W::kept( 'strength', 55, 'female' ) - 0.6502 ) < 0.0005 && abs( $W::kept( 'strength', 55, '' ) - 0.5674 ) < 0.0005 );
+check( 'B-1b kept(): different abilities fade differently at 55 (mind 0.76 > strength > balance 0.33)', $W::kept( 'mind', 55 ) > $W::kept( 'strength', 55 ) && $W::kept( 'strength', 55 ) > $W::kept( 'balance', 55 ) );
 check( 'B-1c kept(): age 90 or over → 1; connection or an unknown id → null; bad age → null',
     1.0 === $W::kept( 'strength', 90, 'male' ) && 1.0 === $W::kept( 'strength', 97 ) && null === $W::kept( 'connection', 55 ) && null === $W::kept( 'nope', 55 ) && null === $W::kept( 'strength', 0 ) );
 check( 'B-1d the sales-page sum: a 20 kg child at 90 → about 38 kg (man) / 29 kg (woman) at 60',
@@ -59,8 +60,11 @@ check( 'B-1d the sales-page sum: a 20 kg child at 90 → about 38 kg (man) / 29 
 check( 'B-1e projection: man 55 strength, score 3.5, need 3.3 → 1.7 at 90, needs 5 (capped)',
     array( 'at_90' => 1.7, 'need_now' => 5.0, 'need_now_capped' => true ) === $W::projection( 3.3, 3.5, 55, 'strength', 'male' ) );
 check( 'B-1f projection: 80, mind, score 4, need 1 → 3.7 at 90, needs 1.1 now', array( 'at_90' => 3.7, 'need_now' => 1.1, 'need_now_capped' => false ) === $W::projection( 1.0, 4.0, 80, 'mind' ) );
-check( 'B-1g unmeasured ability: at_90 null, need_now still worked out', array( 'at_90' => null, 'need_now' => 3.0, 'need_now_capped' => false ) === $W::projection( 2.0, null, 70, 'balance' ) );
+check( 'B-1g unmeasured ability: at_90 null, need_now still worked out', array( 'at_90' => null, 'need_now' => 4.6, 'need_now_capped' => false ) === $W::projection( 2.0, null, 70, 'balance' ) );
 check( 'B-1h connection: never projected', array( 'at_90' => null, 'need_now' => null, 'need_now_capped' => false ) === $W::projection( 3.0, 4.0, 55, 'connection', 'male' ) );
+// v0.48.14 — balance 0.93^0.5 x 0.78 x 0.66 x 0.66 = 0.3277; man 40 strength 0.90 x 0.88 x 0.84 x 0.79 x 0.79 = 0.4152.
+check( 'B-1k v2 rates: balance speeds up after 60 (55 → 0.328); strength under 50 is the 40s cohort, not a guess (man 40 → 0.415)',
+    abs( $W::kept( 'balance', 55, 'female' ) - 0.3277 ) < 0.0005 && abs( $W::kept( 'strength', 40, 'male' ) - 0.4152 ) < 0.0005 );
 // ── B-2 no age ──
 foreach ( array( null, '', 'abc', 0, -4 ) as $bad ) {
     $p = $W::projection( 3.3, 3.5, $bad, 'strength' );
@@ -122,9 +126,9 @@ check( 'B-5d no age on the row → no projection words, the rest stays', 0 === s
 // ── B-6 prompt block ──
 $blk = HDLV2_Why_Picks::block_for_row( $row( array( 'form_flow' => 'single', 'why_picks' => $worked ), $S1 ), $s3, 'facts' );
 check( 'B-6 measured line carries the projection phrases',
-    false !== strpos( $blk, "- Balance: needed 3.3/5 by their choices (5 of 5 picks); measured 2/5 from Standing on one leg 2/5; about 1/5 at 90 on today's path; keeping it to 90 needs 5 or more now\n" ) );
+    false !== strpos( $blk, "- Balance: needed 3.3/5 by their choices (5 of 5 picks); measured 2/5 from Standing on one leg 2/5; about 0.7/5 at 90 on today's path; keeping it to 90 needs 5 or more now\n" ) );
 check( 'B-6b HOW TO USE: the projection is arithmetic, never a measured change',
-    false !== strpos( $blk, "The projection to 90 is arithmetic on today's number using published average losses for each ability, age and sex (about 5 to 22% a decade), not a trend: use it to say what keeping the ability needs, never as a measured change.\n" ) );
+    false !== strpos( $blk, "The projection to 90 is arithmetic on today's number using published average losses for each ability, age and sex (about 5 to 34% a decade), not a trend: use it to say what keeping the ability needs, never as a measured change.\n" ) );
 check( 'B-6c no age → no projection words and no projection sentence',
     false === strpos( HDLV2_Why_Picks::block_for_row( $row( array( 'form_flow' => 'single', 'why_picks' => $worked ), array( 'q5' => 'd', 'server_result' => array( 'raw' => $raw ) ) ), $s3, 'facts' ), 'at 90' ) );
 check( 'B-6d old-flow row → empty block', '' === HDLV2_Why_Picks::block_for_row( $row( array( 'vision_text' => 'typed' ), $S1 ), $s3 ) );

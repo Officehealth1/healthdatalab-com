@@ -80,23 +80,34 @@ class HDLV2_Why_Picks {
      * v0.48.13 — loss per decade for each ability, by sex and age band
      * (under 50, 50s, 60s, 70s, 80s), for the projection to TARGET_AGE.
      * Matthew, 2026-10-09: "every decade you lose ... Twenty percent I think.
-     * Anyway, double check that." Checked 2026-10-10 (plan
-     * 2026-10-10_age90_by_ability_and_smooth_charts_v1):
-     *   strength  grip, 10-year cohort (Kozakai 2016): men 12/16/21%, women
-     *             about 12% from the 50s to the 70s;
-     *   mobility  chair-stand norms 60-94 (Rikli & Jones): men 17%, women
-     *             20% from 60; the strength row before 60;
-     *   balance   one-leg stand (Mayo 2024, small): about 19% from 50;
-     *   stamina   peak oxygen uptake (Fleg 2005): rising to over 20% after 70;
+     * Anyway, double check that." v0.48.14 — re-read from the papers
+     * (plan 2026-10-10_matthew_stage2_e2e_v2):
+     *   strength  grip, 10-year cohort of 648 men and 598 women aged 40-79
+     *             (Kozakai 2016): ten-year preservation by starting decade
+     *             40s/50s/60s/70s men 0.90/0.88/0.84/0.79, women
+     *             0.89/0.89/0.89/0.88; under 40 carries the 40s rate;
+     *   mobility  chair-stand norms 60-94 (Rikli & Jones 1999), average-band
+     *             midpoints men 16.5 -> 9.5, women 14.5 -> 7.5 over three
+     *             decades: 17% and 20% a decade from 60; the strength row
+     *             before 60;
+     *   balance   one-leg stand, eyes open, capped at 45 s (Springer 2007,
+     *             n = 549): means 44/41/41/32/21/9 s for 18-39/40s/50s/60s/
+     *             70s/80+, so 7/0/22/34/57% a decade; the 50s set to 7 not 0
+     *             because the cap hides loss under 60, the 80s carry the 70s
+     *             (57% floors everyone on a 0-5 score);
+     *   stamina   peak oxygen uptake (Fleg 2005, longitudinal): 3-6% a decade
+     *             young, over 20% from the 70s; the 50s and 60s read off the
+     *             rising curve;
      *   mind      small; about 5%, 8% after 60 (weak evidence).
-     * Under 50 is a guess (5-6%); the 80s carry the 70s rate (no study).
-     * Connection has no body-based rate, so it is not projected. Averages,
-     * one table entry each, Matthew's to change.
+     * The 80s carry the 70s rate everywhere (no study). Connection has no
+     * body-based rate, so it is not projected. Averages applied to a 0-5
+     * score as if it were the measured capacity: an estimate. One table
+     * entry each, Matthew's to change.
      */
     const DECLINE = array(
-        'strength' => array( 'male' => array( 0.05, 0.12, 0.16, 0.21, 0.21 ), 'female' => array( 0.05, 0.12, 0.12, 0.12, 0.12 ) ),
-        'mobility' => array( 'male' => array( 0.05, 0.12, 0.17, 0.17, 0.17 ), 'female' => array( 0.05, 0.12, 0.20, 0.20, 0.20 ) ),
-        'balance'  => array( 'male' => array( 0.05, 0.19, 0.19, 0.19, 0.19 ), 'female' => array( 0.05, 0.19, 0.19, 0.19, 0.19 ) ),
+        'strength' => array( 'male' => array( 0.10, 0.12, 0.16, 0.21, 0.21 ), 'female' => array( 0.11, 0.11, 0.11, 0.12, 0.12 ) ),
+        'mobility' => array( 'male' => array( 0.10, 0.12, 0.17, 0.17, 0.17 ), 'female' => array( 0.11, 0.11, 0.20, 0.20, 0.20 ) ),
+        'balance'  => array( 'male' => array( 0.07, 0.07, 0.22, 0.34, 0.34 ), 'female' => array( 0.07, 0.07, 0.22, 0.34, 0.34 ) ),
         'stamina'  => array( 'male' => array( 0.06, 0.12, 0.16, 0.22, 0.22 ), 'female' => array( 0.06, 0.12, 0.16, 0.22, 0.22 ) ),
         'mind'     => array( 'male' => array( 0.05, 0.05, 0.08, 0.08, 0.08 ), 'female' => array( 0.05, 0.05, 0.08, 0.08, 0.08 ) ),
     );
@@ -722,7 +733,7 @@ class HDLV2_Why_Picks {
         $block .= "HOW TO USE THESE CHOICES: this client has one assessment, so describe where they stand today against what each choice needs, not a trend. For each focus area, name the choice it serves (quote the statement word for word), the measure that drags it, and what keeping that ability over the coming years needs. Where a measure is above what a choice needs, say so in one clause and name the choice. Explain the client's position in terms of their choices, never in abilities alone. Do not invent choices or people that are not listed here.\n";
         // v0.48.12 — only when the block carries projections (an age is known).
         if ( $scored && null !== $age && is_numeric( $age ) && $age > 0 ) {
-            $block .= "The projection to " . self::TARGET_AGE . " is arithmetic on today's number using published average losses for each ability, age and sex (about 5 to 22% a decade), not a trend: use it to say what keeping the ability needs, never as a measured change.\n";
+            $block .= "The projection to " . self::TARGET_AGE . " is arithmetic on today's number using published average losses for each ability, age and sex (about 5 to 34% a decade), not a trend: use it to say what keeping the ability needs, never as a measured change.\n";
         }
         // An instruction about focus areas is only given when some are named.
         if ( 'milestones' === $use ) {

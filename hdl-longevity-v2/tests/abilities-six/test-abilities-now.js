@@ -71,7 +71,7 @@ ok(/html \+= renderAbilitiesSection\(data\.why_abilities\);\s*\n\s*\/\/ Radar/.t
 const cle = fs.readFileSync(path.join(JS, 'hdlv2-client-list-enhance.js'), 'utf8');
 ok(cle.indexOf("' \\u00b7 keeping it to 90 needs ' + (a.need_now_capped ? '5 or more' : 'about ' + esc(a.need_now)) + ' now'") !== -1
   && cle.indexOf("' \\u00b7 about ' + esc(a.at_90) + ' at 90 on today\\'s path'") !== -1, 'B-9 WHY tab rows carry both projection phrases, escaped');
-ok(cle.indexOf('The projection to 90 uses published average losses for each ability, age and sex (about 5 to 22% a decade): an estimate.') !== -1, 'B-9b WHY tab caption names the per-ability rates');
+ok(cle.indexOf('The projection to 90 uses published average losses for each ability, age and sex (about 5 to 34% a decade): an estimate.') !== -1, 'B-9b WHY tab caption names the per-ability rates');
 
 console.log('\n' + (FAIL ? 'SCENARIO: FAIL (' + FAIL + ')' : 'SCENARIO: PASS (' + PASS + ')'));
 process.exit(FAIL ? 1 : 0);
