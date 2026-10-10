@@ -3,7 +3,8 @@
  * "You now" beside "what your choices need", and the projection to 90 (v0.48.12).
  *
  * Matthew, 2026-10-09: the same chart in a second colour shows current
- * capability; capacity falls about 20% a decade ("double check that"), so
+ * capability; capacity falls about 20% a decade ("double check that"; v0.48.13 uses a
+ * per-ability, age and sex table instead), so
  * keeping an ability to 90 needs more of it now. Runs the REAL
  * HDLV2_Why_Picks and the REAL HDLV2_Client_Draft_View::rest_get_draft()
  * against a fake database. No WP, no network.
@@ -41,35 +42,43 @@ function check( $label, $ok ) {
     $ok ? $pass++ : $fail++;
 }
 
-// ── B-1 the arithmetic ──
-check( 'B-1 constants: 20% a decade, to 90 (Matthew\'s placeholders)', 0.20 === HDLV2_Why_Picks::LOSS_PER_DECADE && 90 === HDLV2_Why_Picks::TARGET_AGE );
-// Age 55: 3.5 decades, 0.8^3.5 = 0.458. Score 3.5 → 1.6 at 90; need 3.3 / 0.458 = 7.2 → capped at 5.
-$p = HDLV2_Why_Picks::projection( 3.3, 3.5, 55 );
-check( 'B-1 age 55, score 3.5, need 3.3 → about 1.6 at 90; needs 5 now (capped)',
-    array( 'at_90' => 1.6, 'need_now' => 5.0, 'need_now_capped' => true ) === $p );
-$p = HDLV2_Why_Picks::projection( 1.0, 4.0, 80 );
-// One decade: 0.8. 4.0 → 3.2; 1.0 / 0.8 = 1.25 → 1.3, not capped.
-check( 'B-1b age 80, score 4, need 1 → 3.2 at 90; needs 1.3 now', array( 'at_90' => 3.2, 'need_now' => 1.3, 'need_now_capped' => false ) === $p );
-check( 'B-1c age 90 or over → nothing lost: at_90 = score, need_now = need',
-    array( 'at_90' => 2.5, 'need_now' => 3.3, 'need_now_capped' => false ) === HDLV2_Why_Picks::projection( 3.3, 2.5, 90 )
-    && array( 'at_90' => 2.5, 'need_now' => 3.3, 'need_now_capped' => false ) === HDLV2_Why_Picks::projection( 3.3, 2.5, 97 ) );
-check( 'B-1d unmeasured ability: at_90 null, need_now still worked out', null === HDLV2_Why_Picks::projection( 2.0, null, 70 )['at_90']
-    && 3.1 === HDLV2_Why_Picks::projection( 2.0, null, 70 )['need_now'] );
+// ── B-1 the arithmetic (v0.48.13: loss per ability, age band and sex) ──
+$W = 'HDLV2_Why_Picks';
+check( 'B-1 table: five abilities x two sexes x five age bands, every rate 0..0.3; no connection row; target 90',
+    array( 'strength', 'mobility', 'balance', 'stamina', 'mind' ) === array_keys( $W::DECLINE ) && 90 === $W::TARGET_AGE
+    && ! array_filter( $W::DECLINE, function ( $r ) { return array( 'male', 'female' ) !== array_keys( $r ) || 5 !== count( $r['male'] ) || 5 !== count( $r['female'] )
+        || max( array_merge( $r['male'], $r['female'] ) ) > 0.3 || min( array_merge( $r['male'], $r['female'] ) ) <= 0; } ) );
+// Man, 55, strength: 0.88^0.5 (55-60) x 0.84 (60s) x 0.79 (70s) x 0.79 (80s) = 0.4918.
+check( 'B-1a kept(): man 55 strength 0.492, woman 0.639, unknown = average rows 0.562', abs( $W::kept( 'strength', 55, 'male' ) - 0.4918 ) < 0.0005
+    && abs( $W::kept( 'strength', 55, 'female' ) - 0.6393 ) < 0.0005 && abs( $W::kept( 'strength', 55, '' ) - 0.5625 ) < 0.0005 );
+check( 'B-1b kept(): different abilities fade differently at 55 (mind 0.76 > strength > balance 0.48)', $W::kept( 'mind', 55 ) > $W::kept( 'strength', 55 ) && $W::kept( 'strength', 55 ) > $W::kept( 'balance', 55 ) );
+check( 'B-1c kept(): age 90 or over → 1; connection or an unknown id → null; bad age → null',
+    1.0 === $W::kept( 'strength', 90, 'male' ) && 1.0 === $W::kept( 'strength', 97 ) && null === $W::kept( 'connection', 55 ) && null === $W::kept( 'nope', 55 ) && null === $W::kept( 'strength', 0 ) );
+check( 'B-1d the sales-page sum: a 20 kg child at 90 → about 38 kg (man) / 29 kg (woman) at 60',
+    38 === (int) round( 20 / $W::kept( 'strength', 60, 'male' ) ) && 29 === (int) round( 20 / $W::kept( 'strength', 60, 'female' ) ) );
+check( 'B-1e projection: man 55 strength, score 3.5, need 3.3 → 1.7 at 90, needs 5 (capped)',
+    array( 'at_90' => 1.7, 'need_now' => 5.0, 'need_now_capped' => true ) === $W::projection( 3.3, 3.5, 55, 'strength', 'male' ) );
+check( 'B-1f projection: 80, mind, score 4, need 1 → 3.7 at 90, needs 1.1 now', array( 'at_90' => 3.7, 'need_now' => 1.1, 'need_now_capped' => false ) === $W::projection( 1.0, 4.0, 80, 'mind' ) );
+check( 'B-1g unmeasured ability: at_90 null, need_now still worked out', array( 'at_90' => null, 'need_now' => 3.0, 'need_now_capped' => false ) === $W::projection( 2.0, null, 70, 'balance' ) );
+check( 'B-1h connection: never projected', array( 'at_90' => null, 'need_now' => null, 'need_now_capped' => false ) === $W::projection( 3.0, 4.0, 55, 'connection', 'male' ) );
 // ── B-2 no age ──
 foreach ( array( null, '', 'abc', 0, -4 ) as $bad ) {
-    $p = HDLV2_Why_Picks::projection( 3.3, 3.5, $bad );
+    $p = $W::projection( 3.3, 3.5, $bad, 'strength' );
     if ( null !== $p['at_90'] || null !== $p['need_now'] || false !== $p['need_now_capped'] ) { check( 'B-2 no usable age → nulls (' . var_export( $bad, true ) . ')', false ); break; }
 }
 check( 'B-2 no usable age (null, "", "abc", 0, -4) → at_90 and need_now null', true );
-check( 'B-2b a numeric string age works ("55")', 1.6 === HDLV2_Why_Picks::projection( 3.3, 3.5, '55' )['at_90'] );
+check( 'B-2b a numeric string age works ("55")', $W::projection( 3.3, 3.5, '55', 'strength', 'male' ) === $W::projection( 3.3, 3.5, 55, 'strength', 'male' ) );
+check( 'B-2c sex_of(): q1_sex, then gender, else ""', 'female' === $W::sex_of( array( 'q1_sex' => 'Female' ) ) && 'male' === $W::sex_of( array( 'gender' => 'male' ) )
+    && '' === $W::sex_of( array( 'q1_sex' => 'other' ) ) && '' === $W::sex_of( null ) );
 
 $worked = array( 'floor_grandkids', 'lift_grandchild', 'live_in_own_home', 'keep_my_sport', 'hike_hills' );
 $raw    = array( 'q5_sts' => 4, 'q4_vo2' => 3 );
 $s3     = array( 'sitToStand' => 3, 'balance' => 2, 'physicalActivity' => 3, 'cognitiveActivity' => 4, 'stressLevels' => 3, 'sleepQuality' => 3, 'socialConnections' => 5 );
-$prof   = HDLV2_Why_Picks::abilities_profile( $worked, $raw, $s3, 55 );
-check( 'B-1e profile rows carry at_90, need_now, need_now_capped (age passed)', array( 'at_90', 'need_now', 'need_now_capped' ) === array_slice( array_keys( $prof[0] ), -3 )
-    && HDLV2_Why_Picks::projection( $prof[0]['need'], $prof[0]['score'], 55 ) === array_intersect_key( $prof[0], array_flip( array( 'at_90', 'need_now', 'need_now_capped' ) ) ) );
-check( 'B-1f profile without an age: projections null', null === HDLV2_Why_Picks::abilities_profile( $worked, $raw, $s3 )[0]['at_90'] );
+$prof   = HDLV2_Why_Picks::abilities_profile( $worked, $raw, $s3, 55, 'male' );
+$keys3  = array_flip( array( 'at_90', 'need_now', 'need_now_capped' ) );
+check( 'B-1i profile rows carry each ability\'s own projection (age + sex passed)', array( 'at_90', 'need_now', 'need_now_capped' ) === array_slice( array_keys( $prof[0] ), -3 )
+    && ! array_filter( $prof, function ( $a ) use ( $keys3 ) { return HDLV2_Why_Picks::projection( $a['need'], $a['score'], 55, $a['id'], 'male' ) !== array_intersect_key( $a, $keys3 ); } ) );
+check( 'B-1j profile without an age: projections null', null === HDLV2_Why_Picks::abilities_profile( $worked, $raw, $s3 )[0]['at_90'] );
 
 // ── B-3 chart series ──
 $series = HDLV2_Why_Picks::ability_chart_series( $prof, $raw, $s3 );
@@ -77,6 +86,8 @@ check( 'B-3 series: six short labels in ability order, scale 5', array( 'Strengt
 check( 'B-3b needed = each ability\'s need (0 where no choice needs it)', array( 3.3, 3.3, 3.3, 2.7, 1.0, 1.0 ) === $series['needed'] );
 // strength (3+4)/2 = 3.5 · mobility 4 · balance 2 · stamina (3+3+3)/3 = 3 · mind (4+3+3)/3 = 3.3 · connection 5.
 check( 'B-3c now = the measured score for every ability', array( 3.5, 4.0, 2.0, 3.0, 3.3, 5.0 ) === $series['now'] );
+$byid = array_column( $prof, 'at_90', 'id' );
+check( 'B-3e at_90 = each row\'s projection in ability order, null for connection', array_map( function ( $id ) use ( $byid ) { return $byid[ $id ] ?? null; }, HDLV2_Why_Picks::NEEDS ) === $series['at_90'] && null === $series['at_90'][5] );
 $thin = HDLV2_Why_Picks::ability_chart_series( HDLV2_Why_Picks::abilities_profile( array( 'remember_family' ), array(), array( 'balance' => 1 ) ), array(), array( 'balance' => 1 ) );
 check( 'B-3d unmeasured → null; an ability nobody chose still shows where they stand', array( null, null, 1.0, null, null, null ) === $thin['now']
     && array( 0.0, 0.0, 0.0, 0.0, 5.0, 3.3 ) === $thin['needed'] );
@@ -86,30 +97,34 @@ $url = HDLV2_Why_Picks::chart_url( $series );
 parse_str( (string) parse_url( $url, PHP_URL_QUERY ), $q );
 $cfg = json_decode( $q['c'] ?? '', true );
 check( 'B-4 a QuickChart v4 radar URL', 0 === strpos( $url, 'https://quickchart.io/chart?c=' ) && '4' === ( $q['v'] ?? '' ) && 'radar' === ( $cfg['type'] ?? '' ) );
-check( 'B-4b two datasets: needed (teal, filled) and you now (amber line)', 2 === count( $cfg['data']['datasets'] ?? array() )
+check( 'B-4b three datasets: needed (teal, filled), you now (amber), you at 90 (navy dotted)', 3 === count( $cfg['data']['datasets'] ?? array() )
+    && $series['at_90'] == $cfg['data']['datasets'][2]['data'] && '#2c3e50' === $cfg['data']['datasets'][2]['borderColor'] && "You at 90 on today's path" === $cfg['data']['datasets'][2]['label']
     && $series['needed'] == $cfg['data']['datasets'][0]['data'] && $series['now'] == $cfg['data']['datasets'][1]['data']
     && '#3d8da0' === $cfg['data']['datasets'][0]['borderColor'] && '#d97706' === $cfg['data']['datasets'][1]['borderColor'] && false === $cfg['data']['datasets'][1]['fill'] );
 check( 'B-4c scale fixed 0 to 5, legend on', 0 === $cfg['options']['scales']['r']['min'] && 5 === $cfg['options']['scales']['r']['max'] && true === $cfg['options']['plugins']['legend']['display'] );
+$noproj = $series; $noproj['at_90'] = array_fill( 0, 6, null );
+parse_str( (string) parse_url( HDLV2_Why_Picks::chart_url( $noproj ), PHP_URL_QUERY ), $q2 );
+check( 'B-4e no age → two datasets only', 2 === count( json_decode( $q2['c'], true )['data']['datasets'] ) );
 check( 'B-4d fewer than two measured abilities → no picture', '' === HDLV2_Why_Picks::chart_url( $thin ) && '' === HDLV2_Why_Picks::chart_url( array() ) );
 
 // ── B-5 payload ──
 $row = function ( $s2, $s1 = array() ) { return (object) array( 'stage1_data' => json_encode( $s1 ), 'stage2_data' => json_encode( $s2 ) ); };
-$S1  = array( 'q1_age' => '55', 'q4' => 'c', 'q5' => 'd', 'server_result' => array( 'raw' => $raw ) );
+$S1  = array( 'q1_age' => '55', 'q1_sex' => 'male', 'q4' => 'c', 'q5' => 'd', 'server_result' => array( 'raw' => $raw ) );
 $pf  = HDLV2_Why_Picks::payload_fields( $row( array( 'form_flow' => 'single', 'why_picks' => $worked ), $S1 ), $s3 );
 check( 'B-5 nine keys, why_chart_url last', 9 === count( $pf ) && 'why_chart_url' === array_key_last( $pf ) && 0 === strpos( $pf['why_chart_url'], 'https://quickchart.io/' ) );
 $old = HDLV2_Why_Picks::payload_fields( $row( array( 'vision_text' => 'typed' ), $S1 ), $s3 );
 check( 'B-5b old-flow row: nine keys, all empty', 9 === count( $old ) && array( '' ) === array_values( array_unique( $old ) ) );
 check( 'B-5c why_abilities carries now and the projection',
-    0 === strpos( $pf['why_abilities'], 'Strength (need 3.3 of 5, now 3.5, about 1.6 at 90 on today\'s path, needs 5 or more now to keep it' ) );
+    0 === strpos( $pf['why_abilities'], 'Strength (need 3.3 of 5, now 3.5, about 1.7 at 90 on today\'s path, needs 5 or more now to keep it' ) );
 $noage = HDLV2_Why_Picks::payload_fields( $row( array( 'form_flow' => 'single', 'why_picks' => $worked ), array( 'q4' => 'c', 'q5' => 'd', 'server_result' => array( 'raw' => $raw ) ) ), $s3 );
 check( 'B-5d no age on the row → no projection words, the rest stays', 0 === strpos( $noage['why_abilities'], 'Strength (need 3.3 of 5, now 3.5' ) && false === strpos( $noage['why_abilities'], 'at 90' ) );
 
 // ── B-6 prompt block ──
 $blk = HDLV2_Why_Picks::block_for_row( $row( array( 'form_flow' => 'single', 'why_picks' => $worked ), $S1 ), $s3, 'facts' );
 check( 'B-6 measured line carries the projection phrases',
-    false !== strpos( $blk, "- Balance: needed 3.3/5 by their choices (5 of 5 picks); measured 2/5 from Standing on one leg 2/5; about 0.9/5 at 90 on today's path; keeping it to 90 needs 5 or more now\n" ) );
+    false !== strpos( $blk, "- Balance: needed 3.3/5 by their choices (5 of 5 picks); measured 2/5 from Standing on one leg 2/5; about 1/5 at 90 on today's path; keeping it to 90 needs 5 or more now\n" ) );
 check( 'B-6b HOW TO USE: the projection is arithmetic, never a measured change',
-    false !== strpos( $blk, "The projection to 90 is arithmetic on today's number (about 20% less each decade), not a trend: use it to say what keeping the ability needs, never as a measured change.\n" ) );
+    false !== strpos( $blk, "The projection to 90 is arithmetic on today's number using published average losses for each ability, age and sex (about 5 to 22% a decade), not a trend: use it to say what keeping the ability needs, never as a measured change.\n" ) );
 check( 'B-6c no age → no projection words and no projection sentence',
     false === strpos( HDLV2_Why_Picks::block_for_row( $row( array( 'form_flow' => 'single', 'why_picks' => $worked ), array( 'q5' => 'd', 'server_result' => array( 'raw' => $raw ) ) ), $s3, 'facts' ), 'at 90' ) );
 check( 'B-6d old-flow row → empty block', '' === HDLV2_Why_Picks::block_for_row( $row( array( 'vision_text' => 'typed' ), $S1 ), $s3 ) );
@@ -141,7 +156,7 @@ $wpdb->progress = $progress( array( 'form_flow' => 'single', 'why_picks' => $wor
 $r = HDLV2_Client_Draft_View::get_instance()->rest_get_draft( new Req() );
 check( 'B-7 single row: the draft data carries why_abilities { rows, series }', is_array( $r ) && 'ready' === ( $r['status'] ?? '' )
     && array( 'rows', 'series' ) === array_keys( $r['why_abilities'] ?? array() )
-    && $r['why_abilities']['rows'] === HDLV2_Why_Picks::abilities_profile( $worked, $raw, $s3, '55' )
+    && $r['why_abilities']['rows'] === HDLV2_Why_Picks::abilities_profile( $worked, $raw, $s3, '55', 'male' )
     && $r['why_abilities']['series'] === HDLV2_Why_Picks::ability_chart_series( $r['why_abilities']['rows'], $raw, $s3 ) );
 $wpdb->progress = $progress( array( 'form_flow' => 'single', 'why_picks' => $worked ) );
 $wpdb->progress->stage1_data = json_encode( array( 'q1_age' => '55' ) );

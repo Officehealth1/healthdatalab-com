@@ -1433,7 +1433,7 @@
   // v0.48.1 — the radar, drawn the way the report's radar is (Chart.js on
   // screen, QuickChart in the PDF; see build_radar_chart_url()): straight-line
   // web, a pale teal shape with a teal outline and a dot per point. Inline SVG,
-  // no library, no animation. Drawn one unit per pixel at the width it is
+  // no library; redrawRadar() eases between shapes by redrawing (v0.48.13). Drawn one unit per pixel at the width it is
   // given, so the names stay 14px on a phone; the web takes what room is left.
   function radarChart(data, width) {
     var F = 14, GAP = 8, IC = 28, BH = IC + 6 + F;   // name size, clear space, picture, name block height (name 6px under the picture)
@@ -1566,7 +1566,31 @@
     if (resized && radar.getAttribute('data-w') === String(w)) return;
     var names = serverData.why_ability_short || serverData.why_abilities;
     radar.setAttribute('data-w', w);
-    radar.innerHTML = radarChart(radarData(abilityCounts(formData.why_picks || [], serverData.why_options || [], names), names), w);
+    var to = radarData(abilityCounts(formData.why_picks || [], serverData.why_options || [], names), names);
+    var from = radarShown;
+    radarShown = to;
+    var token = ++radarTween;
+    if (resized || !from || reducedMotion() || !window.requestAnimationFrame) { radar.innerHTML = radarChart(to, w); return; }
+    // v0.48.13 (Quim, 2026-10-10: "a smooth shift not a instant shift"): ease
+    // from the shape on screen to the new one, ~350ms, redrawn each frame.
+    // The last frame is exactly radarChart(to). A newer tap takes over.
+    var start = null;
+    var frame = function (t) {
+      if (token !== radarTween || !radar.isConnected) return;
+      if (start === null) start = t;
+      var k = Math.min(1, (t - start) / RADAR_EASE_MS), e = 1 - Math.pow(1 - k, 3);
+      radar.innerHTML = radarChart(k < 1 ? { top: to.top, spokes: to.spokes.map(function (sp, i) {
+        var a = (from.spokes[i] || {}).need || 0;
+        return { id: sp.id, label: sp.label, need: Math.round((a + (sp.need - a) * e) * 100) / 100 };
+      }) } : to, w);
+      if (k < 1) window.requestAnimationFrame(frame);
+    };
+    window.requestAnimationFrame(frame);
+  }
+
+  var radarShown = null, radarTween = 0, RADAR_EASE_MS = 350;
+  function reducedMotion() {
+    return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
   }
 
   // Sync the statements, the count line, the bars and the radar with
@@ -1592,17 +1616,23 @@
     var bars = document.getElementById('hdlv2-abilities');
     if (bars) {
       // Start each meter at its old width (a new row at 0), then let the CSS
-      // transition ease it to the new one.
-      var was = {};
+      // transition ease it to the new one. v0.48.13: a row that changes place
+      // slides from where it was (CSS .is-moving), instead of jumping.
+      var was = {}, top = {};
       bars.querySelectorAll('.hdlv2-ability').forEach(function (row) {
         was[row.getAttribute('data-id')] = row.querySelector('.hdlv2-ability-meter span').style.width;
+        top[row.getAttribute('data-id')] = row.offsetTop;
       });
       bars.innerHTML = abilityBars(rows);
+      var still = reducedMotion();
       bars.querySelectorAll('.hdlv2-ability').forEach(function (row) {
-        var m = row.querySelector('.hdlv2-ability-meter span'), to = m.style.width;
-        m.style.width = was[row.getAttribute('data-id')] || '0%';
+        var m = row.querySelector('.hdlv2-ability-meter span'), to = m.style.width, id = row.getAttribute('data-id');
+        m.style.width = was[id] || '0%';
+        var dy = id in top && !still ? top[id] - row.offsetTop : 0;
+        if (dy) row.style.transform = 'translateY(' + dy + 'px)';
         void m.offsetWidth;
         m.style.width = to;
+        if (dy) { row.classList.add('is-moving'); row.style.transform = ''; }
       });
     }
     redrawRadar();

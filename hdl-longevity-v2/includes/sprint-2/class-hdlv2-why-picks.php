@@ -77,13 +77,29 @@ class HDLV2_Why_Picks {
     const MAX_NEED       = 5;
 
     /**
-     * v0.48.12 — the projection to 90 (Matthew, 2026-10-09: "every decade
-     * you lose ... Twenty percent I think. Anyway, double check that.").
-     * Research puts strength loss at about 15% a decade in the fifties and
-     * about 26% after 60 (von Haehling, Morley, Anker 2010), so 0.20 is his
-     * round figure and his to change. Same for the target age.
+     * v0.48.13 — loss per decade for each ability, by sex and age band
+     * (under 50, 50s, 60s, 70s, 80s), for the projection to TARGET_AGE.
+     * Matthew, 2026-10-09: "every decade you lose ... Twenty percent I think.
+     * Anyway, double check that." Checked 2026-10-10 (plan
+     * 2026-10-10_age90_by_ability_and_smooth_charts_v1):
+     *   strength  grip, 10-year cohort (Kozakai 2016): men 12/16/21%, women
+     *             about 12% from the 50s to the 70s;
+     *   mobility  chair-stand norms 60-94 (Rikli & Jones): men 17%, women
+     *             20% from 60; the strength row before 60;
+     *   balance   one-leg stand (Mayo 2024, small): about 19% from 50;
+     *   stamina   peak oxygen uptake (Fleg 2005): rising to over 20% after 70;
+     *   mind      small; about 5%, 8% after 60 (weak evidence).
+     * Under 50 is a guess (5-6%); the 80s carry the 70s rate (no study).
+     * Connection has no body-based rate, so it is not projected. Averages,
+     * one table entry each, Matthew's to change.
      */
-    const LOSS_PER_DECADE = 0.20;
+    const DECLINE = array(
+        'strength' => array( 'male' => array( 0.05, 0.12, 0.16, 0.21, 0.21 ), 'female' => array( 0.05, 0.12, 0.12, 0.12, 0.12 ) ),
+        'mobility' => array( 'male' => array( 0.05, 0.12, 0.17, 0.17, 0.17 ), 'female' => array( 0.05, 0.12, 0.20, 0.20, 0.20 ) ),
+        'balance'  => array( 'male' => array( 0.05, 0.19, 0.19, 0.19, 0.19 ), 'female' => array( 0.05, 0.19, 0.19, 0.19, 0.19 ) ),
+        'stamina'  => array( 'male' => array( 0.06, 0.12, 0.16, 0.22, 0.22 ), 'female' => array( 0.06, 0.12, 0.16, 0.22, 0.22 ) ),
+        'mind'     => array( 'male' => array( 0.05, 0.05, 0.08, 0.08, 0.08 ), 'female' => array( 0.05, 0.05, 0.08, 0.08, 0.08 ) ),
+    );
     const TARGET_AGE      = 90;
 
     /**
@@ -335,7 +351,7 @@ class HDLV2_Why_Picks {
      * @param array $stage1_raw    stage1_data.server_result.raw
      * @param array $stage3_scores stage3_data.server_result.scores
      */
-    public static function abilities_profile( $pick_ids, $stage1_raw = array(), $stage3_scores = array(), $age = null ) {
+    public static function abilities_profile( $pick_ids, $stage1_raw = array(), $stage3_scores = array(), $age = null, $sex = '' ) {
         $out = array();
         foreach ( self::tally( self::labels( $pick_ids ) ) as $id => $t ) {
             $m         = self::measured( $id, $stage1_raw, $stage3_scores );
@@ -347,7 +363,7 @@ class HDLV2_Why_Picks {
                 'score'    => $m['score'],
                 'measures' => $m['measures'],
                 'focus'    => false,
-            ) + self::projection( $t['need'], $m['score'], $age );
+            ) + self::projection( $t['need'], $m['score'], $age, $id, $sex );
         }
         foreach ( self::focus_ids( $out ) as $id ) $out[ $id ]['focus'] = true;
         return array_values( $out );
@@ -394,22 +410,46 @@ class HDLV2_Why_Picks {
     }
 
     /**
-     * v0.48.12 — Matthew's "age adjusted redundancy", on the 0-5 scale:
-     * at_90 = today's score after LOSS_PER_DECADE for each decade to
-     * TARGET_AGE (null when unmeasured); need_now = what the need asks for
-     * today so that it is still there at TARGET_AGE, capped at MAX_NEED
-     * (need_now_capped says the cap was hit). Arithmetic on one assessment,
-     * not a measured trend. No usable age: both null.
+     * v0.48.13 — the share of an ability left at TARGET_AGE from $age, year
+     * by year at that year's DECLINE band. Unknown sex: the average of the
+     * two rows. Null when the ability has no rate or the age is unusable.
      */
-    public static function projection( $need, $score, $age ) {
-        if ( ! is_numeric( $age ) || $age <= 0 ) return array( 'at_90' => null, 'need_now' => null, 'need_now_capped' => false );
-        $keep = pow( 1 - self::LOSS_PER_DECADE, max( 0, ( self::TARGET_AGE - $age ) / 10 ) );
+    public static function kept( $id, $age, $sex = '' ) {
+        if ( ! isset( self::DECLINE[ $id ] ) || ! is_numeric( $age ) || $age <= 0 ) return null;
+        $rows = self::DECLINE[ $id ];
+        $keep = 1.0;
+        for ( $a = (float) $age; $a < self::TARGET_AGE; $a = $next ) {
+            $next = min( (float) self::TARGET_AGE, floor( $a ) + 1 );
+            $band = max( 0, min( 4, (int) floor( $a / 10 ) - 4 ) );
+            $rate = isset( $rows[ $sex ] ) ? $rows[ $sex ][ $band ] : ( $rows['male'][ $band ] + $rows['female'][ $band ] ) / 2;
+            $keep *= pow( 1 - $rate, ( $next - $a ) / 10 );
+        }
+        return $keep;
+    }
+
+    /**
+     * v0.48.12 — Matthew's "age adjusted redundancy", on the 0-5 scale:
+     * at_90 = today's score x kept() (null when unmeasured); need_now = what
+     * the need asks for today so that it is still there at TARGET_AGE,
+     * capped at MAX_NEED (need_now_capped says the cap was hit). Arithmetic
+     * on one assessment, not a measured trend. No usable age, or an ability
+     * with no rate (connection): both null.
+     */
+    public static function projection( $need, $score, $age, $id, $sex = '' ) {
+        $keep = self::kept( $id, $age, $sex );
+        if ( null === $keep ) return array( 'at_90' => null, 'need_now' => null, 'need_now_capped' => false );
         $want = $need / $keep;
         return array(
             'at_90'           => null === $score ? null : round( $score * $keep, 1 ),
             'need_now'        => round( min( (float) self::MAX_NEED, $want ), 1 ),
             'need_now_capped' => $want > self::MAX_NEED,
         );
+    }
+
+    /** v0.48.13 — 'male' / 'female' from decoded stage1_data, or ''. */
+    public static function sex_of( $stage1_data ) {
+        $sex = is_array( $stage1_data ) ? strtolower( trim( (string) ( $stage1_data['q1_sex'] ?? $stage1_data['gender'] ?? '' ) ) ) : '';
+        return in_array( $sex, array( 'male', 'female' ), true ) ? $sex : '';
     }
 
     /** The client's age from decoded stage1_data, or null. */
@@ -419,18 +459,21 @@ class HDLV2_Why_Picks {
     }
 
     /**
-     * v0.48.12 — the abilities chart's two series, one source for the report
+     * v0.48.12 — the abilities chart's series, one source for the report
      * page (Chart.js) and the PDFs (chart_url()): every ability in NEEDS
      * order, needed = its need (0 when no choice needs it), now = its
-     * measured score (null when nothing measured it), scale 5.
+     * measured score (null when nothing measured it), scale 5. v0.48.13:
+     * at_90 = the profile row's projection (null when none).
      */
     public static function ability_chart_series( $profile, $stage1_raw = array(), $stage3_scores = array() ) {
         $need = array_column( (array) $profile, 'need', 'id' );
-        $out  = array( 'labels' => array(), 'needed' => array(), 'now' => array(), 'scale' => self::MAX_NEED );
+        $at90 = array_column( (array) $profile, 'at_90', 'id' );
+        $out  = array( 'labels' => array(), 'needed' => array(), 'now' => array(), 'at_90' => array(), 'scale' => self::MAX_NEED );
         foreach ( self::NEEDS as $id ) {
             $out['labels'][] = self::ABILITY_SHORT[ $id ];
             $out['needed'][] = (float) ( $need[ $id ] ?? 0 );
             $out['now'][]    = self::measured( $id, $stage1_raw, $stage3_scores )['score'];
+            $out['at_90'][]  = $at90[ $id ] ?? null;
         }
         return $out;
     }
@@ -473,6 +516,12 @@ class HDLV2_Why_Picks {
                 'aspectRatio'         => 1,
             ),
         );
+        // v0.48.13 — the third line: where today's path leads by TARGET_AGE.
+        if ( array_filter( (array) ( $series['at_90'] ?? array() ), 'is_numeric' ) ) {
+            $cfg['data']['datasets'][] = array( 'label' => 'You at ' . self::TARGET_AGE . " on today's path", 'data' => $series['at_90'], 'fill' => false,
+                'borderColor' => '#2c3e50', 'borderWidth' => 2, 'borderDash' => array( 2, 3 ),
+                'pointBackgroundColor' => '#2c3e50', 'pointRadius' => 3, 'spanGaps' => true );
+        }
         return 'https://quickchart.io/chart?c=' . rawurlencode( wp_json_encode( $cfg ) ) . '&w=540&h=540&bkg=white&v=4';
     }
 
@@ -536,7 +585,8 @@ class HDLV2_Why_Picks {
             self::stage1_raw( $s1 ),
             is_array( $stage3_scores ) ? $stage3_scores : array(),
             $use,
-            self::age_of( $s1 )
+            self::age_of( $s1 ),
+            self::sex_of( $s1 )
         );
     }
 
@@ -556,7 +606,7 @@ class HDLV2_Why_Picks {
         $s1        = json_decode( (string) ( $progress->stage1_data ?? '' ), true ) ?: array();
         $raw       = self::stage1_raw( $s1 );
         $scores    = is_array( $stage3_scores ) ? $stage3_scores : array();
-        $profile   = self::abilities_profile( $ids, $raw, $scores, self::age_of( $s1 ) );
+        $profile   = self::abilities_profile( $ids, $raw, $scores, self::age_of( $s1 ), self::sex_of( $s1 ) );
         foreach ( $profile as $a ) {
             $abilities[] = array( 'label' => $a['label'], 'short' => self::ABILITY_SHORT[ $a['id'] ], 'count' => $a['count'], 'need' => $a['need'], 'score' => $a['score'], 'focus' => $a['focus'],
                 'at_90' => $a['at_90'], 'need_now' => $a['need_now'], 'need_now_capped' => $a['need_now_capped'] );
@@ -623,7 +673,7 @@ class HDLV2_Why_Picks {
      * 'facts' (v0.48.8) = the same data with no section instruction, for the
      * PDF sections, weekly flight plan and consultation-notes prompts.
      */
-    public static function prompt_block( $stage2_data, $stage1_raw = array(), $stage3_scores = array(), $use = false, $age = null ) {
+    public static function prompt_block( $stage2_data, $stage1_raw = array(), $stage3_scores = array(), $use = false, $age = null, $sex = '' ) {
         if ( ! self::is_single( $stage2_data ) || ! is_array( $stage2_data['why_picks'] ?? null ) ) return '';
         $items = self::labels( array_slice( $stage2_data['why_picks'], 0, self::MAX_PICKS ), $stage2_data['why_pick_labels'] ?? array() );
         if ( ! $items ) return '';
@@ -650,7 +700,7 @@ class HDLV2_Why_Picks {
         $focus  = array();
         if ( $scored ) {
             $block .= "What their choices depend on, with what was measured (out of 5, higher is better; Stage 1 answers run 1 to 5, Stage 3 answers 0 to 5):\n";
-            $profile = self::abilities_profile( array_column( $items, 'id' ), $stage1_raw, $stage3_scores, $age );
+            $profile = self::abilities_profile( array_column( $items, 'id' ), $stage1_raw, $stage3_scores, $age, $sex );
             foreach ( $profile as $a ) {
                 $from = array();
                 foreach ( $a['measures'] as $m ) {
@@ -671,7 +721,7 @@ class HDLV2_Why_Picks {
         $block .= "HOW TO USE THESE CHOICES: this client has one assessment, so describe where they stand today against what each choice needs, not a trend. For each focus area, name the choice it serves (quote the statement word for word), the measure that drags it, and what keeping that ability over the coming years needs. Where a measure is above what a choice needs, say so in one clause and name the choice. Explain the client's position in terms of their choices, never in abilities alone. Do not invent choices or people that are not listed here.\n";
         // v0.48.12 — only when the block carries projections (an age is known).
         if ( $scored && null !== $age && is_numeric( $age ) && $age > 0 ) {
-            $block .= "The projection to " . self::TARGET_AGE . " is arithmetic on today's number (about " . round( self::LOSS_PER_DECADE * 100 ) . "% less each decade), not a trend: use it to say what keeping the ability needs, never as a measured change.\n";
+            $block .= "The projection to " . self::TARGET_AGE . " is arithmetic on today's number using published average losses for each ability, age and sex (about 5 to 22% a decade), not a trend: use it to say what keeping the ability needs, never as a measured change.\n";
         }
         // An instruction about focus areas is only given when some are named.
         if ( 'milestones' === $use ) {

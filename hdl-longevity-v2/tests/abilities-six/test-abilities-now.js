@@ -39,7 +39,7 @@ const AB = {
     { id: 'balance', label: 'Balance <b>', need: 3.3, score: 2, at_90: 0.9, need_now: 5, need_now_capped: true, focus: true },
     { id: 'mind', label: 'A sharp mind', need: 1, score: null, at_90: null, need_now: 1.3, need_now_capped: false, focus: false }
   ],
-  series: { labels: ['Strength', 'Mobility', 'Balance', 'Stamina', 'Mind', 'Connection'], needed: [3.3, 3.3, 3.3, 2.7, 1, 1], now: [3.5, 4, 2, 3, null, 5], scale: 5 }
+  series: { labels: ['Strength', 'Mobility', 'Balance', 'Stamina', 'Mind', 'Connection'], needed: [3.3, 3.3, 3.3, 2.7, 1, 1], now: [3.5, 4, 2, 3, null, 5], at_90: [1.6, 2.1, 1, 1.4, null, null], scale: 5 }
 };
 
 // B-8 the section.
@@ -54,7 +54,11 @@ ok(html.indexOf('Balance &lt;b&gt;') !== -1 && html.indexOf('<b>') === -1, 'B-8e
 ok((html.match(/hdlv2-dr-ability-focus/g) || []).length === 1, 'B-8f the Focus badge on focus rows only');
 ctx.chart(AB);
 const cfg = charts[0] || {};
-ok(cfg.type === 'radar' && (cfg.data.datasets || []).length === 2, 'B-8g Chart.js radar with two datasets');
+ok(cfg.type === 'radar' && (cfg.data.datasets || []).length === 3, 'B-8g Chart.js radar with three datasets');
+ok(JSON.stringify(cfg.data.datasets[2].data) === JSON.stringify(AB.series.at_90) && cfg.data.datasets[2].borderColor === '#2c3e50' && cfg.data.datasets[2].label === 'You at 90 on today\'s path', 'B-8m third line: you at 90 (navy dotted) from the server series');
+charts.length = 0; ctx.chart({ rows: AB.rows, series: Object.assign({}, AB.series, { at_90: [null, null, null, null, null, null] }) });
+ok((charts[0].data.datasets || []).length === 2, 'B-8n no projection (no age) → two lines');
+charts.length = 0; ctx.chart(AB);
 ok(cfg.options.scales.r.min === 0 && cfg.options.scales.r.max === 5, 'B-8h scale fixed 0 to 5');
 ok(JSON.stringify(cfg.data.datasets[0].data) === JSON.stringify(AB.series.needed) && JSON.stringify(cfg.data.datasets[1].data) === JSON.stringify(AB.series.now)
   && cfg.data.datasets[1].label === 'You now' && cfg.data.datasets[1].borderColor === '#d97706', 'B-8i needed (teal) and you now (amber) from the server series');
@@ -67,7 +71,7 @@ ok(/html \+= renderAbilitiesSection\(data\.why_abilities\);\s*\n\s*\/\/ Radar/.t
 const cle = fs.readFileSync(path.join(JS, 'hdlv2-client-list-enhance.js'), 'utf8');
 ok(cle.indexOf("' \\u00b7 keeping it to 90 needs ' + (a.need_now_capped ? '5 or more' : 'about ' + esc(a.need_now)) + ' now'") !== -1
   && cle.indexOf("' \\u00b7 about ' + esc(a.at_90) + ' at 90 on today\\'s path'") !== -1, 'B-9 WHY tab rows carry both projection phrases, escaped');
-ok(cle.indexOf('The projection to 90 assumes about 20% less each decade (a working figure).') !== -1, 'B-9b WHY tab caption names the 20% figure');
+ok(cle.indexOf('The projection to 90 uses published average losses for each ability, age and sex (about 5 to 22% a decade): an estimate.') !== -1, 'B-9b WHY tab caption names the per-ability rates');
 
 console.log('\n' + (FAIL ? 'SCENARIO: FAIL (' + FAIL + ')' : 'SCENARIO: PASS (' + PASS + ')'));
 process.exit(FAIL ? 1 : 0);

@@ -814,10 +814,10 @@
     }).join('');
     return '<section class="hdlv2-dr-section">'
       + '<h2>What your choices need, and where you are</h2>'
-      + '<p class="hdlv2-dr-section-sub">Out of 5. ' + (ab.series ? 'The shaded shape is what the life you chose asks of each ability; the line is where your answers put you today.' : 'What the life you chose asks of each ability, and where your answers put you today.') + '</p>'
+      + '<p class="hdlv2-dr-section-sub">Out of 5. ' + (ab.series ? 'The shaded shape is what the life you chose asks of each ability; the orange line is where your answers put you today; the dark dotted line is where today\'s path leads by 90.' : 'What the life you chose asks of each ability, and where your answers put you today.') + '</p>'
       + (ab.series ? '<div class="hdlv2-dr-radar-wrap hdlv2-dr-abilities-wrap"><canvas id="hdlv2-dr-abilities" role="img" aria-label="What your choices need against where you are now, out of 5"></canvas></div>' : '')
       + '<ul class="hdlv2-dr-ability-list">' + rows + '</ul>'
-      + '<p class="hdlv2-dr-section-sub">The age-90 figures assume about 20% less each decade. They are arithmetic on today\'s numbers, not a measurement.</p>'
+      + '<p class="hdlv2-dr-section-sub">The age-90 figures use published average losses for each ability, your age and sex (about 5 to 22% a decade). They are an estimate from today\'s numbers, not a measurement.</p>'
       + '</section>';
   }
 
@@ -834,7 +834,9 @@
         datasets: [
           { label: 'What your choices need', data: s.needed, fill: true, backgroundColor: 'rgba(61, 141, 160, 0.15)', borderColor: '#3d8da0', borderWidth: 2, pointBackgroundColor: '#3d8da0', pointRadius: 4 },
           { label: 'You now', data: s.now, fill: false, borderColor: '#d97706', borderWidth: 2, borderDash: [6, 4], pointBackgroundColor: '#d97706', pointRadius: 4, spanGaps: true }
-        ]
+        ].concat((s.at_90 || []).some(function (v) { return v != null; })
+          ? [{ label: 'You at 90 on today\'s path', data: s.at_90, fill: false, borderColor: '#2c3e50', borderWidth: 2, borderDash: [2, 3], pointBackgroundColor: '#2c3e50', pointRadius: 4, spanGaps: true }]
+          : [])
       },
       options: {
         responsive: true, maintainAspectRatio: true, aspectRatio: 1,

@@ -320,7 +320,7 @@ class HDLV2_Client_Draft_View {
         $s2_data = json_decode( (string) ( $progress->stage2_data ?? '' ), true );
         if ( class_exists( 'HDLV2_Why_Picks' ) && HDLV2_Why_Picks::is_single( $s2_data ) && is_array( $s2_data['why_picks'] ?? null ) ) {
             $raw  = HDLV2_Why_Picks::stage1_raw( $s1_data );
-            $rows = HDLV2_Why_Picks::abilities_profile( array_slice( $s2_data['why_picks'], 0, HDLV2_Why_Picks::MAX_PICKS ), $raw, $calc['scores'], $chrono_age );
+            $rows = HDLV2_Why_Picks::abilities_profile( array_slice( $s2_data['why_picks'], 0, HDLV2_Why_Picks::MAX_PICKS ), $raw, $calc['scores'], $chrono_age, HDLV2_Why_Picks::sex_of( $s1_data ) );
             if ( $rows ) {
                 // No chart under two measured abilities, the same rule as the PDF picture (chart_url()).
                 $series = HDLV2_Why_Picks::ability_chart_series( $rows, $raw, $calc['scores'] );

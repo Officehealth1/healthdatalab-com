@@ -215,11 +215,11 @@ const pageCtx = {
   bindFieldListeners: function () {}, submitWhyPicks: function () {}, clearSaveError: function () {}, autoSave: function () {},
   esc: function (s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
 };
-const PAGE_FNS = ['togglePick', 'canContinue', 'abilityCounts', 'pickCountLine', 'radarData', 'chartLabel', 'pickIcon', 'radarChart', 'abilityBars', 'renderWhyPicks', 'redrawRadar', 'updatePicks', 'picksTextarea'];
+const PAGE_FNS = ['togglePick', 'canContinue', 'abilityCounts', 'pickCountLine', 'radarData', 'chartLabel', 'pickIcon', 'radarChart', 'abilityBars', 'renderWhyPicks', 'redrawRadar', 'reducedMotion', 'updatePicks', 'picksTextarea'];
 const ICON_SRC = (src.match(/  var ICONS = \{[\s\S]*?\n  \};/) || [''])[0];
 let html = '';
 try {
-  vm.runInNewContext(ICON_SRC + '\n' + (src.match(/  var TICK = [\s\S]*?;\n/) || [''])[0] + PAGE_FNS.map(body).join('\n') + '\nthis.renderWhyPicks = renderWhyPicks;', pageCtx);
+  vm.runInNewContext(ICON_SRC + '\n' + (src.match(/  var TICK = [\s\S]*?;\n/) || [''])[0] + (src.match(/  var radarShown = [^\n]*\n/) || [''])[0] + PAGE_FNS.map(body).join('\n') + '\nthis.renderWhyPicks = renderWhyPicks;', pageCtx);
   // v0.48.9: the groups are uneven (6 / 8 / 7); the page draws what it is sent.
   const gN = function (gid, title, n) {
     const items = [];
@@ -262,9 +262,9 @@ ok(!/\b(alert|confirm|prompt)\(/.test(src), 'the shipped file has no alert( / co
 ok(src.indexOf('Tap the parts of life you care about') === -1 && src.indexOf('Start with one or two that matter to you.') === -1
   && src.indexOf('What your choices ask of your body') === -1, 'the old long copy is gone');
 const cle = fs.readFileSync(path.join(__dirname, '..', '..', 'assets', 'js', 'hdlv2-client-list-enhance.js'), 'utf8');
-ok(cle.indexOf("'<div class=\"hdlv2-consult-caption\">Need is out of 5: 5 means every choice leans on the ability fully. Scores are out of 5, averaged from the answers listed. They are not a test of the ability itself. Stage 1 answers run 1 to 5, Stage 3 answers 0 to 5. The projection to 90 assumes about 20% less each decade (a working figure).'") !== -1
+ok(cle.indexOf("'<div class=\"hdlv2-consult-caption\">Need is out of 5: 5 means every choice leans on the ability fully. Scores are out of 5, averaged from the answers listed. They are not a test of the ability itself. Stage 1 answers run 1 to 5, Stage 3 answers 0 to 5. The projection to 90 uses published average losses for each ability, age and sex (about 5 to 22% a decade): an estimate.'") !== -1
   && /\(s2\.choices\.stage3_done \? '' : ' Stage 3 not finished: based on Stage 1 answers only\.'\)/.test(cle),
-  'practitioner caption (v0.48.11: says what need means; v0.48.12: the 20% figure)');
+  'practitioner caption (v0.48.11: says what need means; v0.48.13: per-ability rates)');
 
 // ── Style rules on this page (dyslexia: no capitals, italics, centring) ──
 const css = fs.readFileSync(path.join(__dirname, '..', '..', 'assets', 'css', 'hdlv2-form.css'), 'utf8');
@@ -446,7 +446,7 @@ function wiringHarness() {
     esc: pageCtx.esc
   };
   try {
-    vm.runInNewContext(limits + '\n' + ICON_SRC + '\n' + (src.match(/  var TICK = [\s\S]*?;\n/) || [''])[0] + PAGE_FNS.map(body).join('\n') + '\n' + body('saveWhenFree')
+    vm.runInNewContext(limits + '\n' + ICON_SRC + '\n' + (src.match(/  var TICK = [\s\S]*?;\n/) || [''])[0] + (src.match(/  var radarShown = [^\n]*\n/) || [''])[0] + PAGE_FNS.map(body).join('\n') + '\n' + body('saveWhenFree')
       + '\nthis.renderWhyPicks = renderWhyPicks; this.formData = formData;', sb);
   } catch (e) { console.log('      wiring harness threw: ' + e.message); }
   H.advance = (ms) => {
@@ -537,6 +537,39 @@ ok(/\.hdlv2-checkbox-item:focus-within \{ outline: 2px solid #3d8da0; outline-of
   && /\.hdlv2-checkbox-item:has\(input:focus:not\(:focus-visible\)\) \{ outline: none; \}/.test(whyFlat)
   && whyFlat.indexOf('.hdlv2-checkbox-item:focus-within') < whyFlat.indexOf('.hdlv2-checkbox-item:has(input:focus:not(:focus-visible))'),
   'G8: a :focus-within ring for browsers without :has(), hidden again for mouse focus where :has() works');
+
+// v0.48.13 — the radar eases to the new shape (Quim, 2026-10-10) and lands exactly on it.
+{
+  const frames = [];
+  const radarEl = { clientWidth: 400, innerHTML: '', isConnected: true, attrs: {}, getAttribute: function (k) { return this.attrs[k]; }, setAttribute: function (k, v) { this.attrs[k] = String(v); } };
+  const tctx = Object.assign({}, pageCtx, {
+    document: { getElementById: function (id) { return id === 'hdlv2-why-radar' ? radarEl : fakeEl(); } },
+    window: { requestAnimationFrame: function (f) { frames.push(f); }, matchMedia: function () { return { matches: false }; } }
+  });
+  const fns = ['abilityCounts', 'radarData', 'chartLabel', 'pickIcon', 'radarChart', 'redrawRadar', 'reducedMotion'];
+  vm.runInNewContext(ICON_SRC + '\n' + (src.match(/  var radarShown = [^\n]*\n/) || [''])[0] + fns.map(body).join('\n')
+    + '\nthis.redrawRadar = redrawRadar; this.radarChart = radarChart; this.radarData = radarData; this.abilityCounts = abilityCounts;', tctx);
+  const opts = [{ id: 'g', title: 'G', items: [{ id: 'a', needs: ['strength'], weights: { strength: 3 } }, { id: 'b', needs: ['balance'], weights: { balance: 3 } }] }];
+  tctx.serverData = { why_options: opts, why_abilities: ABILITIES, why_ability_short: SHORT };
+  tctx.formData = { why_picks: ['a'] };
+  tctx.redrawRadar();
+  const first = radarEl.innerHTML;
+  ok(first !== '' && frames.length === 0, 'radar: the first drawing is immediate (nothing to ease from)');
+  tctx.formData = { why_picks: ['b'] };
+  tctx.redrawRadar();
+  const finalSvg = tctx.radarChart(tctx.radarData(tctx.abilityCounts(['b'], opts, SHORT), SHORT), 400);
+  frames.shift()(0); frames.shift()(120);
+  const mid = radarEl.innerHTML;
+  ok(mid !== first && mid !== finalSvg, 'radar: a tap eases through in-between shapes (not an instant jump)');
+  while (frames.length) frames.shift()(1000);
+  ok(radarEl.innerHTML === finalSvg, 'radar: the last frame is exactly the new shape');
+  tctx.window.matchMedia = function () { return { matches: true }; };
+  tctx.formData = { why_picks: ['a'] };
+  tctx.redrawRadar();
+  ok(frames.length === 0 && radarEl.innerHTML === tctx.radarChart(tctx.radarData(tctx.abilityCounts(['a'], opts, SHORT), SHORT), 400), 'radar: reduced motion → no easing, straight to the new shape');
+}
+ok(/row\.classList\.add\('is-moving'\)/.test(body('updatePicks')) && /\.hdlv2-ability\.is-moving \{ transition: transform 300ms ease-out; \}/.test(fs.readFileSync(path.join(__dirname, '..', '..', 'assets', 'css', 'hdlv2-form.css'), 'utf8')),
+  'bars: a row that changes place slides there (FLIP), off under reduced motion');
 
 console.log('\n' + PASS + ' passed, ' + FAIL + ' failed');
 process.exit(FAIL ? 1 : 0);

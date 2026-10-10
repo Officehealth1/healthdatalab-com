@@ -609,7 +609,8 @@ class HDLV2_Client_Status {
                     $s2_form['why_picks'],
                     HDLV2_Why_Picks::stage1_raw( $s1 ), // real answers only
                     isset( $s3_calc['scores'] ) && is_array( $s3_calc['scores'] ) ? $s3_calc['scores'] : array(),
-                    HDLV2_Why_Picks::age_of( $s1 ) // v0.48.12 — projection to 90
+                    HDLV2_Why_Picks::age_of( $s1 ), // v0.48.12 — projection to 90
+                    HDLV2_Why_Picks::sex_of( $s1 ) // v0.48.13 — loss rates by sex
                 ),
                 'stage3_done' => ! empty( $progress->stage3_completed_at ),
             );
