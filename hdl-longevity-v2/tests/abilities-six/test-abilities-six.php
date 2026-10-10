@@ -68,6 +68,7 @@ check( 'A-3c a weight outside 1-3 is pulled inside it (review fix)',
 // The draft table for Matthew, exactly (plan A2): strength, mobility, balance, stamina, mind, connection.
 $TABLE = array(
     'floor_grandkids' => array( 2, 3, 1, 1, 0, 1 ), 'lift_grandchild' => array( 3, 1, 2, 0, 0, 0 ),
+    // dance_wedding + remember_family connection 2 -> 3: plan 2026-10-10 v2 D3, open for Matthew (M2).
     'fetch_with_dog' => array( 1, 1, 1, 3, 0, 0 ), 'dance_wedding' => array( 0, 2, 2, 2, 0, 3 ),
     'remember_family' => array( 0, 0, 0, 0, 3, 3 ), 'help_loved_one' => array( 3, 2, 2, 0, 1, 1 ),
     'not_a_burden' => array( 2, 2, 2, 1, 2, 1 ), 'live_in_own_home' => array( 2, 2, 3, 1, 3, 0 ),

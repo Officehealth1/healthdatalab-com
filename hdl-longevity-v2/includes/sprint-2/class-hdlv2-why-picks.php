@@ -92,9 +92,11 @@ class HDLV2_Why_Picks {
      *             before 60;
      *   balance   one-leg stand, eyes open, capped at 45 s (Springer 2007,
      *             n = 549): means 44/41/41/32/21/9 s for 18-39/40s/50s/60s/
-     *             70s/80+, so 7/0/22/34/57% a decade; the 50s set to 7 not 0
-     *             because the cap hides loss under 60, the 80s carry the 70s
-     *             (57% floors everyone on a 0-5 score);
+     *             70s/80+. The drop between neighbouring groups is 7/0/22/34/57%;
+     *             the table takes 22 for the 60s and 34 for the 70s. The 50s
+     *             are set to 7 not 0 because the cap hides loss under 60. The
+     *             80s deliberately carry the 70s 34%, not the 57% drop to 80+:
+     *             57% would floor everyone on a 0-5 score (Matthew's to change);
      *   stamina   peak oxygen uptake (Fleg 2005, longitudinal): 3-6% a decade
      *             young, over 20% from the 70s; the 50s and 60s read off the
      *             rising curve;
