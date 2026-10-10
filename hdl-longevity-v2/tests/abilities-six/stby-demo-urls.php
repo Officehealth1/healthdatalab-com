@@ -17,7 +17,7 @@ $scores = array(
     'physicalActivity' => 3, 'sitToStand' => 2, 'breathHold' => 3, 'balance' => 2, 'sleepDuration' => 4,
     'sleepQuality' => 3, 'stressLevels' => 2, 'socialConnections' => 5, 'dietQuality' => 3, 'alcoholConsumption' => 4,
     'smokingStatus' => 5, 'cognitiveActivity' => 4, 'sunlightExposure' => 3, 'supplementIntake' => 2, 'dailyHydration' => 3,
-    'skinElasticity' => 3, 'bmiScore' => 4, 'whrScore' => 3, 'whtrScore' => 3, 'bloodPressureScore' => 4, 'heartRateScore' => 4,
+    'bmiScore' => 4, 'whrScore' => 3, 'whtrScore' => 3, 'bloodPressureScore' => 4, 'heartRateScore' => 4,
 );
 echo wp_json_encode( array(
     'abilities'  => $abilities,

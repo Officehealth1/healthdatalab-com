@@ -6,7 +6,7 @@
 
 Page 1 is the backup page byte for byte apart from one footer line
 ("Page 1 of 2"). Page 2 is new: why the free result is a ballpark, three
-demo pictures (abilities, trajectory, 21 metrics; urls.json from
+demo pictures (abilities, trajectory, 20 metrics; urls.json from
 stby-demo-urls.php on the server whose host the trajectory picture must use),
 Matthew's grandchild example (v0.48.13: a 20 kg six-year-old, the sum
 from HDLV2_Why_Picks::DECLINE) and the offer. Prices and the buy link are one
@@ -59,8 +59,8 @@ PAGE2 = """
         <figcaption>Your biological age over the next decades on today's path</figcaption>
       </figure>
       <figure class="sales-pic">
-        <img src="{{RADAR_URL}}" alt="Example: 21 health metrics, each scored out of five">
-        <figcaption>21 health metrics, each scored out of five</figcaption>
+        <img src="{{RADAR_URL}}" alt="Example: twenty health metrics, each scored out of five">
+        <figcaption>Twenty health metrics, each scored out of five</figcaption>
       </figure>
     </div>
   </section>
@@ -201,10 +201,10 @@ def main():
     extra = liquid_vars(page2) - allowed
     if extra:
         fails.append("page 2 uses variables outside the payload and its assigns: " + ", ".join(sorted(extra)))
-    for bad in ("six questions", "twenty health", "20 metrics", "30 kg grandchild", "45 kg"):
+    for bad in ("six questions", "21 metrics", "21 health", "30 kg grandchild", "45 kg"):
         if bad in page2.lower():
             fails.append(f"wrong fact on page 2: {bad}")
-    for need in ("nine answers", "21 health metrics", "about 20 kg", "Example pictures, not yours", "Page 2 of 2", "{{ list_price }}", "{{ today_price }}", "{{ buy_url }}"):
+    for need in ("nine answers", "Twenty health metrics", "about 20 kg", "Example pictures, not yours", "Page 2 of 2", "{{ list_price }}", "{{ today_price }}", "{{ buy_url }}"):
         if need not in page2:
             fails.append(f"page 2 missing: {need}")
     for k, u in urls.items():
