@@ -73,5 +73,11 @@ ok(cle.indexOf("' \\u00b7 keeping it to 90 needs ' + (a.need_now_capped ? '5 or 
   && cle.indexOf("' \\u00b7 about ' + esc(a.at_90) + ' at 90 on today\\'s path'") !== -1, 'B-9 WHY tab rows carry both projection phrases, escaped');
 ok(cle.indexOf('The projection to 90 uses published average losses for each ability, age and sex (about 5 to 34% a decade): an estimate.') !== -1, 'B-9b WHY tab caption names the per-ability rates');
 
+// B-10 (v0.48.14) the draft web radar matches the final PDF radar: twenty metrics.
+var keysBlock = (src.match(/var ALL_KEYS = \[([\s\S]*?)\];/) || [, ''])[1];
+ok(keysBlock.indexOf("'skinElasticity'") === -1, 'B-10 draft web radar has no skinElasticity (the PDF dropped it in v0.32.0)');
+ok((keysBlock.match(/'[a-zA-Z]+'/g) || []).length === 20, 'B-10b draft web radar lists twenty metrics');
+ok(src.indexOf('22 breakdown points') === -1 && src.indexOf('twenty longevity metrics') !== -1, 'B-10c the section text says twenty, not 22');
+
 console.log('\n' + (FAIL ? 'SCENARIO: FAIL (' + FAIL + ')' : 'SCENARIO: PASS (' + PASS + ')'));
 process.exit(FAIL ? 1 : 0);

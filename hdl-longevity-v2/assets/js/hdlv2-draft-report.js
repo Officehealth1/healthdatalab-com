@@ -349,7 +349,7 @@
     html +=
       '<section class="hdlv2-dr-section">' +
         '<h2>Your Health Profile</h2>' +
-        '<p class="hdlv2-dr-section-sub">How you\'re scoring across the detailed longevity metrics (0 = low, 5 = excellent). Same 22 breakdown points and colour scale as the V1 longevity form.</p>' +
+        '<p class="hdlv2-dr-section-sub">How you\'re scoring across the twenty longevity metrics (0 = low, 5 = excellent), on the same colour scale as your final report.</p>' +
         '<div class="hdlv2-dr-radar-wrap"><canvas id="hdlv2-dr-radar"></canvas></div>' +
         renderRadarCommentary(ai.radar_commentary) +
         // v0.36.3 — DRAFT-only yellow note (mirrors trajectory above).
@@ -860,8 +860,9 @@
       'physicalActivity', 'sitToStand', 'breathHold', 'balance', 'sleepDuration',
       'sleepQuality', 'stressLevels', 'socialConnections', 'dietQuality', 'alcoholConsumption',
       'smokingStatus', 'cognitiveActivity', 'sunlightExposure', 'supplementIntake', 'dailyHydration',
-      'skinElasticity', 'bmiScore', 'whrScore', 'whtrScore', 'bloodPressureScore', 'heartRateScore'
+      'bmiScore', 'whrScore', 'whtrScore', 'bloodPressureScore', 'heartRateScore'
       // v0.23.1 — overallHealthScore removed (Matthew 2026-04-28); 22→21 metrics.
+      // v0.48.14 — skinElasticity dropped to match the PDF radar (v0.32.0, Matthew 2026-05-05).
     ];
     var keys = ALL_KEYS.filter(function (k) { return scores[k] !== undefined && scores[k] !== null && !isNaN(scores[k]); });
     if (!keys.length) return;
