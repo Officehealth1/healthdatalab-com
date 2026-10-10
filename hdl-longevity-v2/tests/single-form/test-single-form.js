@@ -563,6 +563,19 @@ ok(/\.hdlv2-checkbox-item:focus-within \{ outline: 2px solid #3d8da0; outline-of
   ok(mid !== first && mid !== finalSvg, 'radar: a tap eases through in-between shapes (not an instant jump)');
   while (frames.length) frames.shift()(1000);
   ok(radarEl.innerHTML === finalSvg, 'radar: the last frame is exactly the new shape');
+  // A tap mid-ease starts from the shape on screen, not the old target (review 0.48.13).
+  let clock = 10000;
+  const step = function (dt) { clock += dt; const run = frames.splice(0); run.forEach(function (f) { f(clock); }); };
+  tctx.formData = { why_picks: ['a'] };
+  tctx.redrawRadar();
+  step(0); step(100);
+  const onScreen = radarEl.innerHTML;
+  tctx.formData = { why_picks: ['a', 'b'] };
+  tctx.redrawRadar();
+  step(0);
+  ok(onScreen !== finalSvg && radarEl.innerHTML === onScreen, 'radar: a tap mid-ease continues from the shape on screen (no snap)');
+  for (let i = 0; i < 20 && frames.length; i++) step(100);
+  ok(frames.length === 0 && radarEl.innerHTML === tctx.radarChart(tctx.radarData(tctx.abilityCounts(['a', 'b'], opts, SHORT), SHORT), 400), 'radar: and still lands exactly on the newest shape');
   tctx.window.matchMedia = function () { return { matches: true }; };
   tctx.formData = { why_picks: ['a'] };
   tctx.redrawRadar();

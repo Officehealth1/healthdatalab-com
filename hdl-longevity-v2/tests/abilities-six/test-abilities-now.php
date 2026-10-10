@@ -69,7 +69,7 @@ foreach ( array( null, '', 'abc', 0, -4 ) as $bad ) {
 check( 'B-2 no usable age (null, "", "abc", 0, -4) → at_90 and need_now null', true );
 check( 'B-2b a numeric string age works ("55")', $W::projection( 3.3, 3.5, '55', 'strength', 'male' ) === $W::projection( 3.3, 3.5, 55, 'strength', 'male' ) );
 check( 'B-2c sex_of(): q1_sex, then gender, else ""', 'female' === $W::sex_of( array( 'q1_sex' => 'Female' ) ) && 'male' === $W::sex_of( array( 'gender' => 'male' ) )
-    && '' === $W::sex_of( array( 'q1_sex' => 'other' ) ) && '' === $W::sex_of( null ) );
+    && '' === $W::sex_of( array( 'q1_sex' => 'other' ) ) && '' === $W::sex_of( null ) && '' === $W::sex_of( array( 'q1_sex' => array( 'x' ) ) ) );
 
 $worked = array( 'floor_grandkids', 'lift_grandchild', 'live_in_own_home', 'keep_my_sport', 'hike_hills' );
 $raw    = array( 'q5_sts' => 4, 'q4_vo2' => 3 );

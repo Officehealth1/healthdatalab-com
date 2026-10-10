@@ -1568,9 +1568,8 @@
     radar.setAttribute('data-w', w);
     var to = radarData(abilityCounts(formData.why_picks || [], serverData.why_options || [], names), names);
     var from = radarShown;
-    radarShown = to;
     var token = ++radarTween;
-    if (resized || !from || reducedMotion() || !window.requestAnimationFrame) { radar.innerHTML = radarChart(to, w); return; }
+    if (resized || !from || reducedMotion() || !window.requestAnimationFrame) { radarShown = to; radar.innerHTML = radarChart(to, w); return; }
     // v0.48.13 (Quim, 2026-10-10: "a smooth shift not a instant shift"): ease
     // from the shape on screen to the new one, ~350ms, redrawn each frame.
     // The last frame is exactly radarChart(to). A newer tap takes over.
@@ -1579,10 +1578,12 @@
       if (token !== radarTween || !radar.isConnected) return;
       if (start === null) start = t;
       var k = Math.min(1, (t - start) / RADAR_EASE_MS), e = 1 - Math.pow(1 - k, 3);
-      radar.innerHTML = radarChart(k < 1 ? { top: to.top, spokes: to.spokes.map(function (sp, i) {
+      // radarShown is always the shape on screen, so a tap mid-ease starts from there.
+      radarShown = k < 1 ? { top: to.top, spokes: to.spokes.map(function (sp, i) {
         var a = (from.spokes[i] || {}).need || 0;
         return { id: sp.id, label: sp.label, need: Math.round((a + (sp.need - a) * e) * 100) / 100 };
-      }) } : to, w);
+      }) } : to;
+      radar.innerHTML = radarChart(radarShown, w);
       if (k < 1) window.requestAnimationFrame(frame);
     };
     window.requestAnimationFrame(frame);

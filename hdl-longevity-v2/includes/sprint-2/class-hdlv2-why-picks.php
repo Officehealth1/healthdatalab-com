@@ -448,7 +448,8 @@ class HDLV2_Why_Picks {
 
     /** v0.48.13 — 'male' / 'female' from decoded stage1_data, or ''. */
     public static function sex_of( $stage1_data ) {
-        $sex = is_array( $stage1_data ) ? strtolower( trim( (string) ( $stage1_data['q1_sex'] ?? $stage1_data['gender'] ?? '' ) ) ) : '';
+        $sex = is_array( $stage1_data ) ? ( $stage1_data['q1_sex'] ?? $stage1_data['gender'] ?? '' ) : '';
+        $sex = is_string( $sex ) ? strtolower( trim( $sex ) ) : '';
         return in_array( $sex, array( 'male', 'female' ), true ) ? $sex : '';
     }
 
