@@ -68,8 +68,8 @@ check( 'A-3c a weight outside 1-3 is pulled inside it (review fix)',
 // The draft table for Matthew, exactly (plan A2): strength, mobility, balance, stamina, mind, connection.
 $TABLE = array(
     'floor_grandkids' => array( 2, 3, 1, 1, 0, 1 ), 'lift_grandchild' => array( 3, 1, 2, 0, 0, 0 ),
-    'fetch_with_dog' => array( 1, 1, 1, 3, 0, 0 ), 'dance_wedding' => array( 0, 2, 2, 2, 0, 2 ),
-    'remember_family' => array( 0, 0, 0, 0, 3, 2 ), 'help_loved_one' => array( 3, 2, 2, 0, 1, 1 ),
+    'fetch_with_dog' => array( 1, 1, 1, 3, 0, 0 ), 'dance_wedding' => array( 0, 2, 2, 2, 0, 3 ),
+    'remember_family' => array( 0, 0, 0, 0, 3, 3 ), 'help_loved_one' => array( 3, 2, 2, 0, 1, 1 ),
     'not_a_burden' => array( 2, 2, 2, 1, 2, 1 ), 'live_in_own_home' => array( 2, 2, 3, 1, 3, 0 ),
     'stairs_no_rail' => array( 2, 2, 3, 2, 0, 0 ), 'up_after_fall' => array( 3, 3, 2, 0, 0, 0 ),
     'keep_driving' => array( 0, 2, 1, 0, 3, 0 ), 'manage_own_affairs' => array( 0, 0, 0, 2, 3, 1 ),
@@ -162,6 +162,12 @@ foreach ( array( 'why-reasoning/scenario-why-reasoning.php' => 'O1 ', 'why-every
     check( "A-15 $file: every $tag(old-flow hash) line passes", $lines && ! preg_grep( '/^FAIL/', $lines ) );
     $out = array();
 }
+
+// A-16 (v0.48.14) every ability can reach need 5.
+$full = array();
+foreach ( HDLV2_Why_Picks::catalogue() as $g ) foreach ( $g['items'] as $it ) if ( empty( $it['retired'] ) ) foreach ( $it['weights'] as $id => $w ) if ( 3 === $w ) $full[ $id ] = true;
+check( 'A-16 every ability has at least one statement that leans on it fully (weight 3), so each can reach need 5 (missing: ' . implode( ', ', array_diff( HDLV2_Why_Picks::NEEDS, array_keys( $full ) ) ) . ')',
+    array() === array_diff( HDLV2_Why_Picks::NEEDS, array_keys( $full ) ) );
 
 // ── Fixture for the page (A-12) ──
 $active = array_merge( ...array_map( function ( $g ) { return array_column( $g['items'], 'id' ); }, $opt ) );

@@ -66,7 +66,7 @@
                         "mobility": 2,
                         "balance": 2,
                         "stamina": 2,
-                        "connection": 2
+                        "connection": 3
                     }
                 },
                 {
@@ -78,7 +78,7 @@
                     ],
                     "weights": {
                         "mind": 3,
-                        "connection": 2
+                        "connection": 3
                     }
                 },
                 {
@@ -411,7 +411,7 @@
                 "mobility": 3.3,
                 "balance": 3.3,
                 "stamina": 3.3,
-                "connection": 3.3
+                "connection": 5.0
             }
         },
         {
@@ -420,7 +420,7 @@
             ],
             "need": {
                 "mind": 5.0,
-                "connection": 3.3
+                "connection": 5.0
             }
         },
         {
@@ -608,7 +608,7 @@
                 "balance": 2.0,
                 "stamina": 2.0,
                 "mind": 1.0,
-                "connection": 1.7
+                "connection": 2.3
             }
         },
         {
@@ -625,7 +625,7 @@
                 "balance": 2.3,
                 "stamina": 2.0,
                 "mind": 2.0,
-                "connection": 2.0
+                "connection": 2.7
             }
         },
         {
@@ -642,7 +642,7 @@
                 "balance": 3.3,
                 "stamina": 1.3,
                 "mind": 3.0,
-                "connection": 1.3
+                "connection": 1.7
             }
         },
         {
@@ -765,7 +765,7 @@
                 "balance": 3.0,
                 "stamina": 1.7,
                 "mind": 1.5,
-                "connection": 1.2
+                "connection": 1.5
             }
         },
         {
@@ -787,7 +787,7 @@
                 "balance": 2.8,
                 "stamina": 1.3,
                 "mind": 2.5,
-                "connection": 1.2
+                "connection": 1.5
             }
         },
         {

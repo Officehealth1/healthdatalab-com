@@ -94,7 +94,7 @@ $byid = array_column( $prof, 'at_90', 'id' );
 check( 'B-3e at_90 = each row\'s projection in ability order, null for connection', array_map( function ( $id ) use ( $byid ) { return $byid[ $id ] ?? null; }, HDLV2_Why_Picks::NEEDS ) === $series['at_90'] && null === $series['at_90'][5] );
 $thin = HDLV2_Why_Picks::ability_chart_series( HDLV2_Why_Picks::abilities_profile( array( 'remember_family' ), array(), array( 'balance' => 1 ) ), array(), array( 'balance' => 1 ) );
 check( 'B-3d unmeasured → null; an ability nobody chose still shows where they stand', array( null, null, 1.0, null, null, null ) === $thin['now']
-    && array( 0.0, 0.0, 0.0, 0.0, 5.0, 3.3 ) === $thin['needed'] );
+    && array( 0.0, 0.0, 0.0, 0.0, 5.0, 5.0 ) === $thin['needed'] );
 
 // ── B-4 the PDF picture ──
 $url = HDLV2_Why_Picks::chart_url( $series );

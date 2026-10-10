@@ -80,8 +80,8 @@ $OFFERED = array(
         array( 'floor_grandkids', 'Play on the floor with my grandkids', 'strength:2,mobility:3,balance:1,stamina:1,connection:1' ),
         array( 'lift_grandchild', 'Pick up a grandchild for a hug', 'strength:3,mobility:1,balance:2' ),
         array( 'fetch_with_dog', 'Play fetch with the dog in the park', 'strength:1,mobility:1,balance:1,stamina:3' ),
-        array( 'dance_wedding', 'Dance with my grandkids at their wedding', 'mobility:2,balance:2,stamina:2,connection:2' ),
-        array( 'remember_family', 'Remember every grandchild\'s name and story', 'mind:3,connection:2' ),
+        array( 'dance_wedding', 'Dance with my grandkids at their wedding', 'mobility:2,balance:2,stamina:2,connection:3' ),
+        array( 'remember_family', 'Remember every grandchild\'s name and story', 'mind:3,connection:3' ),
         array( 'help_loved_one', 'Help a loved one who has hurt themselves', 'strength:3,mobility:2,balance:2,mind:1,connection:1' ),
         array( 'not_a_burden', 'Never burden loved ones in my last decade', 'strength:2,mobility:2,balance:2,stamina:1,mind:2,connection:1' ),
     ) ),
@@ -206,7 +206,7 @@ $ab = function ( $id, $label, $count, $need, $score, $measures, $focus ) {
 $floor = $ms( 'Getting up from the floor', 2, 'stage1' );
 // By hand (v0.48.11, six picks, weights from the table): need = round(50 x sum / 18) / 10.
 // strength 2+3+1 = 6 → 1.7 · mobility 3+1+1+1 = 6 → 1.7 · balance 1+2+2 = 5 → 1.4 ·
-// stamina 1+3+3+3 = 10 → 2.8 · mind 1+3+1 = 5 → 1.4 · connection 1+2+2 = 5 → 1.4.
+// stamina 1+3+3+3 = 10 → 2.8 · mind 1+3+1 = 5 → 1.4 · connection 1+3+2 = 6 → 1.7 (remember_family 3 since 0.48.14).
 // Scores: strength (3+2)/2 = 2.5 · mobility 2 · balance 1 · stamina (4+4+4+2+3)/5 = 3.4
 // (heart rate missing, left out) → above 3, never a focus · mind (2+3+2)/3 = 2.3 · connection 5.
 // Focus by need x (5 - score): balance 5.6, mobility 5.1, strength 4.25, mind 3.8 → cap of three.
@@ -217,7 +217,7 @@ $expected_profile = array(
     $ab( 'stamina', 'Stamina and energy', 4, 2.8, 3.4, array( $ms( 'Physical activity', 4, 'stage3' ), $ms( 'Climbing stairs', 4, 'stage1' ), $ms( 'Resting heart rate', null, 'stage3' ),
         $ms( 'Sleep duration', 4, 'stage3' ), $ms( 'Sleep quality', 2, 'stage3' ), $ms( 'Diet', 3, 'stage3' ) ), false ),
     $ab( 'mind', 'A sharp mind', 3, 1.4, 2.3, array( $ms( 'Mental activity', 2, 'stage3' ), $ms( 'Stress', 3, 'stage3' ), $ms( 'Sleep quality', 2, 'stage3' ) ), false ),
-    $ab( 'connection', 'Connection', 3, 1.4, 5.0, array( $ms( 'Time with people', 5, 'stage3' ) ), false ),
+    $ab( 'connection', 'Connection', 3, 1.7, 5.0, array( $ms( 'Time with people', 5, 'stage3' ) ), false ),
 );
 $got = $profile( $six, $raw1, $score3 );
 check( 'AP1 hand-worked profile, exact (counts, needs, 1-decimal averages, null left out, focus by need, cap of three)', $expected_profile === $got );
@@ -368,7 +368,7 @@ $picked_lines = "=== WHAT THIS CLIENT CHOSE (picked from a list, their own prior
     . "- Hike the hills with friends (Things I love) [depends on: strength, mobility, balance, stamina, connection]\n"
     . "- Remember every grandchild's name and story (People I love) [depends on: mind, connection]\n"
     . "- Wake up full of energy (Things I love) [depends on: stamina, mind]\n"
-    . "What these choices need of each ability, out of 5 (5 = every choice leans on it fully): stamina 2.8, strength 1.7, mobility 1.7, balance 1.4, mind 1.4, connection 1.4\n"
+    . "What these choices need of each ability, out of 5 (5 = every choice leans on it fully): stamina 2.8, strength 1.7, mobility 1.7, connection 1.7, balance 1.4, mind 1.4\n"
     . "People they named: my wife Jenny\n";
 // Stage 1 answers are marked as such: they run 1 to 5, Stage 3 scores 0 to 5.
 $measured_lines = "What their choices depend on, with what was measured (out of 5, higher is better; Stage 1 answers run 1 to 5, Stage 3 answers 0 to 5):\n"
@@ -377,7 +377,7 @@ $measured_lines = "What their choices depend on, with what was measured (out of 
     . "- Balance: needed 1.4/5 by their choices (3 of 6 picks); measured 1/5 from Standing on one leg 1/5\n"
     . "- Stamina and energy: needed 2.8/5 by their choices (4 of 6 picks); measured 3.4/5 from Physical activity 4/5, Climbing stairs (Stage 1) 4/5, Sleep duration 4/5, Sleep quality 2/5, Diet 3/5\n"
     . "- A sharp mind: needed 1.4/5 by their choices (3 of 6 picks); measured 2.3/5 from Mental activity 2/5, Stress 3/5, Sleep quality 2/5\n"
-    . "- Connection: needed 1.4/5 by their choices (3 of 6 picks); measured 5/5 from Time with people 5/5\n"
+    . "- Connection: needed 1.7/5 by their choices (3 of 6 picks); measured 5/5 from Time with people 5/5\n"
     . "Focus areas (most needed, weakest measured): Balance, Mobility and flexibility, Strength\n";
 $no_quote = "Do not quote these ability scores as if they were one of the 21 health scores; they are averages for your guidance.\n";
 $expected_scored = $picked_lines
