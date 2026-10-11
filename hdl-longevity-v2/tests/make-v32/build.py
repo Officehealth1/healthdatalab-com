@@ -7,6 +7,9 @@ Changes (plan memory/prompts/2026-10-09_stage2_abilities_six_and_sales_page_v1.m
   - module 42 (Stage 1 PDF) points at the Stage 1 DUPLICATE with the sales page
   - module 1 declares why_chart_url (designer only; Make passes every field)
   - modules 48 (draft), 3 (final) and 259 (Stage 2, no AI) send why_chart_url
+  - v31's error handler under 258 reused id 259 (the Stage 2 PDF), so Make's
+    import warned "module 260 references non-existing module 259"; it gets a
+    fresh id (2026-10-11)
 Everything else is left exactly as in v31 (check.py asserts it).
 """
 import copy
@@ -27,6 +30,16 @@ def walk(flow, out):
     return out
 
 
+def all_ids(flow, out):
+    """Every module id, error handlers included (walk() skips them)."""
+    for m in flow:
+        out.append(m["id"])
+        for r in m.get("routes", []):
+            all_ids(r["flow"], out)
+        all_ids(m.get("onerror", []), out)
+    return out
+
+
 def add_field(payload):
     """Send why_chart_url the way the module already sends why_picks (same quote-safe wrapper)."""
     expr = re.search(r'"why_picks":\s*"(\{\{.*?\}\})"', payload).group(1)
@@ -44,6 +57,9 @@ def build(v31, stage1_dup):
     M[42]["metadata"]["restore"]["expect"]["document_template_id"]["label"] = STAGE1_LABEL
     for mid in (48, 3, 259):
         M[mid]["mapper"]["payload"] = add_field(M[mid]["mapper"]["payload"])
+    clash = [h for h in M[258]["onerror"] if h["id"] == 259]
+    assert len(clash) == 1 and clash[0]["module"] == "builtin:Ignore"
+    clash[0]["id"] = max(all_ids(bp["flow"], [])) + 1
     return bp
 
 

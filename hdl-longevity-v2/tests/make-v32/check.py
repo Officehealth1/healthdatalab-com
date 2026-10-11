@@ -27,12 +27,23 @@ def walk(flow, out):
     return out
 
 
+def all_ids(flow, out):
+    for m in flow:
+        out.append(m["id"])
+        for r in m.get("routes", []):
+            all_ids(r["flow"], out)
+        all_ids(m.get("onerror", []), out)
+    return out
+
+
 base = json.load(open(sys.argv[1], encoding="utf-8"))
 cand = json.load(open(sys.argv[2], encoding="utf-8"))
 dup = sys.argv[3]
 B, C = walk(base["flow"], {}), walk(cand["flow"], {})
 
 check(sorted(C) == sorted(B), "module ids differ from v31")
+ids = all_ids(cand["flow"], [])
+check(len(ids) == len(set(ids)), "module ids repeat (Make: 'references non-existing module')")
 check(B[42]["mapper"]["document_template_id"].lower() == PROD_STAGE1, "v31 module 42 is not on the production Stage 1 template (wrong base?)")
 check(C[42]["mapper"]["document_template_id"] == dup and dup.lower() != PROD_STAGE1, "module 42 not on the Stage 1 duplicate")
 check(C[1]["parameters"] == B[1]["parameters"], "webhook hook changed")
@@ -57,6 +68,9 @@ if all(k in R for k in (1, 3, 42, 48, 259)):
     R[42]["metadata"]["restore"] = B[42]["metadata"]["restore"]
     for mid in (48, 3, 259):
         R[mid]["mapper"]["payload"] = B[mid]["mapper"]["payload"]
+    for h in R[258].get("onerror", []):
+        if h["module"] == "builtin:Ignore":
+            h["id"] = 259
     r["name"] = base["name"]
     check(json.dumps(r, sort_keys=True) == json.dumps(base, sort_keys=True), "something else changed against v31")
 
