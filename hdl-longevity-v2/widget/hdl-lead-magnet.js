@@ -1329,13 +1329,13 @@
         bandClass = 'good';
         bandLabel = 'Slower \u2014 in your favour';
         awakenP1  = firstName + ', your rate of ageing of ' + rateDisplay + '\u00d7 tells us you\u2019re currently ageing about ' + pct + '% slower than the calendar suggests. That puts your biological age at ' + (bio !== null ? bio + ' years' : 'in line with your chronological age') + (age ? ', against your chronological age of ' + age + '.' : '.');
-        awakenP3  = 'A ' + rateDisplay + '\u00d7 rate means your current habits are working in your favour. Stage 2 captures why this matters to you, and Stage 3 gives your practitioner the granularity to fine-tune it from here.';
+        awakenP3  = 'A ' + rateDisplay + '\u00d7 rate means your current habits are working in your favour. The Full Report shows what matters most to you and what your real measurements say, so your practitioner can plan with you.';
       } else if (rate <= 1.05) {
         bandColor = '#3d8da0'; // average (teal)
         bandClass = 'avg';
         bandLabel = 'On average';
         awakenP1  = firstName + ', your rate of ageing of ' + rateDisplay + '\u00d7 puts you roughly at the population average. Your biological age is ' + (bio !== null ? bio + ' years' : 'close to your chronological age') + (age ? ', against your chronological ' + age + '.' : '.');
-        awakenP3  = 'A ' + rateDisplay + '\u00d7 rate is right around average \u2014 small, focused changes could shift this meaningfully. Stage 2 captures why a healthier ageing arc matters to you, and Stage 3 gives your practitioner the data to design what\u2019s next.';
+        awakenP3  = 'A ' + rateDisplay + '\u00d7 rate is right around average \u2014 small, focused changes could shift this meaningfully. The Full Report shows what matters most to you and what your real measurements say, so your practitioner can plan with you.';
       } else {
         bandColor = '#c2410c'; // warn (amber-red)
         bandClass = 'warn';
@@ -1591,10 +1591,9 @@
         +       ( fastInvite
             ? ''
             +   '<h2>What Happens Next</h2>'
-            +   '<p class="hdlw-r-lede">Your gauge is a snapshot. The next two stages turn it into a plan.</p>'
+            +   '<p class="hdlw-r-lede">Your gauge is a snapshot. The Full Report turns it into a plan.</p>'
             +   '<ol class="hdlw-r-next-list">'
-            +     '<li><strong>Stage 2 \u2014 Your WHY.</strong> Tell us what motivates you. We capture your reasons in your own words. ~10 minutes.</li>'
-            +     '<li><strong>Stage 3 \u2014 Full Health Detail.</strong> Replace today\u2019s visual estimates with real measurements (body, fitness, sleep, lifestyle).</li>'
+            +     '<li><strong>The Full Report.</strong> What matters most to you, then your real measurements: the full picture, reviewed by your practitioner.</li>'
             +     '<li><strong>Your Trajectory Plan arrives.</strong> Reviewed by your practitioner, with your weekly Flight Plan to follow.</li>'
             +   '</ol>'
             +   '<div class="hdlw-r-buttons">'
@@ -1698,7 +1697,7 @@
           var baseUrl = cfg.apiUrl.replace(/\/wp-json\/.*$/, '');
           var continueUrl = baseUrl + '/assessment/?token=' + data.form_token;
           statusEl.innerHTML = ''
-            + '<a class="hdlw-r-btn-primary" href="' + continueUrl + '" target="_blank" rel="noopener">Continue to Stage 2 \u2014 Your WHY \u2192</a>'
+            + '<a class="hdlw-r-btn-primary" href="' + continueUrl + '" target="_blank" rel="noopener">Continue to your Full Report \u2192</a>'
             + '<p class="hdlw-r-email-note">We\u2019ve also sent this link to your email.</p>';
           return;
         }

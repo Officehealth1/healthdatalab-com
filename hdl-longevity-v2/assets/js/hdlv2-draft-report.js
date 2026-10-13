@@ -372,7 +372,7 @@
         '<section class="hdlv2-dr-goals">' +
           '<div class="hdlv2-dr-ai-label">Tying this back to your goals</div>' +
           '<h2>What you told us — and what your data says</h2>' +
-          '<p class="hdlv2-dr-section-sub">From what you shared in Stage 2 — how your data connects to what actually matters to you.</p>' +
+          '<p class="hdlv2-dr-section-sub">From what you shared in your Full Report — how your data connects to what actually matters to you.</p>' +
           ai.goals_linkage.map(function (g) {
             return '<div class="hdlv2-dr-goal-item">' +
               '<div class="hdlv2-dr-goal-quote">"' + escape(g.goal_quote || '') + '"</div>' +
@@ -547,7 +547,7 @@
     }
     var sub = editable
       ? 'Edit any milestone below — what you set here is what your client receives in the final report. No extra email, no extra cost.'
-      : 'Personalised milestones generated from your data and your Stage 2 WHY — what progress could look like over time.';
+      : 'Personalised milestones generated from your data and the choices you made in your Full Report — what progress could look like over time.';
 
     return '<section class="hdlv2-dr-section hdlv2-dr-milestones' + (editable ? ' hdlv2-dr-ms-editable' : '') + '" id="hdlv2-dr-ms-section">'
       + '<div class="hdlv2-dr-ai-label">Milestone timeline</div>'

@@ -1929,8 +1929,8 @@ class HDLV2_Client_Dashboard {
 
         $bodies = array(
             1 => array( 'Stage 1 &middot; Quick insight',     '9 questions, ~3 minutes. You see your pace-of-ageing gauge straight away.' ),
-            2 => array( 'Stage 2 &middot; Your WHY',          'Your practitioner releases this when ready. You record what matters most &mdash; speak it or type it.' ),
-            3 => array( 'Stage 3 &middot; Full detail',       '21 measurements across 5 sections. Auto-drafts your Trajectory Plan for your practitioner&rsquo;s review.' ),
+            2 => array( 'Full Report &middot; What matters most', 'You pick what matters most to you in your last decade.' ),
+            3 => array( 'Full Report &middot; Your measurements', 'Your real measurements, 5 short sections. Your practitioner reviews them with you.' ),
             4 => array( 'Consultation &middot; Trajectory Plan', 'Your practitioner edits, adds notes, finalises. PDF + Flight Plan delivered to you.' ),
         );
 

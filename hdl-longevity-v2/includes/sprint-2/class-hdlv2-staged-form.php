@@ -887,7 +887,7 @@ class HDLV2_Staged_Form {
             return new WP_Error( 'invalid_token', 'Assessment not found.', array( 'status' => 404 ) );
         }
         if ( empty( $progress->stage3_completed_at ) ) {
-            return new WP_Error( 'stage3_incomplete', 'Stage 3 must be completed first.', array( 'status' => 400 ) );
+            return new WP_Error( 'stage3_incomplete', 'The Full Report measurements must be completed first.', array( 'status' => 400 ) );
         }
 
         // v0.46.x (prod-readiness CL-02) — move the 3 Claude calls OFF the
@@ -1558,7 +1558,7 @@ class HDLV2_Staged_Form {
         $vision      = trim( (string) ( $stage2_data['vision_text'] ?? '' ) );
 
         if ( strlen( $vision ) < 10 ) {
-            return new WP_Error( 'no_vision', 'No WHY text found for this token. Submit Stage 2 first.', array( 'status' => 400 ) );
+            return new WP_Error( 'no_vision', 'No WHY text found for this token. Complete the first part of your Full Report first.', array( 'status' => 400 ) );
         }
 
         $client_name = $progress->client_name ?: ( $stage2_data['name'] ?? '' );
@@ -1704,7 +1704,7 @@ class HDLV2_Staged_Form {
             return new WP_Error( 'invalid_token', 'Assessment not found.', array( 'status' => 404 ) );
         }
         if ( empty( $progress->stage3_completed_at ) ) {
-            return new WP_Error( 'stage3_incomplete', 'Stage 3 must be completed first.', array( 'status' => 400 ) );
+            return new WP_Error( 'stage3_incomplete', 'The Full Report measurements must be completed first.', array( 'status' => 400 ) );
         }
 
         $stage3_data = json_decode( $progress->stage3_data, true ) ?: array();
@@ -1792,7 +1792,7 @@ class HDLV2_Staged_Form {
                                         : 'faster than the average pace' );
 
         return sprintf(
-            '<p><strong>%syour full Stage 3 measurements put your rate of ageing at %s× — %s.</strong> Biological age estimate: %s years against your real age of %d.</p>'
+            '<p><strong>%syour Full Report measurements put your rate of ageing at %s× — %s.</strong> Biological age estimate: %s years against your real age of %d.</p>'
             . '<p>The 21-metric panel gives your practitioner the detail they need to build a precise plan with you.</p>'
             . '<p>Your Draft Report is being generated now. Your practitioner will review it, then walk you through it in your consultation.</p>',
             $name,

@@ -384,11 +384,11 @@ ok(/Connection error/.test(submit), 'network failure says "Connection error"');
 
 const wiz = body('renderWizardSection');
 ok(/isSingleFlow\(\)/.test(wiz), 'wizard reads the single-flow marker for dots + header');
-ok(/Your assessment/.test(wiz), 'single-flow header reads "Your assessment"');
+ok(/Your Full Report/.test(wiz), 'single-flow header reads "Your Full Report" (v0.48.15, H1)');
 
 const s1 = body('renderStage1Result');
 ok(/single_form/.test(s1) && /Continue your assessment/.test(s1), 'Stage 1 result has the covered-row copy');
-ok(src.indexOf('Continue to Stage 2 \\u2014 Your WHY \\u2192') !== -1, 'Stage 1 result keeps today\'s button for other rows');
+ok(src.indexOf('Continue to your Full Report \\u2192') !== -1, 'Stage 1 result: other rows continue to the Full Report (v0.48.15, H1)');
 
 // ── v0.47.99: a pick clears the "choose at least 5" line ──
 // Runs the REAL clearSaveError() + setSaveStatus() against a fake save line.

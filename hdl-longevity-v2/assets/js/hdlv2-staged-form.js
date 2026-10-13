@@ -987,10 +987,9 @@
               ? '<p class="hdlv2-s1-lede">Your gauge is a snapshot. One questionnaire turns it into a plan.</p>'
               +   '<ol class="hdlv2-s1-next-list">'
               +     '<li><strong>One questionnaire.</strong> What matters to you, then your health details. About 15 minutes.</li>'
-              : '<p class="hdlv2-s1-lede">Your gauge is a snapshot. The next two stages turn it into a plan.</p>'
+              : '<p class="hdlv2-s1-lede">Your gauge is a snapshot. The Full Report turns it into a plan.</p>'
               +   '<ol class="hdlv2-s1-next-list">'
-              +     '<li><strong>Stage 2 \u2014 Your WHY.</strong> Tell us what motivates you. We capture your reasons in your own words. ~10 minutes.</li>'
-              +     '<li><strong>Stage 3 \u2014 Full Health Detail.</strong> Replace today\u2019s visual estimates with real measurements (body, fitness, sleep, lifestyle).</li>' )
+              +     '<li><strong>The Full Report.</strong> What matters most to you, then your real measurements: the full picture, reviewed by your practitioner.</li>' )
       +         '<li><strong>Your Trajectory Plan arrives.</strong> Reviewed by your practitioner, with your weekly Flight Plan to follow.</li>'
       +       '</ol>'
       // Phase 17 (v0.22.26) two CTAs preserved.
@@ -999,7 +998,7 @@
       //     (`practitioner_cta_link` from /form/load) only rendered when
       //     a link is configured, otherwise the button is hidden.
       +       '<div class="hdlv2-s1-buttons">'
-      +         '<button id="hdlv2-goto-s2" class="hdlv2-s1-btn hdlv2-s1-btn-primary" type="button">' + (singleForm ? 'Continue your assessment \u2192' : 'Continue to Stage 2 \u2014 Your WHY \u2192') + '</button>'
+      +         '<button id="hdlv2-goto-s2" class="hdlv2-s1-btn hdlv2-s1-btn-primary" type="button">' + (singleForm ? 'Continue your assessment \u2192' : 'Continue to your Full Report \u2192') + '</button>'
       +         '<p class="hdlv2-s1-email-note">We\u2019ve also sent this link to your email.</p>'
       +         ( pracCtaLink
               ? '<a id="hdlv2-book-session" class="hdlv2-s1-btn hdlv2-s1-btn-secondary" href="' + esc(pracCtaLink) + '" target="_blank" rel="noopener">' + esc(pracCtaText) + '</a>'
@@ -1078,7 +1077,7 @@
     box.innerHTML =
         '<p>Your pace-of-ageing snapshot has been calculated from your 9 answers. '
       + 'A more detailed personalised read will be available shortly \u2014 if it doesn\u2019t appear, refresh this page.</p>'
-      + '<p>This isn\u2019t a verdict \u2014 it\u2019s a starting picture. Most of these levers are within your control. Stage 2 captures your <em>why</em>, then Stage 3 turns this into your full Trajectory Plan.</p>';
+      + '<p>This isn\u2019t a verdict \u2014 it\u2019s a starting picture. Most of these levers are within your control. The Full Report captures what matters to you, then turns your real measurements into your plan.</p>';
   }
 
   // ══════════════════════════════════════════════════════════════
@@ -1739,7 +1738,7 @@
     //   - Title now reads "More Health Details \u2014 Stage 3" (was "Full Health Detail").
     //   - Skip helper line standardised: same phrasing on every section.
     root.innerHTML = '<div class="hdlv2-card">'
-      + '<div class="hdlv2-header"><h2>' + (single ? 'Your assessment' : 'More Health Details \u2014 Stage 3') + '</h2><p>' + esc(sec.title) + '</p></div>'
+      + '<div class="hdlv2-header"><h2>' + 'Your Full Report' + '</h2><p>' + esc(sec.title) + '</p></div>'
       + dots
       + (isFirst ? '<div class="hdlv2-wizard-info">Don\u2019t worry if you don\u2019t know the details. Just do your best. Your practitioner or the report can still be generated if you haven\u2019t got all these details.</div>' : '')
       + '<div class="hdlv2-form-body">' + content
@@ -2001,7 +2000,7 @@
     }
 
     root.innerHTML = '<div class="hdlv2-card">'
-      + '<div class="hdlv2-header"><h2>Your assessment</h2></div>'
+      + '<div class="hdlv2-header"><h2>Your Full Report</h2></div>'
       + '<div class="hdlv2-s1">'
       +   '<div class="hdlv2-s1-header">'
       +     (tapStep > 0 ? '<button type="button" id="hdlv2-tap-back" class="hdlv2-nav-back hdlv2-s1-back-btn" aria-label="Go back to the previous step">&#8592; Previous</button>' : '')

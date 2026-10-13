@@ -669,7 +669,7 @@ class HDLV2_Compatibility {
             (int) $progress->id
         ) );
         if ( ! $why ) {
-            return array( 'ok' => false, 'code' => 'no_why', 'message' => 'Stage 2 has not been completed yet.', 'status' => 400 );
+            return array( 'ok' => false, 'code' => 'no_why', 'message' => 'The Full Report has not been started yet.', 'status' => 400 );
         }
         if ( $why->released ) {
             return array( 'ok' => true, 'already_released' => true );

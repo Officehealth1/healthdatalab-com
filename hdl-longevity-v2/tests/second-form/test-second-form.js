@@ -197,8 +197,10 @@ const newWiz = fn('renderWizardSection');
 const a = oldWiz.indexOf("    var content = '';"), b = oldWiz.indexOf('    // Wizard progress dots');
 ok(a > 0 && b > a, 'found the content block in b0b1352\'s renderWizardSection');
 const block = oldWiz.slice(a, b);
-ok(newWiz === oldWiz.slice(0, a) + '    var content = wizardSectionContent(sec, s1d, d);\n\n' + oldWiz.slice(b),
-  'renderWizardSection is b0b1352\'s text with only the content block moved out');
+// v0.48.15 (H1) — the one header line now reads "Your Full Report" on both branches.
+const H1 = (t) => t.replace("(single ? 'Your assessment' : 'More Health Details \\u2014 Stage 3')", "'Your Full Report'");
+ok(newWiz === H1(oldWiz.slice(0, a) + '    var content = wizardSectionContent(sec, s1d, d);\n\n' + oldWiz.slice(b)),
+  'renderWizardSection is b0b1352\'s text with only the content block moved out (and the H1 header)');
 HELPERS.forEach((h) => ok(fn(h) === fnIn(old, h), h + '() unchanged since b0b1352'));
 ['S3_OPTIONS', 'S1_TO_S3_DEFAULTS', 'S3_SECTIONS'].forEach((n) => ok(v(n) === varIn(old, n), n + ' unchanged since b0b1352'));
 // Old content block vs the new function: same HTML and same formData writes.

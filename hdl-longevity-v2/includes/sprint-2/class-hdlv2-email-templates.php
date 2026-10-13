@@ -181,7 +181,7 @@ class HDLV2_Email_Templates {
                 This is a preliminary estimate based on 6 data points.
                 <strong>It would be a lot more accurate if we knew a little bit more about you.</strong>
             </p>"
-            . self::cta_button( $url, 'Continue to Stage 2 — Your WHY' );
+            . self::cta_button( $url, 'Continue to your Full Report' );
 
         return self::base_layout( $content, $data['practitioner_id'] ?? null, 'Your Stage 1 Result' );
     }
@@ -577,10 +577,10 @@ class HDLV2_Email_Templates {
         </table>";
 
         $content = "<p style='font-size:16px;color:" . self::DARK_TEXT . ";line-height:1.7;margin:0 0 18px;'>Dear " . esc_html( $first ) . ",</p>"
-            . "<p style='font-size:15px;color:#2c3e50;line-height:1.7;margin:0 0 18px;'>I've reviewed the answers you shared in your &ldquo;Your Why&rdquo; form (Stage 2). Stage 3 is the next piece &mdash; it collects detailed health measurements that, combined with everything you've already shared, will form the basis of your personalised Trajectory Plan.</p>"
+            . "<p style='font-size:15px;color:#2c3e50;line-height:1.7;margin:0 0 18px;'>I've reviewed the answers you shared in your Full Report (your Why). Your measurements are the next piece &mdash; they collect detailed health measurements that, combined with everything you've already shared, will form the basis of your personalised Trajectory Plan.</p>"
             . "<p style='font-size:15px;color:#2c3e50;line-height:1.7;margin:0 0 18px;'>It takes around <strong>10&ndash;15 minutes</strong>. A few of the questions involve simple physical checks (a sit-to-stand test, a breath hold, a balance test) and a tape measure for waist and hip. If anything isn't possible right now, leave it blank &mdash; we'll cover it in your first consultation. Best to do your honest best rather than guess.</p>"
             . "<p style='font-size:15px;color:#2c3e50;line-height:1.7;margin:0 0 8px;'>When you're ready:</p>"
-            . self::cta_button( $form_url, 'Continue to Stage 3' )
+            . self::cta_button( $form_url, 'Continue your Full Report' )
             . $help_line
             . "<p style='font-size:15px;color:#2c3e50;line-height:1.7;margin:24px 0 4px;'>Warm regards,</p>"
             . "<p style='font-size:15px;color:" . self::DARK_TEAL . ";font-weight:600;line-height:1.7;margin:0 0 22px;'>" . esc_html( $prac_first ) . "</p>"
@@ -591,17 +591,17 @@ class HDLV2_Email_Templates {
         // (current_time respects the WP site timezone; safe across STBY + LIVE)
         $subject_name = $client_name !== '' ? $client_name : 'your client';
         $subject      = sprintf(
-            'Your Stage 3 invitation — %s — %s',
+            'Your Full Report is open — %s — %s',
             $subject_name,
             current_time( 'd/m/Y H:i' )
         );
 
-        $preheader = "Your practitioner has reviewed your WHY. Time for Stage 3.";
+        $preheader = "Your practitioner has reviewed your WHY. Your Full Report continues.";
 
         $html = self::base_layout(
             $content,
             $data['practitioner_id'] ?? null,
-            'Your Stage 3 is ready',
+            'Your Full Report is open',
             $preheader
         );
 
