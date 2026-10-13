@@ -300,3 +300,90 @@ class HDLV2_Compatibility {
     public static function create_practitioner_client_link( $p, $c ) { return true; }
 }
 
+
+// ── helpers (same as tests/paid-stage1) ───────────────────────────────
+$PASS = 0; $FAIL = 0;
+function check( $label, $cond ) {
+    global $PASS, $FAIL;
+    if ( $cond ) { $PASS++; echo "  PASS  $label\n"; }
+    else         { $FAIL++; echo "  FAIL  $label\n"; }
+}
+function status_of( $r ) {
+    if ( $r instanceof WP_REST_Response ) return $r->get_status();
+    return $r instanceof WP_Error ? (int) ( $r->data['status'] ?? 0 ) : 200;
+}
+function code_of( $r )   { return $r instanceof WP_Error ? $r->code : ''; }
+
+const TOKEN = 'abababababababababababababababababababababababababababababababab';
+
+function fresh_wpdb( $mode = 'open' ) {
+    global $wpdb;
+    $GLOBALS['transients']     = array();
+    $GLOBALS['captured_posts'] = array();
+    $GLOBALS['mails']          = array();
+    $GLOBALS['during_dispatch'] = null;
+    $wpdb = new FakeWpdb();
+    $cfg  = new stdClass();
+    $cfg->practitioner_user_id = 206;
+    $cfg->practitioner_name    = 'Prac 206';
+    $cfg->webhook_url          = '';
+    $cfg->notification_email   = '';
+    $cfg->logo_url             = '';
+    $cfg->logo_shape           = 'round';
+    $cfg->cta_link             = '';
+    $cfg->cta_text             = 'Book a session';
+    $cfg->theme_color          = '#3d8da0';
+    $cfg->show_book_button_after_widget = 0;
+    $cfg->access_mode          = $mode;
+    $cfg->buy_url              = 'paid' === $mode ? 'https://altituding.example.test/buy' : '';
+    $wpdb->config = $cfg;
+    return $wpdb;
+}
+function invite_row( $over = array() ) {
+    return (object) array_merge( array(
+        'id' => 77, 'practitioner_id' => 206, 'token' => TOKEN, 'status' => 'pending',
+        'client_name' => 'Buyer', 'client_email' => 'buyer@example.test',
+        'expires_at' => '2030-01-01 00:00:00', 'prefill_stage1' => null, 'source' => 'paid_stage1',
+    ), $over );
+}
+function widget_instance() {
+    return ( new ReflectionClass( 'HDLV2_Widget_Config' ) )->newInstanceWithoutConstructor();
+}
+function lead_params( $email, $token = '' ) {
+    $p = array(
+        'practitioner_id' => 206, 'name' => 'Test Lead', 'email' => $email, 'phone' => '',
+        'q1_age' => 44, 'q1_sex' => 'male', 'q2a' => 3, 'q2b' => 'even',
+        'q3' => 'b', 'q4' => 'b', 'q5' => 'b', 'q6' => 'b', 'q7' => 'a', 'q8' => 'b', 'q9' => 'b',
+        'rate_of_ageing_result' => 1.02,
+    );
+    if ( $token ) $p['invite_token'] = $token;
+    return $p;
+}
+function post_lead( $params ) { return widget_instance()->rest_capture_lead( new FakeRequest( $params ) ); }
+function nothing_recorded( $wpdb ) {
+    return count( $wpdb->inserts ) === 0 && count( $GLOBALS['captured_posts'] ) === 0 && count( $GLOBALS['mails'] ) === 0;
+}
+
+/** Load the real sources the scenarios drive. */
+function load_sources() {
+    $ROOT = __DIR__ . '/../../';
+    foreach ( array(
+        'includes/sprint-1/class-hdlv2-offer.php',
+        'includes/sprint-2/class-hdlv2-email-templates.php',
+        'includes/sprint-2/class-hdlv2-rate-calculator.php',
+        'includes/sprint-2/class-hdlv2-stage1-commentary.php',
+        'includes/security/class-hdlv2-rate-limiter.php',
+        'includes/security/class-hdlv2-rate-limit-policy.php',
+        'includes/security/class-hdlv2-rate-limit-middleware.php',
+        'includes/sprint-1/class-hdlv2-widget-config.php',
+        'includes/sprint-1/class-hdlv2-widget-renderer.php',
+        'includes/security/class-hdl-stage1-ticket.php',
+    ) as $f ) {
+        if ( file_exists( $ROOT . $f ) ) require_once $ROOT . $f;
+    }
+}
+function done() {
+    global $PASS, $FAIL;
+    echo "\nPASS=$PASS FAIL=$FAIL\n";
+    exit( $FAIL === 0 ? 0 : 1 );
+}

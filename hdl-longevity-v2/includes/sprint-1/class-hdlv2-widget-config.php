@@ -1343,7 +1343,11 @@ class HDLV2_Widget_Config {
                 'strongest_text'         => $commentary['strongest_text'],
                 'priority_topic'         => $commentary['priority_topic'],
                 'priority_text'          => $commentary['priority_text'],
-            );
+            )
+            // v0.48.15 — the Full Report offer for page 2 (nine string keys,
+            // one setting: HDLV2_Offer). offer_show "0" hides page 2 for a
+            // buyer who already paid for the Full Report.
+            + HDLV2_Offer::payload_keys( $args['offer_show'] ?? true );
 
             $stage1_webhook = defined( 'HDLV2_MAKE_STAGE1_PDF' ) ? HDLV2_MAKE_STAGE1_PDF : '';
             if ( ! $stage1_webhook ) {

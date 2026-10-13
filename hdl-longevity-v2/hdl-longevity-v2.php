@@ -806,6 +806,9 @@ final class HDL_Longevity_V2 {
         // v0.47.85 — keyed route that mints paid Stage 1 widget tickets.
         // Dark (503) until HDL_STAGE1_TICKET_KEY is defined in wp-config.
         require_once HDLV2_PLUGIN_DIR . 'includes/security/class-hdl-stage1-ticket.php';
+        // v0.48.15 — the Full Report offer in one setting (Stage 1 PDF page 2,
+        // the widget's locked panel, the partnership line).
+        require_once HDLV2_PLUGIN_DIR . 'includes/sprint-1/class-hdlv2-offer.php';
 
         // Sprint 1: Lead Magnet Widget
         require_once HDLV2_PLUGIN_DIR . 'includes/sprint-1/class-hdlv2-widget-config.php';

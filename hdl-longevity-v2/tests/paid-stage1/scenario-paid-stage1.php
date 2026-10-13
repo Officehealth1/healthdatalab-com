@@ -323,6 +323,7 @@ require $ROOT . 'includes/sprint-2/class-hdlv2-stage1-commentary.php';
 require $ROOT . 'includes/security/class-hdlv2-rate-limiter.php';
 require $ROOT . 'includes/security/class-hdlv2-rate-limit-policy.php';
 require $ROOT . 'includes/security/class-hdlv2-rate-limit-middleware.php';
+require $ROOT . 'includes/sprint-1/class-hdlv2-offer.php'; // v0.48.15
 require $ROOT . 'includes/sprint-1/class-hdlv2-widget-config.php';
 require $ROOT . 'includes/sprint-1/class-hdlv2-widget-renderer.php';
 if ( file_exists( $ROOT . 'includes/security/class-hdl-stage1-ticket.php' ) ) {

@@ -234,6 +234,7 @@ class HDLV2_Compatibility {
 // ── Load real sources ─────────────────────────────────────────────────
 require __DIR__ . '/../../includes/sprint-2/class-hdlv2-rate-calculator.php';
 require __DIR__ . '/../../includes/sprint-2/class-hdlv2-stage1-commentary.php';
+require __DIR__ . '/../../includes/sprint-1/class-hdlv2-offer.php'; // v0.48.15 — the Stage 1 payload carries the offer
 require __DIR__ . '/../../includes/sprint-1/class-hdlv2-widget-config.php';
 require __DIR__ . '/../../includes/sprint-4/class-hdlv2-client-status.php';
 
@@ -487,7 +488,7 @@ call_private_static( 'complete_signup', array( array(
 $upd = $wpdb->last_update_of( 'hdlv2_form_progress' );
 check( 'F4 returning client update refreshes location', is_array( $upd ) && ( $upd['visitor_country'] ?? '' ) === 'IE' );
 
-echo "── G. Make.com Stage-1 payload contract (24 keys, no location) ──\n";
+echo "── G. Make.com Stage-1 payload contract (33 keys since v0.48.15, no location) ──\n";
 $GLOBALS['captured_posts'] = array();
 $wpdb = fresh_wpdb();
 $inst = widget_instance();
@@ -500,7 +501,8 @@ foreach ( $GLOBALS['captured_posts'] as $p ) {
     if ( strpos( $p['url'], 'hook.example.test/stage1' ) !== false ) { $make = json_decode( $p['args']['body'], true ); }
 }
 check( 'G1 Make Stage-1 webhook fired', is_array( $make ) );
-check( 'G2 payload has EXACTLY 24 keys', is_array( $make ) && count( $make ) === 24 );
+check( 'G2 payload has EXACTLY 33 keys (24 + the nine offer keys, v0.48.15)', is_array( $make ) && count( $make ) === 33 );
+check( 'G5 offer keys are strings', is_array( $make ) && 9 === count( array_filter( array_intersect_key( $make, array_flip( array( 'offer_show', 'offer_title', 'offer_hook', 'offer_today', 'offer_list', 'offer_code', 'offer_url', 'offer_caption', 'offer_video_url' ) ) ), 'is_string' ) ) );
 check( 'G3 no top-level location keys', is_array( $make ) && ! array_key_exists( 'visitor_country', $make ) && ! array_key_exists( 'visitor_region', $make ) );
 check( 'G4 stage1_data sub-object clean of location', is_array( $make ) && is_array( $make['stage1_data'] ?? null ) && ! array_key_exists( 'visitor_country', $make['stage1_data'] ) && ! array_key_exists( 'visitor_region', $make['stage1_data'] ) );
 
