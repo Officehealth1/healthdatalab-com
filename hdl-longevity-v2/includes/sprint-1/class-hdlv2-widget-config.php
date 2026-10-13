@@ -330,6 +330,13 @@ class HDLV2_Widget_Config {
             'permission_callback' => array( $this, 'check_practitioner_permission' ),
         ) );
 
+        // v0.48.15 — confirm up to 20 pending leads in one call (H7).
+        register_rest_route( 'hdl-v2/v1', '/widget/leads/confirm-bulk', array(
+            'methods'             => 'POST',
+            'callback'            => array( $this, 'rest_confirm_leads_bulk' ),
+            'permission_callback' => array( $this, 'check_practitioner_permission' ),
+        ) );
+
         // Reject a pending lead → silent shadow-ban (practitioner auth)
         register_rest_route( 'hdl-v2/v1', '/widget/leads/reject', array(
             'methods'             => 'POST',
@@ -1654,7 +1661,14 @@ class HDLV2_Widget_Config {
             // optional field — retry the INSERT without the location keys.
             if ( false === $ok && isset( $fp_insert['visitor_country'] ) ) {
                 unset( $fp_insert['visitor_country'], $fp_insert['visitor_region'] );
-                $wpdb->insert( $wpdb->prefix . 'hdlv2_form_progress', $fp_insert );
+                $ok = $wpdb->insert( $wpdb->prefix . 'hdlv2_form_progress', $fp_insert );
+            }
+            // v0.48.15 — no client record, no token: callers (Confirm, bulk
+            // Confirm, a purchase) roll back instead of marking the lead
+            // confirmed behind a token that opens nothing.
+            if ( false === $ok ) {
+                error_log( '[HDLV2] complete_signup: form_progress INSERT failed for practitioner ' . $practitioner_id . ' — ' . $wpdb->last_error );
+                return '';
             }
             $fp_id = (int) $wpdb->insert_id;
 
@@ -2230,6 +2244,72 @@ class HDLV2_Widget_Config {
         }
 
         return array( 'form_token' => (string) $form_token, 'email_sent' => $email_sent );
+    }
+
+    /** Most leads one bulk call confirms; the dashboard sends bigger selections in chunks. */
+    const BULK_CONFIRM_MAX = 20;
+
+    /**
+     * POST /widget/leads/confirm-bulk — v0.48.15 (Matthew, 2026-10-13: "select
+     * all and confirm everybody in one go"). Body { lead_ids: int[] }, 1–20.
+     *
+     * Every id must belong to the caller before anything is written (403
+     * lead_not_yours otherwise). Then each lead on its own, exactly as the
+     * single Confirm: confirmed → already, rejected → failed, pending →
+     * confirm_lead_row() (its own transaction, its own email after COMMIT).
+     * One transaction per lead, not one for all: an email that has gone
+     * cannot be rolled back with the rows after it.
+     *
+     * @return array { confirmed: int[], already: int[], failed: {id, code}[] }
+     */
+    public function rest_confirm_leads_bulk( $request ) {
+        global $wpdb;
+        $user_id = get_current_user_id();
+        $params  = $request->get_json_params();
+        $raw     = $params['lead_ids'] ?? null;
+        if ( ! is_array( $raw ) || ! $raw ) {
+            return new WP_Error( 'missing_lead_ids', 'lead_ids must be a list of lead ids.', array( 'status' => 400 ) );
+        }
+        if ( count( $raw ) > self::BULK_CONFIRM_MAX ) {
+            return new WP_Error( 'too_many', 'At most ' . self::BULK_CONFIRM_MAX . ' leads per call.', array( 'status' => 400 ) );
+        }
+        $ids = array();
+        foreach ( $raw as $id ) {
+            if ( ! ( is_int( $id ) || ( is_string( $id ) && ctype_digit( $id ) ) ) || (int) $id < 1 ) {
+                return new WP_Error( 'invalid_lead_ids', 'Every lead id must be a whole number.', array( 'status' => 400 ) );
+            }
+            $ids[ (int) $id ] = true;
+        }
+        $ids = array_keys( $ids );
+
+        // Ownership first, for the whole list. The ids are integers.
+        $rows = $wpdb->get_results( $wpdb->prepare(
+            "SELECT * FROM {$wpdb->prefix}hdlv2_widget_leads
+             WHERE practitioner_user_id = %d AND id IN (" . implode( ',', $ids ) . ')',
+            $user_id
+        ) );
+        $by_id = array();
+        foreach ( (array) $rows as $row ) {
+            $by_id[ (int) $row->id ] = $row;
+        }
+        if ( count( $by_id ) !== count( $ids ) ) {
+            return new WP_Error( 'lead_not_yours', 'One or more leads were not found.', array( 'status' => 403 ) );
+        }
+
+        $out = array( 'confirmed' => array(), 'already' => array(), 'failed' => array() );
+        foreach ( $ids as $id ) {
+            $lead = $by_id[ $id ];
+            if ( 'confirmed' === $lead->status ) {
+                $out['already'][] = $id;
+            } elseif ( 'pending' !== $lead->status ) {
+                $out['failed'][] = array( 'id' => $id, 'code' => 'lead_rejected' );
+            } elseif ( self::confirm_lead_row( $lead, $user_id, true ) ) {
+                $out['confirmed'][] = $id;
+            } else {
+                $out['failed'][] = array( 'id' => $id, 'code' => 'confirm_failed' );
+            }
+        }
+        return rest_ensure_response( $out );
     }
 
     /** Newest lead of this practitioner for this email, or null. */

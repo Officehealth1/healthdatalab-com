@@ -149,6 +149,10 @@ class HDLV2_Rate_Limit_Policy {
             // tier (10/hour) prevents accidental floods if a practitioner
             // bulk-confirms a spammed inbox.
             array( 'POST', '#^/hdl-v2/v1/widget/leads/confirm$#',               self::TIER_AI_BURN ),
+            // v0.48.15 — bulk Confirm, up to 20 leads a call. WRITE (60 calls
+            // an hour → 1,200 leads); ownership of every id is checked first.
+            // ponytail: raise the chunk or the tier when Matthew's queue outgrows it.
+            array( 'POST', '#^/hdl-v2/v1/widget/leads/confirm-bulk$#',          self::TIER_WRITE ),
 
             // ── Bypass (Make.com bearer-authed callbacks + internal loopback) ───
             array( 'POST', '#^/hdl-v2/v1/form/stage1-callback$#',               self::TIER_BYPASS ),

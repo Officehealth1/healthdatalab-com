@@ -51,6 +51,9 @@
   // top "New widget submissions" strip. Held here (not in the DOM) so the open
   // state survives renderActionQueue()'s wholesale innerHTML rebuild each poll.
   var _openPendingDetails = {};
+  // v0.48.15 — ticked pending leads (bulk Confirm). Same reason: survives the rebuild.
+  var _selectedLeads = {};
+  var BULK_CONFIRM_CHUNK = 20; // the server's per-call limit
 
   // Wait for the V1 table to render (it's server-side PHP so it's usually
   // present immediately, but some themes defer). Give up after ~10s.
@@ -1039,8 +1042,19 @@
         // each row drains the queue naturally, no extra navigation needed.
         // PENDING_LEADS_QUEUE_CAP retained at file-scope for any future
         // reintroduction but is no longer referenced.
+        // v0.48.15 — tick boxes + "Confirm selected" (H7). Ticks for leads
+        // that left the queue are dropped so the count stays honest.
+        var liveIds = {};
+        g.items.forEach(function (lead) { liveIds[lead.id] = true; });
+        Object.keys(_selectedLeads).forEach(function (id) { if (!liveIds[id]) delete _selectedLeads[id]; });
+        var nSel = Object.keys(_selectedLeads).length;
         html += '<div class="hdlv2-aq-group hdlv2-aq-group-' + g.cls + '">'
-          +   '<div class="hdlv2-aq-group-head"><span class="hdlv2-aq-dot" style="background:' + g.dot + '"></span><span class="hdlv2-aq-group-label">' + esc(g.label) + '</span><span class="hdlv2-aq-count">' + g.items.length + '</span></div>'
+          +   '<div class="hdlv2-aq-group-head"><span class="hdlv2-aq-dot" style="background:' + g.dot + '"></span><span class="hdlv2-aq-group-label">' + esc(g.label) + '</span><span class="hdlv2-aq-count">' + g.items.length + '</span>'
+          +     '<span class="hdlv2-aq-bulk">'
+          +       '<label class="hdlv2-aq-selectall"><input type="checkbox" data-aq="lead-select-all"' + (nSel && nSel === g.items.length ? ' checked' : '') + '> Select all</label>'
+          +       '<button type="button" class="hdlv2-aq-btn hdlv2-aq-btn-pending-confirm hdlv2-aq-btn-bulk" data-aq="lead-confirm-selected"' + (nSel ? '' : ' disabled') + '>Confirm selected (' + nSel + ')</button>'
+          +     '</span>'
+          +   '</div>'
           +   '<ul class="hdlv2-aq-list">';
         g.items.forEach(function (lead) {
           html += renderPendingLeadAQRow(lead);
@@ -1099,7 +1113,7 @@
     // a pending lead now lives in exactly ONE place (this strip) until confirmed.
     var isOpen = !!_openPendingDetails[lead.id];
     return '<li class="hdlv2-aq-item hdlv2-aq-item-lead' + (isOpen ? ' hdlv2-aq-item-open' : '') + '" data-lead-id="' + esc(lead.id) + '">'
-      +   '<div class="hdlv2-aq-item-name">' + name + '</div>'
+      +   '<div class="hdlv2-aq-item-name"><label class="hdlv2-aq-check-label"><input type="checkbox" class="hdlv2-aq-check" data-aq="lead-select" data-lead-id="' + esc(lead.id) + '" aria-label="Select ' + name + '"' + (_selectedLeads[lead.id] ? ' checked' : '') + '>' + name + '</label></div>'
       +   '<div class="hdlv2-aq-item-meta">' + email + ageStr + ' &middot; ' + rate + '&times;'
       +     (submittedAt ? ' &middot; ' + esc(submittedAt) : '')
       // v0.47.83 — server-built location string ("Texas, US"); empty for
@@ -1122,6 +1136,7 @@
   // success so the V1 list shows the new client immediately.
   function bindPendingLeadQueueActions() {
     if (!state.actionQueueEl) return;
+    bindBulkConfirm();
     // 0.47.48 — View-details toggle: reveal/hide the inline Stage-1 detail panel.
     // Open state lives in _openPendingDetails so it survives the strip's per-poll
     // rebuild (renderActionQueue reads it when re-rendering each row).
@@ -1176,6 +1191,99 @@
         }
       });
     });
+  }
+
+  // v0.48.15 — "Select all" + "Confirm selected (N)" (Matthew 2026-10-13, H7).
+  // Each lead is confirmed exactly as its own Confirm button does, 20 per call.
+  function bindBulkConfirm() {
+    var root = state.actionQueueEl;
+    var btn = root.querySelector('[data-aq="lead-confirm-selected"]');
+    var all = root.querySelector('[data-aq="lead-select-all"]');
+    if (!btn) return;
+    var boxes = function () { return Array.prototype.slice.call(root.querySelectorAll('[data-aq="lead-select"]')); };
+    function sync() {
+      var n = Object.keys(_selectedLeads).length;
+      btn.textContent = 'Confirm selected (' + n + ')';
+      btn.disabled = n === 0;
+      if (all) all.checked = n > 0 && n === boxes().length;
+    }
+    boxes().forEach(function (cb) {
+      cb.addEventListener('change', function () {
+        var id = cb.getAttribute('data-lead-id');
+        if (cb.checked) _selectedLeads[id] = true; else delete _selectedLeads[id];
+        sync();
+      });
+    });
+    if (all) {
+      all.addEventListener('change', function () {
+        boxes().forEach(function (cb) {
+          cb.checked = all.checked;
+          var id = cb.getAttribute('data-lead-id');
+          if (all.checked) _selectedLeads[id] = true; else delete _selectedLeads[id];
+        });
+        sync();
+      });
+    }
+    btn.addEventListener('click', function () {
+      var ids = Object.keys(_selectedLeads).map(Number).filter(function (id) { return id && !_queuePendingActioning[id]; });
+      if (!ids.length) return;
+      window.HDLV2UI.confirm({
+        title: 'Confirm ' + ids.length + (ids.length === 1 ? ' lead?' : ' leads?'),
+        body: 'Each one gets the email that opens their Full Report. This cannot be undone.',
+        confirmLabel: 'Confirm all',
+        cancelLabel: 'Cancel'
+      }).then(function (ok) { if (ok) runBulkConfirm(ids, btn); });
+    });
+  }
+
+  function runBulkConfirm(ids, btn) {
+    var total = ids.length, done = 0, tally = { confirmed: 0, already: 0, failed: 0 };
+    ids.forEach(function (id) { _queuePendingActioning[id] = true; });
+    btn.disabled = true;
+    var chunks = [];
+    for (var i = 0; i < ids.length; i += BULK_CONFIRM_CHUNK) chunks.push(ids.slice(i, i + BULK_CONFIRM_CHUNK));
+    function release() { ids.forEach(function (id) { delete _queuePendingActioning[id]; delete _selectedLeads[id]; }); }
+    function next() {
+      if (!chunks.length) {
+        release();
+        var msg = tally.confirmed + ' confirmed';
+        if (tally.already) msg += ', ' + tally.already + ' already confirmed';
+        if (tally.failed) msg += ', ' + tally.failed + ' could not be confirmed';
+        window.HDLV2UI.toast(msg, tally.failed ? 'error' : 'success');
+        try { window.dispatchEvent(new CustomEvent('hdlv2:lead-actioned', { detail: { action: 'confirm', bulk: true, ts: Date.now() } })); } catch (e) {}
+        setTimeout(pollNow, 350);
+        return;
+      }
+      var chunk = chunks.shift();
+      btn.textContent = 'Confirming ' + Math.min(done + chunk.length, total) + ' of ' + total + '\u2026';
+      var idemKey = (window.crypto && typeof window.crypto.randomUUID === 'function')
+        ? window.crypto.randomUUID()
+        : ('idem-' + Date.now() + '-' + Math.random().toString(36).slice(2));
+      fetch(CFG.api_base + '/widget/leads/confirm-bulk', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': CFG.rest_nonce || CFG.nonce, 'Idempotency-Key': idemKey },
+        body: JSON.stringify({ lead_ids: chunk })
+      })
+        .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, body: j }; }); })
+        .then(function (res) {
+          done += chunk.length;
+          if (!res.ok) {
+            tally.failed += chunk.length;
+          } else {
+            tally.confirmed += (res.body.confirmed || []).length;
+            tally.already += (res.body.already || []).length;
+            tally.failed += (res.body.failed || []).length;
+            (res.body.confirmed || []).concat(res.body.already || []).forEach(function (id) {
+              var row = state.actionQueueEl.querySelector('.hdlv2-aq-item-lead[data-lead-id="' + id + '"]');
+              if (row) { row.style.transition = 'opacity 280ms'; row.style.opacity = '0.25'; }
+            });
+          }
+          next();
+        })
+        .catch(function () { done += chunk.length; tally.failed += chunk.length; next(); });
+    }
+    next();
   }
 
   function doQueuePendingAction(btn, action, leadId) {
@@ -4314,6 +4422,14 @@
       // verbatim by the strip panel. HDL brand tokens throughout.
       '.hdlv2-aq-btn-pending-details { padding:5px 11px; font-size:12px; border:1px solid #cfe2e7; background:#f0f7f9; color:#004F59; border-radius:999px; cursor:pointer; font-weight:600; font-family:inherit; line-height:1.3; }',
       '.hdlv2-aq-btn-pending-details:hover { border-color:#3d8da0; background:#e3eef1; }',
+      // v0.48.15 — bulk Confirm in the pending-leads group head (H7).
+      '.hdlv2-aq-bulk { margin-left:auto; display:flex; align-items:center; gap:10px; text-transform:none; letter-spacing:0; }',
+      '.hdlv2-aq-selectall, .hdlv2-aq-check-label { display:inline-flex; align-items:center; gap:7px; cursor:pointer; font-weight:500; color:#2c3e50; }',
+      '.hdlv2-aq-check-label { font-weight:inherit; color:inherit; }',
+      '.hdlv2-aq-selectall input, .hdlv2-aq-check { width:16px; height:16px; margin:0; accent-color:#3d8da0; cursor:pointer; }',
+      '.hdlv2-aq-btn-bulk { padding:5px 11px; font-size:12px; border:1px solid #3d8da0; background:#3d8da0; color:#fff; border-radius:999px; cursor:pointer; font-weight:600; font-family:inherit; line-height:1.3; }',
+      '.hdlv2-aq-btn-bulk:disabled { opacity:0.5; cursor:default; }',
+      '.hdlv2-aq-btn-bulk:focus-visible, .hdlv2-aq-selectall input:focus-visible, .hdlv2-aq-check:focus-visible { outline:2px solid #3d8da0; outline-offset:2px; }',
       '.hdlv2-aq-btn-pending-details[aria-expanded="true"] { background:#3d8da0; border-color:#3d8da0; color:#fff; }',
       // 0.47.80 — the detail panel's flex-basis:100% only drops it onto its own
       // full-width line when the row wraps; .hdlv2-aq-item is nowrap at desktop
