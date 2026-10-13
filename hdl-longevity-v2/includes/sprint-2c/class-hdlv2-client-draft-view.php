@@ -301,6 +301,7 @@ class HDLV2_Client_Draft_View {
             'client_name'            => $progress->client_name ?: '',
             'practitioner_name'      => $prac_name,
             'practitioner_logo_url'  => $prac_logo_url,
+            'partner_line'           => HDLV2_Offer::PARTNER_LINE, // v0.48.15
             'stage3_completed_at'    => $progress->stage3_completed_at,
             'calc'                   => $calc,
             'ai_narrative'           => $status === 'ready' ? $ai_narrative : null,

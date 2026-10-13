@@ -446,7 +446,8 @@ class HDLV2_Email_Templates {
      */
     private static function email_footer() {
         $out  = '<tr><td style="background:' . self::SOFT_FILL . ';border-top:1px solid ' . self::BORDER . ';padding:16px 28px;text-align:center;font-size:11px;color:#999999;line-height:1.5;font-family:Inter,-apple-system,BlinkMacSystemFont,\'Segoe UI\',sans-serif;">';
-        $out .= 'Powered by <strong style="color:' . self::TEAL . ';">HealthDataLab</strong> &nbsp;&middot;&nbsp; ';
+        // v0.48.15 — the partnership line (HDLV2_Offer::PARTNER_LINE) under every email.
+        $out .= 'Powered by <strong style="color:' . self::TEAL . ';">HealthDataLab</strong> &middot; a partnership focused on longevity &nbsp;&middot;&nbsp; ';
         $out .= '<a href="' . esc_url( apply_filters( "hdlv2_email_terms_url", self::TERMS_URL ) ) . '" style="color:#999999;text-decoration:underline;">Terms</a> &nbsp;&middot;&nbsp; ';
         $out .= '<a href="' . esc_url( apply_filters( "hdlv2_email_privacy_url", self::PRIVACY_URL ) ) . '" style="color:#999999;text-decoration:underline;">Privacy</a>';
         // v0.46.19 — port of the legal disclaimer (per HANDOFF-2026-05-28). Built

@@ -33,6 +33,7 @@ function is_wp_error( $x ) { return $x instanceof WP_Error; }
 
 require __DIR__ . '/../../includes/sprint-2/class-hdlv2-why-picks.php';
 require __DIR__ . '/../../includes/sprint-2/class-hdlv2-rate-calculator.php';
+require __DIR__ . '/../../includes/sprint-1/class-hdlv2-offer.php'; // v0.48.15 — partner_line
 require __DIR__ . '/../../includes/sprint-2c/class-hdlv2-client-draft-view.php';
 
 $pass = 0; $fail = 0;

@@ -198,6 +198,7 @@ class HDLV2_Staged_Form {
             'practitioner_cta_link' => $practitioner_cta_link,
             'practitioner_cta_text' => $practitioner_cta_text,
             'practitioner_logo_url' => $practitioner_logo_url,
+            'partner_line'          => HDLV2_Offer::PARTNER_LINE, // v0.48.15 — footer line on every screen
         );
 
         // v0.47.92 — single-form WHY picks: covered rows whose WHY is still

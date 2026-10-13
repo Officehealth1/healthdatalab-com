@@ -211,7 +211,7 @@ const fakeRoot = Object.assign(fakeEl(), { querySelectorAll: function () { retur
 const pageCtx = {
   root: fakeRoot, formData: {}, serverData: {}, saveTimer: null, PICK_MIN: 5, PICK_MAX: 10,
   document: { getElementById: function () { return fakeEl(); } }, window: { addEventListener: function () {} },
-  setRootClasses: function () {}, saveIndicator: function () { return ''; }, footer: function () { return ''; },
+  setRootClasses: function () {}, saveIndicator: function () { return ''; }, footer: function () { return ''; }, brandBar: function () { return ''; },
   bindFieldListeners: function () {}, submitWhyPicks: function () {}, clearSaveError: function () {}, autoSave: function () {},
   esc: function (s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
 };
@@ -440,7 +440,7 @@ function wiringHarness() {
     document: { getElementById: (id) => ids[id] || null }, window: { addEventListener() {} },
     setTimeout: (f, ms) => { const t = { at: H.clock + ms, f }; H.timers.push(t); return t; },
     clearTimeout: (t) => { H.timers = H.timers.filter((x) => x !== t); },
-    setRootClasses() {}, saveIndicator() { return ''; }, footer() { return ''; }, bindFieldListeners() {}, submitWhyPicks() {}, clearSaveError() {},
+    setRootClasses() {}, saveIndicator() { return ''; }, footer() { return ''; }, brandBar() { return ''; }, bindFieldListeners() {}, submitWhyPicks() {}, clearSaveError() {},
     // Like the real autoSave(): a call while a save is in flight is dropped.
     autoSave(stage) { if (sb.saving) return; H.saves.push({ stage: stage, picks: JSON.stringify(sb.formData.why_picks) }); },
     esc: pageCtx.esc

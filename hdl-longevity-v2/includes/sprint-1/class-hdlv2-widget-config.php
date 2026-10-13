@@ -2450,7 +2450,7 @@ class HDLV2_Widget_Config {
             // the snippet carried data-access.
             'access_mode'                   => isset( $row->access_mode ) && 'paid' === $row->access_mode ? 'paid' : 'open',
             'buy_url'                       => isset( $row->buy_url ) ? (string) $row->buy_url : '',
-        ) ) );
+        ) + HDLV2_Offer::public_config_fields() ) ); // v0.48.15 — the locked panel's price line
     }
 
     /**

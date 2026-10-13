@@ -420,6 +420,7 @@
       + '.hdlw-error-eyebrow{font-family:' + B.body + ';font-size:10px;color:#dc2626;letter-spacing:0.18em;text-transform:uppercase;font-weight:600;margin:0 0 10px;}'
       + '.hdlw-error-title{font-family:' + B.serif + ';margin:0 0 8px;font-size:22px;font-weight:600;color:var(--hdl-accent-deep,#004F59);letter-spacing:-0.01em;line-height:1.15;}'
       + '.hdlw-error-msg{font-family:' + B.body + ';font-size:13.5px;color:' + B.text + ';margin:0;line-height:1.55;}'
+      + '.hdlw-locked-price{font-family:' + B.body + ';font-size:15px;font-weight:600;color:' + B.text + ';margin:0 0 8px;}'
       // ----- v0.47.85 paid-mode locked panel (reuses the error card) -----
       + '.hdlw-locked .hdlw-logo{margin:0 auto 18px;}'
       // v0.47.91 — the frame hugs the logo instead of spanning the card, and a
@@ -571,12 +572,22 @@
     var shape = cfg.logo_shape || el.getAttribute('data-logo-shape') || 'square';
     if (shape !== 'square' && shape !== 'wordmark' && shape !== 'tall') shape = 'square';
     var name = cfg.practitioner_name || el.getAttribute('data-practitioner-name') || 'your practitioner';
+    // v0.48.15 (H5) — the Stage 1 price, from the embed code (no request) or
+    // an old snippet's public-config. "Free with your code" waits for the
+    // seller to take codes (HDLV2_Offer stage1_free_with_code).
+    var price = String(cfg.stage1_list_price || el.getAttribute('data-stage1-price') || '');
+    if (!/^\d{1,6}(\.\d{1,2})?$/.test(price)) price = '';
+    var currency = cfg.currency || el.getAttribute('data-currency') || '$';
+    var free = price && (cfg.stage1_free_with_code === true || el.getAttribute('data-free-with-code') === '1');
     try { el.style.setProperty('--hdl-accent', cfg.theme_color || el.getAttribute('data-color') || B.teal); } catch (e) { /* no-op */ }
     el.innerHTML = '<div class="hdlw-shell"><div class="hdlw-error-card hdlw-locked">'
       + (logo ? '<div class="hdlw-logo" data-shape="' + shape + '"><img src="' + escHtml(logo) + '" alt=""></div>' : '')
-      + '<p class="hdlw-error-eyebrow">Rate of ageing report</p>'
+      + '<p class="hdlw-error-eyebrow">' + (price ? 'Stage 1 &middot; Rate of ageing report' : 'Rate of ageing report') + '</p>'
       + '<h3 class="hdlw-error-title">This report opens with a personal link</h3>'
-      + '<p class="hdlw-error-msg">When you buy the report from ' + escHtml(name) + ', your link arrives by email. Open it and the questions start on this page.</p>'
+      + (price ? '<p class="hdlw-locked-price">Normally ' + escHtml(currency + price) + '.' + (free ? ' Free with your code.' : '') + '</p>' : '')
+      + '<p class="hdlw-error-msg">' + (free
+        ? 'Use your code on the Buy page and your personal link arrives by email. Open it and the nine questions start on this page.'
+        : 'When you buy the report from ' + escHtml(name) + ', your link arrives by email. Open it and the questions start on this page.') + '</p>'
       + buyLink(el, publicCfg)
       + '</div></div>';
   }
@@ -751,7 +762,7 @@
       +     '<div id="' + id + '-content"></div>'
       +     '<div class="hdlw-footer">'
       +       pracBlock
-      +       '<span class="hdlw-powered">Powered by <b>HealthDataLab</b></span>'
+      +       '<span class="hdlw-powered">Powered by <b>HealthDataLab</b> · a partnership focused on longevity</span>'
       +     '</div>'
       +   '</div>'
       + '</div>';

@@ -774,7 +774,8 @@
         '<div><p class="hdlv2-dr-prac-name">' + escape(pracName) + '</p>' +
         '<p class="hdlv2-dr-prac-role">Your longevity practitioner</p></div>' +
       '</div>' +
-      '<div class="hdlv2-dr-mark">Powered by <strong>HealthDataLab</strong></div>' +
+      // v0.48.15 — the partnership line (HDLV2_Offer::PARTNER_LINE) when the server sends it.
+      '<div class="hdlv2-dr-mark">' + (data.partner_line ? escape(data.partner_line).replace('HealthDataLab', '<strong>HealthDataLab</strong>') : 'Powered by <strong>HealthDataLab</strong>') + '</div>' +
     '</footer>' +
     // v0.46.57 (P4 safety bundle) — on-screen legal line, mirrors the email
     // footer wording (HDLV2_Email_Templates::legal_footer) verbatim; the PDF

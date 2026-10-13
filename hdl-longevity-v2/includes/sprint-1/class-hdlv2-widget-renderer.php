@@ -57,6 +57,12 @@ class HDLV2_Widget_Renderer {
         $paid_attrs = '';
         if ( 'paid' === ( $config['access_mode'] ?? 'open' ) ) {
             $paid_attrs = sprintf( ' data-access="paid" data-buy-url="%s"', esc_url( $config['buy_url'] ?? '' ) );
+            // v0.48.15 (H5) — the locked panel's price line, still with no request.
+            $offer       = HDLV2_Offer::public_config_fields();
+            $paid_attrs .= sprintf( ' data-stage1-price="%s" data-currency="%s"', esc_attr( $offer['stage1_list_price'] ), esc_attr( $offer['currency'] ) );
+            if ( $offer['stage1_free_with_code'] ) {
+                $paid_attrs .= ' data-free-with-code="1"';
+            }
         }
 
         // v0.35.0 (Phase O) — script URL gets ?ver=HDLV2_VERSION cache-buster

@@ -279,6 +279,7 @@ function s2( $row ) { return json_decode( $row->stage2_data, true ) ?: array(); 
 
 require __DIR__ . '/../../includes/class-hdlv2-env.php';
 require __DIR__ . '/../../includes/sprint-2/class-hdlv2-why-picks.php';
+require __DIR__ . '/../../includes/sprint-1/class-hdlv2-offer.php'; // v0.48.15 — partner_line
 require __DIR__ . '/../../includes/sprint-2/class-hdlv2-staged-form.php';
 require __DIR__ . '/../../includes/sprint-4/class-hdlv2-client-status.php';
 
@@ -296,7 +297,7 @@ $FIVE_NEW = array( 'floor_grandkids', 'stairs_no_rail', 'wake_rested', 'keep_dri
 $PICKS = array( 'why_picks' => $FIVE_NEW, 'key_people_text' => "my wife <b>Jenny</b>, O'Neill family", 'own_words' => 'Keep up with them.' );
 $TODAY_KEYS = array( 'current_stage', 'client_name', 'client_email', 'stage1_data', 'stage1_completed_at', 'stage2_data',
     'stage2_completed_at', 'stage3_data', 'stage3_completed_at', 'practitioner_name', 'practitioner_email',
-    'practitioner_cta_link', 'practitioner_cta_text', 'practitioner_logo_url' );
+    'practitioner_cta_link', 'practitioner_cta_text', 'practitioner_logo_url', 'partner_line' ); // v0.48.15 — partner_line joins every load (H6)
 
 $wpdb = new FakeWpdb();
 $GLOBALS['wpdb'] = $wpdb;

@@ -591,7 +591,32 @@
 
   // v0.36.20 — added Terms of Service link to the staged-form footer
   // (applies across every stage that renders footer()).
-  function footer() { return '<div class="hdlv2-footer">Powered by <a href="https://healthdatalab.com" target="_blank" rel="noopener">HealthDataLab</a> &middot; <a href="https://healthdatalab.com/terms" target="_blank" rel="noopener">Terms of Service</a></div>'; }
+  // v0.48.15 — the partnership line from /form/load (HDLV2_Offer::PARTNER_LINE)
+  // replaces "Powered by HealthDataLab" when the server sends it.
+  function footer() {
+    var line = (serverData && serverData.partner_line)
+      ? esc(serverData.partner_line).replace('HealthDataLab', '<a href="https://healthdatalab.com" target="_blank" rel="noopener">HealthDataLab</a>')
+      : 'Powered by <a href="https://healthdatalab.com" target="_blank" rel="noopener">HealthDataLab</a>';
+    return '<div class="hdlv2-footer">' + line + ' &middot; <a href="https://healthdatalab.com/terms" target="_blank" rel="noopener">Terms of Service</a></div>';
+  }
+
+  // v0.48.15 — the practitioner's logo in a slim band above every Full Report
+  // screen (Matthew 2026-10-13: "whatever page they go to, it would be nice to
+  // see altituding on"). Initials when there is no logo of their own; the
+  // HealthDataLab fallback logo is not theirs, so it is not drawn here.
+  function brandBar(d) {
+    d = d || {};
+    var name = d.practitioner_name || '';
+    var logo = d.practitioner_logo_url || '';
+    var own = logo && logo.indexOf('://') !== -1 && logo.indexOf('HDL-Logo-2309') === -1;
+    if (!own && !name) return '';
+    var initials = name.split(/\s+/).filter(Boolean).slice(0, 2).map(function (w) { return w.charAt(0).toUpperCase(); }).join('');
+    return '<div class="hdlv2-brandbar">'
+      + (own
+        ? '<img class="hdlv2-brandbar-logo" src="' + esc(logo) + '" alt="' + esc(name || 'Your practitioner') + '">'
+        : '<span class="hdlv2-brandbar-initials" aria-hidden="true">' + esc(initials) + '</span><span class="hdlv2-brandbar-name">' + esc(name) + '</span>')
+      + '</div>';
+  }
   // live: announced to screen readers (the tap cards' slow-connection message).
   function saveIndicator(live) { return '<div id="hdlv2-save-indicator" class="hdlv2-save-status"' + (live ? ' role="status" aria-live="polite"' : '') + '></div>'; }
 
@@ -1098,7 +1123,7 @@
     if (!d.key_people) d.key_people = {};
 
     root.innerHTML = '<div class="hdlv2-card">'+progressBar(2)
-      +'<div class="hdlv2-header"><h2>Your Why</h2></div>'
+      +brandBar(serverData) + '<div class="hdlv2-header"><h2>Your Why</h2></div>'
       +'<div class="hdlv2-form-body">'
       // v0.36.20 — Stage 2 page restructured:
       //   1. Subtitle removed from header (title only).
@@ -1520,7 +1545,7 @@
     var rows = abilityCounts(d.why_picks, groups, names);
 
     root.innerHTML = '<div class="hdlv2-card hdlv2-why">'
-      + '<div class="hdlv2-header"><h2>What matters most to you</h2><p>Pick the 5 to 10 that matter most to you in your last decade of life.</p></div>'
+      + brandBar(serverData) + '<div class="hdlv2-header"><h2>What matters most to you</h2><p>Pick the 5 to 10 that matter most to you in your last decade of life.</p></div>'
       + '<div class="hdlv2-form-body">'
       +   '<div class="hdlv2-why-groups">' + columns + '</div>'
       +   '<p id="hdlv2-picks-count" class="hdlv2-picks-count" aria-live="polite"></p>'
@@ -1738,7 +1763,7 @@
     //   - Title now reads "More Health Details \u2014 Stage 3" (was "Full Health Detail").
     //   - Skip helper line standardised: same phrasing on every section.
     root.innerHTML = '<div class="hdlv2-card">'
-      + '<div class="hdlv2-header"><h2>' + 'Your Full Report' + '</h2><p>' + esc(sec.title) + '</p></div>'
+      + brandBar(serverData) + '<div class="hdlv2-header"><h2>' + 'Your Full Report' + '</h2><p>' + esc(sec.title) + '</p></div>'
       + dots
       + (isFirst ? '<div class="hdlv2-wizard-info">Don\u2019t worry if you don\u2019t know the details. Just do your best. Your practitioner or the report can still be generated if you haven\u2019t got all these details.</div>' : '')
       + '<div class="hdlv2-form-body">' + content
@@ -2000,7 +2025,7 @@
     }
 
     root.innerHTML = '<div class="hdlv2-card">'
-      + '<div class="hdlv2-header"><h2>Your Full Report</h2></div>'
+      + brandBar(serverData) + '<div class="hdlv2-header"><h2>Your Full Report</h2></div>'
       + '<div class="hdlv2-s1">'
       +   '<div class="hdlv2-s1-header">'
       +     (tapStep > 0 ? '<button type="button" id="hdlv2-tap-back" class="hdlv2-nav-back hdlv2-s1-back-btn" aria-label="Go back to the previous step">&#8592; Previous</button>' : '')
@@ -2272,7 +2297,7 @@
 
   function thankYouFooter() {
     return '<div class="hdlv2-ty-footer">'
-      +   'Powered by <strong>HealthDataLab</strong> · '
+      +   ((serverData && serverData.partner_line) ? esc(serverData.partner_line).replace('HealthDataLab', '<strong>HealthDataLab</strong>') : 'Powered by <strong>HealthDataLab</strong> · a partnership focused on longevity') + ' · '
       +   '<a href="https://healthdatalab.com/terms" target="_blank" rel="noopener">Terms</a> · '
       +   '<a href="https://healthdatalab.com/privacy" target="_blank" rel="noopener">Privacy</a>'
       + '</div>';
