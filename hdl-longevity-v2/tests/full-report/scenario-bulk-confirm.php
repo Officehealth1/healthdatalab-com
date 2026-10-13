@@ -14,6 +14,7 @@ $GLOBALS['options'] = array( 'hdlv2_db_version' => '3.29' );
 /** Serves a set of widget_leads rows by id (ownership in the WHERE). */
 class BulkWpdb extends FakeWpdb {
     public $leads = array();       // id => row
+    public $leads_for_list = array(); // what the ownership read sees, when it differs (a twin's race)
     public $fail_signup_for = '';  // email whose form_progress INSERT fails
     public $log = array();         // ordered write log: START/COMMIT/ROLLBACK/fp/lead/mail
     public function get_results( $sql ) {
@@ -21,7 +22,7 @@ class BulkWpdb extends FakeWpdb {
         if ( false !== strpos( $sql, 'hdlv2_widget_leads' ) && preg_match( '/id IN \(([\d,]+)\)/', $sql, $m ) && preg_match( '/practitioner_user_id = (\d+)/', $sql, $p ) ) {
             $out = array();
             foreach ( explode( ',', $m[1] ) as $id ) {
-                $r = $this->leads[ (int) $id ] ?? null;
+                $r = $this->leads_for_list[ (int) $id ] ?? $this->leads[ (int) $id ] ?? null;
                 if ( $r && (int) $r->practitioner_user_id === (int) $p[1] ) $out[] = $r;
             }
             return $out;
@@ -34,6 +35,10 @@ class BulkWpdb extends FakeWpdb {
             return $r && (int) $r->practitioner_user_id === (int) $m[2] ? $r : null;
         }
         return parent::get_row( $sql );
+    }
+    public function get_var( $sql ) {
+        if ( preg_match( '/WHERE id = (\d+) FOR UPDATE/', $sql, $m ) ) { $this->queries[] = $sql; return $this->leads[ (int) $m[1] ]->status ?? null; }
+        return parent::get_var( $sql );
     }
     public function query( $sql ) {
         if ( in_array( $sql, array( 'START TRANSACTION', 'COMMIT', 'ROLLBACK' ), true ) ) $this->log[] = $sql;
@@ -122,6 +127,14 @@ echo "── B6. the single route keeps its answer ──\n";
 $w = bulk_setup( array( mk_lead( 5, 'pending' ) ) );
 $r = widget_instance()->rest_confirm_lead( new FakeRequest( array( 'lead_id' => 5 ) ) );
 check( 'B6.1 { success, form_token, email_sent } in one transaction', is_array( $r ) && array_keys( $r ) === array( 'success', 'form_token', 'email_sent' ) && true === $r['email_sent'] && array( 'START TRANSACTION', 'fp:l5@example.test', 'lead:5', 'COMMIT' ) === $w->log );
+
+echo "── B8. a twin confirmed the lead first ──\n";
+$w = bulk_setup( array( mk_lead( 1, 'pending' ), mk_lead( 2, 'pending' ) ) );
+$twin = clone $w->leads[1];
+$w->leads[1]->status = 'confirmed'; // the lock read sees the twin's commit; the list read saw pending
+$w->leads_for_list = array( 1 => $twin );
+$r = bulk( array( 1, 2 ) );
+check( 'B8.1 lead 1 comes back under already, no second email, no second client record', is_array( $r ) && array( 1 ) === $r['already'] && array( 2 ) === $r['confirmed'] && 1 === mails_now() && 1 === count( $w->inserts_into( 'hdlv2_form_progress' ) ) );
 
 echo "── B7. tier ──\n";
 $tier = HDLV2_Rate_Limit_Policy::tier_for_request( 'POST', '/hdl-v2/v1/widget/leads/confirm-bulk' );

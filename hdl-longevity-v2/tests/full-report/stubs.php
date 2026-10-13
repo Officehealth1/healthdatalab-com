@@ -170,6 +170,7 @@ class FakeWpdb {
     public $tickets = array();   // minted rows keyed by external_ref (UNIQUE)
     public $invites = array();   // section 14: several invite rows keyed by token (replaces $invite when set)
     public $fail_lead_insert = false;
+    public $fail_fp_insert = false;
     public $stale_ticket_read = false; // token lookups see the ticket as it was before another post claimed it
     private $next_insert_id = 500;
     private $txn = null;               // state to put back on ROLLBACK
@@ -228,13 +229,16 @@ class FakeWpdb {
         return $this->invite && (int) $this->invite->id === (int) $id ? $this->invite : null;
     }
     public $existing_lead_id = null; // a lead already on file for this practitioner + email
+    public $lock_status = 'pending'; // answer to confirm_lead_row()'s SELECT … FOR UPDATE
     public function get_var( $sql ) {
         $this->queries[] = $sql;
+        if ( false !== strpos( $sql, 'FOR UPDATE' ) ) return $this->lock_status;
         return strpos( $sql, 'hdlv2_widget_leads' ) !== false ? $this->existing_lead_id : null;
     }
     public function get_results( $sql ) { $this->queries[] = $sql; return array(); }
     public function insert( $table, $data, $format = null ) {
         $this->last_error = '';
+        if ( ! empty( $this->fail_fp_insert ) && substr( $table, -19 ) === 'hdlv2_form_progress' ) { $this->insert_id = 0; return false; }
         if ( $this->fail_lead_insert && substr( $table, -18 ) === 'hdlv2_widget_leads' ) {
             $this->last_error = 'simulated failure';
             $this->insert_id  = 0;

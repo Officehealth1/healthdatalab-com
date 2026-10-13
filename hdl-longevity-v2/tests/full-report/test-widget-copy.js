@@ -59,6 +59,8 @@ if (typeof ctx.showLocked === 'function') {
 } else {
   ok(false, 'showLocked() found');
 }
+const ql = fs.readFileSync(path.join(__dirname, '..', '..', 'assets', 'js', 'hdlv2-client-list-enhance.js'), 'utf8');
+ok(/aria-label="Select ' \+ attrEsc\(/.test(ql) && !/aria-label="Select ' \+ name/.test(ql), 'queue tick box: the lead name in aria-label is attribute-escaped (a lead named with a quote cannot break out)');
 const noComments = src.split('\n').filter((l) => !/^\s*(\/\/|\*|\/\*)/.test(l)).join('\n');
 ok(!/\bStage ?(2|3)\b/.test(noComments), 'widget: no "Stage 2/3" outside comments');
 ok(/Continue to your Full Report \\u2192/.test(src), 'fast path button: "Continue to your Full Report →"');

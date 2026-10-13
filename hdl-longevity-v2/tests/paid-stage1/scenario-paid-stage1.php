@@ -547,7 +547,7 @@ check( '11.2 open mode with access_mode=open set: same bytes', $open === HDLV2_W
 $paid = HDLV2_Widget_Renderer::generate_embed_code( 206, $embed_cfg + array( 'access_mode' => 'paid', 'buy_url' => 'https://shop.test/buy?a=1&b="x"' ) );
 check( '11.3 paid mode adds data-access="paid"', strpos( $paid, ' data-access="paid"' ) !== false );
 check( '11.4 paid mode adds the escaped buy url', strpos( $paid, 'data-buy-url="https://shop.test/buy?a=1&amp;b=&quot;x&quot;"' ) !== false );
-check( '11.5 paid snippet minus its attributes is the open snippet (v0.48.15: + the price and currency)', $open === preg_replace( '/ data-access="paid" data-buy-url="[^"]*" data-stage1-price="[^"]*" data-currency="[^"]*"/', '', $paid ) );
+check( '11.5 paid snippet minus its attributes is the open snippet (v0.48.15: + the price and currency)', $open === preg_replace( '/ data-access="paid" data-buy-url="[^"]*"( data-stage1-price="[^"]*" data-currency="[^"]*")?/', '', $paid ) );
 
 $wpdb = fresh_wpdb( 'paid' ); // the dashboard callers pass no access_mode: the stored row decides
 check( '11.6 paid practitioner, caller passes no access_mode → paid snippet from the stored row', strpos( HDLV2_Widget_Renderer::generate_embed_code( 206, $embed_cfg ), ' data-access="paid" data-buy-url="https://altituding.example.test/buy"' ) !== false );

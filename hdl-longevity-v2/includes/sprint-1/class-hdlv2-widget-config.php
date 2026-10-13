@@ -491,8 +491,8 @@ class HDLV2_Widget_Config {
         if ( $invite && $is_ticket ) {
             $ticket_id = (int) $invite->id;
         } elseif ( $invite ) {
+            // v0.48.15 — marked used only once the client record exists (fast path below).
             $invite_id = (int) $invite->id;
-            $this->complete_invite( $invite_id );
         }
 
         // Extract lead fields (V2: 9-question format)
@@ -510,6 +510,14 @@ class HDLV2_Widget_Config {
             $params['visitor_country'] ?? '',
             $params['visitor_region'] ?? ''
         );
+
+        // v0.48.15 — a Full Report ticket was bought for one email. The answers
+        // land on that email's client record, never on one the visitor types:
+        // the record is found by email, so a typed address would open someone
+        // else's assessment.
+        if ( $is_full && $invite_id && 0 !== strcasecmp( $visitor_email, (string) $invite->client_email ) ) {
+            return new WP_Error( 'email_mismatch', 'This personal link belongs to another email address. Please use the email you bought the report with.', array( 'status' => 403 ) );
+        }
 
         // ── Email validation — format + MX record (catches typos + dead domains). ──
         if ( ! $visitor_email || ! is_email( $visitor_email ) ) {
@@ -594,10 +602,16 @@ class HDLV2_Widget_Config {
                 // so the Make.com fan-out still fires.
                 'send_practitioner_notify' => false,
                 'send_make_pdf'   => true,
-                // v0.48.15 — a Full Report buyer already paid: their Stage 1
-                // PDF has no sales page (offer_show "0").
-                'offer_show'      => ! ( isset( $invite->source ) && 'full_report' === $invite->source ),
+                // v0.48.15 — an invite opens the Full Report straight away, so
+                // its Stage 1 PDF has no sales page (offer_show "0").
+                'offer_show'      => false,
             ) );
+
+            if ( ! $form_token ) {
+                // No client record: leave the invite unused so the link still works.
+                return new WP_Error( 'signup_failed', 'We could not save your answers. Please try again in a moment; your personal link still works.', array( 'status' => 500 ) );
+            }
+            $this->complete_invite( $invite_id );
 
             $invite_response = array(
                 'success'    => true,
@@ -1359,7 +1373,7 @@ class HDLV2_Widget_Config {
             // v0.48.15 — the Full Report offer for page 2 (nine string keys,
             // one setting: HDLV2_Offer). offer_show "0" hides page 2 for a
             // buyer who already paid for the Full Report.
-            + HDLV2_Offer::payload_keys( $args['offer_show'] ?? true );
+            + HDLV2_Offer::payload_keys( ( $args['offer_show'] ?? true ) && HDLV2_Offer::applies_to( $practitioner_id ) );
 
             $stage1_webhook = defined( 'HDLV2_MAKE_STAGE1_PDF' ) ? HDLV2_MAKE_STAGE1_PDF : '';
             if ( ! $stage1_webhook ) {
@@ -1879,6 +1893,10 @@ class HDLV2_Widget_Config {
             'send_make_pdf'   => true,
         ) );
 
+        if ( ! $form_token ) {
+            return self::render_verify_status_page( 'invalid' ); // v0.48.15 — no client record, no dead link
+        }
+
         // Mark verified
         $wpdb->update(
             $wpdb->prefix . 'hdlv2_pending_leads',
@@ -2139,6 +2157,9 @@ class HDLV2_Widget_Config {
         if ( ! $done ) {
             return new WP_Error( 'confirm_failed', 'Could not create assessment session for this lead.', array( 'status' => 500 ) );
         }
+        if ( $done['already'] ) {
+            return rest_ensure_response( array( 'success' => true, 'already' => true, 'form_token' => '' ) );
+        }
 
         return rest_ensure_response( array(
             'success'    => true,
@@ -2161,7 +2182,9 @@ class HDLV2_Widget_Config {
      * @param int      $practitioner_id The lead's practitioner.
      * @param bool     $send_email      Send the "has opened your Full Report" email.
      * @param int|null $invite_id       A Full Report ticket that paid for it.
-     * @return array|false { form_token, email_sent } or false.
+     * @return array|false { form_token, email_sent, already } or false;
+     *                     already = a twin confirmed it first (nothing done).
+
      */
     public static function confirm_lead_row( $lead, $practitioner_id, $send_email, $invite_id = null ) {
         global $wpdb;
@@ -2178,6 +2201,16 @@ class HDLV2_Widget_Config {
         }
 
         $wpdb->query( 'START TRANSACTION' );
+        // Lock the lead: a twin Confirm (another tab, the bulk call, a
+        // purchase) waits here, then finds it no longer pending.
+        $status = $wpdb->get_var( $wpdb->prepare(
+            "SELECT status FROM {$wpdb->prefix}hdlv2_widget_leads WHERE id = %d FOR UPDATE",
+            (int) $lead->id
+        ) );
+        if ( 'pending' !== $status ) {
+            $wpdb->query( 'ROLLBACK' );
+            return array( 'form_token' => '', 'email_sent' => false, 'already' => true );
+        }
         $form_token = self::complete_signup( array(
             'practitioner_id' => $practitioner_id,
             'visitor_name'    => (string) $lead->visitor_name,
@@ -2243,7 +2276,7 @@ class HDLV2_Widget_Config {
             }
         }
 
-        return array( 'form_token' => (string) $form_token, 'email_sent' => $email_sent );
+        return array( 'form_token' => (string) $form_token, 'email_sent' => $email_sent, 'already' => false );
     }
 
     /** Most leads one bulk call confirms; the dashboard sends bigger selections in chunks. */
@@ -2303,10 +2336,15 @@ class HDLV2_Widget_Config {
                 $out['already'][] = $id;
             } elseif ( 'pending' !== $lead->status ) {
                 $out['failed'][] = array( 'id' => $id, 'code' => 'lead_rejected' );
-            } elseif ( self::confirm_lead_row( $lead, $user_id, true ) ) {
-                $out['confirmed'][] = $id;
             } else {
-                $out['failed'][] = array( 'id' => $id, 'code' => 'confirm_failed' );
+                $done = self::confirm_lead_row( $lead, $user_id, true );
+                if ( ! $done ) {
+                    $out['failed'][] = array( 'id' => $id, 'code' => 'confirm_failed' );
+                } elseif ( $done['already'] ) {
+                    $out['already'][] = $id;
+                } else {
+                    $out['confirmed'][] = $id;
+                }
             }
         }
         return rest_ensure_response( $out );
@@ -2328,17 +2366,23 @@ class HDLV2_Widget_Config {
      * lead with no email (the seller sends the link). A confirmed lead needs
      * nothing; a rejected one counts as not found and is never revived.
      *
-     * @return array { found: bool, confirmed: bool } — confirmed = by this call.
+     * Safe to repeat: a retried purchase (same external_ref) confirms a lead
+     * the first call could not, and otherwise only reports.
+     *
+     * @return array { found: bool, confirmed: bool } — confirmed = by this ticket.
      */
     public static function confirm_lead_for_purchase( $practitioner_id, $email, $ticket_id ) {
         $lead = self::newest_lead( $practitioner_id, $email );
         if ( ! $lead || 'rejected' === $lead->status ) {
             return array( 'found' => false, 'confirmed' => false );
         }
-        if ( 'pending' !== $lead->status ) {
-            return array( 'found' => true, 'confirmed' => false );
+        if ( 'pending' === $lead->status ) {
+            $done = self::confirm_lead_row( $lead, $practitioner_id, false, $ticket_id );
+            if ( $done && ! $done['already'] ) {
+                return array( 'found' => true, 'confirmed' => true );
+            }
         }
-        return array( 'found' => true, 'confirmed' => false !== self::confirm_lead_row( $lead, $practitioner_id, false, $ticket_id ) );
+        return self::purchase_lead_state( $practitioner_id, $email, $ticket_id );
     }
 
     /** The same answer as confirm_lead_for_purchase(), read only (a repeat mint, or the switch off). */
@@ -2450,7 +2494,7 @@ class HDLV2_Widget_Config {
             // the snippet carried data-access.
             'access_mode'                   => isset( $row->access_mode ) && 'paid' === $row->access_mode ? 'paid' : 'open',
             'buy_url'                       => isset( $row->buy_url ) ? (string) $row->buy_url : '',
-        ) + HDLV2_Offer::public_config_fields() ) ); // v0.48.15 — the locked panel's price line
+        ) + ( HDLV2_Offer::applies_to( (int) $row->practitioner_user_id ) ? HDLV2_Offer::public_config_fields() : array() ) ) ); // v0.48.15 — the locked panel's price line
     }
 
     /**

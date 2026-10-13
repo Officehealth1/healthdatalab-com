@@ -13,6 +13,10 @@ load_sources();
 /** The fake wpdb plus one widget_leads row served for (practitioner, email). */
 class LeadWpdb extends FakeWpdb {
     public $lead = null;
+    public function get_var( $sql ) {
+        if ( false !== strpos( $sql, 'FOR UPDATE' ) ) { $this->queries[] = $sql; return $this->lead ? $this->lead->status : null; }
+        return parent::get_var( $sql );
+    }
     public function get_row( $sql ) {
         if ( false !== strpos( $sql, 'hdlv2_widget_leads' ) && false !== strpos( $sql, 'visitor_email' ) && false === strpos( $sql, 'JOIN' ) ) {
             $this->queries[] = $sql;
@@ -119,6 +123,12 @@ $n_upd = count( $w->updates );
 $r2 = mint_req( array( 'product' => 'full_report' ) );
 check( 'T7.1 same token, idempotent true', is_array( $r2 ) && $r1['token'] === $r2['token'] && true === $r2['idempotent'] );
 check( 'T7.2 nothing new written, complete_signup not called again', count( $w->inserts ) === $n_ins && count( $w->updates ) === $n_upd && 1 === signups( $w ) );
+$w = setup( lead_row( 'pending' ) );
+$w->fail_lead_insert = false;
+$GLOBALS['options']['hdlv2_full_report_auto_confirm'] = 1;
+$w->tickets['cs_test_fr1'] = (object) array( 'id' => 31, 'token' => str_repeat( 'ef', 32 ), 'expires_at' => '2030-01-01 00:00:00', 'practitioner_id' => 122, 'source' => 'full_report', 'client_email' => 'fr1@example.test', 'client_name' => 'Fr One' );
+$r = mint_req( array( 'product' => 'full_report' ) );
+check( 'T7.4 a retry finds the lead still pending (first confirm failed) → confirms it now', is_array( $r ) && true === $r['idempotent'] && true === $r['auto_confirmed'] && 1 === signups( $w ) );
 $w2 = setup( null, 'paid' );
 $w2->tickets['cs_test_fr1'] = (object) array( 'id' => 9, 'token' => str_repeat( 'cd', 32 ), 'expires_at' => '2030-01-01 00:00:00', 'practitioner_id' => 122, 'source' => 'paid_stage1', 'client_email' => 'x@example.test', 'client_name' => 'X' );
 $r = mint_req( array( 'product' => 'full_report' ) );
@@ -143,6 +153,20 @@ $p = lead_params( 'fr1@example.test', TOKEN );
 $p['practitioner_id'] = 122;
 $r = post_lead( $p );
 check( 'T8.4 another practitioner\'s ticket → no fast path (public path, no client record)', is_array( $r ) && empty( $r['form_token'] ) && 0 === signups( $w ) );
+
+$w = setup( null, 'open' );
+$w->invite = invite_row( array( 'id' => 88, 'practitioner_id' => 122, 'source' => 'full_report', 'client_email' => 'buyer@example.test' ) );
+$p = lead_params( 'victim@example.test', TOKEN );
+$p['practitioner_id'] = 122;
+$r = post_lead( $p );
+check( 'T8.5 the ticket\'s answers cannot land on another email → 403 email_mismatch, nothing written', 403 === status_of( $r ) && 'email_mismatch' === code_of( $r ) && 0 === signups( $w ) && 'pending' === $w->invite->status && ! $GLOBALS['captured_posts'] );
+$w = setup( null, 'open' );
+$w->invite = invite_row( array( 'id' => 88, 'practitioner_id' => 122, 'source' => 'full_report', 'client_email' => 'fr1@example.test' ) );
+$w->fail_fp_insert = true;
+$p = lead_params( 'FR1@example.test', TOKEN );
+$p['practitioner_id'] = 122;
+$r = post_lead( $p );
+check( 'T8.6 no client record → 500, the ticket stays usable (same email, any case)', 500 === status_of( $r ) && 'pending' === $w->invite->status );
 
 echo "── T9. auto-login for a full_report ticket (real init handler) ──\n";
 $php = escapeshellarg( PHP_BINARY );

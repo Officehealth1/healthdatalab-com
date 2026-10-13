@@ -1113,7 +1113,7 @@
     // a pending lead now lives in exactly ONE place (this strip) until confirmed.
     var isOpen = !!_openPendingDetails[lead.id];
     return '<li class="hdlv2-aq-item hdlv2-aq-item-lead' + (isOpen ? ' hdlv2-aq-item-open' : '') + '" data-lead-id="' + esc(lead.id) + '">'
-      +   '<div class="hdlv2-aq-item-name"><label class="hdlv2-aq-check-label"><input type="checkbox" class="hdlv2-aq-check" data-aq="lead-select" data-lead-id="' + esc(lead.id) + '" aria-label="Select ' + name + '"' + (_selectedLeads[lead.id] ? ' checked' : '') + '>' + name + '</label></div>'
+      +   '<div class="hdlv2-aq-item-name"><label class="hdlv2-aq-check-label"><input type="checkbox" class="hdlv2-aq-check" data-aq="lead-select" data-lead-id="' + esc(lead.id) + '" aria-label="Select ' + attrEsc(lead.visitor_name || lead.visitor_email || 'New lead') + '"' + (_selectedLeads[lead.id] ? ' checked' : '') + '>' + name + '</label></div>'
       +   '<div class="hdlv2-aq-item-meta">' + email + ageStr + ' &middot; ' + rate + '&times;'
       +     (submittedAt ? ' &middot; ' + esc(submittedAt) : '')
       // v0.47.83 — server-built location string ("Texas, US"); empty for

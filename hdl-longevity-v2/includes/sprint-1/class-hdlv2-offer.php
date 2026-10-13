@@ -41,6 +41,9 @@ class HDLV2_Offer {
         'caption'               => 'The abilities your choices need, against where you are today',
         'video_url'             => '',
         'stage1_free_with_code' => false,
+        // The practitioner whose clients see this offer (Matthew: Altituding).
+        // 0 = every practitioner.
+        'practitioner_id'       => 122,
     );
 
     /** The defaults with the saved option laid over them, cleaned. Unknown keys are dropped. */
@@ -54,7 +57,9 @@ class HDLV2_Offer {
             if ( ! array_key_exists( $k, self::DEFAULTS ) ) {
                 continue;
             }
-            if ( is_bool( self::DEFAULTS[ $k ] ) ) {
+            if ( is_int( self::DEFAULTS[ $k ] ) ) {
+                $out[ $k ] = absint( $v );
+            } elseif ( is_bool( self::DEFAULTS[ $k ] ) ) {
                 $out[ $k ] = (bool) $v && 'false' !== $v && '0' !== $v;
             } elseif ( 'url' === $k || 'video_url' === $k ) {
                 $out[ $k ] = esc_url_raw( (string) $v );
@@ -65,6 +70,12 @@ class HDLV2_Offer {
             }
         }
         return $out;
+    }
+
+    /** Whether this practitioner's clients see the offer. */
+    public static function applies_to( $practitioner_id ) {
+        $owner = self::get()['practitioner_id'];
+        return 0 === $owner || (int) $practitioner_id === $owner;
     }
 
     /** "$27" — the currency always in front of the number. */

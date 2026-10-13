@@ -148,8 +148,8 @@ class HDL_Stage1_Ticket {
      * the lead is confirmed here, without the Confirm email, unless the
      * switch `hdlv2_full_report_auto_confirm` is 0: then the lead waits for
      * the practitioner and open_url is null. A rejected lead counts as not
-     * found and is never revived. Only a fresh mint writes; a repeat call
-     * with the same external_ref answers from what is stored.
+     * found and is never revived. A repeat call with the same external_ref
+     * mints nothing and only confirms a lead that is still pending.
      */
     private static function mint_full_report( $practitioner_id, $email, $name, $external_ref, $days ) {
         $ticket = self::mint( $practitioner_id, $email, $name, $external_ref, $days, 'full_report' );
@@ -157,7 +157,9 @@ class HDL_Stage1_Ticket {
             return $ticket;
         }
         $auto = (bool) get_option( 'hdlv2_full_report_auto_confirm', 1 );
-        if ( ! $ticket['idempotent'] && $auto ) {
+        // A repeat call (same external_ref) confirms a lead the first call
+        // could not; confirm_lead_for_purchase() only reports otherwise.
+        if ( $auto ) {
             $lead = HDLV2_Widget_Config::confirm_lead_for_purchase( $practitioner_id, $ticket['email'], $ticket['id'] );
         } else {
             $lead = HDLV2_Widget_Config::purchase_lead_state( $practitioner_id, $ticket['email'], $ticket['id'] );

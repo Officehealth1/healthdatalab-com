@@ -185,6 +185,8 @@ class FakeWpdb {
         return $this->rows[ $t ] ?? null;
     }
     public function get_var( $sql ) {
+        // v0.48.15 — confirm_lead_row() locks the lead first; the leads here are pending.
+        if ( false !== strpos( $sql, 'FOR UPDATE' ) ) return 'pending';
         $t = $this->table_of( $sql );
         return $this->vars[ $t ] ?? null;
     }
