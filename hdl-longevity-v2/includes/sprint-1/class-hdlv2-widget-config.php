@@ -463,7 +463,9 @@ class HDLV2_Widget_Config {
         $paid_mode   = isset( $config->access_mode ) && 'paid' === $config->access_mode;
         $is_ticket   = $invite && isset( $invite->source ) && 'paid_stage1' === $invite->source;
         $ticket_id   = null;
-        if ( $invite && ( $paid_mode || $is_ticket ) && (int) $invite->practitioner_id !== $practitioner_id ) {
+        // v0.48.15 — a Full Report ticket only ever opens its own practitioner's form.
+        $is_full     = $invite && isset( $invite->source ) && 'full_report' === $invite->source;
+        if ( $invite && ( $paid_mode || $is_ticket || $is_full ) && (int) $invite->practitioner_id !== $practitioner_id ) {
             $invite = null;
         }
         if ( $paid_mode && ! $invite ) {
@@ -585,6 +587,9 @@ class HDLV2_Widget_Config {
                 // so the Make.com fan-out still fires.
                 'send_practitioner_notify' => false,
                 'send_make_pdf'   => true,
+                // v0.48.15 — a Full Report buyer already paid: their Stage 1
+                // PDF has no sales page (offer_show "0").
+                'offer_show'      => ! ( isset( $invite->source ) && 'full_report' === $invite->source ),
             ) );
 
             $invite_response = array(
@@ -1726,6 +1731,7 @@ class HDLV2_Widget_Config {
             'invite_id'        => $invite_id,
             'send_practitioner_notify' => ! empty( $args['send_practitioner_notify'] ),
             'send_make_pdf'    => ! empty( $args['send_make_pdf'] ),
+            'offer_show'       => $args['offer_show'] ?? true,
         ) );
 
         // ── Front-door safety screen (v0.43.0) - deterministic red-flag write.
@@ -2115,6 +2121,38 @@ class HDLV2_Widget_Config {
             return new WP_Error( 'lead_rejected', 'This lead was previously rejected. To re-action, the visitor must resubmit the widget.', array( 'status' => 409 ) );
         }
 
+        $done = self::confirm_lead_row( $lead, $user_id, true );
+        if ( ! $done ) {
+            return new WP_Error( 'confirm_failed', 'Could not create assessment session for this lead.', array( 'status' => 500 ) );
+        }
+
+        return rest_ensure_response( array(
+            'success'    => true,
+            'form_token' => $done['form_token'],
+            'email_sent' => $done['email_sent'],
+        ) );
+    }
+
+    /**
+     * Confirm one PENDING lead row: client record, lead marked confirmed,
+     * then (optionally) the magic-link email. Shared by the single Confirm,
+     * the bulk Confirm and a Full Report purchase (v0.48.15). Callers check
+     * ownership and status first.
+     *
+     * complete_signup() and the lead UPDATE share one transaction, so a
+     * worker that dies between them cannot leave a client record behind a
+     * lead that still reads pending. The email goes only after COMMIT.
+     *
+     * @param object   $lead            widget_leads row.
+     * @param int      $practitioner_id The lead's practitioner.
+     * @param bool     $send_email      Send the "has opened your Full Report" email.
+     * @param int|null $invite_id       A Full Report ticket that paid for it.
+     * @return array|false { form_token, email_sent } or false.
+     */
+    public static function confirm_lead_row( $lead, $practitioner_id, $send_email, $invite_id = null ) {
+        global $wpdb;
+        $practitioner_id = (int) $practitioner_id;
+
         // Decode stage1 answers — schema stores JSON, we need an array for
         // complete_signup().
         $stage1 = array();
@@ -2125,17 +2163,17 @@ class HDLV2_Widget_Config {
             }
         }
 
-        $config = $this->get_config( $user_id );
-
+        $wpdb->query( 'START TRANSACTION' );
         $form_token = self::complete_signup( array(
-            'practitioner_id' => $user_id,
+            'practitioner_id' => $practitioner_id,
             'visitor_name'    => (string) $lead->visitor_name,
             'visitor_email'   => (string) $lead->visitor_email,
             'visitor_phone'   => '', // not captured on widget_leads pre-v0.35.0
             'visitor_age'     => $lead->visitor_age !== null ? (int) $lead->visitor_age : null,
             'rate'            => $lead->rate_of_ageing !== null ? (float) $lead->rate_of_ageing : null,
             'stage1_data'     => $stage1,
-            'config'          => $config,
+            'config'          => null, // complete_signup() reads the practitioner's config row
+            'invite_id'       => $invite_id,
             // v0.47.83 — carry the submit-time location onto the client
             // record. Null-coalesced: a pre-migration lead row has no
             // location columns and must confirm exactly as before.
@@ -2151,48 +2189,88 @@ class HDLV2_Widget_Config {
         ) );
 
         if ( ! $form_token ) {
-            return new WP_Error( 'confirm_failed', 'Could not create assessment session for this lead.', array( 'status' => 500 ) );
+            $wpdb->query( 'ROLLBACK' );
+            return false;
         }
 
-        // Mark confirmed BEFORE sending email so a wp_mail timeout doesn't
-        // leave us in a weird "the lead is still pending but the email went
-        // out" state on retry.
+        $lead_update = array(
+            'status'       => 'confirmed',
+            'confirmed_at' => current_time( 'mysql' ),
+        );
+        if ( $invite_id ) {
+            $lead_update['invite_id'] = (int) $invite_id;
+        }
         $wpdb->update(
             $wpdb->prefix . 'hdlv2_widget_leads',
-            array(
-                'status'       => 'confirmed',
-                'confirmed_at' => current_time( 'mysql' ),
-            ),
-            array( 'id' => $lead_id ),
-            array( '%s', '%s' ),
+            $lead_update,
+            array( 'id' => (int) $lead->id ),
+            $invite_id ? array( '%s', '%s', '%d' ) : array( '%s', '%s' ),
             array( '%d' )
         );
+        $wpdb->query( 'COMMIT' );
 
-        // v0.35.0 (Phase O, revised) — send the post-Confirm magic-link
-        // email. The Make.com Stage 1 client email already arrived at submit
-        // time but it intentionally has no Continue button (that's the spam
-        // gate — visitors wait for the practitioner to look at their data).
-        // This send_invite_email is the "your practitioner reviewed your
-        // snapshot, here's the next step" email. Reuses the existing
-        // "You're Invited!" template, but the URL points at /assessment/
-        // rather than back at the widget so the visitor lands directly on
-        // Stage 2 with their original 9 answers preserved as Stage 1 data.
-        $assessment_url = site_url( '/assessment/?token=' . $form_token );
-        $expires_at     = gmdate( 'Y-m-d H:i:s', time() + 30 * DAY_IN_SECONDS );
-        $email_sent     = self::send_invite_email( $user_id, (string) $lead->visitor_name, (string) $lead->visitor_email, $assessment_url, $expires_at );
-        if ( ! $email_sent ) {
-            error_log( sprintf(
-                '[HDL V2] Confirm-lead magic-link email failed — practitioner %d, client %s. Lead is confirmed; client must be re-sent the link manually (Sent Invites tab → Resend).',
-                $user_id,
-                $lead->visitor_email
-            ) );
+        $email_sent = false;
+        if ( $send_email ) {
+            // v0.35.0 (Phase O, revised) — the post-Confirm magic-link email.
+            // The Make.com Stage 1 client email already arrived at submit
+            // time but intentionally has no Continue button (the spam gate:
+            // visitors wait for the practitioner to look at their data). The
+            // URL points at /assessment/ so the visitor lands on the Full
+            // Report with their 9 answers kept as Stage 1 data.
+            $assessment_url = site_url( '/assessment/?token=' . $form_token );
+            $expires_at     = gmdate( 'Y-m-d H:i:s', time() + 30 * DAY_IN_SECONDS );
+            $email_sent     = (bool) self::send_invite_email( $practitioner_id, (string) $lead->visitor_name, (string) $lead->visitor_email, $assessment_url, $expires_at );
+            if ( ! $email_sent ) {
+                error_log( sprintf(
+                    '[HDL V2] Confirm-lead magic-link email failed — practitioner %d, lead %d. Lead is confirmed; client must be re-sent the link manually (Sent Invites tab → Resend).',
+                    $practitioner_id,
+                    (int) $lead->id
+                ) );
+            }
         }
 
-        return rest_ensure_response( array(
-            'success'    => true,
-            'form_token' => (string) $form_token,
-            'email_sent' => (bool) $email_sent,
+        return array( 'form_token' => (string) $form_token, 'email_sent' => $email_sent );
+    }
+
+    /** Newest lead of this practitioner for this email, or null. */
+    private static function newest_lead( $practitioner_id, $email ) {
+        global $wpdb;
+        return $wpdb->get_row( $wpdb->prepare(
+            "SELECT * FROM {$wpdb->prefix}hdlv2_widget_leads
+             WHERE practitioner_user_id = %d AND visitor_email = %s
+             ORDER BY id DESC LIMIT 1",
+            (int) $practitioner_id, (string) $email
         ) );
+    }
+
+    /**
+     * v0.48.15 — a Full Report purchase confirms the buyer's pending Stage 1
+     * lead with no email (the seller sends the link). A confirmed lead needs
+     * nothing; a rejected one counts as not found and is never revived.
+     *
+     * @return array { found: bool, confirmed: bool } — confirmed = by this call.
+     */
+    public static function confirm_lead_for_purchase( $practitioner_id, $email, $ticket_id ) {
+        $lead = self::newest_lead( $practitioner_id, $email );
+        if ( ! $lead || 'rejected' === $lead->status ) {
+            return array( 'found' => false, 'confirmed' => false );
+        }
+        if ( 'pending' !== $lead->status ) {
+            return array( 'found' => true, 'confirmed' => false );
+        }
+        return array( 'found' => true, 'confirmed' => false !== self::confirm_lead_row( $lead, $practitioner_id, false, $ticket_id ) );
+    }
+
+    /** The same answer as confirm_lead_for_purchase(), read only (a repeat mint, or the switch off). */
+    public static function purchase_lead_state( $practitioner_id, $email, $ticket_id ) {
+        $lead = self::newest_lead( $practitioner_id, $email );
+        if ( ! $lead || 'rejected' === $lead->status ) {
+            return array( 'found' => false, 'confirmed' => false );
+        }
+        return array(
+            'found'     => true,
+            'confirmed' => 'confirmed' === $lead->status && (int) ( $lead->invite_id ?? 0 ) === (int) $ticket_id,
+        );
     }
 
     /**

@@ -1749,6 +1749,28 @@ class HDLV2_Activator {
             error_log( '[HDLV2] Phase AI (v3.28) migration: widget_config.ticket_page_url verified.' );
         }
 
+        // Phase AJ (DB v3.29) — 'full_report' joins widget_invites.source
+        // (v0.48.15): the keyed ticket a Full Report buyer gets after paying.
+        // One guarded MODIFY, verified before the version bumps.
+        if ( version_compare( $current_db_version, '3.29', '<' ) ) {
+            $invites_table = $p . 'hdlv2_widget_invites';
+            $has_full = function () use ( $wpdb, $invites_table ) {
+                return false !== strpos( (string) $wpdb->get_var( $wpdb->prepare(
+                    "SELECT COLUMN_TYPE FROM INFORMATION_SCHEMA.COLUMNS
+                     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s AND COLUMN_NAME = 'source'",
+                    $invites_table
+                ) ), "'full_report'" );
+            };
+            if ( ! $has_full() ) {
+                $wpdb->query( "ALTER TABLE `$invites_table` MODIFY COLUMN source ENUM('practitioner','automation','paid_stage1','full_report') NOT NULL DEFAULT 'practitioner'" );
+                if ( $wpdb->last_error || ! $has_full() ) {
+                    error_log( '[HDLV2] Phase AJ (v3.29) FAILED: source full_report — ' . $wpdb->last_error . ' — will retry next boot.' );
+                    return false;
+                }
+            }
+            error_log( '[HDLV2] Phase AJ (v3.29) migration: widget_invites.source full_report verified.' );
+        }
+
         return true;
     }
 
@@ -1860,7 +1882,7 @@ class HDLV2_Activator {
             opened_at DATETIME DEFAULT NULL,
             completed_at DATETIME DEFAULT NULL,
             prefill_stage1 JSON DEFAULT NULL,
-            source ENUM('practitioner','automation','paid_stage1') NOT NULL DEFAULT 'practitioner',
+            source ENUM('practitioner','automation','paid_stage1','full_report') NOT NULL DEFAULT 'practitioner',
             external_ref VARCHAR(128) DEFAULT NULL,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             PRIMARY KEY (id),

@@ -3,7 +3,7 @@
  * Plugin Name: HDL Longevity V2 — Staged Workflow
  * Plugin URI: https://healthdatalab.net
  * Description: V2 longevity workflow: staged intake, WHY profiling, practitioner consultations, weekly flight plans, and AI coaching. Runs alongside the existing Health Data Lab plugin.
- * Version: 0.48.14
+ * Version: 0.48.15
  * Author: Health Data Lab
  * Author URI: https://healthdatalab.net
  * License: Proprietary
@@ -22,8 +22,8 @@ if ( ! defined( 'ABSPATH' ) ) {
 // register_activation_hook callbacks, which fire synchronously during
 // `wp plugin activate`, can reference them. The activator needs
 // HDLV2_DB_VERSION / HDLV2_VERSION at call time to update version options.
-define( 'HDLV2_VERSION', '0.48.14' );
-define( 'HDLV2_DB_VERSION', '3.28' );
+define( 'HDLV2_VERSION', '0.48.15' );
+define( 'HDLV2_DB_VERSION', '3.29' );
 
 // Client funnel token (hdlv2_form_progress.token) lifetime. FIXED window
 // from issuance: set when the token is created and refreshed ONLY when the
@@ -145,6 +145,19 @@ add_action( 'init', function () {
 
         // Create or get existing user
         $user_id = email_exists( $email );
+        // v0.48.15 — a Full Report ticket carries the email the buyer typed at
+        // checkout, never verified. It may sign in a client, never an account
+        // that manages clients or the site.
+        if ( $user_id && isset( $invite->source ) && 'full_report' === $invite->source
+             && ( user_can( $user_id, 'edit_posts' )
+                  || ( class_exists( 'HDLV2_Compatibility' ) && HDLV2_Compatibility::is_practitioner( $user_id ) ) ) ) {
+            hdlv2_render_link_card(
+                'Please sign in',
+                'This link cannot open an account that manages clients. Please sign in with your password instead.',
+                'Sign in',
+                wp_login_url()
+            );
+        }
         if ( ! $user_id ) {
             $username = sanitize_user( strtolower( preg_replace( '/[^a-zA-Z0-9]/', '', $name ) ) . '_' . wp_rand( 1000, 9999 ), true );
             if ( username_exists( $username ) ) {

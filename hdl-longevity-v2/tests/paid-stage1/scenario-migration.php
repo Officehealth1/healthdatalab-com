@@ -18,7 +18,7 @@ define( 'ABSPATH', __DIR__ . '/' );
 define( 'DAY_IN_SECONDS', 86400 );
 define( 'HOUR_IN_SECONDS', 3600 );
 define( 'MINUTE_IN_SECONDS', 60 );
-define( 'HDLV2_DB_VERSION', '3.28' );
+define( 'HDLV2_DB_VERSION', '3.29' );
 define( 'HDLV2_VERSION', '0.47.85' );
 
 $GLOBALS['db_from'] = '3.26';
@@ -101,7 +101,7 @@ ok( '14.3 buy_url added to widget_config', 1 === count_like( $wpdb->alters, 'ADD
 ok( '14.4 external_ref added to widget_invites, nullable', 1 === count_like( $wpdb->alters, 'ADD COLUMN external_ref VARCHAR(128) DEFAULT NULL' ) && isset( $wpdb->columns['hdlv2_widget_invites.external_ref'] ) );
 ok( '14.5 UNIQUE key on external_ref', 1 === count_like( $wpdb->alters, 'ADD UNIQUE KEY external_ref (external_ref)' ) );
 ok( '14.6 source ENUM gains paid_stage1 and keeps the old values + default', 1 === count_like( $wpdb->alters, "MODIFY COLUMN source ENUM('practitioner','automation','paid_stage1') NOT NULL DEFAULT 'practitioner'" ) );
-ok( '14.7 exactly five Phase AH ALTERs (plus Phase AI\'s one)', 6 === count( $wpdb->alters ) && 1 === count_like( $wpdb->alters, 'ticket_page_url' ) );
+ok( '14.7 exactly five Phase AH ALTERs (plus Phase AI\'s and Phase AJ\'s one each)', 7 === count( $wpdb->alters ) && 1 === count_like( $wpdb->alters, 'ticket_page_url' ) && 1 === count_like( $wpdb->alters, "'full_report'" ) );
 
 $wpdb->alters = array();
 $ret = migrate();
@@ -117,7 +117,7 @@ echo "── 14b. Phase AI (v3.28) migration — ticket_page_url ──\n";
 $GLOBALS['db_from'] = '3.27';
 $wpdb = new FakeWpdb();
 $ret  = migrate();
-ok( '14.20 from 3.27: success, one ALTER adding ticket_page_url to widget_config', true === $ret && 1 === count( $wpdb->alters ) && 1 === count_like( $wpdb->alters, "ALTER TABLE `wp_hdlv2_widget_config` ADD COLUMN ticket_page_url VARCHAR(500) NOT NULL DEFAULT ''" ) );
+ok( '14.20 from 3.27: success, Phase AI adds ticket_page_url to widget_config (Phase AJ adds its one)', true === $ret && 2 === count( $wpdb->alters ) && 1 === count_like( $wpdb->alters, "ALTER TABLE `wp_hdlv2_widget_config` ADD COLUMN ticket_page_url VARCHAR(500) NOT NULL DEFAULT ''" ) );
 ok( '14.21 existing rows untouched (no UPDATE / DELETE / INSERT)', 0 === count( $wpdb->writes ) );
 $wpdb->alters = array();
 ok( '14.22 second run changes nothing', true === migrate() && 0 === count( $wpdb->alters ) );
@@ -127,7 +127,7 @@ ok( '14.23 failed ALTER → run_migrations returns false (retries next boot)', f
 $src = file_get_contents( dirname( __DIR__, 2 ) . '/includes/class-hdlv2-activator.php' );
 ok( '14.24 fresh installs get the column too (CREATE TABLE)', 1 === preg_match( "/CREATE TABLE \\\$table_widget \\([^;]*ticket_page_url VARCHAR\\(500\\) NOT NULL DEFAULT ''/s", $src ) );
 $loader = file_get_contents( dirname( __DIR__, 2 ) . '/hdl-longevity-v2.php' );
-ok( '14.25 loader constant is 3.28', false !== strpos( $loader, "define( 'HDLV2_DB_VERSION', '3.28' );" ) );
+ok( '14.25 loader constant is 3.29 (v0.48.15)', false !== strpos( $loader, "define( 'HDLV2_DB_VERSION', '3.29' );" ) );
 
 echo "\nPASS=$pass FAIL=$fail\n";
 exit( $fail ? 1 : 0 );

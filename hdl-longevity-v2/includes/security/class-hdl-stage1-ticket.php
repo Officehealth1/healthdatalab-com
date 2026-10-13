@@ -12,8 +12,9 @@
  *
  * Body: practitioner_id, email, name, external_ref (the seller's payment
  * reference, e.g. a Stripe session id), optional expires_days (1–365,
- * default 90).
- * Response: { token, expires_at, idempotent }.
+ * default 90), optional product ('stage1' default, or 'full_report').
+ * Response: { token, expires_at, idempotent }; a 'full_report' ticket adds
+ * { open_url, stage1_found, auto_confirmed } (v0.48.15, see mint_full_report()).
  *
  * The same external_ref always returns the same token. That is enforced by
  * the UNIQUE key on widget_invites.external_ref: insert first, read the
@@ -61,9 +62,13 @@ class HDL_Stage1_Ticket {
         }
 
         // hdlv2_db_version only reaches 3.27 once Phase AH has verified the
-        // 'paid_stage1' source value and the UNIQUE key. Without them a
-        // ticket would be stored as an ordinary invite, or minted twice.
-        if ( version_compare( (string) get_option( 'hdlv2_db_version', '0' ), '3.27', '<' ) ) {
+        // 'paid_stage1' source value and the UNIQUE key (3.29: Phase AJ's
+        // 'full_report' value). Without them a ticket would be stored as an
+        // ordinary invite, or minted twice.
+        $product_raw = $request->get_param( 'product' );
+        $product     = null === $product_raw ? 'stage1' : (string) $product_raw;
+        $needs_db    = 'full_report' === $product ? '3.29' : '3.27';
+        if ( version_compare( (string) get_option( 'hdlv2_db_version', '0' ), $needs_db, '<' ) ) {
             return self::refuse( 503, 'not_ready', 'Stage 1 tickets are not ready on this server.' );
         }
 
@@ -111,8 +116,15 @@ class HDL_Stage1_Ticket {
         if ( ( null !== $days_raw && ! is_numeric( $days_raw ) ) || $days < 1 || $days > self::MAX_DAYS ) {
             $invalid[] = 'expires_days';
         }
+        if ( ! in_array( $product, array( 'stage1', 'full_report' ), true ) ) {
+            $invalid[] = 'product';
+        }
         if ( $invalid ) {
             return self::refuse( 400, 'invalid_body', 'One or more fields failed validation.', $invalid );
+        }
+
+        if ( 'full_report' === $product ) {
+            return self::mint_full_report( $practitioner_id, $email, $name, $external_ref, $days );
         }
 
         $ticket = self::mint( $practitioner_id, $email, $name, $external_ref, $days );
@@ -127,21 +139,56 @@ class HDL_Stage1_Ticket {
     }
 
     /**
+     * v0.48.15 — the Full Report hand-over (Matthew, 2026-10-13). The buyer
+     * paid on the selling site; the ticket is a real invite (source
+     * 'full_report'), so its link logs them in and opens the Full Report.
+     * The practitioner's widget does not have to be in paid mode.
+     *
+     * If the buyer already answered Stage 1 (a pending lead with this email)
+     * the lead is confirmed here, without the Confirm email, unless the
+     * switch `hdlv2_full_report_auto_confirm` is 0: then the lead waits for
+     * the practitioner and open_url is null. A rejected lead counts as not
+     * found and is never revived. Only a fresh mint writes; a repeat call
+     * with the same external_ref answers from what is stored.
+     */
+    private static function mint_full_report( $practitioner_id, $email, $name, $external_ref, $days ) {
+        $ticket = self::mint( $practitioner_id, $email, $name, $external_ref, $days, 'full_report' );
+        if ( is_wp_error( $ticket ) ) {
+            return $ticket;
+        }
+        $auto = (bool) get_option( 'hdlv2_full_report_auto_confirm', 1 );
+        if ( ! $ticket['idempotent'] && $auto ) {
+            $lead = HDLV2_Widget_Config::confirm_lead_for_purchase( $practitioner_id, $ticket['email'], $ticket['id'] );
+        } else {
+            $lead = HDLV2_Widget_Config::purchase_lead_state( $practitioner_id, $ticket['email'], $ticket['id'] );
+        }
+        return rest_ensure_response( array(
+            'token'          => $ticket['token'],
+            'expires_at'     => self::iso( $ticket['expires_at'] ),
+            'idempotent'     => $ticket['idempotent'],
+            'open_url'       => $auto ? site_url( '/rate-of-ageing-widget/?invite=' . $ticket['token'] ) : null,
+            'stage1_found'   => $lead['found'],
+            'auto_confirmed' => $lead['confirmed'],
+        ) );
+    }
+
+    /**
      * Mint the ticket for $external_ref, or return the one it already has.
      * Shared by the keyed route above and the dashboard's "Send Stage 1
      * link" (HDLV2_Widget_Config::ajax_send_stage1_link). Callers validate
      * their own input first.
      *
-     * @return array|WP_Error { token, expires_at (stored UTC), idempotent,
+     * @param string $source 'paid_stage1' (needs paid mode) or 'full_report'.
+     * @return array|WP_Error { id, token, expires_at (stored UTC), idempotent,
      *                         email, name } — email/name are the ticket's own.
      */
-    public static function mint( $practitioner_id, $email, $name, $external_ref, $days ) {
+    public static function mint( $practitioner_id, $email, $name, $external_ref, $days, $source = 'paid_stage1' ) {
         global $wpdb;
         $access_mode = $wpdb->get_row( $wpdb->prepare(
             "SELECT access_mode FROM {$wpdb->prefix}hdlv2_widget_config WHERE practitioner_user_id = %d LIMIT 1",
             $practitioner_id
         ) );
-        if ( ! $access_mode || 'paid' !== $access_mode->access_mode ) {
+        if ( ! $access_mode || ( 'paid_stage1' === $source && 'paid' !== $access_mode->access_mode ) ) {
             return self::refuse( 409, 'not_paid_mode', 'This practitioner\'s widget is not in paid mode.' );
         }
 
@@ -159,26 +206,27 @@ class HDL_Stage1_Ticket {
             'client_email'    => $email,
             'status'          => 'pending',
             'expires_at'      => $expires_at,
-            'source'          => 'paid_stage1',
+            'source'          => $source,
             'external_ref'    => $external_ref,
         ), array( '%d', '%s', '%s', '%s', '%s', '%s', '%s', '%s' ) );
         $wpdb->suppress_errors( $was_suppressed );
 
         if ( $inserted ) {
-            return array( 'token' => $token, 'expires_at' => $expires_at, 'idempotent' => false, 'email' => $email, 'name' => $name );
+            return array( 'id' => (int) $wpdb->insert_id, 'token' => $token, 'expires_at' => $expires_at, 'idempotent' => false, 'email' => $email, 'name' => $name );
         }
 
         $existing = $wpdb->get_row( $wpdb->prepare(
-            "SELECT token, expires_at, practitioner_id, source, client_email, client_name FROM $table WHERE external_ref = %s LIMIT 1",
+            "SELECT id, token, expires_at, practitioner_id, source, client_email, client_name FROM $table WHERE external_ref = %s LIMIT 1",
             $external_ref
         ) );
         if ( ! $existing ) {
             return self::refuse( 500, 'mint_failed', 'The ticket could not be saved.' );
         }
-        if ( (int) $existing->practitioner_id !== (int) $practitioner_id || 'paid_stage1' !== $existing->source ) {
+        if ( (int) $existing->practitioner_id !== (int) $practitioner_id || $source !== $existing->source ) {
             return self::refuse( 409, 'external_ref_conflict', 'This external_ref belongs to another ticket.' );
         }
         return array(
+            'id'         => (int) ( $existing->id ?? 0 ),
             'token'      => (string) $existing->token,
             'expires_at' => (string) $existing->expires_at,
             'idempotent' => true,
