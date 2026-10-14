@@ -829,6 +829,7 @@ final class HDL_Longevity_V2 {
         require_once HDLV2_PLUGIN_DIR . 'includes/sprint-1/class-hdlv2-safety-screen.php';
         // v0.48.16 — Stage 1 under load: PDF drain + busy gate + alert, Brevo holding list replay.
         require_once HDLV2_PLUGIN_DIR . 'includes/sprint-1/class-hdlv2-stage1-drain.php';
+        require_once HDLV2_PLUGIN_DIR . 'includes/sprint-1/class-hdlv2-stage1-waiting.php';
 
         // Sprint 2: Staged Form + Rate Calculator + AI + Email
         require_once HDLV2_PLUGIN_DIR . 'includes/sprint-2/class-hdlv2-rate-calculator.php';
@@ -957,6 +958,7 @@ final class HDL_Longevity_V2 {
         HDLV2_Job_Queue::get_instance()->register_hooks();
         // v0.48.16 — Stage 1 drain + alert (WP-Cron hooks).
         HDLV2_Stage1_Drain::register_hooks();
+        HDLV2_Stage1_Waiting::register_hooks();
         // Handlers must register AFTER the queue class is loaded so
         // HDLV2_Job_Queue::register_handler() is available.
         HDLV2_Transcription_Jobs::register();
