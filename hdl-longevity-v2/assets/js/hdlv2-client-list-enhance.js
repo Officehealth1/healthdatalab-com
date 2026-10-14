@@ -53,7 +53,7 @@
   var _openPendingDetails = {};
   // v0.48.15 — ticked pending leads (bulk Confirm). Same reason: survives the rebuild.
   var _selectedLeads = {};
-  var BULK_CONFIRM_CHUNK = 20; // the server's per-call limit
+  var BULK_CHUNK = 20; // the server's per-call limit (both bulk routes)
 
   // Wait for the V1 table to render (it's server-side PHP so it's usually
   // present immediately, but some themes defer). Give up after ~10s.
@@ -348,6 +348,8 @@
       .then(function (r) { return r.ok ? r.json() : null; })
       .then(function (data) {
         if (data === null) return null;
+        // v0.48.16 — from how many pending leads the bulk tick boxes show.
+        if (data && typeof data.bulk_min === 'number') state.bulkMin = data.bulk_min;
         return (data && Array.isArray(data.leads)) ? data.leads : [];
       })
       .catch(function () { return null; });
@@ -1044,20 +1046,19 @@
         // reintroduction but is no longer referenced.
         // v0.48.15 — tick boxes + "Confirm selected" (H7). Ticks for leads
         // that left the queue are dropped so the count stays honest.
+        // v0.48.16 — shown only from state.bulkMin pending leads (10), with
+        // "Reject selected" beside it; under that the queue is as before.
+        var bulkOn = bulkControlsVisible(g.items.length, state.bulkMin);
         var liveIds = {};
-        g.items.forEach(function (lead) { liveIds[lead.id] = true; });
+        if (bulkOn) g.items.forEach(function (lead) { liveIds[lead.id] = true; });
         Object.keys(_selectedLeads).forEach(function (id) { if (!liveIds[id]) delete _selectedLeads[id]; });
-        var nSel = Object.keys(_selectedLeads).length;
         html += '<div class="hdlv2-aq-group hdlv2-aq-group-' + g.cls + '">'
           +   '<div class="hdlv2-aq-group-head"><span class="hdlv2-aq-dot" style="background:' + g.dot + '"></span><span class="hdlv2-aq-group-label">' + esc(g.label) + '</span><span class="hdlv2-aq-count">' + g.items.length + '</span>'
-          +     '<span class="hdlv2-aq-bulk">'
-          +       '<label class="hdlv2-aq-selectall"><input type="checkbox" data-aq="lead-select-all"' + (nSel && nSel === g.items.length ? ' checked' : '') + '> Select all</label>'
-          +       '<button type="button" class="hdlv2-aq-btn hdlv2-aq-btn-pending-confirm hdlv2-aq-btn-bulk" data-aq="lead-confirm-selected"' + (nSel ? '' : ' disabled') + '>Confirm selected (' + nSel + ')</button>'
-          +     '</span>'
+          +     (bulkOn ? '<span class="hdlv2-aq-bulk">' + bulkBarHtml(g.items.length) + '</span>' : '')
           +   '</div>'
           +   '<ul class="hdlv2-aq-list">';
         g.items.forEach(function (lead) {
-          html += renderPendingLeadAQRow(lead);
+          html += renderPendingLeadAQRow(lead, bulkOn);
         });
         html += '</ul></div>';
         return;
@@ -1087,7 +1088,7 @@
   // tab uses. Single line: name + tiny meta + buttons. Stays inside the
   // existing .hdlv2-aq-list grid so it inherits the spacing of the other
   // action-queue rows.
-  function renderPendingLeadAQRow(lead) {
+  function renderPendingLeadAQRow(lead, withCheck) {
     var rate = (lead.rate_of_ageing !== null && lead.rate_of_ageing !== undefined)
       ? Number(lead.rate_of_ageing).toFixed(2)
       : '—';
@@ -1113,7 +1114,9 @@
     // a pending lead now lives in exactly ONE place (this strip) until confirmed.
     var isOpen = !!_openPendingDetails[lead.id];
     return '<li class="hdlv2-aq-item hdlv2-aq-item-lead' + (isOpen ? ' hdlv2-aq-item-open' : '') + '" data-lead-id="' + esc(lead.id) + '">'
-      +   '<div class="hdlv2-aq-item-name"><label class="hdlv2-aq-check-label"><input type="checkbox" class="hdlv2-aq-check" data-aq="lead-select" data-lead-id="' + esc(lead.id) + '" aria-label="Select ' + attrEsc(lead.visitor_name || lead.visitor_email || 'New lead') + '"' + (_selectedLeads[lead.id] ? ' checked' : '') + '>' + name + '</label></div>'
+      +   '<div class="hdlv2-aq-item-name">' + (withCheck
+            ? '<label class="hdlv2-aq-check-label"><input type="checkbox" class="hdlv2-aq-check" data-aq="lead-select" data-lead-id="' + esc(lead.id) + '" aria-label="Select ' + attrEsc(lead.visitor_name || lead.visitor_email || 'New lead') + '"' + (_selectedLeads[lead.id] ? ' checked' : '') + '>' + name + '</label>'
+            : name) + '</div>'
       +   '<div class="hdlv2-aq-item-meta">' + email + ageStr + ' &middot; ' + rate + '&times;'
       +     (submittedAt ? ' &middot; ' + esc(submittedAt) : '')
       // v0.47.83 — server-built location string ("Texas, US"); empty for
@@ -1136,7 +1139,7 @@
   // success so the V1 list shows the new client immediately.
   function bindPendingLeadQueueActions() {
     if (!state.actionQueueEl) return;
-    bindBulkConfirm();
+    bindBulkActions();
     // 0.47.48 — View-details toggle: reveal/hide the inline Stage-1 detail panel.
     // Open state lives in _openPendingDetails so it survives the strip's per-poll
     // rebuild (renderActionQueue reads it when re-rendering each row).
@@ -1193,95 +1196,153 @@
     });
   }
 
+  // v0.48.16 — the bulk controls show from bulkMin pending leads (10 when the
+  // server does not say; 0 = always). Pure.
+  function bulkControlsVisible(pendingCount, bulkMin) {
+    var min = typeof bulkMin === 'number' ? bulkMin : 10;
+    return pendingCount >= min;
+  }
+
+  // [1..45], 20 → [[1..20], [21..40], [41..45]]. Pure.
+  function chunk(ids, size) {
+    var out = [];
+    for (var i = 0; i < ids.length; i += size) out.push(ids.slice(i, i + size));
+    return out;
+  }
+
+  // { confirmed:[…], already:[…], failed:[…] }, 'confirmed' → "37 confirmed · 2 already confirmed · 1 failed". Pure.
+  function bulkSummary(tally, verb) {
+    var parts = [(tally[verb] || []).length + ' ' + verb];
+    if ((tally.already || []).length) parts.push(tally.already.length + (verb === 'confirmed' ? ' already confirmed' : ' already actioned'));
+    if ((tally.failed || []).length) parts.push(tally.failed.length + ' failed');
+    return parts.join(' \u00b7 ');
+  }
+
+  // Select all + "Confirm selected (N)" + "Reject selected (N)".
+  function bulkBarHtml(total) {
+    var n = Object.keys(_selectedLeads).length;
+    return '<label class="hdlv2-aq-selectall"><input type="checkbox" data-aq="lead-select-all"' + (n && n === total ? ' checked' : '') + '> Select all</label>'
+      + '<button type="button" class="hdlv2-aq-btn hdlv2-aq-btn-pending-confirm hdlv2-aq-btn-bulk" data-aq="lead-confirm-selected"' + (n ? '' : ' disabled') + '>Confirm selected (' + n + ')</button>'
+      + '<button type="button" class="hdlv2-aq-btn hdlv2-aq-btn-bulk hdlv2-aq-btn-pending-reject" data-aq="lead-reject-selected"' + (n ? '' : ' disabled') + '>Reject selected (' + n + ')</button>';
+  }
+
   // v0.48.15 — "Select all" + "Confirm selected (N)" (Matthew 2026-10-13, H7).
-  // Each lead is confirmed exactly as its own Confirm button does, 20 per call.
-  function bindBulkConfirm() {
+  // v0.48.16 — plus "Reject selected (N)"; each asks once inline (no modal),
+  // then runs 20 leads a call, exactly as each row's own button does.
+  function bindBulkActions() {
     var root = state.actionQueueEl;
-    var btn = root.querySelector('[data-aq="lead-confirm-selected"]');
-    var all = root.querySelector('[data-aq="lead-select-all"]');
-    if (!btn) return;
+    var bar = root.querySelector('.hdlv2-aq-bulk');
+    if (!bar) return;
     var boxes = function () { return Array.prototype.slice.call(root.querySelectorAll('[data-aq="lead-select"]')); };
-    function sync() {
-      var n = Object.keys(_selectedLeads).length;
-      btn.textContent = 'Confirm selected (' + n + ')';
-      btn.disabled = n === 0;
-      if (all) all.checked = n > 0 && n === boxes().length;
+    function wire() {
+      var all = bar.querySelector('[data-aq="lead-select-all"]');
+      function sync() {
+        var n = Object.keys(_selectedLeads).length;
+        ['confirm', 'reject'].forEach(function (a) {
+          var b = bar.querySelector('[data-aq="lead-' + a + '-selected"]');
+          if (!b) return;
+          b.textContent = (a === 'confirm' ? 'Confirm' : 'Reject') + ' selected (' + n + ')';
+          b.disabled = n === 0;
+        });
+        if (all) all.checked = n > 0 && n === boxes().length;
+      }
+      if (all) {
+        all.addEventListener('change', function () {
+          boxes().forEach(function (cb) {
+            cb.checked = all.checked;
+            var id = cb.getAttribute('data-lead-id');
+            if (all.checked) _selectedLeads[id] = true; else delete _selectedLeads[id];
+          });
+          sync();
+        });
+      }
+      ['confirm', 'reject'].forEach(function (action) {
+        var b = bar.querySelector('[data-aq="lead-' + action + '-selected"]');
+        if (b) b.addEventListener('click', function () { ask(action); });
+      });
+      wire.sync = sync;
     }
     boxes().forEach(function (cb) {
       cb.addEventListener('change', function () {
         var id = cb.getAttribute('data-lead-id');
         if (cb.checked) _selectedLeads[id] = true; else delete _selectedLeads[id];
-        sync();
+        if (wire.sync) wire.sync();
       });
     });
-    if (all) {
-      all.addEventListener('change', function () {
-        boxes().forEach(function (cb) {
-          cb.checked = all.checked;
-          var id = cb.getAttribute('data-lead-id');
-          if (all.checked) _selectedLeads[id] = true; else delete _selectedLeads[id];
-        });
-        sync();
-      });
-    }
-    btn.addEventListener('click', function () {
+    // The question replaces the buttons in place; Cancel or Escape puts them back.
+    function ask(action) {
       var ids = Object.keys(_selectedLeads).map(Number).filter(function (id) { return id && !_queuePendingActioning[id]; });
       if (!ids.length) return;
-      window.HDLV2UI.confirm({
-        title: 'Confirm ' + ids.length + (ids.length === 1 ? ' lead?' : ' leads?'),
-        body: 'Each one gets the email that opens their Full Report. This cannot be undone.',
-        confirmLabel: 'Confirm all',
-        cancelLabel: 'Cancel'
-      }).then(function (ok) { if (ok) runBulkConfirm(ids, btn); });
-    });
+      var q = action === 'confirm'
+        ? 'Confirm ' + ids.length + ' leads? Each one gets their next-step email.'
+        : 'Reject ' + ids.length + ' leads? They leave your list.';
+      bar.innerHTML = '<span class="hdlv2-aq-bulk-ask" role="status">' + esc(q) + '</span>'
+        + '<button type="button" class="hdlv2-aq-btn hdlv2-aq-btn-bulk" data-aq="bulk-yes">Yes, ' + action + ' ' + ids.length + '</button>'
+        + '<button type="button" class="hdlv2-aq-btn hdlv2-aq-btn-bulk hdlv2-aq-btn-pending-reject" data-aq="bulk-cancel">Cancel</button>';
+      var yes = bar.querySelector('[data-aq="bulk-yes"]');
+      function close() {
+        document.removeEventListener('keydown', onKey);
+        bar.innerHTML = bulkBarHtml(boxes().length);
+        wire();
+      }
+      function onKey(e) { if (e.key === 'Escape') close(); }
+      document.addEventListener('keydown', onKey);
+      bar.querySelector('[data-aq="bulk-cancel"]').addEventListener('click', close);
+      yes.addEventListener('click', function () {
+        document.removeEventListener('keydown', onKey);
+        runBulk(action, ids, bar);
+      });
+      yes.focus();
+    }
+    wire();
   }
 
-  function runBulkConfirm(ids, btn) {
-    var total = ids.length, done = 0, tally = { confirmed: 0, already: 0, failed: 0 };
+  function runBulk(action, ids, bar) {
+    var verb = action === 'confirm' ? 'confirmed' : 'rejected';
+    var total = ids.length, done = 0;
+    var tally = { already: [], failed: [] };
+    tally[verb] = [];
+    var chunks = chunk(ids, BULK_CHUNK);
     ids.forEach(function (id) { _queuePendingActioning[id] = true; });
-    btn.disabled = true;
-    var chunks = [];
-    for (var i = 0; i < ids.length; i += BULK_CONFIRM_CHUNK) chunks.push(ids.slice(i, i + BULK_CONFIRM_CHUNK));
-    function release() { ids.forEach(function (id) { delete _queuePendingActioning[id]; delete _selectedLeads[id]; }); }
+    function line(text) { bar.innerHTML = '<span class="hdlv2-aq-bulk-ask" role="status">' + esc(text) + '</span>'; }
+    function finish(stopMsg) {
+      ids.forEach(function (id) { delete _queuePendingActioning[id]; delete _selectedLeads[id]; });
+      var msg = bulkSummary(tally, verb) + (stopMsg ? '. Stopped: ' + stopMsg + '. The rest are still pending.' : '');
+      line(msg);
+      window.HDLV2UI.toast(msg, (stopMsg || tally.failed.length) ? 'error' : 'success');
+      try { window.dispatchEvent(new CustomEvent('hdlv2:lead-actioned', { detail: { action: action, bulk: true, ts: Date.now() } })); } catch (e) {}
+      setTimeout(pollNow, 350);
+    }
     function next() {
-      if (!chunks.length) {
-        release();
-        var msg = tally.confirmed + ' confirmed';
-        if (tally.already) msg += ', ' + tally.already + ' already confirmed';
-        if (tally.failed) msg += ', ' + tally.failed + ' could not be confirmed';
-        window.HDLV2UI.toast(msg, tally.failed ? 'error' : 'success');
-        try { window.dispatchEvent(new CustomEvent('hdlv2:lead-actioned', { detail: { action: 'confirm', bulk: true, ts: Date.now() } })); } catch (e) {}
-        setTimeout(pollNow, 350);
-        return;
-      }
-      var chunk = chunks.shift();
-      btn.textContent = 'Confirming ' + Math.min(done + chunk.length, total) + ' of ' + total + '\u2026';
+      if (!chunks.length) { finish(''); return; }
+      var part = chunks.shift();
+      line((action === 'confirm' ? 'Confirming ' : 'Rejecting ') + Math.min(done + part.length, total) + ' of ' + total + '\u2026');
       var idemKey = (window.crypto && typeof window.crypto.randomUUID === 'function')
         ? window.crypto.randomUUID()
         : ('idem-' + Date.now() + '-' + Math.random().toString(36).slice(2));
-      fetch(CFG.api_base + '/widget/leads/confirm-bulk', {
+      fetch(CFG.api_base + '/widget/leads/' + (action === 'confirm' ? 'confirm-bulk' : 'reject-bulk'), {
         method: 'POST',
         credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': CFG.rest_nonce || CFG.nonce, 'Idempotency-Key': idemKey },
-        body: JSON.stringify({ lead_ids: chunk })
+        body: JSON.stringify({ lead_ids: part })
       })
-        .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, body: j }; }); })
+        .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, status: r.status, body: j }; }, function () { return { ok: false, status: r.status, body: {} }; }); })
         .then(function (res) {
-          done += chunk.length;
           if (!res.ok) {
-            tally.failed += chunk.length;
-          } else {
-            tally.confirmed += (res.body.confirmed || []).length;
-            tally.already += (res.body.already || []).length;
-            tally.failed += (res.body.failed || []).length;
-            (res.body.confirmed || []).concat(res.body.already || []).forEach(function (id) {
-              var row = state.actionQueueEl.querySelector('.hdlv2-aq-item-lead[data-lead-id="' + id + '"]');
-              if (row) { row.style.transition = 'opacity 280ms'; row.style.opacity = '0.25'; }
-            });
+            finish((res.body && res.body.message) || (res.status === 429 ? 'too many requests, try again in a little while' : 'the server said no'));
+            return;
           }
+          done += part.length;
+          tally[verb] = tally[verb].concat(res.body[verb] || []);
+          tally.already = tally.already.concat(res.body.already || []);
+          tally.failed = tally.failed.concat(res.body.failed || []);
+          tally[verb].concat(tally.already).forEach(function (id) {
+            var row = state.actionQueueEl.querySelector('.hdlv2-aq-item-lead[data-lead-id="' + id + '"]');
+            if (row) { row.style.transition = 'opacity 280ms'; row.style.opacity = '0.25'; }
+          });
           next();
         })
-        .catch(function () { done += chunk.length; tally.failed += chunk.length; next(); });
+        .catch(function () { finish('the network dropped'); });
     }
     next();
   }
@@ -4429,6 +4490,9 @@
       '.hdlv2-aq-selectall input, .hdlv2-aq-check { width:16px; height:16px; margin:0; accent-color:#3d8da0; cursor:pointer; }',
       '.hdlv2-aq-btn-bulk { padding:5px 11px; font-size:12px; border:1px solid #3d8da0; background:#3d8da0; color:#fff; border-radius:999px; cursor:pointer; font-weight:600; font-family:inherit; line-height:1.3; }',
       '.hdlv2-aq-btn-bulk:disabled { opacity:0.5; cursor:default; }',
+      // v0.48.16 — Reject selected / Cancel wear the single Reject's colours; the inline question line.
+      '.hdlv2-aq-btn-bulk.hdlv2-aq-btn-pending-reject { border-color:#e4e6ea; background:#fff; color:#666; }',
+      '.hdlv2-aq-bulk-ask { font-weight:500; color:#2c3e50; }',
       '.hdlv2-aq-btn-bulk:focus-visible, .hdlv2-aq-selectall input:focus-visible, .hdlv2-aq-check:focus-visible { outline:2px solid #3d8da0; outline-offset:2px; }',
       '.hdlv2-aq-btn-pending-details[aria-expanded="true"] { background:#3d8da0; border-color:#3d8da0; color:#fff; }',
       // 0.47.80 — the detail panel's flex-basis:100% only drops it onto its own

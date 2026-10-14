@@ -50,8 +50,9 @@ ok(/bulkControlsVisible\(g\.items\.length, state\.bulkMin\)/.test(src), 'tick bo
 ok(/state\.bulkMin = /.test(src) && /data\.bulk_min/.test(src), 'bulk_min read from the pending-leads reply');
 ok(src.includes("' leads? Each one gets their next-step email.'") && src.includes("' leads? They leave your list.'"), 'the two inline questions');
 ok(/role="status"/.test(src.slice(src.indexOf('function bindBulkActions'))), 'the inline question line is role=status');
-ok(!/HDLV2UI\.confirm\(\{\s*title: 'Confirm ' \+ ids\.length/.test(src) && !/window\.confirm\(/.test(src), 'no modal / native dialog for the bulk actions');
-ok(/'Confirming ' \+/.test(src) && /'Rejecting ' \+/.test(src), 'progress line between chunks');
+const bulkSrc = src.slice(src.indexOf('function bindBulkActions'), src.indexOf('function doQueuePendingAction'));
+ok(bulkSrc.length > 0 && !/HDLV2UI\.confirm\(/.test(bulkSrc) && !/window\.confirm\(/.test(bulkSrc), 'no modal / native dialog for the bulk actions');
+ok(/'Confirming '/.test(bulkSrc) && /'Rejecting '/.test(bulkSrc) && /' of ' \+ total/.test(bulkSrc), 'progress line between chunks');
 ok(/Stopped: ' \+/.test(src) && /The rest are still pending\./.test(src), 'a failed chunk stops the loop and says the rest are still pending');
 ok(/'\/widget\/leads\/' \+ \(action === 'confirm' \? 'confirm-bulk' : 'reject-bulk'\)/.test(src), 'posts to confirm-bulk or reject-bulk');
 ok(/Escape/.test(src.slice(src.indexOf('function bindBulkActions'))), 'Escape closes the question');

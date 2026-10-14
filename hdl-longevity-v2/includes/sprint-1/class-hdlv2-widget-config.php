@@ -337,6 +337,13 @@ class HDLV2_Widget_Config {
             'permission_callback' => array( $this, 'check_practitioner_permission' ),
         ) );
 
+        // v0.48.16 — reject up to 20 pending leads in one call (H7, Quim 2026-10-14).
+        register_rest_route( 'hdl-v2/v1', '/widget/leads/reject-bulk', array(
+            'methods'             => 'POST',
+            'callback'            => array( $this, 'rest_reject_leads_bulk' ),
+            'permission_callback' => array( $this, 'check_practitioner_permission' ),
+        ) );
+
         // Reject a pending lead → silent shadow-ban (practitioner auth)
         register_rest_route( 'hdl-v2/v1', '/widget/leads/reject', array(
             'methods'             => 'POST',
@@ -2158,7 +2165,7 @@ class HDLV2_Widget_Config {
                 ),
             );
         }
-        return rest_ensure_response( array( 'leads' => $out ) );
+        return rest_ensure_response( array( 'leads' => $out, 'bulk_min' => self::BULK_MIN_PENDING ) );
     }
 
     /**
@@ -2351,23 +2358,40 @@ class HDLV2_Widget_Config {
         return array( 'form_token' => (string) $form_token, 'email_sent' => $email_sent, 'already' => false );
     }
 
-    /** Most leads one bulk call confirms; the dashboard sends bigger selections in chunks. */
-    const BULK_CONFIRM_MAX = 20;
+    /** Most leads one bulk call actions; the dashboard sends bigger selections in chunks. */
+    const BULK_MAX = 20;
+    /** The dashboard shows the bulk tick boxes from this many pending leads (0 = always). */
+    const BULK_MIN_PENDING = 10;
 
     /**
      * POST /widget/leads/confirm-bulk — v0.48.15 (Matthew, 2026-10-13: "select
      * all and confirm everybody in one go"). Body { lead_ids: int[] }, 1–20.
-     *
-     * Every id must belong to the caller before anything is written (403
-     * lead_not_yours otherwise). Then each lead on its own, exactly as the
-     * single Confirm: confirmed → already, rejected → failed, pending →
-     * confirm_lead_row() (its own transaction, its own email after COMMIT).
-     * One transaction per lead, not one for all: an email that has gone
-     * cannot be rolled back with the rows after it.
+     * Each pending lead exactly as the single Confirm: its own transaction,
+     * its own email after COMMIT (an email that has gone cannot be rolled
+     * back with the rows after it). Rejected → failed lead_rejected.
      *
      * @return array { confirmed: int[], already: int[], failed: {id, code}[] }
      */
     public function rest_confirm_leads_bulk( $request ) {
+        return $this->bulk_leads( $request, 'confirm' );
+    }
+
+    /**
+     * POST /widget/leads/reject-bulk — v0.48.16. Body { lead_ids: int[] }, 1–20.
+     * Each pending lead exactly as the single Reject (no email); confirmed or
+     * already-rejected leads come back under already.
+     *
+     * @return array { rejected: int[], already: int[], failed: {id, code}[] }
+     */
+    public function rest_reject_leads_bulk( $request ) {
+        return $this->bulk_leads( $request, 'reject' );
+    }
+
+    /**
+     * The two bulk routes: one loop, a different per-lead action. Every id
+     * must belong to the caller before anything is written (403 otherwise).
+     */
+    private function bulk_leads( $request, $action ) {
         global $wpdb;
         $user_id = get_current_user_id();
         $params  = $request->get_json_params();
@@ -2375,8 +2399,8 @@ class HDLV2_Widget_Config {
         if ( ! is_array( $raw ) || ! $raw ) {
             return new WP_Error( 'missing_lead_ids', 'lead_ids must be a list of lead ids.', array( 'status' => 400 ) );
         }
-        if ( count( $raw ) > self::BULK_CONFIRM_MAX ) {
-            return new WP_Error( 'too_many', 'At most ' . self::BULK_CONFIRM_MAX . ' leads per call.', array( 'status' => 400 ) );
+        if ( count( $raw ) > self::BULK_MAX ) {
+            return new WP_Error( 'too_many', 'At most ' . self::BULK_MAX . ' leads per call.', array( 'status' => 400 ) );
         }
         $ids = array();
         foreach ( $raw as $id ) {
@@ -2401,10 +2425,17 @@ class HDLV2_Widget_Config {
             return new WP_Error( 'lead_not_yours', 'One or more leads were not found.', array( 'status' => 403 ) );
         }
 
-        $out = array( 'confirmed' => array(), 'already' => array(), 'failed' => array() );
+        $done_key = 'confirm' === $action ? 'confirmed' : 'rejected';
+        $out      = array( $done_key => array(), 'already' => array(), 'failed' => array() );
         foreach ( $ids as $id ) {
             $lead = $by_id[ $id ];
-            if ( 'confirmed' === $lead->status ) {
+            if ( 'reject' === $action ) {
+                if ( 'pending' !== $lead->status || ! self::reject_lead_row( $id, $user_id ) ) {
+                    $out['already'][] = $id; // confirmed, rejected, or actioned since the read
+                } else {
+                    $out['rejected'][] = $id;
+                }
+            } elseif ( 'confirmed' === $lead->status ) {
                 $out['already'][] = $id;
             } elseif ( 'pending' !== $lead->status ) {
                 $out['failed'][] = array( 'id' => $id, 'code' => 'lead_rejected' );
@@ -2495,26 +2526,30 @@ class HDLV2_Widget_Config {
             return new WP_Error( 'missing_lead_id', 'lead_id is required.', array( 'status' => 400 ) );
         }
 
-        $updated = $wpdb->update(
+        if ( ! self::reject_lead_row( $lead_id, $user_id ) ) {
+            return new WP_Error( 'lead_not_found', 'Lead not found or already actioned.', array( 'status' => 404 ) );
+        }
+
+        return rest_ensure_response( array( 'success' => true ) );
+    }
+
+    /** Reject one of the caller's PENDING leads. True when a row changed. */
+    private static function reject_lead_row( $lead_id, $user_id ) {
+        global $wpdb;
+        return 1 === (int) $wpdb->update(
             $wpdb->prefix . 'hdlv2_widget_leads',
             array(
                 'status'      => 'rejected',
                 'rejected_at' => current_time( 'mysql' ),
             ),
             array(
-                'id'                   => $lead_id,
-                'practitioner_user_id' => $user_id,
+                'id'                   => (int) $lead_id,
+                'practitioner_user_id' => (int) $user_id,
                 'status'               => 'pending',
             ),
             array( '%s', '%s' ),
             array( '%d', '%d', '%s' )
         );
-
-        if ( $updated === 0 ) {
-            return new WP_Error( 'lead_not_found', 'Lead not found or already actioned.', array( 'status' => 404 ) );
-        }
-
-        return rest_ensure_response( array( 'success' => true ) );
     }
 
     /**
