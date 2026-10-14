@@ -71,6 +71,11 @@ class HDLV2_Activator {
             // handshake (timeout 0.1s, blocking false). Real-time wakeups via
             // the loopback are still primary; the cron is the safety net.
             'hdlv2_job_queue_worker'        => 'hdlv2_one_minute',
+            // v0.48.16 — Stage 1 under load: the PDF drain, the Brevo holding
+            // list replay, and the volume alert.
+            'hdlv2_stage1_drain'            => 'hdlv2_one_minute',
+            'hdlv2_stage1_waiting_replay'   => 'hdlv2_five_minutes',
+            'hdlv2_stage1_alert'            => 'hourly',
             // Iridology is CAPTURE-ONLY: IrisMapper analyses + PUSHes the result
             // (its own watchdog re-fires a lost push). HDL never pulls, so there
             // is no iris reconcile cron — the prior hdlv2_iris_reconcile event is
@@ -1771,6 +1776,40 @@ class HDLV2_Activator {
             error_log( '[HDLV2] Phase AJ (v3.29) migration: widget_invites.source full_report verified.' );
         }
 
+        // Phase AK (DB v3.30) — Stage 1 under load (v0.48.16). The lead route
+        // only writes the row now; a once-a-minute drain fires the Stage 1 PDF
+        // for rows whose stage1_fired_at is NULL. Every existing row is
+        // backfilled as already fired so history never refires, and the
+        // version only bumps once both columns AND the backfill have verified.
+        if ( version_compare( $current_db_version, '3.30', '<' ) ) {
+            $leads_table = $p . 'hdlv2_widget_leads';
+            $has_col = function ( $col ) use ( $wpdb, $leads_table ) {
+                return (int) $wpdb->get_var( $wpdb->prepare(
+                    "SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+                     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s AND COLUMN_NAME = %s",
+                    $leads_table, $col
+                ) ) > 0;
+            };
+            foreach ( array(
+                'stage1_fired_at' => 'stage1_fired_at DATETIME NULL AFTER stage1_cache_token',
+                'visitor_phone'   => 'visitor_phone VARCHAR(40) NULL AFTER visitor_email',
+            ) as $col => $def ) {
+                if ( ! $has_col( $col ) ) {
+                    $wpdb->query( "ALTER TABLE `$leads_table` ADD COLUMN $def" );
+                    if ( $wpdb->last_error || ! $has_col( $col ) ) {
+                        error_log( "[HDLV2] Phase AK (v3.30) FAILED: ADD $col — " . $wpdb->last_error . ' — will retry next boot.' );
+                        return false;
+                    }
+                }
+            }
+            $backfilled = $wpdb->query( "UPDATE `$leads_table` SET stage1_fired_at = COALESCE(stage1_pdf_generated_at, created_at) WHERE stage1_fired_at IS NULL" );
+            if ( false === $backfilled ) {
+                error_log( '[HDLV2] Phase AK (v3.30) FAILED: backfill — ' . $wpdb->last_error . ' — will retry next boot.' );
+                return false;
+            }
+            error_log( '[HDLV2] Phase AK (v3.30) migration: stage1_fired_at + visitor_phone verified, backfilled ' . (int) $backfilled . ' rows.' );
+        }
+
         return true;
     }
 
@@ -1846,6 +1885,7 @@ class HDLV2_Activator {
             practitioner_user_id BIGINT(20) UNSIGNED NOT NULL,
             visitor_name VARCHAR(200) DEFAULT '',
             visitor_email VARCHAR(200) DEFAULT '',
+            visitor_phone VARCHAR(40) DEFAULT NULL,
             visitor_age INT DEFAULT NULL,
             rate_of_ageing DECIMAL(4,2) DEFAULT NULL,
             stage1_data JSON DEFAULT NULL,
@@ -1858,6 +1898,7 @@ class HDLV2_Activator {
             stage1_pdf_stored_path VARCHAR(255) DEFAULT NULL,
             stage1_pdf_generated_at DATETIME DEFAULT NULL,
             stage1_cache_token VARCHAR(64) DEFAULT NULL,
+            stage1_fired_at DATETIME DEFAULT NULL,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             PRIMARY KEY (id),
             KEY practitioner_user_id (practitioner_user_id),

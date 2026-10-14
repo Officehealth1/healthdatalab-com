@@ -665,6 +665,7 @@ class HDLV2_Widget_Config {
             'practitioner_id' => $practitioner_id,
             'visitor_name'    => $visitor_name,
             'visitor_email'   => $visitor_email,
+            'visitor_phone'   => $visitor_phone,
             'visitor_age'     => $visitor_age,
             'rate'            => $rate,
             'stage1_data'     => $stage1_data,
@@ -820,6 +821,11 @@ class HDLV2_Widget_Config {
         if ( ! empty( $args['invite_id'] ) ) {
             $common['invite_id'] = (int) $args['invite_id'];
         }
+        // v0.48.16 — the phone travels with the row: the drain sends the
+        // Stage 1 PDF later and reads everything from here.
+        if ( '' !== (string) ( $args['visitor_phone'] ?? '' ) ) {
+            $common['visitor_phone'] = substr( (string) $args['visitor_phone'], 0, 40 );
+        }
 
         $existing_id = (int) $wpdb->get_var( $wpdb->prepare(
             "SELECT id FROM $table WHERE practitioner_user_id = %d AND visitor_email = %s ORDER BY id DESC LIMIT 1",
@@ -832,13 +838,18 @@ class HDLV2_Widget_Config {
             // row stays in its terminal state on resubmission.
             $update_row = $common;
             $update_row['created_at'] = current_time( 'mysql' );
+            // v0.48.16 — new answers send a new Stage 1 PDF (the drain picks
+            // the row up again); the same answers posted twice do not.
+            $old_answers = json_decode( (string) $wpdb->get_var( $wpdb->prepare( "SELECT stage1_data FROM $table WHERE id = %d", $existing_id ) ), true );
+            if ( self::stage1_answers( $old_answers ) !== self::stage1_answers( $args['stage1_data'] ?? array() ) ) {
+                $update_row['stage1_fired_at'] = null;
+            }
             $ok = $wpdb->update( $table, $update_row, array( 'id' => $existing_id ) );
-            // v0.47.83 — location columns may not exist yet (deploy window
-            // before the Phase AG migration, or a failed migration). The
+            // v0.47.83 — optional columns may not exist yet (deploy window
+            // before the Phase AG / AK migration, or a failed migration). The
             // lead data must never be lost over an optional field: retry
-            // the write without the location keys.
-            if ( false === $ok && isset( $update_row['visitor_country'] ) ) {
-                unset( $update_row['visitor_country'], $update_row['visitor_region'] );
+            // the write without them.
+            if ( false === $ok && self::drop_optional_columns( $update_row ) ) {
                 $wpdb->update( $table, $update_row, array( 'id' => $existing_id ) );
             }
             // v0.47.85 — a paid submission must reach the practitioner's
@@ -855,18 +866,40 @@ class HDLV2_Widget_Config {
 
         // INSERT — new lead. Explicit status='pending' (also the schema
         // default, but spelled out so the intent is locally readable).
+        // created_at on the site clock, as the UPDATE branch writes it, so the
+        // hourly volume alert reads one clock (v0.48.16).
         $insert_row = $common + array(
             'practitioner_user_id' => $practitioner_id,
             'visitor_email'        => $visitor_email,
             'status'               => 'pending',
+            'created_at'           => current_time( 'mysql' ),
         );
         $ok = $wpdb->insert( $table, $insert_row );
         // v0.47.83 — same missing-column belt as the UPDATE branch above.
-        if ( false === $ok && isset( $insert_row['visitor_country'] ) ) {
-            unset( $insert_row['visitor_country'], $insert_row['visitor_region'] );
-            $wpdb->insert( $table, $insert_row );
+        if ( false === $ok && self::drop_optional_columns( $insert_row ) ) {
+            $ok = $wpdb->insert( $table, $insert_row );
         }
-        return (int) $wpdb->insert_id;
+        return false === $ok ? 0 : (int) $wpdb->insert_id;
+    }
+
+    /** The nine answers only (no server_result / _safety*), for "did the answers change?". */
+    private static function stage1_answers( $data ) {
+        $data = is_array( $data ) ? $data : array();
+        $out  = array();
+        foreach ( array( 'q1_age', 'q1_sex', 'q2a', 'q2b', 'q3', 'q4', 'q5', 'q6', 'q7', 'q8', 'q9' ) as $k ) {
+            $out[ $k ] = isset( $data[ $k ] ) ? (string) $data[ $k ] : '';
+        }
+        return $out;
+    }
+
+    /**
+     * Strip the columns a server may not have yet (Phase AG location, Phase AK
+     * phone + fired stamp). True when anything was removed, so a retry is worth it.
+     */
+    private static function drop_optional_columns( array &$row ) {
+        $before = count( $row );
+        unset( $row['visitor_country'], $row['visitor_region'], $row['visitor_phone'], $row['stage1_fired_at'] );
+        return count( $row ) < $before;
     }
 
     /**
@@ -1730,7 +1763,14 @@ class HDLV2_Widget_Config {
             // intentionally do NOT touch status — terminal state (confirmed
             // or rejected) sticks across re-submissions.
             $lead_payload['created_at'] = current_time( 'mysql' );
-            $wpdb->update( $wpdb->prefix . 'hdlv2_widget_leads', $lead_payload, array( 'id' => $existing_lead_id ) );
+            // v0.48.16 — the PDF fires below, so the drain must not fire it again.
+            if ( ! empty( $args['send_make_pdf'] ) ) {
+                $lead_payload['stage1_fired_at'] = current_time( 'mysql' );
+            }
+            if ( false === $wpdb->update( $wpdb->prefix . 'hdlv2_widget_leads', $lead_payload, array( 'id' => $existing_lead_id ) )
+                 && self::drop_optional_columns( $lead_payload ) ) {
+                $wpdb->update( $wpdb->prefix . 'hdlv2_widget_leads', $lead_payload, array( 'id' => $existing_lead_id ) );
+            }
         } else {
             // First time we've seen this (practitioner, email). Insert with
             // explicit status='confirmed' since complete_signup() is only
@@ -1741,7 +1781,13 @@ class HDLV2_Widget_Config {
             $lead_payload['visitor_email']        = $visitor_email;
             $lead_payload['status']               = 'confirmed';
             $lead_payload['confirmed_at']         = current_time( 'mysql' );
-            $wpdb->insert( $wpdb->prefix . 'hdlv2_widget_leads', $lead_payload );
+            // v0.48.16 — never a row for the drain: this path fires its own
+            // PDF (invite) or none at all (Confirm).
+            $lead_payload['stage1_fired_at']      = current_time( 'mysql' );
+            if ( false === $wpdb->insert( $wpdb->prefix . 'hdlv2_widget_leads', $lead_payload )
+                 && self::drop_optional_columns( $lead_payload ) ) {
+                $wpdb->insert( $wpdb->prefix . 'hdlv2_widget_leads', $lead_payload );
+            }
         }
 
         // Notify practitioner + Make.com PDF (uses kept legacy code in the
