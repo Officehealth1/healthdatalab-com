@@ -1307,7 +1307,7 @@
     function line(text) { bar.innerHTML = '<span class="hdlv2-aq-bulk-ask" role="status">' + esc(text) + '</span>'; }
     function finish(stopMsg) {
       ids.forEach(function (id) { delete _queuePendingActioning[id]; delete _selectedLeads[id]; });
-      var msg = bulkSummary(tally, verb) + (stopMsg ? '. Stopped: ' + stopMsg + '. The rest are still pending.' : '');
+      var msg = bulkSummary(tally, verb) + (stopMsg ? '. Stopped: ' + String(stopMsg).replace(/\.+$/, '') + '. The rest are still pending.' : '');
       line(msg);
       window.HDLV2UI.toast(msg, (stopMsg || tally.failed.length) ? 'error' : 'success');
       try { window.dispatchEvent(new CustomEvent('hdlv2:lead-actioned', { detail: { action: action, bulk: true, ts: Date.now() } })); } catch (e) {}
@@ -4491,7 +4491,11 @@
       '.hdlv2-aq-btn-bulk { padding:5px 11px; font-size:12px; border:1px solid #3d8da0; background:#3d8da0; color:#fff; border-radius:999px; cursor:pointer; font-weight:600; font-family:inherit; line-height:1.3; }',
       '.hdlv2-aq-btn-bulk:disabled { opacity:0.5; cursor:default; }',
       // v0.48.16 — Reject selected / Cancel wear the single Reject's colours; the inline question line.
-      '.hdlv2-aq-btn-bulk.hdlv2-aq-btn-pending-reject { border-color:#e4e6ea; background:#fff; color:#666; }',
+      // Scoped under the banner: its outline-pill rule (.hdlv2-aq-banner .hdlv2-aq-btn) is more specific than a bare class.
+      '.hdlv2-aq-banner .hdlv2-aq-btn.hdlv2-aq-btn-bulk { background:#3d8da0; color:#fff; border-color:#3d8da0; }',
+      '.hdlv2-aq-banner .hdlv2-aq-btn.hdlv2-aq-btn-bulk:hover:not(:disabled) { background:#004F59; border-color:#004F59; color:#fff; }',
+      '.hdlv2-aq-banner .hdlv2-aq-btn.hdlv2-aq-btn-bulk.hdlv2-aq-btn-pending-reject { border-color:#e4e6ea; background:#fff; color:#666; }',
+      '.hdlv2-aq-banner .hdlv2-aq-btn.hdlv2-aq-btn-bulk.hdlv2-aq-btn-pending-reject:hover:not(:disabled) { background:#f8f9fb; border-color:#888; color:#2c3e50; }',
       '.hdlv2-aq-bulk-ask { font-weight:500; color:#2c3e50; }',
       '.hdlv2-aq-btn-bulk:focus-visible, .hdlv2-aq-selectall input:focus-visible, .hdlv2-aq-check:focus-visible { outline:2px solid #3d8da0; outline-offset:2px; }',
       '.hdlv2-aq-btn-pending-details[aria-expanded="true"] { background:#3d8da0; border-color:#3d8da0; color:#fff; }',
