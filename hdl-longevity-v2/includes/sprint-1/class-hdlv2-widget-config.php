@@ -427,6 +427,20 @@ class HDLV2_Widget_Config {
             return rest_ensure_response( array( 'success' => true, 'pending' => true ) );
         }
 
+        // v0.48.16 — busy gate. Under a spike the widget takes a 503 and
+        // keeps the answers on the Brevo holding list instead (invite and
+        // ticket holders see "not saved yet" and send again).
+        if ( HDLV2_Stage1_Drain::is_busy() ) {
+            HDLV2_Stage1_Drain::note_busy();
+            $busy = new WP_REST_Response( array(
+                'code'    => 'server_busy',
+                'message' => 'We are busy right now. Please try again in a minute.',
+                'data'    => array( 'status' => 503 ),
+            ), 503 );
+            $busy->header( 'Retry-After', '60' );
+            return $busy;
+        }
+
         $practitioner_id = isset( $params['practitioner_id'] ) ? absint( $params['practitioner_id'] ) : 0;
         if ( ! $practitioner_id ) {
             return new WP_Error( 'missing_practitioner', 'Practitioner ID is required.', array( 'status' => 400 ) );
@@ -446,20 +460,6 @@ class HDLV2_Widget_Config {
         $invite_id    = null;
         $invite_token = isset( $params['invite_token'] ) ? sanitize_text_field( $params['invite_token'] ) : '';
         $invite       = $invite_token ? self::get_valid_invite( $invite_token ) : null;
-
-        // ── Per-IP cap (legacy backstop, lighter than the rate-limit middleware) ──
-        // v0.47.87 — a confirmed paid ticket is counted per ticket by the
-        // middleware instead, so buyers sharing one address (an office, a
-        // venue) are not held to ten an hour between them.
-        if ( ! self::is_paid_ticket_of( $invite, $practitioner_id ) ) {
-            $ip        = sanitize_text_field( $_SERVER['REMOTE_ADDR'] ?? 'unknown' );
-            $transient = 'hdlv2_lead_' . md5( $ip );
-            $count     = (int) get_transient( $transient );
-            if ( $count >= 10 ) {
-                return new WP_Error( 'rate_limited', 'Too many submissions. Please try again later.', array( 'status' => 429 ) );
-            }
-            set_transient( $transient, $count + 1, HOUR_IN_SECONDS );
-        }
 
         // v0.47.85 — paid mode (widget_config.access_mode). A paid widget
         // takes answers only with a valid invite of THIS practitioner. A paid
@@ -688,6 +688,11 @@ class HDLV2_Widget_Config {
         if ( $ticket_id ) {
             $wpdb->query( 'COMMIT' );
         }
+        // v0.48.16 — the row IS the lead now (the drain sends the PDF from
+        // it), so a failed write is a failure: the widget keeps the answers.
+        if ( ! $lead_id ) {
+            return new WP_Error( 'lead_not_saved', 'We could not save your answers. Please try again in a moment.', array( 'status' => 500 ) );
+        }
 
         // ── Front-door safety screen (v0.45.0) — fire flag emails at PUBLIC
         // submit. The public path defers complete_signup() (and the safety
@@ -748,23 +753,9 @@ class HDLV2_Widget_Config {
             );
         }
 
-        self::dispatch_post_signup_artifacts( array(
-            'practitioner_id'           => $practitioner_id,
-            'visitor_name'              => $visitor_name,
-            'visitor_email'             => $visitor_email,
-            'visitor_phone'             => $visitor_phone,
-            'visitor_age'               => $visitor_age,
-            'rate'                      => $rate,
-            'stage1_data'               => $stage1_data,
-            'form_token'                => $cache_token,
-            'config'                    => $config,
-            'invite_id'                 => null,
-            // v0.41.24 — "New Lead from Your Widget" wp_mail suppressed;
-            // Make.com Module 40 already fires the canonical "New Lead" email
-            // with the Stage 1 PDF, so the wp_mail copy was a duplicate.
-            'send_practitioner_notify'  => false,
-            'send_make_pdf'             => true,
-        ) );
+        // v0.48.16 — nothing leaves the server in this request: the Stage 1
+        // PDF (gauge PNG + Make.com) is sent by HDLV2_Stage1_Drain within a
+        // minute, from the row just written (stage1_fired_at NULL).
 
         $public_response = array(
             'success' => true,
@@ -882,6 +873,41 @@ class HDLV2_Widget_Config {
         return false === $ok ? 0 : (int) $wpdb->insert_id;
     }
 
+    /**
+     * v0.48.16 — send the Stage 1 PDF for one public lead row, exactly as the
+     * request did before the drain (HDLV2_Stage1_Drain) took it over.
+     *
+     * @param object $row widget_leads row.
+     * @return bool false when the practitioner has no widget config (logged).
+     */
+    public static function fire_stage1_for_lead( $row ) {
+        $practitioner_id = (int) $row->practitioner_user_id;
+        $config          = ( new self() )->get_config( $practitioner_id );
+        if ( ! $config ) {
+            error_log( '[HDLV2 stage1-drain] no config for practitioner ' . $practitioner_id . ' — lead=' . (int) $row->id . ' not sent.' );
+            return false;
+        }
+        $email  = (string) $row->visitor_email;
+        $stage1 = json_decode( (string) $row->stage1_data, true );
+        self::dispatch_post_signup_artifacts( array(
+            'practitioner_id'          => $practitioner_id,
+            'visitor_name'             => (string) $row->visitor_name,
+            'visitor_email'            => $email,
+            'visitor_phone'            => (string) ( $row->visitor_phone ?? '' ),
+            'visitor_age'              => null !== $row->visitor_age ? (int) $row->visitor_age : null,
+            'rate'                     => null !== $row->rate_of_ageing ? (float) $row->rate_of_ageing : null,
+            'stage1_data'              => is_array( $stage1 ) ? $stage1 : array(),
+            // The synthetic cache key the request stored; the same hash when it did not.
+            'form_token'               => ! empty( $row->stage1_cache_token ) ? (string) $row->stage1_cache_token : bin2hex( hash( 'sha256', $practitioner_id . '|' . $email, true ) ),
+            'config'                   => $config,
+            'invite_id'                => null,
+            // v0.41.24 — Make.com Module 40 sends the practitioner's "New Lead" email.
+            'send_practitioner_notify' => false,
+            'send_make_pdf'            => true,
+        ) );
+        return true;
+    }
+
     /** The nine answers only (no server_result / _safety*), for "did the answers change?". */
     private static function stage1_answers( $data ) {
         $data = is_array( $data ) ? $data : array();
@@ -995,7 +1021,7 @@ class HDLV2_Widget_Config {
     /**
      * "kim@gmail.com" → "k***@gmail.com" — for the on-screen "we sent it to..." card.
      */
-    private static function mask_email( $email ) {
+    public static function mask_email( $email ) {
         $at = strrpos( $email, '@' );
         if ( $at === false || $at === 0 ) return $email;
         $local  = substr( $email, 0, $at );
