@@ -403,6 +403,8 @@ function load_sources() {
     ) as $f ) {
         if ( file_exists( $ROOT . $f ) ) require_once $ROOT . $f;
     }
+    // A quiet machine unless a scenario says otherwise (the busy gate reads this).
+    if ( class_exists( 'HDLV2_Stage1_Drain' ) ) HDLV2_Stage1_Drain::$load_source = function () { return array( 0, 0, 0 ); };
 }
 function http_calls( $method = null ) {
     return array_values( array_filter( $GLOBALS['http_log'] ?? array(), function ( $c ) use ( $method ) { return ! $method || $c['method'] === $method; } ) );
