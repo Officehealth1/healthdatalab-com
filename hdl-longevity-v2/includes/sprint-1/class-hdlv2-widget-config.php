@@ -2534,9 +2534,16 @@ class HDLV2_Widget_Config {
      * and on the widget itself).
      */
     public function rest_get_public_config( $request ) {
+        // v0.48.16 — the same answer for every visitor: cacheable for five
+        // minutes (the loader's no-store filter skips this route).
+        $reply = function ( $data ) {
+            $r = new WP_REST_Response( $data, 200 );
+            $r->header( 'Cache-Control', 'public, max-age=300, s-maxage=300' );
+            return $r;
+        };
         $practitioner_id = absint( $request->get_param( 'practitioner_id' ) );
         if ( ! $practitioner_id ) {
-            return rest_ensure_response( array( 'config' => null ) );
+            return $reply( array( 'config' => null ) );
         }
         global $wpdb;
         $row = $wpdb->get_row( $wpdb->prepare(
@@ -2547,9 +2554,9 @@ class HDLV2_Widget_Config {
             $practitioner_id
         ) );
         if ( ! $row ) {
-            return rest_ensure_response( array( 'config' => null ) );
+            return $reply( array( 'config' => null ) );
         }
-        return rest_ensure_response( array( 'config' => array(
+        return $reply( array( 'config' => array(
             'practitioner_name'             => (string) $row->practitioner_name,
             'logo_url'                      => (string) $row->logo_url,
             'logo_shape'                    => (string) ( $row->logo_shape ?: 'square' ),

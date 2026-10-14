@@ -530,12 +530,12 @@ check( '8.3 used ticket → valid:false, reason completed', is_array( $r ) && fa
 
 echo "── 9. public-config ──\n";
 $wpdb = fresh_wpdb( 'paid' );
-$r = widget_instance()->rest_get_public_config( new FakeRequest( array( 'practitioner_id' => 206 ) ) );
+$r = widget_instance()->rest_get_public_config( new FakeRequest( array( 'practitioner_id' => 206 ) ) )->get_data(); // v0.48.16 — a cacheable WP_REST_Response
 check( '9.1 returns access_mode + buy_url', is_array( $r['config'] ?? null ) && 'paid' === ( $r['config']['access_mode'] ?? null ) && 'https://altituding.example.test/buy' === ( $r['config']['buy_url'] ?? null ) );
 $wpdb = fresh_wpdb( 'open' );
-$r = widget_instance()->rest_get_public_config( new FakeRequest( array( 'practitioner_id' => 206 ) ) );
+$r = widget_instance()->rest_get_public_config( new FakeRequest( array( 'practitioner_id' => 206 ) ) )->get_data(); // v0.48.16 — a cacheable WP_REST_Response
 check( '9.2 open practitioner → access_mode open', 'open' === ( $r['config']['access_mode'] ?? null ) );
-$r = widget_instance()->rest_get_public_config( new FakeRequest( array( 'practitioner_id' => 4040 ) ) );
+$r = widget_instance()->rest_get_public_config( new FakeRequest( array( 'practitioner_id' => 4040 ) ) )->get_data(); // v0.48.16 — a cacheable WP_REST_Response
 check( '9.3 unknown id still returns config: null', is_array( $r ) && array_key_exists( 'config', $r ) && null === $r['config'] );
 
 echo "── 10. saving Widget Settings leaves the paid setting alone ──\n";
@@ -629,7 +629,7 @@ if ( $has_mint ) {
     check( '12.26 the 429 carries Retry-After (seconds left in the hour) and the same body', $last instanceof WP_REST_Response && 'rate_limited' === ( $last->get_data()['code'] ?? '' ) && (int) ( $last->headers['Retry-After'] ?? 0 ) > 3590 && (int) $last->headers['Retry-After'] <= 3600 );
     // A fixed hour: move the stored window so it ends in 100 s, as if the
     // first mint was 58 minutes ago. Calls must not push that end back.
-    $bk = HDLV2_Rate_Limiter::bucket_key( array( 'stage1-ticket', 'unknown' ) );
+    $bk = HDLV2_Rate_Limiter::bucket_key( array( 'stage1-ticket', HDLV2_Rate_Limit_Middleware::get_ip() ) ); // v0.48.16 — the real address
     $st = get_transient( $bk );
     $end = time() + 100;
     set_transient( $bk, array( 'count' => is_array( $st ) ? $st['count'] : 0, 'reset' => $end ) );

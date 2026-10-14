@@ -79,7 +79,8 @@ class HDL_Stage1_Ticket {
 
         // A fixed hour from the first counted call (V1's limiter restarts its
         // hour on every call and cannot say how long is left).
-        $ip = isset( $_SERVER['REMOTE_ADDR'] ) ? sanitize_text_field( $_SERVER['REMOTE_ADDR'] ) : 'unknown';
+        // v0.48.16 — the real address (CF-Connecting-IP first), not the Cloudflare edge.
+        $ip = HDLV2_Rate_Limit_Middleware::get_ip();
         $rl = HDLV2_Rate_Limiter::consume( HDLV2_Rate_Limiter::bucket_key( array( 'stage1-ticket', $ip ) ), self::RATE_LIMIT, HOUR_IN_SECONDS );
         if ( ! $rl['allowed'] ) {
             // Same body a WP_Error gives; a response object so it can carry the header.

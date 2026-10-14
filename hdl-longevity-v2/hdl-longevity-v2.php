@@ -454,6 +454,11 @@ add_action( 'plugins_loaded', function () {
     // Cache-Control headers for V2 REST API — prevents LSCache and Cloudflare caching
     add_filter( 'rest_post_dispatch', function ( $response, $server, $request ) {
         $route = $request->get_route();
+        // v0.48.16 — the public widget config is the same for every visitor
+        // and sets its own five-minute Cache-Control.
+        if ( '/hdl-v2/v1/widget/public-config' === $route ) {
+            return $response;
+        }
         if ( strpos( $route, '/hdl-v2/v1/' ) === 0 ) {
             $response->header( 'Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0' );
             $response->header( 'X-LiteSpeed-Cache-Control', 'no-cache' );

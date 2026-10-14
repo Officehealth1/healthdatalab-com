@@ -72,6 +72,8 @@ function setup( $leads, $opts = array() ) {
         return 'GET' === $m ? array( 'response' => array( 'code' => 200 ), 'body' => str_repeat( 'x', 2000 ) ) : array( 'response' => array( 'code' => 200 ), 'body' => '' );
     };
     file_put_contents( $GLOBALS['logfile'], '' );
+    // The gauge PNG cache would turn a second run's QuickChart GET into a file hit.
+    array_map( 'unlink', glob( wp_upload_dir()['basedir'] . '/hdlv2-gauges/*.png' ) ?: array() );
     return $w;
 }
 function make_posts() {
