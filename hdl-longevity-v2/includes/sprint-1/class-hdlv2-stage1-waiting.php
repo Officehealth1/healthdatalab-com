@@ -105,11 +105,16 @@ class HDLV2_Stage1_Waiting {
         return true;
     }
 
+    private static function api_key() {
+        return defined( 'HDLV2_BREVO_API_KEY' ) ? (string) HDLV2_BREVO_API_KEY : '';
+    }
+
     private static function brevo( $method, $path, $body = null ) {
+        $key  = self::api_key();
         $args = array(
             'method'  => $method,
             'timeout' => 15,
-            'headers' => array( 'api-key' => HDLV2_BREVO_API_KEY, 'accept' => 'application/json', 'content-type' => 'application/json' ),
+            'headers' => array( 'api-key' => $key, 'accept' => 'application/json', 'content-type' => 'application/json' ),
         );
         if ( null !== $body ) {
             $args['body'] = wp_json_encode( $body );
