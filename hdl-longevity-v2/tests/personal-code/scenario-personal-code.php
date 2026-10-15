@@ -42,7 +42,8 @@ list( $make, $call ) = run_lead( 'a@example.test' );
 check( 'C.5 constants absent: no outbound call, the shared code, the PDF fires', null === $call && shared_pair( $make ) );
 
 define( 'HDLV2_FULL_CODE_URL', CODE_URL );
-define( 'HDLV2_FULL_CODE_KEY', 'full-code-key-SECRET' );
+$stub_access = 'stub-full-code-access';
+define( 'HDLV2_FULL_CODE_KEY', $stub_access );
 
 echo "── C. the personal code ──\n";
 $GLOBALS['http'][ CODE_URL ] = array( 'response' => array( 'code' => 200 ), 'body' => '{"code":"AB12-CD","expires_at":1790000000}' );
@@ -52,7 +53,7 @@ check( 'C.1 offer_url carries it as ?code=', is_array( $make ) && 'https://alt.e
 check( 'C.1 still 33 keys, all nine offer keys strings', is_array( $make ) && 33 === count( $make )
     && 9 === count( array_filter( array_intersect_key( $make, array_flip( array_keys( HDLV2_Offer::payload_keys() ) ) ), 'is_string' ) ) );
 check( 'C.2 one POST to HDLV2_FULL_CODE_URL', null !== $call );
-check( 'C.2 the key rides in X-HDL-Full-Code-Key', 'full-code-key-SECRET' === ( $call['args']['headers']['X-HDL-Full-Code-Key'] ?? null ) );
+check( 'C.2 the key rides in X-HDL-Full-Code-Key', $stub_access === ( $call['args']['headers']['X-HDL-Full-Code-Key'] ?? null ) );
 check( 'C.2 body is { ref: lead-<id> }, never the email', array( 'ref' => 'lead-' . $lead_id ) === json_decode( $call['args']['body'] ?? '', true ) && false === strpos( $call['args']['body'], 'example.test' ) );
 check( 'C.2 timeout at most 3 s and blocking', ( $call['args']['timeout'] ?? 99 ) <= 3 && false !== ( $call['args']['blocking'] ?? true ) );
 
@@ -102,7 +103,7 @@ check( 'C.4 offer_show false (a Full Report buyer): no outbound call', $none );
 
 echo "── C. the key stays out of logs and literals ──\n";
 $src = file_get_contents( __DIR__ . '/../../includes/sprint-1/class-hdlv2-offer.php' );
-check( 'C.6 the key never reaches a log line', false === strpos( file_get_contents( $log ), 'full-code-key-SECRET' ) );
+check( 'C.6 the key never reaches a log line', false === strpos( file_get_contents( $log ), $stub_access ) );
 check( 'C.6 the header value comes from a local variable', 1 === preg_match( "/'X-HDL-Full-Code-Key'\s*=>\s*\\\$key\b/", $src )
     && 0 === preg_match( "/'X-HDL-Full-Code-Key'\s*=>\s*HDLV2_/", $src ) );
 @unlink( $log );
