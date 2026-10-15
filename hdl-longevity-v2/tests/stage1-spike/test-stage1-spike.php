@@ -6,7 +6,7 @@
  */
 $php  = escapeshellarg( PHP_BINARY );
 $fail = 0;
-foreach ( array( 'scenario-migration.php', 'scenario-capture-split.php', 'scenario-drain.php', 'scenario-busy-and-alert.php',
+foreach ( array( 'scenario-migration.php', 'scenario-capture-split.php', 'scenario-drain.php', 'scenario-busy-and-alert.php', 'scenario-alert-cadence.php',
                  'scenario-replay.php', 'scenario-rate-limit.php', 'scenario-bulk-actions.php' ) as $f ) {
     $out = array();
     exec( $php . ' ' . escapeshellarg( __DIR__ . '/' . $f ) . ' 2>&1', $out, $code );

@@ -31,6 +31,7 @@ function set_transient( $k, $v, $ttl = 0 ) { $GLOBALS['transients'][ $k ] = $v; 
 function delete_transient( $k ) { unset( $GLOBALS['transients'][ $k ] ); return true; }
 function get_option( $k, $d = false ) { return $GLOBALS['options'][ $k ] ?? $d; }
 function update_option( $k, $v ) { $GLOBALS['options'][ $k ] = $v; return true; }
+function delete_option( $k ) { unset( $GLOBALS['options'][ $k ] ); return true; }
 function apply_filters( $tag, $value ) { return $value; }
 function do_action() {}
 function add_action() {}
