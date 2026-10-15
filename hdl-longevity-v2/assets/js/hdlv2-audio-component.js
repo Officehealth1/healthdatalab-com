@@ -61,8 +61,6 @@ window.HDLAudioComponent = (function () {
       '.hdlv2-ac-dot { width:8px; height:8px; border-radius:50%; background:#dc2626; animation:hdlv2-pulse 1s infinite; }',
       '@keyframes hdlv2-pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }',
       '.hdlv2-ac-timer { font-size:12px; color:#dc2626; font-weight:600; font-variant-numeric:tabular-nums; }',
-      '.hdlv2-ac-spinner { width:24px; height:24px; border:3px solid #e4e6ea; border-top-color:#3d8da0; border-radius:50%; animation:hdlv2-spin 0.8s linear infinite; margin:16px auto; }',
-      '@keyframes hdlv2-spin { to{transform:rotate(360deg)} }',
       '.hdlv2-ac-summary { background:#f8f9fb; border:1px solid #e4e6ea; border-radius:8px; padding:14px; margin-top:12px; font-size:13px; line-height:1.6; color:#444; white-space:pre-wrap; max-height:300px; overflow-y:auto; }',
       '.hdlv2-ac-actions { display:flex; flex-direction:column; gap:10px; margin-top:16px; margin-bottom:8px; }',
       '.hdlv2-ac-actions-secondary { display:flex; gap:8px; justify-content:center; }',
@@ -1267,10 +1265,14 @@ window.HDLAudioComponent = (function () {
       if (s) { s.textContent = msg || ''; s.className = 'hdlv2-ac-icons-status loading'; }
       return;
     }
-    this.el.innerHTML = '<div class="hdlv2-ac" style="text-align:center;padding:20px 0;">'
-      + '<div class="hdlv2-ac-spinner"></div>'
-      + '<p style="font-size:13px;color:#888;margin:8px 0 0;">' + msg + '</p>'
+    // Ladder (bar + the step words) above a skeleton of the summary being
+    // written. The ladder stops itself once a later state replaces this.
+    this.el.innerHTML = '<div class="hdlv2-ac" style="padding:12px 0;">'
+      + '<div class="hdlv2-ac-progress" style="display:flex;justify-content:center;"></div>'
+      + HDLV2Loading.skeleton('brief')
       + '</div>';
+    // The ladder animates its own dots, so a trailing "..." is dropped.
+    HDLV2Loading.progress(this.el.querySelector('.hdlv2-ac-progress'), { steps: [(msg || 'Working on it').replace(/(\.\.\.|\u2026)$/, '')] });
   };
 
   // ── State: async processing (server-side Deepgram pipeline, v0.17.0) ──

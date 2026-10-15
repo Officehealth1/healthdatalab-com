@@ -432,7 +432,8 @@ class HDLV2_Client_Status {
                  SET status = 'revoked'
                  WHERE practitioner_id = %d
                    AND LOWER(client_email) = %s
-                   AND status IN ('pending','opened')",
+                   AND status IN ('pending','opened')
+                   AND source <> 'paid_stage1'",
                 $practitioner_id, $client_email
             ) );
         }
@@ -467,9 +468,10 @@ class HDLV2_Client_Status {
         // code path with a stale ID).
         $progress = $wpdb->get_row( $wpdb->prepare(
             "SELECT id, token, client_user_id, practitioner_user_id, client_email, client_name,
-                    stage1_data, stage3_data, stage1_completed_at, stage3_completed_at, created_at,
+                    stage1_data, stage2_data, stage3_data, stage1_completed_at, stage3_completed_at, created_at,
                     stage1_pdf_url,
-                    has_flags, flags, flags_scan_status
+                    has_flags, flags, flags_scan_status,
+                    visitor_country, visitor_region
              FROM {$prefix}hdlv2_form_progress
              WHERE id = %d AND deleted_at IS NULL",
             $progress_id
@@ -530,6 +532,11 @@ class HDLV2_Client_Status {
         $stage1 = array(
             'completed_at'   => $progress->stage1_completed_at ?: $progress->created_at,
             'pdf_url'        => (string) ( $progress->stage1_pdf_url ?? '' ),
+            // v0.47.83 — coarse submit-time location ("Texas, US"), server-built
+            // by the same helper the pending-lead panel uses; '' = unknown.
+            'location'       => class_exists( 'HDLV2_Widget_Config' )
+                ? HDLV2_Widget_Config::format_visitor_location( $progress->visitor_country ?? '', $progress->visitor_region ?? '' )
+                : '',
             'rate'           => $s1_rate !== null ? round( $s1_rate, 2 ) : null,
             'bio_age_est'    => $s1_bio_age_est,
             'gauge_url'      => $s1_gauge_url,
@@ -590,6 +597,24 @@ class HDLV2_Client_Status {
             'released'      => (int) ( $why->released ?? 0 ) === 1,
             'pdf_url'       => (string) ( $why->pdf_url ?? '' ), // D-2 — practitioner-only WHY PDF
         ) : null;
+
+        // v0.47.93 — single-form clients: what they chose and the abilities
+        // those choices depend on, worked out fresh from the saved answers
+        // (HDLV2_Why_Picks::abilities_profile). Absent for every other row.
+        $s2_form = json_decode( (string) ( $progress->stage2_data ?? '' ), true );
+        if ( $stage2 && class_exists( 'HDLV2_Why_Picks' ) && HDLV2_Why_Picks::is_single( $s2_form ) && is_array( $s2_form['why_picks'] ?? null ) ) {
+            $stage2['choices'] = array(
+                'picks'       => HDLV2_Why_Picks::picks_for_display( $s2_form['why_picks'], $s2_form['why_pick_labels'] ?? array() ),
+                'abilities'   => HDLV2_Why_Picks::abilities_profile(
+                    $s2_form['why_picks'],
+                    HDLV2_Why_Picks::stage1_raw( $s1 ), // real answers only
+                    isset( $s3_calc['scores'] ) && is_array( $s3_calc['scores'] ) ? $s3_calc['scores'] : array(),
+                    HDLV2_Why_Picks::age_of( $s1 ), // v0.48.12 — projection to 90
+                    HDLV2_Why_Picks::sex_of( $s1 ) // v0.48.13 — loss rates by sex
+                ),
+                'stage3_done' => ! empty( $progress->stage3_completed_at ),
+            );
+        }
 
         // ── Stage 3 ─────────────────────────────────────────────
         // D-2 — draft-report PDF for the practitioner Stage-3 tab download.
@@ -1213,7 +1238,8 @@ class HDLV2_Client_Status {
             // clients (Bug-1: previously hardcoded em-dash).
             // v0.41.17 — filter soft-deleted rows.
             $progress = $wpdb->get_row( $wpdb->prepare(
-                "SELECT id, stage1_completed_at, stage2_completed_at, stage3_completed_at
+                "SELECT id, stage1_completed_at, stage2_completed_at, stage3_completed_at,
+                        visitor_country, visitor_region
                  FROM {$wpdb->prefix}hdlv2_form_progress
                  WHERE client_user_id = %d AND deleted_at IS NULL
                  ORDER BY id DESC LIMIT 1",
@@ -1338,6 +1364,12 @@ class HDLV2_Client_Status {
                 'label'            => $status['label'],
                 'color'            => $status['color'],
                 'reasons'          => $status['reasons'],
+                // v0.47.84 — coarse Stage-1 submit-time location ("Texas, US"),
+                // server-built by the shared widget-config helper; '' = unknown
+                // (legacy rows) and the JS renders nothing for it.
+                'location'         => ( $progress && class_exists( 'HDLV2_Widget_Config' ) )
+                    ? HDLV2_Widget_Config::format_visitor_location( $progress->visitor_country ?? '', $progress->visitor_region ?? '' )
+                    : '',
                 'last_checkin_date' => $last_checkin,
                 'latest_event_at'  => $latest_event_at,
                 'v2_first_event_at' => $v2_first_event_at,

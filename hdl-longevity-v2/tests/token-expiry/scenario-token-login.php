@@ -73,11 +73,13 @@ function nocache_headers() {}
 function esc_url( $u ) { return $u; }
 function esc_html( $s ) { return $s; }
 function get_option( $k, $d = false ) { return $d; }
+function user_can( $uid, $cap ) { return in_array( (int) $uid, $GLOBALS['admin_ids'] ?? array(), true ); }
 function add_query_arg( $key, $value, $url ) { return $url . ( strpos( $url, '?' ) === false ? '?' : '&' ) . $key . '=' . $value; }
 
 // Fake V1↔V2 glue — the closure guards every use behind class_exists().
 class HDLV2_Compatibility {
-    public static function is_practitioner( $uid ) { return 3 === (int) $uid; }
+    public static function is_practitioner( $uid ) { return in_array( (int) $uid, $GLOBALS['prac_ids'] ?? array( 3 ), true ); }
+    public static function is_staff( $uid ) { return user_can( $uid, 'edit_posts' ) || self::is_practitioner( $uid ); }
     public static function create_practitioner_client_link( $p, $c ) { return true; }
     public static function practitioner_owns_client( $p, $c ) { return 3 === (int) $p && 42 === (int) $c; }
 }
@@ -99,7 +101,7 @@ class FakeWpdb {
         if ( false !== strpos( $q, 'hdlv2_form_progress' ) ) return $GLOBALS['case_rows']['progress'] ?? null;
         return null;
     }
-    public function get_var( $q ) { return null; }
+    public function get_var( $q ) { return $GLOBALS['case_rows']['var'] ?? null; }
     public function update( $table, $data, $where, $fmt = null, $wfmt = null ) {
         echo 'DB_UPDATE:' . $table . ':' . json_encode( $data ) . "\n";
         return 1;
@@ -158,6 +160,60 @@ switch ( $CASE ) {
     case 'invite-expired':
         $_GET['invite'] = $hex;
         $GLOBALS['case_rows']['invite'] = (object) array( 'id' => 9, 'practitioner_id' => 3, 'client_email' => 'c@x.test', 'client_name' => 'C', 'status' => 'opened', 'expires_at' => gmdate( 'Y-m-d H:i:s', time() - 2 * HOUR_IN_SECONDS ) );
+        break;
+
+    case 'invite-paid-ticket': // v0.47.85 — a paid Stage 1 ticket is not a login link
+        $_GET['invite'] = $hex;
+        $GLOBALS['case_rows']['invite'] = (object) array( 'id' => 9, 'practitioner_id' => 3, 'client_email' => 'c@x.test', 'client_name' => 'C', 'status' => 'pending', 'expires_at' => gmdate( 'Y-m-d H:i:s', time() + 6 * HOUR_IN_SECONDS ), 'source' => 'paid_stage1' );
+        break;
+
+    case 'invite-paid-ticket-used': // status completed → the pending/opened lookup misses
+        $_GET['invite'] = $hex;
+        $GLOBALS['case_rows']['invite'] = null;
+        $GLOBALS['case_rows']['var']    = '1';
+        break;
+
+    // v0.48.15 — a Full Report ticket is a real invite: it logs the buyer in.
+    case 'invite-full-report': // Stage 1 done → straight to the Full Report form
+        $_GET['invite'] = $hex;
+        $GLOBALS['case_rows']['invite'] = (object) array( 'id' => 9, 'practitioner_id' => 3, 'client_email' => 'c@x.test', 'client_name' => 'C', 'status' => 'pending', 'expires_at' => gmdate( 'Y-m-d H:i:s', time() + 80 * DAY_IN_SECONDS ), 'source' => 'full_report' );
+        $GLOBALS['case_rows']['progress_by_user'] = (object) array( 'id' => 55, 'token' => 'fptoken', 'stage1_completed_at' => '2026-10-13 10:00:00' );
+        break;
+    case 'invite-full-report-new': // no Stage 1 yet → the widget page renders
+        $_GET['invite'] = $hex;
+        $GLOBALS['case_rows']['invite'] = (object) array( 'id' => 9, 'practitioner_id' => 3, 'client_email' => 'c@x.test', 'client_name' => 'C', 'status' => 'pending', 'expires_at' => gmdate( 'Y-m-d H:i:s', time() + 80 * DAY_IN_SECONDS ), 'source' => 'full_report' );
+        break;
+    case 'invite-full-report-prac': // the email belongs to a practitioner → no login
+        $_GET['invite'] = $hex;
+        $GLOBALS['prac_ids'] = array( 3, 7 );
+        $GLOBALS['case_rows']['invite'] = (object) array( 'id' => 9, 'practitioner_id' => 3, 'client_email' => 'c@x.test', 'client_name' => 'C', 'status' => 'pending', 'expires_at' => gmdate( 'Y-m-d H:i:s', time() + 80 * DAY_IN_SECONDS ), 'source' => 'full_report' );
+        break;
+    case 'invite-full-report-admin': // the email belongs to an admin → no login
+        $_GET['invite'] = $hex;
+        $GLOBALS['admin_ids'] = array( 7 );
+        $GLOBALS['case_rows']['invite'] = (object) array( 'id' => 9, 'practitioner_id' => 3, 'client_email' => 'c@x.test', 'client_name' => 'C', 'status' => 'pending', 'expires_at' => gmdate( 'Y-m-d H:i:s', time() + 80 * DAY_IN_SECONDS ), 'source' => 'full_report' );
+        break;
+
+    // v0.48.20 — no link ever signs in a staff account (launch gate line 6)
+    case 'invite-plain-prac': // an ordinary invite to a practitioner's email
+        $_GET['invite'] = $hex;
+        $GLOBALS['prac_ids'] = array( 3, 7 );
+        $GLOBALS['case_rows']['invite'] = (object) array( 'id' => 9, 'practitioner_id' => 3, 'client_email' => 'c@x.test', 'client_name' => 'C', 'status' => 'pending', 'expires_at' => gmdate( 'Y-m-d H:i:s', time() + 6 * HOUR_IN_SECONDS ) );
+        break;
+    case 'invite-plain-admin':
+        $_GET['invite'] = $hex;
+        $GLOBALS['admin_ids'] = array( 7 );
+        $GLOBALS['case_rows']['invite'] = (object) array( 'id' => 9, 'practitioner_id' => 3, 'client_email' => 'c@x.test', 'client_name' => 'C', 'status' => 'pending', 'expires_at' => gmdate( 'Y-m-d H:i:s', time() + 6 * HOUR_IN_SECONDS ) );
+        break;
+    case 'token-prac': // form_progress whose client_user_id is a practitioner
+        $_GET['token'] = $hex;
+        $GLOBALS['prac_ids'] = array( 3, 42 );
+        $GLOBALS['case_rows']['progress'] = (object) array( 'id' => 55, 'client_user_id' => 42, 'token_expires_at' => gmdate( 'Y-m-d H:i:s', time() + 80 * DAY_IN_SECONDS ) );
+        break;
+    case 'token-admin':
+        $_GET['token'] = $hex;
+        $GLOBALS['admin_ids'] = array( 42 );
+        $GLOBALS['case_rows']['progress'] = (object) array( 'id' => 55, 'client_user_id' => 42, 'token_expires_at' => gmdate( 'Y-m-d H:i:s', time() + 80 * DAY_IN_SECONDS ) );
         break;
 
     // ?prac_login= (30-min one-shot transient — regression guards, no change expected)

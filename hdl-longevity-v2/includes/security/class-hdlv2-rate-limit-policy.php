@@ -46,8 +46,10 @@ class HDLV2_Rate_Limit_Policy {
                 'per_token_limit' => 200,
                 'window'          => 3600,
             ),
+            // v0.48.16 — 5 → 60: one visitor is one lead; mobile carriers and
+            // offices put many visitors behind one address.
             self::TIER_PUBLIC => array(
-                'per_ip_limit' => 5,
+                'per_ip_limit' => 60,
                 'window'       => 3600,
             ),
             self::TIER_BYPASS => null,
@@ -149,6 +151,12 @@ class HDLV2_Rate_Limit_Policy {
             // tier (10/hour) prevents accidental floods if a practitioner
             // bulk-confirms a spammed inbox.
             array( 'POST', '#^/hdl-v2/v1/widget/leads/confirm$#',               self::TIER_AI_BURN ),
+            // v0.48.15 — bulk Confirm, up to 20 leads a call. WRITE (60 calls
+            // an hour → 1,200 leads); ownership of every id is checked first.
+            // ponytail: raise the chunk or the tier when Matthew's queue outgrows it.
+            array( 'POST', '#^/hdl-v2/v1/widget/leads/confirm-bulk$#',          self::TIER_WRITE ),
+            // v0.48.16 — bulk Reject, same shape and tier as bulk Confirm (no email).
+            array( 'POST', '#^/hdl-v2/v1/widget/leads/reject-bulk$#',           self::TIER_WRITE ),
 
             // ── Bypass (Make.com bearer-authed callbacks + internal loopback) ───
             array( 'POST', '#^/hdl-v2/v1/form/stage1-callback$#',               self::TIER_BYPASS ),
@@ -177,7 +185,9 @@ class HDLV2_Rate_Limit_Policy {
             // update their booking link in Widget Settings without re-pasting
             // embed code. Read-only safe-subset; no PII beyond display fields
             // already shown publicly.
-            array( 'GET',  '#^/hdl-v2/v1/widget/public-config$#',               self::TIER_PUBLIC ),
+            // v0.48.16 — TIER_BYPASS: nothing per visitor, cacheable for five
+            // minutes (Cloudflare on LIVE); the 500/hour IP backstop still counts it.
+            array( 'GET',  '#^/hdl-v2/v1/widget/public-config$#',               self::TIER_BYPASS ),
 
             // ── Write (mutating but cheap) ──────────────────────────────
             array( 'POST', '#^/hdl-v2/v1/form/(save|complete-stage|create|release-why)$#', self::TIER_WRITE ),

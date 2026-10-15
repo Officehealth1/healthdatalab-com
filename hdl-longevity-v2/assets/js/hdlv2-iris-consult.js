@@ -74,8 +74,6 @@
       + '.hdlv2-irc-btn:disabled{background:#b9c6cb;cursor:not-allowed;}'
       + '.hdlv2-irc-btn-ghost{background:#fff;color:#3d8da0;border:1px solid #cfe3e8;}'
       + '.hdlv2-irc-btn-ghost:hover{background:#f0fbfc;color:#004F59;}'
-      + '.hdlv2-irc-spin{display:inline-block;width:18px;height:18px;border:2px solid #cfe3e8;border-top-color:#3d8da0;border-radius:50%;animation:hdlvircspin .8s linear infinite;vertical-align:middle;margin-right:9px;}'
-      + '@keyframes hdlvircspin{to{transform:rotate(360deg);}}'
       + '.hdlv2-irc-note{font-size:12px;color:#888;margin:8px 0 0;}'
       + '.hdlv2-irc-banner{border-radius:10px;padding:12px 14px;font-size:13px;line-height:1.5;margin:0;}'
       + '.hdlv2-irc-banner.warn{background:#fffbeb;border:1px solid #fde68a;color:#92400e;}'
@@ -122,7 +120,7 @@
     if (!pid) { host.innerHTML = shell('<p class="hdlv2-irc-note">Complete Stage 3 first to capture iris photos for this client.</p>'); return; }
     ensureStyles();
     // Read any captured analysis for this consultation (PURE local read).
-    host.innerHTML = shell('<p class="hdlv2-irc-note"><span class="hdlv2-irc-spin"></span>Checking iris analysis&hellip;</p>');
+    host.innerHTML = shell('<p class="hdlv2-irc-note">' + HDLV2Loading.skeleton('inline') + ' Checking iris analysis&hellip;</p>');
     api('/iris/analysis-status?progress_id=' + pid + '&client_id=' + cid).then(function (r) {
       if (!r.ok) { renderEmpty(host, cid, pid); return; }
       route(host, cid, pid, r.json);
@@ -181,7 +179,7 @@
     var rb = host.querySelector('[data-act="refresh"]');
     if (!rb) return;
     rb.addEventListener('click', function () {
-      host.innerHTML = shell('<p class="hdlv2-irc-note"><span class="hdlv2-irc-spin"></span>Checking iris analysis&hellip;</p>');
+      host.innerHTML = shell('<p class="hdlv2-irc-note">' + HDLV2Loading.skeleton('inline') + ' Checking iris analysis&hellip;</p>');
       api('/iris/analysis-status?progress_id=' + pid + '&client_id=' + cid).then(function (r) {
         if (!r.ok) { renderEmpty(host, cid, pid); return; }
         route(host, cid, pid, r.json);

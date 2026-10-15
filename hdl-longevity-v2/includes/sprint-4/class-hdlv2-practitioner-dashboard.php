@@ -156,14 +156,14 @@ class HDLV2_Practitioner_Dashboard {
         wp_enqueue_style(
             'hdlv2-flight-plan',
             HDLV2_PLUGIN_URL . 'assets/css/hdlv2-flight-plan.css',
-            array(),
+            array( 'hdlv2-loading-css' ),
             HDLV2_VERSION
         );
 
         wp_enqueue_script(
             'hdlv2-flight-plan',
             HDLV2_PLUGIN_URL . 'assets/js/hdlv2-flight-plan.js',
-            array(),
+            array( 'hdlv2-loading' ),
             HDLV2_VERSION,
             true
         );
@@ -171,10 +171,13 @@ class HDLV2_Practitioner_Dashboard {
         wp_enqueue_script(
             'hdlv2-client-list-enhance',
             HDLV2_PLUGIN_URL . 'assets/js/hdlv2-client-list-enhance.js',
-            array( 'hdlv2-ui-modal', 'hdlv2-chart-js', 'hdlv2-flight-plan' ),
+            array( 'hdlv2-ui-modal', 'hdlv2-chart-js', 'hdlv2-flight-plan', 'hdlv2-loading' ),
             HDLV2_VERSION,
             true
         );
+        // Skeleton CSS for the detail tabs + flight-notes button, enqueued
+        // directly so it never depends on which page registered hdlv2-flight-plan first.
+        wp_enqueue_style( 'hdlv2-loading-css' );
 
         $consultation_slug = apply_filters( 'hdlv2_consultation_slug', 'consultation' );
         $flight_plan_slug  = apply_filters( 'hdlv2_flight_plan_slug', 'my-flight-plan' );
@@ -197,7 +200,7 @@ class HDLV2_Practitioner_Dashboard {
             wp_enqueue_script(
                 'hdlv2-iris-consult',
                 HDLV2_PLUGIN_URL . 'assets/js/hdlv2-iris-consult.js',
-                array( 'hdlv2-client-list-enhance' ),
+                array( 'hdlv2-client-list-enhance', 'hdlv2-loading' ),
                 HDLV2_VERSION,
                 true
             );

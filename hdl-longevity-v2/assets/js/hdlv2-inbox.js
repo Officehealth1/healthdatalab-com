@@ -131,6 +131,7 @@
         self.poll();
       })
       .catch(function () {
+        self.clearLoading();
         self.setNote('Could not load messages. Please try again shortly.');
       });
   };
@@ -268,6 +269,7 @@
    */
   Inbox.prototype.fail = function (res) {
     if (this.cfg.mode !== 'token') {
+      this.clearLoading();
       this.setNote('Could not load messages. Please refresh the page.');
       return;
     }
@@ -279,16 +281,56 @@
     if (this.form) this.form.setAttribute('hidden', 'hidden');
   };
 
+  // The server-rendered loading bars; renderThread replaces them on success.
+  Inbox.prototype.clearLoading = function () {
+    var box = this.thread && this.thread.querySelector('.hdlv2-inbox-loading');
+    if (box && box.parentNode) box.parentNode.removeChild(box);
+  };
+
   Inbox.prototype.setNote = function (msg) {
     if (this.note) this.note.textContent = msg;
   };
 
-  function autoOpen(cfg, root) {
+  /**
+   * v0.47.82 — mid-funnel popup host. Feature-detected: the populated
+   * dashboard's Messages tab and the standalone token page have no
+   * [data-inbox-popup]/[data-inbox-open], so this returns null and their
+   * behaviour is byte-identical to before.
+   */
+  function bindPopup() {
+    var popup = document.querySelector('[data-inbox-popup]');
+    var opener = document.querySelector('[data-inbox-open]');
+    if (!popup || !opener) return null;
+    var closeBtn = popup.querySelector('[data-inbox-close]');
+    var thread = popup.querySelector('[data-inbox-thread]');
+    function open() {
+      popup.removeAttribute('hidden');
+      opener.setAttribute('aria-expanded', 'true');
+      // While hidden the thread has no layout (scrollHeight 0), so the
+      // render-time scroll pin never took: re-pin to the newest message.
+      if (thread) thread.scrollTop = thread.scrollHeight;
+    }
+    function close() {
+      popup.setAttribute('hidden', 'hidden');
+      opener.setAttribute('aria-expanded', 'false');
+      if (opener.focus) opener.focus();
+    }
+    opener.addEventListener('click', open);
+    if (closeBtn) closeBtn.addEventListener('click', close);
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && !popup.hasAttribute('hidden')) close();
+    });
+    return { open: open };
+  }
+
+  function autoOpen(cfg, root, popup) {
     if (!cfg.autoOpen) return;
+    // Mid-funnel dashboard: open the messages popup.
+    if (popup) { popup.open(); return; }
     // Populated dashboard: activate the Messages tab (existing generic tab JS).
     var tab = document.querySelector('.cdp-tab[data-tab="messages"]');
     if (tab) { tab.click(); return; }
-    // Empty-state card / standalone page: bring the thread into view.
+    // Standalone page: bring the thread into view.
     if (root.scrollIntoView) root.scrollIntoView({ block: 'start' });
   }
 
@@ -297,9 +339,10 @@
     if (!cfg || !cfg.clientHash || !cfg.ajaxUrl) return;
     var root = document.querySelector('[data-inbox]');
     if (!root) return;
+    var popup = bindPopup();
     var inbox = new Inbox(root, cfg);
     inbox.boot();
-    autoOpen(cfg, root);
+    autoOpen(cfg, root, popup);
   }
 
   if (document.readyState === 'loading') {

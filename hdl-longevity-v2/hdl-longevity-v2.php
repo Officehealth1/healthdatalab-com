@@ -3,7 +3,7 @@
  * Plugin Name: HDL Longevity V2 — Staged Workflow
  * Plugin URI: https://healthdatalab.net
  * Description: V2 longevity workflow: staged intake, WHY profiling, practitioner consultations, weekly flight plans, and AI coaching. Runs alongside the existing Health Data Lab plugin.
- * Version: 0.47.76
+ * Version: 0.48.20
  * Author: Health Data Lab
  * Author URI: https://healthdatalab.net
  * License: Proprietary
@@ -22,8 +22,8 @@ if ( ! defined( 'ABSPATH' ) ) {
 // register_activation_hook callbacks, which fire synchronously during
 // `wp plugin activate`, can reference them. The activator needs
 // HDLV2_DB_VERSION / HDLV2_VERSION at call time to update version options.
-define( 'HDLV2_VERSION', '0.47.78' );
-define( 'HDLV2_DB_VERSION', '3.25' );
+define( 'HDLV2_VERSION', '0.48.20' );
+define( 'HDLV2_DB_VERSION', '3.30' );
 
 // Client funnel token (hdlv2_form_progress.token) lifetime. FIXED window
 // from issuance: set when the token is created and refreshed ONLY when the
@@ -95,6 +95,14 @@ add_action( 'init', function () {
         ) );
 
         if ( ! $invite ) {
+            // v0.47.85 — a used or revoked paid Stage 1 ticket is not an
+            // invitation: let the page render so the widget can say so.
+            if ( $wpdb->get_var( $wpdb->prepare(
+                "SELECT 1 FROM {$wpdb->prefix}hdlv2_widget_invites WHERE token = %s AND source = 'paid_stage1' LIMIT 1",
+                $token
+            ) ) ) {
+                return;
+            }
             // v0.40.15 — surfaced from silent return. Invite row missing
             // (deleted, never existed, or token forged). Friendly card with
             // clear next step instead of letting the page render anonymously.
@@ -104,6 +112,12 @@ add_action( 'init', function () {
                 '',
                 ''
             );
+        }
+        // v0.47.85 — a paid Stage 1 ticket opens the widget's questions and
+        // nothing else: no account, no login. The widget on the page checks
+        // the ticket itself.
+        if ( isset( $invite->source ) && 'paid_stage1' === $invite->source ) {
+            return;
         }
         // v0.47.53 (B4) — fail CLOSED: an invite with no expiry (legacy row;
         // schema is NOT NULL so only zero-dates/garbage) is treated as
@@ -131,6 +145,13 @@ add_action( 'init', function () {
 
         // Create or get existing user
         $user_id = email_exists( $email );
+        // v0.48.15 — a Full Report ticket carries the email the buyer typed at
+        // checkout, never verified. v0.48.20 — the same holds for every invite
+        // (the practitioner typed the email): any source may sign in a client,
+        // never an account that manages clients or the site.
+        if ( $user_id && hdlv2_is_staff_account( $user_id ) ) {
+            hdlv2_render_staff_sign_in_card();
+        }
         if ( ! $user_id ) {
             $username = sanitize_user( strtolower( preg_replace( '/[^a-zA-Z0-9]/', '', $name ) ) . '_' . wp_rand( 1000, 9999 ), true );
             if ( username_exists( $username ) ) {
@@ -348,6 +369,10 @@ add_action( 'init', function () {
             );
         }
 
+        // v0.48.20 — client_user_id was matched by email in complete_signup().
+        if ( $progress && $progress->client_user_id && hdlv2_is_staff_account( $progress->client_user_id ) ) {
+            hdlv2_render_staff_sign_in_card();
+        }
         if ( $progress && $progress->client_user_id ) {
             wp_set_current_user( $progress->client_user_id );
             wp_set_auth_cookie( $progress->client_user_id, false );
@@ -427,6 +452,11 @@ add_action( 'plugins_loaded', function () {
     // Cache-Control headers for V2 REST API — prevents LSCache and Cloudflare caching
     add_filter( 'rest_post_dispatch', function ( $response, $server, $request ) {
         $route = $request->get_route();
+        // v0.48.16 — the public widget config is the same for every visitor
+        // and sets its own five-minute Cache-Control.
+        if ( '/hdl-v2/v1/widget/public-config' === $route ) {
+            return $response;
+        }
         if ( strpos( $route, '/hdl-v2/v1/' ) === 0 ) {
             $response->header( 'Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0' );
             $response->header( 'X-LiteSpeed-Cache-Control', 'no-cache' );
@@ -614,6 +644,27 @@ function hdlv2_register_loading_helpers() {
 }
 
 /**
+ * v0.48.20 — an account emailed links must never sign in (staff: manages
+ * clients or the site). Falls back to the capability alone if the V1↔V2 glue
+ * is not loaded.
+ */
+function hdlv2_is_staff_account( $user_id ) {
+    return class_exists( 'HDLV2_Compatibility' )
+        ? HDLV2_Compatibility::is_staff( $user_id )
+        : user_can( $user_id, 'edit_posts' );
+}
+
+/** v0.48.20 — the card shown instead of signing a staff account in. Exits. */
+function hdlv2_render_staff_sign_in_card() {
+    hdlv2_render_link_card(
+        'Please sign in',
+        'This link cannot open an account that manages clients. Please sign in with your password instead.',
+        'Sign in',
+        wp_login_url()
+    );
+}
+
+/**
  * Render a self-contained "link expired / invalid" card and exit (v0.40.15).
  *
  * Called from the init-priority-1 magic-link handler when a token has expired
@@ -789,11 +840,20 @@ final class HDL_Longevity_V2 {
         // pipeline (token, widget invite pre-fill, magic link) is V2-owned.
         // Dark behind hdlv2_automation_tier_enabled feature flag.
         require_once HDLV2_PLUGIN_DIR . 'includes/security/class-hdl-paid-report-provisioner.php';
+        // v0.47.85 — keyed route that mints paid Stage 1 widget tickets.
+        // Dark (503) until HDL_STAGE1_TICKET_KEY is defined in wp-config.
+        require_once HDLV2_PLUGIN_DIR . 'includes/security/class-hdl-stage1-ticket.php';
+        // v0.48.15 — the Full Report offer in one setting (Stage 1 PDF page 2,
+        // the widget's locked panel, the partnership line).
+        require_once HDLV2_PLUGIN_DIR . 'includes/sprint-1/class-hdlv2-offer.php';
 
         // Sprint 1: Lead Magnet Widget
         require_once HDLV2_PLUGIN_DIR . 'includes/sprint-1/class-hdlv2-widget-config.php';
         require_once HDLV2_PLUGIN_DIR . 'includes/sprint-1/class-hdlv2-widget-renderer.php';
         require_once HDLV2_PLUGIN_DIR . 'includes/sprint-1/class-hdlv2-safety-screen.php';
+        // v0.48.16 — Stage 1 under load: PDF drain + busy gate + alert, Brevo holding list replay.
+        require_once HDLV2_PLUGIN_DIR . 'includes/sprint-1/class-hdlv2-stage1-drain.php';
+        require_once HDLV2_PLUGIN_DIR . 'includes/sprint-1/class-hdlv2-stage1-waiting.php';
 
         // Sprint 2: Staged Form + Rate Calculator + AI + Email
         require_once HDLV2_PLUGIN_DIR . 'includes/sprint-2/class-hdlv2-rate-calculator.php';
@@ -896,6 +956,7 @@ final class HDL_Longevity_V2 {
         // automation tier). Dark behind hdlv2_automation_tier_enabled
         // flag; with flag false every request returns 503.
         HDL_Paid_Report_Provisioner::get_instance()->register_hooks();
+        HDL_Stage1_Ticket::register_hooks();
 
         // Sprint 1: Widget config dashboard + REST API + shortcode
         $widget_config = new HDLV2_Widget_Config();
@@ -919,6 +980,9 @@ final class HDL_Longevity_V2 {
 
         // v0.17.0 — Job queue (worker cron + /jobs/{id}/status REST)
         HDLV2_Job_Queue::get_instance()->register_hooks();
+        // v0.48.16 — Stage 1 drain + alert (WP-Cron hooks).
+        HDLV2_Stage1_Drain::register_hooks();
+        HDLV2_Stage1_Waiting::register_hooks();
         // Handlers must register AFTER the queue class is loaded so
         // HDLV2_Job_Queue::register_handler() is available.
         HDLV2_Transcription_Jobs::register();

@@ -48,25 +48,19 @@
     var params = new URLSearchParams(window.location.search);
     state.progressId = parseInt(params.get('progress_id') || params.get('client'), 10);
     if (state.progressId) {
-      showLoading('Loading consultation data...');
+      showLoading();
       loadConsultation();
     } else {
-      showLoading('Loading consultations...');
+      root.innerHTML = HDLV2Loading.skeleton('list');
       loadList();
     }
   }
 
-  function showLoading(msg) {
-    // v0.37.0 — shaped skeleton replaces blank spinner during the 2-5s mount.
-    // The skeleton mirrors the consultation layout (single content card with
-    // a heading, paragraph lines, and a body block) so the user sees the
-    // shape of what's loading rather than a void. Falls back to the original
-    // spinner when HDLV2Loading isn't on the page (cached pages mid-deploy).
-    if (window.HDLV2Loading && typeof HDLV2Loading.skeleton === 'function') {
-      root.innerHTML = HDLV2Loading.skeleton('consultation');
-    } else {
-      root.innerHTML = '<div style="text-align:center;padding:60px;"><div class="hdlv2-spinner" style="width:36px;height:36px;border:3px solid #e4e6ea;border-top-color:#3d8da0;border-radius:50%;margin:0 auto 16px;animation:hdlv2spin 0.8s linear infinite;"></div><p style="color:#888;margin:0;">' + esc(msg || 'Loading...') + '</p></div>';
-    }
+  function showLoading() {
+    // Shaped skeleton during the 2-5s mount: the consultation layout (one
+    // content card with a heading, paragraph lines and a body block), so the
+    // practitioner sees the shape of what is loading rather than a void.
+    root.innerHTML = HDLV2Loading.skeleton('consultation');
   }
 
   function loadConsultation() {
@@ -108,11 +102,7 @@
     root.innerHTML = '<div class="hdlv2-consult-layout">'
       + '<div class="hdlv2-consult-left">'
       + '<div id="hdlv2-draft-report-root" class="hdlv2-dr">'
-      +   '<div class="hdlv2-dr-loading" data-hdlv2-state="loading">'
-      +     '<div class="hdlv2-dr-loading-icon"></div>'
-      +     '<h3>Loading client report</h3>'
-      +     '<p>Same layout your client sees<span class="hdlv2-dr-loading-dots"></span></p>'
-      +   '</div>'
+      +   HDLV2Loading.skeleton('report')
       + '</div>'
       + '</div>'
 
@@ -128,7 +118,7 @@
 
       // Client Brief — pre-consultation snapshot from client data + scores.
       // Collapsible. Loads from cache or generates on first open via the
-      // REST endpoint (practitioner sees a spinner in this card only).
+      // REST endpoint (practitioner sees a skeleton in this card only).
       + '<div class="hdlv2-consult-section hdlv2-client-brief">'
       +   renderClientBrief(data)
       + '</div>'
@@ -713,11 +703,10 @@
           briefAutoSavePending = false;
 
           var edited = collectOrganisedFromDom();
-          var SPINNER = '<span class="hdlv2-spinner" aria-hidden="true"></span>';
 
           // v0.46.0 — the report now generates ASYNC on the job queue, so the
           // old fake setTimeout "progress ladder" is gone. The /approve write
-          // is quick (no Claude) so a brief honest spinner is fine; once
+          // is quick (no Claude) so a brief disabled label is fine; once
           // /finalise hands back a job_id we switch to the real preparing UI
           // (showReportPreparing) and poll for completion (pollReportJob).
           //
@@ -727,7 +716,7 @@
           var idemKey = 'fin-' + state.consultId + '-' + state.progressId;
 
           finBtn.disabled = true;
-          finBtn.innerHTML = SPINNER + '<span class="hdlv2-spinner-label">Saving your edits…</span>';
+          finBtn.textContent = 'Saving your edits…';
           setOrganiseStatus('loading', 'Saving your edits…');
 
           fetch(CFG.api_base + '/approve', {
@@ -915,11 +904,12 @@
   //   refresh is wired into Final_Report::regenerate() server-side, so by
   //   the time the page renders post-Save-and-Update-Plan the timestamp
   //   should be fresh.
+  // Nothing loads behind an empty brief, so it gets a line, not a skeleton.
+  var BRIEF_EMPTY = '<p class="hdlv2-consult-hint">The summary could not be written just now. Press Refresh summary to try again.</p>';
+
   function renderClientBrief(data) {
     var brief = (data && data.pre_consult_summary) || null;
-    var body = brief
-      ? renderBriefBody(brief)
-      : '<div class="hdlv2-client-brief-loading"><span class="hdlv2-spinner" style="width:14px;height:14px;display:inline-block;border:2px solid #e4e6ea;border-top-color:#3d8da0;border-radius:50%;animation:hdlv2spin 0.8s linear infinite;vertical-align:middle;"></span> <span style="vertical-align:middle;margin-left:6px;">Preparing client brief…</span></div>';
+    var body = brief ? renderBriefBody(brief) : BRIEF_EMPTY;
 
     var meta = renderBriefMeta(data);
 
@@ -1144,6 +1134,12 @@
       var original = btn.textContent;
       btn.textContent = 'Refreshing…';
       setBriefSaveStatus('saving');
+      // With no brief yet, the box shows the skeleton while the first one is
+      // written and the line again if that fails.
+      var hadBrief = !!(state.data && state.data.pre_consult_summary);
+      var briefBody = document.getElementById('hdlv2-client-brief-body');
+      if (!hadBrief && briefBody) briefBody.innerHTML = HDLV2Loading.skeleton('brief');
+      function restoreEmpty() { if (!hadBrief && briefBody) briefBody.innerHTML = BRIEF_EMPTY; }
       fetch(CFG.api_base + '/refresh-brief', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': CFG.nonce },
@@ -1166,12 +1162,14 @@
           bindBriefAutoSaveListeners();
           setBriefSaveStatus('saved');
         } else {
+          restoreEmpty();
           setBriefSaveStatus('error', (res && res.message) || 'Refresh failed');
         }
       })
       .catch(function () {
         btn.disabled = false;
         btn.textContent = original;
+        restoreEmpty();
         setBriefSaveStatus('error', 'Connection error');
       });
     });
@@ -1561,10 +1559,9 @@
     var btn = document.getElementById('hdlv2-generate-final');
     if (!btn) return;
 
-    // Spinner + label markup. Honest progression: one message change at 8s.
-    var SPINNER = '<span class="hdlv2-spinner" aria-hidden="true"></span>';
-    function showSpinner( labelText ) {
-      btn.innerHTML = SPINNER + '<span class="hdlv2-spinner-label">' + labelText + '</span>';
+    // Disabled-button label. Honest progression: one message change at 8s.
+    function showBusyLabel( labelText ) {
+      btn.textContent = labelText;
     }
     function restoreButton() {
       btn.disabled = false;
@@ -1585,12 +1582,12 @@
       ask.then(function (confirmed) {
         if (!confirmed) return;
         btn.disabled = true;
-        showSpinner('Generating Trajectory Plan…');
+        showBusyLabel('Generating Trajectory Plan…');
 
         // After 8s, swap to a softer "still working" message so the practitioner
         // knows the request hasn't hung. Cleared on response.
         var almostTimer = setTimeout(function () {
-          if (btn.disabled) showSpinner('Almost there…');
+          if (btn.disabled) showBusyLabel('Almost there…');
         }, 8000);
 
         // Save notes first
@@ -1656,7 +1653,7 @@
   //  a second (the PHP worker is freed at once — many practitioners can
   //  generate reports without freezing the site). Here we replace the old
   //  fake setTimeout "progress ladder" with an honest preparing state
-  //  (spinner + skeleton + a message telling the practitioner WHERE the
+  //  (skeleton + a message telling the practitioner WHERE the
   //  report will appear) and poll /jobs/{id}/status until it's ready.
   //
   //  Poll loop mirrors hdlv2-audio-component.js pollTranscriptionJob():
@@ -1664,6 +1661,10 @@
   //  setInterval), adaptive backoff, cache-bust + cache:'no-store' (so a
   //  cached "pending" can't hang the UI), and a root.isConnected guard so a
   //  late tick can't write into a torn-down DOM.
+  //
+  //  v0.47.79 — the status line is animated by startReportPrepTicker (its
+  //  own self-terminating setTimeout chain, stopped by node detachment on
+  //  any exit path); the poll no longer writes reassurance copy.
   // ──────────────────────────────────────────────────────────────────
 
   function jobsStatusUrl(jobId) {
@@ -1686,25 +1687,54 @@
   // Replace the whole consultation panel with an honest "preparing" card.
   function showReportPreparing(kind) {
     var title = (kind === 'regen') ? 'Updating the Trajectory Plan…' : 'Preparing the final report…';
-    var skel = (window.HDLV2Loading && typeof HDLV2Loading.skeleton === 'function')
-      ? HDLV2Loading.skeleton('consultation')
-      : '';
     root.innerHTML =
       '<div class="hdlv2-report-preparing" style="max-width:680px;margin:40px auto;padding:0 20px;font-family:Inter,-apple-system,BlinkMacSystemFont,sans-serif;">'
       + '<div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:14px;padding:26px 24px;text-align:center;">'
-      +   '<div class="hdlv2-spinner" aria-hidden="true" style="width:30px;height:30px;border:3px solid #bfdbfe;border-top-color:#3b82f6;border-radius:50%;margin:0 auto 16px;animation:hdlv2spin 0.8s linear infinite;"></div>'
       +   '<h3 style="font-family:Poppins,Inter,sans-serif;font-size:18px;font-weight:600;color:#1e3a5f;margin:0 0 10px;">' + esc(title) + '</h3>'
       +   '<p style="color:#2c3e50;font-size:14px;line-height:1.55;margin:0 0 8px;">This usually takes a minute or two. You can stay on this page &mdash; <strong>the report will appear here automatically</strong> when it&rsquo;s ready. You don&rsquo;t need to refresh.</p>'
       +   '<p style="color:#5b6b7b;font-size:13px;line-height:1.5;margin:0;">It is also saved to the client&rsquo;s Trajectory Plan, so it is safe to leave this page and come back later.</p>'
-      +   '<p class="hdlv2-rp-status" id="hdlv2-rp-status" role="status" aria-live="polite" style="color:#3b82f6;font-size:13px;font-weight:600;margin:16px 0 0;">Generating the report&hellip;</p>'
+      +   '<p class="hdlv2-rp-status" id="hdlv2-rp-status" role="status" aria-live="polite" style="color:#3b82f6;font-size:13px;font-weight:600;margin:16px 0 0;">' + esc(REPORT_PREP_MESSAGES[0]) + '</p>'
       + '</div>'
-      + (skel ? '<div aria-hidden="true" style="margin-top:18px;opacity:0.65;">' + skel + '</div>' : '')
+      + '<div aria-hidden="true" style="margin-top:18px;opacity:0.65;">' + HDLV2Loading.skeleton('consultation') + '</div>'
       + '</div>';
+    startReportPrepTicker(document.getElementById('hdlv2-rp-status'));
   }
 
-  function setReportPrepStatus(msg) {
-    var el = document.getElementById('hdlv2-rp-status');
-    if (el && typeof msg === 'string') el.textContent = msg;
+  // v0.47.79 — rotating reassurance ladder for the preparing card. Five
+  // roughly-ordered lines (mirroring generate()'s real step order: notes →
+  // summary → recommendations → milestones → assembly), then a steady line
+  // that never loops — a long wait must not reveal the rotation as scripted.
+  // Time-sequenced reassurance only: the poll knows job STATUS, never the
+  // sub-stage, so no line claims a step has completed, and there is no fake
+  // progress bar / percentage.
+  var REPORT_PREP_MESSAGES = [
+    'Reviewing the consultation notes…',
+    'Preparing the health summary…',
+    'Drafting the recommendations…',
+    'Shaping the long-term milestones…',
+    'Putting the report together…',
+    'Still working — this can take a minute or two.'
+  ];
+  var REPORT_PREP_STEP_MS = 7000;
+
+  // Message ticker for #hdlv2-rp-status. Same idiom as pollReportJob below:
+  // recursive setTimeout, self-terminating, nothing to clear. It holds the
+  // NODE reference (never re-looks-up by id) — every exit path from the
+  // preparing screen replaces root.innerHTML, detaching the node, so the
+  // next tick stops for good; and a re-opened preparing screen's fresh
+  // same-id element can never be written to by a stale ticker. Ends on its
+  // own after the last (steady) line regardless. Single writer: the poll
+  // does not touch the status line.
+  function startReportPrepTicker(el) {
+    if (!el) return;
+    var idx = 0; // line 0 is in the rendered markup
+    var tick = function () {
+      if (!el.isConnected) return; // torn down — stop, don't reschedule
+      idx++;
+      el.textContent = REPORT_PREP_MESSAGES[idx];
+      if (idx < REPORT_PREP_MESSAGES.length - 1) setTimeout(tick, REPORT_PREP_STEP_MS);
+    };
+    setTimeout(tick, REPORT_PREP_STEP_MS);
   }
 
   // Poll the report job until completed / failed / timeout.
@@ -1734,11 +1764,8 @@
           if (!root || !root.isConnected) return;
           if (!job || !job.status) { setTimeout(tick, reportPollInterval(attempts)); return; }
           if (job.status === 'pending' || job.status === 'running') {
-            // Drive the reassurance copy off elapsed time (report jobs use
-            // max_attempts=1, so job.attempts is always 1 — an attempts-based
-            // message would never change).
-            var elapsed = Date.now() - startedAt;
-            setReportPrepStatus(elapsed > 45000 ? 'Still working on it — almost there…' : 'Generating the report…');
+            // Reassurance copy is owned by the showReportPreparing ticker
+            // (single writer) — this branch only keeps polling.
             setTimeout(tick, reportPollInterval(attempts));
             return;
           }
@@ -1746,7 +1773,7 @@
             if (kind === 'regen') {
               // Re-load the consultation so the refreshed report + the new
               // addendum in the timeline render from fresh server state.
-              showLoading('Loading your updated report…');
+              showLoading();
               loadConsultation();
             } else {
               renderFinalReport();
@@ -1781,7 +1808,7 @@
       + '</div>'
       + '</div>';
     var btn = document.getElementById('hdlv2-report-retry');
-    if (btn) btn.addEventListener('click', function () { showLoading('Loading consultation data...'); loadConsultation(); });
+    if (btn) btn.addEventListener('click', function () { showLoading(); loadConsultation(); });
   }
 
   function showReportTimeout(kind) {
@@ -1797,7 +1824,7 @@
       + '</div>'
       + '</div>';
     var btn = document.getElementById('hdlv2-report-refresh');
-    if (btn) btn.addEventListener('click', function () { showLoading('Loading consultation data...'); loadConsultation(); });
+    if (btn) btn.addEventListener('click', function () { showLoading(); loadConsultation(); });
   }
 
   // ── UTILS ──
@@ -1912,160 +1939,127 @@
     .then(function (r) { return r.json(); })
     .then(function (data) {
       if (data && data.code) {
-        root.innerHTML = '<p style="color:#dc2626;padding:40px;text-align:center;">' + esc(data.message || 'Error loading consultations') + '</p>';
+        renderListMessage(data.message || 'Could not load consultations. Please refresh the page.');
         return;
       }
       renderList(data || {});
     })
     .catch(function () {
-      root.innerHTML = '<p style="color:#dc2626;padding:40px;text-align:center;">Connection error. Please try again.</p>';
+      renderListMessage('Connection error. Please refresh the page.');
     });
   }
 
+  // v0.47.96 — one table in the Clients-page theme: ready first, then in
+  // progress, then delivered, each newest first. Pure helpers below are
+  // pinned by tests/consultations-list/test-list.js.
   function renderList(data) {
-    var ready    = Array.isArray(data.ready) ? data.ready : [];
-    var existing = Array.isArray(data.existing) ? data.existing : [];
-    var counts   = data.counts || { ready: 0, in_progress: 0, delivered: 0 };
-    var isAdmin  = !!data.is_admin;
+    var items  = sortConsultations(data.ready, data.existing);
+    var lead   = items.length ? listSentence(data.counts) : '';
+    var inner  = '<h1 class="cl-h1">Consultations</h1>';
 
-    // v0.25.3 — single centered shell wraps the whole list. Without this
-    // wrapper the inner elements (page-head, counts, rows) capped at
-    // 1180px but stuck to the left edge of .hdlv2-consultation-root
-    // because the parent is full-bleed (100vw). Centering happens once,
-    // here, instead of per-element margin gymnastics.
-    var inner = '';
-
-    if (!ready.length && !existing.length) {
-      inner = renderListPageHead() + renderListEmptyState();
-      root.innerHTML = '<div class="cl-shell">' + inner + '</div>';
-      return;
+    if (!items.length) {
+      inner += '<p class="cl-lead">No consultations yet. They appear here when a client finishes their assessment.</p>'
+        + '<p class="cl-lead"><a class="cl-link" href="' + esc(CFG.clients_url || '/clients/') + '">Go to Clients</a></p>';
+    } else {
+      if (lead) inner += '<p class="cl-lead">' + esc(lead) + '</p>';
+      inner += renderListTable(items, !!data.is_admin);
     }
-
-    inner = renderListPageHead() + renderListCounts(counts);
-
-    if (ready.length) {
-      inner += '<div class="cl-section-head">'
-        +   '<h2>Ready to start</h2>'
-        +   '<span class="cl-count-pill">' + ready.length + '</span>'
-        +   '<span class="cl-section-sub">Stage&nbsp;3 complete &middot; awaiting your first consultation</span>'
-        + '</div>'
-        + '<p class="cl-section-lead">These clients have finished their full assessment. Open one to review their draft report and add your clinical notes.</p>';
-      for (var i = 0; i < ready.length; i++) {
-        inner += renderListRow(ready[i], 'ready', isAdmin);
-      }
-    }
-
-    if (existing.length) {
-      inner += '<div class="cl-section-head">'
-        +   '<h2>In progress and completed</h2>'
-        +   '<span class="cl-count-pill">' + existing.length + '</span>'
-        +   '<span class="cl-section-sub">Pick up where you left off, or re-edit a delivered report</span>'
-        + '</div>';
-      for (var j = 0; j < existing.length; j++) {
-        inner += renderListRow(existing[j], 'existing', isAdmin);
-      }
-    }
-
     root.innerHTML = '<div class="cl-shell">' + inner + '</div>';
   }
 
-  function renderListPageHead() {
-    var clientsUrl = CFG.clients_url || '/clients/';
-    return '<header class="cl-page-head">'
-      +   '<div>'
-      +     '<h1 class="cl-h1">Consultations</h1>'
-      +     '<p class="cl-lead">Review draft reports, add clinical notes, and generate final reports for your clients.</p>'
-      +   '</div>'
-      +   '<a class="cl-back-link" href="' + esc(clientsUrl) + '">'
-      +     '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"></polyline></svg>'
-      +     'Back to clients'
-      +   '</a>'
-      + '</header>';
+  function renderListMessage(text) {
+    root.innerHTML = '<div class="cl-shell"><h1 class="cl-h1">Consultations</h1><p class="cl-lead">' + esc(text) + '</p></div>';
   }
 
-  function renderListCounts(counts) {
-    var ready  = (counts && typeof counts.ready === 'number') ? counts.ready : 0;
-    var inProg = (counts && typeof counts.in_progress === 'number') ? counts.in_progress : 0;
-    var deliv  = (counts && typeof counts.delivered === 'number') ? counts.delivered : 0;
-    return '<div class="cl-counts">'
-      +   '<div class="cl-count-card is-action"><p class="cl-count-label">Ready to start</p><p class="cl-count-value">' + ready + '</p></div>'
-      +   '<div class="cl-count-card"><p class="cl-count-label">In progress</p><p class="cl-count-value">' + inProg + '</p></div>'
-      +   '<div class="cl-count-card"><p class="cl-count-label">Final delivered</p><p class="cl-count-value">' + deliv + '</p></div>'
-      + '</div>';
+  // Ready rows newest-finished first; in-progress by last edit; delivered by
+  // send date. Dates are MySQL "YYYY-MM-DD HH:MM:SS" strings, so string order
+  // is time order. Array.prototype.sort is stable, so ties keep server order.
+  function sortConsultations(ready, existing) {
+    var items = [];
+    (Array.isArray(ready) ? ready : []).forEach(function (row) {
+      items.push({ row: row, kind: 'ready' });
+    });
+    (Array.isArray(existing) ? existing : []).forEach(function (row) {
+      items.push({ row: row, kind: row.status === 'report_generated' ? 'delivered' : 'progress' });
+    });
+    var rank = { ready: 0, progress: 1, delivered: 2 };
+    return items.sort(function (a, b) {
+      if (rank[a.kind] !== rank[b.kind]) return rank[a.kind] - rank[b.kind];
+      var ta = listActivityAt(a), tb = listActivityAt(b);
+      return ta < tb ? 1 : (ta > tb ? -1 : 0);
+    });
   }
 
-  function renderListRow(row, kind, isAdmin) {
-    var status      = row.status || '';
-    var isDelivered = status === 'report_generated';
-    var rowClass    = '';
-    var actionLabel = 'Open consultation';
-    var actionClass = '';
-    var statusPill  = '';
-    var contextItem = '';
+  // The date behind "Finished / Edited / Sent" — same fields as before.
+  function listActivityAt(item) {
+    var row = item.row || {};
+    if (item.kind === 'ready') return row.stage3_completed_at || '';
+    if (item.kind === 'delivered') return row.consult_approved_at || row.consult_created_at || '';
+    return row.consult_created_at || row.consult_started_at || '';
+  }
 
-    if (kind === 'ready') {
-      rowClass    = ' is-new';
-      contextItem = '<span class="item"><span class="label">Stage&nbsp;3 done</span><span class="val">' + esc(formatRelativeTime(row.stage3_completed_at)) + '</span></span>';
-    } else {
-      if (isDelivered) {
-        statusPill  = '<span class="cl-status delivered">Final delivered</span>';
-        actionLabel = 'Open & re-edit';
-        actionClass = ' ghost';
-        contextItem = statusPill
-          + '<span class="dot">&middot;</span>'
-          + '<span class="item"><span class="label">Sent</span><span class="val">' + esc(formatRelativeTime(row.consult_approved_at || row.consult_created_at)) + '</span></span>';
-      } else {
-        statusPill  = '<span class="cl-status in-progress">In progress</span>';
-        actionLabel = 'Resume';
-        contextItem = statusPill
-          + '<span class="dot">&middot;</span>'
-          + '<span class="item"><span class="label">Last edited</span><span class="val">' + esc(formatRelativeTime(row.consult_created_at || row.consult_started_at)) + '</span></span>';
-      }
+  function listSentence(counts) {
+    var ready  = (counts && counts.ready) || 0;
+    var inProg = (counts && counts.in_progress) || 0;
+    var deliv  = (counts && counts.delivered) || 0;
+    if (ready > 0) {
+      return ready === 1
+        ? '1 client is ready for their first consultation.'
+        : ready + ' clients are ready for their first consultation.';
     }
-
-    var ageMeta = (row.age != null && row.age !== '')
-      ? '<span class="dot">&middot;</span><span class="item"><span class="label">Age</span><span class="val">' + esc(String(row.age)) + '</span></span>'
-      : '';
-    var sexMeta = (row.sex)
-      ? '<span class="dot">&middot;</span><span class="item"><span class="label">Sex</span><span class="val">' + esc(row.sex) + '</span></span>'
-      : '';
-
-    var rateHtml = '<div class="cl-rate-wrap"></div>';
-    if (row.rate != null && !isNaN(row.rate)) {
-      var r = Number(row.rate);
-      rateHtml = '<div class="cl-rate-wrap"><span class="cl-rate">' + r.toFixed(2) + '<span class="cl-rate-unit">&times;&nbsp;age</span></span></div>';
-    }
-
-    var practitionerTag = (isAdmin && row.practitioner_name)
-      ? '<span class="cl-admin-tag">Practitioner: ' + esc(row.practitioner_name) + '</span>'
-      : '';
-
-    var url = '?progress_id=' + encodeURIComponent(row.progress_id);
-
-    return '<article class="cl-row' + rowClass + '">'
-      +   '<div class="cl-avatar">' + esc(row.client_initials || '?') + '</div>'
-      +   '<div class="cl-body">'
-      +     '<p class="cl-name">' + esc(row.client_name || 'Unknown client') + practitionerTag + '</p>'
-      +     '<div class="cl-meta">' + contextItem + ageMeta + sexMeta + '</div>'
-      +   '</div>'
-      +   rateHtml
-      +   '<a class="cl-action' + actionClass + '" href="' + url + '">'
-      +     esc(actionLabel)
-      +     '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 18 15 12 9 6"></polyline></svg>'
-      +   '</a>'
-      + '</article>';
+    if (inProg > 0) return 'No one is waiting. ' + inProg + ' in progress.';
+    if (deliv > 0) return 'No one is waiting.';
+    return '';
   }
 
-  function renderListEmptyState() {
-    var clientsUrl = CFG.clients_url || '/clients/';
-    return '<div class="cl-empty">'
-      +   '<div class="cl-empty-icon">'
-      +     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>'
-      +   '</div>'
-      +   '<h3>No consultations yet</h3>'
-      +   '<p>When a client completes Stage&nbsp;3 of their assessment, they’ll appear here ready for your review.<br>'
-      +   '<a href="' + esc(clientsUrl) + '" class="cl-empty-link">Invite a client &rarr;</a></p>'
-      + '</div>';
+  function listRowModel(item, isAdmin) {
+    var kinds = {
+      ready:     { pillClass: 'is-ready',     pillLabel: 'Ready',       verb: 'Finished', buttonLabel: 'Start consultation', buttonClass: 'cl-btn-primary' },
+      progress:  { pillClass: 'is-progress',  pillLabel: 'In progress', verb: 'Edited',   buttonLabel: 'Resume',             buttonClass: 'cl-btn-secondary' },
+      delivered: { pillClass: 'is-delivered', pillLabel: 'Delivered',   verb: 'Sent',     buttonLabel: 'Open report',        buttonClass: 'cl-btn-secondary' }
+    };
+    var k    = kinds[item.kind] || kinds.progress;
+    var row  = item.row || {};
+    var rel  = formatRelativeTime(listActivityAt(item));
+    var hasRate = row.rate != null && row.rate !== '' && !isNaN(Number(row.rate));
+    return {
+      name:         row.client_name || 'Unknown client',
+      practitioner: isAdmin ? (row.practitioner_name || '') : '',
+      pillClass:    k.pillClass,
+      pillLabel:    k.pillLabel,
+      activity:     rel === '—' ? '–' : k.verb + ' ' + rel,
+      rate:         hasRate ? Number(row.rate).toFixed(2) + '×' : '–',
+      buttonLabel:  k.buttonLabel,
+      buttonClass:  k.buttonClass,
+      url:          '?progress_id=' + encodeURIComponent(row.progress_id)
+    };
+  }
+
+  function renderListTable(items, isAdmin) {
+    var rows = '';
+    for (var i = 0; i < items.length; i++) {
+      var m = listRowModel(items[i], isAdmin);
+      rows += '<tr>'
+        +   '<td class="cl-col-client"><span class="cl-name">' + esc(m.name) + '</span>'
+        +     (m.practitioner ? '<span class="cl-prac">' + esc(m.practitioner) + '</span>' : '')
+        +   '</td>'
+        +   '<td class="cl-col-status"><span class="cl-status ' + m.pillClass + '">' + esc(m.pillLabel) + '</span></td>'
+        +   '<td class="cl-col-activity">' + esc(m.activity) + '</td>'
+        +   '<td class="cl-col-rate">' + esc(m.rate) + '</td>'
+        +   '<td class="cl-col-action"><a class="cl-btn ' + m.buttonClass + '" href="' + esc(m.url) + '"'
+        +     ' aria-label="' + esc(m.buttonLabel + ' for ' + m.name) + '">' + esc(m.buttonLabel) + '</a></td>'
+        + '</tr>';
+    }
+    return '<div class="cl-table-wrap"><table class="cl-table">'
+      +   '<thead><tr>'
+      +     '<th scope="col">Client</th>'
+      +     '<th scope="col">Status</th>'
+      +     '<th scope="col">Last activity</th>'
+      +     '<th scope="col">Rate of ageing</th>'
+      +     '<th scope="col"><span class="cl-sr">Action</span></th>'
+      +   '</tr></thead>'
+      +   '<tbody>' + rows + '</tbody>'
+      + '</table></div>';
   }
 
   // Format a MySQL DATETIME (server time, treated as UTC) into a relative
@@ -2438,7 +2432,6 @@
     var submitBtn = document.getElementById('hdlv2-addendum-submit');
     if (!submitBtn) return;
 
-    var SPINNER = '<span class="hdlv2-spinner" aria-hidden="true"></span>';
     function restoreButton() {
       submitBtn.disabled = false;
       submitBtn.textContent = 'Save & Update Plan';
@@ -2456,7 +2449,7 @@
     // doesn't clobber it with the generic 'Connection error' message.
     var handled = false;
     submitBtn.disabled = true;
-    submitBtn.innerHTML = SPINNER + '<span class="hdlv2-spinner-label">' + firstMsg + '</span>';
+    submitBtn.textContent = firstMsg;
     setAddendumStatus('loading', firstMsg);
 
     // Step 1 — POST /consultation/addendum (only when there is new text).

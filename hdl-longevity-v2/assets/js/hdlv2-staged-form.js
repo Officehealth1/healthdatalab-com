@@ -4,6 +4,8 @@
  * Token-based multi-stage longevity assessment.
  * Stage 1: Quick Insight (6 fields, gauge result)
  * Stage 2: Your WHY (free-text — key people, motivations, vision; no multi-select)
+ *   or, for practitioners on hdlv2_ff_single_form, the "What matters most" pick
+ *   list that opens one questionnaire running straight into Stage 3 (v0.47.92)
  * Stage 3: Full Detail (22 factors, wizard mode, skip options, draft report)
  *
  * Requires: hdlv2-speedometer.js (HDLSpeedometer.buildUrl)
@@ -46,14 +48,21 @@
   var saving = false;
   var serverData = {};
   var wizardSection = 0;
+  // v0.47.94 — tap-card second form: current step (0-12), the order of the
+  // ten question screens, the open screen-1 row, the A-F key handler and the
+  // 200 ms advance timer (cancelled by Back, as in the first check).
+  var tapStep = 0, tapOrder = [], tapOpenRow = null, tapKeyHandler = null, tapAdvanceTimer = null, queuedSaveTimer = null;
+  // v0.47.92 — single-form WHY picks; HDLV2_Why_Picks holds the same limits.
+  var PICK_MIN = 5, PICK_MAX = 10;
 
   // v0.40.2 — Centralised width modifier for .hdlv2-assessment-root.
-  // Three states: '' (default 620px), 'is-medium' (760px), 'is-wide' (full).
+  // Four states: '' (default 620px), 'is-medium' (760px), 'is-wide' (full),
+  // 'is-picks' (1080px, v0.48.1 — the choices page only).
   // Each renderer calls this at its entry so navigation between stages can't
   // leave the root in a stale wider/narrower state.
   function setRootClasses(modifier) {
     if (!root) return;
-    root.classList.remove('is-wide', 'is-medium');
+    root.classList.remove('is-wide', 'is-medium', 'is-picks');
     if (modifier) root.classList.add(modifier);
   }
 
@@ -348,6 +357,55 @@
       opts:[{v:'a',t:'Mostly processed or fast food, very few vegetables'},{v:'b',t:'Mixed \u2014 some healthy meals, a lot of convenience food'},{v:'c',t:'Reasonably healthy \u2014 I cook most meals'},{v:'d',t:'Mostly whole foods, plenty of vegetables'},{v:'e',t:'Very clean \u2014 whole foods, diverse vegetables, minimal processed'}] }
   };
 
+  // How to do each test: the wizard's tooltip and the tap screen's open text.
+  var TEST_HOW = {
+    sitToStand: 'Using a standard chair (about 43 cm seat height, no armrests), sit with feet flat on the floor and arms crossed on your shoulders. On "go", stand up fully and sit back down as many times as possible in 30 seconds. Count only complete reps. Measures lower-body strength.',
+    breathHold: 'After a normal exhale, hold your breath for as long as comfortable. Use a stopwatch. Take your best safe attempt — don’t push past discomfort.',
+    balance: 'Stand on one leg without support and time how long you can hold it. Use a stopwatch. Take your best attempt. Stand near something for safety in case you wobble.',
+    skinElasticity: 'Gently pinch the skin on the back of your hand for 2 seconds, release, and time how long it takes to flatten back. Use a stopwatch.'
+  };
+
+  // v0.47.94 — the single-flow second form as tap cards: screen 1 confirms
+  // the six answers carried over from the first check, screens 2-11 ask one
+  // question each, screens 12-13 are today's body and background sections.
+  var TAP_STEPS = 13;
+  // A tap or key this soon after a question appears is the tail of the last
+  // one (a slow double tap), so it is ignored.
+  var TAP_SETTLE_MS = 400;
+  // Complete gives a save in flight this long before handing the button back.
+  var TAP_COMPLETE_WAIT_MS = 5000;
+  var TAP_FIRST = ['physicalActivity', 'sleepDuration', 'sleepQuality', 'smokingStatus', 'socialConnections', 'dietQuality'];
+  var TAP_FIRST_LABELS = {
+    physicalActivity: 'How active you are',
+    sleepDuration: 'How long you sleep',
+    sleepQuality: 'How well you sleep',
+    smokingStatus: 'Smoking',
+    socialConnections: 'Time with people you care about',
+    dietQuality: 'How you eat'
+  };
+  // Screens 2-11 in today's order; tapQuestionOrder() moves tied ones first.
+  var TAP_ORDER = ['sitToStand', 'breathHold', 'balance', 'skinElasticity', 'stressLevels', 'cognitiveActivity', 'alcoholConsumption', 'supplementIntake', 'sunlightExposure', 'dailyHydration'];
+  // These answers are scored; the line says so without a health claim.
+  var TAP_NEUTRAL = 'This answer goes into your rate of ageing result.';
+  var TAP_TITLES = {
+    sitToStand: { title: 'How many times can you stand up from a chair in 30 seconds?', plain: 'This test shows how strong your legs are.', how: TEST_HOW.sitToStand },
+    breathHold: { title: 'How long can you hold your breath after breathing out normally?', plain: 'A quick check of your breathing.', how: TEST_HOW.breathHold },
+    balance: { title: 'How long can you stand on one leg?', plain: 'This shows how steady you are on your feet.', how: TEST_HOW.balance },
+    skinElasticity: { title: 'Pinch the skin on the back of your hand. How long does it take to flatten?', plain: 'A quick check of your skin.', how: TEST_HOW.skinElasticity },
+    stressLevels: { title: 'How stressed do you feel on most days?', plain: TAP_NEUTRAL },
+    cognitiveActivity: { title: 'How often do you give your brain something new to work on?', hint: 'e.g. reading, learning new skills, puzzles, problem-solving at work.', plain: TAP_NEUTRAL },
+    alcoholConsumption: { title: 'How many alcoholic drinks do you have in a usual week?', plain: TAP_NEUTRAL },
+    supplementIntake: { title: 'How often do you take vitamins or supplements?', plain: 'Tells your practitioner what you already take.' },
+    sunlightExposure: { title: 'When do you usually get daylight outdoors?', plain: TAP_NEUTRAL },
+    dailyHydration: { title: 'How much water do you drink in a day?', plain: TAP_NEUTRAL }
+  };
+  // Reason line when the person's choices need the ability a question measures.
+  var ABILITY_SENTENCES = {
+    strength: 'This test shows how strong your legs are for that.',
+    balance: 'This shows how steady you are on your feet for that.',
+    mind: 'This helps us see how to keep your mind sharp for that.'
+  };
+
   var S3_SECTIONS = [
     { id: 'body', title: 'Body Measurements', fields: ['hip', 'bpSystolic', 'bpDiastolic', 'restingHeartRate'] },
     { id: 'fitness', title: 'Fitness & Performance', fields: ['physicalActivity', 'sitToStand', 'breathHold', 'balance', 'skinElasticity'] },
@@ -382,7 +440,11 @@
         serverData = data;
         currentStage = data.current_stage || 1;
         if (currentStage === 1) { formData = data.stage1_data || {}; renderStage1(data); }
-        else if (currentStage === 2) { formData = data.stage2_data || {}; renderStage2(data); }
+        else if (currentStage === 2) {
+          formData = data.stage2_data || {};
+          // v0.47.92 — covered practitioners' clients get the pick-list page.
+          if (data.single_form) renderWhyPicks(data); else renderStage2(data);
+        }
         else { formData = data.stage3_data || {}; renderStage3(data); }
       })
       .catch(function () { showError('Connection error', 'Could not load your assessment. Please try again.'); });
@@ -390,7 +452,7 @@
 
   // ── LOADING / ERROR ──
   function showLoading() {
-    root.innerHTML = '<div class="hdlv2-card"><div class="hdlv2-loading"><div class="hdlv2-spinner"></div><p style="color:#888;margin:0;">Loading your assessment...</p></div></div>';
+    root.innerHTML = HDLV2Loading.skeleton('form');
   }
 
   function showError(title, message) {
@@ -444,6 +506,23 @@
     }).then(function(r){ return r.json(); })
       .then(function(res){ saving=false; if(res.success){setSaveStatus('saved','Saved');setTimeout(function(){setSaveStatus('','');},3000);}else{setSaveStatus('error','Save failed');}})
       .catch(function(){ saving=false; setSaveStatus('error','Connection error'); });
+  }
+
+  // autoSave() drops a call while one is in flight; fast taps hit that, so
+  // wait for it (as submitWhyPicks does) and send the whole formData after.
+  // v0.48.5 — serves the choices page and the tap cards; one queued save at a
+  // time, so Complete or Next can always cancel the one that is waiting.
+  function saveWhenFree(stage) {
+    if (queuedSaveTimer) clearTimeout(queuedSaveTimer);
+    queuedSaveTimer = null;
+    if (saving) { queuedSaveTimer = setTimeout(function () { saveWhenFree(stage); }, 300); return; }
+    autoSave(stage);
+  }
+
+  // A pick answers a refused Next: the red line goes; a "Saved" line stays.
+  function clearSaveError() {
+    var el = document.getElementById('hdlv2-save-indicator');
+    if (el && /(^| )error( |$)/.test(el.className)) setSaveStatus('', '');
   }
 
   function setSaveStatus(cls, text) {
@@ -512,8 +591,34 @@
 
   // v0.36.20 — added Terms of Service link to the staged-form footer
   // (applies across every stage that renders footer()).
-  function footer() { return '<div class="hdlv2-footer">Powered by <a href="https://healthdatalab.com" target="_blank" rel="noopener">HealthDataLab</a> &middot; <a href="https://healthdatalab.com/terms" target="_blank" rel="noopener">Terms of Service</a></div>'; }
-  function saveIndicator() { return '<div id="hdlv2-save-indicator" class="hdlv2-save-status"></div>'; }
+  // v0.48.15 — the partnership line from /form/load (HDLV2_Offer::PARTNER_LINE)
+  // replaces "Powered by HealthDataLab" when the server sends it.
+  function footer() {
+    var line = (serverData && serverData.partner_line)
+      ? esc(serverData.partner_line).replace('HealthDataLab', '<a href="https://healthdatalab.com" target="_blank" rel="noopener">HealthDataLab</a>')
+      : 'Powered by <a href="https://healthdatalab.com" target="_blank" rel="noopener">HealthDataLab</a>';
+    return '<div class="hdlv2-footer">' + line + ' &middot; <a href="https://healthdatalab.com/terms" target="_blank" rel="noopener">Terms of Service</a></div>';
+  }
+
+  // v0.48.15 — the practitioner's logo in a slim band above every Full Report
+  // screen (Matthew 2026-10-13: "whatever page they go to, it would be nice to
+  // see altituding on"). Initials when there is no logo of their own; the
+  // HealthDataLab fallback logo is not theirs, so it is not drawn here.
+  function brandBar(d) {
+    d = d || {};
+    var name = d.practitioner_name || '';
+    var logo = d.practitioner_logo_url || '';
+    var own = logo && logo.indexOf('://') !== -1 && logo.indexOf('HDL-Logo-2309') === -1;
+    if (!own && !name) return '';
+    var initials = name.split(/\s+/).filter(Boolean).slice(0, 2).map(function (w) { return w.charAt(0).toUpperCase(); }).join('');
+    return '<div class="hdlv2-brandbar">'
+      + (own
+        ? '<img class="hdlv2-brandbar-logo" src="' + esc(logo) + '" alt="' + esc(name || 'Your practitioner') + '">'
+        : '<span class="hdlv2-brandbar-initials" aria-hidden="true">' + esc(initials) + '</span><span class="hdlv2-brandbar-name">' + esc(name) + '</span>')
+      + '</div>';
+  }
+  // live: announced to screen readers (the tap cards' slow-connection message).
+  function saveIndicator(live) { return '<div id="hdlv2-save-indicator" class="hdlv2-save-status"' + (live ? ' role="status" aria-live="polite"' : '') + '></div>'; }
 
   // ══════════════════════════════════════════════════════════════
   //  STAGE 1: QUICK INSIGHT — 9 evidence-based questions
@@ -824,6 +929,7 @@
     var greet = firstName ? ('Hi ' + esc(firstName) + ' \u2014') : 'Hi there \u2014';
 
     var gaugeUrl = HDLSpeedometer.buildUrl(rate, { width: 640, height: 560 });
+    var singleForm = !!(serverData && serverData.single_form); // v0.47.92
 
     // Phase 17 (v0.22.26) \u2014 practitioner CTA + footer data from /form/load.
     // The buttons row hides "Book a session" entirely when no cta_link is
@@ -897,16 +1003,18 @@
       +       '<h2>What This Means For You</h2>'
       +       '<p class="hdlv2-s1-lede">A plain-English read of your gauge.</p>'
       +       '<div id="hdlv2-s1-commentary" class="hdlv2-s1-commentary hdlv2-s1-commentary-loading">'
-      +         '<div class="hdlv2-spinner" style="margin:0 auto 14px;"></div>'
-      +         '<p style="text-align:center;color:#888;font-size:13px;margin:0;">Personalising your read\u2026</p>'
+      +         HDLV2Loading.skeleton('brief')
       +       '</div>'
       +     '</div>'
       +     '<div class="hdlv2-s1-card">'
       +       '<h2>What Happens Next</h2>'
-      +       '<p class="hdlv2-s1-lede">Your gauge is a snapshot. The next two stages turn it into a plan.</p>'
-      +       '<ol class="hdlv2-s1-next-list">'
-      +         '<li><strong>Stage 2 \u2014 Your WHY.</strong> Tell us what motivates you. We capture your reasons in your own words. ~10 minutes.</li>'
-      +         '<li><strong>Stage 3 \u2014 Full Health Detail.</strong> Replace today\u2019s visual estimates with real measurements (body, fitness, sleep, lifestyle).</li>'
+      +       ( singleForm
+              ? '<p class="hdlv2-s1-lede">Your gauge is a snapshot. One questionnaire turns it into a plan.</p>'
+              +   '<ol class="hdlv2-s1-next-list">'
+              +     '<li><strong>One questionnaire.</strong> What matters to you, then your health details. About 15 minutes.</li>'
+              : '<p class="hdlv2-s1-lede">Your gauge is a snapshot. The Full Report turns it into a plan.</p>'
+              +   '<ol class="hdlv2-s1-next-list">'
+              +     '<li><strong>The Full Report.</strong> What matters most to you, then your real measurements: the full picture, reviewed by your practitioner.</li>' )
       +         '<li><strong>Your Trajectory Plan arrives.</strong> Reviewed by your practitioner, with your weekly Flight Plan to follow.</li>'
       +       '</ol>'
       // Phase 17 (v0.22.26) two CTAs preserved.
@@ -915,7 +1023,7 @@
       //     (`practitioner_cta_link` from /form/load) only rendered when
       //     a link is configured, otherwise the button is hidden.
       +       '<div class="hdlv2-s1-buttons">'
-      +         '<button id="hdlv2-goto-s2" class="hdlv2-s1-btn hdlv2-s1-btn-primary" type="button">Continue to Stage 2 \u2014 Your WHY \u2192</button>'
+      +         '<button id="hdlv2-goto-s2" class="hdlv2-s1-btn hdlv2-s1-btn-primary" type="button">' + (singleForm ? 'Continue your assessment \u2192' : 'Continue to your Full Report \u2192') + '</button>'
       +         '<p class="hdlv2-s1-email-note">We\u2019ve also sent this link to your email.</p>'
       +         ( pracCtaLink
               ? '<a id="hdlv2-book-session" class="hdlv2-s1-btn hdlv2-s1-btn-secondary" href="' + esc(pracCtaLink) + '" target="_blank" rel="noopener">' + esc(pracCtaText) + '</a>'
@@ -994,7 +1102,7 @@
     box.innerHTML =
         '<p>Your pace-of-ageing snapshot has been calculated from your 9 answers. '
       + 'A more detailed personalised read will be available shortly \u2014 if it doesn\u2019t appear, refresh this page.</p>'
-      + '<p>This isn\u2019t a verdict \u2014 it\u2019s a starting picture. Most of these levers are within your control. Stage 2 captures your <em>why</em>, then Stage 3 turns this into your full Trajectory Plan.</p>';
+      + '<p>This isn\u2019t a verdict \u2014 it\u2019s a starting picture. Most of these levers are within your control. The Full Report captures what matters to you, then turns your real measurements into your plan.</p>';
   }
 
   // ══════════════════════════════════════════════════════════════
@@ -1015,7 +1123,7 @@
     if (!d.key_people) d.key_people = {};
 
     root.innerHTML = '<div class="hdlv2-card">'+progressBar(2)
-      +'<div class="hdlv2-header"><h2>Your Why</h2></div>'
+      +brandBar(serverData) + '<div class="hdlv2-header"><h2>Your Why</h2></div>'
       +'<div class="hdlv2-form-body">'
       // v0.36.20 — Stage 2 page restructured:
       //   1. Subtitle removed from header (title only).
@@ -1203,6 +1311,398 @@
   }
 
   // ══════════════════════════════════════════════════════════════
+  //  SINGLE FORM: WHAT MATTERS MOST (v0.47.92)
+  //  First page of the one questionnaire for covered practitioners'
+  //  clients. Replaces the recorded/typed WHY: 5-10 picks, the people who
+  //  matter, optional own words. Next saves with submitted:true; the server
+  //  moves the row to stage 3, so loadForm() opens the health sections.
+  //  v0.48.0 — far fewer words (Matthew is a little dyslexic): 24 short
+  //  statements in three groups, all on the page from the start, and a
+  //  polar chart of what the picks need. Counts only: no scores here.
+  // ══════════════════════════════════════════════════════════════
+
+  function isSingleFlow() {
+    return !!(serverData && serverData.stage2_data && serverData.stage2_data.form_flow === 'single');
+  }
+
+  // Pure: returns the new pick list; refuses an 11th pick.
+  function togglePick(picks, id) {
+    var next = (picks || []).slice();
+    var at = next.indexOf(id);
+    if (at !== -1) { next.splice(at, 1); return { picks: next, atLimit: false }; }
+    if (next.length >= PICK_MAX) return { picks: next, atLimit: true };
+    next.push(id);
+    return { picks: next, atLimit: next.length >= PICK_MAX };
+  }
+
+  function canContinue(picks) {
+    return Array.isArray(picks) && picks.length >= PICK_MIN && picks.length <= PICK_MAX;
+  }
+
+  // Pure: the abilities the picks depend on, most-needed first; ties keep the
+  // server's ability order (HDLV2_Why_Picks::NEEDS). v0.48.11 — need is the
+  // share of the picks that lean on the ability, 0 to 5, the same sum and
+  // rounding as HDLV2_Why_Picks::tally() (tests/abilities-six holds both to one fixture).
+  function abilityCounts(picks, groups, abilities) {
+    var counts = {}, sums = {}, n = 0;
+    (groups || []).forEach(function (g) {
+      g.items.forEach(function (it) {
+        if ((picks || []).indexOf(it.id) === -1) return;
+        n++;
+        var w = it.weights || {};
+        (it.needs || []).forEach(function (a) {
+          counts[a] = (counts[a] || 0) + 1;
+          sums[a] = (sums[a] || 0) + (a in w ? w[a] : 2);
+        });
+      });
+    });
+    return Object.keys(abilities || {})
+      .filter(function (id) { return counts[id] > 0; })
+      .map(function (id) {
+        return { id: id, label: abilities[id], count: counts[id], need: Math.min(5, Math.round(50 * sums[id] / (3 * n)) / 10) };
+      })
+      .sort(function (a, b) { return b.need - a.need; });
+  }
+
+  // Pure: the line under the statements.
+  function pickCountLine(n) {
+    if (n >= PICK_MAX) return n + ' picked. That is the most.';
+    return n + ' picked.' + (n < PICK_MIN ? ' Pick at least ' + PICK_MIN + '.' : '');
+  }
+
+  // Pure: the radar's numbers. Every ability in the server's order with its
+  // need; v0.48.11 (Matthew, 2026-10-09) the scale always tops out at 5.
+  function radarData(rows, names) {
+    var needs = {};
+    (rows || []).forEach(function (r) { needs[r.id] = r.need; });
+    return { top: 5, spokes: Object.keys(names || {}).map(function (id) {
+      return { id: id, label: names[id], need: needs[id] || 0 };
+    }) };
+  }
+
+  // Pure: the chart said in words, for a screen reader.
+  function chartLabel(spokes) {
+    var parts = spokes.filter(function (w) { return w.need > 0; }).map(function (w) { return w.label + ' ' + w.need; });
+    return parts.length ? 'What your picks need, out of 5: ' + parts.join(', ') + '.' : 'Nothing picked yet.';
+  }
+
+  // Phosphor Icons licence (github.com/phosphor-icons/core/blob/main/LICENSE):
+  //
+  // MIT License
+  //
+  // Copyright (c) 2023 Phosphor Icons
+  //
+  // Permission is hereby granted, free of charge, to any person obtaining a copy
+  // of this software and associated documentation files (the "Software"), to deal
+  // in the Software without restriction, including without limitation the rights
+  // to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+  // copies of the Software, and to permit persons to whom the Software is
+  // furnished to do so, subject to the following conditions:
+  //
+  // The above copyright notice and this permission notice shall be included in all
+  // copies or substantial portions of the Software.
+  //
+  // THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+  // IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+  // FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+  // AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+  // LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+  // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+  // SOFTWARE.
+  //
+  // v0.48.2 — pictures for the choices page, all from one family: Phosphor
+  // Icons, duotone weight (github.com/phosphor-icons/core, MIT). Static SVG on
+  // the 256 grid, filled, the soft layer at the file's own 0.2 opacity;
+  // decoration beside a word (aria-hidden). Files: barbell, person-simple-walk,
+  // person-simple-tai-chi, heartbeat, brain, users-three; groups heart,
+  // house-line, star.
+  var ICONS = {
+    strength: '<path d="M96,64V192a8,8,0,0,1-8,8H64a8,8,0,0,1-8-8V64a8,8,0,0,1,8-8H88A8,8,0,0,1,96,64Zm96-8H168a8,8,0,0,0-8,8V192a8,8,0,0,0,8,8h24a8,8,0,0,0,8-8V64A8,8,0,0,0,192,56Z" opacity="0.2"/><path d="M248,120h-8V88a16,16,0,0,0-16-16H208V64a16,16,0,0,0-16-16H168a16,16,0,0,0-16,16v56H104V64A16,16,0,0,0,88,48H64A16,16,0,0,0,48,64v8H32A16,16,0,0,0,16,88v32H8a8,8,0,0,0,0,16h8v32a16,16,0,0,0,16,16H48v8a16,16,0,0,0,16,16H88a16,16,0,0,0,16-16V136h48v56a16,16,0,0,0,16,16h24a16,16,0,0,0,16-16v-8h16a16,16,0,0,0,16-16V136h8a8,8,0,0,0,0-16ZM32,168V88H48v80Zm56,24H64V64H88V192Zm104,0H168V64h24V175.83c0,.06,0,.11,0,.17s0,.12,0,.17V192Zm32-24H208V88h16Z"/>',
+    mobility: '<path d="M176,48a24,24,0,1,1-24-24A24,24,0,0,1,176,48Z" opacity="0.2"/><path d="M152,80a32,32,0,1,0-32-32A32,32,0,0,0,152,80Zm0-48a16,16,0,1,1-16,16A16,16,0,0,1,152,32Zm64,112a8,8,0,0,1-8,8c-35.31,0-52.95-17.81-67.12-32.12-2.74-2.77-5.36-5.4-8-7.84l-13.43,30.88,37.2,26.57A8,8,0,0,1,160,176v56a8,8,0,0,1-16,0V180.12l-31.07-22.2L79.34,235.19A8,8,0,0,1,72,240a7.84,7.84,0,0,1-3.19-.67,8,8,0,0,1-4.15-10.52l54.08-124.37c-9.31-1.65-20.92,1.2-34.7,8.58a163.88,163.88,0,0,0-30.57,21.77,8,8,0,0,1-10.95-11.66c2.5-2.35,61.69-57.22,98.72-25.08,3.83,3.32,7.48,7,11,10.58C166.19,122.7,179.36,136,208,136A8,8,0,0,1,216,144Z"/>',
+    balance: '<path d="M152,48a24,24,0,1,1-24-24A24,24,0,0,1,152,48Z" opacity="0.2"/><path d="M128,80A32,32,0,1,0,96,48,32,32,0,0,0,128,80Zm0-48a16,16,0,1,1-16,16A16,16,0,0,1,128,32Zm96,72a8,8,0,0,1-8,8H136v26.72l51.15,21.93A8,8,0,0,1,192,168v48a8,8,0,0,1-16,0V173.28l-46.45-19.91L53.35,222a8,8,0,1,1-10.7-11.9L120,140.44V112H40a8,8,0,0,1,0-16H216A8,8,0,0,1,224,104Z"/>',
+    stamina: '<path d="M232,102c0,66-104,122-104,122S24,168,24,102A54,54,0,0,1,78,48c22.59,0,41.94,12.31,50,32,8.06-19.69,27.41-32,50-32A54,54,0,0,1,232,102Z" opacity="0.2"/><path d="M72,144H32a8,8,0,0,1,0-16H67.72l13.62-20.44a8,8,0,0,1,13.32,0l25.34,38,9.34-14A8,8,0,0,1,136,128h24a8,8,0,0,1,0,16H140.28l-13.62,20.44a8,8,0,0,1-13.32,0L88,126.42l-9.34,14A8,8,0,0,1,72,144ZM178,40c-20.65,0-38.73,8.88-50,23.89C116.73,48.88,98.65,40,78,40a62.07,62.07,0,0,0-62,62c0,.75,0,1.5,0,2.25a8,8,0,1,0,16-.5c0-.58,0-1.17,0-1.75A46.06,46.06,0,0,1,78,56c19.45,0,35.78,10.36,42.6,27a8,8,0,0,0,14.8,0c6.82-16.67,23.15-27,42.6-27a46.06,46.06,0,0,1,46,46c0,53.61-77.76,102.15-96,112.8-10.83-6.31-42.63-26-66.68-52.21a8,8,0,1,0-11.8,10.82c31.17,34,72.93,56.68,74.69,57.63a8,8,0,0,0,7.58,0C136.21,228.66,240,172,240,102A62.07,62.07,0,0,0,178,40Z"/>',
+    mind: '<path d="M240,124a48,48,0,0,1-32,45.27h0V176a40,40,0,0,1-80,0,40,40,0,0,1-80,0v-6.73h0a48,48,0,0,1,0-90.54V72a40,40,0,0,1,80,0,40,40,0,0,1,80,0v6.73A48,48,0,0,1,240,124Z" opacity="0.2"/><path d="M248,124a56.11,56.11,0,0,0-32-50.61V72a48,48,0,0,0-88-26.49A48,48,0,0,0,40,72v1.39a56,56,0,0,0,0,101.2V176a48,48,0,0,0,88,26.49A48,48,0,0,0,216,176v-1.41A56.09,56.09,0,0,0,248,124ZM88,208a32,32,0,0,1-31.81-28.56A55.87,55.87,0,0,0,64,180h8a8,8,0,0,0,0-16H64A40,40,0,0,1,50.67,86.27,8,8,0,0,0,56,78.73V72a32,32,0,0,1,64,0v68.26A47.8,47.8,0,0,0,88,128a8,8,0,0,0,0,16,32,32,0,0,1,0,64Zm104-44h-8a8,8,0,0,0,0,16h8a55.87,55.87,0,0,0,7.81-.56A32,32,0,1,1,168,144a8,8,0,0,0,0-16,47.8,47.8,0,0,0-32,12.26V72a32,32,0,0,1,64,0v6.73a8,8,0,0,0,5.33,7.54A40,40,0,0,1,192,164Zm16-52a8,8,0,0,1-8,8h-4a36,36,0,0,1-36-36V80a8,8,0,0,1,16,0v4a20,20,0,0,0,20,20h4A8,8,0,0,1,208,112ZM60,120H56a8,8,0,0,1,0-16h4A20,20,0,0,0,80,84V80a8,8,0,0,1,16,0v4A36,36,0,0,1,60,120Z"/>',
+    connection: '<path d="M168,144a40,40,0,1,1-40-40A40,40,0,0,1,168,144ZM64,56A32,32,0,1,0,96,88,32,32,0,0,0,64,56Zm128,0a32,32,0,1,0,32,32A32,32,0,0,0,192,56Z" opacity="0.2"/><path d="M244.8,150.4a8,8,0,0,1-11.2-1.6A51.6,51.6,0,0,0,192,128a8,8,0,0,1,0-16,24,24,0,1,0-23.24-30,8,8,0,1,1-15.5-4A40,40,0,1,1,219,117.51a67.94,67.94,0,0,1,27.43,21.68A8,8,0,0,1,244.8,150.4ZM190.92,212a8,8,0,1,1-13.85,8,57,57,0,0,0-98.15,0,8,8,0,1,1-13.84-8,72.06,72.06,0,0,1,33.74-29.92,48,48,0,1,1,58.36,0A72.06,72.06,0,0,1,190.92,212ZM128,176a32,32,0,1,0-32-32A32,32,0,0,0,128,176ZM72,120a8,8,0,0,0-8-8A24,24,0,1,1,87.24,82a8,8,0,1,0,15.5-4A40,40,0,1,0,37,117.51,67.94,67.94,0,0,0,9.6,139.19a8,8,0,1,0,12.8,9.61A51.6,51.6,0,0,1,64,128,8,8,0,0,0,72,120Z"/>',
+    people: '<path d="M232,102c0,66-104,122-104,122S24,168,24,102A54,54,0,0,1,78,48c22.59,0,41.94,12.31,50,32,8.06-19.69,27.41-32,50-32A54,54,0,0,1,232,102Z" opacity="0.2"/><path d="M178,40c-20.65,0-38.73,8.88-50,23.89C116.73,48.88,98.65,40,78,40a62.07,62.07,0,0,0-62,62c0,70,103.79,126.66,108.21,129a8,8,0,0,0,7.58,0C136.21,228.66,240,172,240,102A62.07,62.07,0,0,0,178,40ZM128,214.8C109.74,204.16,32,155.69,32,102A46.06,46.06,0,0,1,78,56c19.45,0,35.78,10.36,42.6,27a8,8,0,0,0,14.8,0c6.82-16.67,23.15-27,42.6-27a46.06,46.06,0,0,1,46,46C224,155.61,146.24,204.15,128,214.8Z"/>',
+    freedom: '<path d="M216,116.69V216H152V152H104v64H40V116.69l82.34-82.35a8,8,0,0,1,11.32,0Z" opacity="0.2"/><path d="M240,208H224V136l2.34,2.34A8,8,0,0,0,237.66,127L139.31,28.68a16,16,0,0,0-22.62,0L18.34,127a8,8,0,0,0,11.32,11.31L32,136v72H16a8,8,0,0,0,0,16H240a8,8,0,0,0,0-16ZM48,120l80-80,80,80v88H160V152a8,8,0,0,0-8-8H104a8,8,0,0,0-8,8v56H48Zm96,88H112V160h32Z"/>',
+    things: '<path d="M229.06,108.79l-48.7,42,14.88,62.79a8.4,8.4,0,0,1-12.52,9.17L128,189.09,73.28,222.74a8.4,8.4,0,0,1-12.52-9.17l14.88-62.79-48.7-42A8.46,8.46,0,0,1,31.73,94L95.64,88.8l24.62-59.6a8.36,8.36,0,0,1,15.48,0l24.62,59.6L224.27,94A8.46,8.46,0,0,1,229.06,108.79Z" opacity="0.2"/><path d="M239.18,97.26A16.38,16.38,0,0,0,224.92,86l-59-4.76L143.14,26.15a16.36,16.36,0,0,0-30.27,0L90.11,81.23,31.08,86a16.46,16.46,0,0,0-9.37,28.86l45,38.83L53,211.75a16.38,16.38,0,0,0,24.5,17.82L128,198.49l50.53,31.08A16.4,16.4,0,0,0,203,211.75l-13.76-58.07,45-38.83A16.43,16.43,0,0,0,239.18,97.26Zm-15.34,5.47-48.7,42a8,8,0,0,0-2.56,7.91l14.88,62.8a.37.37,0,0,1-.17.48c-.18.14-.23.11-.38,0l-54.72-33.65a8,8,0,0,0-8.38,0L69.09,215.94c-.15.09-.19.12-.38,0a.37.37,0,0,1-.17-.48l14.88-62.8a8,8,0,0,0-2.56-7.91l-48.7-42c-.12-.1-.23-.19-.13-.5s.18-.27.33-.29l63.92-5.16A8,8,0,0,0,103,91.86l24.62-59.61c.08-.17.11-.25.35-.25s.27.08.35.25L153,91.86a8,8,0,0,0,6.75,4.92l63.92,5.16c.15,0,.24,0,.33.29S224,102.63,223.84,102.73Z"/>'
+  };
+
+  // v0.48.2 — the tick circle at the right of every statement, in both
+  // states; CSS draws the ring and fills it when the statement is chosen.
+  // The tick is Phosphor's check (bold weight), the same family as ICONS.
+  var TICK = '<span class="hdlv2-tick" aria-hidden="true"><svg viewBox="0 0 256 256" width="14" height="14" fill="currentColor" focusable="false">'
+    + '<path d="M232.49,80.49l-128,128a12,12,0,0,1-17,0l-56-56a12,12,0,1,1,17-17L96,183,215.51,63.51a12,12,0,0,1,17,17Z"/></svg></span>';
+
+  // The picture for a name, or '' when there is none. x/y place it inside the chart.
+  function pickIcon(name, x, y) {
+    if (!ICONS[name]) return '';
+    return '<svg class="hdlv2-why-icon"' + (x == null ? '' : ' x="' + x + '" y="' + y + '"') + ' width="28" height="28" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true" focusable="false">'
+      + ICONS[name] + '</svg>';
+  }
+
+  // v0.48.1 — the bars: one row per ability with a pick, most needed first.
+  // v0.48.11 — the meter is the need out of 5; the words carry the number.
+  // v0.48.3 — nothing picked: nothing here; the whole section is hidden.
+  function abilityBars(rows) {
+    if (!rows.length) return '';
+    return '<div class="hdlv2-ability-list" role="list">' + rows.map(function (r) {
+      return '<div class="hdlv2-ability" role="listitem" data-id="' + esc(r.id) + '">' + pickIcon(r.id)
+        + '<span class="hdlv2-ability-name">' + esc(r.label) + '</span>'
+        + '<span class="hdlv2-ability-count">need ' + r.need + ' of 5 \u00b7 ' + r.count + ' of your picks</span>'
+        + '<span class="hdlv2-ability-meter" aria-hidden="true"><span style="width:' + Math.round(r.need / 5 * 100) + '%"></span></span></div>';
+    }).join('') + '</div>';
+  }
+
+  // v0.48.1 — the radar, drawn the way the report's radar is (Chart.js on
+  // screen, QuickChart in the PDF; see build_radar_chart_url()): straight-line
+  // web, a pale teal shape with a teal outline and a dot per point. Inline SVG,
+  // no library; redrawRadar() eases between shapes by redrawing (v0.48.13). Drawn one unit per pixel at the width it is
+  // given, so the names stay 14px on a phone; the web takes what room is left.
+  function radarChart(data, width) {
+    var F = 14, GAP = 8, IC = 28, BH = IC + 6 + F;   // name size, clear space, picture, name block height (name 6px under the picture)
+    var n = data.spokes.length, top = data.top;
+    var dir = data.spokes.map(function (s, i) {
+      var a = (-90 + 360 / n * i) * Math.PI / 180;
+      // ponytail: name width is estimated (0.56em a letter; the widest measured, Connection, is 0.55em), not measured
+      return { c: Math.cos(a), s: Math.sin(a), hw: Math.max(IC, s.label.length * F * 0.56) / 2 };
+    });
+    // Each name block sits just outside the end of its spoke, touching it.
+    var place = function (R, d) {
+      var t = 1 / Math.max(Math.abs(d.c) / d.hw, Math.abs(d.s) / (BH / 2));
+      return { x: (R + GAP) * d.c + t * d.c, y: (R + GAP) * d.s + t * d.s };
+    };
+    var edges = function (R) {
+      var e = { l: 0, r: 0, t: 0, b: 0 };
+      dir.forEach(function (d) {
+        var p = place(R, d);
+        e.l = Math.min(e.l, p.x - d.hw); e.r = Math.max(e.r, p.x + d.hw);
+        e.t = Math.min(e.t, p.y - BH / 2); e.b = Math.max(e.b, p.y + BH / 2);
+      });
+      return e;
+    };
+    var R = Math.floor(width / 2), e = edges(R);
+    while (R > 30 && e.r - e.l > width - 4) { R--; e = edges(R); }
+    var cx = (width - (e.r - e.l)) / 2 - e.l, cy = 2 - e.t, h = e.b - e.t + 4;
+    var f = function (v) { return v.toFixed(1); };
+    var pt = function (r, d) { return f(cx + r * d.c) + ',' + f(cy + r * d.s); };
+    var web = 'stroke="rgba(0,0,0,0.08)" stroke-width="1"';
+
+    var out = '<svg class="hdlv2-why-wheel-svg" viewBox="0 0 ' + width + ' ' + f(h) + '" data-cx="' + f(cx) + '" data-cy="' + f(cy) + '" data-r="' + R + '"'
+      + ' role="img" aria-label="' + esc(chartLabel(data.spokes)) + '">';
+    for (var k = 1; k <= top; k++) {
+      out += '<polygon class="hdlv2-why-ring" points="' + dir.map(function (d) { return pt(R * k / top, d); }).join(' ') + '" fill="none" ' + web + '/>';
+    }
+    dir.forEach(function (d) {
+      out += '<line class="hdlv2-why-axis" x1="' + f(cx) + '" y1="' + f(cy) + '" x2="' + f(cx + R * d.c) + '" y2="' + f(cy + R * d.s) + '" ' + web + '/>';
+    });
+    var step = Math.ceil(12 / (R / top));            // keep ring numbers 12px apart
+    for (k = step; k <= top; k += step) {
+      out += '<text class="hdlv2-why-tick" x="' + f(cx + 4) + '" y="' + f(cy - R * k / top + 3) + '">' + k + '</text>';
+    }
+    if (data.spokes.some(function (s) { return s.need > 0; })) {
+      out += '<polygon class="hdlv2-why-shape" points="' + data.spokes.map(function (s, i) { return pt(R * s.need / top, dir[i]); }).join(' ')
+        + '" fill="rgba(61, 141, 160, 0.15)" stroke="rgba(61, 141, 160, 0.9)" stroke-width="2" stroke-linejoin="round"/>';
+      data.spokes.forEach(function (s, i) {
+        if (s.need > 0) {
+          var p = pt(R * s.need / top, dir[i]).split(',');
+          out += '<circle class="hdlv2-why-dot" cx="' + p[0] + '" cy="' + p[1] + '" r="4.5" fill="#3d8da0" stroke="#fff" stroke-width="1.5"/>';
+        }
+      });
+    }
+    data.spokes.forEach(function (s, i) {
+      var p = place(R, dir[i]), x = cx + p.x, y = cy + p.y - BH / 2;
+      out += '<g class="hdlv2-why-spoke' + (s.need > 0 ? ' has-picks' : '') + '">'
+        + pickIcon(s.id, f(x - IC / 2), f(y))
+        + '<text x="' + f(x) + '" y="' + f(y + IC + 6 + Math.round(F * 0.73)) + '" text-anchor="middle">' + esc(s.label) + '</text></g>';
+    });
+    return out + '</svg>';
+  }
+
+  function renderWhyPicks(data) {
+    setRootClasses('is-picks');
+    var d = formData;
+    var groups = data.why_options || [];
+    // Keep only ids still on offer (a retired or hand-edited id is dropped).
+    var offered = {};
+    groups.forEach(function (g) { g.items.forEach(function (it) { offered[it.id] = true; }); });
+    d.why_picks = (Array.isArray(d.why_picks) ? d.why_picks : []).filter(function (id) { return offered[id] === true; }).slice(0, PICK_MAX);
+
+    // Every statement is on the page from the start: nothing opens or hides.
+    var columns = groups.map(function (g) {
+      return '<div class="hdlv2-why-group" role="group" aria-labelledby="hdlv2-why-group-' + esc(g.id) + '">'
+        + '<h3 class="hdlv2-subgroup-heading" id="hdlv2-why-group-' + esc(g.id) + '">' + pickIcon(g.id) + '<span>' + esc(g.title) + '</span></h3>'
+        + '<div class="hdlv2-checkbox-grid hdlv2-picks-grid">'
+        + g.items.map(function (it) {
+            var on = d.why_picks.indexOf(it.id) !== -1;
+            return '<label class="hdlv2-checkbox-item' + (on ? ' selected' : '') + '">'
+              + '<input type="checkbox" value="' + esc(it.id) + '"' + (on ? ' checked' : '') + '>'
+              + '<span class="hdlv2-checkbox-label">' + esc(it.label) + '</span>' + TICK + '</label>';
+          }).join('')
+        + '</div></div>';
+    }).join('');
+    var names = data.why_ability_short || data.why_abilities;
+    var rows = abilityCounts(d.why_picks, groups, names);
+
+    root.innerHTML = '<div class="hdlv2-card hdlv2-why">'
+      + brandBar(serverData) + '<div class="hdlv2-header"><h2>What matters most to you</h2><p>Pick the 5 to 10 that matter most to you in your last decade of life.</p></div>'
+      + '<div class="hdlv2-form-body">'
+      +   '<div class="hdlv2-why-groups">' + columns + '</div>'
+      +   '<p id="hdlv2-picks-count" class="hdlv2-picks-count" aria-live="polite"></p>'
+      +   '<section class="hdlv2-why-needs" id="hdlv2-why-needs"' + (rows.length ? '' : ' hidden') + '>'
+      +     '<h3>What your picks need from your body</h3>'
+      +     '<p>Each thing you picked needs some of these. Your plan starts with the ones your health answers show are weakest.</p>'
+      +     '<div class="hdlv2-why-needs-body">'
+      +       '<div id="hdlv2-abilities" class="hdlv2-abilities">' + abilityBars(rows) + '</div>'
+      +       '<div class="hdlv2-why-radar"><div id="hdlv2-why-radar">' + radarChart(radarData(rows, names), 440) + '</div>'
+      +       '<p class="hdlv2-why-caption">5 is the most a life can ask of one ability. Your answers on the next pages show where you stand today on each one.</p></div>'
+      +     '</div>'
+      +   '</section>'
+      +   picksTextarea('key_people_text', 'Who are you doing this for? First names.', d.key_people_text, 'Jenny, Leo, Mia', 300)
+      +   picksTextarea('own_words', 'Anything else? (optional)', d.own_words, '', 600)
+      +   '<button type="button" id="hdlv2-picks-next" class="hdlv2-btn">Next &#8594;</button>'
+      + '</div>' + saveIndicator(true) + footer() + '</div>';
+
+    root.querySelectorAll('.hdlv2-picks-grid input[type="checkbox"]').forEach(function (cb) {
+      cb.addEventListener('change', function () {
+        var r = togglePick(d.why_picks, cb.value);
+        d.why_picks = r.picks;
+        updatePicks();
+        clearSaveError();
+        if (saveTimer) clearTimeout(saveTimer);
+        saveTimer = setTimeout(function () { saveWhenFree(2); }, 1500);
+      });
+    });
+    bindFieldListeners();
+    document.getElementById('hdlv2-picks-next').addEventListener('click', submitWhyPicks);
+    // Same function each time, so the browser keeps one listener however often the page renders.
+    window.addEventListener('resize', redrawRadar);
+    updatePicks();
+  }
+
+  // The radar is drawn at its real width. A tap always redraws it; a resize
+  // (a phone or iPad turned round) only when that width changed. Does nothing
+  // once the page has gone.
+  function redrawRadar(resized) {
+    var radar = document.getElementById('hdlv2-why-radar');
+    if (!radar) return;
+    var w = Math.min(440, radar.clientWidth || 440);
+    if (resized && radar.getAttribute('data-w') === String(w)) return;
+    var names = serverData.why_ability_short || serverData.why_abilities;
+    radar.setAttribute('data-w', w);
+    var to = radarData(abilityCounts(formData.why_picks || [], serverData.why_options || [], names), names);
+    var from = radarShown;
+    var token = ++radarTween;
+    if (resized || !from || reducedMotion() || !window.requestAnimationFrame) { radarShown = to; radar.innerHTML = radarChart(to, w); return; }
+    // v0.48.13 (Quim, 2026-10-10: "a smooth shift not a instant shift"): ease
+    // from the shape on screen to the new one, ~350ms, redrawn each frame.
+    // The last frame is exactly radarChart(to). A newer tap takes over.
+    var start = null;
+    var frame = function (t) {
+      if (token !== radarTween || !radar.isConnected) return;
+      if (start === null) start = t;
+      var k = Math.min(1, (t - start) / RADAR_EASE_MS), e = 1 - Math.pow(1 - k, 3);
+      // radarShown is always the shape on screen, so a tap mid-ease starts from there.
+      radarShown = k < 1 ? { top: to.top, spokes: to.spokes.map(function (sp, i) {
+        var a = (from.spokes[i] || {}).need || 0;
+        return { id: sp.id, label: sp.label, need: Math.round((a + (sp.need - a) * e) * 100) / 100 };
+      }) } : to;
+      radar.innerHTML = radarChart(radarShown, w);
+      if (k < 1) window.requestAnimationFrame(frame);
+    };
+    window.requestAnimationFrame(frame);
+  }
+
+  var radarShown = null, radarTween = 0, RADAR_EASE_MS = 350;
+  function reducedMotion() {
+    return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  }
+
+  // Sync the statements, the count line, the bars and the radar with
+  // formData.why_picks; at the limit the unchosen statements are disabled.
+  function updatePicks() {
+    var picks = formData.why_picks || [];
+    var full = picks.length >= PICK_MAX;
+    var groups = serverData.why_options || [];
+    root.querySelectorAll('.hdlv2-picks-grid input[type="checkbox"]').forEach(function (cb) {
+      var on = picks.indexOf(cb.value) !== -1;
+      cb.checked = on;
+      cb.disabled = full && !on;
+      cb.parentNode.classList.toggle('selected', on);
+    });
+    var count = document.getElementById('hdlv2-picks-count');
+    if (count) count.textContent = pickCountLine(picks.length);
+    var names = serverData.why_ability_short || serverData.why_abilities;
+    var rows = abilityCounts(picks, groups, names);
+    // v0.48.3 — the bars and radar show once an ability has a pick. Shown
+    // before the redraw below, so the radar is measured at its real width.
+    var needs = document.getElementById('hdlv2-why-needs');
+    if (needs) needs.hidden = !rows.length;
+    var bars = document.getElementById('hdlv2-abilities');
+    if (bars) {
+      // Start each meter at its old width (a new row at 0), then let the CSS
+      // transition ease it to the new one. v0.48.13: a row that changes place
+      // slides from where it was (CSS .is-moving), instead of jumping.
+      var was = {}, top = {};
+      bars.querySelectorAll('.hdlv2-ability').forEach(function (row) {
+        was[row.getAttribute('data-id')] = row.querySelector('.hdlv2-ability-meter span').style.width;
+        top[row.getAttribute('data-id')] = row.offsetTop;
+      });
+      bars.innerHTML = abilityBars(rows);
+      var still = reducedMotion();
+      bars.querySelectorAll('.hdlv2-ability').forEach(function (row) {
+        var m = row.querySelector('.hdlv2-ability-meter span'), to = m.style.width, id = row.getAttribute('data-id');
+        m.style.width = was[id] || '0%';
+        var dy = id in top && !still ? top[id] - row.offsetTop : 0;
+        if (dy) row.style.transform = 'translateY(' + dy + 'px)';
+        void m.offsetWidth;
+        m.style.width = to;
+        if (dy) { row.classList.add('is-moving'); row.style.transform = ''; }
+      });
+    }
+    redrawRadar();
+  }
+
+  function picksTextarea(name, label, value, placeholder, maxlength) {
+    var v = value || '';
+    return '<div class="hdlv2-field"><label for="hdlv2-f-' + name + '">' + label + '</label>'
+      + '<textarea id="hdlv2-f-' + name + '" data-field="' + name + '" rows="2" maxlength="' + maxlength + '" placeholder="' + esc(placeholder) + '">' + esc(v) + '</textarea>'
+      + '<div class="hdlv2-field-foot"><span></span><div class="hdlv2-char-count" id="hdlv2-charcount-' + name + '">' + v.length + ' / ' + maxlength + '</div></div></div>';
+  }
+
+  function submitWhyPicks() {
+    if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
+    if (queuedSaveTimer) { clearTimeout(queuedSaveTimer); queuedSaveTimer = null; }
+    // Let an in-flight autosave finish first so it cannot land after Next.
+    if (saving) { setTimeout(submitWhyPicks, 300); return; }
+    ['key_people_text', 'own_words'].forEach(function (n) {
+      var el = document.getElementById('hdlv2-f-' + n);
+      if (el) formData[n] = el.value.trim();
+    });
+    var btn = document.getElementById('hdlv2-picks-next');
+    btn.disabled = true; btn.textContent = 'Saving\u2026';
+    function reset(msg) { btn.disabled = false; btn.innerHTML = 'Next &#8594;'; setSaveStatus('error', msg); }
+    // The server validates (5-10 known picks, text lengths) and answers with
+    // a plain message on a 400, shown in the save-status line.
+    fetch(CFG.api_base + '/save', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': CFG.nonce },
+      body: JSON.stringify({ token: token, stage: 2, data: formData, submitted: true })
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (res) {
+        if (res.success) {
+          var still = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+          root.scrollIntoView({ behavior: still ? 'auto' : 'smooth' });
+          loadForm();
+          return;
+        }
+        reset(res.message || 'Could not save. Please try again.');
+      })
+      .catch(function () { reset('Connection error'); });
+  }
+
+  // ══════════════════════════════════════════════════════════════
   //  STAGE 3: FULL DETAIL (WIZARD MODE)
   // ══════════════════════════════════════════════════════════════
 
@@ -1225,6 +1725,8 @@
     // (with Stage 1 q3 pre-fill via S1_TO_S3_DEFAULTS), so no preamble mapping
     // is needed here. The legacy hack that wrote formData.physicalActivity
     // straight from q3 was removed in v0.22.23 — s1Prefill() handles it.
+    // v0.47.94 — single-flow rows get the same fields as tap cards.
+    if (isSingleFlow()) { renderTapForm(data); return; }
     wizardSection = 0;
     renderWizardSection(data);
   }
@@ -1240,6 +1742,51 @@
     var total = S3_SECTIONS.length;
 
     // Section content
+    var content = wizardSectionContent(sec, s1d, d);
+
+    // Wizard progress dots
+    // v0.47.92 — a single-form client's first step (the picks) shows as done.
+    var single = isSingleFlow();
+    var dots = '<div class="hdlv2-wizard-progress">' + (single ? '<span class="hdlv2-wizard-dot done">1</span>' : '');
+    for (var i = 0; i < total; i++) {
+      dots += '<span class="hdlv2-wizard-dot' + (i < wizardSection ? ' done' : i === wizardSection ? ' active' : '') + '">' + (i + (single ? 2 : 1)) + '</span>';
+    }
+    dots += '</div>';
+
+    var isFirst = wizardSection === 0;
+    var isLast = wizardSection === total - 1;
+
+    // v0.38.0 \u2014 Stage 3 wizard chrome trimmed per spec:
+    //   - Drop the 3-step progressBar (Quick Insight / Your WHY / Full Detail).
+    //     The 1-N dots below are sufficient orientation.
+    //   - Drop the "Section X of N" sub-line (dots convey position).
+    //   - Title now reads "More Health Details \u2014 Stage 3" (was "Full Health Detail").
+    //   - Skip helper line standardised: same phrasing on every section.
+    root.innerHTML = '<div class="hdlv2-card">'
+      + brandBar(serverData) + '<div class="hdlv2-header"><h2>' + 'Your Full Report' + '</h2><p>' + esc(sec.title) + '</p></div>'
+      + dots
+      + (isFirst ? '<div class="hdlv2-wizard-info">Don\u2019t worry if you don\u2019t know the details. Just do your best. Your practitioner or the report can still be generated if you haven\u2019t got all these details.</div>' : '')
+      + '<div class="hdlv2-form-body">' + content
+      + '<p class="hdlv2-wizard-skip-note">Don\u2019t know or not sure? That\u2019s fine \u2014 skip what you don\u2019t know and keep going.</p>'
+      + '<div class="hdlv2-wizard-nav">'
+      + (isFirst ? '<span></span>' : '<button type="button" id="hdlv2-wizard-prev" class="hdlv2-nav-back" aria-label="Go back to previous section">&#8592; Previous</button>')
+      + (isLast ? '<button id="hdlv2-complete-s3" class="hdlv2-btn" style="width:auto;padding:13px 32px;">Complete Assessment &#10003;</button>' : '<button type="button" id="hdlv2-wizard-next" class="hdlv2-btn" style="width:auto;padding:13px 32px;">Next &#8594;</button>')
+      + '</div></div>' + saveIndicator() + footer() + '</div>';
+
+    bindFieldListeners();
+    // v0.38.0 — bindSkipCheckboxes() removed; "I don't know" checkbox dropped
+    // from numeric inputs per spec. The single section-level helper line now
+    // covers skip semantics. Stored 'skip' values still load (back-compat).
+    bindRangeSlider();
+
+    if (!isFirst) document.getElementById('hdlv2-wizard-prev').addEventListener('click', function(){ wizardSection--; renderWizardSection(data); root.scrollIntoView({behavior:'smooth'}); });
+    if (isLast) document.getElementById('hdlv2-complete-s3').addEventListener('click', function(){ completeStage3(data); });
+    else document.getElementById('hdlv2-wizard-next').addEventListener('click', function(){ autoSave(3); wizardSection++; renderWizardSection(data); root.scrollIntoView({behavior:'smooth'}); });
+  }
+
+  // The six old sections' content, by section. renderWizardSection draws
+  // them in turn; the tap-card form draws the body and background ones.
+  function wizardSectionContent(sec, s1d, d) {
     var content = '';
     if (sec.id === 'body') {
       // v0.38.0 \u2014 Section 1 regrouped per spec:
@@ -1295,17 +1842,17 @@
         + fieldSelect('physicalActivity','Physical Activity Level',S3_OPTIONS.physicalActivity, s1Prefill('physicalActivity', s1d, d.physicalActivity))
         + '</div><div class="hdlv2-field-grid cols-2">'
         + fieldSelect('sitToStand','Sit-to-Stand Test',S3_OPTIONS.sitToStand,d.sitToStand, {
-            tooltip: 'Using a standard chair (about 43 cm seat height, no armrests), sit with feet flat on the floor and arms crossed on your shoulders. On "go", stand up fully and sit back down as many times as possible in 30 seconds. Count only complete reps. Measures lower-body strength.'
+            tooltip: TEST_HOW.sitToStand
           })
         + fieldSelect('breathHold','Breath Hold Test',S3_OPTIONS.breathHold,d.breathHold, {
-            tooltip: 'After a normal exhale, hold your breath for as long as comfortable. Use a stopwatch. Take your best safe attempt — don’t push past discomfort.'
+            tooltip: TEST_HOW.breathHold
           })
         + '</div><div class="hdlv2-field-grid cols-2">'
         + fieldSelect('balance','Balance Test',S3_OPTIONS.balance,d.balance, {
-            tooltip: 'Stand on one leg without support and time how long you can hold it. Use a stopwatch. Take your best attempt. Stand near something for safety in case you wobble.'
+            tooltip: TEST_HOW.balance
           })
         + fieldSelect('skinElasticity','Skin Elasticity',S3_OPTIONS.skinElasticity,d.skinElasticity, {
-            tooltip: 'Gently pinch the skin on the back of your hand for 2 seconds, release, and time how long it takes to flatten back. Use a stopwatch.'
+            tooltip: TEST_HOW.skinElasticity
           })
         + '</div>';
     } else if (sec.id === 'sleep') {
@@ -1355,43 +1902,270 @@
         + fieldTextarea('existing_conditions', 'Existing conditions / diagnoses', d.existing_conditions, 'Anything ongoing you’d want me to know.', 600)
         + '</div>';
     }
+    return content;
+  }
 
-    // Wizard progress dots
-    var dots = '<div class="hdlv2-wizard-progress">';
-    for (var i = 0; i < total; i++) {
-      dots += '<span class="hdlv2-wizard-dot' + (i < wizardSection ? ' done' : i === wizardSection ? ' active' : '') + '">' + (i + 1) + '</span>';
+  // ══════════════════════════════════════════════════════════════
+  //  SINGLE FORM: THE SECOND FORM AS TAP CARDS (v0.47.94)
+  //  Only for isSingleFlow() rows. Same fields, same values and the same
+  //  autoSave(3) as the wizard; only the screens differ. The person's
+  //  choices set the order of screens 2-11 and their reason line; no
+  //  question is ever hidden.
+  // ══════════════════════════════════════════════════════════════
+
+  // The six screen-1 values: the saved answer, else the first-check mapping
+  // (s1Prefill also writes it into formData, as the old sections did).
+  function tapFirstValues(s1d, d) {
+    var out = {};
+    TAP_FIRST.forEach(function (f) { out[f] = s1Prefill(f, s1d, d[f]) || ''; });
+    return out;
+  }
+
+  // Pure: tied questions first, most choices first; equal counts and the
+  // untied questions keep today's order. v0.48.11 — count is the winning
+  // ability's; every tap question is measured for one ability only, so the
+  // summed weight that picks the winner cannot reorder them.
+  function tapQuestionOrder(ties) {
+    var t = ties || {};
+    function count(f) { return (t[f] && t[f].count) || 0; }
+    return TAP_ORDER.filter(function (f) { return count(f) > 0; })
+      .sort(function (a, b) { return count(b) - count(a) || TAP_ORDER.indexOf(a) - TAP_ORDER.indexOf(b); })
+      .concat(TAP_ORDER.filter(function (f) { return !count(f); }));
+  }
+
+  // Why we ask: the person's own choice when one ties to the question.
+  function tapReason(field, ties) {
+    var tie = ties && ties[field];
+    var sentence = tie && tie.count > 0 && ABILITY_SENTENCES[tie.ability];
+    if (!sentence) return TAP_TITLES[field].plain;
+    return 'You chose “' + esc(tie.choice) + '”'
+      + (tie.count > 1 ? ' and ' + (tie.count - 1) + ' more like it' : '') + '. ' + sentence;
+  }
+
+  // Pure: where a reload lands — screen 1 until its six are saved, then the
+  // first unanswered question in the order, then the measurements.
+  function tapLandingStep(saved, order) {
+    var s = saved || {};
+    if (TAP_FIRST.some(function (f) { return !s[f]; })) return 0;
+    for (var i = 0; i < order.length; i++) if (!s[order[i]]) return i + 1;
+    return order.length + 1;
+  }
+
+  // Six answer cards from S3_OPTIONS: value '0' is chip A ... '5' is F.
+  function tapCards(field, value) {
+    return S3_OPTIONS[field].filter(function (o) { return o.v !== ''; }).map(function (o) {
+      var sel = String(value) === o.v;
+      return '<button type="button" class="hdlv2-s1-opt' + (sel ? ' selected' : '') + '" data-val="' + o.v + '" role="radio" aria-checked="' + sel + '">'
+        + '<span class="hdlv2-s1-chip" aria-hidden="true">' + String.fromCharCode(65 + Number(o.v)) + '</span>'
+        + '<span class="hdlv2-s1-opt-text">' + esc(o.l) + '</span></button>';
+    }).join('');
+  }
+
+  function renderTapForm(data) {
+    tapOrder = tapQuestionOrder(data.second_form_ties);
+    tapOpenRow = null;
+    tapStep = tapLandingStep(data.stage3_data, tapOrder);
+    renderTapStep(data, false);
+  }
+
+  function tapLeave() {
+    if (tapAdvanceTimer) { clearTimeout(tapAdvanceTimer); tapAdvanceTimer = null; }
+    if (tapKeyHandler) { document.removeEventListener('keydown', tapKeyHandler); tapKeyHandler = null; }
+  }
+
+  // Leaving a screen saves once: the whole formData, as the wizard's Next does.
+  function tapGo(data, delta) {
+    tapLeave();
+    if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
+    saveWhenFree(3);
+    tapStep = Math.max(0, Math.min(TAP_STEPS - 1, tapStep + delta));
+    tapOpenRow = null;
+    renderTapStep(data, true);
+    root.scrollIntoView({ behavior: 'smooth' });
+  }
+
+  function tapHeading(text) {
+    return '<h3 class="hdlv2-s1-title hdlv2-tap-heading" id="hdlv2-tap-title" tabindex="-1">' + text + '</h3>';
+  }
+
+  function tapSection(id) {
+    return S3_SECTIONS.filter(function (s) { return s.id === id; })[0];
+  }
+
+  function renderTapStep(data, moveFocus) {
+    setRootClasses('is-medium');
+    tapLeave();
+    var s1d = (data && data.stage1_data) || {};
+    var d = formData;
+    var field = tapStep >= 1 && tapStep <= tapOrder.length ? tapOrder[tapStep - 1] : null;
+    var screen;
+    if (tapStep === 0) {
+      screen = tapHeading('Here is what you told us')
+        + '<p class="hdlv2-s1-prompt">We filled these in from your first answers. If one is not right, tap Change.</p>'
+        + '<div id="hdlv2-tap-rows" class="hdlv2-tap-rows">' + tapFirstRows(tapFirstValues(s1d, d)) + '</div>'
+        + '<button type="button" id="hdlv2-tap-next" class="hdlv2-btn hdlv2-s1-next">Looks right, carry on</button>';
+    } else if (field) {
+      var q = TAP_TITLES[field];
+      screen = tapHeading(esc(q.title))
+        + (q.hint ? '<p class="hdlv2-s1-prompt">' + esc(q.hint) + '</p>' : '')
+        + '<p class="hdlv2-tap-reason">' + tapReason(field, data.second_form_ties) + '</p>'
+        + (q.how ? '<p class="hdlv2-tap-how"><strong>How to do it:</strong> ' + esc(q.how) + '</p>' : '')
+        + '<div class="hdlv2-s1-options" role="radiogroup" aria-labelledby="hdlv2-tap-title">' + tapCards(field, d[field]) + '</div>'
+        + '<button type="button" id="hdlv2-tap-skip" class="hdlv2-tap-skip">Skip this one</button>'
+        + '<p class="hdlv2-s1-kbd-hint">Press <kbd>A</kbd>–<kbd>F</kbd> to choose</p>';
+    } else if (tapStep === TAP_STEPS - 2) {
+      screen = tapHeading('Your measurements')
+        + '<p class="hdlv2-s1-prompt">Use a tape measure and, if you have one, a blood pressure monitor. Skip anything you don’t have to hand.</p>'
+        + wizardSectionContent(tapSection('body'), s1d, d)
+        + '<button type="button" id="hdlv2-tap-next" class="hdlv2-btn hdlv2-s1-next">Next &#8594;</button>';
+    } else {
+      screen = tapHeading('Your health background')
+        + wizardSectionContent(tapSection('background'), s1d, d)
+        + '<button id="hdlv2-complete-s3" class="hdlv2-btn hdlv2-s1-next">Complete Assessment &#10003;</button>';
     }
-    dots += '</div>';
 
-    var isFirst = wizardSection === 0;
-    var isLast = wizardSection === total - 1;
-
-    // v0.38.0 \u2014 Stage 3 wizard chrome trimmed per spec:
-    //   - Drop the 3-step progressBar (Quick Insight / Your WHY / Full Detail).
-    //     The 1-N dots below are sufficient orientation.
-    //   - Drop the "Section X of N" sub-line (dots convey position).
-    //   - Title now reads "More Health Details \u2014 Stage 3" (was "Full Health Detail").
-    //   - Skip helper line standardised: same phrasing on every section.
     root.innerHTML = '<div class="hdlv2-card">'
-      + '<div class="hdlv2-header"><h2>More Health Details \u2014 Stage 3</h2><p>' + esc(sec.title) + '</p></div>'
-      + dots
-      + (isFirst ? '<div class="hdlv2-wizard-info">Don\u2019t worry if you don\u2019t know the details. Just do your best. Your practitioner or the report can still be generated if you haven\u2019t got all these details.</div>' : '')
-      + '<div class="hdlv2-form-body">' + content
-      + '<p class="hdlv2-wizard-skip-note">Don\u2019t know or not sure? That\u2019s fine \u2014 skip what you don\u2019t know and keep going.</p>'
-      + '<div class="hdlv2-wizard-nav">'
-      + (isFirst ? '<span></span>' : '<button type="button" id="hdlv2-wizard-prev" class="hdlv2-nav-back" aria-label="Go back to previous section">&#8592; Previous</button>')
-      + (isLast ? '<button id="hdlv2-complete-s3" class="hdlv2-btn" style="width:auto;padding:13px 32px;">Complete Assessment &#10003;</button>' : '<button type="button" id="hdlv2-wizard-next" class="hdlv2-btn" style="width:auto;padding:13px 32px;">Next &#8594;</button>')
-      + '</div></div>' + saveIndicator() + footer() + '</div>';
+      + brandBar(serverData) + '<div class="hdlv2-header"><h2>Your Full Report</h2></div>'
+      + '<div class="hdlv2-s1">'
+      +   '<div class="hdlv2-s1-header">'
+      +     (tapStep > 0 ? '<button type="button" id="hdlv2-tap-back" class="hdlv2-nav-back hdlv2-s1-back-btn" aria-label="Go back to the previous step">&#8592; Previous</button>' : '')
+      +     '<p class="hdlv2-s1-counter">Step ' + (tapStep + 1) + ' of ' + TAP_STEPS + '</p>'
+      +     '<div class="hdlv2-s1-progress"><div class="hdlv2-s1-progress-fill" style="width:' + Math.round(tapStep / TAP_STEPS * 100) + '%;"></div></div>'
+      +   '</div>'
+      +   '<div class="hdlv2-form-body" id="hdlv2-tap-body">' + screen + '</div>'
+      + '</div>' + saveIndicator(true) + footer() + '</div>';
 
-    bindFieldListeners();
-    // v0.38.0 — bindSkipCheckboxes() removed; "I don't know" checkbox dropped
-    // from numeric inputs per spec. The single section-level helper line now
-    // covers skip semantics. Stored 'skip' values still load (back-compat).
-    bindRangeSlider();
+    var back = document.getElementById('hdlv2-tap-back');
+    if (back) back.addEventListener('click', function () { tapGo(data, -1); });
+    var next = document.getElementById('hdlv2-tap-next');
+    if (next) next.addEventListener('click', function () { tapGo(data, 1); });
+    if (tapStep === 0) bindTapRows(data);
+    else if (field) bindTapQuestion(data, field);
+    else {
+      bindFieldListeners();
+      bindTapComplete(data);
+    }
+    // Keyboard and screen-reader users hear where they are after each step.
+    if (moveFocus) document.getElementById('hdlv2-tap-title').focus({ preventScroll: true });
+  }
 
-    if (!isFirst) document.getElementById('hdlv2-wizard-prev').addEventListener('click', function(){ wizardSection--; renderWizardSection(data); root.scrollIntoView({behavior:'smooth'}); });
-    if (isLast) document.getElementById('hdlv2-complete-s3').addEventListener('click', function(){ completeStage3(data); });
-    else document.getElementById('hdlv2-wizard-next').addEventListener('click', function(){ autoSave(3); wizardSection++; renderWizardSection(data); root.scrollIntoView({behavior:'smooth'}); });
+  // Screen 1 rows: label, current answer, Change. An unanswered row's cards
+  // are open from the start; otherwise one row is open at a time.
+  function tapFirstRows(vals) {
+    return TAP_FIRST.map(function (f) {
+      var opt = S3_OPTIONS[f].filter(function (o) { return o.v !== '' && o.v === vals[f]; })[0];
+      var open = !opt || tapOpenRow === f;
+      return '<div class="hdlv2-tap-row">'
+        + '<div class="hdlv2-tap-row-head">'
+        +   '<span class="hdlv2-tap-row-label" id="hdlv2-tap-label-' + f + '">' + esc(TAP_FIRST_LABELS[f]) + '</span>'
+        +   '<span class="hdlv2-tap-row-value' + (opt ? '' : ' is-empty') + '">' + esc(opt ? opt.l : 'Not answered yet') + '</span>'
+        +   (opt ? '<button type="button" class="hdlv2-tap-change" id="hdlv2-tap-change-' + f + '" data-row="' + f + '" aria-expanded="' + open + '" aria-controls="hdlv2-tap-opts-' + f + '">Change</button>' : '')
+        + '</div>'
+        + '<div class="hdlv2-s1-options" id="hdlv2-tap-opts-' + f + '" role="radiogroup" aria-labelledby="hdlv2-tap-label-' + f + '" data-row="' + f + '"' + (open ? '' : ' hidden') + '>'
+        +   tapCards(f, vals[f])
+        + '</div></div>';
+    }).join('');
+  }
+
+  function bindTapRows(data) {
+    var rows = document.getElementById('hdlv2-tap-rows');
+    var s1d = (data && data.stage1_data) || {};
+    function redraw(focusId) {
+      rows.innerHTML = tapFirstRows(tapFirstValues(s1d, formData));
+      bind();
+      var el = document.getElementById(focusId);
+      if (el) el.focus();
+    }
+    function bind() {
+      rows.querySelectorAll('.hdlv2-tap-change').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          var f = btn.getAttribute('data-row');
+          tapOpenRow = tapOpenRow === f ? null : f;
+          redraw(btn.id);
+        });
+      });
+      rows.querySelectorAll('.hdlv2-s1-opt').forEach(function (opt) {
+        opt.addEventListener('click', function () {
+          var f = opt.parentNode.getAttribute('data-row');
+          formData[f] = opt.getAttribute('data-val');
+          tapOpenRow = null;
+          redraw('hdlv2-tap-change-' + f);
+        });
+      });
+    }
+    bind();
+  }
+
+  // Screens 2-11: a tap saves the value and moves on after 200 ms (Back
+  // cancels it); tapping the chosen card again also moves on. A-F keys pick,
+  // except while typing, with a modifier held or while the key is held down.
+  // Taps and Skip in the first TAP_SETTLE_MS of a question are ignored.
+  function bindTapQuestion(data, field) {
+    var body = document.getElementById('hdlv2-tap-body');
+    var shownAt = Date.now();
+    function settled() { return Date.now() - shownAt >= TAP_SETTLE_MS; }
+    body.querySelectorAll('.hdlv2-s1-opt').forEach(function (opt) {
+      opt.addEventListener('click', function () {
+        if (!settled()) return;
+        formData[field] = opt.getAttribute('data-val');
+        body.querySelectorAll('.hdlv2-s1-opt').forEach(function (o) {
+          o.classList.remove('selected');
+          o.setAttribute('aria-checked', 'false');
+        });
+        opt.classList.add('selected');
+        opt.setAttribute('aria-checked', 'true');
+        if (tapAdvanceTimer) clearTimeout(tapAdvanceTimer);
+        tapAdvanceTimer = setTimeout(function () { tapAdvanceTimer = null; tapGo(data, 1); }, 200);
+      });
+    });
+    document.getElementById('hdlv2-tap-skip').addEventListener('click', function () {
+      if (settled()) tapGo(data, 1);
+    });
+    tapKeyHandler = function (e) {
+      if (e.repeat || e.metaKey || e.ctrlKey || e.altKey) return;
+      var ae = document.activeElement;
+      if (ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA' || ae.isContentEditable)) return;
+      var key = (e.key || '').toLowerCase();
+      if (key.length !== 1 || 'abcdef'.indexOf(key) === -1) return;
+      var opt = body.querySelector('.hdlv2-s1-opt[data-val="' + 'abcdef'.indexOf(key) + '"]');
+      if (opt) { e.preventDefault(); opt.click(); }
+    };
+    document.addEventListener('keydown', tapKeyHandler);
+  }
+
+  // Complete waits for a save in flight, so an older one cannot land after
+  // it, and never completes while one is still going: after
+  // TAP_COMPLETE_WAIT_MS the button comes back with a message instead.
+  function bindTapComplete(data) {
+    var done = document.getElementById('hdlv2-complete-s3');
+    if (!done) return;
+    var label = done.textContent;
+    var startedAt = 0;
+    function finish() {
+      if (!done.isConnected) return;
+      if (saving) {
+        if (Date.now() - startedAt >= TAP_COMPLETE_WAIT_MS) {
+          done.disabled = false;
+          done.textContent = label;
+          setSaveStatus('error', 'The connection is slow. Please press Complete again.');
+          return;
+        }
+        setTimeout(finish, 300);
+        return;
+      }
+      completeStage3(data);
+    }
+    done.addEventListener('click', function () {
+      if (done.disabled) return;
+      if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
+      // completeStage3 sends the whole formData itself; a queued save must
+      // not land after it.
+      if (queuedSaveTimer) { clearTimeout(queuedSaveTimer); queuedSaveTimer = null; }
+      done.disabled = true;
+      done.textContent = 'Saving\u2026';
+      startedAt = Date.now();
+      finish();
+    });
   }
 
   // v0.38.0 — bindSkipCheckboxes() removed: numeric "I don't know"
@@ -1428,7 +2202,7 @@
           // workers race to claim).
           //
           // We don't wait for the response — Thank-You renders immediately so
-          // the client sees acknowledgement instead of a 20-45s spinner. PDF
+          // the client sees acknowledgement instead of a 20-45s wait. PDF
           // email arrives a couple of minutes later.
           fetch(CFG.api_base+'/generate-report', {
             method: 'POST',
@@ -1443,19 +2217,6 @@
           setSaveStatus('error', res.message||'Please try again');
         }
       }).catch(function(){btn.disabled=false;btn.textContent='Complete Assessment \u2713';setSaveStatus('error','Connection error');});
-  }
-
-  function showReportLoading() {
-    // v0.37.0 — replaces a static spinner-on-blank with a progress-bar
-    // illusion + rotating step ladder so the 20-45s Claude wait feels
-    // active. The bar fills asymptotically toward 92%, snaps to 100%
-    // only when /generate-report responds (or moot — we redirect to
-    // /longevity-draft-report/ before that frame is visible).
-    //
-    // v0.39.0 — Kept as a stub for any path that might still call it
-    // (none today; completeStage3 now renders Thank-You directly). The
-    // legacy "Generating your personalised draft report" loading screen
-    // is retired alongside the heavy browser draft view.
   }
 
   // ────────────────────────────────────────────────────────────────────
@@ -1536,7 +2297,7 @@
 
   function thankYouFooter() {
     return '<div class="hdlv2-ty-footer">'
-      +   'Powered by <strong>HealthDataLab</strong> · '
+      +   ((serverData && serverData.partner_line) ? esc(serverData.partner_line).replace('HealthDataLab', '<strong>HealthDataLab</strong>') : 'Powered by <strong>HealthDataLab</strong> · a partnership focused on longevity') + ' · '
       +   '<a href="https://healthdatalab.com/terms" target="_blank" rel="noopener">Terms</a> · '
       +   '<a href="https://healthdatalab.com/privacy" target="_blank" rel="noopener">Privacy</a>'
       + '</div>';

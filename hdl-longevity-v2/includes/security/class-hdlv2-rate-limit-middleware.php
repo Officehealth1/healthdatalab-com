@@ -111,12 +111,25 @@ class HDLV2_Rate_Limit_Middleware {
 
             $cfg = HDLV2_Rate_Limit_Policy::tier_config( $tier );
 
-            // 3. Public tier — per-IP only
+            // 3. Public tier — per-IP, except a paid Stage 1 ticket.
+            //    v0.47.87 — the answers post with a ticket the database
+            //    confirms (real, unused, unexpired, this practitioner's) is
+            //    counted per ticket, same limit, so buyers behind one shared
+            //    address do not use up each other's five. Anything else,
+            //    a made-up or used token included, stays per-IP.
+            //    v0.47.89 — read from the JSON body only, as the handler
+            //    does: a ticket in the query string is never used up, so it
+            //    must not earn the per-ticket count.
             if ( $tier === HDLV2_Rate_Limit_Policy::TIER_PUBLIC ) {
-                $bk = HDLV2_Rate_Limiter::bucket_key( array( $tier, 'ip', $ip ) );
-                $r  = HDLV2_Rate_Limiter::consume( $bk, $cfg['per_ip_limit'], $cfg['window'] );
+                $body   = ( 'POST' === $method && '/hdl-v2/v1/widget/lead' === $route ) ? $request->get_json_params() : null;
+                $ticket = is_array( $body )
+                    ? HDLV2_Widget_Config::ticket_for_limiter( $body['invite_token'] ?? '', absint( $body['practitioner_id'] ?? 0 ) )
+                    : null;
+                $who = $ticket ? array( 'ticket', (int) $ticket->id ) : array( 'ip', $ip );
+                $bk  = HDLV2_Rate_Limiter::bucket_key( array_merge( array( $tier ), $who ) );
+                $r   = HDLV2_Rate_Limiter::consume( $bk, $cfg['per_ip_limit'], $cfg['window'] );
                 if ( ! $r['allowed'] ) {
-                    self::log_block( $tier, $ip, $route );
+                    self::log_block( $tier, $ticket ? 'ticket:' . (int) $ticket->id : $ip, $route );
                     return self::make_429( $r, $tier );
                 }
                 self::$last_consumed = $r;

@@ -51,6 +51,9 @@
   // top "New widget submissions" strip. Held here (not in the DOM) so the open
   // state survives renderActionQueue()'s wholesale innerHTML rebuild each poll.
   var _openPendingDetails = {};
+  // v0.48.15 — ticked pending leads (bulk Confirm). Same reason: survives the rebuild.
+  var _selectedLeads = {};
+  var BULK_CHUNK = 20; // the server's per-call limit (both bulk routes)
 
   // Wait for the V1 table to render (it's server-side PHP so it's usually
   // present immediately, but some themes defer). Give up after ~10s.
@@ -345,6 +348,8 @@
       .then(function (r) { return r.ok ? r.json() : null; })
       .then(function (data) {
         if (data === null) return null;
+        // v0.48.16 — from how many pending leads the bulk tick boxes show.
+        if (data && typeof data.bulk_min === 'number') state.bulkMin = data.bulk_min;
         return (data && Array.isArray(data.leads)) ? data.leads : [];
       })
       .catch(function () { return null; });
@@ -598,8 +603,6 @@
       + '.hdlv2-iris-manage{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:#3d8da0;background:none;border:none;cursor:pointer;padding:0;font-family:Inter,sans-serif;}'
       + '.hdlv2-iris-manage:hover{text-decoration:underline;}'
       + '.hdlv2-iris-msg{font-size:12px;color:#dc2626;}'
-      + '.hdlv2-iris-spin{display:inline-block;width:15px;height:15px;border:2px solid #cfeaf0;border-top-color:#3d8da0;border-radius:50%;margin-right:8px;vertical-align:-2px;animation:hdlv2IrisSpin .8s linear infinite;}'
-      + '@keyframes hdlv2IrisSpin{to{transform:rotate(360deg)}}'
       // ── itshover-sourced motif icons (github.com/itshover/itshover) + CSS hover motion ──
       + '.hdlv2-ico{width:16px;height:16px;display:inline-block;vertical-align:-2px;overflow:visible;flex:0 0 auto;}'
       + '.hdlv2-ico path,.hdlv2-ico g,.hdlv2-ico circle{transform-box:fill-box;transform-origin:center;transition:transform .35s ease;}'
@@ -739,7 +742,8 @@
       + irisLogo()
       + '<div class="hdlv2-iris-main">'
       +   '<p class="hdlv2-iris-eyebrow">Setting up</p>'
-      +   '<h3 class="hdlv2-iris-title"><span class="hdlv2-iris-spin" aria-hidden="true"></span>Setting up your Iris Analysis…</h3>'
+      +   '<h3 class="hdlv2-iris-title">Setting up your Iris Analysis…</h3>'
+      +   HDLV2Loading.skeleton('inline')
       +   '<p class="hdlv2-iris-pitch" data-role="msg">' + esc(msg || 'This usually takes a few seconds.') + '</p>'
       + '</div>';
   }
@@ -1040,11 +1044,21 @@
         // each row drains the queue naturally, no extra navigation needed.
         // PENDING_LEADS_QUEUE_CAP retained at file-scope for any future
         // reintroduction but is no longer referenced.
+        // v0.48.15 — tick boxes + "Confirm selected" (H7). Ticks for leads
+        // that left the queue are dropped so the count stays honest.
+        // v0.48.16 — shown only from state.bulkMin pending leads (10), with
+        // "Reject selected" beside it; under that the queue is as before.
+        var bulkOn = bulkControlsVisible(g.items.length, state.bulkMin);
+        var liveIds = {};
+        if (bulkOn) g.items.forEach(function (lead) { liveIds[lead.id] = true; });
+        Object.keys(_selectedLeads).forEach(function (id) { if (!liveIds[id]) delete _selectedLeads[id]; });
         html += '<div class="hdlv2-aq-group hdlv2-aq-group-' + g.cls + '">'
-          +   '<div class="hdlv2-aq-group-head"><span class="hdlv2-aq-dot" style="background:' + g.dot + '"></span><span class="hdlv2-aq-group-label">' + esc(g.label) + '</span><span class="hdlv2-aq-count">' + g.items.length + '</span></div>'
+          +   '<div class="hdlv2-aq-group-head"><span class="hdlv2-aq-dot" style="background:' + g.dot + '"></span><span class="hdlv2-aq-group-label">' + esc(g.label) + '</span><span class="hdlv2-aq-count">' + g.items.length + '</span>'
+          +     (bulkOn ? '<span class="hdlv2-aq-bulk">' + bulkBarHtml(g.items.length) + '</span>' : '')
+          +   '</div>'
           +   '<ul class="hdlv2-aq-list">';
         g.items.forEach(function (lead) {
-          html += renderPendingLeadAQRow(lead);
+          html += renderPendingLeadAQRow(lead, bulkOn);
         });
         html += '</ul></div>';
         return;
@@ -1074,7 +1088,7 @@
   // tab uses. Single line: name + tiny meta + buttons. Stays inside the
   // existing .hdlv2-aq-list grid so it inherits the spacing of the other
   // action-queue rows.
-  function renderPendingLeadAQRow(lead) {
+  function renderPendingLeadAQRow(lead, withCheck) {
     var rate = (lead.rate_of_ageing !== null && lead.rate_of_ageing !== undefined)
       ? Number(lead.rate_of_ageing).toFixed(2)
       : '—';
@@ -1100,9 +1114,14 @@
     // a pending lead now lives in exactly ONE place (this strip) until confirmed.
     var isOpen = !!_openPendingDetails[lead.id];
     return '<li class="hdlv2-aq-item hdlv2-aq-item-lead' + (isOpen ? ' hdlv2-aq-item-open' : '') + '" data-lead-id="' + esc(lead.id) + '">'
-      +   '<div class="hdlv2-aq-item-name">' + name + '</div>'
+      +   '<div class="hdlv2-aq-item-name">' + (withCheck
+            ? '<label class="hdlv2-aq-check-label"><input type="checkbox" class="hdlv2-aq-check" data-aq="lead-select" data-lead-id="' + esc(lead.id) + '" aria-label="Select ' + attrEsc(lead.visitor_name || lead.visitor_email || 'New lead') + '"' + (_selectedLeads[lead.id] ? ' checked' : '') + '>' + name + '</label>'
+            : name) + '</div>'
       +   '<div class="hdlv2-aq-item-meta">' + email + ageStr + ' &middot; ' + rate + '&times;'
       +     (submittedAt ? ' &middot; ' + esc(submittedAt) : '')
+      // v0.47.83 — server-built location string ("Texas, US"); empty for
+      // legacy/geo-blocked leads, which render exactly as before.
+      +     (lead.location ? ' &middot; 📍 ' + esc(lead.location) : '')
       +   '</div>'
       +   '<div class="hdlv2-aq-item-action" style="display:flex;gap:5px;">'
       +     '<button type="button" class="hdlv2-aq-btn hdlv2-aq-btn-pending-details" data-aq="lead-details" data-lead-id="' + esc(lead.id) + '" aria-expanded="' + (isOpen ? 'true' : 'false') + '" title="Review this lead’s Stage-1 details">' + (isOpen ? 'Hide details' : 'View details') + '</button>'
@@ -1120,6 +1139,7 @@
   // success so the V1 list shows the new client immediately.
   function bindPendingLeadQueueActions() {
     if (!state.actionQueueEl) return;
+    bindBulkActions();
     // 0.47.48 — View-details toggle: reveal/hide the inline Stage-1 detail panel.
     // Open state lives in _openPendingDetails so it survives the strip's per-poll
     // rebuild (renderActionQueue reads it when re-rendering each row).
@@ -1174,6 +1194,157 @@
         }
       });
     });
+  }
+
+  // v0.48.16 — the bulk controls show from bulkMin pending leads (10 when the
+  // server does not say; 0 = always). Pure.
+  function bulkControlsVisible(pendingCount, bulkMin) {
+    var min = typeof bulkMin === 'number' ? bulkMin : 10;
+    return pendingCount >= min;
+  }
+
+  // [1..45], 20 → [[1..20], [21..40], [41..45]]. Pure.
+  function chunk(ids, size) {
+    var out = [];
+    for (var i = 0; i < ids.length; i += size) out.push(ids.slice(i, i + size));
+    return out;
+  }
+
+  // { confirmed:[…], already:[…], failed:[…] }, 'confirmed' → "37 confirmed · 2 already confirmed · 1 failed". Pure.
+  function bulkSummary(tally, verb) {
+    var parts = [(tally[verb] || []).length + ' ' + verb];
+    if ((tally.already || []).length) parts.push(tally.already.length + (verb === 'confirmed' ? ' already confirmed' : ' already actioned'));
+    if ((tally.failed || []).length) parts.push(tally.failed.length + ' failed');
+    return parts.join(' \u00b7 ');
+  }
+
+  // Select all + "Confirm selected (N)" + "Reject selected (N)".
+  function bulkBarHtml(total) {
+    var n = Object.keys(_selectedLeads).length;
+    return '<label class="hdlv2-aq-selectall"><input type="checkbox" data-aq="lead-select-all"' + (n && n === total ? ' checked' : '') + '> Select all</label>'
+      + '<button type="button" class="hdlv2-aq-btn hdlv2-aq-btn-pending-confirm hdlv2-aq-btn-bulk" data-aq="lead-confirm-selected"' + (n ? '' : ' disabled') + '>Confirm selected (' + n + ')</button>'
+      + '<button type="button" class="hdlv2-aq-btn hdlv2-aq-btn-bulk hdlv2-aq-btn-pending-reject" data-aq="lead-reject-selected"' + (n ? '' : ' disabled') + '>Reject selected (' + n + ')</button>';
+  }
+
+  // v0.48.15 — "Select all" + "Confirm selected (N)" (Matthew 2026-10-13, H7).
+  // v0.48.16 — plus "Reject selected (N)"; each asks once inline (no modal),
+  // then runs 20 leads a call, exactly as each row's own button does.
+  function bindBulkActions() {
+    var root = state.actionQueueEl;
+    var bar = root.querySelector('.hdlv2-aq-bulk');
+    if (!bar) return;
+    var boxes = function () { return Array.prototype.slice.call(root.querySelectorAll('[data-aq="lead-select"]')); };
+    function wire() {
+      var all = bar.querySelector('[data-aq="lead-select-all"]');
+      function sync() {
+        var n = Object.keys(_selectedLeads).length;
+        ['confirm', 'reject'].forEach(function (a) {
+          var b = bar.querySelector('[data-aq="lead-' + a + '-selected"]');
+          if (!b) return;
+          b.textContent = (a === 'confirm' ? 'Confirm' : 'Reject') + ' selected (' + n + ')';
+          b.disabled = n === 0;
+        });
+        if (all) all.checked = n > 0 && n === boxes().length;
+      }
+      if (all) {
+        all.addEventListener('change', function () {
+          boxes().forEach(function (cb) {
+            cb.checked = all.checked;
+            var id = cb.getAttribute('data-lead-id');
+            if (all.checked) _selectedLeads[id] = true; else delete _selectedLeads[id];
+          });
+          sync();
+        });
+      }
+      ['confirm', 'reject'].forEach(function (action) {
+        var b = bar.querySelector('[data-aq="lead-' + action + '-selected"]');
+        if (b) b.addEventListener('click', function () { ask(action); });
+      });
+      wire.sync = sync;
+    }
+    boxes().forEach(function (cb) {
+      cb.addEventListener('change', function () {
+        var id = cb.getAttribute('data-lead-id');
+        if (cb.checked) _selectedLeads[id] = true; else delete _selectedLeads[id];
+        if (wire.sync) wire.sync();
+      });
+    });
+    // The question replaces the buttons in place; Cancel or Escape puts them back.
+    function ask(action) {
+      var ids = Object.keys(_selectedLeads).map(Number).filter(function (id) { return id && !_queuePendingActioning[id]; });
+      if (!ids.length) return;
+      var q = action === 'confirm'
+        ? 'Confirm ' + ids.length + ' leads? Each one gets their next-step email.'
+        : 'Reject ' + ids.length + ' leads? They leave your list.';
+      bar.innerHTML = '<span class="hdlv2-aq-bulk-ask" role="status">' + esc(q) + '</span>'
+        + '<button type="button" class="hdlv2-aq-btn hdlv2-aq-btn-bulk" data-aq="bulk-yes">Yes, ' + action + ' ' + ids.length + '</button>'
+        + '<button type="button" class="hdlv2-aq-btn hdlv2-aq-btn-bulk hdlv2-aq-btn-pending-reject" data-aq="bulk-cancel">Cancel</button>';
+      var yes = bar.querySelector('[data-aq="bulk-yes"]');
+      function close() {
+        document.removeEventListener('keydown', onKey);
+        bar.innerHTML = bulkBarHtml(boxes().length);
+        wire();
+      }
+      function onKey(e) { if (e.key === 'Escape') close(); }
+      document.addEventListener('keydown', onKey);
+      bar.querySelector('[data-aq="bulk-cancel"]').addEventListener('click', close);
+      yes.addEventListener('click', function () {
+        document.removeEventListener('keydown', onKey);
+        runBulk(action, ids, bar);
+      });
+      yes.focus();
+    }
+    wire();
+  }
+
+  function runBulk(action, ids, bar) {
+    var verb = action === 'confirm' ? 'confirmed' : 'rejected';
+    var total = ids.length, done = 0;
+    var tally = { already: [], failed: [] };
+    tally[verb] = [];
+    var chunks = chunk(ids, BULK_CHUNK);
+    ids.forEach(function (id) { _queuePendingActioning[id] = true; });
+    function line(text) { bar.innerHTML = '<span class="hdlv2-aq-bulk-ask" role="status">' + esc(text) + '</span>'; }
+    function finish(stopMsg) {
+      ids.forEach(function (id) { delete _queuePendingActioning[id]; delete _selectedLeads[id]; });
+      var msg = bulkSummary(tally, verb) + (stopMsg ? '. Stopped: ' + String(stopMsg).replace(/\.+$/, '') + '. The rest are still pending.' : '');
+      line(msg);
+      window.HDLV2UI.toast(msg, (stopMsg || tally.failed.length) ? 'error' : 'success');
+      try { window.dispatchEvent(new CustomEvent('hdlv2:lead-actioned', { detail: { action: action, bulk: true, ts: Date.now() } })); } catch (e) {}
+      setTimeout(pollNow, 350);
+    }
+    function next() {
+      if (!chunks.length) { finish(''); return; }
+      var part = chunks.shift();
+      line((action === 'confirm' ? 'Confirming ' : 'Rejecting ') + Math.min(done + part.length, total) + ' of ' + total + '\u2026');
+      var idemKey = (window.crypto && typeof window.crypto.randomUUID === 'function')
+        ? window.crypto.randomUUID()
+        : ('idem-' + Date.now() + '-' + Math.random().toString(36).slice(2));
+      fetch(CFG.api_base + '/widget/leads/' + (action === 'confirm' ? 'confirm-bulk' : 'reject-bulk'), {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': CFG.rest_nonce || CFG.nonce, 'Idempotency-Key': idemKey },
+        body: JSON.stringify({ lead_ids: part })
+      })
+        .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, status: r.status, body: j }; }, function () { return { ok: false, status: r.status, body: {} }; }); })
+        .then(function (res) {
+          if (!res.ok) {
+            finish((res.body && res.body.message) || (res.status === 429 ? 'too many requests, try again in a little while' : 'the server said no'));
+            return;
+          }
+          done += part.length;
+          tally[verb] = tally[verb].concat(res.body[verb] || []);
+          tally.already = tally.already.concat(res.body.already || []);
+          tally.failed = tally.failed.concat(res.body.failed || []);
+          tally[verb].concat(tally.already).forEach(function (id) {
+            var row = state.actionQueueEl.querySelector('.hdlv2-aq-item-lead[data-lead-id="' + id + '"]');
+            if (row) { row.style.transition = 'opacity 280ms'; row.style.opacity = '0.25'; }
+          });
+          next();
+        })
+        .catch(function () { finish('the network dropped'); });
+    }
+    next();
   }
 
   function doQueuePendingAction(btn, action, leadId) {
@@ -1253,6 +1424,9 @@
       + kv('Rate of ageing', rate)
       + kv('Age', String(age))
       + kv('Sex', String(sex))
+      // v0.47.83 — only when captured; legacy leads show no Location cell
+      // at all (design: never render an "Unknown" placeholder for it).
+      + (lead.location ? kv('Location', String(lead.location)) : '')
       + '</div>';
 
     var items = '';
@@ -1622,6 +1796,17 @@
   }
 
   function injectV2Badge(row, c) {
+    // v0.47.84 — location subline in the V1-rendered name cell for matched
+    // rows (V2-only rows get it in buildV2OnlyRow). Idempotent for
+    // reconcileRows() re-renders; absent location renders nothing.
+    var nameCell = row.querySelector('.client-name');
+    if (nameCell && c.location && !nameCell.querySelector('.hdlv2-row-location')) {
+      var locEl = document.createElement('div');
+      locEl.className = 'hdlv2-row-location';
+      locEl.textContent = '📍 ' + c.location;
+      nameCell.appendChild(locEl);
+    }
+
     var cell = row.querySelector('.status-badge-cell');
     if (!cell) return;
     var pill = document.createElement('span');
@@ -1958,6 +2143,8 @@
       '<div class="hdlv2-detail-head-id">',
       '<strong>' + esc(c.name) + '</strong>',
       '<span class="hdlv2-detail-email">' + esc(c.email || '') + '</span>',
+      // v0.47.84 — location beside the email, visible on every tab.
+      (c.location ? '<span class="hdlv2-detail-location">📍 ' + esc(c.location) + '</span>' : ''),
       '</div>',
       '<div class="hdlv2-detail-head-meta">',
       headPill,
@@ -2273,7 +2460,7 @@
   }
 
   function loadTab(tab, c, target) {
-    target.innerHTML = '<div class="hdlv2-detail-loading">Loading…</div>';
+    target.innerHTML = HDLV2Loading.skeleton('tab');
     // v0.47.13 — stamp the rendered report-tab signature (from the SAME
     // cached record the loader renders from) so the poll refresher
     // (maybeRefreshActiveReportTabs) re-renders only on a genuine change.
@@ -2338,7 +2525,10 @@
         +     (s1.age != null ? '<small>vs. ' + esc(s1.age) + ' actual</small>' : '')
         +   '</div>'
         +   '<div class="hdlv2-st-stat"><strong>' + esc(capSex) + '</strong><span>Sex</span></div>'
-        + '</div>';
+        + '</div>'
+        // v0.47.83 — coarse submit-time location ("Texas, US"), built
+        // server-side; hidden entirely when unknown (legacy clients).
+        + (s1.location ? '<div class="hdlv2-st-location">📍 ' + esc(s1.location) + '</div>' : '');
 
       // v0.41.23 pills → v0.46.52 — Stage-1 rows now match Stage 3: the
       // answer text IS the data, coloured by the same severity bands the
@@ -2446,6 +2636,38 @@
         ? '<div class="hdlv2-vision-card"><div class="hdlv2-vision-card-label">WHY &middot; summary</div>' + esc(s2.ai_reformulation) + '</div>'
         : '';
 
+      // v0.47.93 — single-form clients only (server sends s2.choices): what
+      // they chose, and the abilities those choices depend on with the
+      // numbers measured so far. An ability with no number says so; nothing
+      // is filled in here.
+      var choices = '';
+      if (s2.choices) {
+        var picked = (s2.choices.picks || []).map(function (p) {
+          return '<div class="hdlv2-why-choice">' + esc(p.label) + '<small>' + esc((p.needs || []).join(' \u00b7 ')) + '</small></div>';
+        }).join('');
+        var abilities = (s2.choices.abilities || []).map(function (a) {
+          var measured = (a.measures || []).filter(function (m) { return m.score != null; })
+            .map(function (m) { return m.label + (m.source === 'stage1' ? ' (Stage 1) ' : ' ') + m.score + '/5'; }).join(', ');
+          return '<div class="hdlv2-score-row hdlv2-why-ability">'
+            + '<span>' + esc(a.label) + (a.focus ? '<span class="hdlv2-tab-new">Focus</span>' : '')
+            +   '<small>need ' + esc(a.need) + ' of 5 \u00b7 ' + esc(a.count) + ' of their choices'
+            +     (a.need_now == null ? '' : ' \u00b7 keeping it to 90 needs ' + (a.need_now_capped ? '5 or more' : 'about ' + esc(a.need_now)) + ' now')
+            +   '</small></span>'
+            + (a.score == null
+                ? '<span class="hdlv2-score-val">no answer yet</span>'
+                : '<span class="hdlv2-score-val">' + esc(a.score) + '/5'
+                  + '<small>' + esc(measured) + (a.at_90 == null ? '' : ' \u00b7 about ' + esc(a.at_90) + ' at 90 on today\'s path') + '</small></span>')
+            + '</div>';
+        }).join('');
+        choices = '<div class="hdlv2-why-choices">'
+          + '<div class="hdlv2-score-group"><h4>What they chose</h4>' + picked + '</div>'
+          + '<div class="hdlv2-score-group"><h4>Abilities their choices depend on</h4>' + abilities
+          +   '<div class="hdlv2-consult-caption">Need is out of 5: 5 means every choice leans on the ability fully. Scores are out of 5, averaged from the answers listed. They are not a test of the ability itself. Stage 1 answers run 1 to 5, Stage 3 answers 0 to 5. The projection to 90 uses published average losses for each ability, age and sex (about 5 to 34% a decade): an estimate.'
+          +     (s2.choices.stage3_done ? '' : ' Stage 3 not finished: based on Stage 1 answers only.') + '</div>'
+          + '</div>'
+          + '</div>';
+      }
+
       // Working link, never a dead button: the real WHY PDF once the D-2
       // callback has stored one — v0.46.51, presented as the same document
       // card as the Stage-3/Final tabs so every tab's PDF action reads
@@ -2470,6 +2692,7 @@
         + '<div class="hdlv2-st-meta">WHY profile &middot; Completed ' + esc(formatDate(s2.completed_at)) + releaseTag + '</div>'
         + hero
         + reform
+        + choices
         + detailLink
         + '</div>';
     });
@@ -2751,7 +2974,7 @@
     // B11.1 → v0.46.51 — same document card as the Stage-2/3/Final download
     // surfaces (icon tile + title + meta + solid teal action) so every tab's
     // PDF action reads identically. The button keeps the .hdlv2-fn-btn
-    // loading machinery (content/spinner swap + downloadFlightNotes wiring);
+    // loading machinery (content/skeleton swap + downloadFlightNotes wiring);
     // --solid restyles it to match the cards' primary download button.
     target.innerHTML = '<div class="hdlv2-st-card">'
       + '<div class="hdlv2-dl-doc">'
@@ -2762,7 +2985,7 @@
       +   '</div>'
       +   '<button type="button" class="hdlv2-fn-btn hdlv2-fn-btn--solid" title="Download this client\'s FLIGHT consultation notes (PDF)" aria-label="Download ' + esc(c.name) + ' flight consultation notes">'
       +     '<span class="hdlv2-fn-content">' + flightNotesIconSVG() + '<span class="hdlv2-fn-label">Download PDF</span></span>'
-      +     '<span class="hdlv2-fn-loading"><span class="hdlv2-fn-ring" aria-hidden="true"></span><span>Preparing&hellip;</span></span>'
+      +     '<span class="hdlv2-fn-loading">' + HDLV2Loading.skeleton('inline') + '<span>Preparing PDF&hellip;</span></span>'
       +   '</button>'
       + '</div>'
       + '</div>';
@@ -3567,7 +3790,11 @@
     // by injectExpandButton below). Replaces the reduced trash+chevron cell —
     // "V1 icon actions aren't wired for V2-only rows" no longer applies.
     row.innerHTML = [
-      '<td class="client-name">' + esc(c.name) + '</td>',
+      // v0.47.84 — location subline under the name (same muted treatment as
+      // the V2-only tag); empty string renders nothing for legacy clients.
+      '<td class="client-name">' + esc(c.name)
+        + (c.location ? '<div class="hdlv2-row-location">📍 ' + esc(c.location) + '</div>' : '')
+        + '</td>',
       '<td class="date-cell">' + esc(firstEntry) + '</td>',
       '<td class="date-cell">' + esc(lastEntry) + '</td>',
       '<td class="total-cell">' + esc(total) + '</td>',
@@ -4256,10 +4483,43 @@
       // verbatim by the strip panel. HDL brand tokens throughout.
       '.hdlv2-aq-btn-pending-details { padding:5px 11px; font-size:12px; border:1px solid #cfe2e7; background:#f0f7f9; color:#004F59; border-radius:999px; cursor:pointer; font-weight:600; font-family:inherit; line-height:1.3; }',
       '.hdlv2-aq-btn-pending-details:hover { border-color:#3d8da0; background:#e3eef1; }',
+      // v0.48.15 — bulk Confirm in the pending-leads group head (H7).
+      '.hdlv2-aq-bulk { margin-left:auto; display:flex; align-items:center; gap:10px; text-transform:none; letter-spacing:0; }',
+      '.hdlv2-aq-selectall, .hdlv2-aq-check-label { display:inline-flex; align-items:center; gap:7px; cursor:pointer; font-weight:500; color:#2c3e50; }',
+      '.hdlv2-aq-check-label { font-weight:inherit; color:inherit; }',
+      '.hdlv2-aq-selectall input, .hdlv2-aq-check { width:16px; height:16px; margin:0; accent-color:#3d8da0; cursor:pointer; }',
+      '.hdlv2-aq-btn-bulk { padding:5px 11px; font-size:12px; border:1px solid #3d8da0; background:#3d8da0; color:#fff; border-radius:999px; cursor:pointer; font-weight:600; font-family:inherit; line-height:1.3; }',
+      '.hdlv2-aq-btn-bulk:disabled { opacity:0.5; cursor:default; }',
+      // v0.48.16 — Reject selected / Cancel wear the single Reject's colours; the inline question line.
+      // Scoped under the banner: its outline-pill rule (.hdlv2-aq-banner .hdlv2-aq-btn) is more specific than a bare class.
+      '.hdlv2-aq-banner .hdlv2-aq-btn.hdlv2-aq-btn-bulk { background:#3d8da0; color:#fff; border-color:#3d8da0; }',
+      '.hdlv2-aq-banner .hdlv2-aq-btn.hdlv2-aq-btn-bulk:hover:not(:disabled) { background:#004F59; border-color:#004F59; color:#fff; }',
+      '.hdlv2-aq-banner .hdlv2-aq-btn.hdlv2-aq-btn-bulk.hdlv2-aq-btn-pending-reject { border-color:#e4e6ea; background:#fff; color:#666; }',
+      '.hdlv2-aq-banner .hdlv2-aq-btn.hdlv2-aq-btn-bulk.hdlv2-aq-btn-pending-reject:hover:not(:disabled) { background:#f8f9fb; border-color:#888; color:#2c3e50; }',
+      '.hdlv2-aq-bulk-ask { font-weight:500; color:#2c3e50; }',
+      '.hdlv2-aq-btn-bulk:focus-visible, .hdlv2-aq-selectall input:focus-visible, .hdlv2-aq-check:focus-visible { outline:2px solid #3d8da0; outline-offset:2px; }',
       '.hdlv2-aq-btn-pending-details[aria-expanded="true"] { background:#3d8da0; border-color:#3d8da0; color:#fff; }',
+      // 0.47.80 — the detail panel's flex-basis:100% only drops it onto its own
+      // full-width line when the row wraps; .hdlv2-aq-item is nowrap at desktop
+      // (wrap exists only in the ≤640px media queries), so the open panel was
+      // rendering as a squeezed 4th column beside the buttons. Lead rows only.
+      '.hdlv2-aq-item-lead { flex-wrap:wrap; }',
       '.hdlv2-aq-lead-detail { flex-basis:100%; width:100%; margin-top:8px; border-top:1px solid #e4e6ea; }',
       '.hdlv2-aq-lead-detail[hidden] { display:none; }',
-      '.hdlv2-aq-lead-detail .hdlv2-pending-detail { padding:12px 2px 4px; }',
+      // 0.47.81 — strip-panel polish (Quim 2026-07-20): the base rules below
+      // were written for the narrow modal Pending Leads tab and render too
+      // tight at the strip's full row width (2px side padding; auto-fit
+      // cramming 8 answer columns). Scoped overrides only — the modal tab
+      // keeps the base rules. Answer cells take the same soft-card treatment
+      // as the confirmed-client Stage-1 tab rows (#fafbfc / #f0f0f0).
+      '.hdlv2-aq-lead-detail .hdlv2-pending-detail { padding:16px 24px 20px; }',
+      '.hdlv2-aq-lead-detail .hdlv2-pending-detail-note { margin-bottom:16px; }',
+      '.hdlv2-aq-lead-detail .hdlv2-pending-detail-grid { grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:12px 24px; margin-bottom:16px; }',
+      '.hdlv2-aq-lead-detail .hdlv2-pending-detail-sub { margin:12px 0 10px; }',
+      '.hdlv2-aq-lead-detail .hdlv2-pending-detail-sub + .hdlv2-pending-detail-grid { grid-template-columns:repeat(4, 1fr); gap:10px 14px; }',
+      '.hdlv2-aq-lead-detail .hdlv2-pending-detail-sub + .hdlv2-pending-detail-grid .hdlv2-pending-kv { background:#fafbfc; border:1px solid #f0f0f0; border-radius:8px; padding:10px 14px; }',
+      '@media (max-width:900px) { .hdlv2-aq-lead-detail .hdlv2-pending-detail-sub + .hdlv2-pending-detail-grid { grid-template-columns:1fr 1fr; } }',
+      '@media (max-width:640px) { .hdlv2-aq-lead-detail .hdlv2-pending-detail { padding:12px 4px 8px; } .hdlv2-aq-lead-detail .hdlv2-pending-detail-sub + .hdlv2-pending-detail-grid { grid-template-columns:1fr; } }',
       '.hdlv2-pending-detail { font-family: Inter, -apple-system, BlinkMacSystemFont, sans-serif; padding:18px 24px 20px; color:#333; }',
       '.hdlv2-pending-detail-note { font-size:12px; color:#5a7d85; background:#f0f7f9; border:1px solid #cfe2e7; border-radius:8px; padding:9px 12px; margin-bottom:14px; }',
       '.hdlv2-pending-detail-sub { font:600 12px/1 Poppins, Inter, sans-serif; color:#004F59; text-transform:uppercase; letter-spacing:.04em; margin:6px 0 8px; }',
@@ -4283,7 +4543,7 @@
       '.hdlv2-detail-tab:hover { color:#3d8da0; }',
       '.hdlv2-detail-tab.active { color:#3d8da0; border-bottom-color:#3d8da0; }',
       '.hdlv2-detail-content { min-height: 120px; font-size: 13px; line-height: 1.6; color: #333; }',
-      '.hdlv2-detail-loading, .hdlv2-detail-empty { padding: 24px; text-align: center; color: #888; font-size: 13px; }',
+      '.hdlv2-detail-empty { padding: 24px; text-align: center; color: #888; font-size: 13px; }',
       '.hdlv2-detail-deeplink { display:inline-flex; align-items:center; gap:7px; margin-top:14px; padding:8px 18px; border:1px solid #3d8da0; border-radius:24px; color:#3d8da0; text-decoration:none; font: 500 13px/1 Inter, -apple-system, sans-serif; transition: all 0.15s; }',
       '.hdlv2-detail-deeplink:hover { background:#3d8da0; color:#fff; }',
       // v0.46.49 — download pills carry the shared download icon (same glyph
@@ -4354,6 +4614,11 @@
       '.hdlv2-st-card { display:block; }',
       '.hdlv2-st-meta { font-size: 10px; color: #888; margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.06em; font-weight: 500; }',
       '.hdlv2-st-row { display:flex; gap:10px; margin-bottom: 14px; flex-wrap: wrap; }',
+      // v0.47.83 — Stage-1 tab location line under the stat cards.
+      '.hdlv2-st-location { font-size:13px; color:#888; margin:-6px 0 12px 2px; }',
+      // v0.47.84 — location subline in the roster name cell + detail-head.
+      '.hdlv2-row-location { font-size:12px; color:#888; font-weight:400; margin-top:2px; }',
+      '.hdlv2-detail-location { font-size:13px; color:#888; margin-left:10px; white-space:nowrap; }',
       '.hdlv2-st-stat { flex:1; min-width:120px; padding:10px 14px; background:#fff; border:1px solid #e4e6ea; border-radius:10px; text-align:center; }',
       '.hdlv2-st-stat strong { display:block; font-family: Poppins, Inter, sans-serif; font-size:18px; font-weight:700; color:#004F59; margin-bottom:2px; line-height:1.1; }',
       '.hdlv2-st-stat span { display:block; font-size:10px; color:#888; text-transform:uppercase; letter-spacing:0.05em; }',
@@ -4495,17 +4760,14 @@
       // hover). Icon + loading ring use currentColor → invert correctly.
       '.hdlv2-consult-card .hdlv2-fn-btn { height:auto; padding:8px 16px 8px 13px; border-radius:24px; font: 500 13px/1 Inter, -apple-system, sans-serif; letter-spacing:0; margin-top:14px; transition: all 0.15s; }',
       '.hdlv2-consult-card .hdlv2-fn-btn:hover:not(:disabled) { background:#3d8da0; color:#fff; }',
-      '.hdlv2-consult-card .hdlv2-fn-btn:hover:not(:disabled) .hdlv2-fn-ring { border-color:rgba(255,255,255,0.35); border-top-color:#fff; }',
       '.hdlv2-fn-btn:hover { background:rgba(61,141,160,0.08); }',
       '.hdlv2-fn-btn:disabled { cursor:default; opacity:0.85; }',
       // v0.46.51 — Flight Notes button inside the document card: solid teal
       // primary, matching .hdlv2-dl-btn exactly. Keeps the .hdlv2-fn-btn
-      // loading machinery (content/spinner swap); ring inverts to white on
-      // the solid fill. Placed after the base rules so the modifier wins.
+      // loading machinery (content/skeleton swap). Placed after the base rules so the modifier wins.
       '.hdlv2-fn-btn--solid { height:auto; padding:10px 18px; border-radius:24px; background:#3d8da0; border-color:#3d8da0; color:#fff; font: 600 13px/1 Inter, -apple-system, sans-serif; letter-spacing:0; gap:7px; transition: background .15s, border-color .15s; }',
       '.hdlv2-fn-btn--solid:hover:not(:disabled) { background:#004F59; border-color:#004F59; color:#fff; }',
       '.hdlv2-fn-btn--solid .hdlv2-fn-ico { width:15px; height:15px; }',
-      '.hdlv2-fn-btn--solid .hdlv2-fn-ring, .hdlv2-fn-btn--solid:hover:not(:disabled) .hdlv2-fn-ring { border-color:rgba(255,255,255,0.35); border-top-color:#fff; }',
       '.hdlv2-fn-content, .hdlv2-fn-loading { display:inline-flex; align-items:center; gap:6px; }',
       '.hdlv2-fn-loading { display:none; }',
       '.hdlv2-fn-btn.is-loading .hdlv2-fn-content { display:none; }',
@@ -4513,9 +4775,7 @@
       '.hdlv2-fn-ico { display:block; }',
       '.hdlv2-fn-ico .fn-ico-stem, .hdlv2-fn-ico .fn-ico-head { transition: transform .2s ease; }',
       '.hdlv2-fn-btn:hover .fn-ico-stem, .hdlv2-fn-btn:hover .fn-ico-head { animation: hdlv2-fn-bounce 0.7s ease infinite; }',
-      '.hdlv2-fn-ring { width:13px; height:13px; border-radius:50%; border:2px solid rgba(61,141,160,0.25); border-top-color:#3d8da0; animation: hdlv2-fn-spin 0.7s linear infinite; }',
       '@keyframes hdlv2-fn-bounce { 0%,80%,100%{transform:translateY(0)} 40%{transform:translateY(3px)} }',
-      '@keyframes hdlv2-fn-spin { to { transform: rotate(360deg) } }',
 
       // ─────────────────────────────────────────────────────────────
       // v0.41.19 — Snapshot strip (4 KPI tiles) above the tab strip
@@ -4597,6 +4857,13 @@
       '.hdlv2-why-hero { padding:18px 22px; background:#fff; border:1px solid #e4e6ea; border-left:4px solid #3d8da0; border-radius:0 12px 12px 0; font-size:15px; font-style:italic; color:#111; line-height:1.55; font-weight:500; margin-bottom:14px; }',
       '.hdlv2-vision-card { margin-top:14px; padding:14px 18px; background:#fafbfc; border:1px solid #e4e6ea; border-left:3px solid #3d8da0; border-radius:0 10px 10px 0; font-size:13px; color:#2c3e50; line-height:1.55; }',
       '.hdlv2-vision-card-label { font-size:10.5px; font-weight:600; text-transform:uppercase; letter-spacing:0.05em; color:#666; margin-bottom:6px; }',
+      // v0.47.93 — single-form WHY tab: choices + abilities, two cards side
+      // by side where there is room (reuses .hdlv2-score-group / -row).
+      '.hdlv2-why-choices { display:grid; grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)); gap:12px; align-items:start; margin-top:14px; }',
+      '.hdlv2-why-choices small { display:block; margin-top:1px; font-size:11px; font-weight:400; color:#666; }',
+      '.hdlv2-why-choice { padding:5px 0; font-size:12px; color:#333; line-height:1.45; }',
+      '.hdlv2-why-choices .hdlv2-why-ability { align-items:flex-start; gap:12px; padding:6px 0; }',
+      '.hdlv2-why-ability > span:first-child { flex:0 0 auto; }',
 
       // ─────────────────────────────────────────────────────────────
       // v0.41.19 — Stage 3 — top stats row, body 2-col, grouped scores,

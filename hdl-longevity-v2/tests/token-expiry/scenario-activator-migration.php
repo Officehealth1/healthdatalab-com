@@ -71,6 +71,18 @@ class FakeWpdb {
         if ( false !== strpos( $q, 'token_expires_at IS NULL' ) && false !== stripos( $q, 'COUNT' ) ) {
             return '0'; // post-backfill verification: nothing left NULL
         }
+        // Phase AG (v3.26) lead-location columns: model the real deploy where
+        // create_tables()/dbDelta added them before run_migrations() — the
+        // single-column existence probes find them present (no ALTER needed)
+        // and the 2-column verification confirms both. Keeps this scenario
+        // focused on Phase AF.
+        if ( false !== strpos( $q, 'visitor_country' ) && false !== stripos( $q, 'INFORMATION_SCHEMA.COLUMNS' ) ) {
+            return ( false !== stripos( $q, 'IN (' ) ) ? '2' : '1';
+        }
+        // Phase AH (v3.27) paid Stage 1 schema + Phase AI (v3.28) ticket page + Phase AK (v3.30) lead columns: same model — already present.
+        if ( false !== stripos( $q, 'COLUMN_TYPE' ) ) return "enum('practitioner','automation','paid_stage1','full_report')";
+        if ( false !== stripos( $q, 'INFORMATION_SCHEMA.STATISTICS' ) ) return '1';
+        if ( preg_match( "/COLUMN_NAME = '(access_mode|buy_url|external_ref|ticket_page_url|stage1_fired_at|visitor_phone)'/", $q ) ) return '1';
         return '0';
     }
     public function get_results( $q ) { $this->queries[] = $q; return array(); }

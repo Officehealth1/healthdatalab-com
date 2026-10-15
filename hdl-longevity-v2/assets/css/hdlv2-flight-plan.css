@@ -245,18 +245,6 @@
   align-items: center;
   gap: 10px;
 }
-.fp-repair-banner .fp-repair-spinner {
-  width: 14px;
-  height: 14px;
-  border: 2px solid #bfdbfe;
-  border-top-color: #1e40af;
-  border-radius: 50%;
-  animation: fp-spin 0.8s linear infinite;
-  flex-shrink: 0;
-}
-@keyframes fp-spin {
-  to { transform: rotate(360deg); }
-}
 
 /* ── Category Bands ──
    Each day is split into up to 3 ordered bands (Food, Fitness, Lifestyle)

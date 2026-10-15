@@ -159,7 +159,7 @@ class HDLV2_Client_Dashboard {
         if ( $email !== '' ) {
             $has_invite = (int) $wpdb->get_var( $wpdb->prepare(
                 "SELECT 1 FROM {$wpdb->prefix}hdlv2_widget_invites
-                 WHERE client_email = %s LIMIT 1",
+                 WHERE client_email = %s AND source <> 'paid_stage1' LIMIT 1",
                 $email
             ) );
         }
@@ -1725,6 +1725,32 @@ class HDLV2_Client_Dashboard {
         return 'food';
     }
 
+    /**
+     * v0.47.82 — mid-funnel messages host: a compact launcher row that opens
+     * the inbox shell in a fixed bottom-right popup (mobile: bottom sheet).
+     * The launcher's badge is a second [data-inbox-badge] mirror — setBadge()
+     * in hdlv2-inbox.js already updates every instance on the page. The
+     * populated dashboard's Messages tab and the standalone token page keep
+     * embedding inbox_shell() directly; only THIS host wraps it in a popup.
+     */
+    private function inbox_launcher_host() {
+        $h  = '<section class="cd-inbox">';
+        $h .= '<button type="button" class="cd-inbox-launcher" data-inbox-open aria-haspopup="dialog" aria-expanded="false">';
+        $h .= '<span class="cd-inbox-launcher-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span>';
+        $h .= '<span class="cd-inbox-launcher-text">';
+        $h .= '<span class="cd-inbox-launcher-title">Messages <span class="hdlv2-inbox-badge" data-inbox-badge hidden>0</span></span>';
+        $h .= '<span class="cd-inbox-launcher-sub">Private messages with your practitioner</span>';
+        $h .= '</span>';
+        $h .= '<span class="cd-inbox-launcher-open">Open</span>';
+        $h .= '</button>';
+        $h .= '<div class="cd-inbox-popup" data-inbox-popup hidden role="dialog" aria-label="Messages">';
+        $h .= '<button type="button" class="cd-inbox-close" data-inbox-close aria-label="Close messages">&times;</button>';
+        $h .= HDLV2_Message_Thread_View::inbox_shell();
+        $h .= '</div>';
+        $h .= '</section>';
+        return $h;
+    }
+
     private function render_empty_state( $user_id, $state ) {
         $ctx = $this->load_context( $user_id );
 
@@ -1734,9 +1760,11 @@ class HDLV2_Client_Dashboard {
         $h .= $this->hero_for_state( $ctx, $state );
         $h .= $this->path_for_state( $ctx, $state );
         $h .= $this->preview_for_state( $ctx, $state );
-        // Slice C: inbox card — mid-funnel clients must see practitioner
-        // messages (the betas live in these states).
-        $h .= '<section class="cd-inbox">' . HDLV2_Message_Thread_View::inbox_shell() . '</section>';
+        // Slice C: inbox — mid-funnel clients must see practitioner messages
+        // (the betas live in these states). v0.47.82: compact launcher card +
+        // bottom-right popup replaced the always-open full-width card; the
+        // shell inside is byte-identical so hdlv2-inbox.js drives it unchanged.
+        $h .= $this->inbox_launcher_host();
         $h .= '<h2 class="cd-section-title">How the assessment unfolds</h2>';
         $h .= $this->steps_grid( $state );
         $h .= $this->help_footer();
@@ -1901,8 +1929,8 @@ class HDLV2_Client_Dashboard {
 
         $bodies = array(
             1 => array( 'Stage 1 &middot; Quick insight',     '9 questions, ~3 minutes. You see your pace-of-ageing gauge straight away.' ),
-            2 => array( 'Stage 2 &middot; Your WHY',          'Your practitioner releases this when ready. You record what matters most &mdash; speak it or type it.' ),
-            3 => array( 'Stage 3 &middot; Full detail',       '21 measurements across 5 sections. Auto-drafts your Trajectory Plan for your practitioner&rsquo;s review.' ),
+            2 => array( 'Full Report &middot; What matters most', 'You pick what matters most to you in your last decade.' ),
+            3 => array( 'Full Report &middot; Your measurements', 'Your real measurements, 5 short sections. Your practitioner reviews them with you.' ),
             4 => array( 'Consultation &middot; Trajectory Plan', 'Your practitioner edits, adds notes, finalises. PDF + Flight Plan delivered to you.' ),
         );
 
@@ -2056,6 +2084,7 @@ class HDLV2_Client_Dashboard {
             $invite = $wpdb->get_row( $wpdb->prepare(
                 "SELECT token FROM {$wpdb->prefix}hdlv2_widget_invites
                  WHERE client_email = %s AND status IN ('pending','opened')
+                   AND source <> 'paid_stage1'
                    AND expires_at > %s
                  ORDER BY id DESC LIMIT 1",
                 $email, $now

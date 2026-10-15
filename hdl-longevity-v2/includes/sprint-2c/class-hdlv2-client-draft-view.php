@@ -85,7 +85,7 @@ class HDLV2_Client_Draft_View {
         // report after the token expires — practitioners open dormant
         // clients' reports via this same route.
         $progress = $wpdb->get_row( $wpdb->prepare(
-            "SELECT id, client_user_id, practitioner_user_id, client_name, stage1_data, stage3_data, stage3_completed_at, token_expires_at
+            "SELECT id, client_user_id, practitioner_user_id, client_name, stage1_data, stage2_data, stage3_data, stage3_completed_at, token_expires_at
              FROM {$wpdb->prefix}hdlv2_form_progress
              WHERE token = %s AND deleted_at IS NULL
              LIMIT 1",
@@ -301,6 +301,7 @@ class HDLV2_Client_Draft_View {
             'client_name'            => $progress->client_name ?: '',
             'practitioner_name'      => $prac_name,
             'practitioner_logo_url'  => $prac_logo_url,
+            'partner_line'           => HDLV2_Offer::PARTNER_LINE, // v0.48.15
             'stage3_completed_at'    => $progress->stage3_completed_at,
             'calc'                   => $calc,
             'ai_narrative'           => $status === 'ready' ? $ai_narrative : null,
@@ -313,6 +314,19 @@ class HDLV2_Client_Draft_View {
 
         if ( $report_type === 'final' && ! empty( $final_row->created_at ) ) {
             $response['finalised_at'] = $final_row->created_at;
+        }
+
+        // v0.48.12 — choices-page clients only: the abilities their choices
+        // need beside where they stand now, on the same scores as the page.
+        $s2_data = json_decode( (string) ( $progress->stage2_data ?? '' ), true );
+        if ( class_exists( 'HDLV2_Why_Picks' ) && HDLV2_Why_Picks::is_single( $s2_data ) && is_array( $s2_data['why_picks'] ?? null ) ) {
+            $raw  = HDLV2_Why_Picks::stage1_raw( $s1_data );
+            $rows = HDLV2_Why_Picks::abilities_profile( array_slice( $s2_data['why_picks'], 0, HDLV2_Why_Picks::MAX_PICKS ), $raw, $calc['scores'], $chrono_age, HDLV2_Why_Picks::sex_of( $s1_data ) );
+            if ( $rows ) {
+                // No chart under two measured abilities, the same rule as the PDF picture (chart_url()).
+                $series = HDLV2_Why_Picks::ability_chart_series( $rows, $raw, $calc['scores'] );
+                $response['why_abilities'] = array( 'rows' => $rows, 'series' => count( array_filter( $series['now'], 'is_numeric' ) ) >= 2 ? $series : null );
+            }
         }
 
         return rest_ensure_response( $response );

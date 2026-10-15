@@ -213,7 +213,7 @@ class HDLV2_Message_Thread_View {
         $h .= '<p class="hdlv2-inbox-sub" data-inbox-prac></p>';
         $h .= '</div>';
         $h .= '<div class="hdlv2-inbox-thread" data-inbox-thread aria-live="polite">';
-        $h .= '<p class="hdlv2-inbox-loading">Loading your messages&hellip;</p>';
+        $h .= '<div class="hdlv2-inbox-loading" role="status" aria-label="Loading your messages"><span></span><span></span><span></span><span class="hdlv2-inbox-sr">Loading your messages</span></div>';
         $h .= '</div>';
         $h .= '<form class="hdlv2-inbox-reply" data-inbox-reply>';
         $h .= '<label class="hdlv2-inbox-reply-label" for="hdlv2-inbox-text">Reply to your practitioner</label>';

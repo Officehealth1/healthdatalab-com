@@ -202,6 +202,13 @@
 .hdlv2-dr-radar-wrap {
   max-width: 680px; margin: 8px auto 14px; padding: 0 10px;
 }
+/* v0.48.12 — abilities: what the choices need, and where the client is now */
+.hdlv2-dr-abilities-wrap { max-width: 440px; }
+.hdlv2-dr-ability-list { list-style: none; margin: 0 0 8px; padding: 0; display: grid; gap: 8px; }
+.hdlv2-dr-ability { display: grid; gap: 2px; padding: 8px 0; border-top: 1px solid var(--hdlv2-border); }
+.hdlv2-dr-ability-name { font-size: 15px; font-weight: 600; color: var(--hdlv2-ink); }
+.hdlv2-dr-ability-nums { font-size: 14px; color: var(--hdlv2-ink-soft); font-variant-numeric: tabular-nums; }
+.hdlv2-dr-ability-focus { display: inline-block; margin-left: 6px; padding: 1px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; background: #fffbeb; color: #d97706; border: 1px solid #fde68a; }
 .hdlv2-dr-draft-note {
   display: flex; gap: 10px; align-items: flex-start;
   background: var(--hdlv2-amber-bg);

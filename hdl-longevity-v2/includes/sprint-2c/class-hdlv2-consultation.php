@@ -55,6 +55,10 @@ class HDLV2_Consultation {
         add_action( 'rest_api_init', array( $this, 'register_rest_routes' ) );
         add_shortcode( 'hdlv2_consultation', array( $this, 'render_shortcode' ) );
         add_filter( 'body_class', array( $this, 'maybe_add_wide_body_class' ) );
+        // v0.47.96 — the /consultation/ page has no post title, so the tab read
+        // " | HealthDataLab". Divi builds the title on pre_get_document_title
+        // (priority 10), so run after it.
+        add_filter( 'pre_get_document_title', array( $this, 'filter_document_title' ), 20 );
         // v0.46.7 — surface a "Consultations" link in the practitioner top menu
         // so the (already-built) /consultation/ hub is reachable without typing
         // the URL by hand. Role-gated to practitioners/admins inside the method.
@@ -162,6 +166,26 @@ class HDLV2_Consultation {
             $classes[] = 'hdlv2-wide-page';
         }
         return $classes;
+    }
+
+    /**
+     * v0.47.96 — Tab title on the consultation page: "Consultations" for the
+     * list, and "Consultation" for a single client when the page has no title
+     * of its own.
+     */
+    public function filter_document_title( $title ) {
+        global $post;
+        if ( ! is_singular() || ! $post || ! has_shortcode( $post->post_content, 'hdlv2_consultation' ) ) {
+            return $title;
+        }
+        if ( empty( $_GET['progress_id'] ) && empty( $_GET['client'] ) ) {
+            $name = 'Consultations';
+        } elseif ( '' === trim( get_the_title( $post ) ) ) {
+            $name = 'Consultation';
+        } else {
+            return $title;
+        }
+        return $name . ' | ' . get_bloginfo( 'name' );
     }
 
     /**
@@ -465,6 +489,10 @@ class HDLV2_Consultation {
             "SELECT distilled_why, ai_reformulation FROM {$wpdb->prefix}hdlv2_why_profiles WHERE form_progress_id = %d LIMIT 1",
             $progress->id
         ), ARRAY_A );
+        // v0.48.10 — single-form picks block, facts use. Set only when non-empty,
+        // so every other client's brief prompt is unchanged.
+        $picks = HDLV2_Why_Picks::block_for_row( $progress, $calc['scores'] ?? array(), 'facts' );
+        if ( '' !== $picks ) $why['picks_block'] = $picks;
 
         // v0.33.0 — Fetch all addenda for this client's active consultation
         // so the Brief reflects post-Final clinical observations, not just
@@ -2057,7 +2085,7 @@ class HDLV2_Consultation {
         wp_enqueue_script(
             'hdlv2-audio-component',
             HDLV2_PLUGIN_URL . 'assets/js/hdlv2-audio-component.js',
-            array(), // E4 (v0.46.47) — client-Whisper tier removed; no transcriber dep
+            array( 'hdlv2-loading' ), // E4 (v0.46.47) — client-Whisper tier removed; no transcriber dep
             HDLV2_VERSION,
             true
         );

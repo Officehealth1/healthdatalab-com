@@ -380,6 +380,14 @@
     document.getElementById('hdlv2-copy-embed').addEventListener('click', copyEmbed);
     document.getElementById('hdlv2-create-invite').addEventListener('click', createInvite);
     bindInviteLookup();
+    var s1Btn = document.getElementById('hdlv2-send-s1link');
+    if (s1Btn) {
+      s1Btn.addEventListener('click', sendStage1Link);
+      ['hdlv2-s1link_name', 'hdlv2-s1link_email'].forEach(function (id) {
+        document.getElementById(id).addEventListener('input', function () { s1RequestId = ''; });
+      });
+      document.getElementById('hdlv2-s1link-copy').addEventListener('click', function () { copyToClipboard('hdlv2-s1link-url', 'hdlv2-s1link-copy'); });
+    }
 
     // 9. Populate embed code on load
     if (CFG.embed_code) {
@@ -890,6 +898,28 @@
       +   '<br><span style="color:#888;">Stops working after the client uses it once.</span>'
       + '</p>'
       + '</div>'
+      + stage1LinkCard()
+      + '</div>';
+  }
+
+  // v0.47.90 — "Send Stage 1 link" card. Shown only when the server says
+  // the widget is in paid mode with a ticket page (stage1_link_ready).
+  function stage1LinkCard() {
+    if (!CFG.stage1_link_ready) return '';
+    return '<div style="margin-bottom:20px;padding:16px;background:#f8f9fb;border-radius:8px;border:1px solid #eee;">'
+      + '<h4 style="margin:0 0 10px;font-size:14px;font-weight:600;color:#1a1a1a;">Send Stage 1 link</h4>'
+      + '<p style="font-size:12px;color:#888;margin:0 0 12px;line-height:1.5;">For someone who has paid you directly. They get a one-time Stage 1 link by email, valid for 90 days. Their answers arrive in Pending Leads.</p>'
+      + formField('s1link_name', 'Name', 'text', '')
+      + formField('s1link_email', 'Email', 'email', '')
+      + '<button id="hdlv2-send-s1link" type="button" style="' + S.btnBase + 'background:' + S.teal + ';padding:10px 20px;font-size:13px;font-weight:600;font-family:inherit;">Send Stage 1 link</button>'
+      + '<p id="hdlv2-s1link-status" role="alert" style="display:none;margin:10px 0 0;font-size:13px;color:#dc2626;line-height:1.5;"></p>'
+      + '<div id="hdlv2-s1link-box" style="display:none;margin-top:12px;padding:12px 14px;background:#eef7f9;border-radius:8px;border:1px solid #d0e8ed;">'
+      +   '<p id="hdlv2-s1link-label" role="status" aria-live="polite" style="font-size:13px;color:#1a1a1a;margin:0 0 10px;font-weight:500;line-height:1.5;"></p>'
+      +   '<div style="display:flex;gap:6px;align-items:center;">'
+      +     '<input id="hdlv2-s1link-url" type="text" readonly aria-label="Stage 1 link" style="flex:1;min-width:0;padding:6px 8px;border:1px solid #e4e6ea;border-radius:6px;font-size:11px;font-family:monospace;background:#fff;">'
+      +     '<button id="hdlv2-s1link-copy" type="button" style="' + S.btnBase + 'background:' + S.teal + ';white-space:nowrap;padding:6px 12px;font-size:12px;font-family:inherit;">Copy link</button>'
+      +   '</div>'
+      + '</div>'
       + '</div>';
   }
 
@@ -900,7 +930,7 @@
       + '<h4 style="margin:0;font-size:14px;font-weight:600;">Sent Invites</h4>'
       + '<span id="hdlv2-invites-freshness" style="font-size:11px;color:#9ca3af;">&nbsp;</span>'
       + '</div>'
-      + '<div id="hdlv2-invite-list" style="font-size:13px;color:#888;">Loading...</div>'
+      + '<div id="hdlv2-invite-list" style="font-size:13px;color:#888;">' + HDLV2Loading.skeleton('list') + '</div>'
       + '</div>';
   }
 
@@ -925,7 +955,7 @@
       +   '<span id="hdlv2-pending-freshness" style="font-size:11px;color:#9ca3af;">&nbsp;</span>'
       + '</div>'
       + '<p style="font-size:11px;color:#888;margin:0 0 10px;line-height:1.45;"><strong style="color:#444;">Confirm</strong> to email the client their next-step magic link, or <strong style="color:#444;">Reject</strong> to silently drop spam.</p>'
-      + '<div id="hdlv2-pending-list" style="font-size:13px;color:#888;">Loading…</div>'
+      + '<div id="hdlv2-pending-list" style="font-size:13px;color:#888;">' + HDLV2Loading.skeleton('list') + '</div>'
       + '</div>';
   }
 
@@ -940,7 +970,7 @@
     var countEl = document.getElementById('hdlv2-pending-count');
     var freshEl = document.getElementById('hdlv2-pending-freshness');
     if (!listEl) return;
-    listEl.innerHTML = '<p style="color:#aaa;font-size:12px;margin:0;">Loading…</p>';
+    listEl.innerHTML = HDLV2Loading.skeleton('list');
 
     var url = (CFG.rest_base || '/wp-json/') + 'hdl-v2/v1/widget/leads/pending';
     fetch(url, {
@@ -1426,6 +1456,62 @@
       .catch(function () { btn.disabled = false; btn.textContent = 'Generate Link'; status.textContent = 'Network error'; status.style.color = S.red; status.style.display = 'inline'; setTimeout(function () { status.style.display = 'none'; }, 4000); });
   }
 
+  // v0.47.90 — one request id per filled form: a retry after a network error
+  // gets the same ticket (and no second email); editing the form or a
+  // success starts a new one.
+  var s1RequestId = '';
+
+  function newRequestId() {
+    var b = new Uint8Array(16);
+    window.crypto.getRandomValues(b);
+    return Array.prototype.map.call(b, function (x) { return ('0' + x.toString(16)).slice(-2); }).join('');
+  }
+
+  function sendStage1Link() {
+    var btn     = document.getElementById('hdlv2-send-s1link');
+    var status  = document.getElementById('hdlv2-s1link-status');
+    var nameEl  = document.getElementById('hdlv2-s1link_name');
+    var emailEl = document.getElementById('hdlv2-s1link_email');
+    var name    = nameEl.value.trim();
+    var email   = emailEl.value.trim();
+    function fail(msg) {
+      btn.disabled = false; btn.textContent = 'Send Stage 1 link';
+      status.textContent = msg; status.style.display = 'block';
+    }
+    status.style.display = 'none';
+    if (!name || !email) { fail('Enter their name and email.'); return; }
+    if (!s1RequestId) s1RequestId = newRequestId();
+    btn.disabled = true; btn.textContent = 'Sending…';
+
+    var data = new FormData();
+    data.append('action', 'hdlv2_send_stage1_link');
+    data.append('nonce', CFG.nonce);
+    data.append('client_name', name);
+    data.append('client_email', email);
+    data.append('request_id', s1RequestId);
+
+    fetch(CFG.ajax_url, { method: 'POST', body: data })
+      .then(function (r) { return r.json(); })
+      .then(function (res) {
+        if (!res.success) { fail(typeof res.data === 'string' ? res.data : 'The link was not sent. Please try again.'); return; }
+        btn.disabled = false; btn.textContent = 'Send Stage 1 link';
+        s1RequestId = '';
+        nameEl.value = ''; emailEl.value = '';
+        document.getElementById('hdlv2-s1link-label').textContent = stage1LinkSentLine(res.data);
+        document.getElementById('hdlv2-s1link-url').value = res.data.url;
+        document.getElementById('hdlv2-s1link-box').style.display = 'block';
+      })
+      .catch(function () { fail('No answer from the server. Press Send Stage 1 link again: it will not make a second link.'); });
+  }
+
+  function stage1LinkSentLine(d) {
+    var until = 'Link valid until ' + formatExpiryAbsolute(d.expires_at) + '.';
+    // A repeat cannot know whether the first email went out: say so.
+    if (d.repeat) return 'This link was made earlier for ' + d.email + '. If they have not got the email, copy the link below and send it yourself. ' + until;
+    if (!d.email_sent) return 'The email did not go out. Copy the link below and send it to ' + d.email + ' yourself. ' + until;
+    return 'Sent to ' + d.email + '. ' + until;
+  }
+
   // Build the recipient-aware HTML for the link-created label. Stays inside
   // the existing palette — teal accent for the ✓, dark grey body, monospace
   // grey for the email. No new colours introduced.
@@ -1444,11 +1530,11 @@
     return iconHtml + 'Link sent to ' + emailHtml + " — they'll receive it shortly.";
   }
 
-  // silent=true → poll refresh; keep current UI on failure, don't flash "Loading..."
+  // silent=true → poll refresh; keep current UI on failure, don't flash the skeleton
   function loadInvites(silent) {
     var list = document.getElementById('hdlv2-invite-list');
     if (!list) return;
-    if (!silent) list.innerHTML = 'Loading...';
+    if (!silent) list.innerHTML = HDLV2Loading.skeleton('list');
 
     var data = new FormData();
     data.append('action', 'hdlv2_get_invites');
@@ -1778,7 +1864,7 @@
     opts = opts || {};
     var requiredAttr = opts.required ? ' required aria-required="true"' : '';
     return '<div style="margin-bottom:10px;">'
-      + '<label style="display:block;font-size:12px;color:#555;margin-bottom:3px;font-weight:500;">' + label + '</label>'
+      + '<label for="hdlv2-' + name + '" style="display:block;font-size:12px;color:#555;margin-bottom:3px;font-weight:500;">' + label + '</label>'
       + '<input id="hdlv2-' + name + '" type="' + type + '"' + requiredAttr + ' value="' + escAttr(value) + '" style="' + S.inputBase + '">'
       + '</div>';
   }

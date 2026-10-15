@@ -13,6 +13,48 @@
 (function () {
   'use strict';
 
+  // ---------- VISITOR GEO (v0.47.83) ----------
+  // Coarse location (country + state) resolved by the healthdatalab.com edge
+  // function (Netlify context.geo — no keys, no tracking, nothing stored on
+  // that domain). Fetched once at init so it's ready by submit time (~2 min
+  // later); strictly fail-silent — a blocked/slow lookup NEVER delays or
+  // blocks the submission, the lead just goes out without a location.
+  // window.HDLW_GEO_URL exists for test harnesses only.
+  var GEO_URL = window.HDLW_GEO_URL || 'https://healthdatalab.com/api/geo';
+  var visitorGeo = null; // { country: 'US', region: 'Texas' } once resolved
+
+  // ---------- HOLDING LIST (v0.48.16) ----------
+  // When healthdatalab.net is busy (503 server_busy), limited, faulty or does
+  // not answer within LEAD_TIMEOUT_MS, the same answers go to a holding
+  // address on healthdatalab.com that keeps them on a Brevo list; WordPress
+  // replays them when it is free. Invite and ticket holders never hold: their
+  // personal link keeps their place. window.HDLW_HOLD_URL is for test pages.
+  var LEAD_TIMEOUT_MS = 8000;
+  var HOLD_URL_DEFAULT = 'https://healthdatalab.com/.netlify/functions/stage1-hold';
+
+  function prefetchGeo() {
+    if (visitorGeo || !window.fetch) return;
+    var done = false;
+    var safety = setTimeout(function () { done = true; }, 2500);
+    fetch(GEO_URL, { method: 'GET', credentials: 'omit' })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (data) {
+        if (done) return;
+        clearTimeout(safety);
+        done = true;
+        if (data && typeof data.country === 'string' && /^[A-Za-z]{2}$/.test(data.country)) {
+          visitorGeo = {
+            country: data.country.toUpperCase(),
+            region: (typeof data.region === 'string') ? data.region.slice(0, 64) : ''
+          };
+        }
+      })
+      .catch(function () {
+        clearTimeout(safety);
+        done = true;
+      });
+  }
+
   // ---------- CALCULATION ENGINE (9-question algorithm) ----------
 
   var QUICK_WEIGHTS = { q2_body:1.5, q3_zone2:2.0, q4_vo2:2.0, q5_sts:2.0, q6_sleep:1.5, q7_smoking:2.5, q8_social:1.5, q9_diet:1.5 };
@@ -36,6 +78,10 @@
     return Math.max(1, Math.min(5, 3.0 + (raw - expected)));
   }
 
+  // ponytail: the rate is worked out here, in the browser, so paid mode
+  // (v0.47.85) protects the report, the lead and the practitioner's review,
+  // not this arithmetic. Move compute() behind the ticket check only if that
+  // is ever shown to matter.
   function compute(answers) {
     var age = Math.max(1, parseInt(answers.q1_age, 10) || 0);
 
@@ -383,6 +429,17 @@
       + '.hdlw-error-eyebrow{font-family:' + B.body + ';font-size:10px;color:#dc2626;letter-spacing:0.18em;text-transform:uppercase;font-weight:600;margin:0 0 10px;}'
       + '.hdlw-error-title{font-family:' + B.serif + ';margin:0 0 8px;font-size:22px;font-weight:600;color:var(--hdl-accent-deep,#004F59);letter-spacing:-0.01em;line-height:1.15;}'
       + '.hdlw-error-msg{font-family:' + B.body + ';font-size:13.5px;color:' + B.text + ';margin:0;line-height:1.55;}'
+      + '.hdlw-locked-price{font-family:' + B.body + ';font-size:15px;font-weight:600;color:' + B.text + ';margin:0 0 8px;}'
+      // ----- v0.47.85 paid-mode locked panel (reuses the error card) -----
+      + '.hdlw-locked .hdlw-logo{margin:0 auto 18px;}'
+      // v0.47.91 — the frame hugs the logo instead of spanning the card, and a
+      // wordmark is drawn naked like the result footer (no box inside a box).
+      + '.hdlw-locked .hdlw-logo:not([data-shape="square"]){width:fit-content;}'
+      + '.hdlw-locked .hdlw-logo[data-shape="wordmark"]{background:transparent;border:0;padding:0;}'
+      + '.hdlw-locked .hdlw-error-eyebrow{color:var(--hdl-accent,#3d8da0);}'
+      + '.hdlw-buy{display:inline-block;margin-top:22px;padding:12px 28px;background:#004F59;color:#fff;border:1px solid #004F59;border-radius:999px;font-family:' + B.body + ';font-size:14px;font-weight:600;text-decoration:none;transition:background .15s ease;}'
+      + '.hdlw-buy:hover{background:#003a42;border-color:#003a42;}'
+      + '.hdlw-buy:focus-visible{outline:2px solid var(--hdl-accent,#3d8da0);outline-offset:3px;}'
       // ----- Result-page logo override -----
       // The renderResult inline block emits .hdlw-r-prac-foot-logo as a 42px
       // circle (object-fit:cover) which crops wordmarks. v0.36.0 retires
@@ -429,16 +486,152 @@
       + '</div></div>';
   }
 
-  function showInviteError(el, reason) {
+  // paid (v0.47.85): the page sells the report, so say plainly what happened
+  // to the link and offer the way to get a new one.
+  function showInviteError(el, reason, paid, publicCfg) {
     loadFonts();
     injectEditorialStyles();
     var title = reason === 'expired' ? 'This link has expired' : reason === 'completed' ? 'Assessment already completed' : 'Invalid link';
     var msg   = reason === 'expired' ? 'Please contact your practitioner for a new assessment link.' : reason === 'completed' ? 'This assessment link has already been used.' : 'This assessment link is not valid.';
+    if (paid) {
+      title = reason === 'expired' ? 'This link has run out' : reason === 'completed' ? 'This link has already been used' : 'This link is not valid';
+      msg   = reason === 'expired' ? 'A personal link works for a limited time and this one is past its date. To take the report, buy a new one.'
+            : reason === 'completed' ? 'A personal link opens the report once, and this one has been used. To take it again, buy a new one.'
+            : 'Check that you opened the whole link from your email. If it still does not work, you can buy the report here.';
+    }
     el.innerHTML = '<div class="hdlw-shell"><div class="hdlw-error-card">'
       + '<p class="hdlw-error-eyebrow">Assessment link</p>'
       + '<h3 class="hdlw-error-title">' + title + '</h3>'
       + '<p class="hdlw-error-msg">' + msg + '</p>'
+      + (paid ? buyLink(el, publicCfg) : '')
       + '</div></div>';
+  }
+
+  // ---------- PAID MODE (v0.47.85) ----------
+
+  // Which screen a widget shows. Pure, so the test suite can run it as is.
+  // 'retry' = the link check itself did not answer (a limit, the network):
+  // that says nothing about the link, so it must never read as a bad one.
+  function accessScreen(hasToken, verify, paidAttr, publicCfg) {
+    if (hasToken) {
+      if (!verify || verify.code) return 'retry';
+      return verify.valid ? 'questions' : 'error';
+    }
+    if (paidAttr || (publicCfg && publicCfg.access_mode === 'paid')) return 'locked';
+    return 'questions';
+  }
+
+  // What to tell someone whose answers did not reach the server. Pure.
+  // status is the reply's HTTP status, 0 when the request itself failed.
+  // Send again is offered only where the same answers can get through on a
+  // second try (a limit, a server fault, the network), never for a refusal
+  // of the answers themselves.
+  function notSaved(body, hasLink, status) {
+    body = body || {};
+    if (body.code === 'ticket_required') {
+      return { head: 'Your personal link did not work', msg: body.message || 'Your answers were not saved.', again: false };
+    }
+    if (status && status !== 429 && status < 500) {
+      return {
+        head: 'Your answers were not saved',
+        msg: (body.message || 'These answers could not be accepted.')
+          + (hasLink ? ' Please open your personal link again and enter your details again.' : ' Please reload this page and enter your details again.'),
+        again: false
+      };
+    }
+    var mins = body.retry_after ? Math.ceil(body.retry_after / 60) : 0;
+    var msg = mins
+      ? 'Too many answers have come from your network in the last hour. Please send again in ' + mins + (mins === 1 ? ' minute.' : ' minutes.')
+      : (body.message || 'We could not reach the server. Check your connection, then send again.');
+    if (hasLink && !/link still works/i.test(msg)) msg += ' Your personal link still works.';
+    return { head: 'Your answers are not saved yet', msg: msg + ' Keep this page open.', again: true };
+  }
+
+  // The holding address for this embed: the built-in one only for the live
+  // API (a test embed never posts to the production list), or the test
+  // page's override. Pure apart from reading the override.
+  function holdUrlFor(apiUrl) {
+    if (typeof window !== 'undefined' && window.HDLW_HOLD_URL) return String(window.HDLW_HOLD_URL);
+    return /^https:\/\/healthdatalab\.net\//.test(apiUrl || '') ? HOLD_URL_DEFAULT : '';
+  }
+
+  // Keep the answers on the holding list? Only for a server that is busy,
+  // limited, faulty or silent (status 0), never for a refusal of the answers
+  // themselves, never with a personal link, never without a holding address.
+  function shouldHold(status, body, hasInvite, holdUrl) {
+    if (hasInvite || !holdUrl) return false;
+    if (body && body.code === 'server_busy') return true;
+    return status === 0 || status === 429 || status === 500 || status === 502 || status === 503 || status === 504;
+  }
+
+  function heldCopy() {
+    return {
+      head: 'We\u2019ve got your answers',
+      msg: 'Our server is busy right now, so we have kept them safe. Your report will follow by email, usually within a few hours. You can close this page.'
+    };
+  }
+
+  // The link check was stopped by a limit or the network. No Buy here: the
+  // link may be perfectly good.
+  function showLinkRetry(el) {
+    loadFonts();
+    injectEditorialStyles();
+    el.innerHTML = '<div class="hdlw-shell"><div class="hdlw-error-card hdlw-locked">'
+      + '<p class="hdlw-error-eyebrow">Assessment link</p>'
+      + '<h3 class="hdlw-error-title">We could not check your link just now</h3>'
+      + '<p class="hdlw-error-msg">Nothing is wrong with your link. Please try again shortly.</p>'
+      + '<a class="hdlw-buy" href="' + escHtml(window.location.href) + '">Try again</a>'
+      + '</div></div>';
+  }
+
+  // The Buy button is only ever drawn for an https: address.
+  function safeBuyUrl(url) {
+    return (typeof url === 'string' && /^https:\/\//i.test(url)) ? url : '';
+  }
+
+  function buyLink(el, publicCfg) {
+    var url = safeBuyUrl((publicCfg && publicCfg.buy_url) || el.getAttribute('data-buy-url') || '');
+    return url ? '<a class="hdlw-buy" href="' + escHtml(url) + '">Buy the report</a>' : '';
+  }
+
+  // A visitor without a personal link sees this instead of the questions.
+  // Drawn from the embed's own attributes (or the public-config answer the
+  // caller already holds), so it asks the server nothing.
+  function showLocked(el, publicCfg) {
+    loadFonts();
+    injectEditorialStyles();
+    var cfg = publicCfg || {};
+    var logo = cfg.logo_url || el.getAttribute('data-logo') || '';
+    var shape = cfg.logo_shape || el.getAttribute('data-logo-shape') || 'square';
+    if (shape !== 'square' && shape !== 'wordmark' && shape !== 'tall') shape = 'square';
+    var name = cfg.practitioner_name || el.getAttribute('data-practitioner-name') || 'your practitioner';
+    // v0.48.15 (H5) — the Stage 1 price, from the embed code (no request) or
+    // an old snippet's public-config. "Free with your code" waits for the
+    // seller to take codes (HDLV2_Offer stage1_free_with_code).
+    var price = String(cfg.stage1_list_price || el.getAttribute('data-stage1-price') || '');
+    if (!/^\d{1,6}(\.\d{1,2})?$/.test(price)) price = '';
+    var currency = cfg.currency || el.getAttribute('data-currency') || '$';
+    var free = price && (cfg.stage1_free_with_code === true || el.getAttribute('data-free-with-code') === '1');
+    try { el.style.setProperty('--hdl-accent', cfg.theme_color || el.getAttribute('data-color') || B.teal); } catch (e) { /* no-op */ }
+    el.innerHTML = '<div class="hdlw-shell"><div class="hdlw-error-card hdlw-locked">'
+      + (logo ? '<div class="hdlw-logo" data-shape="' + shape + '"><img src="' + escHtml(logo) + '" alt=""></div>' : '')
+      + '<p class="hdlw-error-eyebrow">' + (price ? 'Stage 1 &middot; Rate of ageing report' : 'Rate of ageing report') + '</p>'
+      + '<h3 class="hdlw-error-title">This report opens with a personal link</h3>'
+      + (price ? '<p class="hdlw-locked-price">Normally ' + escHtml(currency + price) + '.' + (free ? ' Free with your code.' : '') + '</p>' : '')
+      + '<p class="hdlw-error-msg">' + (free
+        ? 'Use your code on the Buy page and your personal link arrives by email. Open it and the nine questions start on this page.'
+        : 'When you buy the report from ' + escHtml(name) + ', your link arrives by email. Open it and the questions start on this page.') + '</p>'
+      + buyLink(el, publicCfg)
+      + '</div></div>';
+  }
+
+  // An invite link that did not verify. Old embeds carry no data-access, so
+  // ask public-config whether this page sells the report.
+  function inviteFailed(el, reason) {
+    if (el.getAttribute('data-access') === 'paid') { showInviteError(el, reason, true, null); return; }
+    pullPublicConfig(el, function (publicCfg) {
+      showInviteError(el, reason, !!publicCfg && publicCfg.access_mode === 'paid', publicCfg);
+    });
   }
 
   // ---------- WIDGET BUILDER ----------
@@ -467,7 +660,11 @@
       // is set for this practitioner. Invite path always shows Book when
       // cta_link is configured (separate code path; this flag only gates
       // the public-path render).
-      showBookOnPublic: false
+      showBookOnPublic: false,
+      // v0.48.16 — name + email handed over by the host page (a sign-up page
+      // that already asked for them). Prefill only; both stay editable.
+      prefillName: (el.getAttribute('data-prefill-name') || '').trim().slice(0, 200),
+      prefillEmail: (el.getAttribute('data-prefill-email') || '').trim().slice(0, 254)
     };
 
     // v0.35.0 (Phase O) — public-config overlay. The init layer fetches
@@ -508,6 +705,10 @@
       inviteName = invite.client_name || '';
       inviteEmail = invite.client_email || '';
     }
+    // v0.47.85 — a paid Stage 1 ticket is an invite that buys the PUBLIC
+    // path: the token rides with the answers, but the result page is the
+    // public one (no "Continue to Stage 2").
+    var fastInvite = !!inviteToken && invite.source !== 'paid_stage1';
     // Defensive — legacy practitioners without a logo_shape on file land
     // on 'square' (centred circle). Any unknown value also falls through
     // to 'square' so the CSS always finds a matching rule.
@@ -598,7 +799,7 @@
       +     '<div id="' + id + '-content"></div>'
       +     '<div class="hdlw-footer">'
       +       pracBlock
-      +       '<span class="hdlw-powered">Powered by <b>HealthDataLab</b></span>'
+      +       '<span class="hdlw-powered">Powered by <b>HealthDataLab</b> · a partnership focused on longevity</span>'
       +     '</div>'
       +   '</div>'
       + '</div>';
@@ -633,8 +834,12 @@
       updateNavArrows();
     }
 
+    // v0.48.19 — the step is fixed at click time. A second click inside the
+    // delay (or a goTo in between) used to move on twice and skip the
+    // contact step; now a stale timer does nothing.
     function advance() {
-      setTimeout(function () { goTo(currentStep + 1); }, 250);
+      var from = currentStep;
+      setTimeout(function () { if (currentStep === from) goTo(from + 1); }, 250);
     }
 
     function goBack() {
@@ -907,6 +1112,11 @@
         +   '<p class="hdlw-privacy">Your details are shared only with <b>' + pracForCopy + '</b>.</p>'
         + '</div>';
 
+      if (!isInv) {
+        if (cfg.prefillName) document.getElementById(id + '-name').value = cfg.prefillName;
+        if (cfg.prefillEmail) document.getElementById(id + '-email').value = cfg.prefillEmail;
+      }
+
       document.getElementById(id + '-submit').addEventListener('click', function () {
         var name = isInv ? inviteName : valOf(id + '-name');
         var email = isInv ? inviteEmail : valOf(id + '-email');
@@ -1149,6 +1359,16 @@
     // call. Practitioner sites embed the widget in a sandbox so we keep
     // every style inline.
     function renderResult() {
+      // v0.48.19 — never post without the contact step: any path that lands
+      // here with no name or email goes back to "Where shall we send it?".
+      if (!answers._name || !answers._email) {
+        goTo(9);
+        if (!inviteToken) {
+          if (!valOf(id + '-name')) markErr(id + '-name');
+          if (!valOf(id + '-email')) markErr(id + '-email');
+        }
+        return;
+      }
       // Local HTML-escape helper. Defence in depth — the only user-supplied
       // strings here are answers._name and cfg.pracName, but both flow into
       // an HTML string concatenation, so we sanitise before insertion.
@@ -1176,13 +1396,13 @@
         bandClass = 'good';
         bandLabel = 'Slower \u2014 in your favour';
         awakenP1  = firstName + ', your rate of ageing of ' + rateDisplay + '\u00d7 tells us you\u2019re currently ageing about ' + pct + '% slower than the calendar suggests. That puts your biological age at ' + (bio !== null ? bio + ' years' : 'in line with your chronological age') + (age ? ', against your chronological age of ' + age + '.' : '.');
-        awakenP3  = 'A ' + rateDisplay + '\u00d7 rate means your current habits are working in your favour. Stage 2 captures why this matters to you, and Stage 3 gives your practitioner the granularity to fine-tune it from here.';
+        awakenP3  = 'A ' + rateDisplay + '\u00d7 rate means your current habits are working in your favour. The Full Report shows what matters most to you and what your real measurements say, so your practitioner can plan with you.';
       } else if (rate <= 1.05) {
         bandColor = '#3d8da0'; // average (teal)
         bandClass = 'avg';
         bandLabel = 'On average';
         awakenP1  = firstName + ', your rate of ageing of ' + rateDisplay + '\u00d7 puts you roughly at the population average. Your biological age is ' + (bio !== null ? bio + ' years' : 'close to your chronological age') + (age ? ', against your chronological ' + age + '.' : '.');
-        awakenP3  = 'A ' + rateDisplay + '\u00d7 rate is right around average \u2014 small, focused changes could shift this meaningfully. Stage 2 captures why a healthier ageing arc matters to you, and Stage 3 gives your practitioner the data to design what\u2019s next.';
+        awakenP3  = 'A ' + rateDisplay + '\u00d7 rate is right around average \u2014 small, focused changes could shift this meaningfully. The Full Report shows what matters most to you and what your real measurements say, so your practitioner can plan with you.';
       } else {
         bandColor = '#c2410c'; // warn (amber-red)
         bandClass = 'warn';
@@ -1248,7 +1468,7 @@
       //     will feel difficult"). Practitioners who want a single Calendly
       //     CTA on their embed can flip the toggle in Widget Settings.
       var showBookOnPublic = !!cfg.showBookOnPublic;
-      var showBook = hasCtaLink && (!!inviteToken || showBookOnPublic);
+      var showBook = hasCtaLink && (fastInvite || showBookOnPublic);
       var bookSessionBtn = showBook
         ? '<a class="hdlw-r-btn-secondary" href="' + cfg.ctaLink + '" target="_blank" rel="noopener">' + escapeHtml(cfg.ctaText) + '</a>'
         : '';
@@ -1299,6 +1519,13 @@
         + '.hdlw-r-next-list li{counter-increment:step;position:relative;padding:14px 14px 14px 56px;font-size:14px;color:#555;line-height:1.5;background:#fafbfc;border:1px solid #e4e6ea;border-radius:10px;margin:0 0 8px;}'
         + '.hdlw-r-next-list li::before{content:counter(step);position:absolute;left:14px;top:50%;transform:translateY(-50%);width:28px;height:28px;border-radius:50%;background:#3d8da0;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;}'
         + '.hdlw-r-next-list li strong{color:#111;font-weight:600;}'
+        + '.hdlw-r-status{font-size:13px;color:#888;font-style:italic;}'
+        + '.hdlw-r-notsaved, .hdlw-r-held{background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:14px 16px;text-align:left;color:#92400e;font-size:13.5px;line-height:1.5;font-style:normal;}'
+        + '.hdlw-r-notsaved strong, .hdlw-r-held strong{display:block;margin-bottom:4px;}'
+        + '.hdlw-r-again{margin-top:12px;padding:10px 22px;background:#004F59;color:#fff;border:1px solid #004F59;border-radius:999px;font-family:inherit;font-size:13.5px;font-weight:600;cursor:pointer;}'
+        + '.hdlw-r-again:hover{background:#003a42;}'
+        + '.hdlw-r-again:focus-visible{outline:2px solid #3d8da0;outline-offset:3px;}'
+        + '.hdlw-r-again:disabled{opacity:.6;cursor:default;}'
         + '.hdlw-r-buttons{display:flex;flex-direction:column;align-items:center;gap:8px;}'
         + '.hdlw-r-buttons-continue{width:100%;display:flex;flex-direction:column;align-items:center;gap:8px;}'
         // v0.35.0 (Phase O) — public-path thank-you wall styling. Single
@@ -1428,13 +1655,12 @@
         //   intentional: it forces the practitioner-confirm gate that
         //   keeps the dashboard spam-free.
         +     '<div class="hdlw-r-card">'
-        +       ( inviteToken
+        +       ( fastInvite
             ? ''
             +   '<h2>What Happens Next</h2>'
-            +   '<p class="hdlw-r-lede">Your gauge is a snapshot. The next two stages turn it into a plan.</p>'
+            +   '<p class="hdlw-r-lede">Your gauge is a snapshot. The Full Report turns it into a plan.</p>'
             +   '<ol class="hdlw-r-next-list">'
-            +     '<li><strong>Stage 2 \u2014 Your WHY.</strong> Tell us what motivates you. We capture your reasons in your own words. ~10 minutes.</li>'
-            +     '<li><strong>Stage 3 \u2014 Full Health Detail.</strong> Replace today\u2019s visual estimates with real measurements (body, fitness, sleep, lifestyle).</li>'
+            +     '<li><strong>The Full Report.</strong> What matters most to you, then your real measurements: the full picture, reviewed by your practitioner.</li>'
             +     '<li><strong>Your Trajectory Plan arrives.</strong> Reviewed by your practitioner, with your weekly Flight Plan to follow.</li>'
             +   '</ol>'
             +   '<div class="hdlw-r-buttons">'
@@ -1444,11 +1670,16 @@
             +     bookSessionBtn
             +   '</div>'
             : ''
-            +   '<h2 class="hdlw-r-thanks-headline">Thank you.</h2>'
-            +   '<p class="hdlw-r-thanks-body">Your practitioner has been sent your data. Once they have looked at your data, you will receive another email.</p>'
-            +   ( showBook
-                ? '<div class="hdlw-r-buttons" style="margin-top:22px;">' + bookSessionBtn + '</div>'
-                : '' )
+            // v0.47.86 — nothing here may say "sent" until the server has
+            // said saved: the thank-you stays hidden and -status reports.
+            +   '<div id="' + id + '-status" class="hdlw-r-status" role="status" aria-live="polite">Sending your answers\u2026</div>'
+            +   '<div id="' + id + '-thanks" hidden>'
+            +     '<h2 class="hdlw-r-thanks-headline">Thank you.</h2>'
+            +     '<p class="hdlw-r-thanks-body">Your practitioner has been sent your data. Once they have looked at your data, you will receive another email.</p>'
+            +     ( showBook
+                  ? '<div class="hdlw-r-buttons" style="margin-top:22px;">' + bookSessionBtn + '</div>'
+                  : '' )
+            +   '</div>'
         )
         +     '</div>'
         +   '</div>'
@@ -1460,6 +1691,7 @@
         // one .hdlw-r-prac-foot wrapper so the page stops feeling like a
         // stack of separate boxes at the bottom of the report.
         + '<div class="hdlw-r-prac-foot">'
+        + '<div id="' + id + '-sent" hidden>'
         +   ( cfg.pracName
             ? '<div class="hdlw-r-foot-line">'
               +   '<span class="hdlw-r-foot-icon">\u2713</span>'
@@ -1472,6 +1704,7 @@
         +     '<span class="hdlw-r-foot-icon"><svg viewBox="0 0 22 16" width="18" height="14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round" aria-hidden="true"><rect x="1" y="1" width="20" height="14" rx="1.5"/><path d="M1.6 2.6l9.4 6.8 9.4-6.8"/></svg></span>'
         +     '<span>A copy of your Quick Insight is on its way to your inbox.</span>'
         +   '</div>'
+        + '</div>'
         +   '<hr class="hdlw-r-foot-divider" />'
         // v0.36.14 — practitioner identity stacked vertically (logo on top,
         // "Your practitioner" overline, name beneath). The .hdlw-r-prac-foot-left
@@ -1510,56 +1743,90 @@
       // and something was ticked). Server sanitises against a key allowlist.
       if (answers._safety) payload.safety = answers._safety;
       if (inviteToken) payload.invite_token = inviteToken;
+      // v0.47.83 — coarse location (country + state) if the init-time geo
+      // lookup resolved. Optional by design: absent when blocked/slow, and
+      // the server validates + discards junk without ever rejecting the lead.
+      if (visitorGeo && visitorGeo.country) {
+        payload.visitor_country = visitorGeo.country;
+        if (visitorGeo.region) payload.visitor_region = visitorGeo.region;
+      }
 
-      if (cfg.apiUrl) {
-        fetch(cfg.apiUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        })
+      // v0.47.86 — the result above is drawn before the answers are posted,
+      // so every "sent" line waits for the server's reply. A refusal, a limit
+      // or a dropped connection says so and offers Send again; the answers
+      // stay on the page (payload) for the resend.
+      var statusEl = document.getElementById(id + '-status') || document.getElementById(id + '-continue');
+      function saved(data) {
+        var sent = document.getElementById(id + '-sent');
+        if (sent) sent.hidden = false;
+        // Invite-fast-path: pre-trusted, immediate magic link.
+        if (data.form_token) {
+          var baseUrl = cfg.apiUrl.replace(/\/wp-json\/.*$/, '');
+          var continueUrl = baseUrl + '/assessment/?token=' + data.form_token;
+          statusEl.innerHTML = ''
+            + '<a class="hdlw-r-btn-primary" href="' + continueUrl + '" target="_blank" rel="noopener">Continue to your Full Report \u2192</a>'
+            + '<p class="hdlw-r-email-note">We\u2019ve also sent this link to your email.</p>';
+          return;
+        }
+        // Public path (and paid tickets): the thank-you wall.
+        statusEl.innerHTML = '';
+        var thanks = document.getElementById(id + '-thanks');
+        if (thanks) thanks.hidden = false;
+      }
+      function failed(body, status) {
+        var n = notSaved(body, !!inviteToken, status);
+        statusEl.innerHTML = '<div class="hdlw-r-notsaved"><strong>' + n.head + '</strong>' + escapeHtml(n.msg)
+          + (n.again ? '<div><button type="button" class="hdlw-r-again">Send again</button></div>' : '')
+          + '</div>';
+        var again = statusEl.querySelector('.hdlw-r-again');
+        if (again) again.addEventListener('click', function () {
+          again.disabled = true;
+          again.textContent = 'Sending\u2026';
+          send();
+        });
+      }
+      // v0.48.16 — the server was busy or silent: the answers are on the
+      // holding list. No Send again; the report follows by email.
+      function held() {
+        var sent = document.getElementById(id + '-sent');
+        if (sent) sent.hidden = true;
+        var c = heldCopy();
+        statusEl.innerHTML = '<div class="hdlw-r-held"><strong>' + c.head + '</strong>' + escapeHtml(c.msg) + '</div>';
+      }
+      var holdUrl = holdUrlFor(cfg.apiUrl);
+      function hold() {
+        var holdPayload = JSON.parse(JSON.stringify(payload));
+        delete holdPayload.invite_token;
+        var opts = { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(holdPayload) };
+        if (typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function') opts.signal = AbortSignal.timeout(LEAD_TIMEOUT_MS);
+        fetch(holdUrl, opts)
+          .then(function (r) { if (r.status === 202) held(); else failed(null, 0); })
+          .catch(function () { failed(null, 0); });
+      }
+      function send() {
+        var opts = { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) };
+        if (typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function') opts.signal = AbortSignal.timeout(LEAD_TIMEOUT_MS);
+        fetch(cfg.apiUrl, opts)
           .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, status: r.status, body: j }; }); })
           .then(function (res) {
-            var contEl = document.getElementById(id + '-continue');
-            if (!contEl) return;
-
-            // Server-side rate limit / cooldown / format error
-            if (!res.ok || res.body.code) {
-              var msg = (res.body && res.body.message)
-                ? res.body.message
-                : 'Something went wrong saving your submission. Please try again in a moment.';
-              contEl.innerHTML = ''
-                + '<div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:10px;padding:14px 16px;text-align:left;color:#9a3412;font-size:13px;line-height:1.5;">'
-                + '<strong style="display:block;margin-bottom:4px;">We couldn\u2019t send your verification email</strong>'
-                + msg
-                + '</div>';
+            if (!statusEl) return;
+            if (!res.ok || !res.body || res.body.code) {
+              if (shouldHold(res.status, res.body, !!inviteToken, holdUrl)) { hold(); return; }
+              failed(res.body, res.status);
               return;
             }
-
-            var data = res.body || {};
-
-            // Invite-fast-path: pre-trusted, immediate magic link.
-            // Phase 17 \u2014 primary CTA styled to match the mockup pill, full
-            // width within the buttons row, dark teal #004F59. The "we've
-            // also sent this link to your email" caption sits below as a
-            // safety-net for clients who walk away.
-            if (data.form_token) {
-              var baseUrl = cfg.apiUrl.replace(/\/wp-json\/.*$/, '');
-              var continueUrl = baseUrl + '/assessment/?token=' + data.form_token;
-              contEl.innerHTML = ''
-                + '<a class="hdlw-r-btn-primary" href="' + continueUrl + '" target="_blank" rel="noopener">Continue to Stage 2 \u2014 Your WHY \u2192</a>'
-                + '<p class="hdlw-r-email-note">We\u2019ve also sent this link to your email.</p>';
-              return;
-            }
-
-            // v0.29.0 — public lead-capture path: no Continue button,
-            // no email card. The practitioner footer above already renders
-            // the "details forwarded to your practitioner" confirm line,
-            // and the Book-a-Session button is rendered inline as the only
-            // CTA. Clear the "Sending your results..." placeholder by
-            // collapsing the continue area to nothing.
-            contEl.innerHTML = '';
+            saved(res.body);
           })
-          .catch(function () { /* silent — gauge already shown */ });
+          .catch(function () {
+            if (!statusEl) return;
+            if (shouldHold(0, null, !!inviteToken, holdUrl)) hold(); else failed(null, 0);
+          });
+      }
+      if (cfg.apiUrl) {
+        send();
+      } else if (statusEl) {
+        // No API (the practitioner's dashboard preview): nothing to save.
+        saved({});
       }
     }
 
@@ -1695,11 +1962,18 @@
     var inviteToken = getInviteToken();
     var widgets = document.querySelectorAll('.hdl-rate-widget');
 
+    // v0.47.85 — a widget locked by its own data-access attribute makes no
+    // request at all, so the geo lookup waits until a widget needs it.
+    var needsGeo = false;
+
     for (var i = 0; i < widgets.length; i++) {
       if (widgets[i].getAttribute('data-hdl-init')) continue;
       widgets[i].setAttribute('data-hdl-init', '1');
 
+      var paidAttr = widgets[i].getAttribute('data-access') === 'paid';
+
       if (inviteToken && i === 0) {
+        needsGeo = true;
         (function (el, token) {
           showSpinner(el);
           var verifyUrl = el.getAttribute('data-verify-api') || '';
@@ -1707,26 +1981,37 @@
             var apiUrl = el.getAttribute('data-api') || '';
             verifyUrl = apiUrl ? apiUrl.replace('/widget/lead', '/widget/verify-invite') : '';
           }
-          if (!verifyUrl) { showInviteError(el, 'invalid'); return; }
+          if (!verifyUrl) { inviteFailed(el, 'invalid'); return; }
 
           fetch(verifyUrl + '?token=' + encodeURIComponent(token))
             .then(function (r) { return r.json(); })
             .then(function (data) {
-              if (data.valid) { data._token = token; buildWidget(el, data); }
-              else { showInviteError(el, data.reason || 'invalid'); }
+              var screen = accessScreen(true, data, false, null);
+              if (screen === 'questions') { data._token = token; buildWidget(el, data); }
+              else if (screen === 'retry') { showLinkRetry(el); }
+              else { inviteFailed(el, data.reason || 'invalid'); }
             })
-            .catch(function () { showInviteError(el, 'invalid'); });
+            .catch(function () { showLinkRetry(el); });
         })(widgets[i], inviteToken);
+      } else if (accessScreen(false, null, paidAttr, null) === 'locked') {
+        showLocked(widgets[i], null);
       } else {
+        needsGeo = true;
         // Public path — fetch fresh config before render, fall back to
         // embed's data-* attributes on timeout/error.
         (function (el) {
           pullPublicConfig(el, function (publicCfg) {
+            // Embeds pasted before data-access existed learn it here.
+            if (accessScreen(false, null, false, publicCfg) === 'locked') { showLocked(el, publicCfg); return; }
             buildWidget(el, null, publicCfg);
           });
         })(widgets[i]);
       }
     }
+
+    // v0.47.83 — kick the geo lookup early so the result is ready long
+    // before the visitor reaches submit.
+    if (needsGeo) prefetchGeo();
   }
 
   if (document.readyState === 'loading') {

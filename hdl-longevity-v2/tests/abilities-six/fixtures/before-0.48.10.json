@@ -1,0 +1,506 @@
+{
+    "worked": {
+        "abilities_profile": [
+            {
+                "id": "strength",
+                "label": "Strength",
+                "count": 4,
+                "score": 2.5,
+                "measures": [
+                    {
+                        "label": "Chair stand (30 seconds)",
+                        "score": 3,
+                        "source": "stage3"
+                    },
+                    {
+                        "label": "Getting up from the floor",
+                        "score": 2,
+                        "source": "stage1"
+                    }
+                ],
+                "indirect": false,
+                "focus": true
+            },
+            {
+                "id": "mobility",
+                "label": "Mobility",
+                "count": 2,
+                "score": 2,
+                "measures": [
+                    {
+                        "label": "Getting up from the floor",
+                        "score": 2,
+                        "source": "stage1"
+                    }
+                ],
+                "indirect": false,
+                "focus": true
+            },
+            {
+                "id": "flexibility",
+                "label": "Flexibility",
+                "count": 1,
+                "score": 2,
+                "measures": [
+                    {
+                        "label": "Getting up from the floor",
+                        "score": 2,
+                        "source": "stage1"
+                    }
+                ],
+                "indirect": true,
+                "focus": false
+            },
+            {
+                "id": "balance",
+                "label": "Balance",
+                "count": 4,
+                "score": 1,
+                "measures": [
+                    {
+                        "label": "Standing on one leg",
+                        "score": 1,
+                        "source": "stage3"
+                    }
+                ],
+                "indirect": false,
+                "focus": true
+            },
+            {
+                "id": "stamina",
+                "label": "Stamina",
+                "count": 1,
+                "score": 4,
+                "measures": [
+                    {
+                        "label": "Physical activity",
+                        "score": 4,
+                        "source": "stage3"
+                    },
+                    {
+                        "label": "Climbing stairs",
+                        "score": 4,
+                        "source": "stage1"
+                    },
+                    {
+                        "label": "Resting heart rate",
+                        "score": null,
+                        "source": "stage3"
+                    }
+                ],
+                "indirect": false,
+                "focus": false
+            },
+            {
+                "id": "mind",
+                "label": "A sharp mind",
+                "count": 1,
+                "score": 2.3,
+                "measures": [
+                    {
+                        "label": "Mental activity",
+                        "score": 2,
+                        "source": "stage3"
+                    },
+                    {
+                        "label": "Stress",
+                        "score": 3,
+                        "source": "stage3"
+                    },
+                    {
+                        "label": "Sleep quality",
+                        "score": 2,
+                        "source": "stage3"
+                    }
+                ],
+                "indirect": false,
+                "focus": false
+            },
+            {
+                "id": "connection",
+                "label": "Connection",
+                "count": 1,
+                "score": 5,
+                "measures": [
+                    {
+                        "label": "Time with people",
+                        "score": 5,
+                        "source": "stage3"
+                    }
+                ],
+                "indirect": false,
+                "focus": false
+            }
+        ],
+        "prompt_block_draft": "=== WHAT THIS CLIENT CHOSE (picked from a list, their own priorities for later life) ===\n- Play on the floor with my grandkids (People I love) [depends on: mobility, flexibility, strength]\n- Pick up a grandchild for a hug (People I love) [depends on: strength, balance]\n- Stay in my own home, on my terms (My freedom) [depends on: strength, balance, mind]\n- Keep playing the sport I love (Things I love) [depends on: mobility, strength, balance]\n- Hike the hills with friends (Things I love) [depends on: stamina, balance, connection]\nAbilities these choices depend on most: strength (4), balance (4), mobility (2), flexibility (1), stamina (1), mind (1), connection (1)\nPeople they named: Jenny\nIn LIFT, where one of their weakest scores limits an ability these choices depend on, say so in one clause and name the choice. In THRIVE, use their choices and the people they named. Do not invent choices or people that are not listed here.\nWhat their choices depend on, with what was measured (out of 5, higher is better; Stage 1 answers run 1 to 5, Stage 3 answers 0 to 5):\n- Strength: 4 of their choices; measured 2.5/5 from Chair stand (30 seconds) 3/5, Getting up from the floor (Stage 1) 2/5\n- Mobility: 2 of their choices; measured 2/5 from Getting up from the floor (Stage 1) 2/5\n- Flexibility: 1 of their choices; nearest measure 2/5 from Getting up from the floor (Stage 1) 2/5\n- Balance: 4 of their choices; measured 1/5 from Standing on one leg 1/5\n- Stamina: 1 of their choices; measured 4/5 from Physical activity 4/5, Climbing stairs (Stage 1) 4/5\n- A sharp mind: 1 of their choices; measured 2.3/5 from Mental activity 2/5, Stress 3/5, Sleep quality 2/5\n- Connection: 1 of their choices; measured 5/5 from Time with people 5/5\nFocus areas (most chosen, weakest measured): Balance, Strength, Mobility\nHOW TO USE THESE CHOICES: this client has one assessment, so describe where they stand today against what each choice needs, not a trend. For each focus area, name the choice it serves (quote the statement word for word), the measure that drags it, and what keeping that ability over the coming years needs. Where a measure is above what a choice needs, say so in one clause and name the choice. Explain the client's position in terms of their choices, never in abilities alone. Do not invent choices or people that are not listed here.\nUse the focus areas to decide what LIFT puts first. Name the choice each one serves.\nDo not quote these ability scores as if they were one of the 21 health scores; they are averages for your guidance.\n\n",
+        "prompt_block_facts": "=== WHAT THIS CLIENT CHOSE (picked from a list, their own priorities for later life) ===\n- Play on the floor with my grandkids (People I love) [depends on: mobility, flexibility, strength]\n- Pick up a grandchild for a hug (People I love) [depends on: strength, balance]\n- Stay in my own home, on my terms (My freedom) [depends on: strength, balance, mind]\n- Keep playing the sport I love (Things I love) [depends on: mobility, strength, balance]\n- Hike the hills with friends (Things I love) [depends on: stamina, balance, connection]\nAbilities these choices depend on most: strength (4), balance (4), mobility (2), flexibility (1), stamina (1), mind (1), connection (1)\nPeople they named: Jenny\nWhat their choices depend on, with what was measured (out of 5, higher is better; Stage 1 answers run 1 to 5, Stage 3 answers 0 to 5):\n- Strength: 4 of their choices; measured 2.5/5 from Chair stand (30 seconds) 3/5, Getting up from the floor (Stage 1) 2/5\n- Mobility: 2 of their choices; measured 2/5 from Getting up from the floor (Stage 1) 2/5\n- Flexibility: 1 of their choices; nearest measure 2/5 from Getting up from the floor (Stage 1) 2/5\n- Balance: 4 of their choices; measured 1/5 from Standing on one leg 1/5\n- Stamina: 1 of their choices; measured 4/5 from Physical activity 4/5, Climbing stairs (Stage 1) 4/5\n- A sharp mind: 1 of their choices; measured 2.3/5 from Mental activity 2/5, Stress 3/5, Sleep quality 2/5\n- Connection: 1 of their choices; measured 5/5 from Time with people 5/5\nFocus areas (most chosen, weakest measured): Balance, Strength, Mobility\nHOW TO USE THESE CHOICES: this client has one assessment, so describe where they stand today against what each choice needs, not a trend. For each focus area, name the choice it serves (quote the statement word for word), the measure that drags it, and what keeping that ability over the coming years needs. Where a measure is above what a choice needs, say so in one clause and name the choice. Explain the client's position in terms of their choices, never in abilities alone. Do not invent choices or people that are not listed here.\nDo not quote these ability scores as if they were one of the 21 health scores; they are averages for your guidance.\n\n",
+        "payload_fields": {
+            "why_picks": "Play on the floor with my grandkids | Pick up a grandchild for a hug | Stay in my own home, on my terms | Keep playing the sport I love | Hike the hills with friends",
+            "why_abilities": "Strength (4, focus area) | Mobility (2, focus area) | Flexibility (1) | Balance (4, focus area) | Stamina (1) | A sharp mind (1) | Connection (1)",
+            "why_focus_areas": "Strength, Mobility, Balance",
+            "why_people": "Jenny",
+            "why_own_words": "",
+            "why_picks_people": "Play on the floor with my grandkids | Pick up a grandchild for a hug",
+            "why_picks_freedom": "Stay in my own home, on my terms",
+            "why_picks_things": "Keep playing the sport I love | Hike the hills with friends"
+        },
+        "second_form_ties": {
+            "sitToStand": {
+                "ability": "strength",
+                "count": 4,
+                "choice": "Play on the floor with my grandkids"
+            },
+            "balance": {
+                "ability": "balance",
+                "count": 4,
+                "choice": "Pick up a grandchild for a hug"
+            },
+            "physicalActivity": {
+                "ability": "stamina",
+                "count": 1,
+                "choice": "Hike the hills with friends"
+            },
+            "cognitiveActivity": {
+                "ability": "mind",
+                "count": 1,
+                "choice": "Stay in my own home, on my terms"
+            },
+            "stressLevels": {
+                "ability": "mind",
+                "count": 1,
+                "choice": "Stay in my own home, on my terms"
+            },
+            "sleepQuality": {
+                "ability": "mind",
+                "count": 1,
+                "choice": "Stay in my own home, on my terms"
+            },
+            "socialConnections": {
+                "ability": "connection",
+                "count": 1,
+                "choice": "Hike the hills with friends"
+            }
+        }
+    },
+    "ten_strength": {
+        "abilities_profile": [
+            {
+                "id": "strength",
+                "label": "Strength",
+                "count": 10,
+                "score": 2.5,
+                "measures": [
+                    {
+                        "label": "Chair stand (30 seconds)",
+                        "score": 3,
+                        "source": "stage3"
+                    },
+                    {
+                        "label": "Getting up from the floor",
+                        "score": 2,
+                        "source": "stage1"
+                    }
+                ],
+                "indirect": false,
+                "focus": true
+            },
+            {
+                "id": "mobility",
+                "label": "Mobility",
+                "count": 5,
+                "score": 2,
+                "measures": [
+                    {
+                        "label": "Getting up from the floor",
+                        "score": 2,
+                        "source": "stage1"
+                    }
+                ],
+                "indirect": false,
+                "focus": true
+            },
+            {
+                "id": "flexibility",
+                "label": "Flexibility",
+                "count": 1,
+                "score": 2,
+                "measures": [
+                    {
+                        "label": "Getting up from the floor",
+                        "score": 2,
+                        "source": "stage1"
+                    }
+                ],
+                "indirect": true,
+                "focus": false
+            },
+            {
+                "id": "balance",
+                "label": "Balance",
+                "count": 6,
+                "score": 1,
+                "measures": [
+                    {
+                        "label": "Standing on one leg",
+                        "score": 1,
+                        "source": "stage3"
+                    }
+                ],
+                "indirect": false,
+                "focus": true
+            },
+            {
+                "id": "stamina",
+                "label": "Stamina",
+                "count": 1,
+                "score": 4,
+                "measures": [
+                    {
+                        "label": "Physical activity",
+                        "score": 4,
+                        "source": "stage3"
+                    },
+                    {
+                        "label": "Climbing stairs",
+                        "score": 4,
+                        "source": "stage1"
+                    },
+                    {
+                        "label": "Resting heart rate",
+                        "score": null,
+                        "source": "stage3"
+                    }
+                ],
+                "indirect": false,
+                "focus": false
+            },
+            {
+                "id": "mind",
+                "label": "A sharp mind",
+                "count": 2,
+                "score": 2.3,
+                "measures": [
+                    {
+                        "label": "Mental activity",
+                        "score": 2,
+                        "source": "stage3"
+                    },
+                    {
+                        "label": "Stress",
+                        "score": 3,
+                        "source": "stage3"
+                    },
+                    {
+                        "label": "Sleep quality",
+                        "score": 2,
+                        "source": "stage3"
+                    }
+                ],
+                "indirect": false,
+                "focus": false
+            },
+            {
+                "id": "connection",
+                "label": "Connection",
+                "count": 1,
+                "score": 5,
+                "measures": [
+                    {
+                        "label": "Time with people",
+                        "score": 5,
+                        "source": "stage3"
+                    }
+                ],
+                "indirect": false,
+                "focus": false
+            }
+        ],
+        "prompt_block_draft": "=== WHAT THIS CLIENT CHOSE (picked from a list, their own priorities for later life) ===\n- Pick up a grandchild for a hug (People I love) [depends on: strength, balance]\n- Help a loved one who has hurt themselves (People I love) [depends on: strength, balance, mobility, connection]\n- Never burden loved ones in my last decade (My freedom) [depends on: strength, balance, mind]\n- Stay in my own home, on my terms (My freedom) [depends on: strength, balance, mind]\n- Walk anywhere and climb stairs with confidence (My freedom) [depends on: strength, balance]\n- Feel robust and get back up by myself if I trip (My freedom) [depends on: strength, mobility]\n- Keep playing the sport I love (Things I love) [depends on: mobility, strength, balance]\n- Spend a whole day pottering in my garden (Things I love) [depends on: strength, mobility]\n- Swim in the sea (Things I love) [depends on: stamina, strength]\n- Play on the floor with my grandkids (People I love) [depends on: mobility, flexibility, strength]\nAbilities these choices depend on most: strength (10), balance (6), mobility (5), mind (2), flexibility (1), stamina (1), connection (1)\nPeople they named: Jenny\nIn LIFT, where one of their weakest scores limits an ability these choices depend on, say so in one clause and name the choice. In THRIVE, use their choices and the people they named. Do not invent choices or people that are not listed here.\nWhat their choices depend on, with what was measured (out of 5, higher is better; Stage 1 answers run 1 to 5, Stage 3 answers 0 to 5):\n- Strength: 10 of their choices; measured 2.5/5 from Chair stand (30 seconds) 3/5, Getting up from the floor (Stage 1) 2/5\n- Mobility: 5 of their choices; measured 2/5 from Getting up from the floor (Stage 1) 2/5\n- Flexibility: 1 of their choices; nearest measure 2/5 from Getting up from the floor (Stage 1) 2/5\n- Balance: 6 of their choices; measured 1/5 from Standing on one leg 1/5\n- Stamina: 1 of their choices; measured 4/5 from Physical activity 4/5, Climbing stairs (Stage 1) 4/5\n- A sharp mind: 2 of their choices; measured 2.3/5 from Mental activity 2/5, Stress 3/5, Sleep quality 2/5\n- Connection: 1 of their choices; measured 5/5 from Time with people 5/5\nFocus areas (most chosen, weakest measured): Strength, Balance, Mobility\nHOW TO USE THESE CHOICES: this client has one assessment, so describe where they stand today against what each choice needs, not a trend. For each focus area, name the choice it serves (quote the statement word for word), the measure that drags it, and what keeping that ability over the coming years needs. Where a measure is above what a choice needs, say so in one clause and name the choice. Explain the client's position in terms of their choices, never in abilities alone. Do not invent choices or people that are not listed here.\nUse the focus areas to decide what LIFT puts first. Name the choice each one serves.\nDo not quote these ability scores as if they were one of the 21 health scores; they are averages for your guidance.\n\n",
+        "prompt_block_facts": "=== WHAT THIS CLIENT CHOSE (picked from a list, their own priorities for later life) ===\n- Pick up a grandchild for a hug (People I love) [depends on: strength, balance]\n- Help a loved one who has hurt themselves (People I love) [depends on: strength, balance, mobility, connection]\n- Never burden loved ones in my last decade (My freedom) [depends on: strength, balance, mind]\n- Stay in my own home, on my terms (My freedom) [depends on: strength, balance, mind]\n- Walk anywhere and climb stairs with confidence (My freedom) [depends on: strength, balance]\n- Feel robust and get back up by myself if I trip (My freedom) [depends on: strength, mobility]\n- Keep playing the sport I love (Things I love) [depends on: mobility, strength, balance]\n- Spend a whole day pottering in my garden (Things I love) [depends on: strength, mobility]\n- Swim in the sea (Things I love) [depends on: stamina, strength]\n- Play on the floor with my grandkids (People I love) [depends on: mobility, flexibility, strength]\nAbilities these choices depend on most: strength (10), balance (6), mobility (5), mind (2), flexibility (1), stamina (1), connection (1)\nPeople they named: Jenny\nWhat their choices depend on, with what was measured (out of 5, higher is better; Stage 1 answers run 1 to 5, Stage 3 answers 0 to 5):\n- Strength: 10 of their choices; measured 2.5/5 from Chair stand (30 seconds) 3/5, Getting up from the floor (Stage 1) 2/5\n- Mobility: 5 of their choices; measured 2/5 from Getting up from the floor (Stage 1) 2/5\n- Flexibility: 1 of their choices; nearest measure 2/5 from Getting up from the floor (Stage 1) 2/5\n- Balance: 6 of their choices; measured 1/5 from Standing on one leg 1/5\n- Stamina: 1 of their choices; measured 4/5 from Physical activity 4/5, Climbing stairs (Stage 1) 4/5\n- A sharp mind: 2 of their choices; measured 2.3/5 from Mental activity 2/5, Stress 3/5, Sleep quality 2/5\n- Connection: 1 of their choices; measured 5/5 from Time with people 5/5\nFocus areas (most chosen, weakest measured): Strength, Balance, Mobility\nHOW TO USE THESE CHOICES: this client has one assessment, so describe where they stand today against what each choice needs, not a trend. For each focus area, name the choice it serves (quote the statement word for word), the measure that drags it, and what keeping that ability over the coming years needs. Where a measure is above what a choice needs, say so in one clause and name the choice. Explain the client's position in terms of their choices, never in abilities alone. Do not invent choices or people that are not listed here.\nDo not quote these ability scores as if they were one of the 21 health scores; they are averages for your guidance.\n\n",
+        "payload_fields": {
+            "why_picks": "Pick up a grandchild for a hug | Help a loved one who has hurt themselves | Never burden loved ones in my last decade | Stay in my own home, on my terms | Walk anywhere and climb stairs with confidence | Feel robust and get back up by myself if I trip | Keep playing the sport I love | Spend a whole day pottering in my garden | Swim in the sea | Play on the floor with my grandkids",
+            "why_abilities": "Strength (10, focus area) | Mobility (5, focus area) | Flexibility (1) | Balance (6, focus area) | Stamina (1) | A sharp mind (2) | Connection (1)",
+            "why_focus_areas": "Strength, Mobility, Balance",
+            "why_people": "Jenny",
+            "why_own_words": "",
+            "why_picks_people": "Pick up a grandchild for a hug | Help a loved one who has hurt themselves | Play on the floor with my grandkids",
+            "why_picks_freedom": "Never burden loved ones in my last decade | Stay in my own home, on my terms | Walk anywhere and climb stairs with confidence | Feel robust and get back up by myself if I trip",
+            "why_picks_things": "Keep playing the sport I love | Spend a whole day pottering in my garden | Swim in the sea"
+        },
+        "second_form_ties": {
+            "sitToStand": {
+                "ability": "strength",
+                "count": 10,
+                "choice": "Pick up a grandchild for a hug"
+            },
+            "balance": {
+                "ability": "balance",
+                "count": 6,
+                "choice": "Pick up a grandchild for a hug"
+            },
+            "physicalActivity": {
+                "ability": "stamina",
+                "count": 1,
+                "choice": "Swim in the sea"
+            },
+            "cognitiveActivity": {
+                "ability": "mind",
+                "count": 2,
+                "choice": "Never burden loved ones in my last decade"
+            },
+            "stressLevels": {
+                "ability": "mind",
+                "count": 2,
+                "choice": "Never burden loved ones in my last decade"
+            },
+            "sleepQuality": {
+                "ability": "mind",
+                "count": 2,
+                "choice": "Never burden loved ones in my last decade"
+            },
+            "socialConnections": {
+                "ability": "connection",
+                "count": 1,
+                "choice": "Help a loved one who has hurt themselves"
+            }
+        }
+    },
+    "mixed": {
+        "abilities_profile": [
+            {
+                "id": "flexibility",
+                "label": "Flexibility",
+                "count": 1,
+                "score": 2,
+                "measures": [
+                    {
+                        "label": "Getting up from the floor",
+                        "score": 2,
+                        "source": "stage1"
+                    }
+                ],
+                "indirect": true,
+                "focus": false
+            },
+            {
+                "id": "stamina",
+                "label": "Stamina",
+                "count": 1,
+                "score": 4,
+                "measures": [
+                    {
+                        "label": "Physical activity",
+                        "score": 4,
+                        "source": "stage3"
+                    },
+                    {
+                        "label": "Climbing stairs",
+                        "score": 4,
+                        "source": "stage1"
+                    },
+                    {
+                        "label": "Resting heart rate",
+                        "score": null,
+                        "source": "stage3"
+                    }
+                ],
+                "indirect": false,
+                "focus": false
+            },
+            {
+                "id": "mind",
+                "label": "A sharp mind",
+                "count": 4,
+                "score": 2.3,
+                "measures": [
+                    {
+                        "label": "Mental activity",
+                        "score": 2,
+                        "source": "stage3"
+                    },
+                    {
+                        "label": "Stress",
+                        "score": 3,
+                        "source": "stage3"
+                    },
+                    {
+                        "label": "Sleep quality",
+                        "score": 2,
+                        "source": "stage3"
+                    }
+                ],
+                "indirect": false,
+                "focus": true
+            },
+            {
+                "id": "energy",
+                "label": "Energy and sleep",
+                "count": 3,
+                "score": 3,
+                "measures": [
+                    {
+                        "label": "Sleep duration",
+                        "score": 4,
+                        "source": "stage3"
+                    },
+                    {
+                        "label": "Sleep quality",
+                        "score": 2,
+                        "source": "stage3"
+                    },
+                    {
+                        "label": "Diet",
+                        "score": 3,
+                        "source": "stage3"
+                    }
+                ],
+                "indirect": false,
+                "focus": true
+            }
+        ],
+        "prompt_block_draft": "=== WHAT THIS CLIENT CHOSE (picked from a list, their own priorities for later life) ===\n- Remember every grandchild's name and story (People I love) [depends on: mind]\n- Drive safely (My freedom) [depends on: mind, flexibility]\n- Stay sharp and run my life with enthusiasm (My freedom) [depends on: mind, energy]\n- Wake up full of energy (Things I love) [depends on: energy]\n- Keep doing work that matters to me (Things I love) [depends on: mind, energy]\n- Explore new places (Things I love) [depends on: stamina]\nAbilities these choices depend on most: mind (4), energy (3), flexibility (1), stamina (1)\nPeople they named: Jenny\nIn LIFT, where one of their weakest scores limits an ability these choices depend on, say so in one clause and name the choice. In THRIVE, use their choices and the people they named. Do not invent choices or people that are not listed here.\nWhat their choices depend on, with what was measured (out of 5, higher is better; Stage 1 answers run 1 to 5, Stage 3 answers 0 to 5):\n- Flexibility: 1 of their choices; nearest measure 2/5 from Getting up from the floor (Stage 1) 2/5\n- Stamina: 1 of their choices; measured 4/5 from Physical activity 4/5, Climbing stairs (Stage 1) 4/5\n- A sharp mind: 4 of their choices; measured 2.3/5 from Mental activity 2/5, Stress 3/5, Sleep quality 2/5\n- Energy and sleep: 3 of their choices; measured 3/5 from Sleep duration 4/5, Sleep quality 2/5, Diet 3/5\nFocus areas (most chosen, weakest measured): A sharp mind, Energy and sleep\nHOW TO USE THESE CHOICES: this client has one assessment, so describe where they stand today against what each choice needs, not a trend. For each focus area, name the choice it serves (quote the statement word for word), the measure that drags it, and what keeping that ability over the coming years needs. Where a measure is above what a choice needs, say so in one clause and name the choice. Explain the client's position in terms of their choices, never in abilities alone. Do not invent choices or people that are not listed here.\nUse the focus areas to decide what LIFT puts first. Name the choice each one serves.\nDo not quote these ability scores as if they were one of the 21 health scores; they are averages for your guidance.\n\n",
+        "prompt_block_facts": "=== WHAT THIS CLIENT CHOSE (picked from a list, their own priorities for later life) ===\n- Remember every grandchild's name and story (People I love) [depends on: mind]\n- Drive safely (My freedom) [depends on: mind, flexibility]\n- Stay sharp and run my life with enthusiasm (My freedom) [depends on: mind, energy]\n- Wake up full of energy (Things I love) [depends on: energy]\n- Keep doing work that matters to me (Things I love) [depends on: mind, energy]\n- Explore new places (Things I love) [depends on: stamina]\nAbilities these choices depend on most: mind (4), energy (3), flexibility (1), stamina (1)\nPeople they named: Jenny\nWhat their choices depend on, with what was measured (out of 5, higher is better; Stage 1 answers run 1 to 5, Stage 3 answers 0 to 5):\n- Flexibility: 1 of their choices; nearest measure 2/5 from Getting up from the floor (Stage 1) 2/5\n- Stamina: 1 of their choices; measured 4/5 from Physical activity 4/5, Climbing stairs (Stage 1) 4/5\n- A sharp mind: 4 of their choices; measured 2.3/5 from Mental activity 2/5, Stress 3/5, Sleep quality 2/5\n- Energy and sleep: 3 of their choices; measured 3/5 from Sleep duration 4/5, Sleep quality 2/5, Diet 3/5\nFocus areas (most chosen, weakest measured): A sharp mind, Energy and sleep\nHOW TO USE THESE CHOICES: this client has one assessment, so describe where they stand today against what each choice needs, not a trend. For each focus area, name the choice it serves (quote the statement word for word), the measure that drags it, and what keeping that ability over the coming years needs. Where a measure is above what a choice needs, say so in one clause and name the choice. Explain the client's position in terms of their choices, never in abilities alone. Do not invent choices or people that are not listed here.\nDo not quote these ability scores as if they were one of the 21 health scores; they are averages for your guidance.\n\n",
+        "payload_fields": {
+            "why_picks": "Remember every grandchild's name and story | Drive safely | Stay sharp and run my life with enthusiasm | Wake up full of energy | Keep doing work that matters to me | Explore new places",
+            "why_abilities": "Flexibility (1) | Stamina (1) | A sharp mind (4, focus area) | Energy and sleep (3, focus area)",
+            "why_focus_areas": "A sharp mind, Energy and sleep",
+            "why_people": "Jenny",
+            "why_own_words": "",
+            "why_picks_people": "Remember every grandchild's name and story",
+            "why_picks_freedom": "Drive safely | Stay sharp and run my life with enthusiasm",
+            "why_picks_things": "Wake up full of energy | Keep doing work that matters to me | Explore new places"
+        },
+        "second_form_ties": {
+            "physicalActivity": {
+                "ability": "stamina",
+                "count": 1,
+                "choice": "Explore new places"
+            },
+            "cognitiveActivity": {
+                "ability": "mind",
+                "count": 4,
+                "choice": "Remember every grandchild's name and story"
+            },
+            "stressLevels": {
+                "ability": "mind",
+                "count": 4,
+                "choice": "Remember every grandchild's name and story"
+            },
+            "sleepQuality": {
+                "ability": "mind",
+                "count": 4,
+                "choice": "Remember every grandchild's name and story"
+            },
+            "sleepDuration": {
+                "ability": "energy",
+                "count": 3,
+                "choice": "Stay sharp and run my life with enthusiasm"
+            },
+            "dietQuality": {
+                "ability": "energy",
+                "count": 3,
+                "choice": "Stay sharp and run my life with enthusiasm"
+            }
+        }
+    }
+}

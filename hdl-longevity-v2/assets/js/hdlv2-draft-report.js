@@ -341,11 +341,15 @@
         ) +
       '</section>';
 
+    // v0.48.12 — choices-page clients: what their choices need beside where
+    // they are now (Matthew, 2026-10-09). Absent for every other client.
+    html += renderAbilitiesSection(data.why_abilities);
+
     // Radar
     html +=
       '<section class="hdlv2-dr-section">' +
         '<h2>Your Health Profile</h2>' +
-        '<p class="hdlv2-dr-section-sub">How you\'re scoring across the detailed longevity metrics (0 = low, 5 = excellent). Same 22 breakdown points and colour scale as the V1 longevity form.</p>' +
+        '<p class="hdlv2-dr-section-sub">How you\'re scoring across the twenty longevity metrics (0 = low, 5 = excellent), on the same colour scale as your final report.</p>' +
         '<div class="hdlv2-dr-radar-wrap"><canvas id="hdlv2-dr-radar"></canvas></div>' +
         renderRadarCommentary(ai.radar_commentary) +
         // v0.36.3 — DRAFT-only yellow note (mirrors trajectory above).
@@ -368,7 +372,7 @@
         '<section class="hdlv2-dr-goals">' +
           '<div class="hdlv2-dr-ai-label">Tying this back to your goals</div>' +
           '<h2>What you told us — and what your data says</h2>' +
-          '<p class="hdlv2-dr-section-sub">From what you shared in Stage 2 — how your data connects to what actually matters to you.</p>' +
+          '<p class="hdlv2-dr-section-sub">From what you shared in your Full Report — how your data connects to what actually matters to you.</p>' +
           ai.goals_linkage.map(function (g) {
             return '<div class="hdlv2-dr-goal-item">' +
               '<div class="hdlv2-dr-goal-quote">"' + escape(g.goal_quote || '') + '"</div>' +
@@ -470,6 +474,7 @@
     setTimeout(function () {
       renderTrajectory(calc);
       renderRadar(calc);
+      renderAbilitiesChart(data.why_abilities);
       renderMetabolicSignal(calc.metabolic);
     }, 50);
 
@@ -542,7 +547,7 @@
     }
     var sub = editable
       ? 'Edit any milestone below — what you set here is what your client receives in the final report. No extra email, no extra cost.'
-      : 'Personalised milestones generated from your data and your Stage 2 WHY — what progress could look like over time.';
+      : 'Personalised milestones generated from your data and the choices you made in your Full Report — what progress could look like over time.';
 
     return '<section class="hdlv2-dr-section hdlv2-dr-milestones' + (editable ? ' hdlv2-dr-ms-editable' : '') + '" id="hdlv2-dr-ms-section">'
       + '<div class="hdlv2-dr-ai-label">Milestone timeline</div>'
@@ -769,7 +774,8 @@
         '<div><p class="hdlv2-dr-prac-name">' + escape(pracName) + '</p>' +
         '<p class="hdlv2-dr-prac-role">Your longevity practitioner</p></div>' +
       '</div>' +
-      '<div class="hdlv2-dr-mark">Powered by <strong>HealthDataLab</strong></div>' +
+      // v0.48.15 — the partnership line (HDLV2_Offer::PARTNER_LINE) when the server sends it.
+      '<div class="hdlv2-dr-mark">' + (data.partner_line ? escape(data.partner_line).replace('HealthDataLab', '<strong>HealthDataLab</strong>') : 'Powered by <strong>HealthDataLab</strong>') + '</div>' +
     '</footer>' +
     // v0.46.57 (P4 safety bundle) — on-screen legal line, mirrors the email
     // footer wording (HDLV2_Email_Templates::legal_footer) verbatim; the PDF
@@ -795,6 +801,56 @@
   }
 
   // ── Radar chart ──
+  // v0.48.12 — the abilities section: chart + one line per ability.
+  function renderAbilitiesSection(ab) {
+    if (!ab || !ab.rows || !ab.rows.length) return '';
+    var rows = ab.rows.map(function (a) {
+      var parts = ['need ' + a.need + ' of 5'];
+      if (a.score != null) parts.push('now ' + a.score);
+      if (a.at_90 != null) parts.push('about ' + a.at_90 + ' at 90 on today\'s path');
+      if (a.need_now != null) parts.push('keeping it to 90 needs ' + (a.need_now_capped ? '5 or more' : 'about ' + a.need_now) + ' now');
+      return '<li class="hdlv2-dr-ability">'
+        + '<span class="hdlv2-dr-ability-name">' + escape(a.label) + (a.focus ? ' <span class="hdlv2-dr-ability-focus">Focus</span>' : '') + '</span>'
+        + '<span class="hdlv2-dr-ability-nums">' + escape(parts.join(' \u00b7 ')) + '</span></li>';
+    }).join('');
+    return '<section class="hdlv2-dr-section">'
+      + '<h2>What your choices need, and where you are</h2>'
+      + '<p class="hdlv2-dr-section-sub">Out of 5. ' + (ab.series ? 'The shaded shape is what the life you chose asks of each ability; the orange line is where your answers put you today; the dark dotted line is where today\'s path leads by 90.' : 'What the life you chose asks of each ability, and where your answers put you today.') + '</p>'
+      + (ab.series ? '<div class="hdlv2-dr-radar-wrap hdlv2-dr-abilities-wrap"><canvas id="hdlv2-dr-abilities" role="img" aria-label="What your choices need against where you are now, out of 5"></canvas></div>' : '')
+      + '<ul class="hdlv2-dr-ability-list">' + rows + '</ul>'
+      + '<p class="hdlv2-dr-section-sub">The age-90 figures use published average losses for each ability, your age and sex (about 5 to 34% a decade). They are an estimate from today\'s numbers, not a measurement.</p>'
+      + '</section>';
+  }
+
+  function renderAbilitiesChart(ab) {
+    if (!ab || !ab.series) return;
+    if (typeof Chart === 'undefined') { setTimeout(function () { renderAbilitiesChart(ab); }, 150); return; }
+    var canvas = document.getElementById('hdlv2-dr-abilities');
+    if (!canvas) return;
+    var s = ab.series;
+    new Chart(canvas.getContext('2d'), {
+      type: 'radar',
+      data: {
+        labels: s.labels,
+        datasets: [
+          { label: 'What your choices need', data: s.needed, fill: true, backgroundColor: 'rgba(61, 141, 160, 0.15)', borderColor: '#3d8da0', borderWidth: 2, pointBackgroundColor: '#3d8da0', pointRadius: 4 },
+          { label: 'You now', data: s.now, fill: false, borderColor: '#d97706', borderWidth: 2, borderDash: [6, 4], pointBackgroundColor: '#d97706', pointRadius: 4, spanGaps: true }
+        ].concat((s.at_90 || []).some(function (v) { return v != null; })
+          ? [{ label: 'You at 90 on today\'s path', data: s.at_90, fill: false, borderColor: '#2c3e50', borderWidth: 2, borderDash: [2, 3], pointBackgroundColor: '#2c3e50', pointRadius: 4, spanGaps: true }]
+          : [])
+      },
+      options: {
+        responsive: true, maintainAspectRatio: true, aspectRatio: 1,
+        animation: { duration: 600 },
+        plugins: { legend: { display: true, position: 'bottom', labels: { font: { family: 'Inter', size: 13 }, color: '#2C3E50' } } },
+        scales: { r: { min: 0, max: s.scale || 5, beginAtZero: true,
+          ticks: { stepSize: 1, showLabelBackdrop: false, color: '#888', font: { size: 11 } },
+          grid: { color: 'rgba(0,0,0,0.08)' }, angleLines: { color: 'rgba(0,0,0,0.08)' },
+          pointLabels: { font: { family: 'Inter', size: 13, weight: '600' }, color: '#2C3E50' } } }
+      }
+    });
+  }
+
   function renderRadar(calc) {
     if (typeof Chart === 'undefined') {
       setTimeout(function () { renderRadar(calc); }, 150);
@@ -805,8 +861,9 @@
       'physicalActivity', 'sitToStand', 'breathHold', 'balance', 'sleepDuration',
       'sleepQuality', 'stressLevels', 'socialConnections', 'dietQuality', 'alcoholConsumption',
       'smokingStatus', 'cognitiveActivity', 'sunlightExposure', 'supplementIntake', 'dailyHydration',
-      'skinElasticity', 'bmiScore', 'whrScore', 'whtrScore', 'bloodPressureScore', 'heartRateScore'
+      'bmiScore', 'whrScore', 'whtrScore', 'bloodPressureScore', 'heartRateScore'
       // v0.23.1 — overallHealthScore removed (Matthew 2026-04-28); 22→21 metrics.
+      // v0.48.14 — skinElasticity dropped to match the PDF radar (v0.32.0, Matthew 2026-05-05).
     ];
     var keys = ALL_KEYS.filter(function (k) { return scores[k] !== undefined && scores[k] !== null && !isNaN(scores[k]); });
     if (!keys.length) return;

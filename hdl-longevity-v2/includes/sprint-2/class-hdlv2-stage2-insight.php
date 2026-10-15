@@ -85,10 +85,10 @@ class HDLV2_Stage2_Insight {
 
         // Para 2 — practitioner promise.
         $p2 = '<p>What you wrote will be read carefully &mdash; not skimmed, not summarised by an algorithm. '
-            . 'Your practitioner will use the specific words and themes you raised to shape Stage 3 and the longevity plan that comes out of it.</p>';
+            . 'Your practitioner will use the specific words and themes you raised to shape your Full Report and the longevity plan that comes out of it.</p>';
 
         // Para 3 — what is next.
-        $p3 = '<p>Until Stage 3 unlocks, your WHY sits on your practitioner&apos;s queue. '
+        $p3 = '<p>Until your practitioner opens the next part of your Full Report, your WHY sits on their queue. '
             . 'They will release it when they have reviewed &mdash; most clients hear back within a working day. '
             . 'The reflection you wrote is the foundation everything that follows is built on.</p>';
 

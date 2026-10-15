@@ -119,7 +119,7 @@ class HDLV2_Auto_Consultation {
         wp_enqueue_script(
             'hdlv2-audio-component',
             HDLV2_PLUGIN_URL . 'assets/js/hdlv2-audio-component.js',
-            array(), // E4 (v0.46.47) — client-Whisper tier removed; no transcriber dep
+            array( 'hdlv2-loading' ), // E4 (v0.46.47) — client-Whisper tier removed; no transcriber dep
             HDLV2_VERSION,
             true
         );
@@ -135,7 +135,7 @@ class HDLV2_Auto_Consultation {
         wp_enqueue_style(
             'hdlv2-auto-consultation',
             HDLV2_PLUGIN_URL . 'assets/css/hdlv2-auto-consultation.css',
-            array(),
+            array( 'hdlv2-loading-css' ),
             HDLV2_VERSION
         );
 

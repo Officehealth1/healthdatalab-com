@@ -72,9 +72,6 @@
       '.hdlv2-prac-dash .hdlv2-release-pulse { animation: hdlv2-release-pulse 1.2s ease-in-out 3; }',
       '@keyframes hdlv2-release-pulse { 0%,100% { box-shadow: 0 0 0 0 rgba(217,119,6,0.5); } 50% { box-shadow: 0 0 0 10px rgba(217,119,6,0); } }',
       '.hdlv2-prac-dash .hdlv2-pd-empty { text-align: center; padding: 48px 24px; color: #888; font-size: 14px; }',
-      '.hdlv2-prac-dash .hdlv2-pd-loading { text-align: center; padding: 60px 24px; color: #888; }',
-      '.hdlv2-prac-dash .hdlv2-pd-loading .hdlv2-spinner { width: 36px; height: 36px; border: 3px solid #e4e6ea; border-top-color: #3d8da0; border-radius: 50%; animation: hdlv2-pd-spin 0.8s linear infinite; margin: 0 auto 16px; }',
-      '@keyframes hdlv2-pd-spin { to { transform: rotate(360deg); } }',
       '@media (max-width: 640px) {',
       '  .hdlv2-prac-dash .hdlv2-pd-table th:nth-child(3), .hdlv2-prac-dash .hdlv2-pd-table td:nth-child(3) { display: none; }',
       '  .hdlv2-prac-dash .hdlv2-pd-actions { flex-direction: column; align-items: flex-end; }',
@@ -88,13 +85,10 @@
     // Only fires from the boot path (mount()), never from the 20s silent
     // poll — the poll calls loadClients() directly, which calls render()
     // on the next tick without going through renderLoading(). No re-flash.
-    var skel = (window.HDLV2Loading && typeof HDLV2Loading.skeleton === 'function')
-      ? HDLV2Loading.skeleton('dashboard')
-      : '<div class="hdlv2-pd-loading"><div class="hdlv2-spinner"></div>Loading your clients…</div>';
     root.innerHTML = '<div class="hdlv2-prac-dash">'
       + '<div class="hdlv2-skel hdlv2-skel-heading" style="width:280px;max-width:60%;height:30px;margin:0 0 10px;"></div>'
       + '<div class="hdlv2-skel hdlv2-skel-line s" style="margin:0 0 22px;"></div>'
-      + skel
+      + HDLV2Loading.skeleton('dashboard')
       + '</div>';
   }
 

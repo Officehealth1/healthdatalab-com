@@ -144,9 +144,22 @@ class HDLV2_Compatibility {
         if ( ! $user ) {
             return false;
         }
+
         return in_array( 'um_practitioner', (array) $user->roles, true )
             || in_array( 'practitioner', (array) $user->roles, true )
             || in_array( 'administrator', (array) $user->roles, true );
+    }
+
+    /**
+     * v0.48.20 — an account that manages clients or the site. Emailed links
+     * (invite, ?token=, verify click) never sign these in: the email behind
+     * them is typed by a visitor or a buyer, never proven.
+     *
+     * @param int $user_id WordPress user ID.
+     * @return bool
+     */
+    public static function is_staff( $user_id ) {
+        return user_can( $user_id, 'edit_posts' ) || self::is_practitioner( $user_id );
     }
 
     /**
@@ -669,7 +682,7 @@ class HDLV2_Compatibility {
             (int) $progress->id
         ) );
         if ( ! $why ) {
-            return array( 'ok' => false, 'code' => 'no_why', 'message' => 'Stage 2 has not been completed yet.', 'status' => 400 );
+            return array( 'ok' => false, 'code' => 'no_why', 'message' => 'The Full Report has not been started yet.', 'status' => 400 );
         }
         if ( $why->released ) {
             return array( 'ok' => true, 'already_released' => true );

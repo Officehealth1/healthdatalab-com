@@ -61,7 +61,7 @@ class HDLV2_Context_Builder {
         // WHY profile — JOIN form_progress to filter archived lifecycles
         // (why_profiles itself doesn't carry deleted_at; scoping via FK).
         $why = $wpdb->get_row( $wpdb->prepare(
-            "SELECT w.distilled_why, w.key_people, w.motivations, w.fears
+            "SELECT w.distilled_why, w.key_people, w.motivations, w.fears, fp.stage1_data, fp.stage2_data, fp.stage3_data
              FROM {$p}hdlv2_why_profiles w
              INNER JOIN {$p}hdlv2_form_progress fp ON fp.id = w.form_progress_id
              WHERE w.client_user_id = %d AND w.released = 1 AND fp.deleted_at IS NULL
@@ -74,6 +74,14 @@ class HDLV2_Context_Builder {
             'motivations'   => json_decode( $why->motivations, true ),
             'fears'         => json_decode( $why->fears, true ),
         ) : null;
+        // v0.48.8 — single-form picks block (facts use) from the WHY's own
+        // row and its saved Stage 3 scores, for the weekly flight plan.
+        // Only set when non-empty, so every other client's context is as before.
+        if ( $why && class_exists( 'HDLV2_Why_Picks' ) ) {
+            $s3    = json_decode( (string) $why->stage3_data, true ) ?: array();
+            $picks = HDLV2_Why_Picks::block_for_row( $why, $s3['server_result']['scores'] ?? array(), 'facts' );
+            if ( '' !== $picks ) $context['why_profile']['picks_block'] = $picks;
+        }
 
         // Latest report + milestones — JOIN form_progress.
         $report = $wpdb->get_row( $wpdb->prepare(

@@ -28,6 +28,7 @@ class HDLV2_Widget_Config {
 
         // AJAX — invites
         add_action( 'wp_ajax_hdlv2_create_invite', array( $this, 'ajax_create_invite' ) );
+        add_action( 'wp_ajax_hdlv2_send_stage1_link', array( $this, 'ajax_send_stage1_link' ) );
         add_action( 'wp_ajax_hdlv2_get_invites', array( $this, 'ajax_get_invites' ) );
         // v0.46.20 — let a practitioner clean dead invite rows from the Sent
         // Invites tab. Hard-delete, scoped to own + expired/revoked only.
@@ -201,10 +202,11 @@ class HDLV2_Widget_Config {
         wp_enqueue_script(
             'hdlv2-dashboard',
             HDLV2_PLUGIN_URL . 'assets/js/hdlv2-dashboard.js',
-            array(),
+            array( 'hdlv2-loading' ),
             HDLV2_VERSION,
             true
         );
+        wp_enqueue_style( 'hdlv2-loading-css' );
 
         wp_enqueue_script(
             'hdlv2-widget',
@@ -253,6 +255,8 @@ class HDLV2_Widget_Config {
             'clients_url'     => apply_filters( 'hdlv2_clients_dashboard_url', site_url( '/clients/' ) ),
             'config'          => $config_arr,
             'embed_code'      => $config ? HDLV2_Widget_Renderer::generate_embed_code( $user_id, $config_arr ) : '',
+            // v0.47.90 — shows the "Send Stage 1 link" card (paid mode + ticket page set).
+            'stage1_link_ready' => '' !== self::stage1_link_page( $config ),
         ) );
     }
 
@@ -323,6 +327,20 @@ class HDLV2_Widget_Config {
         register_rest_route( 'hdl-v2/v1', '/widget/leads/confirm', array(
             'methods'             => 'POST',
             'callback'            => array( $this, 'rest_confirm_lead' ),
+            'permission_callback' => array( $this, 'check_practitioner_permission' ),
+        ) );
+
+        // v0.48.15 — confirm up to 20 pending leads in one call (H7).
+        register_rest_route( 'hdl-v2/v1', '/widget/leads/confirm-bulk', array(
+            'methods'             => 'POST',
+            'callback'            => array( $this, 'rest_confirm_leads_bulk' ),
+            'permission_callback' => array( $this, 'check_practitioner_permission' ),
+        ) );
+
+        // v0.48.16 — reject up to 20 pending leads in one call (H7, Quim 2026-10-14).
+        register_rest_route( 'hdl-v2/v1', '/widget/leads/reject-bulk', array(
+            'methods'             => 'POST',
+            'callback'            => array( $this, 'rest_reject_leads_bulk' ),
             'permission_callback' => array( $this, 'check_practitioner_permission' ),
         ) );
 
@@ -416,6 +434,20 @@ class HDLV2_Widget_Config {
             return rest_ensure_response( array( 'success' => true, 'pending' => true ) );
         }
 
+        // v0.48.16 — busy gate. Under a spike the widget takes a 503 and
+        // keeps the answers on the Brevo holding list instead (invite and
+        // ticket holders see "not saved yet" and send again).
+        if ( HDLV2_Stage1_Drain::is_busy() ) {
+            HDLV2_Stage1_Drain::note_busy();
+            $busy = new WP_REST_Response( array(
+                'code'    => 'server_busy',
+                'message' => 'We are busy right now. Please try again in a minute.',
+                'data'    => array( 'status' => 503 ),
+            ), 503 );
+            $busy->header( 'Retry-After', '60' );
+            return $busy;
+        }
+
         $practitioner_id = isset( $params['practitioner_id'] ) ? absint( $params['practitioner_id'] ) : 0;
         if ( ! $practitioner_id ) {
             return new WP_Error( 'missing_practitioner', 'Practitioner ID is required.', array( 'status' => 400 ) );
@@ -428,27 +460,46 @@ class HDLV2_Widget_Config {
             return new WP_Error( 'invalid_practitioner', 'Submission could not be processed.', array( 'status' => 400 ) );
         }
 
-        // ── Per-IP cap (legacy backstop, lighter than the rate-limit middleware) ──
-        $ip        = sanitize_text_field( $_SERVER['REMOTE_ADDR'] ?? 'unknown' );
-        $transient = 'hdlv2_lead_' . md5( $ip );
-        $count     = (int) get_transient( $transient );
-        if ( $count >= 10 ) {
-            return new WP_Error( 'rate_limited', 'Too many submissions. Please try again later.', array( 'status' => 429 ) );
-        }
-        set_transient( $transient, $count + 1, HOUR_IN_SECONDS );
-
         // Optional invite-token completion — preserves the practitioner-issued
         // direct-link flow. Invite tokens are pre-trusted (the practitioner
         // explicitly created them for a known client) so they SKIP the
         // verification step and fall through to the legacy immediate flow.
         $invite_id    = null;
         $invite_token = isset( $params['invite_token'] ) ? sanitize_text_field( $params['invite_token'] ) : '';
-        if ( $invite_token ) {
-            $invite = $this->get_valid_invite( $invite_token );
-            if ( $invite ) {
-                $invite_id = (int) $invite->id;
-                $this->complete_invite( $invite_id );
+        $invite       = $invite_token ? self::get_valid_invite( $invite_token ) : null;
+
+        // v0.47.85 — paid mode (widget_config.access_mode). A paid widget
+        // takes answers only with a valid invite of THIS practitioner. A paid
+        // Stage 1 ticket (source 'paid_stage1') is one such invite, but it
+        // buys the PUBLIC path: pending lead, PDF, practitioner Confirm. It
+        // never takes the fast path below, and it is claimed only once the
+        // submission has passed validation (see "claim the ticket").
+        $paid_mode   = isset( $config->access_mode ) && 'paid' === $config->access_mode;
+        $is_ticket   = $invite && isset( $invite->source ) && 'paid_stage1' === $invite->source;
+        $ticket_id   = null;
+        // v0.48.15 — a Full Report ticket only ever opens its own practitioner's form.
+        $is_full     = $invite && isset( $invite->source ) && 'full_report' === $invite->source;
+        if ( $invite && ( $paid_mode || $is_ticket || $is_full ) && (int) $invite->practitioner_id !== $practitioner_id ) {
+            $invite = null;
+        }
+        if ( $paid_mode && ! $invite ) {
+            // v0.47.89 — a repeat post of a ticket whose lead is on file gets
+            // the first answer back, however long after the first post.
+            $saved = self::saved_ticket_reply( $invite_token, $practitioner_id );
+            if ( $saved ) {
+                return rest_ensure_response( $saved );
             }
+            return new WP_Error(
+                'ticket_required',
+                'This report needs a personal link, and this one is missing, already used or out of date. Your answers were not saved.',
+                array( 'status' => 403 )
+            );
+        }
+        if ( $invite && $is_ticket ) {
+            $ticket_id = (int) $invite->id;
+        } elseif ( $invite ) {
+            // v0.48.15 — marked used only once the client record exists (fast path below).
+            $invite_id = (int) $invite->id;
         }
 
         // Extract lead fields (V2: 9-question format)
@@ -457,6 +508,23 @@ class HDLV2_Widget_Config {
         $visitor_phone = sanitize_text_field( $params['phone'] ?? '' );
         $visitor_age   = isset( $params['q1_age'] ) ? absint( $params['q1_age'] ) : null;
         $rate          = isset( $params['rate_of_ageing_result'] ) ? floatval( $params['rate_of_ageing_result'] ) : null;
+
+        // v0.47.83 — optional coarse location (country + state) resolved by
+        // the widget via the healthdatalab.com geo edge function. Invalid or
+        // absent → empty strings; NEVER an error (informational only, and a
+        // partner-site ad-blocker killing the geo fetch must not cost a lead).
+        $visitor_loc = self::sanitize_visitor_location(
+            $params['visitor_country'] ?? '',
+            $params['visitor_region'] ?? ''
+        );
+
+        // v0.48.15 — a Full Report ticket was bought for one email. The answers
+        // land on that email's client record, never on one the visitor types:
+        // the record is found by email, so a typed address would open someone
+        // else's assessment.
+        if ( $is_full && $invite_id && 0 !== strcasecmp( $visitor_email, (string) $invite->client_email ) ) {
+            return new WP_Error( 'email_mismatch', 'This personal link belongs to another email address. Please use the email you bought the report with.', array( 'status' => 403 ) );
+        }
 
         // ── Email validation — format + MX record (catches typos + dead domains). ──
         if ( ! $visitor_email || ! is_email( $visitor_email ) ) {
@@ -532,6 +600,8 @@ class HDLV2_Widget_Config {
                 'stage1_data'     => $stage1_data,
                 'invite_id'       => $invite_id,
                 'config'          => $config,
+                'visitor_country' => $visitor_loc['country'],
+                'visitor_region'  => $visitor_loc['region'],
                 // v0.41.24 — "New Lead from Your Widget" email suppressed.
                 // Make.com Module 40 fires its own "New Lead" email with the
                 // Stage 1 PDF, which is the canonical practitioner copy. The
@@ -539,7 +609,16 @@ class HDLV2_Widget_Config {
                 // so the Make.com fan-out still fires.
                 'send_practitioner_notify' => false,
                 'send_make_pdf'   => true,
+                // v0.48.15 — an invite opens the Full Report straight away, so
+                // its Stage 1 PDF has no sales page (offer_show "0").
+                'offer_show'      => false,
             ) );
+
+            if ( ! $form_token ) {
+                // No client record: leave the invite unused so the link still works.
+                return new WP_Error( 'signup_failed', 'We could not save your answers. Please try again in a moment; your personal link still works.', array( 'status' => 500 ) );
+            }
+            $this->complete_invite( $invite_id );
 
             $invite_response = array(
                 'success'    => true,
@@ -570,14 +649,57 @@ class HDLV2_Widget_Config {
         // legitimate workflows. It's never used as an auth token because
         // there's no form_progress row keyed on it — the post-Confirm magic
         // link uses a real token instead.
+        // v0.47.85 — claim the ticket. One UPDATE that only a pending/opened
+        // row can satisfy, so two posts racing on the same ticket cannot both
+        // record a lead. Given back below if the lead could not be saved.
+        // v0.47.89 — the claim and the lead write share one transaction, so
+        // a worker that dies between them leaves the ticket unused.
+        if ( $ticket_id ) {
+            global $wpdb;
+            $wpdb->query( 'START TRANSACTION' );
+            if ( ! $this->claim_ticket( $ticket_id ) ) {
+                $wpdb->query( 'ROLLBACK' );
+                // Lost to a twin of this same post: answer as the twin did.
+                $saved = self::saved_ticket_reply( $invite_token, $practitioner_id );
+                if ( $saved ) {
+                    return rest_ensure_response( $saved );
+                }
+                return new WP_Error( 'ticket_required', 'This personal link has already been used. Your answers were not saved.', array( 'status' => 403 ) );
+            }
+        }
+
         $lead_id = self::record_widget_lead( array(
             'practitioner_id' => $practitioner_id,
             'visitor_name'    => $visitor_name,
             'visitor_email'   => $visitor_email,
+            'visitor_phone'   => $visitor_phone,
             'visitor_age'     => $visitor_age,
             'rate'            => $rate,
             'stage1_data'     => $stage1_data,
+            'visitor_country' => $visitor_loc['country'],
+            'visitor_region'  => $visitor_loc['region'],
+            'invite_id'       => $ticket_id,
         ) );
+
+        if ( $ticket_id && ! $lead_id ) {
+            $wpdb->query( 'ROLLBACK' );
+            // Kept for a table engine without transactions.
+            $wpdb->update(
+                $wpdb->prefix . 'hdlv2_widget_invites',
+                array( 'status' => 'opened', 'completed_at' => null ),
+                array( 'id' => $ticket_id )
+            );
+            error_log( '[HDLV2 paid-stage1] lead not saved for ticket ' . $ticket_id . ' — ticket released.' );
+            return new WP_Error( 'lead_not_saved', 'We could not save your answers. Please try again in a moment; your personal link still works.', array( 'status' => 500 ) );
+        }
+        if ( $ticket_id ) {
+            $wpdb->query( 'COMMIT' );
+        }
+        // v0.48.16 — the row IS the lead now (the drain sends the PDF from
+        // it), so a failed write is a failure: the widget keeps the answers.
+        if ( ! $lead_id ) {
+            return new WP_Error( 'lead_not_saved', 'We could not save your answers. Please try again in a moment.', array( 'status' => 500 ) );
+        }
 
         // ── Front-door safety screen (v0.45.0) — fire flag emails at PUBLIC
         // submit. The public path defers complete_signup() (and the safety
@@ -638,23 +760,9 @@ class HDLV2_Widget_Config {
             );
         }
 
-        self::dispatch_post_signup_artifacts( array(
-            'practitioner_id'           => $practitioner_id,
-            'visitor_name'              => $visitor_name,
-            'visitor_email'             => $visitor_email,
-            'visitor_phone'             => $visitor_phone,
-            'visitor_age'               => $visitor_age,
-            'rate'                      => $rate,
-            'stage1_data'               => $stage1_data,
-            'form_token'                => $cache_token,
-            'config'                    => $config,
-            'invite_id'                 => null,
-            // v0.41.24 — "New Lead from Your Widget" wp_mail suppressed;
-            // Make.com Module 40 already fires the canonical "New Lead" email
-            // with the Stage 1 PDF, so the wp_mail copy was a duplicate.
-            'send_practitioner_notify'  => false,
-            'send_make_pdf'             => true,
-        ) );
+        // v0.48.16 — nothing leaves the server in this request: the Stage 1
+        // PDF (gauge PNG + Make.com) is sent by HDLV2_Stage1_Drain within a
+        // minute, from the row just written (stage1_fired_at NULL).
 
         $public_response = array(
             'success' => true,
@@ -700,6 +808,23 @@ class HDLV2_Widget_Config {
             'stage1_data'          => wp_json_encode( $args['stage1_data'] ?? array() ),
         );
 
+        // v0.47.83 — location written ONLY when the submission carried one,
+        // so a later geo-blocked resubmission can never blank a previously
+        // captured location (same keep-the-last-known rule on both branches).
+        if ( ! empty( $args['visitor_country'] ) ) {
+            $common['visitor_country'] = (string) $args['visitor_country'];
+            $common['visitor_region']  = (string) ( $args['visitor_region'] ?? '' );
+        }
+        // v0.47.85 — the paid Stage 1 ticket this submission used, if any.
+        if ( ! empty( $args['invite_id'] ) ) {
+            $common['invite_id'] = (int) $args['invite_id'];
+        }
+        // v0.48.16 — the phone travels with the row: the drain sends the
+        // Stage 1 PDF later and reads everything from here.
+        if ( '' !== (string) ( $args['visitor_phone'] ?? '' ) ) {
+            $common['visitor_phone'] = substr( (string) $args['visitor_phone'], 0, 40 );
+        }
+
         $existing_id = (int) $wpdb->get_var( $wpdb->prepare(
             "SELECT id FROM $table WHERE practitioner_user_id = %d AND visitor_email = %s ORDER BY id DESC LIMIT 1",
             $practitioner_id, $visitor_email
@@ -711,19 +836,104 @@ class HDLV2_Widget_Config {
             // row stays in its terminal state on resubmission.
             $update_row = $common;
             $update_row['created_at'] = current_time( 'mysql' );
-            $wpdb->update( $table, $update_row, array( 'id' => $existing_id ) );
+            // v0.48.16 — new answers send a new Stage 1 PDF (the drain picks
+            // the row up again); the same answers posted twice do not.
+            $old_answers = json_decode( (string) $wpdb->get_var( $wpdb->prepare( "SELECT stage1_data FROM $table WHERE id = %d", $existing_id ) ), true );
+            if ( self::stage1_answers( $old_answers ) !== self::stage1_answers( $args['stage1_data'] ?? array() ) ) {
+                $update_row['stage1_fired_at'] = null;
+            }
+            $ok = $wpdb->update( $table, $update_row, array( 'id' => $existing_id ) );
+            // v0.47.83 — optional columns may not exist yet (deploy window
+            // before the Phase AG / AK migration, or a failed migration). The
+            // lead data must never be lost over an optional field: retry
+            // the write without them.
+            if ( false === $ok && self::drop_optional_columns( $update_row ) ) {
+                $wpdb->update( $table, $update_row, array( 'id' => $existing_id ) );
+            }
+            // v0.47.85 — a paid submission must reach the practitioner's
+            // Pending Leads even if an earlier free one from this email was
+            // rejected. A confirmed row stays confirmed (already a client).
+            if ( ! empty( $args['invite_id'] ) ) {
+                $wpdb->query( $wpdb->prepare(
+                    "UPDATE $table SET status = 'pending', rejected_at = NULL WHERE id = %d AND status = 'rejected'",
+                    $existing_id
+                ) );
+            }
             return $existing_id;
         }
 
         // INSERT — new lead. Explicit status='pending' (also the schema
         // default, but spelled out so the intent is locally readable).
+        // created_at on the site clock, as the UPDATE branch writes it, so the
+        // hourly volume alert reads one clock (v0.48.16).
         $insert_row = $common + array(
             'practitioner_user_id' => $practitioner_id,
             'visitor_email'        => $visitor_email,
             'status'               => 'pending',
+            'created_at'           => current_time( 'mysql' ),
         );
-        $wpdb->insert( $table, $insert_row );
-        return (int) $wpdb->insert_id;
+        $ok = $wpdb->insert( $table, $insert_row );
+        // v0.47.83 — same missing-column belt as the UPDATE branch above.
+        if ( false === $ok && self::drop_optional_columns( $insert_row ) ) {
+            $ok = $wpdb->insert( $table, $insert_row );
+        }
+        return false === $ok ? 0 : (int) $wpdb->insert_id;
+    }
+
+    /**
+     * v0.48.16 — send the Stage 1 PDF for one public lead row, exactly as the
+     * request did before the drain (HDLV2_Stage1_Drain) took it over.
+     *
+     * @param object $row widget_leads row.
+     * @return bool false when the practitioner has no widget config (logged).
+     */
+    public static function fire_stage1_for_lead( $row ) {
+        $practitioner_id = (int) $row->practitioner_user_id;
+        $config          = ( new self() )->get_config( $practitioner_id );
+        if ( ! $config ) {
+            error_log( '[HDLV2 stage1-drain] no config for practitioner ' . $practitioner_id . ' — lead=' . (int) $row->id . ' not sent.' );
+            return false;
+        }
+        $email  = (string) $row->visitor_email;
+        $stage1 = json_decode( (string) $row->stage1_data, true );
+        self::dispatch_post_signup_artifacts( array(
+            'practitioner_id'          => $practitioner_id,
+            'visitor_name'             => (string) $row->visitor_name,
+            'visitor_email'            => $email,
+            'visitor_phone'            => (string) ( $row->visitor_phone ?? '' ),
+            'visitor_age'              => null !== $row->visitor_age ? (int) $row->visitor_age : null,
+            'rate'                     => null !== $row->rate_of_ageing ? (float) $row->rate_of_ageing : null,
+            'stage1_data'              => is_array( $stage1 ) ? $stage1 : array(),
+            // The synthetic cache key the request stored; the same hash when it did not.
+            'form_token'               => ! empty( $row->stage1_cache_token ) ? (string) $row->stage1_cache_token : bin2hex( hash( 'sha256', $practitioner_id . '|' . $email, true ) ),
+            'config'                   => $config,
+            'invite_id'                => null,
+            'offer_ref'                => 'lead-' . (int) $row->id,
+            // v0.41.24 — Make.com Module 40 sends the practitioner's "New Lead" email.
+            'send_practitioner_notify' => false,
+            'send_make_pdf'            => true,
+        ) );
+        return true;
+    }
+
+    /** The nine answers only (no server_result / _safety*), for "did the answers change?". */
+    private static function stage1_answers( $data ) {
+        $data = is_array( $data ) ? $data : array();
+        $out  = array();
+        foreach ( array( 'q1_age', 'q1_sex', 'q2a', 'q2b', 'q3', 'q4', 'q5', 'q6', 'q7', 'q8', 'q9' ) as $k ) {
+            $out[ $k ] = isset( $data[ $k ] ) ? (string) $data[ $k ] : '';
+        }
+        return $out;
+    }
+
+    /**
+     * Strip the columns a server may not have yet (Phase AG location, Phase AK
+     * phone + fired stamp). True when anything was removed, so a retry is worth it.
+     */
+    private static function drop_optional_columns( array &$row ) {
+        $before = count( $row );
+        unset( $row['visitor_country'], $row['visitor_region'], $row['visitor_phone'], $row['stage1_fired_at'] );
+        return count( $row ) < $before;
     }
 
     /**
@@ -759,6 +969,45 @@ class HDLV2_Widget_Config {
      * Skipped entirely when HDLV2_SKIP_MX_CHECK is defined (useful for local dev
      * with .test domains).
      */
+    /**
+     * v0.47.83 — Stage-1 lead location. Validate the OPTIONAL widget-supplied
+     * visitor location (resolved client-side by the healthdatalab.com geo
+     * edge function). Fail-open by design: invalid input is DISCARDED, never
+     * an error — location is informational and must never block lead capture.
+     * Country gates region: a region without a plausible ISO-3166 alpha-2
+     * country code is meaningless on its own, so both drop together.
+     *
+     * @return array { country: 'US'|'' , region: 'Texas'|'' }
+     */
+    public static function sanitize_visitor_location( $country_raw, $region_raw ) {
+        $none = array( 'country' => '', 'region' => '' );
+        if ( ! is_scalar( $country_raw ) ) {
+            return $none;
+        }
+        $country = strtoupper( sanitize_text_field( (string) $country_raw ) );
+        if ( ! preg_match( '/^[A-Z]{2}$/', $country ) ) {
+            return $none;
+        }
+        $region = is_scalar( $region_raw ) ? sanitize_text_field( (string) $region_raw ) : '';
+        $region = function_exists( 'mb_substr' ) ? mb_substr( $region, 0, 64 ) : substr( $region, 0, 64 );
+        return array( 'country' => $country, 'region' => $region );
+    }
+
+    /**
+     * "US"+"Texas" → "Texas, US" · "US"+"" → "US" · empty → "".
+     * Single display source for the pending-lead row/panel AND the
+     * confirmed-client Stage-1 tab (mirrors the 0.47.50 rule: display
+     * strings are built server-side once, never re-derived in JS).
+     */
+    public static function format_visitor_location( $country, $region ) {
+        $country = is_scalar( $country ) ? trim( (string) $country ) : '';
+        $region  = is_scalar( $region ) ? trim( (string) $region ) : '';
+        if ( '' === $country ) {
+            return '';
+        }
+        return '' !== $region ? $region . ', ' . $country : $country;
+    }
+
     private static function validate_email_deliverable( $email ) {
         if ( defined( 'HDLV2_SKIP_MX_CHECK' ) && HDLV2_SKIP_MX_CHECK ) {
             return null;
@@ -780,7 +1029,7 @@ class HDLV2_Widget_Config {
     /**
      * "kim@gmail.com" → "k***@gmail.com" — for the on-screen "we sent it to..." card.
      */
-    private static function mask_email( $email ) {
+    public static function mask_email( $email ) {
         $at = strrpos( $email, '@' );
         if ( $at === false || $at === 0 ) return $email;
         $local  = substr( $email, 0, $at );
@@ -1132,6 +1381,7 @@ class HDLV2_Widget_Config {
                 (string) $visitor_name
             );
 
+            $offer_show  = ( $args['offer_show'] ?? true ) && HDLV2_Offer::applies_to( $practitioner_id );
             $pdf_payload = array(
                 // v0.22.8 — Make.com Final Report scenario now gates each route
                 // by report_type (Route 1 = final, Route 2 = stage1, Route 3 =
@@ -1187,7 +1437,17 @@ class HDLV2_Widget_Config {
                 'strongest_text'         => $commentary['strongest_text'],
                 'priority_topic'         => $commentary['priority_topic'],
                 'priority_text'          => $commentary['priority_text'],
-            );
+            )
+            // v0.48.15 — the Full Report offer for page 2 (nine string keys,
+            // one setting: HDLV2_Offer). offer_show "0" hides page 2 for a
+            // buyer who already paid for the Full Report.
+            + HDLV2_Offer::payload_keys( $offer_show );
+            // v0.48.18 — where the offer shows, this person's own one-use code
+            // (same two keys, so Make and the template are unchanged).
+            if ( $offer_show ) {
+                $offer_ref   = $args['offer_ref'] ?? ( $invite_id ? 'invite-' . (int) $invite_id : '' );
+                $pdf_payload = array_merge( $pdf_payload, HDLV2_Offer::personal( $offer_ref ) );
+            }
 
             $stage1_webhook = defined( 'HDLV2_MAKE_STAGE1_PDF' ) ? HDLV2_MAKE_STAGE1_PDF : '';
             if ( ! $stage1_webhook ) {
@@ -1313,6 +1573,11 @@ class HDLV2_Widget_Config {
         $stage1_data     = $args['stage1_data'];
         $invite_id       = $args['invite_id'] ?? null;
         $config          = $args['config'] ?? null;
+        // v0.47.83 — coarse lead location (already sanitized by the callers:
+        // rest_capture_lead validates fresh input, rest_confirm_lead reads the
+        // stored columns). Empty = unknown; written only when present.
+        $visitor_country = (string) ( $args['visitor_country'] ?? '' );
+        $visitor_region  = (string) ( $args['visitor_region'] ?? '' );
 
         // v0.45.0 — the public path fired the safety emails at SUBMIT and
         // carried the messaged-stamped flags on the lead
@@ -1354,13 +1619,20 @@ class HDLV2_Widget_Config {
         if ( $existing ) {
             $form_token = $existing->token;
             $fp_id      = (int) $existing->id;
+            $fp_update  = array(
+                'stage1_data'         => wp_json_encode( $stage1_data ),
+                'stage1_completed_at' => current_time( 'mysql' ),
+                'client_name'         => $visitor_name,
+            );
+            // v0.47.83 — refresh location only when this pass knows one
+            // (keep-the-last-known rule, mirrors record_widget_lead).
+            if ( '' !== $visitor_country ) {
+                $fp_update['visitor_country'] = $visitor_country;
+                $fp_update['visitor_region']  = $visitor_region;
+            }
             $wpdb->update(
                 $wpdb->prefix . 'hdlv2_form_progress',
-                array(
-                    'stage1_data'         => wp_json_encode( $stage1_data ),
-                    'stage1_completed_at' => current_time( 'mysql' ),
-                    'client_name'         => $visitor_name,
-                ),
+                $fp_update,
                 array( 'id' => $existing->id )
             );
             // Resolve client_user_id for the V1 link (may be null on legacy rows)
@@ -1458,6 +1730,11 @@ class HDLV2_Widget_Config {
                 'stage1_data'          => wp_json_encode( $stage1_data ),
                 'stage1_completed_at'  => current_time( 'mysql' ),
             );
+            // v0.47.83 — coarse lead location, only when known.
+            if ( '' !== $visitor_country ) {
+                $fp_insert['visitor_country'] = $visitor_country;
+                $fp_insert['visitor_region']  = $visitor_region;
+            }
             if ( $seed_flags ) {
                 // Already messaged at submit — seed so the process() call below
                 // sees them present (dedup) and does NOT re-send.
@@ -1466,7 +1743,21 @@ class HDLV2_Widget_Config {
                 $fp_insert['flags_scanned_at']  = current_time( 'mysql', true );
                 $fp_insert['flags_scan_status'] = 'ok';
             }
-            $wpdb->insert( $wpdb->prefix . 'hdlv2_form_progress', $fp_insert );
+            $ok = $wpdb->insert( $wpdb->prefix . 'hdlv2_form_progress', $fp_insert );
+            // v0.47.83 — missing-column belt (pre-Phase-AG window / failed
+            // migration): the client record must never be lost over an
+            // optional field — retry the INSERT without the location keys.
+            if ( false === $ok && isset( $fp_insert['visitor_country'] ) ) {
+                unset( $fp_insert['visitor_country'], $fp_insert['visitor_region'] );
+                $ok = $wpdb->insert( $wpdb->prefix . 'hdlv2_form_progress', $fp_insert );
+            }
+            // v0.48.15 — no client record, no token: callers (Confirm, bulk
+            // Confirm, a purchase) roll back instead of marking the lead
+            // confirmed behind a token that opens nothing.
+            if ( false === $ok ) {
+                error_log( '[HDLV2] complete_signup: form_progress INSERT failed for practitioner ' . $practitioner_id . ' — ' . $wpdb->last_error );
+                return '';
+            }
             $fp_id = (int) $wpdb->insert_id;
 
             if ( $client_user_id && class_exists( 'HDLV2_Compatibility' ) ) {
@@ -1497,6 +1788,11 @@ class HDLV2_Widget_Config {
             'rate_of_ageing' => $rate,
             'stage1_data'    => wp_json_encode( $stage1_data ),
         );
+        // v0.47.83 — location, only when this pass knows one (never blanks).
+        if ( '' !== $visitor_country ) {
+            $lead_payload['visitor_country'] = $visitor_country;
+            $lead_payload['visitor_region']  = $visitor_region;
+        }
         // Only write invite_id when we actually have one (invite-fast path).
         // record_widget_lead never writes it, so an UPDATE here without the
         // guard would clobber the legacy invite_id capture.
@@ -1508,7 +1804,14 @@ class HDLV2_Widget_Config {
             // intentionally do NOT touch status — terminal state (confirmed
             // or rejected) sticks across re-submissions.
             $lead_payload['created_at'] = current_time( 'mysql' );
-            $wpdb->update( $wpdb->prefix . 'hdlv2_widget_leads', $lead_payload, array( 'id' => $existing_lead_id ) );
+            // v0.48.16 — the PDF fires below, so the drain must not fire it again.
+            if ( ! empty( $args['send_make_pdf'] ) ) {
+                $lead_payload['stage1_fired_at'] = current_time( 'mysql' );
+            }
+            if ( false === $wpdb->update( $wpdb->prefix . 'hdlv2_widget_leads', $lead_payload, array( 'id' => $existing_lead_id ) )
+                 && self::drop_optional_columns( $lead_payload ) ) {
+                $wpdb->update( $wpdb->prefix . 'hdlv2_widget_leads', $lead_payload, array( 'id' => $existing_lead_id ) );
+            }
         } else {
             // First time we've seen this (practitioner, email). Insert with
             // explicit status='confirmed' since complete_signup() is only
@@ -1519,7 +1822,13 @@ class HDLV2_Widget_Config {
             $lead_payload['visitor_email']        = $visitor_email;
             $lead_payload['status']               = 'confirmed';
             $lead_payload['confirmed_at']         = current_time( 'mysql' );
-            $wpdb->insert( $wpdb->prefix . 'hdlv2_widget_leads', $lead_payload );
+            // v0.48.16 — never a row for the drain: this path fires its own
+            // PDF (invite) or none at all (Confirm).
+            $lead_payload['stage1_fired_at']      = current_time( 'mysql' );
+            if ( false === $wpdb->insert( $wpdb->prefix . 'hdlv2_widget_leads', $lead_payload )
+                 && self::drop_optional_columns( $lead_payload ) ) {
+                $wpdb->insert( $wpdb->prefix . 'hdlv2_widget_leads', $lead_payload );
+            }
         }
 
         // Notify practitioner + Make.com PDF (uses kept legacy code in the
@@ -1537,6 +1846,7 @@ class HDLV2_Widget_Config {
             'invite_id'        => $invite_id,
             'send_practitioner_notify' => ! empty( $args['send_practitioner_notify'] ),
             'send_make_pdf'    => ! empty( $args['send_make_pdf'] ),
+            'offer_show'       => $args['offer_show'] ?? true,
         ) );
 
         // ── Front-door safety screen (v0.43.0) - deterministic red-flag write.
@@ -1670,6 +1980,10 @@ class HDLV2_Widget_Config {
             'send_make_pdf'   => true,
         ) );
 
+        if ( ! $form_token ) {
+            return self::render_verify_status_page( 'invalid' ); // v0.48.15 — no client record, no dead link
+        }
+
         // Mark verified
         $wpdb->update(
             $wpdb->prefix . 'hdlv2_pending_leads',
@@ -1705,6 +2019,11 @@ class HDLV2_Widget_Config {
     private static function auto_login_by_email( $email ) {
         $user = get_user_by( 'email', $email );
         if ( ! $user ) return;
+        // v0.48.20 — the visitor typed this email; never sign in a staff account.
+        if ( HDLV2_Compatibility::is_staff( $user->ID ) ) {
+            error_log( '[HDLV2 auto-login] refused: privileged account' );
+            return;
+        }
         wp_set_current_user( $user->ID );
         wp_set_auth_cookie( $user->ID, false );
     }
@@ -1800,7 +2119,7 @@ class HDLV2_Widget_Config {
 
         $rows = $wpdb->get_results( $wpdb->prepare(
             "SELECT id, visitor_name, visitor_email, visitor_age, rate_of_ageing,
-                    stage1_data, created_at
+                    stage1_data, created_at, visitor_country, visitor_region
              FROM {$wpdb->prefix}hdlv2_widget_leads
              WHERE practitioner_user_id = %d AND status = 'pending'
              ORDER BY created_at DESC
@@ -1851,9 +2170,15 @@ class HDLV2_Widget_Config {
                 'stage1_display' => ( $s1_out && class_exists( 'HDLV2_Client_Status' ) )
                     ? HDLV2_Client_Status::s1_pending_display_pairs( $s1_out )
                     : null,
+                // v0.47.83 — server-built display string ("Texas, US"), '' when
+                // unknown (legacy rows / geo-blocked submissions render nothing).
+                'location'       => self::format_visitor_location(
+                    $r->visitor_country ?? '',
+                    $r->visitor_region ?? ''
+                ),
             );
         }
-        return rest_ensure_response( array( 'leads' => $out ) );
+        return rest_ensure_response( array( 'leads' => $out, 'bulk_min' => self::BULK_MIN_PENDING ) );
     }
 
     /**
@@ -1920,6 +2245,43 @@ class HDLV2_Widget_Config {
             return new WP_Error( 'lead_rejected', 'This lead was previously rejected. To re-action, the visitor must resubmit the widget.', array( 'status' => 409 ) );
         }
 
+        $done = self::confirm_lead_row( $lead, $user_id, true );
+        if ( ! $done ) {
+            return new WP_Error( 'confirm_failed', 'Could not create assessment session for this lead.', array( 'status' => 500 ) );
+        }
+        if ( $done['already'] ) {
+            return rest_ensure_response( array( 'success' => true, 'already' => true, 'form_token' => '' ) );
+        }
+
+        return rest_ensure_response( array(
+            'success'    => true,
+            'form_token' => $done['form_token'],
+            'email_sent' => $done['email_sent'],
+        ) );
+    }
+
+    /**
+     * Confirm one PENDING lead row: client record, lead marked confirmed,
+     * then (optionally) the magic-link email. Shared by the single Confirm,
+     * the bulk Confirm and a Full Report purchase (v0.48.15). Callers check
+     * ownership and status first.
+     *
+     * complete_signup() and the lead UPDATE share one transaction, so a
+     * worker that dies between them cannot leave a client record behind a
+     * lead that still reads pending. The email goes only after COMMIT.
+     *
+     * @param object   $lead            widget_leads row.
+     * @param int      $practitioner_id The lead's practitioner.
+     * @param bool     $send_email      Send the "has opened your Full Report" email.
+     * @param int|null $invite_id       A Full Report ticket that paid for it.
+     * @return array|false { form_token, email_sent, already } or false;
+     *                     already = a twin confirmed it first (nothing done).
+
+     */
+    public static function confirm_lead_row( $lead, $practitioner_id, $send_email, $invite_id = null ) {
+        global $wpdb;
+        $practitioner_id = (int) $practitioner_id;
+
         // Decode stage1 answers — schema stores JSON, we need an array for
         // complete_signup().
         $stage1 = array();
@@ -1930,17 +2292,32 @@ class HDLV2_Widget_Config {
             }
         }
 
-        $config = $this->get_config( $user_id );
-
+        $wpdb->query( 'START TRANSACTION' );
+        // Lock the lead: a twin Confirm (another tab, the bulk call, a
+        // purchase) waits here, then finds it no longer pending.
+        $status = $wpdb->get_var( $wpdb->prepare(
+            "SELECT status FROM {$wpdb->prefix}hdlv2_widget_leads WHERE id = %d FOR UPDATE",
+            (int) $lead->id
+        ) );
+        if ( 'pending' !== $status ) {
+            $wpdb->query( 'ROLLBACK' );
+            return array( 'form_token' => '', 'email_sent' => false, 'already' => true );
+        }
         $form_token = self::complete_signup( array(
-            'practitioner_id' => $user_id,
+            'practitioner_id' => $practitioner_id,
             'visitor_name'    => (string) $lead->visitor_name,
             'visitor_email'   => (string) $lead->visitor_email,
             'visitor_phone'   => '', // not captured on widget_leads pre-v0.35.0
             'visitor_age'     => $lead->visitor_age !== null ? (int) $lead->visitor_age : null,
             'rate'            => $lead->rate_of_ageing !== null ? (float) $lead->rate_of_ageing : null,
             'stage1_data'     => $stage1,
-            'config'          => $config,
+            'config'          => null, // complete_signup() reads the practitioner's config row
+            'invite_id'       => $invite_id,
+            // v0.47.83 — carry the submit-time location onto the client
+            // record. Null-coalesced: a pre-migration lead row has no
+            // location columns and must confirm exactly as before.
+            'visitor_country' => (string) ( $lead->visitor_country ?? '' ),
+            'visitor_region'  => (string) ( $lead->visitor_region ?? '' ),
             // Both Make.com fan-out emails (client + practitioner) and the
             // practitioner notify email already fired at widget submission.
             // Don't refire on Confirm — that'd duplicate the PDF email
@@ -1951,48 +2328,189 @@ class HDLV2_Widget_Config {
         ) );
 
         if ( ! $form_token ) {
-            return new WP_Error( 'confirm_failed', 'Could not create assessment session for this lead.', array( 'status' => 500 ) );
+            $wpdb->query( 'ROLLBACK' );
+            return false;
         }
 
-        // Mark confirmed BEFORE sending email so a wp_mail timeout doesn't
-        // leave us in a weird "the lead is still pending but the email went
-        // out" state on retry.
+        $lead_update = array(
+            'status'       => 'confirmed',
+            'confirmed_at' => current_time( 'mysql' ),
+        );
+        if ( $invite_id ) {
+            $lead_update['invite_id'] = (int) $invite_id;
+        }
         $wpdb->update(
             $wpdb->prefix . 'hdlv2_widget_leads',
-            array(
-                'status'       => 'confirmed',
-                'confirmed_at' => current_time( 'mysql' ),
-            ),
-            array( 'id' => $lead_id ),
-            array( '%s', '%s' ),
+            $lead_update,
+            array( 'id' => (int) $lead->id ),
+            $invite_id ? array( '%s', '%s', '%d' ) : array( '%s', '%s' ),
             array( '%d' )
         );
+        $wpdb->query( 'COMMIT' );
 
-        // v0.35.0 (Phase O, revised) — send the post-Confirm magic-link
-        // email. The Make.com Stage 1 client email already arrived at submit
-        // time but it intentionally has no Continue button (that's the spam
-        // gate — visitors wait for the practitioner to look at their data).
-        // This send_invite_email is the "your practitioner reviewed your
-        // snapshot, here's the next step" email. Reuses the existing
-        // "You're Invited!" template, but the URL points at /assessment/
-        // rather than back at the widget so the visitor lands directly on
-        // Stage 2 with their original 9 answers preserved as Stage 1 data.
-        $assessment_url = site_url( '/assessment/?token=' . $form_token );
-        $expires_at     = gmdate( 'Y-m-d H:i:s', time() + 30 * DAY_IN_SECONDS );
-        $email_sent     = self::send_invite_email( $user_id, (string) $lead->visitor_name, (string) $lead->visitor_email, $assessment_url, $expires_at );
-        if ( ! $email_sent ) {
-            error_log( sprintf(
-                '[HDL V2] Confirm-lead magic-link email failed — practitioner %d, client %s. Lead is confirmed; client must be re-sent the link manually (Sent Invites tab → Resend).',
-                $user_id,
-                $lead->visitor_email
-            ) );
+        $email_sent = false;
+        if ( $send_email ) {
+            // v0.35.0 (Phase O, revised) — the post-Confirm magic-link email.
+            // The Make.com Stage 1 client email already arrived at submit
+            // time but intentionally has no Continue button (the spam gate:
+            // visitors wait for the practitioner to look at their data). The
+            // URL points at /assessment/ so the visitor lands on the Full
+            // Report with their 9 answers kept as Stage 1 data.
+            $assessment_url = site_url( '/assessment/?token=' . $form_token );
+            $expires_at     = gmdate( 'Y-m-d H:i:s', time() + 30 * DAY_IN_SECONDS );
+            $email_sent     = (bool) self::send_invite_email( $practitioner_id, (string) $lead->visitor_name, (string) $lead->visitor_email, $assessment_url, $expires_at );
+            if ( ! $email_sent ) {
+                error_log( sprintf(
+                    '[HDL V2] Confirm-lead magic-link email failed — practitioner %d, lead %d. Lead is confirmed; client must be re-sent the link manually (Sent Invites tab → Resend).',
+                    $practitioner_id,
+                    (int) $lead->id
+                ) );
+            }
         }
 
-        return rest_ensure_response( array(
-            'success'    => true,
-            'form_token' => (string) $form_token,
-            'email_sent' => (bool) $email_sent,
+        return array( 'form_token' => (string) $form_token, 'email_sent' => $email_sent, 'already' => false );
+    }
+
+    /** Most leads one bulk call actions; the dashboard sends bigger selections in chunks. */
+    const BULK_MAX = 20;
+    /** The dashboard shows the bulk tick boxes from this many pending leads (0 = always). */
+    const BULK_MIN_PENDING = 10;
+
+    /**
+     * POST /widget/leads/confirm-bulk — v0.48.15 (Matthew, 2026-10-13: "select
+     * all and confirm everybody in one go"). Body { lead_ids: int[] }, 1–20.
+     * Each pending lead exactly as the single Confirm: its own transaction,
+     * its own email after COMMIT (an email that has gone cannot be rolled
+     * back with the rows after it). Rejected → failed lead_rejected.
+     *
+     * @return array { confirmed: int[], already: int[], failed: {id, code}[] }
+     */
+    public function rest_confirm_leads_bulk( $request ) {
+        return $this->bulk_leads( $request, 'confirm' );
+    }
+
+    /**
+     * POST /widget/leads/reject-bulk — v0.48.16. Body { lead_ids: int[] }, 1–20.
+     * Each pending lead exactly as the single Reject (no email); confirmed or
+     * already-rejected leads come back under already.
+     *
+     * @return array { rejected: int[], already: int[], failed: {id, code}[] }
+     */
+    public function rest_reject_leads_bulk( $request ) {
+        return $this->bulk_leads( $request, 'reject' );
+    }
+
+    /**
+     * The two bulk routes: one loop, a different per-lead action. Every id
+     * must belong to the caller before anything is written (403 otherwise).
+     */
+    private function bulk_leads( $request, $action ) {
+        global $wpdb;
+        $user_id = get_current_user_id();
+        $params  = $request->get_json_params();
+        $raw     = $params['lead_ids'] ?? null;
+        if ( ! is_array( $raw ) || ! $raw ) {
+            return new WP_Error( 'missing_lead_ids', 'lead_ids must be a list of lead ids.', array( 'status' => 400 ) );
+        }
+        if ( count( $raw ) > self::BULK_MAX ) {
+            return new WP_Error( 'too_many', 'At most ' . self::BULK_MAX . ' leads per call.', array( 'status' => 400 ) );
+        }
+        $ids = array();
+        foreach ( $raw as $id ) {
+            if ( ! ( is_int( $id ) || ( is_string( $id ) && ctype_digit( $id ) ) ) || (int) $id < 1 ) {
+                return new WP_Error( 'invalid_lead_ids', 'Every lead id must be a whole number.', array( 'status' => 400 ) );
+            }
+            $ids[ (int) $id ] = true;
+        }
+        $ids = array_keys( $ids );
+
+        // Ownership first, for the whole list. The ids are integers.
+        $rows = $wpdb->get_results( $wpdb->prepare(
+            "SELECT * FROM {$wpdb->prefix}hdlv2_widget_leads
+             WHERE practitioner_user_id = %d AND id IN (" . implode( ',', $ids ) . ')',
+            $user_id
         ) );
+        $by_id = array();
+        foreach ( (array) $rows as $row ) {
+            $by_id[ (int) $row->id ] = $row;
+        }
+        if ( count( $by_id ) !== count( $ids ) ) {
+            return new WP_Error( 'lead_not_yours', 'One or more leads were not found.', array( 'status' => 403 ) );
+        }
+
+        $done_key = 'confirm' === $action ? 'confirmed' : 'rejected';
+        $out      = array( $done_key => array(), 'already' => array(), 'failed' => array() );
+        foreach ( $ids as $id ) {
+            $lead = $by_id[ $id ];
+            if ( 'reject' === $action ) {
+                if ( 'pending' !== $lead->status || ! self::reject_lead_row( $id, $user_id ) ) {
+                    $out['already'][] = $id; // confirmed, rejected, or actioned since the read
+                } else {
+                    $out['rejected'][] = $id;
+                }
+            } elseif ( 'confirmed' === $lead->status ) {
+                $out['already'][] = $id;
+            } elseif ( 'pending' !== $lead->status ) {
+                $out['failed'][] = array( 'id' => $id, 'code' => 'lead_rejected' );
+            } else {
+                $done = self::confirm_lead_row( $lead, $user_id, true );
+                if ( ! $done ) {
+                    $out['failed'][] = array( 'id' => $id, 'code' => 'confirm_failed' );
+                } elseif ( $done['already'] ) {
+                    $out['already'][] = $id;
+                } else {
+                    $out['confirmed'][] = $id;
+                }
+            }
+        }
+        return rest_ensure_response( $out );
+    }
+
+    /** Newest lead of this practitioner for this email, or null. */
+    private static function newest_lead( $practitioner_id, $email ) {
+        global $wpdb;
+        return $wpdb->get_row( $wpdb->prepare(
+            "SELECT * FROM {$wpdb->prefix}hdlv2_widget_leads
+             WHERE practitioner_user_id = %d AND visitor_email = %s
+             ORDER BY id DESC LIMIT 1",
+            (int) $practitioner_id, (string) $email
+        ) );
+    }
+
+    /**
+     * v0.48.15 — a Full Report purchase confirms the buyer's pending Stage 1
+     * lead with no email (the seller sends the link). A confirmed lead needs
+     * nothing; a rejected one counts as not found and is never revived.
+     *
+     * Safe to repeat: a retried purchase (same external_ref) confirms a lead
+     * the first call could not, and otherwise only reports.
+     *
+     * @return array { found: bool, confirmed: bool } — confirmed = by this ticket.
+     */
+    public static function confirm_lead_for_purchase( $practitioner_id, $email, $ticket_id ) {
+        $lead = self::newest_lead( $practitioner_id, $email );
+        if ( ! $lead || 'rejected' === $lead->status ) {
+            return array( 'found' => false, 'confirmed' => false );
+        }
+        if ( 'pending' === $lead->status ) {
+            $done = self::confirm_lead_row( $lead, $practitioner_id, false, $ticket_id );
+            if ( $done && ! $done['already'] ) {
+                return array( 'found' => true, 'confirmed' => true );
+            }
+        }
+        return self::purchase_lead_state( $practitioner_id, $email, $ticket_id );
+    }
+
+    /** The same answer as confirm_lead_for_purchase(), read only (a repeat mint, or the switch off). */
+    public static function purchase_lead_state( $practitioner_id, $email, $ticket_id ) {
+        $lead = self::newest_lead( $practitioner_id, $email );
+        if ( ! $lead || 'rejected' === $lead->status ) {
+            return array( 'found' => false, 'confirmed' => false );
+        }
+        return array(
+            'found'     => true,
+            'confirmed' => 'confirmed' === $lead->status && (int) ( $lead->invite_id ?? 0 ) === (int) $ticket_id,
+        );
     }
 
     /**
@@ -2021,26 +2539,30 @@ class HDLV2_Widget_Config {
             return new WP_Error( 'missing_lead_id', 'lead_id is required.', array( 'status' => 400 ) );
         }
 
-        $updated = $wpdb->update(
+        if ( ! self::reject_lead_row( $lead_id, $user_id ) ) {
+            return new WP_Error( 'lead_not_found', 'Lead not found or already actioned.', array( 'status' => 404 ) );
+        }
+
+        return rest_ensure_response( array( 'success' => true ) );
+    }
+
+    /** Reject one of the caller's PENDING leads. True when a row changed. */
+    private static function reject_lead_row( $lead_id, $user_id ) {
+        global $wpdb;
+        return 1 === (int) $wpdb->update(
             $wpdb->prefix . 'hdlv2_widget_leads',
             array(
                 'status'      => 'rejected',
                 'rejected_at' => current_time( 'mysql' ),
             ),
             array(
-                'id'                   => $lead_id,
-                'practitioner_user_id' => $user_id,
+                'id'                   => (int) $lead_id,
+                'practitioner_user_id' => (int) $user_id,
                 'status'               => 'pending',
             ),
             array( '%s', '%s' ),
             array( '%d', '%d', '%s' )
         );
-
-        if ( $updated === 0 ) {
-            return new WP_Error( 'lead_not_found', 'Lead not found or already actioned.', array( 'status' => 404 ) );
-        }
-
-        return rest_ensure_response( array( 'success' => true ) );
     }
 
     /**
@@ -2060,22 +2582,29 @@ class HDLV2_Widget_Config {
      * and on the widget itself).
      */
     public function rest_get_public_config( $request ) {
+        // v0.48.16 — the same answer for every visitor: cacheable for five
+        // minutes (the loader's no-store filter skips this route).
+        $reply = function ( $data ) {
+            $r = new WP_REST_Response( $data, 200 );
+            $r->header( 'Cache-Control', 'public, max-age=300, s-maxage=300' );
+            return $r;
+        };
         $practitioner_id = absint( $request->get_param( 'practitioner_id' ) );
         if ( ! $practitioner_id ) {
-            return rest_ensure_response( array( 'config' => null ) );
+            return $reply( array( 'config' => null ) );
         }
         global $wpdb;
         $row = $wpdb->get_row( $wpdb->prepare(
-            "SELECT practitioner_name, logo_url, logo_shape, cta_link, cta_text, theme_color,
-                    show_book_button_after_widget
-             FROM {$wpdb->prefix}hdlv2_widget_config
+            // SELECT * so a server whose Phase AH (v3.27) migration has not
+            // run yet still answers; only the fields named below go out.
+            "SELECT * FROM {$wpdb->prefix}hdlv2_widget_config
              WHERE practitioner_user_id = %d LIMIT 1",
             $practitioner_id
         ) );
         if ( ! $row ) {
-            return rest_ensure_response( array( 'config' => null ) );
+            return $reply( array( 'config' => null ) );
         }
-        return rest_ensure_response( array( 'config' => array(
+        return $reply( array( 'config' => array(
             'practitioner_name'             => (string) $row->practitioner_name,
             'logo_url'                      => (string) $row->logo_url,
             'logo_shape'                    => (string) ( $row->logo_shape ?: 'square' ),
@@ -2087,7 +2616,12 @@ class HDLV2_Widget_Config {
             // the embedded widget shows the 2-question safety screen before the
             // result. Default off = widget behaves exactly as before.
             'safety_screen_enabled'         => (bool) get_option( 'hdlv2_ff_safety_screen', false ),
-        ) ) );
+            // v0.47.85 — paid mode: the widget shows its locked panel to a
+            // visitor without a personal link. Covers embeds pasted before
+            // the snippet carried data-access.
+            'access_mode'                   => isset( $row->access_mode ) && 'paid' === $row->access_mode ? 'paid' : 'open',
+            'buy_url'                       => isset( $row->buy_url ) ? (string) $row->buy_url : '',
+        ) + ( HDLV2_Offer::applies_to( (int) $row->practitioner_user_id ) ? HDLV2_Offer::public_config_fields() : array() ) ) ); // v0.48.15 — the locked panel's price line
     }
 
     /**
@@ -2344,22 +2878,11 @@ class HDLV2_Widget_Config {
      * @since 0.22.24 — rewritten 0.22.35 for V2 layout + email-path unification.
      */
     public static function send_invite_email( $practitioner_id, $client_name, $client_email, $invite_url, $expires_at ) {
-        $practitioner_user = get_userdata( $practitioner_id );
-        if ( ! $practitioner_user ) {
+        $sender = self::invite_sender( $practitioner_id );
+        if ( ! $sender ) {
             return false;
         }
-
-        // Prefer widget_config.practitioner_name (the brand the practitioner
-        // chose for the widget). Fall back to WP display_name.
-        global $wpdb;
-        $config = $wpdb->get_row( $wpdb->prepare(
-            "SELECT practitioner_name FROM {$wpdb->prefix}hdlv2_widget_config WHERE practitioner_user_id = %d LIMIT 1",
-            $practitioner_id
-        ) );
-        $practitioner_name  = $config && ! empty( $config->practitioner_name )
-            ? $config->practitioner_name
-            : $practitioner_user->display_name;
-        $practitioner_email = $practitioner_user->user_email;
+        list( $practitioner_name, $practitioner_email ) = $sender;
 
         // v0.36.23 — single derive-first-name helper avoids the previous
         // "Dear matthewdhaemer+test080526@…" bleed-through when an early
@@ -2384,14 +2907,14 @@ class HDLV2_Widget_Config {
             ? HDLV2_INVITE_VIDEO_TITLE
             : 'Watch: Why getting clarity on how you\'re ageing matters';
 
-        // v0.36.18 — Stage 2 invite subject: standardised "Stage 2" naming
-        // and explicit "Practitioner" prefix so the client knows the email
-        // is from their practitioner, not a generic marketing blast.
-        $subject = sprintf( 'Practitioner %s invites you to complete the Stage 2 form — Why Longevity', $practitioner_name );
+        // v0.48.15 — Matthew 2026-10-13: the client reads "the Full Report",
+        // never "Stage 2/3". The practitioner's name leads so the client
+        // knows who opened it.
+        $subject = sprintf( '%s has opened your Full Report — HealthDataLab', $practitioner_name );
 
         // ── Body ───────────────────────────────────────────────────────────
         $body  = '<p style="margin:0 0 16px;font-size:16px;color:#1a1a1a;font-family:Inter,-apple-system,BlinkMacSystemFont,\'Segoe UI\',sans-serif;">Dear ' . esc_html( $first_name ) . ',</p>';
-        $body .= '<p style="margin:0 0 16px;font-size:15px;color:#333333;line-height:1.7;font-family:Inter,-apple-system,sans-serif;">Your practitioner, <strong style="color:#1a1a1a;">' . esc_html( $practitioner_name ) . '</strong>, has invited you to complete Stage 2 of your Longevity assessment.</p>';
+        $body .= '<p style="margin:0 0 16px;font-size:15px;color:#333333;line-height:1.7;font-family:Inter,-apple-system,sans-serif;">Your practitioner, <strong style="color:#1a1a1a;">' . esc_html( $practitioner_name ) . '</strong>, has opened the Full Report of your Longevity assessment.</p>';
         $body .= '<p style="margin:0 0 16px;font-size:15px;color:#333333;line-height:1.7;font-family:Inter,-apple-system,sans-serif;">This is the <em style="color:#004F59;font-style:italic;">Why</em>. In your own words, what matters to you and why is this work worth doing? Your answers will feed into your reports and weekly flight plans, and on days when motivation dips, your reflections will help you find your footing again.</p>';
         $body .= '<p style="margin:0 0 22px;font-size:15px;color:#333333;line-height:1.7;font-family:Inter,-apple-system,sans-serif;">Set aside 5&ndash;20 minutes in a quiet place and complete it in one sitting.</p>';
 
@@ -2426,20 +2949,72 @@ class HDLV2_Widget_Config {
         // shared HDLV2_Email_Templates::base_layout() so every email
         // reads as one design system. Banner title and practitioner
         // logo/name are resolved inside the shared header renderer.
-        $message = HDLV2_Email_Templates::base_layout( $body, (int) $practitioner_id, 'Stage 2 form — Why Longevity' );
+        $message = HDLV2_Email_Templates::base_layout( $body, (int) $practitioner_id, 'Your Full Report' );
 
-        // v0.36.23 — Reply-To display-name now quoted so apostrophes
-        // ("Matthew D'haemer") survive RFC 5322 parsing in Gmail /
-        // Outlook MUAs. Pre-v0.36.23 the bare display-name lost the
-        // apostrophe in some clients ("Matthew Dhaemer"). Same defensive
-        // quoting applied to From header for future-proofing.
-        $headers = array(
+        return wp_mail( $client_email, $subject, $message, self::invite_headers( $practitioner_name, $practitioner_email ) );
+    }
+
+    /**
+     * Practitioner's display name (widget_config.practitioner_name, the brand
+     * they chose for the widget, else WP display_name) and email, or null.
+     */
+    private static function invite_sender( $practitioner_id ) {
+        $practitioner_user = get_userdata( $practitioner_id );
+        if ( ! $practitioner_user ) {
+            return null;
+        }
+        global $wpdb;
+        $config = $wpdb->get_row( $wpdb->prepare(
+            "SELECT practitioner_name FROM {$wpdb->prefix}hdlv2_widget_config WHERE practitioner_user_id = %d LIMIT 1",
+            $practitioner_id
+        ) );
+        $name = $config && ! empty( $config->practitioner_name ) ? $config->practitioner_name : $practitioner_user->display_name;
+        return array( $name, $practitioner_user->user_email );
+    }
+
+    /**
+     * Sent by HealthDataLab, replies go to the practitioner.
+     * v0.36.23 — Reply-To display-name quoted so apostrophes ("Matthew
+     * D'haemer") survive RFC 5322 parsing in Gmail / Outlook MUAs.
+     */
+    private static function invite_headers( $practitioner_name, $practitioner_email ) {
+        return array(
             'Content-Type: text/html; charset=UTF-8',
             'From: "HealthDataLab" <noreply@healthdatalab.net>',
             'Reply-To: "' . addcslashes( $practitioner_name, '\\"' ) . '" <' . $practitioner_email . '>',
         );
+    }
 
-        return wp_mail( $client_email, $subject, $message, $headers );
+    /**
+     * v0.47.90 — email for "Send Stage 1 link": the one-time paid Stage 1
+     * ticket, for someone who paid the practitioner directly. Same shell as
+     * the Stage 2 invite. Copy is a draft for Matthew. Never shows a price.
+     */
+    public static function send_stage1_link_email( $practitioner_id, $client_name, $client_email, $link_url, $expires_at ) {
+        $sender = self::invite_sender( $practitioner_id );
+        if ( ! $sender ) {
+            return false;
+        }
+        list( $practitioner_name, $practitioner_email ) = $sender;
+        $first_name = HDLV2_Email_Templates::derive_first_name( $client_name, $client_email );
+        $until      = wp_date( 'F j, Y', strtotime( $expires_at . ' UTC' ) );
+        $p          = '<p style="margin:0 0 16px;font-size:15px;color:#333333;line-height:1.7;font-family:Inter,-apple-system,sans-serif;">';
+
+        $body  = '<p style="margin:0 0 16px;font-size:16px;color:#1a1a1a;font-family:Inter,-apple-system,BlinkMacSystemFont,\'Segoe UI\',sans-serif;">Dear ' . esc_html( $first_name ) . ',</p>';
+        $body .= $p . '<strong style="color:#1a1a1a;">' . esc_html( $practitioner_name ) . '</strong> has set up your Stage 1 Longevity assessment.</p>';
+        $body .= $p . 'It is nine short questions and takes about ten minutes. When you finish, your Stage 1 report is emailed to you.</p>';
+        $body .= '<table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center" style="margin:8px auto 24px;"><tr>';
+        $body .= '<td align="center" bgcolor="#004F59" style="border-radius:2px;">';
+        $body .= '<a href="' . esc_url( $link_url ) . '" target="_blank" style="display:inline-block;padding:14px 30px;font-size:13.5px;font-weight:600;letter-spacing:0.04em;color:#ffffff;text-decoration:none;font-family:Inter,-apple-system,BlinkMacSystemFont,\'Segoe UI\',sans-serif;">Start Stage 1 &rarr;</a>';
+        $body .= '</td></tr></table>';
+        $body .= '<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin:6px 0 0;"><tr><td style="background:#f5f6f8;border:1px solid #e4e6ea;border-radius:10px;padding:18px 22px;font-family:Inter,-apple-system,BlinkMacSystemFont,\'Segoe UI\',sans-serif;">';
+        $body .= '<p style="margin:0 0 12px;font-size:13px;color:#666666;text-align:center;line-height:1.5;">This link works once and is valid until <strong style="color:#1a1a1a;">' . esc_html( $until ) . '</strong>.</p>';
+        $body .= '<p style="margin:0;font-size:13px;color:#666666;text-align:center;line-height:1.5;border-top:1px solid #e4e6ea;padding-top:12px;">Any questions? Please contact <a href="mailto:' . esc_attr( $practitioner_email ) . '" style="color:#3d8da0;text-decoration:underline;font-weight:500;">' . esc_html( $practitioner_name ) . '</a>.</p>';
+        $body .= '</td></tr></table>';
+
+        $subject = sprintf( '%s has sent you your Stage 1 Longevity assessment', $practitioner_name );
+        $message = HDLV2_Email_Templates::base_layout( $body, (int) $practitioner_id, 'Stage 1 Longevity assessment' );
+        return wp_mail( $client_email, $subject, $message, self::invite_headers( $practitioner_name, $practitioner_email ) );
     }
 
     /**
@@ -2572,6 +3147,9 @@ class HDLV2_Widget_Config {
             'safety_screen_enabled'          => (bool) get_option( 'hdlv2_ff_safety_screen', false ),
             'api_url'                        => rest_url( 'hdl-v2/v1/widget/lead' ),
             'prefill_stage1'                 => $prefill,
+            // v0.47.85 — 'paid_stage1' tells the widget this link buys the
+            // public path (no "Continue to Stage 2").
+            'source'                         => isset( $invite->source ) ? (string) $invite->source : 'practitioner',
         ) );
     }
 
@@ -2596,7 +3174,7 @@ class HDLV2_Widget_Config {
         $invites = $wpdb->get_results( $wpdb->prepare(
             "SELECT id, client_name, client_email, status, token, expires_at, created_at, opened_at, completed_at
              FROM {$wpdb->prefix}hdlv2_widget_invites
-             WHERE practitioner_id = %d
+             WHERE practitioner_id = %d AND source <> 'paid_stage1'
              ORDER BY created_at DESC
              LIMIT 100",
             $user_id
@@ -2836,6 +3414,73 @@ class HDLV2_Widget_Config {
         ) );
     }
 
+    /** Paid mode + an https ticket page → that page; otherwise ''. */
+    public static function stage1_link_page( $config ) {
+        if ( ! $config || 'paid' !== ( $config->access_mode ?? '' ) ) {
+            return '';
+        }
+        $url = (string) ( $config->ticket_page_url ?? '' );
+        return 'https' === wp_parse_url( $url, PHP_URL_SCHEME ) && wp_parse_url( $url, PHP_URL_HOST ) ? $url : '';
+    }
+
+    /**
+     * v0.47.90 — "Send Stage 1 link". A paid-mode practitioner emails someone
+     * who paid them directly the same one-time ticket a buyer gets (public
+     * path, pending lead). The practitioner is always the logged-in user.
+     * request_id comes from the browser, one per filled form, so a retry gets
+     * the same ticket and no second email.
+     */
+    public function ajax_send_stage1_link() {
+        check_ajax_referer( 'hdlv2_widget_config', 'nonce' );
+
+        $user_id = get_current_user_id();
+        if ( ! HDLV2_Compatibility::is_practitioner( $user_id ) ) {
+            wp_send_json_error( 'Not authorized' );
+        }
+
+        $page = self::stage1_link_page( $this->get_config( $user_id ) );
+        if ( '' === $page ) {
+            wp_send_json_error( 'Stage 1 links can only be sent when your widget is in paid mode with a ticket page set.' );
+        }
+
+        $name       = substr( sanitize_text_field( wp_unslash( $_POST['client_name'] ?? '' ) ), 0, 200 );
+        $email      = sanitize_email( wp_unslash( $_POST['client_email'] ?? '' ) );
+        $request_id = (string) ( $_POST['request_id'] ?? '' );
+        if ( '' === $name ) {
+            wp_send_json_error( 'Please enter their name.' );
+        }
+        if ( ! is_email( $email ) ) {
+            wp_send_json_error( 'A valid email is required.' );
+        }
+        if ( ! preg_match( '/^[A-Za-z0-9_-]{16,64}$/', $request_id ) ) {
+            wp_send_json_error( 'Please reload the page and try again.' );
+        }
+
+        $rl = HDLV2_Rate_Limiter::consume( HDLV2_Rate_Limiter::bucket_key( array( 'stage1-link', $user_id ) ), 20, HOUR_IN_SECONDS );
+        if ( ! $rl['allowed'] ) {
+            wp_send_json_error( 'Too many links this hour. Please try again later.' );
+        }
+
+        $ticket = HDL_Stage1_Ticket::mint( $user_id, $email, $name, 'manual:' . $request_id, HDL_Stage1_Ticket::DEFAULT_DAYS );
+        if ( is_wp_error( $ticket ) ) {
+            wp_send_json_error( 'The link could not be made. Please try again.' );
+        }
+
+        $url  = $page . ( false === strpos( $page, '?' ) ? '?' : '&' ) . 'invite=' . $ticket['token'];
+        $sent = $ticket['idempotent'] ? false : self::send_stage1_link_email( $user_id, $ticket['name'], $ticket['email'], $url, $ticket['expires_at'] );
+        if ( ! $ticket['idempotent'] && ! $sent ) {
+            error_log( sprintf( '[HDL V2] Stage 1 link email failed — practitioner %d', $user_id ) );
+        }
+
+        wp_send_json_success( array(
+            'url'        => $url,
+            'expires_at' => $ticket['expires_at'],
+            'email'      => $ticket['email'],
+            'email_sent' => $sent,
+            'repeat'     => $ticket['idempotent'],
+        ) );
+    }
+
     /**
      * v0.29.0 — Live lookup for the Send-Invites form. Practitioner types an
      * email; we report whether a prior public-widget submission for the same
@@ -2893,7 +3538,7 @@ class HDLV2_Widget_Config {
         $invites = $wpdb->get_results( $wpdb->prepare(
             "SELECT id, client_name, client_email, status, token, expires_at, created_at, opened_at, completed_at
              FROM {$wpdb->prefix}hdlv2_widget_invites
-             WHERE practitioner_id = %d
+             WHERE practitioner_id = %d AND source <> 'paid_stage1'
              ORDER BY created_at DESC
              LIMIT 100",
             $user_id
@@ -2940,7 +3585,8 @@ class HDLV2_Widget_Config {
         global $wpdb;
         $deleted = $wpdb->query( $wpdb->prepare(
             "DELETE FROM {$wpdb->prefix}hdlv2_widget_invites
-             WHERE id = %d AND practitioner_id = %d AND status IN ('expired','revoked','completed')",
+             WHERE id = %d AND practitioner_id = %d AND status IN ('expired','revoked','completed')
+               AND source <> 'paid_stage1'",
             $invite_id,
             $user_id
         ) );
@@ -2966,9 +3612,16 @@ class HDLV2_Widget_Config {
      * @param string $token The 64-char hex token.
      * @return object|null The invite row if valid, null otherwise.
      */
-    private function get_valid_invite( $token ) {
-        if ( ! preg_match( '/^[a-f0-9]{64}$/', $token ) ) {
+    private static function get_valid_invite( $token ) {
+        if ( ! is_string( $token ) || ! preg_match( '/^[a-f0-9]{64}$/', $token ) ) {
             return null;
+        }
+
+        // The rate limiter already read this row for this request.
+        if ( self::$limiter_invite && self::$limiter_invite[0] === $token ) {
+            $invite               = self::$limiter_invite[1];
+            self::$limiter_invite = null;
+            return $invite;
         }
 
         global $wpdb;
@@ -2992,6 +3645,61 @@ class HDLV2_Widget_Config {
         return $invite;
     }
 
+    /** array( token, row|null ) read by ticket_for_limiter(), handed once to get_valid_invite(). */
+    private static $limiter_invite = null;
+
+    /** True for a usable paid Stage 1 ticket that belongs to this practitioner. */
+    private static function is_paid_ticket_of( $invite, $practitioner_id ) {
+        return $invite
+            && isset( $invite->source ) && 'paid_stage1' === $invite->source
+            && (int) $invite->practitioner_id === (int) $practitioner_id;
+    }
+
+    /**
+     * For the rate-limit middleware: the paid ticket this answers post
+     * carries, or null when the database does not confirm one (made up,
+     * used, revoked, expired, another practitioner's, or not a paid ticket).
+     * The row is kept for the handler so the request reads it once.
+     */
+    public static function ticket_for_limiter( $token, $practitioner_id ) {
+        self::$limiter_invite = null;
+        $invite               = self::get_valid_invite( $token );
+        if ( is_string( $token ) && '' !== $token ) {
+            self::$limiter_invite = array( $token, $invite );
+        }
+        return self::is_paid_ticket_of( $invite, $practitioner_id ) ? $invite : null;
+    }
+
+    /**
+     * The answer for a repeat post of a used paid Stage 1 ticket: the success
+     * body when the lead that ticket bought is on file, else null. Read from
+     * the database, so it holds while the first post is still sending its
+     * PDF and for as long as the lead exists.
+     */
+    private static function saved_ticket_reply( $token, $practitioner_id ) {
+        if ( ! is_string( $token ) || ! preg_match( '/^[a-f0-9]{64}$/', $token ) ) {
+            return null;
+        }
+        global $wpdb;
+        $lead = $wpdb->get_row( $wpdb->prepare(
+            "SELECT l.rate_of_ageing
+             FROM {$wpdb->prefix}hdlv2_widget_invites i
+             JOIN {$wpdb->prefix}hdlv2_widget_leads l
+               ON l.invite_id = i.id AND l.practitioner_user_id = i.practitioner_id
+             WHERE i.token = %s AND i.practitioner_id = %d
+               AND i.source = 'paid_stage1' AND i.status = 'completed'
+             LIMIT 1",
+            $token, (int) $practitioner_id
+        ) );
+        if ( ! $lead ) {
+            return null;
+        }
+        return array(
+            'success' => true,
+            'rate'    => null === $lead->rate_of_ageing ? null : (float) $lead->rate_of_ageing,
+        );
+    }
+
     /**
      * Mark an invite as completed.
      */
@@ -3007,6 +3715,21 @@ class HDLV2_Widget_Config {
             array( '%s', '%s' ),
             array( '%d' )
         );
+    }
+
+    /**
+     * Take a paid Stage 1 ticket. True only for the one caller whose UPDATE
+     * found the row still pending/opened.
+     */
+    private function claim_ticket( $invite_id ) {
+        global $wpdb;
+        return 1 === (int) $wpdb->query( $wpdb->prepare(
+            "UPDATE {$wpdb->prefix}hdlv2_widget_invites
+             SET status = 'completed', completed_at = %s
+             WHERE id = %d AND status IN ('pending','opened')",
+            current_time( 'mysql' ),
+            $invite_id
+        ) );
     }
 
     // ──────────────────────────────────────────────────────────────

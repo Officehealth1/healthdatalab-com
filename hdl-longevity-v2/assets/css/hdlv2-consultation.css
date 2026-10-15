@@ -1018,34 +1018,6 @@ body.hdlv2-wide-page .hdlv2-consult-layout {
 .hdlv2-save-status.saved { color: #10b981; }
 .hdlv2-save-status.error { color: #dc2626; }
 
-/* ── SPINNER ── */
-@keyframes hdlv2spin { to { transform: rotate(360deg); } }
-
-.hdlv2-spinner {
-  display: inline-block;
-  width: 14px;
-  height: 14px;
-  margin-right: 8px;
-  vertical-align: -2px;
-  border: 2px solid rgba(255, 255, 255, 0.35);
-  border-top-color: #ffffff;
-  border-radius: 50%;
-  animation: hdlv2spin 0.8s linear infinite;
-}
-
-.hdlv2-spinner-label {
-  display: inline-block;
-  vertical-align: middle;
-}
-
-/* When the button is disabled (i.e. mid-request) the inner spinner stays
-   visible and crisp regardless of the dim button background. */
-.hdlv2-consult-generate-btn:disabled .hdlv2-spinner {
-  border-color: rgba(255, 255, 255, 0.5);
-  border-top-color: #ffffff;
-  opacity: 1;
-}
-
 
 /* ── v0.15.1 — icons-inside-textarea + collapsed flow ── */
 /* v0.15.2 — WhatsApp-style notes bar: single bordered container,
@@ -1188,404 +1160,202 @@ body.hdlv2-wide-page .hdlv2-consult-layout {
   margin-right: 16px;
   margin-bottom: 12px;
 }
-.hdlv2-client-brief-loading {
-  padding: 16px;
-  background: #fafbfc;
-  border-radius: 8px;
-  color: #888;
-  font-size: 13px;
-  text-align: center;
-}
-@keyframes hdlv2spin { to { transform: rotate(360deg); } }
 
 /* ──────────────────────────────────────────────────────────────────────
-   CONSULTATIONS LIST VIEW (v0.25.2) — /consultation/ with no ?progress_id
+   CONSULTATIONS LIST VIEW — /consultation/ with no ?progress_id
+   v0.47.96: one table in the Clients-page theme. Measurements are the
+   Clients table's (DESIGN.md at the repo root); colours are the repo
+   brand + status palette only.
    ──────────────────────────────────────────────────────────────────── */
 
-/* The list view re-uses .hdlv2-consultation-root as its outer wrapper, so
-   font + full-bleed escape are already inherited. These rules style the
-   index UI rendered by hdlv2-consultation.js → renderList(). */
-
-/* v0.25.3 — single centered shell. The parent .hdlv2-consultation-root is
-   intentionally full-bleed (100vw with negative margin) to escape Divi's
-   .et_pb_row 80% cap, so without this wrapper the inner content was
-   left-aligned to the viewport's left padding instead of centered. */
+/* The root is full-bleed; the shell puts the content on the same edges
+   as the Clients table (64 / 32 / 24px gutters). */
 .hdlv2-consultation-root .cl-shell {
-  max-width: 1180px;
-  margin: 0 auto;
-  width: 100%;
+  padding: 48px 40px 64px;
+  color: #2c3e50;
 }
 
-.hdlv2-consultation-root .cl-page-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-end;
-  gap: 20px;
-  margin: 0 0 24px;
-  max-width: 1180px;
-}
 .hdlv2-consultation-root .cl-h1 {
-  margin: 0 0 4px;
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-  font-size: 28px;
-  font-weight: 700;
-  color: #111;
-  letter-spacing: -0.01em;
-  line-height: 1.2;
-}
-.hdlv2-consultation-root .cl-lead {
-  margin: 0;
-  font-size: 14px;
-  color: #555;
-  line-height: 1.6;
-}
-.hdlv2-consultation-root .cl-back-link {
-  color: #3d8da0;
-  font-weight: 600;
-  font-size: 13px;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 14px;
-  border-radius: 8px;
-  border: 1px solid #c9e4e9;
-  background: #fff;
-  text-decoration: none;
-  flex-shrink: 0;
-  transition: background .15s;
-}
-.hdlv2-consultation-root .cl-back-link:hover {
-  background: #f0fbfc;
-}
-
-/* Counts strip (3 cards). */
-.hdlv2-consultation-root .cl-counts {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 12px;
-  margin: 0 0 28px;
-  max-width: 1180px;
-}
-.hdlv2-consultation-root .cl-count-card {
-  background: #fff;
-  border: 1px solid #e4e6ea;
-  border-radius: 14px;
-  padding: 16px 20px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
-}
-.hdlv2-consultation-root .cl-count-label {
-  font-size: 11px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: #888;
-  margin: 0 0 6px;
-}
-.hdlv2-consultation-root .cl-count-value {
-  font-family: 'Poppins', sans-serif;
+  font-family: 'Poppins', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   font-size: 32px;
   font-weight: 700;
-  color: #111;
   line-height: 1;
-  margin: 0;
-}
-.hdlv2-consultation-root .cl-count-card.is-action .cl-count-value {
-  color: #3d8da0;
+  color: #2c3e50;
+  margin: 0 0 8px;
+  padding: 0;
 }
 
-/* Section heads. */
-.hdlv2-consultation-root .cl-section-head {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin: 28px 0 12px;
-  max-width: 1180px;
-}
-.hdlv2-consultation-root .cl-section-head h2 {
-  margin: 0;
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+.hdlv2-consultation-root .cl-lead {
   font-size: 18px;
-  font-weight: 700;
-  color: #111;
-  letter-spacing: -0.005em;
-}
-.hdlv2-consultation-root .cl-count-pill {
-  background: #f0fbfc;
-  color: #3d8da0;
-  border: 1px solid #c9e4e9;
-  padding: 2px 10px;
-  border-radius: 999px;
-  font-size: 12px;
-  font-weight: 600;
-}
-.hdlv2-consultation-root .cl-section-sub {
-  margin-left: auto;
-  font-size: 13px;
+  line-height: 1.4;
   color: #888;
-}
-.hdlv2-consultation-root .cl-section-lead {
-  margin: 0 0 14px;
-  font-size: 13px;
-  color: #555;
-  line-height: 1.6;
-  max-width: 1180px;
+  margin: 4px 0 0;
+  padding: 0;
 }
 
-/* Row card. */
-.hdlv2-consultation-root .cl-row {
+.hdlv2-consultation-root .cl-link {
+  color: #3d8da0;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.hdlv2-consultation-root .cl-link:hover { color: #004F59; }
+
+.hdlv2-consultation-root .cl-table-wrap {
+  margin-top: 32px;
   background: #fff;
   border: 1px solid #e4e6ea;
-  border-radius: 14px;
-  padding: 16px 20px;
-  margin: 0 0 10px;
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto auto;
-  gap: 18px;
-  align-items: center;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
-  transition: border-color .15s, box-shadow .15s;
-  max-width: 1180px;
-}
-.hdlv2-consultation-root .cl-row:hover {
-  border-color: #c9e4e9;
-  box-shadow: 0 4px 12px rgba(61, 141, 160, 0.08);
-}
-.hdlv2-consultation-root .cl-row.is-new {
-  border-left: 4px solid #f59e0b;
-  padding-left: 16px;
+  border-radius: 12px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
 }
 
-.hdlv2-consultation-root .cl-avatar {
-  width: 44px;
-  height: 44px;
-  border-radius: 50%;
-  background: #f0fbfc;
-  color: #3d8da0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 700;
-  font-size: 14px;
-  border: 1px solid #c9e4e9;
-  flex-shrink: 0;
-}
-
-.hdlv2-consultation-root .cl-body {
-  min-width: 0;
-}
-.hdlv2-consultation-root .cl-name {
-  margin: 0 0 4px;
-  font-size: 15px;
-  font-weight: 600;
-  color: #111;
-}
-.hdlv2-consultation-root .cl-meta {
-  display: flex;
-  gap: 14px;
-  align-items: center;
-  font-size: 12px;
-  color: #888;
-  flex-wrap: wrap;
-}
-.hdlv2-consultation-root .cl-meta .item {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  white-space: nowrap;
-}
-.hdlv2-consultation-root .cl-meta .item .label {
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  font-weight: 600;
-  color: #888;
-  font-size: 10px;
-  margin-right: 4px;
-}
-.hdlv2-consultation-root .cl-meta .item .val {
-  color: #555;
-  font-weight: 500;
-}
-.hdlv2-consultation-root .cl-meta .dot {
-  color: #e4e6ea;
-}
-
-/* Status pills — same colour palette as the practitioner-active mockup. */
-.hdlv2-consultation-root .cl-status {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 12px;
-  font-weight: 600;
-  padding: 4px 10px;
-  border-radius: 999px;
-  letter-spacing: 0.02em;
-  white-space: nowrap;
-}
-.hdlv2-consultation-root .cl-status::before {
-  content: '';
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  display: inline-block;
-}
-.hdlv2-consultation-root .cl-status.in-progress         { background: #dbeafe; color: #1e40af; }
-.hdlv2-consultation-root .cl-status.in-progress::before { background: #3b82f6; }
-.hdlv2-consultation-root .cl-status.delivered           { background: #dcfce7; color: #166534; }
-.hdlv2-consultation-root .cl-status.delivered::before   { background: #10b981; }
-
-/* Pace-of-ageing rate. */
-.hdlv2-consultation-root .cl-rate-wrap {
-  min-width: 80px;
-  text-align: right;
-}
-.hdlv2-consultation-root .cl-rate {
-  font-family: 'Poppins', sans-serif;
-  font-size: 18px;
-  font-weight: 700;
-  color: #3d8da0;
-  white-space: nowrap;
-}
-.hdlv2-consultation-root .cl-rate-unit {
-  font-family: 'Inter', sans-serif;
-  font-size: 11px;
-  font-weight: 500;
-  color: #888;
-  margin-left: 3px;
-}
-
-/* Primary action button. */
-.hdlv2-consultation-root .cl-action {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  background: #3d8da0;
-  color: #fff;
-  font-weight: 600;
-  font-size: 13px;
-  padding: 9px 16px;
-  border-radius: 8px;
-  border: none;
-  cursor: pointer;
-  text-decoration: none;
-  white-space: nowrap;
-  transition: background .15s;
-}
-.hdlv2-consultation-root .cl-action:hover {
-  background: #357887;
-  color: #fff;
-}
-.hdlv2-consultation-root .cl-action.ghost {
-  background: #fff;
-  color: #3d8da0;
-  border: 1px solid #c9e4e9;
-}
-.hdlv2-consultation-root .cl-action.ghost:hover {
-  background: #f0fbfc;
-  color: #3d8da0;
-}
-
-/* Empty state. */
-.hdlv2-consultation-root .cl-empty {
-  background: #fff;
-  border: 1px dashed #e4e6ea;
-  border-radius: 14px;
-  padding: 40px 28px;
-  text-align: center;
-  margin: 0 0 10px;
-  max-width: 1180px;
-}
-.hdlv2-consultation-root .cl-empty-icon {
-  width: 48px;
-  height: 48px;
-  margin: 0 auto 12px;
-  background: #f0fbfc;
-  color: #3d8da0;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.hdlv2-consultation-root .cl-empty-icon svg {
-  width: 22px;
-  height: 22px;
-}
-.hdlv2-consultation-root .cl-empty h3 {
-  margin: 0 0 6px;
-  font-size: 15px;
-  font-weight: 600;
-  color: #111;
-}
-.hdlv2-consultation-root .cl-empty p {
+/* Wrap class in the selector: Divi's .entry-content table:not(.variations)
+   otherwise outranks it and adds a border and a 15px gap under the list. */
+.hdlv2-consultation-root .cl-table-wrap .cl-table {
+  width: 100%;
   margin: 0;
+  border: 0;
+  border-collapse: collapse;
+  font-size: 15px;
+}
+
+.hdlv2-consultation-root .cl-table thead {
+  background: #f8f9fb;
+  border-bottom: 1px solid #e4e6ea;
+}
+
+.hdlv2-consultation-root .cl-table th {
+  padding: 20px 24px 19px;
+  border: 0;
+  text-align: left;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: #888;
+  background: transparent;
+}
+
+.hdlv2-consultation-root .cl-table td {
+  height: 60px;
+  padding: 6px 24px;
+  border: 0;
+  border-bottom: 1px solid #e4e6ea;
+  vertical-align: middle;
+  color: #888;
+  background: transparent;
+}
+.hdlv2-consultation-root .cl-table tbody tr:last-child td { border-bottom: 0; }
+.hdlv2-consultation-root .cl-table tbody tr:hover td { background: #fafbfc; }
+
+.hdlv2-consultation-root .cl-name {
+  display: block;
+  overflow-wrap: anywhere;
+  font-weight: 600;
+  color: #2c3e50;
+}
+.hdlv2-consultation-root .cl-prac {
+  display: block;
+  overflow-wrap: anywhere;
+  margin-top: 2px;
   font-size: 13px;
   color: #888;
-  line-height: 1.6;
-}
-.hdlv2-consultation-root .cl-empty-link {
-  color: #3d8da0;
-  font-weight: 600;
-  text-decoration: none;
-}
-.hdlv2-consultation-root .cl-empty-link:hover {
-  text-decoration: underline;
 }
 
-/* Admin-only practitioner attribution chip. */
-.hdlv2-consultation-root .cl-admin-tag {
+.hdlv2-consultation-root .cl-col-rate {
+  font-variant-numeric: tabular-nums;
+  color: #2c3e50;
+}
+.hdlv2-consultation-root .cl-col-action { text-align: right; }
+
+.hdlv2-consultation-root .cl-status {
   display: inline-block;
-  font-size: 10px;
+  padding: 3px 8px;
+  border: 1px solid;
+  border-radius: 12px;
+  font-size: 11px;
   font-weight: 600;
+  line-height: 17px;
+  letter-spacing: 0.5px;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: #6b21a8;
-  background: #f3e8ff;
-  border: 1px solid #e9d5ff;
-  padding: 2px 6px;
-  border-radius: 4px;
-  margin-left: 6px;
+  white-space: nowrap;
+}
+.hdlv2-consultation-root .cl-status.is-ready     { color: #d97706; background: #fffbeb; border-color: #fde68a; }
+.hdlv2-consultation-root .cl-status.is-progress  { color: #3b82f6; background: #eff6ff; border-color: #bfdbfe; }
+.hdlv2-consultation-root .cl-status.is-delivered { color: #10b981; background: #ecfdf5; border-color: #a7f3d0; }
+
+/* Same size as the Clients page's "Client Tools" button. */
+.hdlv2-consultation-root .cl-btn {
+  display: inline-block;
+  box-sizing: border-box;
+  min-width: 168px;
+  padding: 9px 20px;
+  border: 1px solid #3d8da0;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 17px;
+  text-align: center;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+.hdlv2-consultation-root .cl-btn-primary { background: #3d8da0; color: #fff; }
+.hdlv2-consultation-root .cl-btn-primary:hover { background: #004F59; border-color: #004F59; color: #fff; }
+.hdlv2-consultation-root .cl-btn-secondary { background: #fff; color: #3d8da0; border-color: #e4e6ea; }
+.hdlv2-consultation-root .cl-btn-secondary:hover { border-color: #3d8da0; color: #004F59; }
+.hdlv2-consultation-root .cl-btn:focus-visible,
+.hdlv2-consultation-root .cl-link:focus-visible {
+  outline: 2px solid #3d8da0;
+  outline-offset: 2px;
 }
 
-/* Responsive. */
-@media (max-width: 980px) {
-  .hdlv2-consultation-root .cl-counts {
-    grid-template-columns: repeat(3, 1fr);
-    gap: 8px;
-  }
-  .hdlv2-consultation-root .cl-count-value { font-size: 24px; }
-  .hdlv2-consultation-root .cl-row {
-    grid-template-columns: auto 1fr;
-    grid-template-rows: auto auto;
-  }
-  .hdlv2-consultation-root .cl-rate-wrap,
-  .hdlv2-consultation-root .cl-row .cl-action {
-    grid-column: 1 / -1;
-  }
-  .hdlv2-consultation-root .cl-rate-wrap { text-align: left; }
-  .hdlv2-consultation-root .cl-row .cl-action {
-    justify-self: stretch;
-    text-align: center;
-    justify-content: center;
-  }
+.hdlv2-consultation-root .cl-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
 }
+
+@media (max-width: 1024px) {
+  .hdlv2-consultation-root .cl-shell { padding: 32px 24px 48px; }
+}
+
+/* Phone: each row stacks — name and pill, then activity and rate, then the
+   button full width. The header row is hidden visually only. */
 @media (max-width: 640px) {
-  .hdlv2-consultation-root .cl-counts {
-    grid-template-columns: 1fr;
+  .hdlv2-consultation-root .cl-shell { padding: 32px 16px 40px; }
+  .hdlv2-consultation-root .cl-h1 { font-size: 28px; }
+  .hdlv2-consultation-root .cl-lead { font-size: 16px; }
+  .hdlv2-consultation-root .cl-table-wrap { margin-top: 24px; }
+  .hdlv2-consultation-root .cl-table thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
   }
-  .hdlv2-consultation-root .cl-page-head {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 12px;
+  .hdlv2-consultation-root .cl-table,
+  .hdlv2-consultation-root .cl-table tbody { display: block; width: 100%; }
+  .hdlv2-consultation-root .cl-table tbody tr {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 8px 12px;
+    padding: 16px;
+    border-bottom: 1px solid #e4e6ea;
   }
-  .hdlv2-consultation-root .cl-back-link {
-    align-self: flex-start;
+  .hdlv2-consultation-root .cl-table tbody tr:last-child { border-bottom: 0; }
+  .hdlv2-consultation-root .cl-table td {
+    height: auto;
+    padding: 0;
+    border: 0;
   }
-  .hdlv2-consultation-root .cl-section-head {
-    flex-wrap: wrap;
-  }
-  .hdlv2-consultation-root .cl-section-head .cl-section-sub {
-    margin-left: 0;
-    flex-basis: 100%;
-  }
+  .hdlv2-consultation-root .cl-col-status,
+  .hdlv2-consultation-root .cl-col-rate { text-align: right; }
+  .hdlv2-consultation-root .cl-col-action { grid-column: 1 / -1; text-align: left; }
+  .hdlv2-consultation-root .cl-btn { display: block; width: 100%; padding: 11px 20px; }
 }
 
 /* ──────────────────────────────────────────────────────────────

@@ -52,3 +52,6 @@ scripts/CLAUDE.md
 #   _local/integrations/  the-lab-integration (production API keys)
 #   _local/templates/     PDF/JSON templates for Make.com
 _local/
+
+# Local env for netlify dev (never committed)
+.env
