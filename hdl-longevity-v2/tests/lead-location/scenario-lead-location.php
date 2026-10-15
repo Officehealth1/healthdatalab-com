@@ -238,6 +238,8 @@ require __DIR__ . '/../../includes/sprint-2/class-hdlv2-rate-calculator.php';
 require __DIR__ . '/../../includes/sprint-2/class-hdlv2-stage1-commentary.php';
 require __DIR__ . '/../../includes/sprint-1/class-hdlv2-offer.php'; // v0.48.15 — the Stage 1 payload carries the offer
 require __DIR__ . '/../../includes/sprint-1/class-hdlv2-widget-config.php';
+require __DIR__ . '/../../includes/sprint-1/class-hdlv2-stage1-drain.php';
+HDLV2_Stage1_Drain::$load_source = function () { return array( 0, 0, 0 ); }; // v0.48.16 busy gate: never the test machine's real load
 require __DIR__ . '/../../includes/sprint-4/class-hdlv2-client-status.php';
 
 // Pin the status calculation (LSB pattern from tests/action-unify's roster
@@ -498,6 +500,9 @@ $params = base_lead_params( 'g1@example.test' );
 $params['visitor_country'] = 'US';
 $params['visitor_region']  = 'Texas';
 $inst->rest_capture_lead( new FakeRequest( $params ) );
+// v0.48.16 — the request writes the row; the drain sends the PDF from it.
+$g_row = (object) ( $wpdb->last_insert_of( 'hdlv2_widget_leads' ) + array( 'id' => 1, 'visitor_phone' => '', 'stage1_cache_token' => null ) );
+HDLV2_Widget_Config::fire_stage1_for_lead( $g_row );
 $make = null;
 foreach ( $GLOBALS['captured_posts'] as $p ) {
     if ( strpos( $p['url'], 'hook.example.test/stage1' ) !== false ) { $make = json_decode( $p['args']['body'], true ); }

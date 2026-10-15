@@ -3,7 +3,7 @@
  * Plugin Name: HDL Longevity V2 — Staged Workflow
  * Plugin URI: https://healthdatalab.net
  * Description: V2 longevity workflow: staged intake, WHY profiling, practitioner consultations, weekly flight plans, and AI coaching. Runs alongside the existing Health Data Lab plugin.
- * Version: 0.48.15
+ * Version: 0.48.17
  * Author: Health Data Lab
  * Author URI: https://healthdatalab.net
  * License: Proprietary
@@ -22,8 +22,8 @@ if ( ! defined( 'ABSPATH' ) ) {
 // register_activation_hook callbacks, which fire synchronously during
 // `wp plugin activate`, can reference them. The activator needs
 // HDLV2_DB_VERSION / HDLV2_VERSION at call time to update version options.
-define( 'HDLV2_VERSION', '0.48.15' );
-define( 'HDLV2_DB_VERSION', '3.29' );
+define( 'HDLV2_VERSION', '0.48.17' );
+define( 'HDLV2_DB_VERSION', '3.30' );
 
 // Client funnel token (hdlv2_form_progress.token) lifetime. FIXED window
 // from issuance: set when the token is created and refreshed ONLY when the
@@ -454,6 +454,11 @@ add_action( 'plugins_loaded', function () {
     // Cache-Control headers for V2 REST API — prevents LSCache and Cloudflare caching
     add_filter( 'rest_post_dispatch', function ( $response, $server, $request ) {
         $route = $request->get_route();
+        // v0.48.16 — the public widget config is the same for every visitor
+        // and sets its own five-minute Cache-Control.
+        if ( '/hdl-v2/v1/widget/public-config' === $route ) {
+            return $response;
+        }
         if ( strpos( $route, '/hdl-v2/v1/' ) === 0 ) {
             $response->header( 'Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0' );
             $response->header( 'X-LiteSpeed-Cache-Control', 'no-cache' );
@@ -827,6 +832,9 @@ final class HDL_Longevity_V2 {
         require_once HDLV2_PLUGIN_DIR . 'includes/sprint-1/class-hdlv2-widget-config.php';
         require_once HDLV2_PLUGIN_DIR . 'includes/sprint-1/class-hdlv2-widget-renderer.php';
         require_once HDLV2_PLUGIN_DIR . 'includes/sprint-1/class-hdlv2-safety-screen.php';
+        // v0.48.16 — Stage 1 under load: PDF drain + busy gate + alert, Brevo holding list replay.
+        require_once HDLV2_PLUGIN_DIR . 'includes/sprint-1/class-hdlv2-stage1-drain.php';
+        require_once HDLV2_PLUGIN_DIR . 'includes/sprint-1/class-hdlv2-stage1-waiting.php';
 
         // Sprint 2: Staged Form + Rate Calculator + AI + Email
         require_once HDLV2_PLUGIN_DIR . 'includes/sprint-2/class-hdlv2-rate-calculator.php';
@@ -953,6 +961,9 @@ final class HDL_Longevity_V2 {
 
         // v0.17.0 — Job queue (worker cron + /jobs/{id}/status REST)
         HDLV2_Job_Queue::get_instance()->register_hooks();
+        // v0.48.16 — Stage 1 drain + alert (WP-Cron hooks).
+        HDLV2_Stage1_Drain::register_hooks();
+        HDLV2_Stage1_Waiting::register_hooks();
         // Handlers must register AFTER the queue class is loaded so
         // HDLV2_Job_Queue::register_handler() is available.
         HDLV2_Transcription_Jobs::register();

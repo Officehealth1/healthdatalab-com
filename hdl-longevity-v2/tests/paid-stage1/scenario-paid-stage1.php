@@ -273,6 +273,13 @@ class FakeWpdb {
         if ( $row ) {
             foreach ( $data as $k => $v ) { $row->$k = $v; }
         }
+        // v0.48.16 — nothing is dispatched in the request any more; the last
+        // write before the reply (the cache token) is where a twin can land.
+        if ( isset( $data['stage1_cache_token'] ) && ! empty( $GLOBALS['during_dispatch'] ) ) {
+            $fn = $GLOBALS['during_dispatch'];
+            $GLOBALS['during_dispatch'] = null;
+            $fn();
+        }
         return 1;
     }
     public function query( $sql ) {
@@ -325,6 +332,8 @@ require $ROOT . 'includes/security/class-hdlv2-rate-limit-policy.php';
 require $ROOT . 'includes/security/class-hdlv2-rate-limit-middleware.php';
 require $ROOT . 'includes/sprint-1/class-hdlv2-offer.php'; // v0.48.15
 require $ROOT . 'includes/sprint-1/class-hdlv2-widget-config.php';
+require $ROOT . 'includes/sprint-1/class-hdlv2-stage1-drain.php';
+HDLV2_Stage1_Drain::$load_source = function () { return array( 0, 0, 0 ); }; // v0.48.16 busy gate: never the test machine's real load
 require $ROOT . 'includes/sprint-1/class-hdlv2-widget-renderer.php';
 if ( file_exists( $ROOT . 'includes/security/class-hdl-stage1-ticket.php' ) ) {
     require $ROOT . 'includes/security/class-hdl-stage1-ticket.php';
@@ -413,7 +422,7 @@ $r    = post_lead( lead_params( 'one@example.test' ) );
 check( '1.1 response is exactly { success, rate }', is_array( $r ) && array_keys( $r ) === array( 'success', 'rate' ) && true === $r['success'] );
 $lead = $wpdb->inserts_into( 'hdlv2_widget_leads' );
 check( '1.2 one pending lead, no invite_id', count( $lead ) === 1 && $lead[0]['data']['status'] === 'pending' && ! array_key_exists( 'invite_id', $lead[0]['data'] ) );
-check( '1.3 Stage-1 Make webhook fired once', count( $GLOBALS['captured_posts'] ) === 1 );
+check( '1.3 no Stage-1 Make webhook in the request (the drain sends it, v0.48.16)', count( $GLOBALS['captured_posts'] ) === 0 );
 check( '1.4 no account created', count( $wpdb->inserts_into( 'hdlv2_form_progress' ) ) === 0 );
 
 echo "── 2. paid mode, no invite: refused ──\n";
@@ -433,7 +442,7 @@ $lead = $wpdb->inserts_into( 'hdlv2_widget_leads' );
 check( '3.3 pending lead carries invite_id', count( $lead ) === 1 && $lead[0]['data']['status'] === 'pending' && (int) ( $lead[0]['data']['invite_id'] ?? 0 ) === 77 );
 check( '3.4 complete_signup not called (no form_progress row)', count( $wpdb->inserts_into( 'hdlv2_form_progress' ) ) === 0 );
 check( '3.5 ticket completed', 'completed' === $wpdb->invite->status );
-check( '3.6 Stage-1 Make webhook fired once', count( $GLOBALS['captured_posts'] ) === 1 );
+check( '3.6 no Stage-1 Make webhook in the request (the drain sends it, v0.48.16)', count( $GLOBALS['captured_posts'] ) === 0 );
 
 $wpdb = fresh_wpdb( 'paid' );
 $wpdb->invite = invite_row();
@@ -491,7 +500,7 @@ $wpdb->invite = invite_row();
 $first  = post_lead( lead_params( 'buyer@example.test', TOKEN ) );
 $second = post_lead( lead_params( 'buyer@example.test', TOKEN ) );
 check( '6.1 second post returns the first response', is_array( $first ) && $first === $second );
-check( '6.2 one lead, one webhook', count( $wpdb->inserts_into( 'hdlv2_widget_leads' ) ) === 1 && count( $GLOBALS['captured_posts'] ) === 1 );
+check( '6.2 one lead, no webhook in the request', count( $wpdb->inserts_into( 'hdlv2_widget_leads' ) ) === 1 && count( $GLOBALS['captured_posts'] ) === 0 );
 
 echo "── 7. paid mode, practitioner-made invite: today's fast path ──\n";
 $wpdb = fresh_wpdb( 'paid' );
@@ -521,12 +530,12 @@ check( '8.3 used ticket → valid:false, reason completed', is_array( $r ) && fa
 
 echo "── 9. public-config ──\n";
 $wpdb = fresh_wpdb( 'paid' );
-$r = widget_instance()->rest_get_public_config( new FakeRequest( array( 'practitioner_id' => 206 ) ) );
+$r = widget_instance()->rest_get_public_config( new FakeRequest( array( 'practitioner_id' => 206 ) ) )->get_data(); // v0.48.16 — a cacheable WP_REST_Response
 check( '9.1 returns access_mode + buy_url', is_array( $r['config'] ?? null ) && 'paid' === ( $r['config']['access_mode'] ?? null ) && 'https://altituding.example.test/buy' === ( $r['config']['buy_url'] ?? null ) );
 $wpdb = fresh_wpdb( 'open' );
-$r = widget_instance()->rest_get_public_config( new FakeRequest( array( 'practitioner_id' => 206 ) ) );
+$r = widget_instance()->rest_get_public_config( new FakeRequest( array( 'practitioner_id' => 206 ) ) )->get_data(); // v0.48.16 — a cacheable WP_REST_Response
 check( '9.2 open practitioner → access_mode open', 'open' === ( $r['config']['access_mode'] ?? null ) );
-$r = widget_instance()->rest_get_public_config( new FakeRequest( array( 'practitioner_id' => 4040 ) ) );
+$r = widget_instance()->rest_get_public_config( new FakeRequest( array( 'practitioner_id' => 4040 ) ) )->get_data(); // v0.48.16 — a cacheable WP_REST_Response
 check( '9.3 unknown id still returns config: null', is_array( $r ) && array_key_exists( 'config', $r ) && null === $r['config'] );
 
 echo "── 10. saving Widget Settings leaves the paid setting alone ──\n";
@@ -620,7 +629,7 @@ if ( $has_mint ) {
     check( '12.26 the 429 carries Retry-After (seconds left in the hour) and the same body', $last instanceof WP_REST_Response && 'rate_limited' === ( $last->get_data()['code'] ?? '' ) && (int) ( $last->headers['Retry-After'] ?? 0 ) > 3590 && (int) $last->headers['Retry-After'] <= 3600 );
     // A fixed hour: move the stored window so it ends in 100 s, as if the
     // first mint was 58 minutes ago. Calls must not push that end back.
-    $bk = HDLV2_Rate_Limiter::bucket_key( array( 'stage1-ticket', 'unknown' ) );
+    $bk = HDLV2_Rate_Limiter::bucket_key( array( 'stage1-ticket', HDLV2_Rate_Limit_Middleware::get_ip() ) ); // v0.48.16 — the real address
     $st = get_transient( $bk );
     $end = time() + 100;
     set_transient( $bk, array( 'count' => is_array( $st ) ? $st['count'] : 0, 'reset' => $end ) );
@@ -690,13 +699,13 @@ check( '14.2 …the address\'s public bucket and the older address cap are untou
 check( '14.3 …the 500 backstop still counts it', 1 === bucket( 'ip-backstop', IP ) );
 check( '14.4 …one read of the ticket row for limiter and handler together', 1 === count( $wpdb->sql_matching( 'hdlv2_widget_invites WHERE token' ) ) );
 $h = limiter_headers();
-check( '14.5 …headers: limit 5, tier public', '5' === ( $h['X-RateLimit-Limit'] ?? '' ) && 'public' === ( $h['X-RateLimit-Tier'] ?? '' ) && '4' === ( $h['X-RateLimit-Remaining'] ?? '' ) );
+check( '14.5 …headers: limit 60, tier public (v0.48.16)', '60' === ( $h['X-RateLimit-Limit'] ?? '' ) && 'public' === ( $h['X-RateLimit-Tier'] ?? '' ) && '59' === ( $h['X-RateLimit-Remaining'] ?? '' ) );
 
 $wpdb = fresh_wpdb( 'paid' );
 $wpdb->invite = invite_row();
 $codes = array();
-for ( $i = 0; $i < 6; $i++ ) { $last = limited_post( lead_params( 'not-an-email', TOKEN ) ); $codes[] = status_of( $last ); }
-check( '14.6 one ticket, six posts: five reach the handler, the sixth is 429', array( 400, 400, 400, 400, 400, 429 ) === $codes );
+for ( $i = 0; $i < 61; $i++ ) { $last = limited_post( lead_params( 'not-an-email', TOKEN ) ); $codes[] = status_of( $last ); }
+check( '14.6 one ticket, 61 posts: 60 reach the handler, the 61st is 429 (v0.48.16)', array_merge( array_fill( 0, 60, 400 ), array( 429 ) ) === $codes );
 check( '14.7 …429 is the public tier with Retry-After, address bucket still empty', $last instanceof WP_REST_Response && 'public' === ( $last->get_data()['tier'] ?? '' ) && isset( $last->headers['Retry-After'] ) && 0 === bucket( 'public', 'ip', IP ) );
 
 $wpdb = fresh_wpdb( 'paid' );
@@ -711,8 +720,7 @@ check( '14.9 …neither address count moved; backstop counted all eleven', 0 ===
 
 $wpdb = fresh_wpdb( 'paid' );
 $wpdb->invite = invite_row();
-set_transient( 'hdlv2_lead_' . md5( IP ), 10 ); // REMOTE_ADDR is still IP from the posts above
-check( '14.10 handler alone (limiter off): a confirmed ticket still skips the older cap', is_array( post_lead( lead_params( 'buyer@example.test', TOKEN ) ) ) );
+check( '14.10 handler alone (limiter off): a confirmed ticket is saved', is_array( post_lead( lead_params( 'buyer@example.test', TOKEN ) ) ) );
 
 $n = 10;
 foreach ( array(
@@ -728,32 +736,32 @@ foreach ( array(
     $wpdb->invites[ tok( 1 ) ] = invite_row( array( 'id' => 101, 'token' => tok( 1 ) ) ); // a real ticket exists, but is not the one sent
     if ( $case[0] ) { $wpdb->invites[ TOKEN ] = invite_row( $case[0] ); }
     $r = limited_post( lead_params( "case$n@example.test", TOKEN ) );
-    check( "14.$n $label → counted by address as today", $case[1] === status_of( $r ) && 1 === bucket( 'public', 'ip', IP ) && 1 === old_cap() && 1 === bucket( 'ip-backstop', IP ) && 0 === bucket( 'public', 'ticket', 77 ) );
+    check( "14.$n $label → counted by address as today", $case[1] === status_of( $r ) && 1 === bucket( 'public', 'ip', IP ) && 0 === old_cap() && 1 === bucket( 'ip-backstop', IP ) && 0 === bucket( 'public', 'ticket', 77 ) );
 }
 $wpdb = fresh_wpdb( 'paid' );
 $r = limited_post( lead_params( 'none@example.test' ) );
-check( '14.17 no token → counted by address as today', 403 === status_of( $r ) && 1 === bucket( 'public', 'ip', IP ) && 1 === old_cap() && 1 === bucket( 'ip-backstop', IP ) );
+check( '14.17 no token → counted by address as today', 403 === status_of( $r ) && 1 === bucket( 'public', 'ip', IP ) && 0 === old_cap() && 1 === bucket( 'ip-backstop', IP ) );
 
 $wpdb = fresh_wpdb( 'paid' );
 $codes = array();
-for ( $i = 0; $i < 6; $i++ ) { $last = limited_post( lead_params( 'x@example.test', tok( 900 + $i ) ) ); $codes[] = status_of( $last ); }
-check( '14.18 six made-up tokens from one address: the sixth is 429 (public, 5 an hour)', array( 403, 403, 403, 403, 403, 429 ) === $codes && 'public' === ( $last->get_data()['tier'] ?? '' ) && 6 === bucket( 'ip-backstop', IP ) );
+for ( $i = 0; $i < 61; $i++ ) { $last = limited_post( lead_params( 'x@example.test', tok( 900 + $i ) ) ); $codes[] = status_of( $last ); }
+check( '14.18 61 made-up tokens from one address: the 61st is 429 (public, 60 an hour, v0.48.16)', array_merge( array_fill( 0, 60, 403 ), array( 429 ) ) === $codes && 'public' === ( $last->get_data()['tier'] ?? '' ) && 61 === bucket( 'ip-backstop', IP ) );
 $wpdb = fresh_wpdb( 'paid' );
 set_transient( 'hdlv2_lead_' . md5( IP ), 10 );
 $r = limited_post( lead_params( 'x@example.test', tok( 900 ) ) );
-check( '14.19 made-up token with the older cap already full → its 429, as today', $r instanceof WP_Error && 'rate_limited' === code_of( $r ) && 429 === status_of( $r ) );
+check( '14.19 the edge-keyed older cap is gone: a full old counter refuses nothing (v0.48.16)', 403 === status_of( $r ) && 'ticket_required' === code_of( $r ) );
 
 $wpdb = fresh_wpdb( 'open' );
 $r = limited_post( lead_params( 'open@example.test' ) );
 $h = limiter_headers();
-check( '14.20 open mode, no token: reply and limiter headers unchanged', is_array( $r ) && array_keys( $r ) === array( 'success', 'rate' ) && '5' === ( $h['X-RateLimit-Limit'] ?? '' ) && '4' === ( $h['X-RateLimit-Remaining'] ?? '' ) && 'public' === ( $h['X-RateLimit-Tier'] ?? '' ) && 1 === bucket( 'public', 'ip', IP ) && 1 === old_cap() );
+check( '14.20 open mode, no token: reply unchanged, limiter 60 an hour (v0.48.16)', is_array( $r ) && array_keys( $r ) === array( 'success', 'rate' ) && '60' === ( $h['X-RateLimit-Limit'] ?? '' ) && '59' === ( $h['X-RateLimit-Remaining'] ?? '' ) && 'public' === ( $h['X-RateLimit-Tier'] ?? '' ) && 1 === bucket( 'public', 'ip', IP ) && 0 === old_cap() );
 unset( $_SERVER['REMOTE_ADDR'] );
 
 echo "── 15. limiter and handler read the ticket from the same place (the JSON body) ──\n";
 $wpdb = fresh_wpdb( 'paid' );
 $wpdb->invite = invite_row();
 $r = limited_post( lead_params( 'q@example.test' ), array( 'invite_token' => TOKEN, 'practitioner_id' => 206 ) );
-check( '15.1 ticket in the query string, none in the body → refused and counted by address', 403 === status_of( $r ) && 1 === bucket( 'public', 'ip', IP ) && 0 === bucket( 'public', 'ticket', 77 ) && 1 === old_cap() );
+check( '15.1 ticket in the query string, none in the body → refused and counted by address', 403 === status_of( $r ) && 1 === bucket( 'public', 'ip', IP ) && 0 === bucket( 'public', 'ticket', 77 ) && 0 === old_cap() );
 check( '15.2 …and the ticket is not used up', 'pending' === $wpdb->invite->status && 0 === count( $wpdb->inserts ) );
 $wpdb = fresh_wpdb( 'paid' );
 $wpdb->invites[ TOKEN ]    = invite_row();
@@ -769,15 +777,15 @@ $first = post_lead( lead_params( 'buyer@example.test', TOKEN ) );
 $GLOBALS['transients'] = array(); // well past 60 s: every cache is gone
 $late  = post_lead( lead_params( 'buyer@example.test', TOKEN ) );
 check( '16.1 after the 60 s window: same body as the first post', is_array( $first ) && $first === $late );
-check( '16.2 …one lead, one webhook', 1 === count( $wpdb->inserts_into( 'hdlv2_widget_leads' ) ) && 1 === count( $GLOBALS['captured_posts'] ) );
+check( '16.2 …one lead, no webhook in the request', 1 === count( $wpdb->inserts_into( 'hdlv2_widget_leads' ) ) && 0 === count( $GLOBALS['captured_posts'] ) );
 
 $wpdb = fresh_wpdb( 'paid' );
 $wpdb->invite = invite_row();
 $mid = null;
 $GLOBALS['during_dispatch'] = function () use ( &$mid ) { $mid = post_lead( lead_params( 'buyer@example.test', TOKEN ) ); };
 $first = post_lead( lead_params( 'buyer@example.test', TOKEN ) );
-check( '16.3 while the first post is still dispatching: same body, not a refusal', is_array( $mid ) && $first === $mid );
-check( '16.4 …one lead, one webhook', 1 === count( $wpdb->inserts_into( 'hdlv2_widget_leads' ) ) && 1 === count( $GLOBALS['captured_posts'] ) );
+check( '16.3 while the first post is still finishing: same body, not a refusal', is_array( $mid ) && $first === $mid );
+check( '16.4 …one lead, no webhook in the request', 1 === count( $wpdb->inserts_into( 'hdlv2_widget_leads' ) ) && 0 === count( $GLOBALS['captured_posts'] ) );
 
 $wpdb = fresh_wpdb( 'paid' );
 $wpdb->invite = invite_row();
@@ -785,7 +793,7 @@ $first = post_lead( lead_params( 'buyer@example.test', TOKEN ) );
 $GLOBALS['transients']   = array();
 $wpdb->stale_ticket_read = true; // two posts both read the ticket before either claimed it
 $lost = post_lead( lead_params( 'buyer@example.test', TOKEN ) );
-check( '16.5 the post that loses the claim to its twin gets the success body', is_array( $lost ) && $first === $lost && 1 === count( $wpdb->inserts_into( 'hdlv2_widget_leads' ) ) && 1 === count( $GLOBALS['captured_posts'] ) );
+check( '16.5 the post that loses the claim to its twin gets the success body', is_array( $lost ) && $first === $lost && 1 === count( $wpdb->inserts_into( 'hdlv2_widget_leads' ) ) && 0 === count( $GLOBALS['captured_posts'] ) );
 
 $wpdb = fresh_wpdb( 'paid' );
 $wpdb->invite = invite_row( array( 'status' => 'completed' ) );
@@ -798,7 +806,7 @@ post_lead( lead_params( 'buyer@example.test', TOKEN ) );
 $GLOBALS['transients'] = array();
 $wpdb->invite->practitioner_id = 999; // the same saved lead, but the ticket is another practitioner's
 $r = post_lead( lead_params( 'buyer@example.test', TOKEN ) );
-check( '16.7 another practitioner\'s used ticket → refused', 403 === status_of( $r ) && 1 === count( $GLOBALS['captured_posts'] ) );
+check( '16.7 another practitioner\'s used ticket → refused', 403 === status_of( $r ) && 0 === count( $GLOBALS['captured_posts'] ) );
 
 echo "── 17. the claim and the lead are saved together or not at all ──\n";
 function sql_pos( $wpdb, $needle ) {

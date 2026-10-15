@@ -382,9 +382,18 @@ function load_sources() {
         'includes/sprint-1/class-hdlv2-widget-config.php',
         'includes/sprint-1/class-hdlv2-widget-renderer.php',
         'includes/security/class-hdl-stage1-ticket.php',
+        'includes/sprint-1/class-hdlv2-stage1-drain.php',
     ) as $f ) {
         if ( file_exists( $ROOT . $f ) ) require_once $ROOT . $f;
     }
+    HDLV2_Stage1_Drain::$load_source = function () { return array( 0, 0, 0 ); }; // v0.48.16 busy gate: never the test machine's real load
+}
+/** v0.48.16 — the Stage 1 PDF leaves from the drain: fire it for the last lead the request wrote. */
+function drain_last_lead( $wpdb ) {
+    $ins = $wpdb->inserts_into( 'hdlv2_widget_leads' );
+    $row = (object) ( end( $ins )['data'] + array( 'id' => $wpdb->insert_id, 'visitor_phone' => '', 'stage1_cache_token' => null ) );
+    foreach ( $wpdb->updates as $u ) { if ( isset( $u['data']['stage1_cache_token'] ) ) $row->stage1_cache_token = $u['data']['stage1_cache_token']; }
+    HDLV2_Widget_Config::fire_stage1_for_lead( $row );
 }
 function done() {
     global $PASS, $FAIL;

@@ -33,7 +33,8 @@ class FakeWpdb {
     public $prefix = 'wp_';
     public $last_error = '';
     public $alters = array();
-    public $columns = array();  // "table.column" => true
+    // Phase AK (v3.30) lead columns modelled as dbDelta already added them: only its backfill runs here.
+    public $columns = array( 'hdlv2_widget_leads.stage1_fired_at' => true, 'hdlv2_widget_leads.visitor_phone' => true );  // "table.column" => true
     public $source_type = "enum('practitioner','automation')";
     public $has_ref_key = false;
     public $fail_on = '';       // substring of an ALTER that must fail
@@ -56,7 +57,7 @@ class FakeWpdb {
     public $writes = array();   // UPDATE / DELETE / INSERT — existing rows must stay as they are
     public function query( $q ) {
         $this->last_error = '';
-        if ( preg_match( '/^\s*(UPDATE|DELETE|INSERT)/i', $q ) ) $this->writes[] = $q;
+        if ( preg_match( '/^\s*(UPDATE|DELETE|INSERT)/i', $q ) && false === strpos( $q, 'SET stage1_fired_at = COALESCE' ) ) $this->writes[] = $q;
         if ( 0 !== stripos( ltrim( $q ), 'ALTER TABLE' ) ) return 1;
         $this->alters[] = $q;
         if ( $this->fail_on && false !== strpos( $q, $this->fail_on ) ) {
@@ -127,7 +128,7 @@ ok( '14.23 failed ALTER → run_migrations returns false (retries next boot)', f
 $src = file_get_contents( dirname( __DIR__, 2 ) . '/includes/class-hdlv2-activator.php' );
 ok( '14.24 fresh installs get the column too (CREATE TABLE)', 1 === preg_match( "/CREATE TABLE \\\$table_widget \\([^;]*ticket_page_url VARCHAR\\(500\\) NOT NULL DEFAULT ''/s", $src ) );
 $loader = file_get_contents( dirname( __DIR__, 2 ) . '/hdl-longevity-v2.php' );
-ok( '14.25 loader constant is 3.29 (v0.48.15)', false !== strpos( $loader, "define( 'HDLV2_DB_VERSION', '3.29' );" ) );
+ok( '14.25 loader constant is 3.30 (v0.48.16)', false !== strpos( $loader, "define( 'HDLV2_DB_VERSION', '3.30' );" ) );
 
 echo "\nPASS=$pass FAIL=$fail\n";
 exit( $fail ? 1 : 0 );

@@ -23,6 +23,15 @@
   var GEO_URL = window.HDLW_GEO_URL || 'https://healthdatalab.com/api/geo';
   var visitorGeo = null; // { country: 'US', region: 'Texas' } once resolved
 
+  // ---------- HOLDING LIST (v0.48.16) ----------
+  // When healthdatalab.net is busy (503 server_busy), limited, faulty or does
+  // not answer within LEAD_TIMEOUT_MS, the same answers go to a holding
+  // address on healthdatalab.com that keeps them on a Brevo list; WordPress
+  // replays them when it is free. Invite and ticket holders never hold: their
+  // personal link keeps their place. window.HDLW_HOLD_URL is for test pages.
+  var LEAD_TIMEOUT_MS = 8000;
+  var HOLD_URL_DEFAULT = 'https://healthdatalab.com/.netlify/functions/stage1-hold';
+
   function prefetchGeo() {
     if (visitorGeo || !window.fetch) return;
     var done = false;
@@ -538,6 +547,30 @@
     return { head: 'Your answers are not saved yet', msg: msg + ' Keep this page open.', again: true };
   }
 
+  // The holding address for this embed: the built-in one only for the live
+  // API (a test embed never posts to the production list), or the test
+  // page's override. Pure apart from reading the override.
+  function holdUrlFor(apiUrl) {
+    if (typeof window !== 'undefined' && window.HDLW_HOLD_URL) return String(window.HDLW_HOLD_URL);
+    return /^https:\/\/healthdatalab\.net\//.test(apiUrl || '') ? HOLD_URL_DEFAULT : '';
+  }
+
+  // Keep the answers on the holding list? Only for a server that is busy,
+  // limited, faulty or silent (status 0), never for a refusal of the answers
+  // themselves, never with a personal link, never without a holding address.
+  function shouldHold(status, body, hasInvite, holdUrl) {
+    if (hasInvite || !holdUrl) return false;
+    if (body && body.code === 'server_busy') return true;
+    return status === 0 || status === 429 || status === 500 || status === 502 || status === 503 || status === 504;
+  }
+
+  function heldCopy() {
+    return {
+      head: 'We\u2019ve got your answers',
+      msg: 'Our server is busy right now, so we have kept them safe. Your report will follow by email, usually within a few hours. You can close this page.'
+    };
+  }
+
   // The link check was stopped by a limit or the network. No Buy here: the
   // link may be perfectly good.
   function showLinkRetry(el) {
@@ -627,7 +660,11 @@
       // is set for this practitioner. Invite path always shows Book when
       // cta_link is configured (separate code path; this flag only gates
       // the public-path render).
-      showBookOnPublic: false
+      showBookOnPublic: false,
+      // v0.48.16 — name + email handed over by the host page (a sign-up page
+      // that already asked for them). Prefill only; both stay editable.
+      prefillName: (el.getAttribute('data-prefill-name') || '').trim().slice(0, 200),
+      prefillEmail: (el.getAttribute('data-prefill-email') || '').trim().slice(0, 254)
     };
 
     // v0.35.0 (Phase O) — public-config overlay. The init layer fetches
@@ -1071,6 +1108,11 @@
         +   '<p class="hdlw-privacy">Your details are shared only with <b>' + pracForCopy + '</b>.</p>'
         + '</div>';
 
+      if (!isInv) {
+        if (cfg.prefillName) document.getElementById(id + '-name').value = cfg.prefillName;
+        if (cfg.prefillEmail) document.getElementById(id + '-email').value = cfg.prefillEmail;
+      }
+
       document.getElementById(id + '-submit').addEventListener('click', function () {
         var name = isInv ? inviteName : valOf(id + '-name');
         var email = isInv ? inviteEmail : valOf(id + '-email');
@@ -1464,8 +1506,8 @@
         + '.hdlw-r-next-list li::before{content:counter(step);position:absolute;left:14px;top:50%;transform:translateY(-50%);width:28px;height:28px;border-radius:50%;background:#3d8da0;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;}'
         + '.hdlw-r-next-list li strong{color:#111;font-weight:600;}'
         + '.hdlw-r-status{font-size:13px;color:#888;font-style:italic;}'
-        + '.hdlw-r-notsaved{background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:14px 16px;text-align:left;color:#92400e;font-size:13.5px;line-height:1.5;font-style:normal;}'
-        + '.hdlw-r-notsaved strong{display:block;margin-bottom:4px;}'
+        + '.hdlw-r-notsaved, .hdlw-r-held{background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:14px 16px;text-align:left;color:#92400e;font-size:13.5px;line-height:1.5;font-style:normal;}'
+        + '.hdlw-r-notsaved strong, .hdlw-r-held strong{display:block;margin-bottom:4px;}'
         + '.hdlw-r-again{margin-top:12px;padding:10px 22px;background:#004F59;color:#fff;border:1px solid #004F59;border-radius:999px;font-family:inherit;font-size:13.5px;font-weight:600;cursor:pointer;}'
         + '.hdlw-r-again:hover{background:#003a42;}'
         + '.hdlw-r-again:focus-visible{outline:2px solid #3d8da0;outline-offset:3px;}'
@@ -1729,19 +1771,42 @@
           send();
         });
       }
+      // v0.48.16 — the server was busy or silent: the answers are on the
+      // holding list. No Send again; the report follows by email.
+      function held() {
+        var sent = document.getElementById(id + '-sent');
+        if (sent) sent.hidden = true;
+        var c = heldCopy();
+        statusEl.innerHTML = '<div class="hdlw-r-held"><strong>' + c.head + '</strong>' + escapeHtml(c.msg) + '</div>';
+      }
+      var holdUrl = holdUrlFor(cfg.apiUrl);
+      function hold() {
+        var holdPayload = JSON.parse(JSON.stringify(payload));
+        delete holdPayload.invite_token;
+        var opts = { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(holdPayload) };
+        if (typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function') opts.signal = AbortSignal.timeout(LEAD_TIMEOUT_MS);
+        fetch(holdUrl, opts)
+          .then(function (r) { if (r.status === 202) held(); else failed(null, 0); })
+          .catch(function () { failed(null, 0); });
+      }
       function send() {
-        fetch(cfg.apiUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        })
+        var opts = { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) };
+        if (typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function') opts.signal = AbortSignal.timeout(LEAD_TIMEOUT_MS);
+        fetch(cfg.apiUrl, opts)
           .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, status: r.status, body: j }; }); })
           .then(function (res) {
             if (!statusEl) return;
-            if (!res.ok || !res.body || res.body.code) { failed(res.body, res.status); return; }
+            if (!res.ok || !res.body || res.body.code) {
+              if (shouldHold(res.status, res.body, !!inviteToken, holdUrl)) { hold(); return; }
+              failed(res.body, res.status);
+              return;
+            }
             saved(res.body);
           })
-          .catch(function () { if (statusEl) failed(null, 0); });
+          .catch(function () {
+            if (!statusEl) return;
+            if (shouldHold(0, null, !!inviteToken, holdUrl)) hold(); else failed(null, 0);
+          });
       }
       if (cfg.apiUrl) {
         send();

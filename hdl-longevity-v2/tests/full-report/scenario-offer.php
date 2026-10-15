@@ -2,7 +2,7 @@
 /**
  * Task 2/7 — the one offer setting and the Stage 1 payload that carries it.
  * HDLV2_Offer::get() defaults + partial override, the nine payload keys as
- * strings, money as "$27", and the real rest_capture_lead firing 33 keys.
+ * strings, money as "$27", and the real rest_capture_lead + drain firing 33 keys.
  *
  * Run:  php scenario-offer.php   (self-asserting, exit 0/1)
  */
@@ -32,12 +32,17 @@ check( 'O.6 money is currency + number', '$27' === $p['offer_today'] && '$129' =
 check( 'O.7 offer_show "1" / "0"', '1' === $p['offer_show'] && '0' === HDLV2_Offer::payload_keys( false )['offer_show'] );
 check( 'O.8 public config never carries the code', array_keys( HDLV2_Offer::public_config_fields() ) === array( 'stage1_list_price', 'currency', 'stage1_free_with_code' ) );
 
+$GLOBALS['options']['hdlv2_stage1_offer'] = '{"hook":"What is ageing you fastest?"}';
+check( 'O.10 the hook option reaches the payload as offer_hook', 'What is ageing you fastest?' === HDLV2_Offer::payload_keys( true )['offer_hook'] );
+unset( $GLOBALS['options']['hdlv2_stage1_offer'] );
+
 check( 'O.9 the offer belongs to one practitioner (122 by default; 0 = all)', HDLV2_Offer::applies_to( 122 ) && ! HDLV2_Offer::applies_to( 206 ) );
 
 echo "── P. the Stage 1 payload (public path) ──\n";
 $GLOBALS['options']['hdlv2_stage1_offer'] = array( 'practitioner_id' => 206 ); // the harness practitioner
 $wpdb = fresh_wpdb( 'open' );
 $r    = post_lead( lead_params( 'free@example.test' ) );
+drain_last_lead( $wpdb ); // v0.48.16 — the drain sends it
 $make = null;
 foreach ( $GLOBALS['captured_posts'] as $c ) {
     if ( false !== strpos( $c['url'], 'hook.example.test/stage1' ) ) $make = json_decode( $c['args']['body'], true );
@@ -45,8 +50,9 @@ foreach ( $GLOBALS['captured_posts'] as $c ) {
 check( 'P.1 the webhook fired with 33 keys', is_array( $make ) && 33 === count( $make ) );
 check( 'P.2 a free lead gets offer_show "1"', is_array( $make ) && '1' === ( $make['offer_show'] ?? null ) );
 $GLOBALS['options']['hdlv2_stage1_offer'] = array( 'practitioner_id' => 122 );
-fresh_wpdb( 'open' );
+$wpdb = fresh_wpdb( 'open' );
 post_lead( lead_params( 'other@example.test' ) );
+drain_last_lead( $wpdb );
 $m2 = null;
 foreach ( $GLOBALS['captured_posts'] as $c ) { if ( false !== strpos( $c['url'], 'hook.example.test/stage1' ) ) $m2 = json_decode( $c['args']['body'], true ); }
 check( 'P.4 another practitioner\'s lead: still 33 keys, offer_show "0"', is_array( $m2 ) && 33 === count( $m2 ) && '0' === $m2['offer_show'] );

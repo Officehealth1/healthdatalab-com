@@ -337,6 +337,13 @@ class HDLV2_Widget_Config {
             'permission_callback' => array( $this, 'check_practitioner_permission' ),
         ) );
 
+        // v0.48.16 — reject up to 20 pending leads in one call (H7, Quim 2026-10-14).
+        register_rest_route( 'hdl-v2/v1', '/widget/leads/reject-bulk', array(
+            'methods'             => 'POST',
+            'callback'            => array( $this, 'rest_reject_leads_bulk' ),
+            'permission_callback' => array( $this, 'check_practitioner_permission' ),
+        ) );
+
         // Reject a pending lead → silent shadow-ban (practitioner auth)
         register_rest_route( 'hdl-v2/v1', '/widget/leads/reject', array(
             'methods'             => 'POST',
@@ -427,6 +434,20 @@ class HDLV2_Widget_Config {
             return rest_ensure_response( array( 'success' => true, 'pending' => true ) );
         }
 
+        // v0.48.16 — busy gate. Under a spike the widget takes a 503 and
+        // keeps the answers on the Brevo holding list instead (invite and
+        // ticket holders see "not saved yet" and send again).
+        if ( HDLV2_Stage1_Drain::is_busy() ) {
+            HDLV2_Stage1_Drain::note_busy();
+            $busy = new WP_REST_Response( array(
+                'code'    => 'server_busy',
+                'message' => 'We are busy right now. Please try again in a minute.',
+                'data'    => array( 'status' => 503 ),
+            ), 503 );
+            $busy->header( 'Retry-After', '60' );
+            return $busy;
+        }
+
         $practitioner_id = isset( $params['practitioner_id'] ) ? absint( $params['practitioner_id'] ) : 0;
         if ( ! $practitioner_id ) {
             return new WP_Error( 'missing_practitioner', 'Practitioner ID is required.', array( 'status' => 400 ) );
@@ -446,20 +467,6 @@ class HDLV2_Widget_Config {
         $invite_id    = null;
         $invite_token = isset( $params['invite_token'] ) ? sanitize_text_field( $params['invite_token'] ) : '';
         $invite       = $invite_token ? self::get_valid_invite( $invite_token ) : null;
-
-        // ── Per-IP cap (legacy backstop, lighter than the rate-limit middleware) ──
-        // v0.47.87 — a confirmed paid ticket is counted per ticket by the
-        // middleware instead, so buyers sharing one address (an office, a
-        // venue) are not held to ten an hour between them.
-        if ( ! self::is_paid_ticket_of( $invite, $practitioner_id ) ) {
-            $ip        = sanitize_text_field( $_SERVER['REMOTE_ADDR'] ?? 'unknown' );
-            $transient = 'hdlv2_lead_' . md5( $ip );
-            $count     = (int) get_transient( $transient );
-            if ( $count >= 10 ) {
-                return new WP_Error( 'rate_limited', 'Too many submissions. Please try again later.', array( 'status' => 429 ) );
-            }
-            set_transient( $transient, $count + 1, HOUR_IN_SECONDS );
-        }
 
         // v0.47.85 — paid mode (widget_config.access_mode). A paid widget
         // takes answers only with a valid invite of THIS practitioner. A paid
@@ -665,6 +672,7 @@ class HDLV2_Widget_Config {
             'practitioner_id' => $practitioner_id,
             'visitor_name'    => $visitor_name,
             'visitor_email'   => $visitor_email,
+            'visitor_phone'   => $visitor_phone,
             'visitor_age'     => $visitor_age,
             'rate'            => $rate,
             'stage1_data'     => $stage1_data,
@@ -686,6 +694,11 @@ class HDLV2_Widget_Config {
         }
         if ( $ticket_id ) {
             $wpdb->query( 'COMMIT' );
+        }
+        // v0.48.16 — the row IS the lead now (the drain sends the PDF from
+        // it), so a failed write is a failure: the widget keeps the answers.
+        if ( ! $lead_id ) {
+            return new WP_Error( 'lead_not_saved', 'We could not save your answers. Please try again in a moment.', array( 'status' => 500 ) );
         }
 
         // ── Front-door safety screen (v0.45.0) — fire flag emails at PUBLIC
@@ -747,23 +760,9 @@ class HDLV2_Widget_Config {
             );
         }
 
-        self::dispatch_post_signup_artifacts( array(
-            'practitioner_id'           => $practitioner_id,
-            'visitor_name'              => $visitor_name,
-            'visitor_email'             => $visitor_email,
-            'visitor_phone'             => $visitor_phone,
-            'visitor_age'               => $visitor_age,
-            'rate'                      => $rate,
-            'stage1_data'               => $stage1_data,
-            'form_token'                => $cache_token,
-            'config'                    => $config,
-            'invite_id'                 => null,
-            // v0.41.24 — "New Lead from Your Widget" wp_mail suppressed;
-            // Make.com Module 40 already fires the canonical "New Lead" email
-            // with the Stage 1 PDF, so the wp_mail copy was a duplicate.
-            'send_practitioner_notify'  => false,
-            'send_make_pdf'             => true,
-        ) );
+        // v0.48.16 — nothing leaves the server in this request: the Stage 1
+        // PDF (gauge PNG + Make.com) is sent by HDLV2_Stage1_Drain within a
+        // minute, from the row just written (stage1_fired_at NULL).
 
         $public_response = array(
             'success' => true,
@@ -820,6 +819,11 @@ class HDLV2_Widget_Config {
         if ( ! empty( $args['invite_id'] ) ) {
             $common['invite_id'] = (int) $args['invite_id'];
         }
+        // v0.48.16 — the phone travels with the row: the drain sends the
+        // Stage 1 PDF later and reads everything from here.
+        if ( '' !== (string) ( $args['visitor_phone'] ?? '' ) ) {
+            $common['visitor_phone'] = substr( (string) $args['visitor_phone'], 0, 40 );
+        }
 
         $existing_id = (int) $wpdb->get_var( $wpdb->prepare(
             "SELECT id FROM $table WHERE practitioner_user_id = %d AND visitor_email = %s ORDER BY id DESC LIMIT 1",
@@ -832,13 +836,18 @@ class HDLV2_Widget_Config {
             // row stays in its terminal state on resubmission.
             $update_row = $common;
             $update_row['created_at'] = current_time( 'mysql' );
+            // v0.48.16 — new answers send a new Stage 1 PDF (the drain picks
+            // the row up again); the same answers posted twice do not.
+            $old_answers = json_decode( (string) $wpdb->get_var( $wpdb->prepare( "SELECT stage1_data FROM $table WHERE id = %d", $existing_id ) ), true );
+            if ( self::stage1_answers( $old_answers ) !== self::stage1_answers( $args['stage1_data'] ?? array() ) ) {
+                $update_row['stage1_fired_at'] = null;
+            }
             $ok = $wpdb->update( $table, $update_row, array( 'id' => $existing_id ) );
-            // v0.47.83 — location columns may not exist yet (deploy window
-            // before the Phase AG migration, or a failed migration). The
+            // v0.47.83 — optional columns may not exist yet (deploy window
+            // before the Phase AG / AK migration, or a failed migration). The
             // lead data must never be lost over an optional field: retry
-            // the write without the location keys.
-            if ( false === $ok && isset( $update_row['visitor_country'] ) ) {
-                unset( $update_row['visitor_country'], $update_row['visitor_region'] );
+            // the write without them.
+            if ( false === $ok && self::drop_optional_columns( $update_row ) ) {
                 $wpdb->update( $table, $update_row, array( 'id' => $existing_id ) );
             }
             // v0.47.85 — a paid submission must reach the practitioner's
@@ -855,18 +864,75 @@ class HDLV2_Widget_Config {
 
         // INSERT — new lead. Explicit status='pending' (also the schema
         // default, but spelled out so the intent is locally readable).
+        // created_at on the site clock, as the UPDATE branch writes it, so the
+        // hourly volume alert reads one clock (v0.48.16).
         $insert_row = $common + array(
             'practitioner_user_id' => $practitioner_id,
             'visitor_email'        => $visitor_email,
             'status'               => 'pending',
+            'created_at'           => current_time( 'mysql' ),
         );
         $ok = $wpdb->insert( $table, $insert_row );
         // v0.47.83 — same missing-column belt as the UPDATE branch above.
-        if ( false === $ok && isset( $insert_row['visitor_country'] ) ) {
-            unset( $insert_row['visitor_country'], $insert_row['visitor_region'] );
-            $wpdb->insert( $table, $insert_row );
+        if ( false === $ok && self::drop_optional_columns( $insert_row ) ) {
+            $ok = $wpdb->insert( $table, $insert_row );
         }
-        return (int) $wpdb->insert_id;
+        return false === $ok ? 0 : (int) $wpdb->insert_id;
+    }
+
+    /**
+     * v0.48.16 — send the Stage 1 PDF for one public lead row, exactly as the
+     * request did before the drain (HDLV2_Stage1_Drain) took it over.
+     *
+     * @param object $row widget_leads row.
+     * @return bool false when the practitioner has no widget config (logged).
+     */
+    public static function fire_stage1_for_lead( $row ) {
+        $practitioner_id = (int) $row->practitioner_user_id;
+        $config          = ( new self() )->get_config( $practitioner_id );
+        if ( ! $config ) {
+            error_log( '[HDLV2 stage1-drain] no config for practitioner ' . $practitioner_id . ' — lead=' . (int) $row->id . ' not sent.' );
+            return false;
+        }
+        $email  = (string) $row->visitor_email;
+        $stage1 = json_decode( (string) $row->stage1_data, true );
+        self::dispatch_post_signup_artifacts( array(
+            'practitioner_id'          => $practitioner_id,
+            'visitor_name'             => (string) $row->visitor_name,
+            'visitor_email'            => $email,
+            'visitor_phone'            => (string) ( $row->visitor_phone ?? '' ),
+            'visitor_age'              => null !== $row->visitor_age ? (int) $row->visitor_age : null,
+            'rate'                     => null !== $row->rate_of_ageing ? (float) $row->rate_of_ageing : null,
+            'stage1_data'              => is_array( $stage1 ) ? $stage1 : array(),
+            // The synthetic cache key the request stored; the same hash when it did not.
+            'form_token'               => ! empty( $row->stage1_cache_token ) ? (string) $row->stage1_cache_token : bin2hex( hash( 'sha256', $practitioner_id . '|' . $email, true ) ),
+            'config'                   => $config,
+            'invite_id'                => null,
+            // v0.41.24 — Make.com Module 40 sends the practitioner's "New Lead" email.
+            'send_practitioner_notify' => false,
+            'send_make_pdf'            => true,
+        ) );
+        return true;
+    }
+
+    /** The nine answers only (no server_result / _safety*), for "did the answers change?". */
+    private static function stage1_answers( $data ) {
+        $data = is_array( $data ) ? $data : array();
+        $out  = array();
+        foreach ( array( 'q1_age', 'q1_sex', 'q2a', 'q2b', 'q3', 'q4', 'q5', 'q6', 'q7', 'q8', 'q9' ) as $k ) {
+            $out[ $k ] = isset( $data[ $k ] ) ? (string) $data[ $k ] : '';
+        }
+        return $out;
+    }
+
+    /**
+     * Strip the columns a server may not have yet (Phase AG location, Phase AK
+     * phone + fired stamp). True when anything was removed, so a retry is worth it.
+     */
+    private static function drop_optional_columns( array &$row ) {
+        $before = count( $row );
+        unset( $row['visitor_country'], $row['visitor_region'], $row['visitor_phone'], $row['stage1_fired_at'] );
+        return count( $row ) < $before;
     }
 
     /**
@@ -962,7 +1028,7 @@ class HDLV2_Widget_Config {
     /**
      * "kim@gmail.com" → "k***@gmail.com" — for the on-screen "we sent it to..." card.
      */
-    private static function mask_email( $email ) {
+    public static function mask_email( $email ) {
         $at = strrpos( $email, '@' );
         if ( $at === false || $at === 0 ) return $email;
         $local  = substr( $email, 0, $at );
@@ -1730,7 +1796,14 @@ class HDLV2_Widget_Config {
             // intentionally do NOT touch status — terminal state (confirmed
             // or rejected) sticks across re-submissions.
             $lead_payload['created_at'] = current_time( 'mysql' );
-            $wpdb->update( $wpdb->prefix . 'hdlv2_widget_leads', $lead_payload, array( 'id' => $existing_lead_id ) );
+            // v0.48.16 — the PDF fires below, so the drain must not fire it again.
+            if ( ! empty( $args['send_make_pdf'] ) ) {
+                $lead_payload['stage1_fired_at'] = current_time( 'mysql' );
+            }
+            if ( false === $wpdb->update( $wpdb->prefix . 'hdlv2_widget_leads', $lead_payload, array( 'id' => $existing_lead_id ) )
+                 && self::drop_optional_columns( $lead_payload ) ) {
+                $wpdb->update( $wpdb->prefix . 'hdlv2_widget_leads', $lead_payload, array( 'id' => $existing_lead_id ) );
+            }
         } else {
             // First time we've seen this (practitioner, email). Insert with
             // explicit status='confirmed' since complete_signup() is only
@@ -1741,7 +1814,13 @@ class HDLV2_Widget_Config {
             $lead_payload['visitor_email']        = $visitor_email;
             $lead_payload['status']               = 'confirmed';
             $lead_payload['confirmed_at']         = current_time( 'mysql' );
-            $wpdb->insert( $wpdb->prefix . 'hdlv2_widget_leads', $lead_payload );
+            // v0.48.16 — never a row for the drain: this path fires its own
+            // PDF (invite) or none at all (Confirm).
+            $lead_payload['stage1_fired_at']      = current_time( 'mysql' );
+            if ( false === $wpdb->insert( $wpdb->prefix . 'hdlv2_widget_leads', $lead_payload )
+                 && self::drop_optional_columns( $lead_payload ) ) {
+                $wpdb->insert( $wpdb->prefix . 'hdlv2_widget_leads', $lead_payload );
+            }
         }
 
         // Notify practitioner + Make.com PDF (uses kept legacy code in the
@@ -2086,7 +2165,7 @@ class HDLV2_Widget_Config {
                 ),
             );
         }
-        return rest_ensure_response( array( 'leads' => $out ) );
+        return rest_ensure_response( array( 'leads' => $out, 'bulk_min' => self::BULK_MIN_PENDING ) );
     }
 
     /**
@@ -2279,23 +2358,40 @@ class HDLV2_Widget_Config {
         return array( 'form_token' => (string) $form_token, 'email_sent' => $email_sent, 'already' => false );
     }
 
-    /** Most leads one bulk call confirms; the dashboard sends bigger selections in chunks. */
-    const BULK_CONFIRM_MAX = 20;
+    /** Most leads one bulk call actions; the dashboard sends bigger selections in chunks. */
+    const BULK_MAX = 20;
+    /** The dashboard shows the bulk tick boxes from this many pending leads (0 = always). */
+    const BULK_MIN_PENDING = 10;
 
     /**
      * POST /widget/leads/confirm-bulk — v0.48.15 (Matthew, 2026-10-13: "select
      * all and confirm everybody in one go"). Body { lead_ids: int[] }, 1–20.
-     *
-     * Every id must belong to the caller before anything is written (403
-     * lead_not_yours otherwise). Then each lead on its own, exactly as the
-     * single Confirm: confirmed → already, rejected → failed, pending →
-     * confirm_lead_row() (its own transaction, its own email after COMMIT).
-     * One transaction per lead, not one for all: an email that has gone
-     * cannot be rolled back with the rows after it.
+     * Each pending lead exactly as the single Confirm: its own transaction,
+     * its own email after COMMIT (an email that has gone cannot be rolled
+     * back with the rows after it). Rejected → failed lead_rejected.
      *
      * @return array { confirmed: int[], already: int[], failed: {id, code}[] }
      */
     public function rest_confirm_leads_bulk( $request ) {
+        return $this->bulk_leads( $request, 'confirm' );
+    }
+
+    /**
+     * POST /widget/leads/reject-bulk — v0.48.16. Body { lead_ids: int[] }, 1–20.
+     * Each pending lead exactly as the single Reject (no email); confirmed or
+     * already-rejected leads come back under already.
+     *
+     * @return array { rejected: int[], already: int[], failed: {id, code}[] }
+     */
+    public function rest_reject_leads_bulk( $request ) {
+        return $this->bulk_leads( $request, 'reject' );
+    }
+
+    /**
+     * The two bulk routes: one loop, a different per-lead action. Every id
+     * must belong to the caller before anything is written (403 otherwise).
+     */
+    private function bulk_leads( $request, $action ) {
         global $wpdb;
         $user_id = get_current_user_id();
         $params  = $request->get_json_params();
@@ -2303,8 +2399,8 @@ class HDLV2_Widget_Config {
         if ( ! is_array( $raw ) || ! $raw ) {
             return new WP_Error( 'missing_lead_ids', 'lead_ids must be a list of lead ids.', array( 'status' => 400 ) );
         }
-        if ( count( $raw ) > self::BULK_CONFIRM_MAX ) {
-            return new WP_Error( 'too_many', 'At most ' . self::BULK_CONFIRM_MAX . ' leads per call.', array( 'status' => 400 ) );
+        if ( count( $raw ) > self::BULK_MAX ) {
+            return new WP_Error( 'too_many', 'At most ' . self::BULK_MAX . ' leads per call.', array( 'status' => 400 ) );
         }
         $ids = array();
         foreach ( $raw as $id ) {
@@ -2329,10 +2425,17 @@ class HDLV2_Widget_Config {
             return new WP_Error( 'lead_not_yours', 'One or more leads were not found.', array( 'status' => 403 ) );
         }
 
-        $out = array( 'confirmed' => array(), 'already' => array(), 'failed' => array() );
+        $done_key = 'confirm' === $action ? 'confirmed' : 'rejected';
+        $out      = array( $done_key => array(), 'already' => array(), 'failed' => array() );
         foreach ( $ids as $id ) {
             $lead = $by_id[ $id ];
-            if ( 'confirmed' === $lead->status ) {
+            if ( 'reject' === $action ) {
+                if ( 'pending' !== $lead->status || ! self::reject_lead_row( $id, $user_id ) ) {
+                    $out['already'][] = $id; // confirmed, rejected, or actioned since the read
+                } else {
+                    $out['rejected'][] = $id;
+                }
+            } elseif ( 'confirmed' === $lead->status ) {
                 $out['already'][] = $id;
             } elseif ( 'pending' !== $lead->status ) {
                 $out['failed'][] = array( 'id' => $id, 'code' => 'lead_rejected' );
@@ -2423,26 +2526,30 @@ class HDLV2_Widget_Config {
             return new WP_Error( 'missing_lead_id', 'lead_id is required.', array( 'status' => 400 ) );
         }
 
-        $updated = $wpdb->update(
+        if ( ! self::reject_lead_row( $lead_id, $user_id ) ) {
+            return new WP_Error( 'lead_not_found', 'Lead not found or already actioned.', array( 'status' => 404 ) );
+        }
+
+        return rest_ensure_response( array( 'success' => true ) );
+    }
+
+    /** Reject one of the caller's PENDING leads. True when a row changed. */
+    private static function reject_lead_row( $lead_id, $user_id ) {
+        global $wpdb;
+        return 1 === (int) $wpdb->update(
             $wpdb->prefix . 'hdlv2_widget_leads',
             array(
                 'status'      => 'rejected',
                 'rejected_at' => current_time( 'mysql' ),
             ),
             array(
-                'id'                   => $lead_id,
-                'practitioner_user_id' => $user_id,
+                'id'                   => (int) $lead_id,
+                'practitioner_user_id' => (int) $user_id,
                 'status'               => 'pending',
             ),
             array( '%s', '%s' ),
             array( '%d', '%d', '%s' )
         );
-
-        if ( $updated === 0 ) {
-            return new WP_Error( 'lead_not_found', 'Lead not found or already actioned.', array( 'status' => 404 ) );
-        }
-
-        return rest_ensure_response( array( 'success' => true ) );
     }
 
     /**
@@ -2462,9 +2569,16 @@ class HDLV2_Widget_Config {
      * and on the widget itself).
      */
     public function rest_get_public_config( $request ) {
+        // v0.48.16 — the same answer for every visitor: cacheable for five
+        // minutes (the loader's no-store filter skips this route).
+        $reply = function ( $data ) {
+            $r = new WP_REST_Response( $data, 200 );
+            $r->header( 'Cache-Control', 'public, max-age=300, s-maxage=300' );
+            return $r;
+        };
         $practitioner_id = absint( $request->get_param( 'practitioner_id' ) );
         if ( ! $practitioner_id ) {
-            return rest_ensure_response( array( 'config' => null ) );
+            return $reply( array( 'config' => null ) );
         }
         global $wpdb;
         $row = $wpdb->get_row( $wpdb->prepare(
@@ -2475,9 +2589,9 @@ class HDLV2_Widget_Config {
             $practitioner_id
         ) );
         if ( ! $row ) {
-            return rest_ensure_response( array( 'config' => null ) );
+            return $reply( array( 'config' => null ) );
         }
-        return rest_ensure_response( array( 'config' => array(
+        return $reply( array( 'config' => array(
             'practitioner_name'             => (string) $row->practitioner_name,
             'logo_url'                      => (string) $row->logo_url,
             'logo_shape'                    => (string) ( $row->logo_shape ?: 'square' ),
