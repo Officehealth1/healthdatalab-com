@@ -306,6 +306,7 @@ class FakeWpdb {
 
 class HDLV2_Compatibility {
     public static function is_practitioner( $u ) { return $GLOBALS['is_prac'] ?? true; }
+    public static function is_staff( $u ) { return self::is_practitioner( $u ); }
     public static function practitioner_owns_client( $p, $c ) { return true; }
     public static function create_practitioner_client_link( $p, $c ) { return true; }
 }

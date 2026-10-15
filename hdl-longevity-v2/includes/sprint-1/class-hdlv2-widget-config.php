@@ -2019,6 +2019,11 @@ class HDLV2_Widget_Config {
     private static function auto_login_by_email( $email ) {
         $user = get_user_by( 'email', $email );
         if ( ! $user ) return;
+        // v0.48.20 — the visitor typed this email; never sign in a staff account.
+        if ( HDLV2_Compatibility::is_staff( $user->ID ) ) {
+            error_log( '[HDLV2 auto-login] refused: privileged account' );
+            return;
+        }
         wp_set_current_user( $user->ID );
         wp_set_auth_cookie( $user->ID, false );
     }

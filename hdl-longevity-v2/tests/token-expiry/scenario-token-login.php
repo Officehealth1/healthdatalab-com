@@ -79,6 +79,7 @@ function add_query_arg( $key, $value, $url ) { return $url . ( strpos( $url, '?'
 // Fake V1↔V2 glue — the closure guards every use behind class_exists().
 class HDLV2_Compatibility {
     public static function is_practitioner( $uid ) { return in_array( (int) $uid, $GLOBALS['prac_ids'] ?? array( 3 ), true ); }
+    public static function is_staff( $uid ) { return user_can( $uid, 'edit_posts' ) || self::is_practitioner( $uid ); }
     public static function create_practitioner_client_link( $p, $c ) { return true; }
     public static function practitioner_owns_client( $p, $c ) { return 3 === (int) $p && 42 === (int) $c; }
 }
@@ -191,6 +192,28 @@ switch ( $CASE ) {
         $_GET['invite'] = $hex;
         $GLOBALS['admin_ids'] = array( 7 );
         $GLOBALS['case_rows']['invite'] = (object) array( 'id' => 9, 'practitioner_id' => 3, 'client_email' => 'c@x.test', 'client_name' => 'C', 'status' => 'pending', 'expires_at' => gmdate( 'Y-m-d H:i:s', time() + 80 * DAY_IN_SECONDS ), 'source' => 'full_report' );
+        break;
+
+    // v0.48.20 — no link ever signs in a staff account (launch gate line 6)
+    case 'invite-plain-prac': // an ordinary invite to a practitioner's email
+        $_GET['invite'] = $hex;
+        $GLOBALS['prac_ids'] = array( 3, 7 );
+        $GLOBALS['case_rows']['invite'] = (object) array( 'id' => 9, 'practitioner_id' => 3, 'client_email' => 'c@x.test', 'client_name' => 'C', 'status' => 'pending', 'expires_at' => gmdate( 'Y-m-d H:i:s', time() + 6 * HOUR_IN_SECONDS ) );
+        break;
+    case 'invite-plain-admin':
+        $_GET['invite'] = $hex;
+        $GLOBALS['admin_ids'] = array( 7 );
+        $GLOBALS['case_rows']['invite'] = (object) array( 'id' => 9, 'practitioner_id' => 3, 'client_email' => 'c@x.test', 'client_name' => 'C', 'status' => 'pending', 'expires_at' => gmdate( 'Y-m-d H:i:s', time() + 6 * HOUR_IN_SECONDS ) );
+        break;
+    case 'token-prac': // form_progress whose client_user_id is a practitioner
+        $_GET['token'] = $hex;
+        $GLOBALS['prac_ids'] = array( 3, 42 );
+        $GLOBALS['case_rows']['progress'] = (object) array( 'id' => 55, 'client_user_id' => 42, 'token_expires_at' => gmdate( 'Y-m-d H:i:s', time() + 80 * DAY_IN_SECONDS ) );
+        break;
+    case 'token-admin':
+        $_GET['token'] = $hex;
+        $GLOBALS['admin_ids'] = array( 42 );
+        $GLOBALS['case_rows']['progress'] = (object) array( 'id' => 55, 'client_user_id' => 42, 'token_expires_at' => gmdate( 'Y-m-d H:i:s', time() + 80 * DAY_IN_SECONDS ) );
         break;
 
     // ?prac_login= (30-min one-shot transient — regression guards, no change expected)
