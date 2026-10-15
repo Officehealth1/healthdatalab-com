@@ -32,6 +32,10 @@ check( 'O.6 money is currency + number', '$27' === $p['offer_today'] && '$129' =
 check( 'O.7 offer_show "1" / "0"', '1' === $p['offer_show'] && '0' === HDLV2_Offer::payload_keys( false )['offer_show'] );
 check( 'O.8 public config never carries the code', array_keys( HDLV2_Offer::public_config_fields() ) === array( 'stage1_list_price', 'currency', 'stage1_free_with_code' ) );
 
+$GLOBALS['options']['hdlv2_stage1_offer'] = '{"hook":"What is ageing you fastest?"}';
+check( 'O.10 the hook option reaches the payload as offer_hook', 'What is ageing you fastest?' === HDLV2_Offer::payload_keys( true )['offer_hook'] );
+unset( $GLOBALS['options']['hdlv2_stage1_offer'] );
+
 check( 'O.9 the offer belongs to one practitioner (122 by default; 0 = all)', HDLV2_Offer::applies_to( 122 ) && ! HDLV2_Offer::applies_to( 206 ) );
 
 echo "── P. the Stage 1 payload (public path) ──\n";
