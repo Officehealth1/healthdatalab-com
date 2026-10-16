@@ -71,8 +71,8 @@ try {
     $send = HDLV2_Client_Status::resolve_resend_status( $a );
     $d    = HDLV2_Client_Status::resend_link_descriptor( $send['status'], false, $send['has_report'] );
     ck( 'A DISPLAY status stays needs_attention (red badge preserved)', $disp['status'] === 'needs_attention', 'display=' . $disp['status'] );
-    ck( 'A SEND funnel = low_data (flag-blind), descriptor = Send Stage-2 link (continue, NOT report)',
-        $send['status'] === 'low_data' && $d['link_kind'] === 'assessment' && $d['label'] === 'Send Stage-2 link',
+    ck( 'A SEND funnel = low_data (flag-blind), descriptor = Send Full Report link (continue, NOT report)',
+        $send['status'] === 'low_data' && $d['link_kind'] === 'assessment' && $d['label'] === 'Send Full Report link',
         'send=' . $send['status'] . ' kind=' . $d['link_kind'] . ' label=' . $d['label'] );
 
     // (B) red-flag, Stage 3 done, NO report (the Margaret Hughes case)

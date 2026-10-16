@@ -139,7 +139,7 @@ eq( '(G1h) progress_normal + plan + has_report=true → Resend flight plan', 'pl
 
 // Full continue-link mapping via the resolver → descriptor, for the red-flag stages:
 fx( '2026-01-01 00:00:00', null, null, false ); $r = $RS(); $d = $D( $r['status'], false, $r['has_report'] );
-eq( '(G1i) red-flag Stage-2 END-TO-END → Send Stage-2 link (continue, NOT report)', 'Send Stage-2 link', $d['label'] );
+eq( '(G1i) red-flag Stage-2 END-TO-END → Send Full Report link (continue, NOT report)', 'Send Full Report link', $d['label'] );
 eq( '(G1i) …link_kind assessment',                                                  'assessment',        $d['link_kind'] );
 fx( '2026-01-01 00:00:00', '2026-02-01 00:00:00', 1, false ); $r = $RS(); $d = $D( $r['status'], false, $r['has_report'] );
 eq( '(G1j) red-flag Stage-3-done-no-report END-TO-END → DISABLED (nothing to send)', false, $d['enabled'] );

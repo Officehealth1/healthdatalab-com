@@ -112,7 +112,7 @@ function client(over) {
     email: 'sam.client@example.com',
     email_hash: 'a'.repeat(64),
     status: 'low_data',
-    resend: { enabled: true, stage: 2, link_kind: 'assessment', label: 'Send Stage-2 link', tooltip: '' },
+    resend: { enabled: true, stage: 2, link_kind: 'assessment', label: 'Send Full Report link', tooltip: '' },
   }, over || {});
 }
 
@@ -124,7 +124,7 @@ function client(over) {
   ok('(1b) enabled resend is NOT rendered disabled',
     !html.includes('hdlv2-btn-off') && !html.includes('aria-disabled'), html);
   ok('(1c) dynamic per-stage tooltip names the stage label',
-    /title="[^"]*Send Stage-2 link[^"]*"/.test(html), html);
+    /title="[^"]*Send Full Report link[^"]*"/.test(html), html);
 }
 
 // ── (2) resend button: blocked-on-practitioner states render disabled ──
@@ -196,11 +196,11 @@ function client(over) {
 // ── (8) confirm copy: names STAGE + RECIPIENT + replace-warning ──
 {
   const copy = fns.resendConfirmCopy(client());
-  ok('(8a) title names the stage action', copy.title.includes('Send Stage-2 link'), JSON.stringify(copy));
+  ok('(8a) title names the stage action', copy.title.includes('Send Full Report link'), JSON.stringify(copy));
   ok('(8b) body names the recipient (name + email)',
     copy.body.includes('Sam Client') && copy.body.includes('sam.client@example.com'), copy.body);
   ok('(8c) body warns the send REPLACES any previous link', /replaces/i.test(copy.body), copy.body);
-  ok('(8d) confirm button repeats the stage action', copy.confirmLabel === 'Send Stage-2 link', copy.confirmLabel);
+  ok('(8d) confirm button repeats the stage action', copy.confirmLabel === 'Send Full Report link', copy.confirmLabel);
 
   const plan = fns.resendConfirmCopy(client({
     status: 'active',

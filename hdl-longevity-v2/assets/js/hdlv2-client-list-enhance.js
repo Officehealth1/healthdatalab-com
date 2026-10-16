@@ -1442,7 +1442,7 @@
       : '<div class="hdlv2-pending-detail-empty">No Stage-1 answer detail was captured for this lead.</div>';
 
     return '<div class="hdlv2-pending-detail">'
-      + '<div class="hdlv2-pending-detail-note">Pre-confirmation lead — not yet an account. Confirm to provision the client and send their Stage-2 link.</div>'
+      + '<div class="hdlv2-pending-detail-note">Pre-confirmation lead — not yet an account. Confirm to provision the client and send their Full Report link.</div>'
       + contact + answers
       + '</div>';
   }
@@ -2678,7 +2678,7 @@
           +   '<div class="hdlv2-dl-doc-ico">' + docIconSVG() + '</div>'
           +   '<div class="hdlv2-dl-doc-body">'
           +     '<span class="hdlv2-dl-doc-title">WHY Profile</span>'
-          +     '<span class="hdlv2-dl-doc-meta">Stage-2 WHY &middot; practitioner copy &mdash; not sent to the client</span>'
+          +     '<span class="hdlv2-dl-doc-meta">Full Report WHY &middot; practitioner copy &mdash; not sent to the client</span>'
           +   '</div>'
           +   '<a class="hdlv2-dl-btn" href="' + esc(s2.pdf_url) + '" target="_blank" rel="noopener" download>' + flightNotesIconSVG() + '<span>Download PDF</span></a>'
           + '</div>'
@@ -2899,7 +2899,7 @@
           +   '<div class="hdlv2-dl-doc-ico">' + docIconSVG() + '</div>'
           +   '<div class="hdlv2-dl-doc-body">'
           +     '<span class="hdlv2-dl-doc-title">Draft Report</span>'
-          +     '<span class="hdlv2-dl-doc-meta">Post-Stage-3 draft &middot; the same PDF emailed to the client</span>'
+          +     '<span class="hdlv2-dl-doc-meta">Draft after the Full Report form &middot; the same PDF emailed to the client</span>'
           +   '</div>'
           +   '<a class="hdlv2-dl-btn" href="' + esc(s3.pdf_url) + '" target="_blank" rel="noopener" download>' + flightNotesIconSVG() + '<span>Download PDF</span></a>'
           + '</div>'

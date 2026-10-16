@@ -92,9 +92,9 @@ class HDLV2_Client_Status {
             case self::NOT_STARTED:
                 return array( 'enabled' => true, 'stage' => 1, 'link_kind' => 'assessment', 'label' => 'Send assessment link', 'tooltip' => '' );
             case self::LOW_DATA:
-                return array( 'enabled' => true, 'stage' => 2, 'link_kind' => 'assessment', 'label' => 'Send Stage-2 link', 'tooltip' => '' );
+                return array( 'enabled' => true, 'stage' => 2, 'link_kind' => 'assessment', 'label' => 'Send Full Report link', 'tooltip' => '' );
             case self::STAGE3_IN_PROGRESS:
-                return array( 'enabled' => true, 'stage' => 3, 'link_kind' => 'assessment', 'label' => 'Send Stage-3 link', 'tooltip' => '' );
+                return array( 'enabled' => true, 'stage' => 3, 'link_kind' => 'assessment', 'label' => 'Send Full Report form link', 'tooltip' => '' );
             case self::AWAITING_WHY_RELEASE:
                 return $off( 'Waiting on you to open the Full Report form — nothing to send' );
             case self::AWAITING_CONSULT:

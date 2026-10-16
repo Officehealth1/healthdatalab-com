@@ -54,13 +54,13 @@ $s2 = $D( 'low_data' );
 eq( 'low_data enabled',   true,          $s2['enabled'] );
 eq( 'low_data stage',     2,             $s2['stage'] );
 eq( 'low_data link_kind', 'assessment',  $s2['link_kind'] );
-eq( 'low_data label',     'Send Stage-2 link', $s2['label'] );
+eq( 'low_data label',     'Send Full Report link', $s2['label'] );
 
 $s3 = $D( 'stage3_in_progress' );
 eq( 'stage3 enabled',   true,         $s3['enabled'] );
 eq( 'stage3 stage',     3,            $s3['stage'] );
 eq( 'stage3 link_kind', 'assessment', $s3['link_kind'] );
-eq( 'stage3 label',     'Send Stage-3 link', $s3['label'] );  // D5: never flight-plan wording here
+eq( 'stage3 label',     'Send Full Report form link', $s3['label'] );  // D5: never flight-plan wording here
 
 // ── Disabled: blocked on the practitioner ──
 $awr = $D( 'awaiting_why_release' );
