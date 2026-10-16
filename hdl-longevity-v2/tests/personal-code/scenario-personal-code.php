@@ -30,10 +30,10 @@ function run_lead( $email ) {
     }
     return array( $make, $code, $wpdb->insert_id );
 }
-/** 0.48.22 (D3) — the fallback link opens the gate with the shared code, and carries the lead's email. */
+/** 0.48.22 (D3) — the fallback link opens the gate with the shared code; the lead's email rides in the fragment (D7). */
 function shared_pair( $make, $email ) {
     return is_array( $make ) && 'SHAREDCODE' === $make['offer_code']
-        && 'https://alt.example.test/full-report?code=SHAREDCODE&email=' . rawurlencode( $email ) === $make['offer_url'];
+        && 'https://alt.example.test/full-report?code=SHAREDCODE#email=' . rawurlencode( $email ) === $make['offer_url'];
 }
 
 // The harness practitioner (206) sees the offer; the shared code + plain URL from the option.
@@ -51,7 +51,7 @@ echo "── C. the personal code ──\n";
 $GLOBALS['http'][ CODE_URL ] = array( 'response' => array( 'code' => 200 ), 'body' => '{"code":"AB12-CD","expires_at":1790000000}' );
 list( $make, $call, $lead_id ) = run_lead( 'b@example.test' );
 check( 'C.1 offer_code is the personal code', is_array( $make ) && 'AB12-CD' === $make['offer_code'] );
-check( 'C.1 offer_url carries it as ?code= and the email for Stripe', is_array( $make ) && 'https://alt.example.test/full-report?code=AB12-CD&email=b%40example.test' === $make['offer_url'] );
+check( 'C.1 offer_url carries it as ?code= and the email for Stripe', is_array( $make ) && 'https://alt.example.test/full-report?code=AB12-CD#email=b%40example.test' === $make['offer_url'] );
 check( 'C.1 still 33 keys, all nine offer keys strings', is_array( $make ) && 33 === count( $make )
     && 9 === count( array_filter( array_intersect_key( $make, array_flip( array_keys( HDLV2_Offer::payload_keys() ) ) ), 'is_string' ) ) );
 check( 'C.2 one POST to HDLV2_FULL_CODE_URL', null !== $call );
@@ -72,12 +72,12 @@ foreach ( $GLOBALS['captured_posts'] as $c ) { if ( CODE_URL === $c['url'] ) $in
 check( 'C.2 the invite path sends ref invite-<id>', $inv && array( 'ref' => 'invite-77' ) === json_decode( $inv['args']['body'], true ) );
 $inv_make = null;
 foreach ( $GLOBALS['captured_posts'] as $c ) { if ( false !== strpos( $c['url'], 'hook.example.test/stage1' ) ) $inv_make = json_decode( $c['args']['body'], true ); }
-check( 'C.2 the invite path link carries the invite\'s email', is_array( $inv_make ) && 'https://alt.example.test/full-report?code=INV1CODE&email=ivy%40example.test' === $inv_make['offer_url'] );
+check( 'C.2 the invite path link carries the invite\'s email', is_array( $inv_make ) && 'https://alt.example.test/full-report?code=INV1CODE#email=ivy%40example.test' === $inv_make['offer_url'] );
 
 echo "── C. the email in the link ──\n";
 $GLOBALS['http'][ CODE_URL ] = array( 'response' => array( 'code' => 200 ), 'body' => '{"code":"PLUS1"}' );
 list( $make ) = run_lead( 'p+q@example.test' );
-check( 'C.6 a + in the email encodes as %2B', is_array( $make ) && 'https://alt.example.test/full-report?code=PLUS1&email=p%2Bq%40example.test' === $make['offer_url'] );
+check( 'C.6 a + in the email encodes as %2B', is_array( $make ) && 'https://alt.example.test/full-report?code=PLUS1#email=p%2Bq%40example.test' === $make['offer_url'] );
 $no_email = HDLV2_Offer::personal( 'lead-1', '' );
 $bad_email = HDLV2_Offer::personal( 'lead-1', 'not an email' );
 check( 'C.7 an empty email: no email key in the link', 'https://alt.example.test/full-report?code=PLUS1' === $no_email['offer_url'] );

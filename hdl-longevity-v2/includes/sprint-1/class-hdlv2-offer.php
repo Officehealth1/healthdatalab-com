@@ -141,9 +141,12 @@ class HDLV2_Offer {
         return array( 'offer_code' => $code, 'offer_url' => self::with_email( add_query_arg( 'code', rawurlencode( $code ), $o['url'] ), $email ) );
     }
 
-    /** 0.48.22 — the Full Report page hands a good address to Stripe as prefilled_email. */
+    /**
+     * 0.48.22 — the Full Report page hands a good address to Stripe as prefilled_email.
+     * In the fragment (D7): a browser never sends it to a server, a log or a Referer.
+     */
     private static function with_email( $url, $email ) {
-        return is_email( $email ) ? add_query_arg( 'email', rawurlencode( $email ), $url ) : $url;
+        return is_email( $email ) ? $url . '#email=' . rawurlencode( $email ) : $url;
     }
 
     /** The key Altituding checks; wp-config only. */
