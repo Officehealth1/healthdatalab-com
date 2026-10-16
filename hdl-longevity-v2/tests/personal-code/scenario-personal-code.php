@@ -30,8 +30,10 @@ function run_lead( $email ) {
     }
     return array( $make, $code, $wpdb->insert_id );
 }
-function shared_pair( $make ) {
-    return is_array( $make ) && 'SHAREDCODE' === $make['offer_code'] && 'https://alt.example.test/full-report' === $make['offer_url'];
+/** 0.48.22 (D3) — the fallback link opens the gate with the shared code, and carries the lead's email. */
+function shared_pair( $make, $email ) {
+    return is_array( $make ) && 'SHAREDCODE' === $make['offer_code']
+        && 'https://alt.example.test/full-report?code=SHAREDCODE&email=' . rawurlencode( $email ) === $make['offer_url'];
 }
 
 // The harness practitioner (206) sees the offer; the shared code + plain URL from the option.
@@ -39,7 +41,7 @@ $GLOBALS['options']['hdlv2_stage1_offer'] = array( 'practitioner_id' => 206, 'co
 
 echo "── C. before the constants exist (LIVE today) ──\n";
 list( $make, $call ) = run_lead( 'a@example.test' );
-check( 'C.5 constants absent: no outbound call, the shared code, the PDF fires', null === $call && shared_pair( $make ) );
+check( 'C.5 constants absent: no outbound call, the shared code, the PDF fires', null === $call && shared_pair( $make, 'a@example.test' ) );
 
 define( 'HDLV2_FULL_CODE_URL', CODE_URL );
 $stub_access = 'stub-full-code-access';
@@ -49,7 +51,7 @@ echo "── C. the personal code ──\n";
 $GLOBALS['http'][ CODE_URL ] = array( 'response' => array( 'code' => 200 ), 'body' => '{"code":"AB12-CD","expires_at":1790000000}' );
 list( $make, $call, $lead_id ) = run_lead( 'b@example.test' );
 check( 'C.1 offer_code is the personal code', is_array( $make ) && 'AB12-CD' === $make['offer_code'] );
-check( 'C.1 offer_url carries it as ?code=', is_array( $make ) && 'https://alt.example.test/full-report?code=AB12-CD' === $make['offer_url'] );
+check( 'C.1 offer_url carries it as ?code= and the email for Stripe', is_array( $make ) && 'https://alt.example.test/full-report?code=AB12-CD&email=b%40example.test' === $make['offer_url'] );
 check( 'C.1 still 33 keys, all nine offer keys strings', is_array( $make ) && 33 === count( $make )
     && 9 === count( array_filter( array_intersect_key( $make, array_flip( array_keys( HDLV2_Offer::payload_keys() ) ) ), 'is_string' ) ) );
 check( 'C.2 one POST to HDLV2_FULL_CODE_URL', null !== $call );
@@ -68,6 +70,18 @@ $m->invoke( null, array( 'practitioner_id' => 206, 'visitor_name' => 'Ivy', 'vis
 $inv = null;
 foreach ( $GLOBALS['captured_posts'] as $c ) { if ( CODE_URL === $c['url'] ) $inv = $c; }
 check( 'C.2 the invite path sends ref invite-<id>', $inv && array( 'ref' => 'invite-77' ) === json_decode( $inv['args']['body'], true ) );
+$inv_make = null;
+foreach ( $GLOBALS['captured_posts'] as $c ) { if ( false !== strpos( $c['url'], 'hook.example.test/stage1' ) ) $inv_make = json_decode( $c['args']['body'], true ); }
+check( 'C.2 the invite path link carries the invite\'s email', is_array( $inv_make ) && 'https://alt.example.test/full-report?code=INV1CODE&email=ivy%40example.test' === $inv_make['offer_url'] );
+
+echo "── C. the email in the link ──\n";
+$GLOBALS['http'][ CODE_URL ] = array( 'response' => array( 'code' => 200 ), 'body' => '{"code":"PLUS1"}' );
+list( $make ) = run_lead( 'p+q@example.test' );
+check( 'C.6 a + in the email encodes as %2B', is_array( $make ) && 'https://alt.example.test/full-report?code=PLUS1&email=p%2Bq%40example.test' === $make['offer_url'] );
+$no_email = HDLV2_Offer::personal( 'lead-1', '' );
+$bad_email = HDLV2_Offer::personal( 'lead-1', 'not an email' );
+check( 'C.7 an empty email: no email key in the link', 'https://alt.example.test/full-report?code=PLUS1' === $no_email['offer_url'] );
+check( 'C.7 an invalid email: no email key in the link', 'https://alt.example.test/full-report?code=PLUS1' === $bad_email['offer_url'] );
 
 echo "── C. failures fall back to the shared code ──\n";
 $bad = array(
@@ -84,7 +98,7 @@ foreach ( $bad as $label => $answer ) {
     $GLOBALS['http'][ CODE_URL ] = $answer;
     list( $make, $call ) = run_lead( 'f@example.test' );
     $lines = array_filter( explode( "\n", file_get_contents( $log ) ), function ( $l ) { return false !== strpos( $l, '[HDLV2 offer]' ); } );
-    check( "C.3 $label: shared code, PDF fires, one log line", null !== $call && shared_pair( $make ) && 1 === count( $lines )
+    check( "C.3 $label: shared code, PDF fires, one log line", null !== $call && shared_pair( $make, 'f@example.test' ) && 1 === count( $lines )
         && false !== strpos( implode( '', $lines ), 'shared code used' ) );
 }
 

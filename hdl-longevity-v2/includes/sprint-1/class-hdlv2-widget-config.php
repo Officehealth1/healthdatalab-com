@@ -1446,7 +1446,7 @@ class HDLV2_Widget_Config {
             // (same two keys, so Make and the template are unchanged).
             if ( $offer_show ) {
                 $offer_ref   = $args['offer_ref'] ?? ( $invite_id ? 'invite-' . (int) $invite_id : '' );
-                $pdf_payload = array_merge( $pdf_payload, HDLV2_Offer::personal( $offer_ref ) );
+                $pdf_payload = array_merge( $pdf_payload, HDLV2_Offer::personal( $offer_ref, $visitor_email ) );
             }
 
             $stage1_webhook = defined( 'HDLV2_MAKE_STAGE1_PDF' ) ? HDLV2_MAKE_STAGE1_PDF : '';

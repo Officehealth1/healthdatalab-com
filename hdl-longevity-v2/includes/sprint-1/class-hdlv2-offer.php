@@ -107,15 +107,19 @@ class HDLV2_Offer {
      * v0.48.18 — this person's own one-use Full Report code, asked of Altituding
      * (netlify/functions/full-report-code.js), which has Stripe make it. Called
      * from the drain, never the visitor's request. Any failure, or the two
-     * wp-config constants absent (LIVE until go-live): the shared code and the
-     * plain URL from the option, so the PDF always goes out.
+     * wp-config constants absent: the shared code from the option, in the
+     * link too (0.48.22), so the PDF always goes out and its button opens the gate.
      *
-     * @param string $ref lead-<id> or invite-<id>; never the email.
+     * @param string $ref   lead-<id> or invite-<id>; never the email.
+     * @param string $email the lead's address, pre-filled at Stripe; it never goes into the code request.
      * @return array { offer_code, offer_url }
      */
-    public static function personal( $ref ) {
+    public static function personal( $ref, $email = '' ) {
         $o      = self::get();
-        $shared = array( 'offer_code' => $o['code'], 'offer_url' => $o['url'] );
+        $shared = array(
+            'offer_code' => $o['code'],
+            'offer_url'  => self::with_email( add_query_arg( 'code', rawurlencode( $o['code'] ), $o['url'] ), $email ),
+        );
         $url    = defined( 'HDLV2_FULL_CODE_URL' ) ? (string) HDLV2_FULL_CODE_URL : '';
         $key    = self::code_key();
         if ( '' === $url || '' === $key || ! preg_match( '/^[A-Za-z0-9_-]{1,64}$/', (string) $ref ) ) {
@@ -134,7 +138,12 @@ class HDLV2_Offer {
             error_log( '[HDLV2 offer] personal code failed (HTTP ' . $http . ') — shared code used' );
             return $shared;
         }
-        return array( 'offer_code' => $code, 'offer_url' => add_query_arg( 'code', rawurlencode( $code ), $o['url'] ) );
+        return array( 'offer_code' => $code, 'offer_url' => self::with_email( add_query_arg( 'code', rawurlencode( $code ), $o['url'] ), $email ) );
+    }
+
+    /** 0.48.22 — the Full Report page hands a good address to Stripe as prefilled_email. */
+    private static function with_email( $url, $email ) {
+        return is_email( $email ) ? add_query_arg( 'email', rawurlencode( $email ), $url ) : $url;
     }
 
     /** The key Altituding checks; wp-config only. */

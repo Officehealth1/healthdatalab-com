@@ -53,6 +53,7 @@ function sanitize_text_field( $x ) {
 }
 function sanitize_email( $x ) { return is_string( $x ) ? trim( $x ) : ''; }
 function is_email( $x ) { return is_string( $x ) && filter_var( $x, FILTER_VALIDATE_EMAIL ) !== false; }
+function add_query_arg( $key, $value, $url ) { return $url . ( false === strpos( $url, '?' ) ? '?' : '&' ) . $key . '=' . $value; }
 function sanitize_user( $x, $strict = false ) { return preg_replace( '/[^a-z0-9_]/', '', strtolower( (string) $x ) ); }
 function absint( $x ) { return abs( (int) $x ); }
 function esc_html( $x ) { return htmlspecialchars( (string) $x, ENT_QUOTES ); }
