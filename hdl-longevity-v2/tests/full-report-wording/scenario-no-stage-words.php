@@ -49,7 +49,7 @@ function readable_hits( $root, $file ) {
         $l = preg_replace( '#\s//\s.*$#', '', $l );                          // trailing comment
         $l = preg_replace( '#/\*.*?\*/#', '', $l );                          // inline block comment
         $l = preg_replace( '/[\w-]*stage[_-]?[23][\w-]*/', '', $l );        // identifiers (lower-case only)
-        if ( preg_match( '/\bStage ?(2|3|two|three)\b/i', $l ) ) $hits[] = $file . ':' . ( $n + 1 ) . '  ' . substr( trim( $l ), 0, 120 );
+        if ( preg_match( '/\bStage[ -]?(2|3|two|three)\b/i', $l ) ) $hits[] = $file . ':' . ( $n + 1 ) . '  ' . substr( trim( $l ), 0, 120 );
     }
     return $hits;
 }
