@@ -24,7 +24,7 @@ class HDLV2_Client_Status {
         'not_started'          => 'Not Started',
         'low_data'             => 'Low Data',
         'awaiting_why_release' => 'Ready to invite',
-        'stage3_in_progress'   => 'Stage 3 In Progress',
+        'stage3_in_progress'   => 'Full Report form in progress',
         'awaiting_consult'     => 'Awaiting Consult',
         'active'               => 'Active',
         'progress_normal'      => 'Progress Normal',
@@ -92,11 +92,11 @@ class HDLV2_Client_Status {
             case self::NOT_STARTED:
                 return array( 'enabled' => true, 'stage' => 1, 'link_kind' => 'assessment', 'label' => 'Send assessment link', 'tooltip' => '' );
             case self::LOW_DATA:
-                return array( 'enabled' => true, 'stage' => 2, 'link_kind' => 'assessment', 'label' => 'Send Stage-2 link', 'tooltip' => '' );
+                return array( 'enabled' => true, 'stage' => 2, 'link_kind' => 'assessment', 'label' => 'Send Full Report link', 'tooltip' => '' );
             case self::STAGE3_IN_PROGRESS:
-                return array( 'enabled' => true, 'stage' => 3, 'link_kind' => 'assessment', 'label' => 'Send Stage-3 link', 'tooltip' => '' );
+                return array( 'enabled' => true, 'stage' => 3, 'link_kind' => 'assessment', 'label' => 'Send Full Report form link', 'tooltip' => '' );
             case self::AWAITING_WHY_RELEASE:
-                return $off( 'Waiting on you to release Stage 3 — nothing to send' );
+                return $off( 'Waiting on you to open the Full Report form — nothing to send' );
             case self::AWAITING_CONSULT:
                 return $off( 'Waiting on your consultation — nothing to send' );
             case self::ACTIVE:
@@ -920,7 +920,7 @@ class HDLV2_Client_Status {
 
             if ( $why && (int) $why->released === 0 ) {
                 // Client submitted Stage 2; practitioner hasn't released the WHY gate yet.
-                return self::build_result( self::AWAITING_WHY_RELEASE, array( 'Review WHY profile and release Stage 3' ) );
+                return self::build_result( self::AWAITING_WHY_RELEASE, array( 'Review WHY profile and open the Full Report form' ) );
             }
 
             if ( $why && (int) $why->released === 1 ) {

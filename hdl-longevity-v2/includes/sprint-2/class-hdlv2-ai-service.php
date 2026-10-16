@@ -198,7 +198,7 @@ class HDLV2_AI_Service {
         $meds = is_array( $stage3_data ) ? trim( (string) ( $stage3_data['medications']         ?? '' ) ) : '';
         $cond = is_array( $stage3_data ) ? trim( (string) ( $stage3_data['existing_conditions'] ?? '' ) ) : '';
         if ( $fh !== '' || $meds !== '' || $cond !== '' ) {
-            $background_block  = "\n=== HEALTH BACKGROUND (client-typed at Stage 3, NOT scored) ===\n";
+            $background_block  = "\n=== HEALTH BACKGROUND (client-typed in the Full Report form, NOT scored) ===\n";
             $background_block .= "These are short, off-the-top-of-head notes from the client. Reference them gently where they\n";
             $background_block .= "inform AWAKEN context or LIFT priorities (e.g. genetic predisposition raising priority of\n";
             $background_block .= "a focus area; current medications shaping what to recommend). Do NOT diagnose, contradict\n";
@@ -1116,12 +1116,12 @@ class HDLV2_AI_Service {
             . '%s' // v0.48.8 — single-form picks block, facts use ('' otherwise)
             . "Practitioner notes (full, free-typed — may be long): %s\n"
             . "Consultation summary (500 char): %s\n\n"
-            . "STAGE 3 HEALTH BACKGROUND (client-typed, optional, NOT scored)\n"
+            . "FULL REPORT FORM: HEALTH BACKGROUND (client-typed, optional, NOT scored)\n"
             . "Family history: %s\n"
             . "Current medications: %s\n"
             . "Existing conditions / diagnoses: %s\n"
             . "GUARDRAILS for the above:\n"
-            . "- These are short, off-the-top-of-head notes from the client at Stage 3.\n"
+            . "- These are short, off-the-top-of-head notes from the client in the Full Report form.\n"
             . "- They are NOT scored metrics — never list them as numerical findings.\n"
             . "- Reference them gently where they raise the priority of an existing focus area\n"
             . "  (e.g. family history of heart disease shifts cardio cluster up the priority list)\n"
@@ -1754,30 +1754,30 @@ class HDLV2_AI_Service {
         $name        = trim( (string) $client_name );
         $name_first  = $name ? strtok( $name, ' ' ) : '';
 
-        $system = 'You are a longevity coach writing a personalised "What This Tells Us" commentary for a client who has just completed Stage 3 (the full measurement layer). '
+        $system = 'You are a longevity coach writing a personalised "What This Tells Us" commentary for a client who has just completed the Full Report form (the full measurement layer). '
             . 'Tone: warm, direct, evidence-grounded, brutally honest but encouraging. Never alarmist. Second person ("you"). British English. '
             . 'Reference actual scores by name and value. A 2/5 is a focus area, not an emergency. 1/5 is critical. '
             . 'Always return valid JSON only — no markdown, no code fences.';
 
         $user_prompt = sprintf(
-              "A client just completed Stage 3 — the full health-detail measurement panel. "
-            . "Stage 1 was a 9-question estimate. Stage 2 captured their WHY. Stage 3 produced real numbers for the 21-metric panel.\n\n"
+              "A client just completed the Full Report form — the full health-detail measurement panel. "
+            . "Stage 1 was a 9-question estimate. The WHY step captured their WHY. The Full Report form produced real numbers for the 21-metric panel.\n\n"
             . "=== CLIENT ===\n"
             . "First name: %s\n"
             . "Chronological age: %d\n"
             . "Sex: %s\n\n"
             . "=== RATE OF AGEING ===\n"
             . "Stage 1 estimate: %s\n"
-            . "Stage 3 measured: %s× (%s)\n"
+            . "Full Report form measured: %s× (%s)\n"
             . "Biological age: %s years (%s vs chronological)\n\n"
-            . "=== STAGE 2 WHY ===\n"
+            . "=== WHY ===\n"
             . "%s\n\n"
-            . "=== STAGE 3 SCORES (out of 5) ===\n"
+            . "=== FULL REPORT FORM SCORES (out of 5) ===\n"
             . "Top strengths (>=4): %s\n"
             . "Focus areas (<=2):    %s\n\n"
             . "=== WRITING RULES ===\n"
             . "- Write 3 short paragraphs as ONE HTML string with <p> tags.\n"
-            . "- Para 1: open with <strong>...</strong> sentence naming %s and stating the rate finding (note Stage 1 vs Stage 3 contrast if interesting).\n"
+            . "- Para 1: open with <strong>...</strong> sentence naming %s and stating the rate finding (note Stage 1 vs Full Report form contrast if interesting).\n"
             . "- Para 2: honest read of THEIR scores. Pick 1-2 specific strengths and 1-2 focus areas BY NAME + VALUE from the lists above. Use prose, not bullets.\n"
             . "- Para 3: bridge to their WHY (use it if non-empty, otherwise to next steps). Mention practitioner consultation + Trajectory Plan.\n"
             . "- Total 130-200 words.\n"
@@ -1792,7 +1792,7 @@ class HDLV2_AI_Service {
             $band,
             number_format( $bio_age, 1 ),
             $diff === null ? '?' : ( $diff > 0 ? '+' . $diff . ' yrs' : $diff . ' yrs' ),
-            $why ?: '(client did not complete Stage 2)',
+            $why ?: '(client did not complete the WHY step)',
             $strengths_text,
             $focus_text,
             $name_first ?: 'the client'

@@ -3,7 +3,7 @@
  * Plugin Name: HDL Longevity V2 — Staged Workflow
  * Plugin URI: https://healthdatalab.net
  * Description: V2 longevity workflow: staged intake, WHY profiling, practitioner consultations, weekly flight plans, and AI coaching. Runs alongside the existing Health Data Lab plugin.
- * Version: 0.48.17
+ * Version: 0.48.22
  * Author: Health Data Lab
  * Author URI: https://healthdatalab.net
  * License: Proprietary
@@ -22,7 +22,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 // register_activation_hook callbacks, which fire synchronously during
 // `wp plugin activate`, can reference them. The activator needs
 // HDLV2_DB_VERSION / HDLV2_VERSION at call time to update version options.
-define( 'HDLV2_VERSION', '0.48.17' );
+define( 'HDLV2_VERSION', '0.48.22' );
 define( 'HDLV2_DB_VERSION', '3.30' );
 
 // Client funnel token (hdlv2_form_progress.token) lifetime. FIXED window
@@ -146,17 +146,11 @@ add_action( 'init', function () {
         // Create or get existing user
         $user_id = email_exists( $email );
         // v0.48.15 — a Full Report ticket carries the email the buyer typed at
-        // checkout, never verified. It may sign in a client, never an account
-        // that manages clients or the site.
-        if ( $user_id && isset( $invite->source ) && 'full_report' === $invite->source
-             && ( user_can( $user_id, 'edit_posts' )
-                  || ( class_exists( 'HDLV2_Compatibility' ) && HDLV2_Compatibility::is_practitioner( $user_id ) ) ) ) {
-            hdlv2_render_link_card(
-                'Please sign in',
-                'This link cannot open an account that manages clients. Please sign in with your password instead.',
-                'Sign in',
-                wp_login_url()
-            );
+        // checkout, never verified. v0.48.20 — the same holds for every invite
+        // (the practitioner typed the email): any source may sign in a client,
+        // never an account that manages clients or the site.
+        if ( $user_id && hdlv2_is_staff_account( $user_id ) ) {
+            hdlv2_render_staff_sign_in_card();
         }
         if ( ! $user_id ) {
             $username = sanitize_user( strtolower( preg_replace( '/[^a-zA-Z0-9]/', '', $name ) ) . '_' . wp_rand( 1000, 9999 ), true );
@@ -375,6 +369,10 @@ add_action( 'init', function () {
             );
         }
 
+        // v0.48.20 — client_user_id was matched by email in complete_signup().
+        if ( $progress && $progress->client_user_id && hdlv2_is_staff_account( $progress->client_user_id ) ) {
+            hdlv2_render_staff_sign_in_card();
+        }
         if ( $progress && $progress->client_user_id ) {
             wp_set_current_user( $progress->client_user_id );
             wp_set_auth_cookie( $progress->client_user_id, false );
@@ -643,6 +641,27 @@ function hdlv2_register_loading_helpers() {
             true
         );
     }
+}
+
+/**
+ * v0.48.20 — an account emailed links must never sign in (staff: manages
+ * clients or the site). Falls back to the capability alone if the V1↔V2 glue
+ * is not loaded.
+ */
+function hdlv2_is_staff_account( $user_id ) {
+    return class_exists( 'HDLV2_Compatibility' )
+        ? HDLV2_Compatibility::is_staff( $user_id )
+        : user_can( $user_id, 'edit_posts' );
+}
+
+/** v0.48.20 — the card shown instead of signing a staff account in. Exits. */
+function hdlv2_render_staff_sign_in_card() {
+    hdlv2_render_link_card(
+        'Please sign in',
+        'This link cannot open an account that manages clients. Please sign in with your password instead.',
+        'Sign in',
+        wp_login_url()
+    );
 }
 
 /**

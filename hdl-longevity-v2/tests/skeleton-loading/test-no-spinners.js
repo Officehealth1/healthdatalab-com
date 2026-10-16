@@ -138,7 +138,7 @@ ok(myReport.indexOf('Your report is on its own page.') !== -1 && myReport.indexO
 // ── 4. Not loaders: untouched ──
 ok(/'Give us a moment'/.test(read('assets/js/hdlv2-rate-limit.js')), '429 modal title unchanged');
 const cle = read('assets/js/hdlv2-client-list-enhance.js');
-ok(/awaiting_consult: \{ dot: '#3b82f6', label: 'Stage 3: Ready to record consultation'/.test(cle), 'status word "Stage 3: Ready to record consultation" unchanged');
+ok(/awaiting_consult: \{ dot: '#3b82f6', label: 'Full Report · form: ready to record consultation'/.test(cle), 'status word "Full Report · form: ready to record consultation" unchanged (v0.48.21 wording)');
 ok(/awaiting_why_release/.test(cle), 'status awaiting_why_release unchanged');
 ok(/PDF preparing/.test(read('assets/js/hdlv2-flight-plan.js')), '"PDF preparing" button label unchanged');
 

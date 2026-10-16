@@ -417,8 +417,8 @@ class HDLV2_Practitioner_Dashboard {
         $t .= '<h2 class="hdlv2-pdt-section-title">How the assessment unfolds</h2>';
         $t .= '<ul class="hdlv2-pdt-steps">';
         $t .= '<li><strong>Stage 1 &middot; Quick insight</strong>9 questions, ~3 minutes. Pace-of-ageing gauge sent by email.</li>';
-        $t .= '<li><strong>Stage 2 &middot; Their WHY</strong>You release this stage when ready. Client records their motivation; AI distils it.</li>';
-        $t .= '<li><strong>Stage 3 &middot; Full detail</strong>21 measurements, 5 sections. Auto-drafts the Trajectory Plan for your review.</li>';
+        $t .= '<li><strong>Full Report &middot; WHY</strong>You release this stage when ready. Client records their motivation; AI distils it.</li>';
+        $t .= '<li><strong>Full Report &middot; form</strong>21 measurements, 5 sections. Auto-drafts the Trajectory Plan for your review.</li>';
         $t .= '<li><strong>Consultation &middot; Trajectory Plan</strong>You edit, add notes, finalise. PDF + Flight Plan delivered to the client.</li>';
         $t .= '</ul>';
 

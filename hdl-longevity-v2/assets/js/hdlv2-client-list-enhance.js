@@ -982,8 +982,8 @@
       // client is in the journey. "Needs attention" stays unprefixed
       // because it can fire at any stage.
       pending_leads:    { dot: '#3d8da0', label: 'Stage 1: New widget submissions',       items: [], action: 'lead_action',  cls: 'pending' },
-      release_why:      { dot: '#d97706', label: 'Stage 2: Ready to invite to Stage 3',   items: [], action: 'release',      cls: 'release' },
-      awaiting_consult: { dot: '#3b82f6', label: 'Stage 3: Ready to record consultation', items: [], action: 'open_consult', cls: 'consult' },
+      release_why:      { dot: '#d97706', label: 'Full Report · WHY: ready to open the form',   items: [], action: 'release',      cls: 'release' },
+      awaiting_consult: { dot: '#3b82f6', label: 'Full Report · form: ready to record consultation', items: [], action: 'open_consult', cls: 'consult' },
       needs_attention:  { dot: '#dc2626', label: 'Needs attention',                              items: [], action: 'view_timeline', cls: 'attn' },
     };
 
@@ -1442,14 +1442,14 @@
       : '<div class="hdlv2-pending-detail-empty">No Stage-1 answer detail was captured for this lead.</div>';
 
     return '<div class="hdlv2-pending-detail">'
-      + '<div class="hdlv2-pending-detail-note">Pre-confirmation lead — not yet an account. Confirm to provision the client and send their Stage-2 link.</div>'
+      + '<div class="hdlv2-pending-detail-note">Pre-confirmation lead — not yet an account. Confirm to provision the client and send their Full Report link.</div>'
       + contact + answers
       + '</div>';
   }
 
   function renderActionQueueButton(action, c) {
     if (action === 'release') {
-      return '<button type="button" class="hdlv2-aq-btn hdlv2-aq-btn-release" data-aq="release" data-progress-id="' + esc(c.progress_id || 0) + '" data-user-id="' + esc(c.user_id) + '">Invite to Stage 3</button>';
+      return '<button type="button" class="hdlv2-aq-btn hdlv2-aq-btn-release" data-aq="release" data-progress-id="' + esc(c.progress_id || 0) + '" data-user-id="' + esc(c.user_id) + '">Open the Full Report form</button>';
     }
     if (action === 'open_consult') {
       var url = CFG.consultation_url + '?progress_id=' + encodeURIComponent(c.progress_id || 0);
@@ -1465,8 +1465,8 @@
     // v0.22.51 — Quim 2026-04-28: spell out where the data is + what the
     // button does. Render path: buildActionMeta() → innerHTML concat at line
     // ~413, so <strong> renders. Static string only — no esc() needed.
-    if (action === 'release')       return 'Their WHY data was sent to your email. <strong>Practitioner Action:</strong> Unlock Stage 3 Form.';
-    if (action === 'open_consult')  return 'Stage 3 complete — record your consultation notes';
+    if (action === 'release')       return 'Their WHY data was sent to your email. <strong>Practitioner Action:</strong> Open the Full Report form.';
+    if (action === 'open_consult')  return 'Full Report form complete — record your consultation notes';
     if (action === 'view_timeline' && c.reasons && c.reasons.length) return esc(c.reasons[0]);
     return '';
   }
@@ -1481,12 +1481,12 @@
         // v0.20.10 — themed modal instead of browser-native confirm().
         var ask = (window.HDLV2UI && window.HDLV2UI.confirm)
           ? window.HDLV2UI.confirm({
-              title: 'Invite ' + stub.name + ' to Stage 3?',
-              body: 'This emails them the Stage 3 invitation and cannot be undone.',
+              title: 'Open the Full Report form for ' + stub.name + '?',
+              body: 'This emails them the link to the Full Report form and cannot be undone.',
               confirmLabel: 'Yes, send invite',
               cancelLabel: 'Cancel'
             })
-          : Promise.resolve(window.confirm('Invite ' + stub.name + ' to Stage 3?\n\nThis emails them the Stage 3 invitation and cannot be undone.'));
+          : Promise.resolve(window.confirm('Open the Full Report form for ' + stub.name + '?\n\nThis emails them the link to the Full Report form and cannot be undone.'));
         ask.then(function (ok) {
           if (!ok) return;
           releaseFromQueue(btn, stub);
@@ -1901,7 +1901,7 @@
     var dots = deriveJourneyState(c);
     var wrap = document.createElement('span');
     wrap.className = 'hdlv2-mini-stages';
-    wrap.title = 'Stage 1 · Stage 2 · Stage 3 · Consultation · Final · Weekly Flight Plan';
+    wrap.title = 'Stage 1 · Full Report · WHY · Full Report · form · Consultation · Final · Weekly Flight Plan';
     // Hash for reconcileRows() so idle polls don't re-render the strip.
     wrap.setAttribute('data-state-hash', (c.status || '') + '|' + (c.has_final_report ? '1' : '0'));
     var html = '';
@@ -1955,9 +1955,9 @@
     var st = c && c.status;
     switch (st) {
       case 'not_started':          return 'Stage 1';
-      case 'low_data':             return 'Stage 2';
+      case 'low_data':             return 'WHY';
       case 'awaiting_why_release': return 'WHY';
-      case 'stage3_in_progress':   return 'Stage 3';
+      case 'stage3_in_progress':   return 'Form';
       case 'awaiting_consult':     return 'Consult';
       case 'active':
       case 'progress_normal':      return 'Plan';
@@ -2123,10 +2123,10 @@
     if (c.status === 'awaiting_why_release' && c.progress_id) {
       actionBanner = '<div class="hdlv2-action-banner" data-kind="release-why">'
         + '<div class="hdlv2-action-banner-text">'
-        + '<strong>Ready to invite this client to Stage 3</strong>'
-        + '<span>Your client submitted their WHY profile. Release the gate to email them the Stage 3 invitation.</span>'
+        + '<strong>Ready to open the Full Report form for this client</strong>'
+        + '<span>Your client submitted their WHY profile. Release the gate to email them the link to the Full Report form.</span>'
         + '</div>'
-        + '<button type="button" class="hdlv2-release-why-btn" data-progress-id="' + c.progress_id + '">Invite to Stage 3</button>'
+        + '<button type="button" class="hdlv2-release-why-btn" data-progress-id="' + c.progress_id + '">Open the Full Report form</button>'
         + '</div>';
     }
 
@@ -2162,8 +2162,8 @@
       tabHtml('progress',     'Progress',      ''),
       '<span class="hdlv2-detail-tab-sep" aria-hidden="true"></span>',
       tabHtml('stage1',       'Stage 1',       dots[0]),
-      tabHtml('stage2',       'Stage 2',       dots[1]),
-      tabHtml('stage3',       'Stage 3',       dots[2]),
+      tabHtml('stage2',       'WHY',       dots[1]),
+      tabHtml('stage3',       'Form',       dots[2]),
       '<span class="hdlv2-detail-tab-sep" aria-hidden="true"></span>',
       // B10 — Flight Notes is a journey tab BEFORE Consultation (was a head
       // button). v0.46.48 — its dot mirrors the Stage-3 gate that
@@ -2309,7 +2309,7 @@
       var rate = null, source = '';
       if (data) {
         if (data.stage3 && typeof data.stage3.rate === 'number') {
-          rate = data.stage3.rate; source = 'From Stage 3 full calc';
+          rate = data.stage3.rate; source = 'From the Full Report form';
         } else if (data.stage1 && typeof data.stage1.rate === 'number') {
           rate = data.stage1.rate; source = 'From Stage 1 quick rate';
         }
@@ -2363,7 +2363,7 @@
           wSub.textContent = 'Plan delivered · awaiting first tick';
         } else {
           wVal.textContent = 'Pre-plan';
-          wSub.textContent = c.status === 'awaiting_consult' ? 'Stage 3 complete · consult pending' : 'Plan not generated';
+          wSub.textContent = c.status === 'awaiting_consult' ? 'Form complete · consult pending' : 'Plan not generated';
         }
       }
 
@@ -2410,12 +2410,12 @@
     // v0.20.10 — themed modal instead of browser-native confirm().
     var ask = (window.HDLV2UI && window.HDLV2UI.confirm)
       ? window.HDLV2UI.confirm({
-          title: 'Invite ' + (c.name || c.email) + ' to Stage 3?',
-          body: 'This emails them the Stage 3 invitation and cannot be undone.',
+          title: 'Open the Full Report form for ' + (c.name || c.email) + '?',
+          body: 'This emails them the link to the Full Report form and cannot be undone.',
           confirmLabel: 'Yes, send invite',
           cancelLabel: 'Cancel'
         })
-      : Promise.resolve(window.confirm('Invite ' + (c.name || c.email) + ' to Stage 3?\n\nThis emails them the Stage 3 invitation and cannot be undone.'));
+      : Promise.resolve(window.confirm('Open the Full Report form for ' + (c.name || c.email) + '?\n\nThis emails them the link to the Full Report form and cannot be undone.'));
     ask.then(function (confirmed) {
       if (!confirmed) return;
       _doReleaseWhy(c, btn, panel);
@@ -2446,10 +2446,10 @@
         var banner = panel.querySelector('.hdlv2-action-banner');
         if (banner) {
           banner.classList.add('hdlv2-action-banner-done');
-          banner.innerHTML = '<div class="hdlv2-action-banner-text"><strong>WHY released</strong><span>Client has been emailed the Stage 3 invitation.</span></div>';
+          banner.innerHTML = '<div class="hdlv2-action-banner-text"><strong>WHY released</strong><span>Client has been emailed the link to the Full Report form.</span></div>';
         }
         c.status = 'stage3_in_progress';
-        c.label = 'Stage 3 In Progress';
+        c.label = 'Full Report form in progress';
         c.why_released = 1;
       })
       .catch(function () {
@@ -2616,7 +2616,7 @@
     fetchClientRecord(c).then(function (data) {
       var s2 = data && data.stage2;
       if (!s2) {
-        target.innerHTML = '<div class="hdlv2-detail-empty">Client hasn’t completed Stage 2 (WHY profile) yet.</div>';
+        target.innerHTML = '<div class="hdlv2-detail-empty">Client hasn’t completed the Full Report WHY yet.</div>';
         return;
       }
 
@@ -2662,8 +2662,8 @@
         choices = '<div class="hdlv2-why-choices">'
           + '<div class="hdlv2-score-group"><h4>What they chose</h4>' + picked + '</div>'
           + '<div class="hdlv2-score-group"><h4>Abilities their choices depend on</h4>' + abilities
-          +   '<div class="hdlv2-consult-caption">Need is out of 5: 5 means every choice leans on the ability fully. Scores are out of 5, averaged from the answers listed. They are not a test of the ability itself. Stage 1 answers run 1 to 5, Stage 3 answers 0 to 5. The projection to 90 uses published average losses for each ability, age and sex (about 5 to 34% a decade): an estimate.'
-          +     (s2.choices.stage3_done ? '' : ' Stage 3 not finished: based on Stage 1 answers only.') + '</div>'
+          +   '<div class="hdlv2-consult-caption">Need is out of 5: 5 means every choice leans on the ability fully. Scores are out of 5, averaged from the answers listed. They are not a test of the ability itself. Stage 1 answers run 1 to 5, Full Report form answers 0 to 5. The projection to 90 uses published average losses for each ability, age and sex (about 5 to 34% a decade): an estimate.'
+          +     (s2.choices.stage3_done ? '' : ' Full Report form not finished: based on Stage 1 answers only.') + '</div>'
           + '</div>'
           + '</div>';
       }
@@ -2678,7 +2678,7 @@
           +   '<div class="hdlv2-dl-doc-ico">' + docIconSVG() + '</div>'
           +   '<div class="hdlv2-dl-doc-body">'
           +     '<span class="hdlv2-dl-doc-title">WHY Profile</span>'
-          +     '<span class="hdlv2-dl-doc-meta">Stage-2 WHY &middot; practitioner copy &mdash; not sent to the client</span>'
+          +     '<span class="hdlv2-dl-doc-meta">Full Report WHY &middot; practitioner copy &mdash; not sent to the client</span>'
           +   '</div>'
           +   '<a class="hdlv2-dl-btn" href="' + esc(s2.pdf_url) + '" target="_blank" rel="noopener" download>' + flightNotesIconSVG() + '<span>Download PDF</span></a>'
           + '</div>'
@@ -2706,7 +2706,7 @@
     fetchClientRecord(c).then(function (data) {
       var s3 = data && data.stage3;
       if (!s3 || !s3.completed_at) {
-        target.innerHTML = '<div class="hdlv2-detail-empty">Client hasn’t completed Stage 3 (full health detail) yet.</div>';
+        target.innerHTML = '<div class="hdlv2-detail-empty">Client hasn’t completed the Full Report form yet.</div>';
         return;
       }
 
@@ -2899,7 +2899,7 @@
           +   '<div class="hdlv2-dl-doc-ico">' + docIconSVG() + '</div>'
           +   '<div class="hdlv2-dl-doc-body">'
           +     '<span class="hdlv2-dl-doc-title">Draft Report</span>'
-          +     '<span class="hdlv2-dl-doc-meta">Post-Stage-3 draft &middot; the same PDF emailed to the client</span>'
+          +     '<span class="hdlv2-dl-doc-meta">Draft after the Full Report form &middot; the same PDF emailed to the client</span>'
           +   '</div>'
           +   '<a class="hdlv2-dl-btn" href="' + esc(s3.pdf_url) + '" target="_blank" rel="noopener" download>' + flightNotesIconSVG() + '<span>Download PDF</span></a>'
           + '</div>'
@@ -2968,7 +2968,7 @@
   // mid-poll (btn.isConnected).
   function loadFlightNotes(c, target) {
     if (deriveJourneyState(c)[2] !== 'done') {
-      target.innerHTML = '<div class="hdlv2-detail-empty">Flight Notes are prepared once Stage 3 is complete.</div>';
+      target.innerHTML = '<div class="hdlv2-detail-empty">Flight Notes are prepared once the Full Report form is complete.</div>';
       return;
     }
     // B11.1 → v0.46.51 — same document card as the Stage-2/3/Final download
@@ -3139,7 +3139,7 @@
     var iris = irisConsultationHtml(c);
     var html;
     if (!c.progress_id) {
-      html = '<div class="hdlv2-detail-empty">No consultation record yet. The client needs to complete Stage 3 of the assessment first.</div>';
+      html = '<div class="hdlv2-detail-empty">No consultation record yet. The client needs to complete the Full Report form first.</div>';
     } else {
       var url = CFG.consultation_url + '?progress_id=' + c.progress_id;
       // v0.24.3 — the post-Final read-only fork is gone. Both states
@@ -3367,7 +3367,7 @@
       +   '<select class="hdlv2-stalled-select" data-filter="stage" aria-label="Filter by stage reached">'
       +     '<option value="any">Any stage</option>'
       +     '<option value="1">Stage 1 only</option>'
-      +     '<option value="2">Stage 2</option>'
+      +     '<option value="2">Full Report · WHY</option>'
       +   '</select></label>'
       + '<label class="hdlv2-stalled-field"><span class="hdlv2-stalled-flabel">Last reply</span>'
       +   '<select class="hdlv2-stalled-select" data-filter="quiet" aria-label="Filter by time since last reply">'
@@ -3504,9 +3504,9 @@
     }
     if (st === 'low_data') {
       return progressJourneyCard(
-        'Completed Stage 1 · Stage 2 not started',
-        'This client finished their Stage 1 quick insight — their pace-of-ageing result and 9-question answers are in the Stage 1 tab. They haven’t started Stage 2 (Your WHY) yet. Effort-vs-outcomes tracking begins once they complete Stage 3 and receive their first Weekly Flight Plan.',
-        'Stage 1 ✓ · awaiting Stage 2'
+        'Completed Stage 1 · Full Report not started',
+        'This client finished their Stage 1 quick insight — their pace-of-ageing result and 9-question answers are in the Stage 1 tab. They haven’t started the Full Report (their WHY) yet. Effort-vs-outcomes tracking begins once they complete the Full Report form and receive their first Weekly Flight Plan.',
+        'Stage 1 ✓ · awaiting the Full Report'
       );
     }
     return '';
@@ -4389,9 +4389,9 @@
     switch (c.status) {
       case 'not_started':          return '<span class="status-badge pending">Stage 1</span>';
       case 'low_data':             return '<span class="status-badge info">Stage 1 &#10003;</span>';
-      case 'awaiting_why_release': return '<span class="status-badge info">Stage 2</span>';
-      case 'stage3_in_progress':   return '<span class="status-badge info">Stage 3</span>';
-      case 'awaiting_consult':     return '<span class="status-badge info">Stage 3 &#10003;</span>';
+      case 'awaiting_why_release': return '<span class="status-badge info">WHY</span>';
+      case 'stage3_in_progress':   return '<span class="status-badge info">Form</span>';
+      case 'awaiting_consult':     return '<span class="status-badge info">Form &#10003;</span>';
       case 'active':
       case 'progress_normal':
       case 'needs_attention':

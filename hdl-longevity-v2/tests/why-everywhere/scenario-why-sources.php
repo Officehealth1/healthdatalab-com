@@ -99,9 +99,10 @@ $prompts = array(
     'flight' => function ( $why ) { return HDLV2_Flight_Plan::why_text( $why ); },
 );
 // sha256 of each prompt for the old-flow WHY, taken on 0.48.7 (06f5ffc) with --snapshot.
+// 'pdf' re-taken on 0.48.21: "Stage 3" → "the Full Report form" in its background block (D3, Quim's yes 2026-10-16).
 $SNAP = array(
     'final'  => '21fd6b9765882e99be08471486405b3b71520489aceee9a5ff32e18e72c1503e',
-    'pdf'    => '01c9e15a3b9d4077cd85bfe1c9ed61ec7c5ba88d75eb6bf72e66fd42caf78303',
+    'pdf'    => 'f979a66e5eb5fa2302f8587b22dc96e743fd0658bbf31683a09274ba6a3e5a8a',
     'notes'  => '426289e0f4aabbdf3d18be16a5b78d0ad3965d8d56d8c1343d6fdcd9f0e68b40',
     'flight' => 'dbd15a715186dd765e7291a149f25ab59d01dea5a3cc7955adfa4c48826d4067',
 );

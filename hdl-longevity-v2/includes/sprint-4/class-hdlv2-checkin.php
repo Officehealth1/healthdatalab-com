@@ -737,7 +737,7 @@ class HDLV2_Checkin {
                 'client_name'        => $client_label,
                 'reasons'            => array(
                     sprintf(
-                        'Stage 2 WHY submitted %d day%s ago — please review and release Stage 3 so they can continue.',
+                        'Full Report · WHY submitted %d day%s ago — please review and open the Full Report form so they can continue.',
                         (int) $days_waiting,
                         $days_waiting === 1 ? '' : 's'
                     ),

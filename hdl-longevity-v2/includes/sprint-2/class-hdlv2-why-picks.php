@@ -713,7 +713,7 @@ class HDLV2_Why_Picks {
         $scored = $stage1_raw || $stage3_scores;
         $focus  = array();
         if ( $scored ) {
-            $block .= "What their choices depend on, with what was measured (out of 5, higher is better; Stage 1 answers run 1 to 5, Stage 3 answers 0 to 5):\n";
+            $block .= "What their choices depend on, with what was measured (out of 5, higher is better; Stage 1 answers run 1 to 5, Full Report form answers 0 to 5):\n";
             $profile = self::abilities_profile( array_column( $items, 'id' ), $stage1_raw, $stage3_scores, $age, $sex );
             foreach ( $profile as $a ) {
                 $from = array();

@@ -834,8 +834,12 @@
       updateNavArrows();
     }
 
+    // v0.48.19 — the step is fixed at click time. A second click inside the
+    // delay (or a goTo in between) used to move on twice and skip the
+    // contact step; now a stale timer does nothing.
     function advance() {
-      setTimeout(function () { goTo(currentStep + 1); }, 250);
+      var from = currentStep;
+      setTimeout(function () { if (currentStep === from) goTo(from + 1); }, 250);
     }
 
     function goBack() {
@@ -1355,6 +1359,16 @@
     // call. Practitioner sites embed the widget in a sandbox so we keep
     // every style inline.
     function renderResult() {
+      // v0.48.19 — never post without the contact step: any path that lands
+      // here with no name or email goes back to "Where shall we send it?".
+      if (!answers._name || !answers._email) {
+        goTo(9);
+        if (!inviteToken) {
+          if (!valOf(id + '-name')) markErr(id + '-name');
+          if (!valOf(id + '-email')) markErr(id + '-email');
+        }
+        return;
+      }
       // Local HTML-escape helper. Defence in depth — the only user-supplied
       // strings here are answers._name and cfg.pracName, but both flow into
       // an HTML string concatenation, so we sanitise before insertion.

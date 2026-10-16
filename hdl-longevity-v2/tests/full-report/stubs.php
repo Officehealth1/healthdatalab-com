@@ -22,6 +22,7 @@ define( 'HDLV2_VERSION', 'test' );
 // ── WP stubs ──────────────────────────────────────────────────────────
 $GLOBALS['transients']      = array();
 $GLOBALS['captured_posts']  = array(); // wp_remote_post fires (url, payload)
+$GLOBALS['http']            = array(); // canned outbound answers by URL
 $GLOBALS['current_user_id'] = 206;
 
 function get_transient( $k ) { return $GLOBALS['transients'][ $k ] ?? false; }
@@ -88,11 +89,16 @@ function wp_remote_post( $url, $a = array() ) {
         $GLOBALS['during_dispatch'] = null;
         $fn();
     }
+    // Canned answers per URL (an array response, a WP_Error, or a callable); every other URL: 200, no body.
+    $canned = $GLOBALS['http'][ $url ] ?? null;
+    if ( is_callable( $canned ) ) return $canned( $a );
+    if ( null !== $canned ) return $canned;
     return array( 'response' => array( 'code' => 200 ) );
 }
 function wp_safe_remote_post( $url, $a = array() ) { return wp_remote_post( $url, $a ); }
 function wp_remote_retrieve_response_code( $r ) { return is_array( $r ) ? ( $r['response']['code'] ?? 0 ) : 0; }
-function wp_remote_retrieve_body( $r ) { return ''; }
+function wp_remote_retrieve_body( $r ) { return is_array( $r ) ? (string) ( $r['body'] ?? '' ) : ''; }
+function add_query_arg( $key, $value, $url ) { return $url . ( false === strpos( $url, '?' ) ? '?' : '&' ) . $key . '=' . $value; }
 function is_user_logged_in() { return false; }
 function is_wp_error( $x ) { return $x instanceof WP_Error; }
 function wp_parse_url( $u, $c = -1 ) { return parse_url( $u, $c ); }
@@ -300,6 +306,7 @@ class FakeWpdb {
 
 class HDLV2_Compatibility {
     public static function is_practitioner( $u ) { return $GLOBALS['is_prac'] ?? true; }
+    public static function is_staff( $u ) { return self::is_practitioner( $u ); }
     public static function practitioner_owns_client( $p, $c ) { return true; }
     public static function create_practitioner_client_link( $p, $c ) { return true; }
 }

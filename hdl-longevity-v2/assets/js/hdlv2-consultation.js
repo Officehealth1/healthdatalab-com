@@ -1287,7 +1287,7 @@
     if (hasAnyBackground || /* always show the group so the practitioner sees the empty state too */ true) {
       h += '<div class="hdlv2-field-group hdlv2-background-group">';
       h +=   '<h5 class="hdlv2-field-group-title">Health Background</h5>';
-      h +=   '<p class="hdlv2-background-helper">Captured at Stage 3 \u2014 short notes the client typed; expand during your consultation.</p>';
+      h +=   '<p class="hdlv2-background-helper">Captured in the Full Report form \u2014 short notes the client typed; expand during your consultation.</p>';
       bgFields.forEach(function (f) {
         var v = s3[f.key];
         var hasVal = typeof v === 'string' && v.trim() !== '';

@@ -104,7 +104,7 @@ class HDLV2_Compatibility {
         if ( ! $rows ) {
             return array();
         }
-        $labels = array( 1 => 'Stage 1', 2 => 'Stage 2', 3 => 'Stage 3' );
+        $labels = array( 1 => 'Stage 1', 2 => 'Full Report · WHY', 3 => 'Full Report · form' );
         $out = array();
         foreach ( $rows as $r ) {
             // Consultation-eligibility gate — Stage 3 complete AND awaiting/in
@@ -144,9 +144,22 @@ class HDLV2_Compatibility {
         if ( ! $user ) {
             return false;
         }
+
         return in_array( 'um_practitioner', (array) $user->roles, true )
             || in_array( 'practitioner', (array) $user->roles, true )
             || in_array( 'administrator', (array) $user->roles, true );
+    }
+
+    /**
+     * v0.48.20 — an account that manages clients or the site. Emailed links
+     * (invite, ?token=, verify click) never sign these in: the email behind
+     * them is typed by a visitor or a buyer, never proven.
+     *
+     * @param int $user_id WordPress user ID.
+     * @return bool
+     */
+    public static function is_staff( $user_id ) {
+        return user_can( $user_id, 'edit_posts' ) || self::is_practitioner( $user_id );
     }
 
     /**

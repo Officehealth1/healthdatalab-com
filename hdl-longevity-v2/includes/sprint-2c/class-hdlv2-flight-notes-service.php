@@ -230,7 +230,7 @@ class HDLV2_Flight_Notes_Service {
 		}
 		$in = self::build_ai_inputs( $pid );
 		if ( empty( $in['s3'] ) ) {
-			return new WP_Error( 'hdlv2_fn_not_ready', 'Flight Notes are available once the client has completed Stage 3.', array( 'status' => 409 ) );
+			return new WP_Error( 'hdlv2_fn_not_ready', 'Flight Notes are available once the client has completed the Full Report form.', array( 'status' => 409 ) );
 		}
 		$flat = HDLV2_Flight_Notes::build_flight_notes_payload( $pid );
 		if ( is_wp_error( $flat ) ) {
@@ -269,7 +269,7 @@ class HDLV2_Flight_Notes_Service {
 		// AI INPUTS first (cheap read, NO Claude) — also the Stage-3 server gate.
 		$in = self::build_ai_inputs( $pid );
 		if ( empty( $in['s3'] ) ) {
-			return new WP_Error( 'hdlv2_fn_not_ready', 'Flight Notes are available once the client has completed Stage 3.', array( 'status' => 409 ) );
+			return new WP_Error( 'hdlv2_fn_not_ready', 'Flight Notes are available once the client has completed the Full Report form.', array( 'status' => 409 ) );
 		}
 
 		// Snapshot (Phase 1) — cheap, NO Claude.

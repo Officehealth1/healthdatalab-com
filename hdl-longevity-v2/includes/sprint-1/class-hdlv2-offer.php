@@ -103,6 +103,57 @@ class HDLV2_Offer {
         );
     }
 
+    /**
+     * v0.48.18 — this person's own one-use Full Report code, asked of Altituding
+     * (netlify/functions/full-report-code.js), which has Stripe make it. Called
+     * from the drain, never the visitor's request. Any failure, or the two
+     * wp-config constants absent: the shared code from the option, in the
+     * link too (0.48.22), so the PDF always goes out and its button opens the gate.
+     *
+     * @param string $ref   lead-<id> or invite-<id>; never the email.
+     * @param string $email the lead's address, pre-filled at Stripe; it never goes into the code request.
+     * @return array { offer_code, offer_url }
+     */
+    public static function personal( $ref, $email = '' ) {
+        $o      = self::get();
+        $shared = array(
+            'offer_code' => $o['code'],
+            'offer_url'  => self::with_email( add_query_arg( 'code', rawurlencode( $o['code'] ), $o['url'] ), $email ),
+        );
+        $url    = defined( 'HDLV2_FULL_CODE_URL' ) ? (string) HDLV2_FULL_CODE_URL : '';
+        $key    = self::code_key();
+        if ( '' === $url || '' === $key || ! preg_match( '/^[A-Za-z0-9_-]{1,64}$/', (string) $ref ) ) {
+            return $shared;
+        }
+        // 3 s: a drain tick sends up to 20 PDFs inside one minute.
+        $res  = wp_remote_post( $url, array(
+            'body'    => wp_json_encode( array( 'ref' => (string) $ref ) ),
+            'headers' => array( 'Content-Type' => 'application/json', 'X-HDL-Full-Code-Key' => $key ),
+            'timeout' => 3,
+        ) );
+        $http = is_wp_error( $res ) ? 0 : (int) wp_remote_retrieve_response_code( $res );
+        $body = 200 === $http ? json_decode( wp_remote_retrieve_body( $res ), true ) : null;
+        $code = is_array( $body ) && is_string( $body['code'] ?? null ) ? $body['code'] : '';
+        if ( ! preg_match( '/^[A-Za-z0-9-]{4,40}$/', $code ) ) {
+            error_log( '[HDLV2 offer] personal code failed (HTTP ' . $http . ') — shared code used' );
+            return $shared;
+        }
+        return array( 'offer_code' => $code, 'offer_url' => self::with_email( add_query_arg( 'code', rawurlencode( $code ), $o['url'] ), $email ) );
+    }
+
+    /**
+     * 0.48.22 — the Full Report page hands a good address to Stripe as prefilled_email.
+     * In the fragment (D7): a browser never sends it to a server, a log or a Referer.
+     */
+    private static function with_email( $url, $email ) {
+        return is_email( $email ) ? $url . '#email=' . rawurlencode( $email ) : $url;
+    }
+
+    /** The key Altituding checks; wp-config only. */
+    private static function code_key() {
+        return defined( 'HDLV2_FULL_CODE_KEY' ) ? (string) HDLV2_FULL_CODE_KEY : '';
+    }
+
     /** What the widget's locked panel needs. The code word itself is never public. */
     public static function public_config_fields() {
         $o = self::get();
