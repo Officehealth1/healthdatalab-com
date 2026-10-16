@@ -65,7 +65,7 @@ eq( 'stage3 label',     'Send Stage-3 link', $s3['label'] );  // D5: never fligh
 // ── Disabled: blocked on the practitioner ──
 $awr = $D( 'awaiting_why_release' );
 eq( 'awaiting_why_release disabled', false, $awr['enabled'] );
-eq( 'awaiting_why_release tooltip',  'Waiting on you to release Stage 3 — nothing to send', $awr['tooltip'] );
+eq( 'awaiting_why_release tooltip',  'Waiting on you to open the Full Report form — nothing to send', $awr['tooltip'] );
 eq( 'awaiting_why_release no link',  '',    $awr['link_kind'] );
 
 $ac = $D( 'awaiting_consult' );

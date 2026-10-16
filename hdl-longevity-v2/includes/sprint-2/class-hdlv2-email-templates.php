@@ -224,7 +224,7 @@ class HDLV2_Email_Templates {
         // charts live in the draft report behind the CTA, not inlined here.
         // $data['rate']/['bio_age']/['age']/['radar_chart_url']/['trajectory_chart_url'] unused.
         $content = "
-            <h2 style='margin:0 0 8px;color:" . self::DARK . ";'>Stage 3 Form Completed</h2>
+            <h2 style='margin:0 0 8px;color:" . self::DARK . ";'>Full Report form completed</h2>
             <p style='color:" . self::MUTED . ";margin:0 0 24px;line-height:1.5;'>Draft Trajectory Plan is ready. Your client <strong>{$cname}</strong> has completed all three stages. Please review before the consultation.</p>
 
             <p style='color:#444;line-height:1.6;margin:0 0 24px;'>
@@ -515,17 +515,17 @@ class HDLV2_Email_Templates {
         $url     = esc_url( $data['dashboard_url'] ?: home_url( '/' . trim( apply_filters( 'hdlv2_practitioner_dashboard_slug', 'clients' ), '/' ) . '/' ) );
 
         $content = "
-            <h2 style='margin:0 0 12px;color:" . self::DARK . ";font-family:Poppins,Inter,sans-serif;font-size:20px;font-weight:700;'>Ready to invite your client to Stage 3</h2>
-            <p style='color:" . self::MUTED . ";margin:0 0 20px;font-size:14px;line-height:1.6;'>Your client <strong>{$cname}</strong> has submitted their Stage 2 WHY. Review and release the gate to unlock Stage 3.</p>
+            <h2 style='margin:0 0 12px;color:" . self::DARK . ";font-family:Poppins,Inter,sans-serif;font-size:20px;font-weight:700;'>Ready to open the Full Report form for your client</h2>
+            <p style='color:" . self::MUTED . ";margin:0 0 20px;font-size:14px;line-height:1.6;'>Your client <strong>{$cname}</strong> has submitted their Full Report WHY. Review and release the gate to open the Full Report form.</p>
 
             <p style='font-size:13px;color:#444;line-height:1.6;margin:0 0 24px;'>
                 Clicking below opens your dashboard with this client highlighted &mdash; you can review the full WHY, add
-                a note, and release the gate with one click. The client will be emailed an invitation to Stage 3.
+                a note, and release the gate with one click. The client will be emailed the link to the Full Report form.
             </p>"
-            . self::cta_button( $url, 'Review and invite to Stage 3' )
+            . self::cta_button( $url, 'Review and open the Full Report form' )
             . "<p style='font-size:11px;color:" . self::MUTED . ";line-height:1.5;margin:18px 0 0;text-align:center;'>{$cemail}</p>";
 
-        return self::base_layout( $content, $data['practitioner_id'] ?? null, 'Stage 2 — Ready to Release' );
+        return self::base_layout( $content, $data['practitioner_id'] ?? null, 'Full Report · WHY — ready to review' );
     }
 
     // ──────────────────────────────────────────────────────────────

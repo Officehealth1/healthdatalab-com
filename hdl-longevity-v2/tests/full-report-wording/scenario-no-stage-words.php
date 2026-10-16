@@ -27,7 +27,6 @@ $LABELS = array(
     'includes/class-hdlv2-admin-automation-tier.php',
     'includes/class-hdlv2-compatibility.php',
     'includes/sprint-2/class-hdlv2-email-templates.php',
-    'includes/sprint-2/class-hdlv2-why-picks.php',
     'includes/sprint-2c/class-hdlv2-consultation.php',
     'includes/sprint-2c/class-hdlv2-flight-notes-service.php',
     'includes/sprint-4/class-hdlv2-admin-restore.php',
@@ -38,6 +37,7 @@ $LABELS = array(
 $PROMPTS = array(
     'includes/sprint-2/class-hdlv2-ai-service.php',
     'includes/sprint-2c/class-hdlv2-auto-consultation.php',
+    'includes/sprint-2/class-hdlv2-why-picks.php',
 );
 
 function readable_hits( $root, $file ) {

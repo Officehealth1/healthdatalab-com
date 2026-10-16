@@ -104,7 +104,7 @@ class HDLV2_Compatibility {
         if ( ! $rows ) {
             return array();
         }
-        $labels = array( 1 => 'Stage 1', 2 => 'Stage 2', 3 => 'Stage 3' );
+        $labels = array( 1 => 'Stage 1', 2 => 'Full Report · WHY', 3 => 'Full Report · form' );
         $out = array();
         foreach ( $rows as $r ) {
             // Consultation-eligibility gate — Stage 3 complete AND awaiting/in

@@ -171,7 +171,7 @@ class HDLV2_Admin_Automation_Tier {
                     <td>
                         <label>
                             <input type="checkbox" name="redflag_scan" id="hdlv2_redflag" value="1" <?php checked( $redflag ); ?>>
-                            <span>When on, a completed Stage 3 intake (or any client you scan manually) is checked for medical red flags; flags appear on the practitioner dashboard and the client is emailed a non-diagnostic GP nudge. Leave OFF until tested.</span>
+                            <span>When on, a completed Full Report form (or any client you scan manually) is checked for medical red flags; flags appear on the practitioner dashboard and the client is emailed a non-diagnostic GP nudge. Leave OFF until tested.</span>
                         </label>
                     </td>
                 </tr>
