@@ -94,20 +94,32 @@ class FakeWpdb {
         return $q;
     }
     public function get_row( $q ) {
-        if ( false !== strpos( $q, 'hdlv2_widget_invites' ) ) return $GLOBALS['case_rows']['invite'] ?? null;
+        if ( false !== strpos( $q, 'hdlv2_widget_invites' ) ) {
+            echo 'INVITE_QUERY:' . preg_replace( '/\s+/', ' ', $q ) . "\n";
+            return $GLOBALS['case_rows']['invite'] ?? null;
+        }
         if ( false !== strpos( $q, 'hdlv2_form_progress' ) && false !== strpos( $q, 'client_user_id =' ) ) {
             return $GLOBALS['case_rows']['progress_by_user'] ?? null;
         }
         if ( false !== strpos( $q, 'hdlv2_form_progress' ) ) return $GLOBALS['case_rows']['progress'] ?? null;
         return null;
     }
-    public function get_var( $q ) { return $GLOBALS['case_rows']['var'] ?? null; }
+    public function get_var( $q ) {
+        // v0.48.23 — the challenge's "Stage 1 on file?" lead lookup.
+        if ( false !== strpos( $q, 'hdlv2_widget_leads' ) ) return $GLOBALS['case_rows']['lead'] ?? null;
+        return $GLOBALS['case_rows']['var'] ?? null;
+    }
     public function update( $table, $data, $where, $fmt = null, $wfmt = null ) {
         echo 'DB_UPDATE:' . $table . ':' . json_encode( $data ) . "\n";
         return 1;
     }
     public function insert( $t, $d = array(), $f = null ) { return 1; }
     public function query( $q ) { return 0; }
+}
+
+// v0.48.23 — the closure enrols a challenge buyer behind class_exists().
+class HDLV2_Challenge {
+    public static function enrol( $uid, $invite ) { echo 'ENROL:' . $uid . ':' . $invite->id . "\n"; return 1; }
 }
 
 // ── Include the REAL plugin main file (captures the init closure) ──
@@ -192,6 +204,28 @@ switch ( $CASE ) {
         $_GET['invite'] = $hex;
         $GLOBALS['admin_ids'] = array( 7 );
         $GLOBALS['case_rows']['invite'] = (object) array( 'id' => 9, 'practitioner_id' => 3, 'client_email' => 'c@x.test', 'client_name' => 'C', 'status' => 'pending', 'expires_at' => gmdate( 'Y-m-d H:i:s', time() + 80 * DAY_IN_SECONDS ), 'source' => 'full_report' );
+        break;
+
+    // v0.48.23 — a 30-day challenge link: signs in, enrols, and opens the
+    // dashboard once Stage 1 is on file (a lead or a client record).
+    case 'invite-challenge-new': // nothing on file → the widget page renders (Stage 1 first)
+        $_GET['invite'] = $hex;
+        $GLOBALS['case_rows']['invite'] = (object) array( 'id' => 9, 'practitioner_id' => 3, 'client_email' => 'c@x.test', 'client_name' => 'C', 'status' => 'pending', 'expires_at' => gmdate( 'Y-m-d H:i:s', time() + 80 * DAY_IN_SECONDS ), 'source' => 'challenge', 'external_ref' => 'cs_x' );
+        break;
+    case 'invite-challenge-lead': // a Stage 1 lead for this email → the dashboard
+        $_GET['invite'] = $hex;
+        $GLOBALS['case_rows']['invite'] = (object) array( 'id' => 9, 'practitioner_id' => 3, 'client_email' => 'c@x.test', 'client_name' => 'C', 'status' => 'opened', 'expires_at' => gmdate( 'Y-m-d H:i:s', time() + 80 * DAY_IN_SECONDS ), 'source' => 'challenge', 'external_ref' => 'cs_x' );
+        $GLOBALS['case_rows']['lead'] = '1';
+        break;
+    case 'invite-challenge-client': // a client record with Stage 1 → the dashboard, never /assessment/
+        $_GET['invite'] = $hex;
+        $GLOBALS['case_rows']['invite'] = (object) array( 'id' => 9, 'practitioner_id' => 3, 'client_email' => 'c@x.test', 'client_name' => 'C', 'status' => 'opened', 'expires_at' => gmdate( 'Y-m-d H:i:s', time() + 80 * DAY_IN_SECONDS ), 'source' => 'challenge', 'external_ref' => 'cs_x' );
+        $GLOBALS['case_rows']['progress_by_user'] = (object) array( 'id' => 55, 'token' => 'fptoken', 'stage1_completed_at' => '2026-10-13 10:00:00' );
+        break;
+    case 'invite-challenge-prac': // the email belongs to a practitioner → no login, no enrolment
+        $_GET['invite'] = $hex;
+        $GLOBALS['prac_ids'] = array( 3, 7 );
+        $GLOBALS['case_rows']['invite'] = (object) array( 'id' => 9, 'practitioner_id' => 3, 'client_email' => 'c@x.test', 'client_name' => 'C', 'status' => 'pending', 'expires_at' => gmdate( 'Y-m-d H:i:s', time() + 80 * DAY_IN_SECONDS ), 'source' => 'challenge', 'external_ref' => 'cs_x' );
         break;
 
     // v0.48.20 — no link ever signs in a staff account (launch gate line 6)
