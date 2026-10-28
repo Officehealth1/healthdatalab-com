@@ -70,4 +70,22 @@ foreach ( array( 122 => 'its own practitioner', 206 => 'another practitioner' ) 
     check( "C3.2 ($who) the challenge link is not used up", 'pending' === $w->invite->status && ! array_filter( $w->updates, function ( $u ) { return 'completed' === ( $u['data']['status'] ?? '' ); } ) );
 }
 
+$w = setup( 'paid' );
+$w->invite = invite_row( array( 'id' => 92, 'practitioner_id' => 122, 'source' => 'challenge', 'client_email' => 'ch1@example.test' ) );
+$p = lead_params( 'ch1@example.test', TOKEN );
+$p['practitioner_id'] = 122;
+$r = post_lead( $p );
+check( 'C3.3 paid-mode seller: its own challenge link still takes Stage 1 (public path)', is_array( $r ) && empty( $r['form_token'] ) && 1 === count( $w->inserts_into( 'hdlv2_widget_leads' ) ) && 'pending' === $w->invite->status );
+$w = setup( 'paid' );
+$w->invite = invite_row( array( 'id' => 93, 'practitioner_id' => 206, 'source' => 'challenge', 'client_email' => 'ch1@example.test' ) );
+$r = post_lead( $p );
+check( 'C3.4 paid-mode seller: another practitioner\'s challenge link → 403, nothing saved', 403 === status_of( $r ) && ! $w->inserts );
+
+echo "── C4. nothing else uses up or lists a challenge link ──\n";
+$root = dirname( __DIR__, 2 );
+$sf = file_get_contents( $root . '/includes/sprint-2/class-hdlv2-staged-form.php' );
+$wc = file_get_contents( $root . '/includes/sprint-1/class-hdlv2-widget-config.php' );
+check( 'C4.1 Stage 1 finished on the form does not complete a challenge link', 1 === substr_count( $sf, "AND source NOT IN ('paid_stage1','challenge')" ) );
+check( 'C4.2 the practitioner\'s Sent Invites lists leave challenge links out (both)', 2 === substr_count( $wc, "WHERE practitioner_id = %d AND source NOT IN ('paid_stage1','challenge')" ) );
+
 done();

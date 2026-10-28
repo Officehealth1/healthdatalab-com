@@ -779,7 +779,7 @@ class HDLV2_Staged_Form {
                  WHERE client_email = %s
                    AND practitioner_id = %d
                    AND status = 'opened'
-                   AND source <> 'paid_stage1'",
+                   AND source NOT IN ('paid_stage1','challenge')",
                 current_time( 'mysql' ),
                 $progress->client_email,
                 (int) $progress->practitioner_user_id

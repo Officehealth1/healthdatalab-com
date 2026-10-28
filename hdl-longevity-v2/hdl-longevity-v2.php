@@ -235,25 +235,16 @@ add_action( 'init', function () {
 
         // v0.48.23 — a 30-day challenge link signs the buyer in for its 90
         // days and opens the challenge on their dashboard once Stage 1 is on
-        // file (a client record, or a lead for this email). Before that the
-        // widget page renders: Stage 1 first, through the public path (the
-        // challenge buys the videos, not the Full Report; see
-        // rest_capture_lead). Nothing marks the link completed, so it keeps
-        // working as the buyer's way back.
+        // file (HDLV2_Challenge::open_link). Before that the widget page
+        // renders: Stage 1 first, through the public path (the challenge buys
+        // the videos, not the Full Report; see rest_capture_lead). Nothing
+        // marks the link completed, so it keeps working as the buyer's way
+        // back; a browser already signed in is handled by
+        // HDLV2_Challenge::signed_in_link().
         if ( $is_challenge ) {
-            if ( class_exists( 'HDLV2_Challenge' ) ) {
-                HDLV2_Challenge::enrol( $user_id, $invite );
-            }
-            $stage1_on_file = ( $progress && ! empty( $progress->stage1_completed_at ) )
-                || $wpdb->get_var( $wpdb->prepare(
-                    "SELECT 1 FROM {$wpdb->prefix}hdlv2_widget_leads
-                     WHERE practitioner_user_id = %d AND visitor_email = %s LIMIT 1",
-                    $invite->practitioner_id,
-                    $email
-                ) );
-            if ( $stage1_on_file ) {
-                $dashboard_slug = apply_filters( 'hdlv2_client_dashboard_slug', 'my-dashboard' );
-                wp_safe_redirect( home_url( '/' . trim( $dashboard_slug, '/' ) . '/#challenge' ) );
+            $landing = class_exists( 'HDLV2_Challenge' ) ? HDLV2_Challenge::open_link( $user_id, $invite ) : null;
+            if ( $landing ) {
+                wp_safe_redirect( $landing );
                 exit;
             }
             return;

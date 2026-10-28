@@ -119,7 +119,11 @@ class FakeWpdb {
 
 // v0.48.23 — the closure enrols a challenge buyer behind class_exists().
 class HDLV2_Challenge {
-    public static function enrol( $uid, $invite ) { echo 'ENROL:' . $uid . ':' . $invite->id . "\n"; return 1; }
+    // The real one returns the dashboard URL once Stage 1 is on file (tested in tests/challenge).
+    public static function open_link( $uid, $invite ) {
+        echo 'OPEN_LINK:' . $uid . ':' . $invite->id . "\n";
+        return ! empty( $GLOBALS['case_rows']['lead'] ) || ! empty( $GLOBALS['case_rows']['progress_by_user'] ) ? 'https://stby.test/my-dashboard/#challenge' : null;
+    }
 }
 
 // ── Include the REAL plugin main file (captures the init closure) ──

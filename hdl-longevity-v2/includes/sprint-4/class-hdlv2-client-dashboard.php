@@ -1781,6 +1781,12 @@ class HDLV2_Client_Dashboard {
 
     private function render_empty_state( $user_id, $state ) {
         $ctx = $this->load_context( $user_id );
+        $challenge = $this->challenge_section( $user_id );
+        // v0.48.23 — a challenge buyer's Stage 1 is a pending lead, not a
+        // client record yet: show it as sent, not "start with the gauge".
+        if ( 'brand-new' === $state && '' !== $challenge && HDLV2_Challenge::stage1_on_file( $user_id ) ) {
+            $state = 'stage1-done';
+        }
 
         // No custom site chrome — Divi already renders the page header / nav / footer.
         $h  = '<main class="hdlv2-cd shell" data-state="' . esc_attr( $state ) . '">';
@@ -1788,7 +1794,7 @@ class HDLV2_Client_Dashboard {
         $h .= $this->hero_for_state( $ctx, $state );
         $h .= $this->path_for_state( $ctx, $state );
         $h .= $this->preview_for_state( $ctx, $state );
-        $h .= $this->challenge_section( $user_id );
+        $h .= $challenge;
         // Slice C: inbox — mid-funnel clients must see practitioner messages
         // (the betas live in these states). v0.47.82: compact launcher card +
         // bottom-right popup replaced the always-open full-width card; the

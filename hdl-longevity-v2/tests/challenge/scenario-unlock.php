@@ -116,6 +116,67 @@ HDLV2_Challenge::register_hooks();
 $cb = $GLOBALS['actions']['deleted_user'][0] ?? null;
 check( 'U7.1 hooked on deleted_user', is_callable( $cb ) );
 call_user_func( $cb, 5 );
-check( 'U7.2 one DELETE for that client only', 1 === count( $w->deletes ) && false !== strpos( $w->deletes[0], 'client_user_id = 5' ) && ! isset( $w->rows[5] ) && isset( $w->rows[6] ) );
+check( 'U7.2 the days of that client only are deleted', false !== strpos( $w->deletes[0], 'client_user_id = 5' ) && ! isset( $w->rows[5] ) && isset( $w->rows[6] ) );
+check( 'U7.3 …and the timeline copies of their notes', 2 === count( $w->deletes ) && false !== strpos( $w->deletes[1], 'DELETE FROM wp_hdlv2_timeline' ) && false !== strpos( $w->deletes[1], 'client_id = 5' ) && false !== strpos( $w->deletes[1], "source_table = 'hdlv2_challenge_days'" ) );
+
+echo "── U8. a failed save is said, never announced as saved ──\n";
+$w = fresh();
+enrol_client( 5 );
+$w->fail_insert = true;
+$GLOBALS['timeline'] = array();
+$r = HDLV2_Challenge::tick( 5, 1, 'x', at( '2026-10-28 10:00:00' ) );
+check( 'U8.1 INSERT error → 500 save_failed, no timeline entry', 500 === status_of( $r ) && 'save_failed' === code_of( $r ) && ! $GLOBALS['timeline'] );
+
+echo "── U9. opening the challenge link ──\n";
+$inv = (object) array( 'id' => 11, 'practitioner_id' => 122, 'external_ref' => 'cs_test_abc', 'client_email' => 'Buyer@Example.test' );
+$w = fresh();
+$GLOBALS['users'][5] = 'buyer@example.test';
+check( 'U9.1 nothing on file → enrolled, no landing (the widget page renders)', null === HDLV2_Challenge::open_link( 5, $inv ) && null !== HDLV2_Challenge::enrolment( 5 ) );
+$w->leads = array( '122|buyer@example.test' );
+check( 'U9.2 a Stage 1 lead for this email → /my-dashboard/#challenge', 'https://stby.test/my-dashboard/#challenge' === HDLV2_Challenge::open_link( 5, $inv ) );
+$w = fresh();
+$GLOBALS['users'][5] = 'buyer@example.test';
+$w->stage1_progress = array( 5 );
+check( 'U9.3 a client record with Stage 1 → the dashboard', 'https://stby.test/my-dashboard/#challenge' === HDLV2_Challenge::open_link( 5, $inv ) );
+$w = fresh();
+$GLOBALS['users'][5] = 'buyer@example.test';
+$w->leads = array( '206|buyer@example.test' );
+check( 'U9.4 a lead with another practitioner does not count', null === HDLV2_Challenge::open_link( 5, $inv ) );
+
+echo "── U10. the link opened in a browser that is already signed in ──\n";
+$hex = str_repeat( 'ab', 32 );
+$land = function () {
+    $flag = new ReflectionProperty( 'HDLV2_Challenge', 'opened' ); // one request per call
+    $flag->setAccessible( true );
+    $flag->setValue( null, false );
+    try { HDLV2_Challenge::signed_in_link(); } catch ( Redirected $e ) { return $e->getMessage(); }
+    return null;
+};
+$w = fresh();
+$GLOBALS['users'][5] = 'buyer@example.test';
+$GLOBALS['current_user'] = 5;
+$w->invites[ $hex ] = $inv;
+$w->leads = array( '122|buyer@example.test' );
+$_GET['invite'] = $hex;
+check( 'U10.1 same email (any case) → enrolled and sent to the dashboard', 'https://stby.test/my-dashboard/#challenge' === $land() && null !== HDLV2_Challenge::enrolment( 5 ) );
+$q = implode( "\n", $w->queries );
+check( 'U10.2 only a live challenge link counts', false !== strpos( $q, "source = 'challenge'" ) && false !== strpos( $q, "status IN ('pending','opened')" ) && false !== strpos( $q, 'expires_at > UTC_TIMESTAMP()' ) );
+$GLOBALS['users'][5] = 'someone.else@example.test';
+$GLOBALS['usermeta'] = array();
+check( 'U10.3 signed in as another account → nothing (no enrolment, no redirect)', null === $land() && null === HDLV2_Challenge::enrolment( 5 ) );
+$GLOBALS['users'][5] = 'buyer@example.test';
+$GLOBALS['staff'] = array( 5 );
+check( 'U10.4 a staff account → nothing', null === $land() && null === HDLV2_Challenge::enrolment( 5 ) );
+$GLOBALS['staff'] = array();
+$_GET['invite'] = 'not-a-token';
+check( 'U10.5 a malformed token → nothing', null === $land() );
+$_GET['invite'] = $hex;
+$GLOBALS['current_user'] = 0;
+check( 'U10.6 signed out → left to the ?invite= login', null === $land() );
+$GLOBALS['current_user'] = 5;
+$_GET['invite'] = str_repeat( 'cd', 32 );
+check( 'U10.7 not a challenge link → nothing', null === $land() );
+HDLV2_Challenge::register_hooks();
+check( 'U10.8 hooked on init', ! empty( $GLOBALS['actions']['init'] ) );
 
 done();

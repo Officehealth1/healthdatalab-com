@@ -707,8 +707,9 @@
     }
     // v0.47.85 — a paid Stage 1 ticket is an invite that buys the PUBLIC
     // path: the token rides with the answers, but the result page is the
-    // public one (no "Continue to Stage 2").
-    var fastInvite = !!inviteToken && invite.source !== 'paid_stage1';
+    // public one (no "Continue to Stage 2"). v0.48.23 — so does a 30-day
+    // challenge link: it buys the videos, not the Full Report.
+    var fastInvite = !!inviteToken && invite.source !== 'paid_stage1' && invite.source !== 'challenge';
     // Defensive — legacy practitioners without a logo_shape on file land
     // on 'square' (centred circle). Any unknown value also falls through
     // to 'square' so the CSS always finds a matching rule.
@@ -1770,6 +1771,11 @@
         }
         // Public path (and paid tickets): the thank-you wall.
         statusEl.innerHTML = '';
+        // v0.48.23 — a challenge buyer is signed in here: straight on to the 30 days.
+        if (invite && invite.source === 'challenge') {
+          statusEl.innerHTML = '<a class="hdlw-r-btn-primary" href="'
+            + cfg.apiUrl.replace(/\/wp-json\/.*$/, '') + '/my-dashboard/#challenge">Start your 30 days \u2192</a>';
+        }
         var thanks = document.getElementById(id + '-thanks');
         if (thanks) thanks.hidden = false;
       }

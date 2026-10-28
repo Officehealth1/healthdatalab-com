@@ -186,5 +186,5 @@ check( 'T9.4 never signs in an admin account', false === strpos( $o, 'AUTH_COOKI
 
 echo "── T10. Sent Invites lists keep full_report rows ──\n";
 $src = file_get_contents( __DIR__ . '/../../includes/sprint-1/class-hdlv2-widget-config.php' );
-check( 'T10.1 the lists exclude only paid_stage1', 3 === substr_count( $src, "source <> 'paid_stage1'" ) && false === strpos( $src, "source <> 'full_report'" ) );
+check( 'T10.1 the lists exclude paid_stage1 (and, since v0.48.23, challenge), never full_report', 2 === substr_count( $src, "source NOT IN ('paid_stage1','challenge')" ) && 1 === substr_count( $src, "source <> 'paid_stage1'" ) && false === strpos( $src, "'full_report')" ) );
 done();

@@ -37,6 +37,15 @@ function esc_url_raw( $x ) { return (string) $x; }
 function wp_date( $fmt, $ts = null ) { return gmdate( $fmt, $ts ?? time() ); }
 function add_query_arg( $key, $value, $url ) { return $url . ( false === strpos( $url, '?' ) ? '?' : '&' ) . $key . '=' . $value; }
 function get_user_meta( $u, $k, $single = false ) { return $GLOBALS['usermeta'][ $u ][ $k ] ?? ''; }
+function get_userdata( $u ) { return isset( $GLOBALS['users'][ $u ] ) ? (object) array( 'ID' => $u, 'user_email' => $GLOBALS['users'][ $u ] ) : false; }
+function wp_get_current_user() { return get_userdata( get_current_user_id() ) ?: (object) array( 'ID' => 0, 'user_email' => '' ); }
+function hdlv2_is_staff_account( $u ) { return in_array( (int) $u, $GLOBALS['staff'] ?? array(), true ); }
+function is_admin() { return false; }
+function wp_unslash( $x ) { return $x; }
+function apply_filters( $tag, $value ) { return $value; }
+function home_url( $p = '' ) { return 'https://stby.test' . $p; }
+class Redirected extends Exception {}
+function wp_safe_redirect( $url ) { throw new Redirected( $url ); }
 function add_user_meta( $u, $k, $v, $unique = false ) {
     if ( $unique && isset( $GLOBALS['usermeta'][ $u ][ $k ] ) ) return false;
     $GLOBALS['usermeta'][ $u ][ $k ] = $v;
@@ -64,6 +73,10 @@ class ChallengeWpdb {
     public $rows = array();     // client_user_id => day_no => (object) row
     public $queries = array();
     public $deletes = array();
+    public $fail_insert = false;
+    public $stage1_progress = array(); // client ids with a client record whose Stage 1 is done
+    public $leads = array();           // "practitioner|email" of Stage 1 leads on file
+    public $invites = array();         // challenge invites by token (pending/opened, unexpired)
     private $args = array();
     private $next_id = 70;
 
@@ -81,8 +94,27 @@ class ChallengeWpdb {
         ksort( $rows );
         return array_values( $rows );
     }
+    public function get_var( $sql ) {
+        $this->queries[] = $sql;
+        if ( false !== strpos( $sql, 'hdlv2_form_progress' ) ) return in_array( (int) $this->args[0], $this->stage1_progress, true ) ? '1' : null;
+        if ( false !== strpos( $sql, 'hdlv2_widget_leads' ) ) return in_array( $this->args[0] . '|' . strtolower( $this->args[1] ), $this->leads, true ) ? '1' : null;
+        return null;
+    }
+    public function get_row( $sql ) {
+        $this->queries[] = $sql;
+        if ( false !== strpos( $sql, 'hdlv2_widget_invites' ) && false !== strpos( $sql, "source = 'challenge'" ) ) return $this->invites[ $this->args[0] ] ?? null;
+        return null;
+    }
     public function query( $sql ) {
         $this->queries[] = $sql;
+        if ( 0 === strpos( $sql, 'INSERT IGNORE INTO wp_hdlv2_challenge_days' ) && $this->fail_insert ) {
+            $this->last_error = 'Table is full (simulated)';
+            return false;
+        }
+        if ( 0 === strpos( $sql, 'DELETE FROM wp_hdlv2_timeline' ) ) {
+            $this->deletes[] = $sql;
+            return 1;
+        }
         if ( 0 === strpos( $sql, 'INSERT IGNORE INTO wp_hdlv2_challenge_days' ) ) {
             list( $uid, $day, $done_at, $note ) = $this->args;
             if ( isset( $this->rows[ $uid ][ $day ] ) ) return 0; // the UNIQUE key
@@ -136,6 +168,10 @@ function fresh() {
     $GLOBALS['timeline'] = array();
     $GLOBALS['options']  = array();
     $GLOBALS['state']    = 'brand-new';
+    $GLOBALS['users']    = array();
+    $GLOBALS['staff']    = array();
+    $GLOBALS['current_user'] = 0;
+    $_GET = array();
     return $wpdb;
 }
 function done() {

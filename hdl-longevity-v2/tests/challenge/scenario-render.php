@@ -101,5 +101,8 @@ check( 'R8.2 no accent rails in the cd30 rules', 0 === preg_match( '/\.cd30[^{]*
 check( 'R8.3 phone: 5 cells a row, 44 px targets', false !== strpos( $css, 'repeat(5, minmax(0, 1fr))' ) && false !== strpos( $css, 'min-height: 44px' ) );
 check( 'R8.4 JS posts to /challenge/tick with the REST nonce, never a native dialog', false !== strpos( $js, "'/challenge/tick'" ) && false !== strpos( $js, "'X-WP-Nonce'" ) && 0 === preg_match( '/\b(alert|confirm|prompt)\(/', $js ) );
 check( 'R8.5 #challenge opens the tab on the full dashboard', false !== strpos( $js, 'replace(/^#(tab-)?/, \'\')' ) );
+$widget = file_get_contents( dirname( __DIR__, 2 ) . '/widget/hdl-lead-magnet.js' );
+check( 'R8.6 widget: a challenge link gets the public result page (no Full Report promise)', false !== strpos( $widget, "invite.source !== 'paid_stage1' && invite.source !== 'challenge'" ) );
+check( 'R8.7 widget: after a challenge Stage 1 is saved, a button to the 30 days', false !== strpos( $widget, "/my-dashboard/#challenge" ) && false !== strpos( $widget, 'Start your 30 days' ) );
 
 done();

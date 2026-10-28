@@ -470,8 +470,12 @@ class HDLV2_Widget_Config {
         // v0.48.23 — a 30-day challenge link buys the videos, not the Full
         // Report: its Stage 1 takes the public path below (pending lead,
         // Stage 1 PDF with the offer page), as a visitor with no link does.
+        // Its own practitioner's paid widget still takes it (Stage 1 comes
+        // with the challenge).
+        $challenge_paid = false;
         if ( $invite && isset( $invite->source ) && 'challenge' === $invite->source ) {
-            $invite = null;
+            $challenge_paid = (int) $invite->practitioner_id === $practitioner_id;
+            $invite         = null;
         }
 
         // v0.47.85 — paid mode (widget_config.access_mode). A paid widget
@@ -488,7 +492,7 @@ class HDLV2_Widget_Config {
         if ( $invite && ( $paid_mode || $is_ticket || $is_full ) && (int) $invite->practitioner_id !== $practitioner_id ) {
             $invite = null;
         }
-        if ( $paid_mode && ! $invite ) {
+        if ( $paid_mode && ! $invite && ! $challenge_paid ) {
             // v0.47.89 — a repeat post of a ticket whose lead is on file gets
             // the first answer back, however long after the first post.
             $saved = self::saved_ticket_reply( $invite_token, $practitioner_id );
@@ -3180,7 +3184,7 @@ class HDLV2_Widget_Config {
         $invites = $wpdb->get_results( $wpdb->prepare(
             "SELECT id, client_name, client_email, status, token, expires_at, created_at, opened_at, completed_at
              FROM {$wpdb->prefix}hdlv2_widget_invites
-             WHERE practitioner_id = %d AND source <> 'paid_stage1'
+             WHERE practitioner_id = %d AND source NOT IN ('paid_stage1','challenge')
              ORDER BY created_at DESC
              LIMIT 100",
             $user_id
@@ -3544,7 +3548,7 @@ class HDLV2_Widget_Config {
         $invites = $wpdb->get_results( $wpdb->prepare(
             "SELECT id, client_name, client_email, status, token, expires_at, created_at, opened_at, completed_at
              FROM {$wpdb->prefix}hdlv2_widget_invites
-             WHERE practitioner_id = %d AND source <> 'paid_stage1'
+             WHERE practitioner_id = %d AND source NOT IN ('paid_stage1','challenge')
              ORDER BY created_at DESC
              LIMIT 100",
             $user_id

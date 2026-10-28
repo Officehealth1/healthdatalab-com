@@ -13,6 +13,8 @@
  *  - Videos (D3): option `hdlv2_challenge_videos`, up to 30
  *    { day, title, youtube_id }; a day without one shows "Video coming".
  *  - POST hdl-v2/v1/challenge/tick — the signed-in client only, no ids taken.
+ *  - The link: open_link() from the ?invite= login, signed_in_link() when
+ *    the browser is already signed in.
  *
  * @package HDL_Longevity_V2
  * @since   0.48.23
@@ -29,8 +31,14 @@ class HDLV2_Challenge {
     const VIDEOS_OPTION = 'hdlv2_challenge_videos';
     const NOTE_MAX      = 500;
 
+    /** open_link() already ran in this request (the ?invite= login). */
+    private static $opened = false;
+
     public static function register_hooks() {
         add_action( 'rest_api_init', array( __CLASS__, 'register_routes' ) );
+        // After the ?invite= login (init priority 1), which skips a browser
+        // that is already signed in.
+        add_action( 'init', array( __CLASS__, 'signed_in_link' ), 2 );
         // WordPress removes the user's meta itself; the ticked days go here.
         add_action( 'deleted_user', array( __CLASS__, 'forget' ) );
     }
@@ -53,6 +61,79 @@ class HDLV2_Challenge {
             'invite_id'       => (int) $invite->id,
             'practitioner_id' => (int) $invite->practitioner_id,
         ) ), true );
+    }
+
+    /**
+     * A challenge link was opened by its own account: enrol once, then the
+     * dashboard if Stage 1 is on file.
+     *
+     * @return string|null the URL to send the buyer to, or null to let the
+     *                     widget page render (Stage 1 first).
+     */
+    public static function open_link( $user_id, $invite ) {
+        self::$opened = true;
+        self::enrol( $user_id, $invite );
+        if ( ! self::stage1_on_file( $user_id ) ) {
+            return null;
+        }
+        return home_url( '/' . trim( apply_filters( 'hdlv2_client_dashboard_slug', 'my-dashboard' ), '/' ) . '/#challenge' );
+    }
+
+    /** Stage 1 on file: a client record past Stage 1, or a lead for this email with the seller. */
+    public static function stage1_on_file( $user_id ) {
+        global $wpdb;
+        if ( $wpdb->get_var( $wpdb->prepare(
+            "SELECT 1 FROM {$wpdb->prefix}hdlv2_form_progress
+             WHERE client_user_id = %d AND deleted_at IS NULL AND stage1_completed_at IS NOT NULL LIMIT 1",
+            $user_id
+        ) ) ) {
+            return true;
+        }
+        $enrolment = self::enrolment( $user_id );
+        $user      = get_userdata( $user_id );
+        return $enrolment && $user && (bool) $wpdb->get_var( $wpdb->prepare(
+            "SELECT 1 FROM {$wpdb->prefix}hdlv2_widget_leads
+             WHERE practitioner_user_id = %d AND visitor_email = %s LIMIT 1",
+            (int) $enrolment['practitioner_id'],
+            $user->user_email
+        ) );
+    }
+
+    /**
+     * The ?invite= login (hdl-longevity-v2.php) returns at once for a signed-in
+     * browser, so a buyer re-opening their link there is handled here: the
+     * live challenge link of the signed-in account's own email. Any other
+     * account, a staff account or another kind of link: nothing happens.
+     */
+    public static function signed_in_link() {
+        if ( self::$opened || is_admin() || ! is_user_logged_in() || empty( $_GET['invite'] ) ) {
+            return;
+        }
+        if ( isset( $_SERVER['REQUEST_URI'] ) && false !== strpos( $_SERVER['REQUEST_URI'], '/wp-json/' ) ) {
+            return;
+        }
+        $token = sanitize_text_field( wp_unslash( $_GET['invite'] ) );
+        if ( ! preg_match( '/^[a-f0-9]{64}$/', $token ) ) {
+            return;
+        }
+        $user = wp_get_current_user();
+        if ( hdlv2_is_staff_account( $user->ID ) ) {
+            return;
+        }
+        global $wpdb;
+        $invite = $wpdb->get_row( $wpdb->prepare(
+            "SELECT id, practitioner_id, client_email, external_ref FROM {$wpdb->prefix}hdlv2_widget_invites
+             WHERE token = %s AND source = 'challenge' AND status IN ('pending','opened') AND expires_at > UTC_TIMESTAMP() LIMIT 1",
+            $token
+        ) );
+        if ( ! $invite || 0 !== strcasecmp( (string) $user->user_email, (string) $invite->client_email ) ) {
+            return;
+        }
+        $url = self::open_link( (int) $user->ID, $invite );
+        if ( $url ) {
+            wp_safe_redirect( $url );
+            exit;
+        }
     }
 
     /** @return array|null the enrolment, or null when the client never bought one. */
@@ -160,6 +241,9 @@ class HDLV2_Challenge {
             "INSERT IGNORE INTO {$wpdb->prefix}hdlv2_challenge_days (client_user_id, day_no, done_at, note) VALUES (%d, %d, %s, %s)",
             $user_id, $day, gmdate( 'Y-m-d H:i:s', $now ), $note
         ) );
+        if ( false === $inserted ) {
+            return new WP_Error( 'save_failed', 'Could not save. Try again.', array( 'status' => 500 ) );
+        }
         if ( $inserted ) {
             HDLV2_Timeline::add_entry(
                 $user_id,
@@ -192,10 +276,15 @@ class HDLV2_Challenge {
         return 'brand-new' !== HDLV2_Compatibility::get_client_journey_state( $user_id );
     }
 
+    /** The ticked days and the timeline copies of their notes. */
     public static function forget( $user_id ) {
         global $wpdb;
         $wpdb->query( $wpdb->prepare(
             "DELETE FROM {$wpdb->prefix}hdlv2_challenge_days WHERE client_user_id = %d",
+            $user_id
+        ) );
+        $wpdb->query( $wpdb->prepare(
+            "DELETE FROM {$wpdb->prefix}hdlv2_timeline WHERE client_id = %d AND source_table = 'hdlv2_challenge_days'",
             $user_id
         ) );
     }
