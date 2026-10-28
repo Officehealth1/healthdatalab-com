@@ -144,7 +144,8 @@ add_action( 'init', function () {
         if ( ! $email ) return;
 
         // Create or get existing user
-        $user_id = email_exists( $email );
+        $user_id       = email_exists( $email );
+        $existing_user = (bool) $user_id;
         // v0.48.15 — a Full Report ticket carries the email the buyer typed at
         // checkout, never verified. v0.48.20 — the same holds for every invite
         // (the practitioner typed the email): any source may sign in a client,
@@ -197,8 +198,12 @@ add_action( 'init', function () {
         wp_set_current_user( $user_id );
         wp_set_auth_cookie( $user_id, false );
 
-        // Link client to practitioner in V1 table for dashboard visibility
-        if ( class_exists( 'HDLV2_Compatibility' ) ) {
+        // Link client to practitioner in V1 table for dashboard visibility.
+        // v0.48.23 — a challenge link carries an email the buyer typed at
+        // checkout: it never moves an existing account under the seller's
+        // practitioner (that would show them another practitioner's client).
+        $is_challenge = isset( $invite->source ) && 'challenge' === $invite->source;
+        if ( class_exists( 'HDLV2_Compatibility' ) && ! ( $is_challenge && $existing_user ) ) {
             HDLV2_Compatibility::create_practitioner_client_link( $invite->practitioner_id, $user_id );
         }
 
@@ -235,7 +240,7 @@ add_action( 'init', function () {
         // challenge buys the videos, not the Full Report; see
         // rest_capture_lead). Nothing marks the link completed, so it keeps
         // working as the buyer's way back.
-        if ( isset( $invite->source ) && 'challenge' === $invite->source ) {
+        if ( $is_challenge ) {
             if ( class_exists( 'HDLV2_Challenge' ) ) {
                 HDLV2_Challenge::enrol( $user_id, $invite );
             }
@@ -938,6 +943,8 @@ final class HDL_Longevity_V2 {
         require_once HDLV2_PLUGIN_DIR . 'includes/sprint-4/class-hdlv2-practitioner-dashboard.php';
         // v0.32.7 — client-side dashboard (/my-dashboard/) + login_redirect + role guards
         require_once HDLV2_PLUGIN_DIR . 'includes/sprint-4/class-hdlv2-client-dashboard.php';
+        // v0.48.23 — the 30-day challenge section + POST /challenge/tick.
+        require_once HDLV2_PLUGIN_DIR . 'includes/sprint-4/class-hdlv2-challenge.php';
         // v0.47.67 (Slice C) — token-mode message thread view (?msg=m1...),
         // rendered pre-UM at init priority 2; flag-gated HDLV2_MSG_LINK_ENABLED.
         // Required BEFORE nothing in particular (static calls resolve at render
@@ -1036,6 +1043,7 @@ final class HDL_Longevity_V2 {
         HDLV2_Client_Status::get_instance()->register_hooks();
         HDLV2_Practitioner_Dashboard::get_instance()->register_hooks();
         HDLV2_Client_Dashboard::get_instance()->register_hooks();
+        HDLV2_Challenge::register_hooks();
         // Slice C — pre-UM ?msg= interceptor (inert while HDLV2_MSG_LINK_ENABLED is off/undefined).
         HDLV2_Message_Thread_View::get_instance()->register_hooks();
         // Iridology add-on (IrisMapper) — REST routes for checkout/status/login.

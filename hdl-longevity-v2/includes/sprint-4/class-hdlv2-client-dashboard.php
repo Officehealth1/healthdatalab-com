@@ -347,23 +347,44 @@ class HDLV2_Client_Dashboard {
                 array(),
                 HDLV2_VERSION
             );
-            wp_enqueue_script(
-                'hdlv2-client-dashboard',
-                HDLV2_PLUGIN_URL . 'assets/js/hdlv2-client-dashboard.js',
-                array(),
-                HDLV2_VERSION,
-                true
-            );
-            wp_localize_script( 'hdlv2-client-dashboard', 'HDLV2_CD_POP', array(
-                'restUrl'   => esc_url_raw( rest_url( 'hdl-v2/v1' ) ),
-                'nonce'     => wp_create_nonce( 'wp_rest' ),
-                'clientId'  => (int) $user_id,
-                'todayKey'  => strtolower( date_i18n( 'l' ) ),
-            ) );
+            $this->enqueue_dashboard_js( $user_id );
             return $this->render_populated( $user_id );
         }
 
         return $this->render_empty_state( $user_id, $state );
+    }
+
+    /**
+     * The dashboard script + its REST config. The populated dashboard always
+     * needs it; v0.48.23 — an empty state needs it too when the 30-day
+     * challenge renders (its tick form).
+     */
+    private function enqueue_dashboard_js( $user_id ) {
+        if ( wp_script_is( 'hdlv2-client-dashboard', 'enqueued' ) ) {
+            return;
+        }
+        wp_enqueue_script(
+            'hdlv2-client-dashboard',
+            HDLV2_PLUGIN_URL . 'assets/js/hdlv2-client-dashboard.js',
+            array(),
+            HDLV2_VERSION,
+            true
+        );
+        wp_localize_script( 'hdlv2-client-dashboard', 'HDLV2_CD_POP', array(
+            'restUrl'   => esc_url_raw( rest_url( 'hdl-v2/v1' ) ),
+            'nonce'     => wp_create_nonce( 'wp_rest' ),
+            'clientId'  => (int) $user_id,
+            'todayKey'  => strtolower( date_i18n( 'l' ) ),
+        ) );
+    }
+
+    /** v0.48.23 — the 30-day challenge section, for an enrolled client only. */
+    private function challenge_section( $user_id ) {
+        if ( ! HDLV2_Challenge::enrolment( $user_id ) ) {
+            return '';
+        }
+        $this->enqueue_dashboard_js( $user_id );
+        return HDLV2_Challenge::render_section( $user_id, HDLV2_Challenge::has_full_report( $user_id ) );
     }
 
     /**
@@ -444,12 +465,16 @@ class HDLV2_Client_Dashboard {
      * than rebuild the well-tested existing UI.
      */
     private function render_populated( $user_id ) {
-        $ctx = $this->load_populated_context( $user_id );
+        $ctx       = $this->load_populated_context( $user_id );
+        $challenge = $this->challenge_section( $user_id );
 
         $h  = '<div class="hdlv2-cd-pop">';
-        $h .= $this->pop_tabs_strip();
+        $h .= $this->pop_tabs_strip( '' !== $challenge );
         $h .= '<main class="hdlv2-cd-pop-page">';
         $h .= $this->pop_today_panel( $ctx );
+        if ( '' !== $challenge ) {
+            $h .= '<section data-tab-panel="challenge" class="cdp-panel">' . $challenge . '</section>';
+        }
         $h .= $this->pop_progress_panel( $ctx );
         $h .= $this->pop_report_panel( $ctx );
         $h .= $this->pop_messages_panel();
@@ -468,10 +493,13 @@ class HDLV2_Client_Dashboard {
              . '</section>';
     }
 
-    private function pop_tabs_strip() {
+    private function pop_tabs_strip( $with_challenge = false ) {
         $h  = '<nav class="cdp-tabs" role="tablist" aria-label="Dashboard sections">';
         $h .= '<div class="cdp-tabs-inner">';
         $h .= '<button type="button" class="cdp-tab active" data-tab="today" role="tab" aria-selected="true">Today</button>';
+        if ( $with_challenge ) {
+            $h .= '<button type="button" class="cdp-tab"        data-tab="challenge" role="tab" aria-selected="false">30 days</button>';
+        }
         $h .= '<button type="button" class="cdp-tab"        data-tab="progress" role="tab" aria-selected="false">Progress</button>';
         $h .= '<button type="button" class="cdp-tab"        data-tab="report"   role="tab" aria-selected="false">My Report</button>';
         // Slice C: Messages tab — the badge is filled by hdlv2-inbox.js from
@@ -1760,6 +1788,7 @@ class HDLV2_Client_Dashboard {
         $h .= $this->hero_for_state( $ctx, $state );
         $h .= $this->path_for_state( $ctx, $state );
         $h .= $this->preview_for_state( $ctx, $state );
+        $h .= $this->challenge_section( $user_id );
         // Slice C: inbox — mid-funnel clients must see practitioner messages
         // (the betas live in these states). v0.47.82: compact launcher card +
         // bottom-right popup replaced the always-open full-width card; the

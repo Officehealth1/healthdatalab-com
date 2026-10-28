@@ -865,3 +865,197 @@ body.hdlv2-inbox-standalone {
   .hdlv2-inbox-bubble { animation: none; }
   .hdlv2-inbox-send { transition: none; }
 }
+
+/* ── 30-day challenge (v0.48.23) ─────────────────────────────────────
+ * Rendered on both dashboard states (.hdlv2-cd and .hdlv2-cd-pop), so it is
+ * scoped to its own .cd30 root. Done = status success fill, open = teal
+ * border, locked = muted grey. No animation. */
+.cd30 {
+  font-family: var(--hdlv2-cd-sans);
+  background: #fff;
+  border: 1px solid var(--hdlv2-cd-border);
+  border-radius: 14px;
+  padding: 26px 28px;
+  margin: 24px 0;
+  color: var(--hdlv2-cd-ink);
+}
+.cd30-head h2 {
+  margin: 0;
+  font-family: var(--hdlv2-cd-serif);
+  font-size: 24px;
+  font-weight: 600;
+  color: #004F59;
+}
+.cd30-head h2:focus:not(:focus-visible) { outline: none; }
+.cd30-meta {
+  margin: 6px 0 0;
+  font-size: 14px;
+  color: var(--hdlv2-cd-ink-soft);
+}
+.cd30-grid {
+  list-style: none;
+  margin: 18px 0 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 8px;
+}
+.cd30-day {
+  min-height: 44px;
+  margin: 0;
+  padding: 6px 4px;
+  border: 1px solid var(--hdlv2-cd-border);
+  border-radius: 10px;
+  background: #f8f9fb;
+  color: var(--hdlv2-cd-ink-muted);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  line-height: 1.2;
+}
+.cd30-n { font-weight: 600; font-size: 15px; }
+.cd30-date { font-size: 11px; }
+.cd30-day.is-done {
+  background: #ecfdf5;
+  border-color: #a7f3d0;
+  color: #2c3e50;
+}
+.cd30-day.is-open {
+  background: #fff;
+  border: 2px solid var(--hdlv2-cd-teal);
+  color: #004F59;
+}
+.cd30-today { margin-top: 20px; }
+.cd30-today-title {
+  margin: 0 0 12px;
+  font-family: var(--hdlv2-cd-serif);
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--hdlv2-cd-ink);
+}
+.cd30 .hdlv2-video-embed {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #000;
+}
+.cd30 .hdlv2-video-embed iframe {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+.cd30-video-coming {
+  aspect-ratio: 16 / 9;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px dashed var(--hdlv2-cd-border);
+  border-radius: 10px;
+  background: #fafbfc;
+  color: var(--hdlv2-cd-ink-muted);
+  font-size: 14px;
+}
+.cd30-tick {
+  margin-top: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.cd30-tick label {
+  font-size: 14px;
+  font-weight: 600;
+  color: #2c3e50;
+}
+.cd30-tick textarea {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  border: 1px solid var(--hdlv2-cd-border);
+  border-radius: 8px;
+  font: inherit;
+  font-size: 15px;
+  resize: vertical;
+}
+.cd30-done {
+  align-self: flex-start;
+  min-height: 44px;
+  padding: 10px 20px;
+  border: none;
+  border-radius: 8px;
+  background: var(--hdlv2-cd-teal);
+  color: #fff;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.cd30-done:hover { background: #004F59; }
+.cd30-done:disabled {
+  background: var(--hdlv2-cd-border);
+  color: var(--hdlv2-cd-ink-muted);
+  cursor: default;
+}
+.cd30-tick textarea:focus-visible,
+.cd30-done:focus-visible,
+.cd30-offer-btn:focus-visible {
+  outline: 2px solid var(--hdlv2-cd-teal);
+  outline-offset: 2px;
+}
+.cd30-error {
+  margin: 0;
+  font-size: 14px;
+  color: #dc2626;
+}
+.cd30-next {
+  margin: 14px 0 0;
+  font-size: 15px;
+  color: #2c3e50;
+}
+.cd30-offer {
+  margin-top: 24px;
+  padding: 20px 22px;
+  border: 1px solid var(--hdlv2-cd-teal-lighter);
+  border-radius: 12px;
+  background: var(--hdlv2-cd-teal-lightest);
+}
+.cd30-offer h3 {
+  margin: 0;
+  font-family: var(--hdlv2-cd-serif);
+  font-size: 18px;
+  font-weight: 600;
+  color: #004F59;
+}
+.cd30-offer p {
+  margin: 6px 0 14px;
+  font-size: 14px;
+  color: var(--hdlv2-cd-ink-soft);
+}
+.cd30-offer-btn {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 10px 18px;
+  border-radius: 8px;
+  background: var(--hdlv2-cd-teal);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+}
+.cd30-offer-btn:hover { background: #004F59; color: #fff; }
+.cd30-live {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+@media (max-width: 640px) {
+  .cd30 { padding: 20px 16px; }
+  .cd30-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+}

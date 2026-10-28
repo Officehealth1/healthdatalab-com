@@ -49,7 +49,7 @@ function is_user_logged_in() { return false; }
 function sanitize_text_field( $s ) { return is_string( $s ) ? trim( $s ) : $s; }
 function sanitize_email( $s ) { return $s; }
 function sanitize_user( $s, $strict = false ) { return $s; }
-function email_exists( $e ) { return 7; }
+function email_exists( $e ) { return empty( $GLOBALS['no_user'] ) ? 7 : false; }
 function username_exists( $u ) { return false; }
 function wp_insert_user( $a ) { return 7; }
 function is_wp_error( $x ) { return false; }
@@ -80,7 +80,7 @@ function add_query_arg( $key, $value, $url ) { return $url . ( strpos( $url, '?'
 class HDLV2_Compatibility {
     public static function is_practitioner( $uid ) { return in_array( (int) $uid, $GLOBALS['prac_ids'] ?? array( 3 ), true ); }
     public static function is_staff( $uid ) { return user_can( $uid, 'edit_posts' ) || self::is_practitioner( $uid ); }
-    public static function create_practitioner_client_link( $p, $c ) { return true; }
+    public static function create_practitioner_client_link( $p, $c ) { echo 'PRAC_LINK:' . $p . ':' . $c . "\n"; return true; }
     public static function practitioner_owns_client( $p, $c ) { return 3 === (int) $p && 42 === (int) $c; }
 }
 
@@ -221,6 +221,11 @@ switch ( $CASE ) {
         $_GET['invite'] = $hex;
         $GLOBALS['case_rows']['invite'] = (object) array( 'id' => 9, 'practitioner_id' => 3, 'client_email' => 'c@x.test', 'client_name' => 'C', 'status' => 'opened', 'expires_at' => gmdate( 'Y-m-d H:i:s', time() + 80 * DAY_IN_SECONDS ), 'source' => 'challenge', 'external_ref' => 'cs_x' );
         $GLOBALS['case_rows']['progress_by_user'] = (object) array( 'id' => 55, 'token' => 'fptoken', 'stage1_completed_at' => '2026-10-13 10:00:00' );
+        break;
+    case 'invite-challenge-newuser': // the link made the account → linked to the seller's practitioner
+        $_GET['invite'] = $hex;
+        $GLOBALS['no_user'] = true;
+        $GLOBALS['case_rows']['invite'] = (object) array( 'id' => 9, 'practitioner_id' => 3, 'client_email' => 'c@x.test', 'client_name' => 'C', 'status' => 'pending', 'expires_at' => gmdate( 'Y-m-d H:i:s', time() + 80 * DAY_IN_SECONDS ), 'source' => 'challenge', 'external_ref' => 'cs_x' );
         break;
     case 'invite-challenge-prac': // the email belongs to a practitioner → no login, no enrolment
         $_GET['invite'] = $hex;

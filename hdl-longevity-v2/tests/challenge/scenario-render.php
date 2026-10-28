@@ -22,7 +22,7 @@ $GLOBALS['options']['hdlv2_challenge_videos'] = array(
     array( 'day' => 3, 'title' => '<b>x</b> Move', 'youtube_id' => 'abcDEF12345' ),
 );
 $h = HDLV2_Challenge::render_section( 5, false );
-check( 'R1.1 the section: id challenge, labelled by its heading "Your 30 days"', false !== strpos( $h, '<section id="challenge" class="cd30" aria-labelledby="cd30-h">' ) && false !== strpos( $h, '<h2 id="cd30-h">Your 30 days</h2>' ) );
+check( 'R1.1 the section: id challenge, labelled by its heading "Your 30 days"', false !== strpos( $h, '<section id="challenge" class="cd30" aria-labelledby="cd30-h">' ) && false !== strpos( $h, '<h2 id="cd30-h" tabindex="-1">Your 30 days</h2>' ) );
 check( 'R1.2 30 cells: 2 done, 1 open, 27 locked', 30 === preg_match_all( '/<li class="cd30-day /', $h ) && 2 === cells( $h, 'done' ) && 1 === cells( $h, 'open' ) && 27 === cells( $h, 'locked' ) );
 check( 'R1.3 the header line "Day 3 of 30 · 2 done" and the streak "2 days in a row"', false !== strpos( $h, 'Day 3 of 30 · 2 done' ) && false !== strpos( $h, '2 days in a row' ) );
 check( 'R1.4 one form, for day 3, labelled textarea of 500, the Done button', 1 === substr_count( $h, '<form' ) && false !== strpos( $h, '<form class="cd30-tick" data-day="3"' )

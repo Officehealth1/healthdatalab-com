@@ -5,6 +5,7 @@
  *   - Day picker on Today tab — swap which day's actions are visible
  *   - Action ticking — POST /flight-plan/tick, optimistic UI, rollback on error
  *   - Live "X of Y done" + per-day progress bar updates after each tick
+ *   - v0.48.23: the 30-day challenge "Done for today" form (every state)
  *
  * Authoritative source = wp_hdlv2_flight_plan_ticks. The same row drives the
  * practitioner's Flight Plan tab in /clients/, so a tick here is visible there
@@ -55,7 +56,8 @@
       });
     });
 
-    var hash = (window.location.hash || '').replace(/^#tab-/, '');
+    // v0.48.23 — #challenge (the challenge link's landing) opens its tab too.
+    var hash = (window.location.hash || '').replace(/^#(tab-)?/, '');
     if (hash && root.querySelector('.cdp-tab[data-tab="' + hash + '"]')) {
       activate(hash);
     }
@@ -218,9 +220,71 @@
   }
 
   // ────────────────────────────────────────────────────────────────────
+  //  30-day challenge (v0.48.23) — POST /challenge/tick, then swap the
+  //  section body for the server's re-render. Delegated from document so it
+  //  works on every dashboard state and after each swap. The button stays
+  //  disabled while the request is in flight; an error re-enables it.
+  // ────────────────────────────────────────────────────────────────────
+  var CHALLENGE_CODES = /^(day_locked|invalid_day|not_enrolled)$/;
+
+  function initChallenge() {
+    document.addEventListener('submit', function (e) {
+      var form = e.target;
+      if (!form.classList || !form.classList.contains('cd30-tick')) return;
+      e.preventDefault();
+      var btn = form.querySelector('.cd30-done');
+      var err = form.querySelector('.cd30-error');
+      var note = form.querySelector('textarea');
+      var day = parseInt(form.getAttribute('data-day'), 10);
+      if (!CFG.restUrl || !CFG.nonce || !btn || btn.disabled) return;
+      btn.disabled = true;
+      if (err) err.hidden = true;
+
+      fetch(CFG.restUrl + '/challenge/tick', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-WP-Nonce': CFG.nonce
+        },
+        body: JSON.stringify({ day: day, note: note ? note.value : '' })
+      })
+        .then(function (r) {
+          return r.json().catch(function () { return null; }).then(function (body) {
+            if (!r.ok || !body || !body.html) {
+              // Our own refusals carry a plain sentence; anything else does not.
+              throw { userMessage: body && CHALLENGE_CODES.test(body.code || '') ? body.message : '' };
+            }
+            return body;
+          });
+        })
+        .then(function (body) {
+          var section = document.getElementById('challenge');
+          var tpl = document.createElement('template');
+          tpl.innerHTML = body.html;
+          var fresh = tpl.content.querySelector('.cd30-body');
+          var old = section && section.querySelector('.cd30-body');
+          if (old && fresh) old.replaceWith(fresh);
+          var heading = document.getElementById('cd30-h');
+          if (heading) heading.focus();
+          var live = section && section.querySelector('.cd30-live');
+          if (live) live.textContent = 'Day ' + day + ' saved';
+        })
+        .catch(function (ex) {
+          btn.disabled = false;
+          if (err) {
+            err.textContent = (ex && ex.userMessage) || 'Could not save. Try again.';
+            err.hidden = false;
+          }
+        });
+    });
+  }
+
+  // ────────────────────────────────────────────────────────────────────
   //  Boot
   // ────────────────────────────────────────────────────────────────────
   function boot() {
+    initChallenge();
     document.querySelectorAll('.hdlv2-cd-pop').forEach(function (root) {
       initTabs(root);
       root.querySelectorAll('.cdp-week-card').forEach(function (card) {
