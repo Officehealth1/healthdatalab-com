@@ -926,7 +926,7 @@ body.hdlv2-inbox-standalone {
   border: 2px solid var(--hdlv2-cd-teal);
   color: #004F59;
 }
-.cd30-today { margin-top: 20px; }
+.cd30-today { margin-top: 20px; max-width: 720px; }
 .cd30-today-title {
   margin: 0 0 12px;
   font-family: var(--hdlv2-cd-serif);
@@ -949,7 +949,7 @@ body.hdlv2-inbox-standalone {
   border: 0;
 }
 .cd30-video-coming {
-  aspect-ratio: 16 / 9;
+  min-height: 96px;
   display: flex;
   align-items: center;
   justify-content: center;
