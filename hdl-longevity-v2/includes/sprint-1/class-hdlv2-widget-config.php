@@ -471,10 +471,10 @@ class HDLV2_Widget_Config {
         // Report: its Stage 1 takes the public path below (pending lead,
         // Stage 1 PDF with the offer page), as a visitor with no link does.
         // Its own practitioner's paid widget still takes it (Stage 1 comes
-        // with the challenge).
-        $challenge_paid = false;
+        // with the challenge), for the buyer's own email only (see below).
+        $challenge_paid = null;
         if ( $invite && isset( $invite->source ) && 'challenge' === $invite->source ) {
-            $challenge_paid = (int) $invite->practitioner_id === $practitioner_id;
+            $challenge_paid = (int) $invite->practitioner_id === $practitioner_id ? $invite : null;
             $invite         = null;
         }
 
@@ -534,6 +534,11 @@ class HDLV2_Widget_Config {
         // else's assessment.
         if ( $is_full && $invite_id && 0 !== strcasecmp( $visitor_email, (string) $invite->client_email ) ) {
             return new WP_Error( 'email_mismatch', 'This personal link belongs to another email address. Please use the email you bought the report with.', array( 'status' => 403 ) );
+        }
+        // v0.48.23 — the challenge link is reusable, so past a paid gate it
+        // opens Stage 1 for the buyer's own email only.
+        if ( $paid_mode && $challenge_paid && 0 !== strcasecmp( $visitor_email, (string) $challenge_paid->client_email ) ) {
+            return new WP_Error( 'email_mismatch', 'This personal link belongs to another email address. Please use the email you bought the challenge with.', array( 'status' => 403 ) );
         }
 
         // ── Email validation — format + MX record (catches typos + dead domains). ──

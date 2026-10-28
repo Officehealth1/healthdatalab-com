@@ -81,6 +81,21 @@ $w->invite = invite_row( array( 'id' => 93, 'practitioner_id' => 206, 'source' =
 $r = post_lead( $p );
 check( 'C3.4 paid-mode seller: another practitioner\'s challenge link → 403, nothing saved', 403 === status_of( $r ) && ! $w->inserts );
 
+$w = setup( 'paid' );
+$w->invite = invite_row( array( 'id' => 94, 'practitioner_id' => 122, 'source' => 'challenge', 'client_email' => 'ch1@example.test' ) );
+$p2 = lead_params( 'someone.else@example.test', TOKEN );
+$p2['practitioner_id'] = 122;
+$r = post_lead( $p2 );
+check( 'C3.5 paid-mode seller: the challenge link only opens Stage 1 for its own email → 403, nothing saved', 403 === status_of( $r ) && 'email_mismatch' === code_of( $r ) && ! $w->inserts );
+$p2['email'] = 'CH1@example.test';
+$r = post_lead( $p2 );
+check( 'C3.6 …the same email in any case is fine', is_array( $r ) && 1 === count( $w->inserts_into( 'hdlv2_widget_leads' ) ) );
+$w = setup();
+$w->invite = invite_row( array( 'id' => 95, 'practitioner_id' => 122, 'source' => 'challenge', 'client_email' => 'ch1@example.test' ) );
+$p2['email'] = 'someone.else@example.test';
+$r = post_lead( $p2 );
+check( 'C3.7 open-mode seller: any email (the public path is open to all anyway)', is_array( $r ) && 1 === count( $w->inserts_into( 'hdlv2_widget_leads' ) ) );
+
 echo "── C4. nothing else uses up or lists a challenge link ──\n";
 $root = dirname( __DIR__, 2 );
 $sf = file_get_contents( $root . '/includes/sprint-2/class-hdlv2-staged-form.php' );
