@@ -79,7 +79,11 @@ class HDLV2_Challenge {
         return home_url( '/' . trim( apply_filters( 'hdlv2_client_dashboard_slug', 'my-dashboard' ), '/' ) . '/#challenge' );
     }
 
-    /** Stage 1 on file: a client record past Stage 1, or a lead for this email with the seller. */
+    /**
+     * Stage 1 on file: a client record past Stage 1, or a lead for this email
+     * with the seller that was not rejected (v0.48.24: after a reject the
+     * link opens Stage 1 again).
+     */
     public static function stage1_on_file( $user_id ) {
         global $wpdb;
         if ( $wpdb->get_var( $wpdb->prepare(
@@ -93,7 +97,7 @@ class HDLV2_Challenge {
         $user      = get_userdata( $user_id );
         return $enrolment && $user && (bool) $wpdb->get_var( $wpdb->prepare(
             "SELECT 1 FROM {$wpdb->prefix}hdlv2_widget_leads
-             WHERE practitioner_user_id = %d AND visitor_email = %s LIMIT 1",
+             WHERE practitioner_user_id = %d AND visitor_email = %s AND status <> 'rejected' LIMIT 1",
             (int) $enrolment['practitioner_id'],
             $user->user_email
         ) );
@@ -171,8 +175,10 @@ class HDLV2_Challenge {
         if ( null !== $open && null !== $days[ $open ]['done_at'] ) {
             $next = gmdate( 'Y-m-d 00:00:00', strtotime( substr( $days[ $open ]['done_at'], 0, 10 ) . ' UTC' ) + DAY_IN_SECONDS );
         }
+        // v0.48.24 — a run whose last tick is older than yesterday (UTC) has lapsed.
+        $lapsed = $done && substr( $days[ $done ]['done_at'], 0, 10 ) < gmdate( 'Y-m-d', $now - DAY_IN_SECONDS );
         $streak = 0;
-        for ( $n = $done; $n >= 1; $n-- ) {
+        for ( $n = $lapsed ? 0 : $done; $n >= 1; $n-- ) {
             $streak++;
             if ( 1 === $n || self::day_before( $days[ $n ]['done_at'] ) !== substr( $days[ $n - 1 ]['done_at'], 0, 10 ) ) {
                 break;
@@ -356,7 +362,10 @@ class HDLV2_Challenge {
         if ( $state['complete'] ) {
             $h .= '<p class="cd30-next">You did all 30 days.</p>';
         } elseif ( null !== $state['next_opens_at'] ) {
-            $h .= '<p class="cd30-next">Day ' . $day . ' done. Day ' . ( $day + 1 ) . ' opens tomorrow.</p>';
+            // v0.48.24 — the day turns at midnight UTC (D1); the dashboard JS
+            // rewrites this line in the buyer's own clock.
+            $opens = gmdate( 'Y-m-d\TH:i:s\Z', strtotime( $state['next_opens_at'] . ' UTC' ) );
+            $h    .= '<p class="cd30-next" data-next-opens-at="' . esc_attr( $opens ) . '" data-day="' . $day . '">Day ' . $day . ' done. Day ' . ( $day + 1 ) . ' opens after midnight UTC.</p>';
         } else {
             $h .= '<form class="cd30-tick" data-day="' . $day . '">';
             $h .= '<label for="cd30-note">How did it go? (optional)</label><textarea id="cd30-note" name="note" maxlength="500" rows="3"></textarea>';

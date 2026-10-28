@@ -81,6 +81,14 @@ $w = fresh();
 enrol_client( 5 );
 $w->seed( 5, 1, '2026-10-28' );
 check( 'U4.4 one tick → streak 1', 1 === HDLV2_Challenge::state( 5, at( '2026-10-28 12:00:00' ) )['streak'] );
+// v0.48.24 (F6) — a run lapses once its last tick is older than yesterday (UTC).
+$w = fresh();
+enrol_client( 5 );
+$w->seed( 5, 5, '2026-11-05' );
+$w->rows[5][2]->done_at = '2026-10-30 09:00:00';
+check( 'U4.5 last tick yesterday (UTC) → the run still counts (3)', 3 === HDLV2_Challenge::state( 5, at( '2026-11-06 23:59:59' ) )['streak'] );
+check( 'U4.6 last tick the day before yesterday → streak 0', 0 === HDLV2_Challenge::state( 5, at( '2026-11-07 00:00:01' ) )['streak'] );
+check( 'U4.7 three idle weeks → streak 0, the done count kept', 0 === ( $s = HDLV2_Challenge::state( 5, at( '2026-11-26 10:00:00' ) ) )['streak'] && 5 === $s['done_count'] );
 
 echo "── U5. the timeline entry ──\n";
 $w = fresh();
@@ -142,6 +150,14 @@ $w = fresh();
 $GLOBALS['users'][5] = 'buyer@example.test';
 $w->leads = array( '206|buyer@example.test' );
 check( 'U9.4 a lead with another practitioner does not count', null === HDLV2_Challenge::open_link( 5, $inv ) );
+// v0.48.24 (F2) — a rejected lead is not Stage 1 on file: the link opens Stage 1 again.
+$w = fresh();
+$GLOBALS['users'][5] = 'buyer@example.test';
+$w->leads    = array( '122|buyer@example.test' );
+$w->rejected = array( '122|buyer@example.test' );
+check( 'U9.5 the only lead was rejected → not on file, the widget page renders', null === HDLV2_Challenge::open_link( 5, $inv ) && null !== HDLV2_Challenge::enrolment( 5 ) && false === HDLV2_Challenge::stage1_on_file( 5 ) );
+$w->rejected = array();
+check( 'U9.6 a pending or confirmed lead → on file', true === HDLV2_Challenge::stage1_on_file( 5 ) );
 
 echo "── U10. the link opened in a browser that is already signed in ──\n";
 $hex = str_repeat( 'ab', 32 );

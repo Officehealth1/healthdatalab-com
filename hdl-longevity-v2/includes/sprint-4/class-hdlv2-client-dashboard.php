@@ -2112,6 +2112,8 @@ class HDLV2_Client_Dashboard {
         // widget page's default practitioner_id. Statuses pending/opened are the
         // pre-submit, still-usable states (opened is set on magic-link login);
         // completed/expired/revoked are intentionally excluded.
+        // v0.48.24 — a challenge link is a sale, not a practitioner invite:
+        // a newer one never displaces the practitioner's own "Start now" link.
         $invite_token = '';
         $email = $user ? (string) $user->user_email : '';
         if ( $email !== '' ) {
@@ -2119,7 +2121,7 @@ class HDLV2_Client_Dashboard {
             $invite = $wpdb->get_row( $wpdb->prepare(
                 "SELECT token FROM {$wpdb->prefix}hdlv2_widget_invites
                  WHERE client_email = %s AND status IN ('pending','opened')
-                   AND source <> 'paid_stage1'
+                   AND source NOT IN ('paid_stage1','challenge')
                    AND expires_at > %s
                  ORDER BY id DESC LIMIT 1",
                 $email, $now

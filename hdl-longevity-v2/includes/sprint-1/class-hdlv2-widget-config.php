@@ -528,6 +528,17 @@ class HDLV2_Widget_Config {
             $params['visitor_region'] ?? ''
         );
 
+        // ── Email validation — format + MX record (catches typos + dead domains). ──
+        // v0.48.24 — before the link-email checks below, so an empty or
+        // malformed email gets this answer, not "another email address".
+        if ( ! $visitor_email || ! is_email( $visitor_email ) ) {
+            return new WP_Error( 'invalid_email', 'Please enter a valid email address.', array( 'status' => 400 ) );
+        }
+        $email_check = self::validate_email_deliverable( $visitor_email );
+        if ( is_wp_error( $email_check ) ) {
+            return $email_check;
+        }
+
         // v0.48.15 — a Full Report ticket was bought for one email. The answers
         // land on that email's client record, never on one the visitor types:
         // the record is found by email, so a typed address would open someone
@@ -539,15 +550,6 @@ class HDLV2_Widget_Config {
         // opens Stage 1 for the buyer's own email only.
         if ( $paid_mode && $challenge_paid && 0 !== strcasecmp( $visitor_email, (string) $challenge_paid->client_email ) ) {
             return new WP_Error( 'email_mismatch', 'This personal link belongs to another email address. Please use the email you bought the challenge with.', array( 'status' => 403 ) );
-        }
-
-        // ── Email validation — format + MX record (catches typos + dead domains). ──
-        if ( ! $visitor_email || ! is_email( $visitor_email ) ) {
-            return new WP_Error( 'invalid_email', 'Please enter a valid email address.', array( 'status' => 400 ) );
-        }
-        $email_check = self::validate_email_deliverable( $visitor_email );
-        if ( is_wp_error( $email_check ) ) {
-            return $email_check;
         }
 
         // Build Stage 1 answers from widget payload
@@ -3598,10 +3600,12 @@ class HDLV2_Widget_Config {
         }
 
         global $wpdb;
+        // v0.48.24 — a challenge link is a sale, not a practitioner invite:
+        // never listed (see the Sent Invites queries), so never deleted here.
         $deleted = $wpdb->query( $wpdb->prepare(
             "DELETE FROM {$wpdb->prefix}hdlv2_widget_invites
              WHERE id = %d AND practitioner_id = %d AND status IN ('expired','revoked','completed')
-               AND source <> 'paid_stage1'",
+               AND source NOT IN ('paid_stage1','challenge')",
             $invite_id,
             $user_id
         ) );

@@ -52,7 +52,9 @@ enrol_client( 5 );
 $w->seed( 5, 3, $today );
 $h = HDLV2_Challenge::render_section( 5, false );
 check( 'R3.1 no form, no open cell, 3 done', false === strpos( $h, '<form' ) && 0 === cells( $h, 'open' ) && 3 === cells( $h, 'done' ) );
-check( 'R3.2 "Day 4 opens tomorrow"', false !== strpos( $h, 'Day 4 opens tomorrow' ) );
+// v0.48.24 (F4) — the line carries the real opening instant; the JS says it in the buyer's clock.
+$opens = gmdate( 'Y-m-d', time() + DAY_IN_SECONDS ) . 'T00:00:00Z';
+check( 'R3.2 the next line carries the opening instant (ISO, UTC) and says "after midnight UTC" without JS', false !== strpos( $h, '<p class="cd30-next" data-next-opens-at="' . $opens . '" data-day="3">Day 3 done. Day 4 opens after midnight UTC.</p>' ) );
 
 echo "── R4. the open day has no video yet ──\n";
 $w = fresh();
@@ -101,6 +103,9 @@ check( 'R8.2 no accent rails in the cd30 rules', 0 === preg_match( '/\.cd30[^{]*
 check( 'R8.3 phone: 5 cells a row, 44 px targets', false !== strpos( $css, 'repeat(5, minmax(0, 1fr))' ) && false !== strpos( $css, 'min-height: 44px' ) );
 check( 'R8.4 JS posts to /challenge/tick with the REST nonce, never a native dialog', false !== strpos( $js, "'/challenge/tick'" ) && false !== strpos( $js, "'X-WP-Nonce'" ) && 0 === preg_match( '/\b(alert|confirm|prompt)\(/', $js ) );
 check( 'R8.5 #challenge opens the tab on the full dashboard', false !== strpos( $js, 'replace(/^#(tab-)?/, \'\')' ) );
+check( 'R8.8 JS rewrites the next line from data-next-opens-at in the browser\'s clock, at load and after each save', false !== strpos( $js, "'.cd30-next[data-next-opens-at]'" ) && false !== strpos( $js, "toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })" )
+    && 2 === substr_count( $js, 'showOpensAt(' ) - 1 );
+check( 'R8.9 a timed-out session says so: the nonce error gets its own sentence', false !== strpos( $js, "'rest_cookie_invalid_nonce'" ) && false !== strpos( $js, 'Your session timed out. Copy your note, reload the page, then tick again.' ) );
 $widget = file_get_contents( dirname( __DIR__, 2 ) . '/widget/hdl-lead-magnet.js' );
 check( 'R8.6 widget: a challenge link gets the public result page (no Full Report promise)', false !== strpos( $widget, "invite.source !== 'paid_stage1' && invite.source !== 'challenge'" ) );
 check( 'R8.7 widget: after a challenge Stage 1 is saved, a button to the 30 days', false !== strpos( $widget, "/my-dashboard/#challenge" ) && false !== strpos( $widget, 'Start your 30 days' ) );

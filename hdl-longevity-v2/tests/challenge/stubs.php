@@ -76,6 +76,7 @@ class ChallengeWpdb {
     public $fail_insert = false;
     public $stage1_progress = array(); // client ids with a client record whose Stage 1 is done
     public $leads = array();           // "practitioner|email" of Stage 1 leads on file
+    public $rejected = array();        // …of those, the ones the practitioner rejected
     public $invites = array();         // challenge invites by token (pending/opened, unexpired)
     private $args = array();
     private $next_id = 70;
@@ -97,7 +98,11 @@ class ChallengeWpdb {
     public function get_var( $sql ) {
         $this->queries[] = $sql;
         if ( false !== strpos( $sql, 'hdlv2_form_progress' ) ) return in_array( (int) $this->args[0], $this->stage1_progress, true ) ? '1' : null;
-        if ( false !== strpos( $sql, 'hdlv2_widget_leads' ) ) return in_array( $this->args[0] . '|' . strtolower( $this->args[1] ), $this->leads, true ) ? '1' : null;
+        if ( false !== strpos( $sql, 'hdlv2_widget_leads' ) ) {
+            $key = $this->args[0] . '|' . strtolower( $this->args[1] );
+            $out = in_array( $key, $this->leads, true ) && ! ( in_array( $key, $this->rejected, true ) && false !== strpos( $sql, "status <> 'rejected'" ) );
+            return $out ? '1' : null;
+        }
         return null;
     }
     public function get_row( $sql ) {

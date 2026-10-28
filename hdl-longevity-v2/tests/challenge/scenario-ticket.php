@@ -11,12 +11,18 @@ error_reporting( E_ALL & ~E_DEPRECATED & ~E_WARNING & ~E_NOTICE );
 require dirname( __DIR__ ) . '/full-report/stubs.php';
 define( 'HDL_STAGE1_TICKET_KEY', 'k-test-key' );
 load_sources();
+require_once dirname( __DIR__, 2 ) . '/includes/sprint-4/class-hdlv2-challenge.php';
+$LOG = tempnam( sys_get_temp_dir(), 'hdlv2-ch' );
+ini_set( 'error_log', $LOG );
+register_shutdown_function( function () use ( $LOG ) { @unlink( $LOG ); } );
 
 function setup( $mode = 'open', $db = '3.31' ) {
     global $wpdb;
     fresh_wpdb( $mode );
     $wpdb->config->practitioner_user_id = 122;
-    $GLOBALS['options'] = array( 'hdlv2_db_version' => $db );
+    $GLOBALS['options']     = array( 'hdlv2_db_version' => $db );
+    $GLOBALS['email_users'] = array();
+    $GLOBALS['usermeta']    = array();
     return $wpdb;
 }
 function mint_req( $over = array() ) {
@@ -30,7 +36,8 @@ echo "── C1. product challenge ──\n";
 $w = setup();
 $r = mint_req();
 $row = ticket_rows( $w )[0]['data'] ?? array();
-check( 'C1.1 200 with exactly { token, expires_at, idempotent, open_url }', is_array( $r ) && array_keys( $r ) === array( 'token', 'expires_at', 'idempotent', 'open_url' ) && false === $r['idempotent'] );
+check( 'C1.1 200 with exactly { token, expires_at, idempotent, open_url, already_enrolled }', is_array( $r ) && array_keys( $r ) === array( 'token', 'expires_at', 'idempotent', 'open_url', 'already_enrolled' ) && false === $r['idempotent'] );
+check( 'C1.1b a first purchase: already_enrolled false', is_array( $r ) && false === $r['already_enrolled'] );
 check( 'C1.2 open_url opens the widget page with the ticket', is_array( $r ) && 'https://stby.example.test/rate-of-ageing-widget/?invite=' . $r['token'] === $r['open_url'] );
 check( 'C1.3 the row: source challenge, the ref, 90 days, pending', 'challenge' === ( $row['source'] ?? '' ) && 'cs_test_ch1' === ( $row['external_ref'] ?? '' ) && 'pending' === ( $row['status'] ?? '' )
     && abs( strtotime( $row['expires_at'] . ' UTC' ) - ( time() + 90 * DAY_IN_SECONDS ) ) < 60 );
@@ -50,6 +57,19 @@ $w = setup();
 $w->tickets['cs_test_ch1'] = (object) array( 'id' => 9, 'token' => str_repeat( 'cd', 32 ), 'expires_at' => '2030-01-01 00:00:00', 'practitioner_id' => 122, 'source' => 'full_report', 'client_email' => 'ch1@example.test', 'client_name' => 'Ch One' );
 $r = mint_req();
 check( 'C1.9 a Full Report ref reused for a challenge → 409 external_ref_conflict', 409 === status_of( $r ) && 'external_ref_conflict' === code_of( $r ) );
+
+// v0.48.24 (F5) — a second purchase by an enrolled email is said, never acted on.
+$w = setup();
+$GLOBALS['email_users'] = array( 'ch1@example.test' => 505 );
+$r = mint_req();
+check( 'C1.10 an account that is not on the challenge → already_enrolled false', is_array( $r ) && false === $r['already_enrolled'] );
+$GLOBALS['usermeta'][505]['hdlv2_challenge'] = json_encode( array( 'started_at' => '2026-10-01 08:00:00', 'practitioner_id' => 122, 'external_ref' => 'cs_old', 'invite_id' => 3, 'source' => 'stripe' ) );
+file_put_contents( $LOG, '' );
+$r = mint_req( array( 'external_ref' => 'cs_test_ch2', 'email' => 'CH1@example.test' ) );
+$log = (string) file_get_contents( $LOG );
+check( 'C1.11 an enrolled email (any case), new ref → a ticket, already_enrolled true', is_array( $r ) && ! empty( $r['token'] ) && true === $r['already_enrolled'] && false === $r['idempotent'] );
+check( 'C1.12 …one log line naming the user id and the ref, never the email', false !== strpos( $log, '[HDLV2] challenge ticket for an enrolled email: user 505, ref cs_test_ch2' ) && false === stripos( $log, 'ch1@example.test' ) );
+check( 'C1.13 …and nothing else written: the ticket row only, no enrolment change', 2 === count( ticket_rows( $w ) ) && false !== strpos( $GLOBALS['usermeta'][505]['hdlv2_challenge'], 'cs_old' ) && ! $GLOBALS['mails'] );
 
 echo "── C2. stage1 and full_report answers unchanged ──\n";
 $w = setup( 'paid' );
@@ -96,11 +116,32 @@ $p2['email'] = 'someone.else@example.test';
 $r = post_lead( $p2 );
 check( 'C3.7 open-mode seller: any email (the public path is open to all anyway)', is_array( $r ) && 1 === count( $w->inserts_into( 'hdlv2_widget_leads' ) ) );
 
+// v0.48.24 (F8) — an empty or malformed email is a validation error first.
+foreach ( array( '' => 'empty', 'not-an-email' => 'malformed' ) as $bad => $what ) {
+    $w = setup( 'paid' );
+    $w->invite = invite_row( array( 'id' => 96, 'practitioner_id' => 122, 'source' => 'challenge', 'client_email' => 'ch1@example.test' ) );
+    $p3 = lead_params( $bad, TOKEN );
+    $p3['practitioner_id'] = 122;
+    $r = post_lead( $p3 );
+    check( "C3.8 paid-mode challenge link, $what email → 400 invalid_email, nothing saved", 400 === status_of( $r ) && 'invalid_email' === code_of( $r ) && ! $w->inserts );
+    $w = setup();
+    $w->invite = invite_row( array( 'id' => 97, 'practitioner_id' => 122, 'source' => 'full_report', 'client_email' => 'ch1@example.test' ) );
+    $r = post_lead( $p3 );
+    check( "C3.9 Full Report link, $what email → 400 invalid_email, nothing saved", 400 === status_of( $r ) && 'invalid_email' === code_of( $r ) && ! $w->inserts );
+}
+
 echo "── C4. nothing else uses up or lists a challenge link ──\n";
 $root = dirname( __DIR__, 2 );
 $sf = file_get_contents( $root . '/includes/sprint-2/class-hdlv2-staged-form.php' );
 $wc = file_get_contents( $root . '/includes/sprint-1/class-hdlv2-widget-config.php' );
 check( 'C4.1 Stage 1 finished on the form does not complete a challenge link', 1 === substr_count( $sf, "AND source NOT IN ('paid_stage1','challenge')" ) );
 check( 'C4.2 the practitioner\'s Sent Invites lists leave challenge links out (both)', 2 === substr_count( $wc, "WHERE practitioner_id = %d AND source NOT IN ('paid_stage1','challenge')" ) );
+// v0.48.24 (F1, F3) — a challenge link is a sale, not a practitioner invite.
+$cs = file_get_contents( $root . '/includes/sprint-4/class-hdlv2-client-status.php' );
+$cd = file_get_contents( $root . '/includes/sprint-4/class-hdlv2-client-dashboard.php' );
+check( 'C4.3 deleting a client never revokes their challenge link', 1 === substr_count( $cs, "AND status IN ('pending','opened')\n                   AND source NOT IN ('paid_stage1','challenge')" ) && 0 === substr_count( $cs, "<> 'paid_stage1'" ) );
+check( 'C4.4 the dashboard "Start now" never carries a challenge link', 1 === substr_count( $cd, "AND source NOT IN ('paid_stage1','challenge')\n                   AND expires_at > %s" ) );
+check( 'C4.5 …the "is a V2 client" lookup still counts a challenge buyer (the one bare filter left)', 1 === substr_count( $cd, "<> 'paid_stage1'" ) && 1 === substr_count( $cd, "WHERE client_email = %s AND source <> 'paid_stage1' LIMIT 1" ) );
+check( 'C4.6 the practitioner\'s invite delete: same filter as its lists, no bare one left', 3 === substr_count( $wc, "source NOT IN ('paid_stage1','challenge')" ) && 0 === substr_count( $wc, "<> 'paid_stage1'" ) );
 
 done();

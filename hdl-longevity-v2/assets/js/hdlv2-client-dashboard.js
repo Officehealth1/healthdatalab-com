@@ -226,8 +226,26 @@
   //  disabled while the request is in flight; an error re-enables it.
   // ────────────────────────────────────────────────────────────────────
   var CHALLENGE_CODES = /^(day_locked|invalid_day|not_enrolled)$/;
+  var SESSION_TIMED_OUT = 'Your session timed out. Copy your note, reload the page, then tick again.';
+
+  // v0.48.24 — the next day opens at midnight UTC; say when that is on the
+  // buyer's own clock ("today" when it falls on their current date).
+  function challengeOpensText(day, at, now) {
+    return 'Day ' + day + ' done. Day ' + (day + 1) + ' opens ' +
+      (at.toDateString() === now.toDateString() ? 'today' : 'tomorrow') + ' at ' +
+      at.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + '.';
+  }
+
+  function showOpensAt(root) {
+    root.querySelectorAll('.cd30-next[data-next-opens-at]').forEach(function (p) {
+      var at = new Date(p.getAttribute('data-next-opens-at'));
+      var day = parseInt(p.getAttribute('data-day'), 10);
+      if (!isNaN(at.getTime()) && day) p.textContent = challengeOpensText(day, at, new Date());
+    });
+  }
 
   function initChallenge() {
+    showOpensAt(document);
     document.addEventListener('submit', function (e) {
       var form = e.target;
       if (!form.classList || !form.classList.contains('cd30-tick')) return;
@@ -252,8 +270,13 @@
         .then(function (r) {
           return r.json().catch(function () { return null; }).then(function (body) {
             if (!r.ok || !body || !body.html) {
-              // Our own refusals carry a plain sentence; anything else does not.
-              throw { userMessage: body && CHALLENGE_CODES.test(body.code || '') ? body.message : '' };
+              // Our own refusals carry a plain sentence; an expired nonce
+              // (v0.48.24) needs a reload; anything else says nothing useful.
+              var code = (body && body.code) || '';
+              throw {
+                userMessage: code === 'rest_cookie_invalid_nonce' ? SESSION_TIMED_OUT
+                  : CHALLENGE_CODES.test(code) ? body.message : ''
+              };
             }
             return body;
           });
@@ -264,7 +287,10 @@
           tpl.innerHTML = body.html;
           var fresh = tpl.content.querySelector('.cd30-body');
           var old = section && section.querySelector('.cd30-body');
-          if (old && fresh) old.replaceWith(fresh);
+          if (old && fresh) {
+            old.replaceWith(fresh);
+            showOpensAt(fresh);
+          }
           var heading = document.getElementById('cd30-h');
           if (heading) heading.focus();
           var live = section && section.querySelector('.cd30-live');

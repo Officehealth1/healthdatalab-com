@@ -16,7 +16,8 @@
  * 'challenge').
  * Response: { token, expires_at, idempotent }; a 'full_report' ticket adds
  * { open_url, stage1_found, auto_confirmed } (v0.48.15, see mint_full_report()),
- * a 'challenge' ticket adds { open_url } (v0.48.23, see mint_challenge()).
+ * a 'challenge' ticket adds { open_url, already_enrolled } (v0.48.23/24,
+ * see mint_challenge()).
  *
  * The same external_ref always returns the same token. That is enforced by
  * the UNIQUE key on widget_invites.external_ref: insert first, read the
@@ -186,17 +187,28 @@ class HDL_Stage1_Ticket {
      * for the whole 90 days: Stage 1 first if it is not on file (free, the
      * public path), then the challenge on their dashboard. No lead confirm,
      * no email: the selling site emails open_url itself.
+     *
+     * v0.48.24 — already_enrolled: this email's account is on the challenge
+     * already. The link changes nothing for it (the 30 days never restart),
+     * so with idempotent false it is a second purchase the selling site can
+     * stop or refund (restart vs refund is Matthew's call, DF2).
      */
     private static function mint_challenge( $practitioner_id, $email, $name, $external_ref, $days ) {
         $ticket = self::mint( $practitioner_id, $email, $name, $external_ref, $days, 'challenge' );
         if ( is_wp_error( $ticket ) ) {
             return $ticket;
         }
+        $user_id  = (int) email_exists( $email );
+        $enrolled = $user_id && class_exists( 'HDLV2_Challenge' ) && null !== HDLV2_Challenge::enrolment( $user_id );
+        if ( $enrolled ) {
+            error_log( sprintf( '[HDLV2] challenge ticket for an enrolled email: user %d, ref %s', $user_id, $external_ref ) );
+        }
         return rest_ensure_response( array(
-            'token'      => $ticket['token'],
-            'expires_at' => self::iso( $ticket['expires_at'] ),
-            'idempotent' => $ticket['idempotent'],
-            'open_url'   => site_url( '/rate-of-ageing-widget/?invite=' . $ticket['token'] ),
+            'token'            => $ticket['token'],
+            'expires_at'       => self::iso( $ticket['expires_at'] ),
+            'idempotent'       => $ticket['idempotent'],
+            'open_url'         => site_url( '/rate-of-ageing-widget/?invite=' . $ticket['token'] ),
+            'already_enrolled' => $enrolled,
         ) );
     }
 

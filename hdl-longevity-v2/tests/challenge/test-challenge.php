@@ -13,6 +13,11 @@ foreach ( array( 'scenario-unlock.php', 'scenario-render.php', 'scenario-ticket.
     echo "── $f: " . end( $out ) . "\n";
     if ( 0 !== $code ) { $fail = 1; echo implode( "\n", preg_grep( '/FAIL|Fatal|Error/', $out ) ) . "\n"; }
 }
+// v0.48.24 — the opening time in the buyer's clock runs the real JS under node.
+$out = array();
+exec( 'node ' . escapeshellarg( __DIR__ . '/scenario-opens-at.js' ) . ' 2>&1', $out, $code );
+echo '── scenario-opens-at.js: ' . ( $out ? end( $out ) : 'node did not run' ) . "\n";
+if ( 0 !== $code ) { $fail = 1; echo implode( "\n", preg_grep( '/FAIL|Error|not found/', $out ) ) . "\n"; }
 
 echo "── ?invite= with a challenge link (real init handler) ──\n";
 $n = 0; $bad = 0;
