@@ -1579,6 +1579,8 @@ class HDLV2_Client_Status {
             'hdlv2_monthly_summaries', 'hdlv2_jobs', 'hdlv2_audio_extractions',
             // v0.28.0 — practitioner-appended consultation addenda (DB v3.1).
             'hdlv2_consultation_addenda',
+            // v0.48.23 — the 30-day challenge's ticked days (DB v3.31).
+            'hdlv2_challenge_days',
         );
 
         $tables_present = 0;

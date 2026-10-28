@@ -45,6 +45,7 @@ class FakeWpdb {
     public function get_var( $q ) {
         if ( false !== strpos( $q, 'COLUMN_TYPE' ) ) return $this->source_type;
         if ( false !== strpos( $q, 'INFORMATION_SCHEMA.STATISTICS' ) ) return $this->has_ref_key ? '1' : '0';
+        if ( false !== strpos( $q, 'INFORMATION_SCHEMA.TABLES' ) ) return '1'; // Phase AL (v3.31): dbDelta made hdlv2_challenge_days
         if ( preg_match( "/TABLE_NAME = 'wp_(\w+)' AND COLUMN_NAME = '(\w+)'/", $q, $m ) ) {
             return isset( $this->columns[ $m[1] . '.' . $m[2] ] ) ? '1' : '0';
         }
@@ -94,7 +95,7 @@ echo "── J. Phase AJ (v3.29) migration ──\n";
 $wpdb = new FakeWpdb();
 $wpdb->source_type = "enum('practitioner','automation','paid_stage1')";
 $ret = migrate();
-ok( 'J.1 from 3.28: success, one ALTER', true === $ret && 1 === count( $wpdb->alters ) );
+ok( 'J.1 from 3.28: success, one ALTER (plus Phase AL\'s)', true === $ret && 2 === count( $wpdb->alters ) && 1 === count_like( $wpdb->alters, "'challenge'" ) );
 ok( 'J.2 source ENUM gains full_report, keeps the old values + default', 1 === count_like( $wpdb->alters, "MODIFY COLUMN source ENUM('practitioner','automation','paid_stage1','full_report') NOT NULL DEFAULT 'practitioner'" ) );
 ok( 'J.3 existing rows untouched (no UPDATE / DELETE / INSERT)', 0 === count( $wpdb->writes ) );
 $wpdb->alters = array();
@@ -104,9 +105,9 @@ $wpdb->source_type = "enum('practitioner','automation','paid_stage1')";
 $wpdb->fail_on = 'MODIFY COLUMN source';
 ok( 'J.5 failed ALTER → run_migrations returns false (retries next boot)', false === migrate() );
 $src = file_get_contents( dirname( __DIR__, 2 ) . '/includes/class-hdlv2-activator.php' );
-ok( 'J.6 fresh installs get the value too (CREATE TABLE)', false !== strpos( $src, "source ENUM('practitioner','automation','paid_stage1','full_report') NOT NULL DEFAULT 'practitioner'," ) );
+ok( 'J.6 fresh installs get the value too (CREATE TABLE)', false !== strpos( $src, "source ENUM('practitioner','automation','paid_stage1','full_report','challenge') NOT NULL DEFAULT 'practitioner'," ) );
 $loader = file_get_contents( dirname( __DIR__, 2 ) . '/hdl-longevity-v2.php' );
-ok( 'J.7 loader constant is 3.30 (v0.48.16; Phase AJ stays in it)', false !== strpos( $loader, "define( 'HDLV2_DB_VERSION', '3.30' );" ) );
+ok( 'J.7 loader constant is 3.31 (v0.48.23; Phase AJ stays in it)', false !== strpos( $loader, "define( 'HDLV2_DB_VERSION', '3.31' );" ) );
 
 echo "\nPASS=$pass FAIL=$fail\n";
 exit( $fail ? 1 : 0 );
