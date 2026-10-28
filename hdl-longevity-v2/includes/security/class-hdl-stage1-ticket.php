@@ -12,9 +12,11 @@
  *
  * Body: practitioner_id, email, name, external_ref (the seller's payment
  * reference, e.g. a Stripe session id), optional expires_days (1–365,
- * default 90), optional product ('stage1' default, or 'full_report').
+ * default 90), optional product ('stage1' default, 'full_report' or
+ * 'challenge').
  * Response: { token, expires_at, idempotent }; a 'full_report' ticket adds
- * { open_url, stage1_found, auto_confirmed } (v0.48.15, see mint_full_report()).
+ * { open_url, stage1_found, auto_confirmed } (v0.48.15, see mint_full_report()),
+ * a 'challenge' ticket adds { open_url } (v0.48.23, see mint_challenge()).
  *
  * The same external_ref always returns the same token. That is enforced by
  * the UNIQUE key on widget_invites.external_ref: insert first, read the
@@ -63,11 +65,11 @@ class HDL_Stage1_Ticket {
 
         // hdlv2_db_version only reaches 3.27 once Phase AH has verified the
         // 'paid_stage1' source value and the UNIQUE key (3.29: Phase AJ's
-        // 'full_report' value). Without them a ticket would be stored as an
-        // ordinary invite, or minted twice.
+        // 'full_report' value; 3.31: Phase AL's 'challenge'). Without them a
+        // ticket would be stored as an ordinary invite, or minted twice.
         $product_raw = $request->get_param( 'product' );
         $product     = null === $product_raw ? 'stage1' : (string) $product_raw;
-        $needs_db    = 'full_report' === $product ? '3.29' : '3.27';
+        $needs_db    = array( 'full_report' => '3.29', 'challenge' => '3.31' )[ $product ] ?? '3.27';
         if ( version_compare( (string) get_option( 'hdlv2_db_version', '0' ), $needs_db, '<' ) ) {
             return self::refuse( 503, 'not_ready', 'Stage 1 tickets are not ready on this server.' );
         }
@@ -117,7 +119,7 @@ class HDL_Stage1_Ticket {
         if ( ( null !== $days_raw && ! is_numeric( $days_raw ) ) || $days < 1 || $days > self::MAX_DAYS ) {
             $invalid[] = 'expires_days';
         }
-        if ( ! in_array( $product, array( 'stage1', 'full_report' ), true ) ) {
+        if ( ! in_array( $product, array( 'stage1', 'full_report', 'challenge' ), true ) ) {
             $invalid[] = 'product';
         }
         if ( $invalid ) {
@@ -126,6 +128,9 @@ class HDL_Stage1_Ticket {
 
         if ( 'full_report' === $product ) {
             return self::mint_full_report( $practitioner_id, $email, $name, $external_ref, $days );
+        }
+        if ( 'challenge' === $product ) {
+            return self::mint_challenge( $practitioner_id, $email, $name, $external_ref, $days );
         }
 
         $ticket = self::mint( $practitioner_id, $email, $name, $external_ref, $days );
@@ -176,12 +181,32 @@ class HDL_Stage1_Ticket {
     }
 
     /**
+     * v0.48.23 — the 30-day challenge (Matthew, 2026-10-27). The buyer paid on
+     * the selling site; the ticket (source 'challenge') is their sign-in link
+     * for the whole 90 days: Stage 1 first if it is not on file (free, the
+     * public path), then the challenge on their dashboard. No lead confirm,
+     * no email: the selling site emails open_url itself.
+     */
+    private static function mint_challenge( $practitioner_id, $email, $name, $external_ref, $days ) {
+        $ticket = self::mint( $practitioner_id, $email, $name, $external_ref, $days, 'challenge' );
+        if ( is_wp_error( $ticket ) ) {
+            return $ticket;
+        }
+        return rest_ensure_response( array(
+            'token'      => $ticket['token'],
+            'expires_at' => self::iso( $ticket['expires_at'] ),
+            'idempotent' => $ticket['idempotent'],
+            'open_url'   => site_url( '/rate-of-ageing-widget/?invite=' . $ticket['token'] ),
+        ) );
+    }
+
+    /**
      * Mint the ticket for $external_ref, or return the one it already has.
      * Shared by the keyed route above and the dashboard's "Send Stage 1
      * link" (HDLV2_Widget_Config::ajax_send_stage1_link). Callers validate
      * their own input first.
      *
-     * @param string $source 'paid_stage1' (needs paid mode) or 'full_report'.
+     * @param string $source 'paid_stage1' (needs paid mode), 'full_report' or 'challenge'.
      * @return array|WP_Error { id, token, expires_at (stored UTC), idempotent,
      *                         email, name } — email/name are the ticket's own.
      */
