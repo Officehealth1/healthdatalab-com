@@ -467,6 +467,12 @@ class HDLV2_Widget_Config {
         $invite_id    = null;
         $invite_token = isset( $params['invite_token'] ) ? sanitize_text_field( $params['invite_token'] ) : '';
         $invite       = $invite_token ? self::get_valid_invite( $invite_token ) : null;
+        // v0.48.23 — a 30-day challenge link buys the videos, not the Full
+        // Report: its Stage 1 takes the public path below (pending lead,
+        // Stage 1 PDF with the offer page), as a visitor with no link does.
+        if ( $invite && isset( $invite->source ) && 'challenge' === $invite->source ) {
+            $invite = null;
+        }
 
         // v0.47.85 — paid mode (widget_config.access_mode). A paid widget
         // takes answers only with a valid invite of THIS practitioner. A paid
