@@ -347,23 +347,49 @@ class HDLV2_Client_Dashboard {
                 array(),
                 HDLV2_VERSION
             );
-            wp_enqueue_script(
-                'hdlv2-client-dashboard',
-                HDLV2_PLUGIN_URL . 'assets/js/hdlv2-client-dashboard.js',
-                array(),
-                HDLV2_VERSION,
-                true
-            );
-            wp_localize_script( 'hdlv2-client-dashboard', 'HDLV2_CD_POP', array(
-                'restUrl'   => esc_url_raw( rest_url( 'hdl-v2/v1' ) ),
-                'nonce'     => wp_create_nonce( 'wp_rest' ),
-                'clientId'  => (int) $user_id,
-                'todayKey'  => strtolower( date_i18n( 'l' ) ),
-            ) );
+            $this->enqueue_dashboard_js( $user_id );
             return $this->render_populated( $user_id );
         }
 
         return $this->render_empty_state( $user_id, $state );
+    }
+
+    /**
+     * The dashboard script + its REST config. The populated dashboard always
+     * needs it; v0.48.23 — an empty state needs it too when the 30-day
+     * challenge renders (its tick form).
+     */
+    private function enqueue_dashboard_js( $user_id ) {
+        if ( wp_script_is( 'hdlv2-client-dashboard', 'enqueued' ) ) {
+            return;
+        }
+        wp_enqueue_script(
+            'hdlv2-client-dashboard',
+            HDLV2_PLUGIN_URL . 'assets/js/hdlv2-client-dashboard.js',
+            array(),
+            HDLV2_VERSION,
+            true
+        );
+        wp_localize_script( 'hdlv2-client-dashboard', 'HDLV2_CD_POP', array(
+            'restUrl'   => esc_url_raw( rest_url( 'hdl-v2/v1' ) ),
+            'nonce'     => wp_create_nonce( 'wp_rest' ),
+            'clientId'  => (int) $user_id,
+            'todayKey'  => strtolower( date_i18n( 'l' ) ),
+        ) );
+    }
+
+    /**
+     * v0.48.23 — the 30-day challenge section. v0.48.27 (D6) — also free for
+     * any client record; '' for a brand-new client who is not enrolled.
+     *
+     * @param bool $has_record the journey state is past 'brand-new' (HDLV2_Challenge::has_full_report()).
+     */
+    private function challenge_section( $user_id, $has_record ) {
+        $h = HDLV2_Challenge::render_section( $user_id, $has_record );
+        if ( '' !== $h ) {
+            $this->enqueue_dashboard_js( $user_id );
+        }
+        return $h;
     }
 
     /**
@@ -444,12 +470,16 @@ class HDLV2_Client_Dashboard {
      * than rebuild the well-tested existing UI.
      */
     private function render_populated( $user_id ) {
-        $ctx = $this->load_populated_context( $user_id );
+        $ctx       = $this->load_populated_context( $user_id );
+        $challenge = $this->challenge_section( $user_id, true );
 
         $h  = '<div class="hdlv2-cd-pop">';
-        $h .= $this->pop_tabs_strip();
+        $h .= $this->pop_tabs_strip( '' !== $challenge );
         $h .= '<main class="hdlv2-cd-pop-page">';
         $h .= $this->pop_today_panel( $ctx );
+        if ( '' !== $challenge ) {
+            $h .= '<section data-tab-panel="challenge" class="cdp-panel">' . $challenge . '</section>';
+        }
         $h .= $this->pop_progress_panel( $ctx );
         $h .= $this->pop_report_panel( $ctx );
         $h .= $this->pop_messages_panel();
@@ -468,10 +498,13 @@ class HDLV2_Client_Dashboard {
              . '</section>';
     }
 
-    private function pop_tabs_strip() {
+    private function pop_tabs_strip( $with_challenge = false ) {
         $h  = '<nav class="cdp-tabs" role="tablist" aria-label="Dashboard sections">';
         $h .= '<div class="cdp-tabs-inner">';
         $h .= '<button type="button" class="cdp-tab active" data-tab="today" role="tab" aria-selected="true">Today</button>';
+        if ( $with_challenge ) {
+            $h .= '<button type="button" class="cdp-tab"        data-tab="challenge" role="tab" aria-selected="false">30 days</button>';
+        }
         $h .= '<button type="button" class="cdp-tab"        data-tab="progress" role="tab" aria-selected="false">Progress</button>';
         $h .= '<button type="button" class="cdp-tab"        data-tab="report"   role="tab" aria-selected="false">My Report</button>';
         // Slice C: Messages tab — the badge is filled by hdlv2-inbox.js from
@@ -1753,13 +1786,25 @@ class HDLV2_Client_Dashboard {
 
     private function render_empty_state( $user_id, $state ) {
         $ctx = $this->load_context( $user_id );
+        $challenge = $this->challenge_section( $user_id, 'brand-new' !== $state );
+        // v0.48.23 — a challenge buyer's Stage 1 is a pending lead, not a
+        // client record yet: show it as sent, not "start with the gauge".
+        // v0.48.26 — nobody emails a buyer about a next step: the hero points
+        // at the 30 days and the "waiting on your practitioner" card is left out.
+        $buyer = 'brand-new' === $state && '' !== $challenge && HDLV2_Challenge::stage1_on_file( $user_id );
+        if ( $buyer ) {
+            $state = 'stage1-done';
+        }
 
         // No custom site chrome — Divi already renders the page header / nav / footer.
         $h  = '<main class="hdlv2-cd shell" data-state="' . esc_attr( $state ) . '">';
 
-        $h .= $this->hero_for_state( $ctx, $state );
-        $h .= $this->path_for_state( $ctx, $state );
+        $h .= $this->hero_for_state( $ctx, $state, $buyer, $buyer && HDLV2_Challenge::state( $user_id )['complete'] );
+        if ( ! $buyer ) {
+            $h .= $this->path_for_state( $ctx, $state );
+        }
         $h .= $this->preview_for_state( $ctx, $state );
+        $h .= $challenge;
         // Slice C: inbox — mid-funnel clients must see practitioner messages
         // (the betas live in these states). v0.47.82: compact launcher card +
         // bottom-right popup replaced the always-open full-width card; the
@@ -1777,7 +1822,7 @@ class HDLV2_Client_Dashboard {
     //  Per-state fragments
     // ──────────────────────────────────────────────────────────────────────
 
-    private function hero_for_state( $ctx, $state ) {
+    private function hero_for_state( $ctx, $state, $challenge_buyer = false, $challenge_done = false ) {
         $first = esc_html( $ctx['first_name'] );
 
         $titles = array(
@@ -1796,6 +1841,10 @@ class HDLV2_Client_Dashboard {
 
         $title = isset( $titles[ $state ] ) ? $titles[ $state ] : $titles['brand-new'];
         $sub   = isset( $subs[ $state ] )   ? $subs[ $state ]   : $subs['brand-new'];
+        if ( $challenge_buyer ) {
+            // v0.48.27 (F12) — once all 30 are ticked there is nothing left to tick.
+            $sub = $challenge_done ? 'You did all 30 days. Your record is below.' : 'Your 30 days are below. Tick each day when it is done.';
+        }
 
         $h  = '<section class="cd-hero">';
         $h .= '<div class="cd-hero-row"><div>';
@@ -2077,6 +2126,8 @@ class HDLV2_Client_Dashboard {
         // widget page's default practitioner_id. Statuses pending/opened are the
         // pre-submit, still-usable states (opened is set on magic-link login);
         // completed/expired/revoked are intentionally excluded.
+        // v0.48.24 — a challenge link is a sale, not a practitioner invite:
+        // a newer one never displaces the practitioner's own "Start now" link.
         $invite_token = '';
         $email = $user ? (string) $user->user_email : '';
         if ( $email !== '' ) {
@@ -2084,7 +2135,7 @@ class HDLV2_Client_Dashboard {
             $invite = $wpdb->get_row( $wpdb->prepare(
                 "SELECT token FROM {$wpdb->prefix}hdlv2_widget_invites
                  WHERE client_email = %s AND status IN ('pending','opened')
-                   AND source <> 'paid_stage1'
+                   AND source NOT IN ('paid_stage1','challenge')
                    AND expires_at > %s
                  ORDER BY id DESC LIMIT 1",
                 $email, $now

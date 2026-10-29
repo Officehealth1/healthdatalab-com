@@ -424,6 +424,8 @@ class HDLV2_Client_Status {
         // 'revoked' enum value (widget_invites.status ENUM does not include
         // 'cancelled'; 'revoked' is the canonical "intentionally invalidated"
         // state for this table).
+        // v0.48.24 — a challenge link is a sale, not a practitioner invite:
+        // it stays live when the practitioner deletes the client.
         $client_email = $client_user ? strtolower( trim( $client_user->user_email ) ) : null;
         $invites_cancelled = 0;
         if ( $client_email ) {
@@ -433,7 +435,7 @@ class HDLV2_Client_Status {
                  WHERE practitioner_id = %d
                    AND LOWER(client_email) = %s
                    AND status IN ('pending','opened')
-                   AND source <> 'paid_stage1'",
+                   AND source NOT IN ('paid_stage1','challenge')",
                 $practitioner_id, $client_email
             ) );
         }
@@ -1579,6 +1581,8 @@ class HDLV2_Client_Status {
             'hdlv2_monthly_summaries', 'hdlv2_jobs', 'hdlv2_audio_extractions',
             // v0.28.0 — practitioner-appended consultation addenda (DB v3.1).
             'hdlv2_consultation_addenda',
+            // v0.48.23 — the 30-day challenge's ticked days (DB v3.31).
+            'hdlv2_challenge_days',
         );
 
         $tables_present = 0;

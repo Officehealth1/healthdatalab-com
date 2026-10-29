@@ -203,6 +203,8 @@ class HDLV2_Rate_Limit_Policy {
             array( 'POST', '#^/hdl-v2/v1/consultation/milestones-stage-edit$#', self::TIER_WRITE ),
             array( 'POST', '#^/hdl-v2/v1/flight-plan/[0-9]+/edit$#',            self::TIER_WRITE ),
             array( 'POST', '#^/hdl-v2/v1/checkin/submit$#',                     self::TIER_WRITE ),
+            // v0.48.23 — the 30-day challenge tick: one INSERT IGNORE, no AI.
+            array( 'POST', '#^/hdl-v2/v1/challenge/tick$#',                     self::TIER_WRITE ),
             array( 'POST', '#^/hdl-v2/v1/audio/client-error$#',                 self::TIER_WRITE ),
             // v0.35.0 (Phase O) — practitioner rejects a widget lead. Silent
             // (no email, no Make.com call), so TIER_WRITE rather than AI_BURN.

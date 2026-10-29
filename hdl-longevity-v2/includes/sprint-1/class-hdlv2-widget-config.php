@@ -467,6 +467,16 @@ class HDLV2_Widget_Config {
         $invite_id    = null;
         $invite_token = isset( $params['invite_token'] ) ? sanitize_text_field( $params['invite_token'] ) : '';
         $invite       = $invite_token ? self::get_valid_invite( $invite_token ) : null;
+        // v0.48.23 — a 30-day challenge link buys the videos, not the Full
+        // Report: its Stage 1 takes the public path below (pending lead,
+        // Stage 1 PDF with the offer page), as a visitor with no link does.
+        // Its own practitioner's paid widget still takes it (Stage 1 comes
+        // with the challenge), for the buyer's own email only (see below).
+        $challenge_invite = null;
+        if ( $invite && isset( $invite->source ) && 'challenge' === $invite->source ) {
+            $challenge_invite = (int) $invite->practitioner_id === $practitioner_id ? $invite : null;
+            $invite           = null;
+        }
 
         // v0.47.85 — paid mode (widget_config.access_mode). A paid widget
         // takes answers only with a valid invite of THIS practitioner. A paid
@@ -482,7 +492,7 @@ class HDLV2_Widget_Config {
         if ( $invite && ( $paid_mode || $is_ticket || $is_full ) && (int) $invite->practitioner_id !== $practitioner_id ) {
             $invite = null;
         }
-        if ( $paid_mode && ! $invite ) {
+        if ( $paid_mode && ! $invite && ! $challenge_invite ) {
             // v0.47.89 — a repeat post of a ticket whose lead is on file gets
             // the first answer back, however long after the first post.
             $saved = self::saved_ticket_reply( $invite_token, $practitioner_id );
@@ -518,6 +528,17 @@ class HDLV2_Widget_Config {
             $params['visitor_region'] ?? ''
         );
 
+        // ── Email validation — format + MX record (catches typos + dead domains). ──
+        // v0.48.24 — before the link-email checks below, so an empty or
+        // malformed email gets this answer, not "another email address".
+        if ( ! $visitor_email || ! is_email( $visitor_email ) ) {
+            return new WP_Error( 'invalid_email', 'Please enter a valid email address.', array( 'status' => 400 ) );
+        }
+        $email_check = self::validate_email_deliverable( $visitor_email );
+        if ( is_wp_error( $email_check ) ) {
+            return $email_check;
+        }
+
         // v0.48.15 — a Full Report ticket was bought for one email. The answers
         // land on that email's client record, never on one the visitor types:
         // the record is found by email, so a typed address would open someone
@@ -525,14 +546,10 @@ class HDLV2_Widget_Config {
         if ( $is_full && $invite_id && 0 !== strcasecmp( $visitor_email, (string) $invite->client_email ) ) {
             return new WP_Error( 'email_mismatch', 'This personal link belongs to another email address. Please use the email you bought the report with.', array( 'status' => 403 ) );
         }
-
-        // ── Email validation — format + MX record (catches typos + dead domains). ──
-        if ( ! $visitor_email || ! is_email( $visitor_email ) ) {
-            return new WP_Error( 'invalid_email', 'Please enter a valid email address.', array( 'status' => 400 ) );
-        }
-        $email_check = self::validate_email_deliverable( $visitor_email );
-        if ( is_wp_error( $email_check ) ) {
-            return $email_check;
+        // v0.48.23 — the challenge link is reusable, so past a paid gate it
+        // opens Stage 1 for the buyer's own email only.
+        if ( $paid_mode && $challenge_invite && 0 !== strcasecmp( $visitor_email, (string) $challenge_invite->client_email ) ) {
+            return new WP_Error( 'email_mismatch', 'This personal link belongs to another email address. Please use the email you bought the challenge with.', array( 'status' => 403 ) );
         }
 
         // Build Stage 1 answers from widget payload
@@ -679,6 +696,8 @@ class HDLV2_Widget_Config {
             'visitor_country' => $visitor_loc['country'],
             'visitor_region'  => $visitor_loc['region'],
             'invite_id'       => $ticket_id,
+            // v0.48.25 — the buyer's own answers through their challenge link.
+            'requeue_rejected' => $challenge_invite && 0 === strcasecmp( $visitor_email, (string) $challenge_invite->client_email ),
         ) );
 
         if ( $ticket_id && ! $lead_id ) {
@@ -853,7 +872,8 @@ class HDLV2_Widget_Config {
             // v0.47.85 — a paid submission must reach the practitioner's
             // Pending Leads even if an earlier free one from this email was
             // rejected. A confirmed row stays confirmed (already a client).
-            if ( ! empty( $args['invite_id'] ) ) {
+            // v0.48.25 — a challenge buyer's own submission too.
+            if ( ! empty( $args['invite_id'] ) || ! empty( $args['requeue_rejected'] ) ) {
                 $wpdb->query( $wpdb->prepare(
                     "UPDATE $table SET status = 'pending', rejected_at = NULL WHERE id = %d AND status = 'rejected'",
                     $existing_id
@@ -3174,7 +3194,7 @@ class HDLV2_Widget_Config {
         $invites = $wpdb->get_results( $wpdb->prepare(
             "SELECT id, client_name, client_email, status, token, expires_at, created_at, opened_at, completed_at
              FROM {$wpdb->prefix}hdlv2_widget_invites
-             WHERE practitioner_id = %d AND source <> 'paid_stage1'
+             WHERE practitioner_id = %d AND source NOT IN ('paid_stage1','challenge')
              ORDER BY created_at DESC
              LIMIT 100",
             $user_id
@@ -3538,7 +3558,7 @@ class HDLV2_Widget_Config {
         $invites = $wpdb->get_results( $wpdb->prepare(
             "SELECT id, client_name, client_email, status, token, expires_at, created_at, opened_at, completed_at
              FROM {$wpdb->prefix}hdlv2_widget_invites
-             WHERE practitioner_id = %d AND source <> 'paid_stage1'
+             WHERE practitioner_id = %d AND source NOT IN ('paid_stage1','challenge')
              ORDER BY created_at DESC
              LIMIT 100",
             $user_id
@@ -3583,10 +3603,12 @@ class HDLV2_Widget_Config {
         }
 
         global $wpdb;
+        // v0.48.24 — a challenge link is a sale, not a practitioner invite:
+        // never listed (see the Sent Invites queries), so never deleted here.
         $deleted = $wpdb->query( $wpdb->prepare(
             "DELETE FROM {$wpdb->prefix}hdlv2_widget_invites
              WHERE id = %d AND practitioner_id = %d AND status IN ('expired','revoked','completed')
-               AND source <> 'paid_stage1'",
+               AND source NOT IN ('paid_stage1','challenge')",
             $invite_id,
             $user_id
         ) );

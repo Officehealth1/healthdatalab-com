@@ -79,8 +79,9 @@ class FakeWpdb {
         if ( false !== strpos( $q, 'visitor_country' ) && false !== stripos( $q, 'INFORMATION_SCHEMA.COLUMNS' ) ) {
             return ( false !== stripos( $q, 'IN (' ) ) ? '2' : '1';
         }
-        // Phase AH (v3.27) paid Stage 1 schema + Phase AI (v3.28) ticket page + Phase AK (v3.30) lead columns: same model — already present.
-        if ( false !== stripos( $q, 'COLUMN_TYPE' ) ) return "enum('practitioner','automation','paid_stage1','full_report')";
+        // Phase AH (v3.27) paid Stage 1 schema + Phase AI (v3.28) ticket page + Phase AK (v3.30) lead columns + Phase AL (v3.31) challenge: same model — already present.
+        if ( false !== stripos( $q, 'COLUMN_TYPE' ) ) return "enum('practitioner','automation','paid_stage1','full_report','challenge')";
+        if ( false !== strpos( $q, 'hdlv2_challenge_days' ) && false !== stripos( $q, 'INFORMATION_SCHEMA.TABLES' ) ) return '1';
         if ( false !== stripos( $q, 'INFORMATION_SCHEMA.STATISTICS' ) ) return '1';
         if ( preg_match( "/COLUMN_NAME = '(access_mode|buy_url|external_ref|ticket_page_url|stage1_fired_at|visitor_phone)'/", $q ) ) return '1';
         return '0';

@@ -5,6 +5,7 @@
  *   - Day picker on Today tab — swap which day's actions are visible
  *   - Action ticking — POST /flight-plan/tick, optimistic UI, rollback on error
  *   - Live "X of Y done" + per-day progress bar updates after each tick
+ *   - v0.48.23: the 30-day challenge "Done for today" form (every state)
  *
  * Authoritative source = wp_hdlv2_flight_plan_ticks. The same row drives the
  * practitioner's Flight Plan tab in /clients/, so a tick here is visible there
@@ -55,7 +56,8 @@
       });
     });
 
-    var hash = (window.location.hash || '').replace(/^#tab-/, '');
+    // v0.48.23 — #challenge (the challenge link's landing) opens its tab too.
+    var hash = (window.location.hash || '').replace(/^#(tab-)?/, '');
     if (hash && root.querySelector('.cdp-tab[data-tab="' + hash + '"]')) {
       activate(hash);
     }
@@ -218,9 +220,181 @@
   }
 
   // ────────────────────────────────────────────────────────────────────
+  //  30-day challenge (v0.48.23) — POST /challenge/tick, then swap the
+  //  section body for the server's re-render. Delegated from document so it
+  //  works on every dashboard state and after each swap. The button stays
+  //  disabled while the request is in flight; an error re-enables it.
+  // ────────────────────────────────────────────────────────────────────
+  var CHALLENGE_CODES = /^(day_locked|invalid_day|not_enrolled)$/;
+  var SESSION_TIMED_OUT = 'Your session timed out. Copy your note, reload the page, then tick again.';
+
+  // v0.48.24 — the next day opens at midnight UTC; say when that is on the
+  // buyer's own clock ("today" when it falls on their current date).
+  function challengeOpensText(day, at, now) {
+    return 'Day ' + day + ' done. Day ' + (day + 1) + ' opens ' +
+      (at.toDateString() === now.toDateString() ? 'today' : 'tomorrow') + ' at ' +
+      at.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + '.';
+  }
+
+  function showOpensAt(root) {
+    root.querySelectorAll('.cd30-next[data-next-opens-at]').forEach(function (p) {
+      var at = new Date(p.getAttribute('data-next-opens-at'));
+      var day = parseInt(p.getAttribute('data-day'), 10);
+      if (!isNaN(at.getTime()) && day) p.textContent = challengeOpensText(day, at, new Date());
+    });
+  }
+
+  // v0.48.27 (D9) — a done day opened again: its title, what it asked, the
+  // video (paid only), when it was done and the client's own note. The days
+  // ride as JSON in .cd30-body, so each tick's swap keeps them current.
+  function challengeDayModel(day, data) {
+    data = data || {};
+    var done = data.done_at ? new Date(String(data.done_at).replace(' ', 'T') + 'Z') : null;
+    var hasVideo = /^[A-Za-z0-9_-]{11}$/.test(data.youtube_id || '');
+    return {
+      title: data.title || 'Day ' + day,
+      lines: data.text ? String(data.text).split('\n') : [],
+      hasVideo: hasVideo,
+      embedSrc: hasVideo ? 'https://www.youtube-nocookie.com/embed/' + data.youtube_id : null,
+      // The buyer's own date, written day first like the tile's label ("23 Oct").
+      when: done && !isNaN(done.getTime()) ? 'Done ' + done.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : '',
+      note: data.note ? String(data.note) : 'No note'
+    };
+  }
+
+  function challengeDayView(section, day, data) {
+    var m = challengeDayModel(day, data);
+    var detail = section.querySelector('.cd30-detail');
+    var today = section.querySelector('.cd30-today');
+    if (!detail || !today) return;
+    var title = detail.querySelector('h3');
+    var text = detail.querySelector('.cd30-text');
+    var video = detail.querySelector('.cd30-video');
+    title.textContent = m.title;
+    text.textContent = '';
+    m.lines.forEach(function (line, i) {
+      if (i) text.appendChild(document.createElement('br'));
+      text.appendChild(document.createTextNode(line));
+    });
+    text.hidden = !m.lines.length;
+    video.textContent = '';
+    if (m.embedSrc) {
+      var wrap = document.createElement('div');
+      var frame = document.createElement('iframe');
+      wrap.className = 'hdlv2-video-embed';
+      frame.src = m.embedSrc;
+      frame.title = m.title;
+      frame.loading = 'lazy';
+      frame.allowFullscreen = true;
+      frame.referrerPolicy = 'strict-origin-when-cross-origin';
+      wrap.appendChild(frame);
+      video.appendChild(wrap);
+    }
+    video.hidden = !m.embedSrc;
+    detail.querySelector('.cd30-when').textContent = m.when;
+    detail.querySelector('.cd30-note').textContent = m.note;
+    section.querySelectorAll('button.cd30-day').forEach(function (b) {
+      b.setAttribute('aria-expanded', b.getAttribute('data-day') === String(day) ? 'true' : 'false');
+    });
+    today.hidden = true;
+    detail.hidden = false;
+    title.focus();
+  }
+
+  function challengeToday(section) {
+    var detail = section.querySelector('.cd30-detail');
+    var today = section.querySelector('.cd30-today');
+    var tile = section.querySelector('button.cd30-day[aria-expanded="true"]');
+    if (!detail || !today) return;
+    detail.querySelector('.cd30-video').textContent = ''; // stops a playing video
+    detail.hidden = true;
+    today.hidden = false;
+    if (tile) {
+      tile.setAttribute('aria-expanded', 'false');
+      tile.focus();
+    }
+  }
+
+  function initChallenge() {
+    showOpensAt(document);
+    document.addEventListener('click', function (e) {
+      var section = document.getElementById('challenge');
+      if (!section || !e.target.closest || !section.contains(e.target)) return;
+      var tile = e.target.closest('button.cd30-day.is-done');
+      if (tile) {
+        var days = {};
+        try { days = JSON.parse(section.querySelector('.cd30-days').textContent) || {}; } catch (ex) { /* no day data: the title alone */ }
+        var day = tile.getAttribute('data-day');
+        challengeDayView(section, parseInt(day, 10), days[day]);
+      } else if (e.target.closest('.cd30-back')) {
+        challengeToday(section);
+      }
+    });
+    document.addEventListener('submit', function (e) {
+      var form = e.target;
+      if (!form.classList || !form.classList.contains('cd30-tick')) return;
+      e.preventDefault();
+      var btn = form.querySelector('.cd30-done');
+      var err = form.querySelector('.cd30-error');
+      var note = form.querySelector('textarea');
+      var day = parseInt(form.getAttribute('data-day'), 10);
+      if (!CFG.restUrl || !CFG.nonce || !btn || btn.disabled) return;
+      btn.disabled = true;
+      if (err) err.hidden = true;
+
+      fetch(CFG.restUrl + '/challenge/tick', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-WP-Nonce': CFG.nonce
+        },
+        body: JSON.stringify({ day: day, note: note ? note.value : '' })
+      })
+        .then(function (r) {
+          return r.json().catch(function () { return null; }).then(function (body) {
+            if (!r.ok || !body || !body.html) {
+              // Our own refusals carry a plain sentence; an expired nonce
+              // (v0.48.24) needs a reload; anything else says nothing useful.
+              var code = (body && body.code) || '';
+              throw {
+                userMessage: code === 'rest_cookie_invalid_nonce' ? SESSION_TIMED_OUT
+                  : CHALLENGE_CODES.test(code) ? body.message : ''
+              };
+            }
+            return body;
+          });
+        })
+        .then(function (body) {
+          var section = document.getElementById('challenge');
+          var tpl = document.createElement('template');
+          tpl.innerHTML = body.html;
+          var fresh = tpl.content.querySelector('.cd30-body');
+          var old = section && section.querySelector('.cd30-body');
+          if (old && fresh) {
+            old.replaceWith(fresh);
+            showOpensAt(fresh);
+          }
+          var heading = document.getElementById('cd30-h');
+          if (heading) heading.focus();
+          var live = section && section.querySelector('.cd30-live');
+          if (live) live.textContent = 'Day ' + day + ' saved';
+        })
+        .catch(function (ex) {
+          btn.disabled = false;
+          if (err) {
+            err.textContent = (ex && ex.userMessage) || 'Could not save. Try again.';
+            err.hidden = false;
+          }
+        });
+    });
+  }
+
+  // ────────────────────────────────────────────────────────────────────
   //  Boot
   // ────────────────────────────────────────────────────────────────────
   function boot() {
+    initChallenge();
     document.querySelectorAll('.hdlv2-cd-pop').forEach(function (root) {
       initTabs(root);
       root.querySelectorAll('.cdp-week-card').forEach(function (card) {

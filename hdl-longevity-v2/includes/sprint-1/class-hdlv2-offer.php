@@ -41,6 +41,11 @@ class HDLV2_Offer {
         'caption'               => 'The abilities your choices need, against where you are today',
         'video_url'             => '',
         'stage1_free_with_code' => false,
+        // v0.48.27 — the 30-day challenge videos (D10): the free 30 days on the
+        // dashboard carry this card.
+        'challenge_url'         => 'https://altituding.com/challenge',
+        'challenge_price'       => '27',
+        'challenge_hook'        => 'A video for every one of your 30 days',
         // The practitioner whose clients see this offer (Matthew: Altituding).
         // 0 = every practitioner.
         'practitioner_id'       => 122,
@@ -61,7 +66,7 @@ class HDLV2_Offer {
                 $out[ $k ] = absint( $v );
             } elseif ( is_bool( self::DEFAULTS[ $k ] ) ) {
                 $out[ $k ] = (bool) $v && 'false' !== $v && '0' !== $v;
-            } elseif ( 'url' === $k || 'video_url' === $k ) {
+            } elseif ( 'url' === $k || 'video_url' === $k || 'challenge_url' === $k ) {
                 $out[ $k ] = esc_url_raw( (string) $v );
             } elseif ( substr( $k, -6 ) === '_price' ) {
                 $out[ $k ] = preg_match( '/^\d{1,6}(\.\d{1,2})?$/', (string) $v ) ? (string) $v : self::DEFAULTS[ $k ];
