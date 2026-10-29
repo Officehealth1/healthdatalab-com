@@ -26,7 +26,7 @@ function get_current_user_id() { return $GLOBALS['current_user'] ?? 0; }
 function is_user_logged_in() { return get_current_user_id() > 0; }
 function rest_ensure_response( $x ) { return $x; }
 function is_wp_error( $x ) { return $x instanceof WP_Error; }
-function wp_json_encode( $x ) { return json_encode( $x ); }
+function wp_json_encode( $x, $flags = 0 ) { return json_encode( $x, $flags ); }
 function absint( $x ) { return abs( (int) $x ); }
 function sanitize_text_field( $x ) { return trim( preg_replace( '/[\r\n\t ]+/', ' ', strip_tags( (string) $x ) ) ); }
 function sanitize_textarea_field( $x ) { return trim( strip_tags( (string) $x ) ); }
@@ -51,6 +51,7 @@ function add_user_meta( $u, $k, $v, $unique = false ) {
     $GLOBALS['usermeta'][ $u ][ $k ] = $v;
     return 1;
 }
+function update_user_meta( $u, $k, $v ) { $GLOBALS['usermeta'][ $u ][ $k ] = $v; return true; }
 
 class WP_Error {
     public $code; public $message; public $data;
@@ -78,6 +79,7 @@ class ChallengeWpdb {
     public $leads = array();           // "practitioner|email" of Stage 1 leads on file
     public $rejected = array();        // …of those, the ones the practitioner rejected
     public $invites = array();         // challenge invites by token (pending/opened, unexpired)
+    public $practitioner_of = array(); // client id => practitioner_user_id on the live form_progress row
     private $args = array();
     private $next_id = 70;
 
@@ -97,6 +99,7 @@ class ChallengeWpdb {
     }
     public function get_var( $sql ) {
         $this->queries[] = $sql;
+        if ( false !== strpos( $sql, 'SELECT practitioner_user_id FROM wp_hdlv2_form_progress' ) ) return $this->practitioner_of[ $this->args[0] ] ?? null;
         if ( false !== strpos( $sql, 'hdlv2_form_progress' ) ) return in_array( (int) $this->args[0], $this->stage1_progress, true ) ? '1' : null;
         if ( false !== strpos( $sql, 'hdlv2_widget_leads' ) ) {
             $key = $this->args[0] . '|' . strtolower( $this->args[1] );
@@ -164,6 +167,12 @@ function at( $utc )      { return strtotime( $utc . ' UTC' ); }
 function enrol_client( $uid, $prac = 122, $started = '2026-10-28 08:00:00' ) {
     $GLOBALS['usermeta'][ $uid ]['hdlv2_challenge'] = json_encode( array(
         'started_at' => $started, 'source' => 'stripe', 'external_ref' => 'cs_test_1', 'invite_id' => 11, 'practitioner_id' => $prac,
+    ) );
+}
+/** v0.48.27 (D7) — a free enrolment, as the first tick of a client record writes it. */
+function enrol_free_client( $uid, $prac = 122, $started = '2026-10-28 08:00:00' ) {
+    $GLOBALS['usermeta'][ $uid ]['hdlv2_challenge'] = json_encode( array(
+        'started_at' => $started, 'source' => 'free', 'external_ref' => '', 'invite_id' => 0, 'practitioner_id' => $prac,
     ) );
 }
 function fresh() {
