@@ -3,7 +3,7 @@
  * Plugin Name: HDL Longevity V2 — Staged Workflow
  * Plugin URI: https://healthdatalab.net
  * Description: V2 longevity workflow: staged intake, WHY profiling, practitioner consultations, weekly flight plans, and AI coaching. Runs alongside the existing Health Data Lab plugin.
- * Version: 0.48.27
+ * Version: 0.48.28
  * Author: Health Data Lab
  * Author URI: https://healthdatalab.net
  * License: Proprietary
@@ -22,7 +22,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 // register_activation_hook callbacks, which fire synchronously during
 // `wp plugin activate`, can reference them. The activator needs
 // HDLV2_DB_VERSION / HDLV2_VERSION at call time to update version options.
-define( 'HDLV2_VERSION', '0.48.27' );
+define( 'HDLV2_VERSION', '0.48.28' );
 define( 'HDLV2_DB_VERSION', '3.31' );
 
 // Client funnel token (hdlv2_form_progress.token) lifetime. FIXED window
@@ -396,6 +396,16 @@ add_action( 'init', function () {
             hdlv2_render_staff_sign_in_card();
         }
         if ( $progress && $progress->client_user_id ) {
+            // v0.48.28 — the page renders in this same request, so the REST
+            // nonces it prints (dashboard tick, inbox) are made now. WP builds
+            // a nonce from the session token in the logged-in cookie, which
+            // the browser only sends from the next request on: without this
+            // the first call answered rest_cookie_invalid_nonce. Hand this
+            // request the cookie WP is about to send. No redirect: the URL
+            // keeps ?token=, which the assessment and check-in pages read.
+            add_action( 'set_logged_in_cookie', function ( $logged_in_cookie ) {
+                $_COOKIE[ LOGGED_IN_COOKIE ] = $logged_in_cookie;
+            } );
             wp_set_current_user( $progress->client_user_id );
             wp_set_auth_cookie( $progress->client_user_id, false );
             // v0.47.54 (B4) — deliberately NO expiry refresh here. The window
