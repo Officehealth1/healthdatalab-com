@@ -250,4 +250,16 @@ $h = $empty->invoke( $dash, 6, 'stage1-done' );
 check( 'R13.1 a stage1-done client with no enrolment: the 30 days and the videos card; the hero and the waiting card unchanged', false !== strpos( $h, '<section id="challenge"' ) && false !== strpos( $h, 'class="cd30-videos"' )
     && false !== strpos( $h, '<p class="cd-hero-sub">' . $sub_waiting . '</p>' ) && false !== strpos( $h, $card ) && ! isset( $GLOBALS['usermeta'][6] ) );
 
+echo "── R14. the CSS and JS of the day view (v0.48.27) ──\n";
+$css = file_get_contents( dirname( __DIR__, 2 ) . '/assets/css/hdlv2-client-dashboard.css' );
+$js  = file_get_contents( dirname( __DIR__, 2 ) . '/assets/js/hdlv2-client-dashboard.js' );
+$cd30 = substr( $css, strpos( $css, '/* ── 30-day challenge' ) );
+check( 'R14.1 a done tile opens its day: one delegated click on button.cd30-day.is-done, Back to today, focus moves', false !== strpos( $js, "closest('button.cd30-day.is-done')" ) && false !== strpos( $js, "closest('.cd30-back')" )
+    && false !== strpos( $js, "JSON.parse(" ) && false !== strpos( $js, "'aria-pressed'" ) && 2 <= substr_count( $js, '.focus()' ) - 1 );
+check( 'R14.2 the video is built only from an 11-character id, through createElement, never innerHTML', false !== strpos( $js, "document.createElement('iframe')" ) && false === strpos( between( $js, 'function challengeDayView(', "\n  }\n" ), 'innerHTML' ) );
+check( 'R14.3 the note box: soft fill, no rail (Divi gives blockquote a left border, so the border is cleared)', 1 === preg_match( '/\.cd30-note \{[^}]*border: 0;[^}]*background: #f8f9fb;/', $cd30 ) && 0 === preg_match( '/border-left/', $cd30 ) );
+check( 'R14.4 the tile title: two lines, hidden on phones', 1 === preg_match( '/\.cd30-title \{[^}]*-webkit-line-clamp: 2;/', $cd30 ) && 1 === preg_match( '/@media \(max-width: 640px\) \{[^@]*\.cd30-title \{ display: none; \}/', $cd30 ) );
+check( 'R14.5 the done tile is a real button: focus ring, pressed state, the videos card styled as the offer', 1 === preg_match( '/button\.cd30-day:focus-visible/', $cd30 ) && 1 === preg_match( '/button\.cd30-day\[aria-pressed="true"\]/', $cd30 )
+    && false !== strpos( $cd30, '.cd30-videos' ) && false === strpos( $cd30, '.cd30-date' ) );
+
 done();

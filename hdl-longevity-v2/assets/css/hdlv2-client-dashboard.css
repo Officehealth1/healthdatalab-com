@@ -915,7 +915,27 @@ body.hdlv2-inbox-standalone {
   line-height: 1.2;
 }
 .cd30-n { font-weight: 600; font-size: 15px; }
-.cd30-date { font-size: 11px; }
+/* v0.48.27 (D8/D9) — a done tile is a button that opens its day again. */
+.cd30-cell { margin: 0; padding: 0; display: flex; }
+button.cd30-day {
+  width: 100%;
+  font: inherit;
+  text-align: center;
+  cursor: pointer;
+}
+button.cd30-day:hover { border-color: #10b981; }
+button.cd30-day[aria-pressed="true"] {
+  border-color: var(--hdlv2-cd-teal);
+  box-shadow: 0 0 0 1px var(--hdlv2-cd-teal);
+}
+.cd30-title {
+  margin-top: 2px;
+  font-size: 11px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
 .cd30-day.is-done {
   background: #ecfdf5;
   border-color: #a7f3d0;
@@ -926,7 +946,8 @@ body.hdlv2-inbox-standalone {
   border: 2px solid var(--hdlv2-cd-teal);
   color: #004F59;
 }
-.cd30-today { margin-top: 20px; max-width: 720px; }
+.cd30-today,
+.cd30-detail { margin-top: 20px; max-width: 720px; }
 .cd30-today-title {
   margin: 0 0 12px;
   font-family: var(--hdlv2-cd-serif);
@@ -948,6 +969,43 @@ body.hdlv2-inbox-standalone {
   height: 100%;
   border: 0;
 }
+.cd30-text {
+  margin: 0 0 14px;
+  max-width: 60ch;
+  font-size: 15px;
+  line-height: 1.5;
+  color: #2c3e50;
+}
+.cd30-when {
+  margin: 14px 0 0;
+  font-size: 14px;
+  color: var(--hdlv2-cd-ink-muted);
+}
+.cd30-note {
+  margin: 8px 0 0;
+  padding: 12px 16px;
+  border: 0;
+  border-radius: 8px;
+  background: #f8f9fb;
+  font-size: 15px;
+  font-style: normal;
+  color: #2c3e50;
+  white-space: pre-line;
+}
+.cd30-back {
+  margin-top: 16px;
+  min-height: 44px;
+  padding: 10px 18px;
+  border: 1px solid var(--hdlv2-cd-teal);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--hdlv2-cd-teal);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.cd30-back:hover { background: var(--hdlv2-cd-teal-lightest); }
 .cd30-video-coming {
   min-height: 96px;
   display: flex;
@@ -1001,6 +1059,8 @@ body.hdlv2-inbox-standalone {
 }
 .cd30-tick textarea:focus-visible,
 .cd30-done:focus-visible,
+button.cd30-day:focus-visible,
+.cd30-back:focus-visible,
 .cd30-offer-btn:focus-visible {
   outline: 2px solid var(--hdlv2-cd-teal);
   outline-offset: 2px;
@@ -1015,21 +1075,24 @@ body.hdlv2-inbox-standalone {
   font-size: 15px;
   color: #2c3e50;
 }
-.cd30-offer {
+.cd30-offer,
+.cd30-videos {
   margin-top: 24px;
   padding: 20px 22px;
   border: 1px solid var(--hdlv2-cd-teal-lighter);
   border-radius: 12px;
   background: var(--hdlv2-cd-teal-lightest);
 }
-.cd30-offer h3 {
+.cd30-offer h3,
+.cd30-videos h3 {
   margin: 0;
   font-family: var(--hdlv2-cd-serif);
   font-size: 18px;
   font-weight: 600;
   color: #004F59;
 }
-.cd30-offer p {
+.cd30-offer p,
+.cd30-videos p {
   margin: 6px 0 14px;
   font-size: 14px;
   color: var(--hdlv2-cd-ink-soft);
@@ -1058,4 +1121,5 @@ body.hdlv2-inbox-standalone {
 @media (max-width: 640px) {
   .cd30 { padding: 20px 16px; }
   .cd30-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+  .cd30-title { display: none; }
 }

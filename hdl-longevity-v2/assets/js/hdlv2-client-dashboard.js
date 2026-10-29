@@ -244,8 +244,91 @@
     });
   }
 
+  // v0.48.27 (D9) — a done day opened again: its title, what it asked, the
+  // video (paid only), when it was done and the client's own note. The days
+  // ride as JSON in .cd30-body, so each tick's swap keeps them current.
+  function challengeDayModel(day, data) {
+    data = data || {};
+    var done = data.done_at ? new Date(String(data.done_at).replace(' ', 'T') + 'Z') : null;
+    var hasVideo = /^[A-Za-z0-9_-]{11}$/.test(data.youtube_id || '');
+    return {
+      title: data.title || 'Day ' + day,
+      lines: data.text ? String(data.text).split('\n') : [],
+      hasVideo: hasVideo,
+      embedSrc: hasVideo ? 'https://www.youtube-nocookie.com/embed/' + data.youtube_id : null,
+      when: done && !isNaN(done.getTime()) ? 'Done ' + done.toLocaleDateString(undefined, { day: 'numeric', month: 'short' }) : '',
+      note: data.note ? String(data.note) : 'No note'
+    };
+  }
+
+  function challengeDayView(section, day, data) {
+    var m = challengeDayModel(day, data);
+    var detail = section.querySelector('.cd30-detail');
+    var today = section.querySelector('.cd30-today');
+    if (!detail || !today) return;
+    var title = detail.querySelector('h3');
+    var text = detail.querySelector('.cd30-text');
+    var video = detail.querySelector('.cd30-video');
+    title.textContent = m.title;
+    text.textContent = '';
+    m.lines.forEach(function (line, i) {
+      if (i) text.appendChild(document.createElement('br'));
+      text.appendChild(document.createTextNode(line));
+    });
+    text.hidden = !m.lines.length;
+    video.textContent = '';
+    if (m.embedSrc) {
+      var wrap = document.createElement('div');
+      var frame = document.createElement('iframe');
+      wrap.className = 'hdlv2-video-embed';
+      frame.src = m.embedSrc;
+      frame.title = m.title;
+      frame.loading = 'lazy';
+      frame.allowFullscreen = true;
+      frame.referrerPolicy = 'strict-origin-when-cross-origin';
+      wrap.appendChild(frame);
+      video.appendChild(wrap);
+    }
+    video.hidden = !m.embedSrc;
+    detail.querySelector('.cd30-when').textContent = m.when;
+    detail.querySelector('.cd30-note').textContent = m.note;
+    section.querySelectorAll('button.cd30-day').forEach(function (b) {
+      b.setAttribute('aria-pressed', b.getAttribute('data-day') === String(day) ? 'true' : 'false');
+    });
+    today.hidden = true;
+    detail.hidden = false;
+    title.focus();
+  }
+
+  function challengeToday(section) {
+    var detail = section.querySelector('.cd30-detail');
+    var today = section.querySelector('.cd30-today');
+    var tile = section.querySelector('button.cd30-day[aria-pressed="true"]');
+    if (!detail || !today) return;
+    detail.querySelector('.cd30-video').textContent = ''; // stops a playing video
+    detail.hidden = true;
+    today.hidden = false;
+    if (tile) {
+      tile.setAttribute('aria-pressed', 'false');
+      tile.focus();
+    }
+  }
+
   function initChallenge() {
     showOpensAt(document);
+    document.addEventListener('click', function (e) {
+      var section = document.getElementById('challenge');
+      if (!section || !e.target.closest || !section.contains(e.target)) return;
+      var tile = e.target.closest('button.cd30-day.is-done');
+      if (tile) {
+        var days = {};
+        try { days = JSON.parse(section.querySelector('.cd30-days').textContent) || {}; } catch (ex) { /* no day data: the title alone */ }
+        var day = tile.getAttribute('data-day');
+        challengeDayView(section, parseInt(day, 10), days[day]);
+      } else if (e.target.closest('.cd30-back')) {
+        challengeToday(section);
+      }
+    });
     document.addEventListener('submit', function (e) {
       var form = e.target;
       if (!form.classList || !form.classList.contains('cd30-tick')) return;

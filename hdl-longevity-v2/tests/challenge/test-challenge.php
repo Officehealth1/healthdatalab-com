@@ -2,7 +2,7 @@
 /**
  * 30-day challenge suite orchestrator (v0.48.23). Standalone, no WP, no DB.
  *   php tests/challenge/test-challenge.php
- * Runs the four scenarios, then the challenge cases of the REAL ?invite=
+ * Runs the four scenarios and the two node ones, then the challenge cases of the REAL ?invite=
  * handler through tests/token-expiry/scenario-token-login.php.
  */
 $php  = escapeshellarg( PHP_BINARY );
@@ -13,11 +13,14 @@ foreach ( array( 'scenario-unlock.php', 'scenario-render.php', 'scenario-ticket.
     echo "── $f: " . end( $out ) . "\n";
     if ( 0 !== $code ) { $fail = 1; echo implode( "\n", preg_grep( '/FAIL|Fatal|Error/', $out ) ) . "\n"; }
 }
-// v0.48.24 — the opening time in the buyer's clock runs the real JS under node.
-$out = array();
-exec( 'node ' . escapeshellarg( __DIR__ . '/scenario-opens-at.js' ) . ' 2>&1', $out, $code );
-echo '── scenario-opens-at.js: ' . ( $out ? end( $out ) : 'node did not run' ) . "\n";
-if ( 0 !== $code ) { $fail = 1; echo implode( "\n", preg_grep( '/FAIL|Error|not found/', $out ) ) . "\n"; }
+// v0.48.24 — the opening time in the buyer's clock runs the real JS under node;
+// v0.48.27 — so does the day view's model.
+foreach ( array( 'scenario-opens-at.js', 'scenario-dayview.js' ) as $f ) {
+    $out = array();
+    exec( 'node ' . escapeshellarg( __DIR__ . '/' . $f ) . ' 2>&1', $out, $code );
+    echo "── $f: " . ( $out ? end( $out ) : 'node did not run' ) . "\n";
+    if ( 0 !== $code ) { $fail = 1; echo implode( "\n", preg_grep( '/FAIL|Error|not found/', $out ) ) . "\n"; }
+}
 
 echo "── ?invite= with a challenge link (real init handler) ──\n";
 $n = 0; $bad = 0;
