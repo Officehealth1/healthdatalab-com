@@ -36,11 +36,11 @@ check('V4 nothing for the day at all → still a title, "No note", no date', (m 
 
 process.env.TZ = 'Asia/Manila'; // UTC+8: 23:30 UTC on the 23rd is the 24th
 m = model(24, { done_at: '2026-10-23 23:30:00' });
-check('V5 Manila: done_at is UTC, said in the buyer\'s own date ("Done … 24")', /^Done /.test(m.when) && /\b24\b/.test(m.when) && /Oct/.test(m.when));
+check('V5 Manila: done_at is UTC, said in the buyer\'s own date, day first like the tile ("Done 24 Oct")', m.when === 'Done 24 Oct');
 
 process.env.TZ = 'America/New_York';
 m = model(24, { done_at: '2026-10-23 23:30:00' });
-check('V6 New York: the same tick is the 23rd', /^Done /.test(m.when) && /\b23\b/.test(m.when));
+check('V6 New York: the same tick is "Done 23 Oct"', m.when === 'Done 23 Oct');
 
 console.log(`\nPASS=${PASS} FAIL=${FAIL}`);
 process.exit(FAIL ? 1 : 0);

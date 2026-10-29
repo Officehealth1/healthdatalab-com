@@ -256,7 +256,8 @@
       lines: data.text ? String(data.text).split('\n') : [],
       hasVideo: hasVideo,
       embedSrc: hasVideo ? 'https://www.youtube-nocookie.com/embed/' + data.youtube_id : null,
-      when: done && !isNaN(done.getTime()) ? 'Done ' + done.toLocaleDateString(undefined, { day: 'numeric', month: 'short' }) : '',
+      // The buyer's own date, written day first like the tile's label ("23 Oct").
+      when: done && !isNaN(done.getTime()) ? 'Done ' + done.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : '',
       note: data.note ? String(data.note) : 'No note'
     };
   }
