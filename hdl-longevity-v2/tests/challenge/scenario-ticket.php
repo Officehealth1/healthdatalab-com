@@ -130,6 +130,39 @@ foreach ( array( '' => 'empty', 'not-an-email' => 'malformed' ) as $bad => $what
     check( "C3.9 Full Report link, $what email → 400 invalid_email, nothing saved", 400 === status_of( $r ) && 'invalid_email' === code_of( $r ) && ! $w->inserts );
 }
 
+echo "── C5. the buyer's rejected lead goes back to pending through the challenge link ──\n";
+// The fake records SQL only; this applies the one statement that changes a
+// lead's status (the guarded re-queue) to lead 321 as it stood before the post.
+function lead_status_after( $w, $status ) {
+    $requeue = $w->sql_matching( "hdlv2_widget_leads SET status = 'pending', rejected_at = NULL WHERE id = 321 AND status = 'rejected'" );
+    $other   = array_filter( $w->updates, function ( $u ) { return 'wp_hdlv2_widget_leads' === $u['table'] && isset( $u['data']['status'] ); } );
+    return $other ? 'changed elsewhere' : ( $requeue && 'rejected' === $status ? 'pending' : $status );
+}
+function post_lead_on_file( $mode, $status, $invite = null, $email = 'ch1@example.test' ) {
+    $w = setup( $mode );
+    $w->existing_lead_id = 321;
+    $w->invite = $invite;
+    $p = lead_params( $email, $invite ? TOKEN : '' );
+    $p['practitioner_id'] = 122;
+    $r = post_lead( $p );
+    return array( $r, lead_status_after( $w, $status ) );
+}
+$own = function ( $over = array() ) { return invite_row( array_merge( array( 'id' => 98, 'practitioner_id' => 122, 'source' => 'challenge', 'client_email' => 'ch1@example.test' ), $over ) ); };
+foreach ( array( 'open', 'paid' ) as $mode ) {
+    list( $r, $st ) = post_lead_on_file( $mode, 'rejected', $own() );
+    check( "C5.1 ($mode mode) the buyer's rejected lead + their challenge link → pending, rejected_at cleared", is_array( $r ) && 'pending' === $st );
+}
+list( $r, $st ) = post_lead_on_file( 'open', 'rejected' );
+check( 'C5.2 the same answers with no link → stays rejected (a free visitor\'s rule holds)', is_array( $r ) && 'rejected' === $st );
+list( $r, $st ) = post_lead_on_file( 'open', 'confirmed', $own() );
+check( 'C5.3 a confirmed lead + the challenge link → stays confirmed', is_array( $r ) && 'confirmed' === $st );
+list( $r, $st ) = post_lead_on_file( 'open', 'rejected', $own( array( 'practitioner_id' => 206 ) ) );
+check( 'C5.4 another practitioner\'s challenge link → stays rejected', is_array( $r ) && 'rejected' === $st );
+list( $r, $st ) = post_lead_on_file( 'open', 'rejected', $own(), 'someone.else@example.test' );
+check( 'C5.5 open-mode seller, the link with another email → that email\'s rejected lead stays rejected', is_array( $r ) && 'rejected' === $st );
+list( $r, $st ) = post_lead_on_file( 'open', 'rejected', $own(), 'CH1@example.test' );
+check( 'C5.6 …the buyer\'s email in any case → pending', is_array( $r ) && 'pending' === $st );
+
 echo "── C4. nothing else uses up or lists a challenge link ──\n";
 $root = dirname( __DIR__, 2 );
 $sf = file_get_contents( $root . '/includes/sprint-2/class-hdlv2-staged-form.php' );

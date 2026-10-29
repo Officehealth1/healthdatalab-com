@@ -472,10 +472,10 @@ class HDLV2_Widget_Config {
         // Stage 1 PDF with the offer page), as a visitor with no link does.
         // Its own practitioner's paid widget still takes it (Stage 1 comes
         // with the challenge), for the buyer's own email only (see below).
-        $challenge_paid = null;
+        $challenge_invite = null;
         if ( $invite && isset( $invite->source ) && 'challenge' === $invite->source ) {
-            $challenge_paid = (int) $invite->practitioner_id === $practitioner_id ? $invite : null;
-            $invite         = null;
+            $challenge_invite = (int) $invite->practitioner_id === $practitioner_id ? $invite : null;
+            $invite           = null;
         }
 
         // v0.47.85 — paid mode (widget_config.access_mode). A paid widget
@@ -492,7 +492,7 @@ class HDLV2_Widget_Config {
         if ( $invite && ( $paid_mode || $is_ticket || $is_full ) && (int) $invite->practitioner_id !== $practitioner_id ) {
             $invite = null;
         }
-        if ( $paid_mode && ! $invite && ! $challenge_paid ) {
+        if ( $paid_mode && ! $invite && ! $challenge_invite ) {
             // v0.47.89 — a repeat post of a ticket whose lead is on file gets
             // the first answer back, however long after the first post.
             $saved = self::saved_ticket_reply( $invite_token, $practitioner_id );
@@ -548,7 +548,7 @@ class HDLV2_Widget_Config {
         }
         // v0.48.23 — the challenge link is reusable, so past a paid gate it
         // opens Stage 1 for the buyer's own email only.
-        if ( $paid_mode && $challenge_paid && 0 !== strcasecmp( $visitor_email, (string) $challenge_paid->client_email ) ) {
+        if ( $paid_mode && $challenge_invite && 0 !== strcasecmp( $visitor_email, (string) $challenge_invite->client_email ) ) {
             return new WP_Error( 'email_mismatch', 'This personal link belongs to another email address. Please use the email you bought the challenge with.', array( 'status' => 403 ) );
         }
 
@@ -696,6 +696,8 @@ class HDLV2_Widget_Config {
             'visitor_country' => $visitor_loc['country'],
             'visitor_region'  => $visitor_loc['region'],
             'invite_id'       => $ticket_id,
+            // v0.48.25 — the buyer's own answers through their challenge link.
+            'requeue_rejected' => $challenge_invite && 0 === strcasecmp( $visitor_email, (string) $challenge_invite->client_email ),
         ) );
 
         if ( $ticket_id && ! $lead_id ) {
@@ -870,7 +872,8 @@ class HDLV2_Widget_Config {
             // v0.47.85 — a paid submission must reach the practitioner's
             // Pending Leads even if an earlier free one from this email was
             // rejected. A confirmed row stays confirmed (already a client).
-            if ( ! empty( $args['invite_id'] ) ) {
+            // v0.48.25 — a challenge buyer's own submission too.
+            if ( ! empty( $args['invite_id'] ) || ! empty( $args['requeue_rejected'] ) ) {
                 $wpdb->query( $wpdb->prepare(
                     "UPDATE $table SET status = 'pending', rejected_at = NULL WHERE id = %d AND status = 'rejected'",
                     $existing_id
