@@ -70,6 +70,10 @@ $log = (string) file_get_contents( $LOG );
 check( 'C1.11 an enrolled email (any case), new ref → a ticket, already_enrolled true', is_array( $r ) && ! empty( $r['token'] ) && true === $r['already_enrolled'] && false === $r['idempotent'] );
 check( 'C1.12 …one log line naming the user id and the ref, never the email', false !== strpos( $log, '[HDLV2] challenge ticket for an enrolled email: user 505, ref cs_test_ch2' ) && false === stripos( $log, 'ch1@example.test' ) );
 check( 'C1.13 …and nothing else written: the ticket row only, no enrolment change', 2 === count( ticket_rows( $w ) ) && false !== strpos( $GLOBALS['usermeta'][505]['hdlv2_challenge'], 'cs_old' ) && ! $GLOBALS['mails'] );
+// v0.48.27 (D7) — the free 30 days are not a purchase: buying the videos is a first sale.
+$GLOBALS['usermeta'][505]['hdlv2_challenge'] = json_encode( array( 'started_at' => '2026-10-01 08:00:00', 'practitioner_id' => 122, 'external_ref' => '', 'invite_id' => 0, 'source' => 'free' ) );
+$r = mint_req( array( 'external_ref' => 'cs_test_ch3', 'email' => 'ch1@example.test' ) );
+check( 'C1.14 a free enrolment (the 30 days without videos) → already_enrolled false', is_array( $r ) && ! empty( $r['token'] ) && false === $r['already_enrolled'] );
 
 echo "── C2. stage1 and full_report answers unchanged ──\n";
 $w = setup( 'paid' );

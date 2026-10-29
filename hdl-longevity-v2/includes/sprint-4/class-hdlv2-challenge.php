@@ -55,15 +55,35 @@ class HDLV2_Challenge {
         ) );
     }
 
-    /** First open of a challenge link. A repeat login never resets the start. */
+    /**
+     * First open of a challenge link. A repeat login never resets the start.
+     * v0.48.27 (D7) — a free enrolment becomes this paid one: its start, its
+     * practitioner and every tick are kept.
+     */
     public static function enrol( $user_id, $invite ) {
-        $ref = (string) ( $invite->external_ref ?? '' );
-        return add_user_meta( $user_id, self::META, wp_json_encode( array(
-            'started_at'      => gmdate( 'Y-m-d H:i:s' ),
-            'source'          => 0 === strpos( $ref, 'cs_' ) ? 'stripe' : 'granted',
-            'external_ref'    => $ref,
-            'invite_id'       => (int) $invite->id,
+        $ref  = (string) ( $invite->external_ref ?? '' );
+        $paid = array(
+            'source'       => 0 === strpos( $ref, 'cs_' ) ? 'stripe' : 'granted',
+            'external_ref' => $ref,
+            'invite_id'    => (int) $invite->id,
+        );
+        $enrolment = self::enrolment( $user_id );
+        if ( $enrolment && ! self::is_paid( $enrolment ) ) {
+            return update_user_meta( $user_id, self::META, wp_json_encode( array_merge( $enrolment, $paid ) ) );
+        }
+        return add_user_meta( $user_id, self::META, wp_json_encode( array( 'started_at' => gmdate( 'Y-m-d H:i:s' ) ) + $paid + array(
             'practitioner_id' => (int) $invite->practitioner_id,
+        ) ), true );
+    }
+
+    /** v0.48.27 (D7) — a client record's first tick: the 30 days without the videos. */
+    private static function enrol_free( $user_id, $now ) {
+        return add_user_meta( $user_id, self::META, wp_json_encode( array(
+            'started_at'      => gmdate( 'Y-m-d H:i:s', $now ),
+            'source'          => 'free',
+            'external_ref'    => '',
+            'invite_id'       => 0,
+            'practitioner_id' => self::practitioner_of( $user_id ),
         ) ), true );
     }
 
@@ -237,6 +257,10 @@ class HDLV2_Challenge {
         $day   = (int) $day;
         $now   = null === $now ? time() : $now;
         $state = self::state( $user_id, $now );
+        if ( ! $state && self::has_full_report( $user_id ) ) {
+            self::enrol_free( $user_id, $now );
+            $state = self::state( $user_id, $now );
+        }
         if ( ! $state ) {
             return new WP_Error( 'not_enrolled', 'You are not on the 30-day challenge.', array( 'status' => 403 ) );
         }
@@ -437,7 +461,7 @@ class HDLV2_Challenge {
     }
 
     /** A $27 (or granted) enrolment; `free` is the D7 one a first tick writes. */
-    private static function is_paid( $enrolment ) {
+    public static function is_paid( $enrolment ) {
         return 'free' !== ( $enrolment['source'] ?? 'free' );
     }
 

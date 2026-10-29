@@ -378,13 +378,18 @@ class HDLV2_Client_Dashboard {
         ) );
     }
 
-    /** v0.48.23 — the 30-day challenge section, for an enrolled client only. */
-    private function challenge_section( $user_id ) {
-        if ( ! HDLV2_Challenge::enrolment( $user_id ) ) {
-            return '';
+    /**
+     * v0.48.23 — the 30-day challenge section. v0.48.27 (D6) — also free for
+     * any client record; '' for a brand-new client who is not enrolled.
+     *
+     * @param bool $has_record the journey state is past 'brand-new' (HDLV2_Challenge::has_full_report()).
+     */
+    private function challenge_section( $user_id, $has_record ) {
+        $h = HDLV2_Challenge::render_section( $user_id, $has_record );
+        if ( '' !== $h ) {
+            $this->enqueue_dashboard_js( $user_id );
         }
-        $this->enqueue_dashboard_js( $user_id );
-        return HDLV2_Challenge::render_section( $user_id, HDLV2_Challenge::has_full_report( $user_id ) );
+        return $h;
     }
 
     /**
@@ -466,7 +471,7 @@ class HDLV2_Client_Dashboard {
      */
     private function render_populated( $user_id ) {
         $ctx       = $this->load_populated_context( $user_id );
-        $challenge = $this->challenge_section( $user_id );
+        $challenge = $this->challenge_section( $user_id, true );
 
         $h  = '<div class="hdlv2-cd-pop">';
         $h .= $this->pop_tabs_strip( '' !== $challenge );
@@ -1781,7 +1786,7 @@ class HDLV2_Client_Dashboard {
 
     private function render_empty_state( $user_id, $state ) {
         $ctx = $this->load_context( $user_id );
-        $challenge = $this->challenge_section( $user_id );
+        $challenge = $this->challenge_section( $user_id, 'brand-new' !== $state );
         // v0.48.23 — a challenge buyer's Stage 1 is a pending lead, not a
         // client record yet: show it as sent, not "start with the gauge".
         // v0.48.26 — nobody emails a buyer about a next step: the hero points

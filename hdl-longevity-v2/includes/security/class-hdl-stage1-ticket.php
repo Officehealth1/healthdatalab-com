@@ -192,6 +192,8 @@ class HDL_Stage1_Ticket {
      * already. The link changes nothing for it (the 30 days never restart),
      * so with idempotent false it is a second purchase the selling site can
      * stop or refund (restart vs refund is Matthew's call, DF2).
+     * v0.48.27 — the free 30 days (D7) are not a purchase: buying the videos
+     * on top is a first sale.
      */
     private static function mint_challenge( $practitioner_id, $email, $name, $external_ref, $days ) {
         $ticket = self::mint( $practitioner_id, $email, $name, $external_ref, $days, 'challenge' );
@@ -199,7 +201,8 @@ class HDL_Stage1_Ticket {
             return $ticket;
         }
         $user_id  = (int) email_exists( $email );
-        $enrolled = $user_id && class_exists( 'HDLV2_Challenge' ) && null !== HDLV2_Challenge::enrolment( $user_id );
+        $enrolment = $user_id && class_exists( 'HDLV2_Challenge' ) ? HDLV2_Challenge::enrolment( $user_id ) : null;
+        $enrolled  = $enrolment && HDLV2_Challenge::is_paid( $enrolment );
         if ( $enrolled ) {
             error_log( sprintf( '[HDLV2] challenge ticket for an enrolled email: user %d, ref %s', $user_id, $external_ref ) );
         }
