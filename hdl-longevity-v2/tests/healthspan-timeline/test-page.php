@@ -11,6 +11,8 @@ error_reporting( E_ALL & ~E_DEPRECATED );
 $LOG = tempnam( sys_get_temp_dir(), 'htlog' );
 ini_set( 'error_log', $LOG );
 define( 'ABSPATH', __DIR__ . '/' );
+define( 'HDLV2_PLUGIN_URL', 'https://stby.test/wp-content/plugins/hdl-longevity-v2/' );
+define( 'HDLV2_VERSION', 'test' );
 
 $GLOBALS['options'] = array();
 $GLOBALS['inline']  = array();
@@ -191,10 +193,10 @@ check( '(g) no token → mode preview, you empty, lock true', 'preview' === $d['
 // (h) hdlv2_ht_gate = addon → behaves as full_report and logs once.
 $db = fresh();
 $GLOBALS['options']['hdlv2_ht_gate'] = 'addon';
-$db->progress[ tok( 'h' ) ] = row( 8 );
+$db->progress[ tok( '8' ) ] = row( 8 );
 $db->reports[8] = array( (object) array( 'id' => 18, 'report_type' => 'draft', 'report_content' => '{}' ) );
-$d = $T::page_data( tok( 'h' ) );
-$T::page_data( tok( 'h' ) );
+$d = $T::page_data( tok( '8' ) );
+$T::page_data( tok( '8' ) );
 check( '(h) addon gate → full like full_report', 'full' === $d['mode'] );
 check( '(h) logs once per request', 1 === substr_count( (string) file_get_contents( $LOG ), 'hdlv2_ht_gate' ) );
 
@@ -220,14 +222,14 @@ $db = fresh();
 $o = $T::page_data( '' )['offer'];
 check( '(k) line carries the offer\'s price', 'Your loved ones unlock with the full report (today $27).' === $o['line'] );
 check( '(k) button + offer url; anonymous → the code word never printed', 'Get the full report' === $o['button'] && 'https://altituding.com/full-report' === $o['url'] );
-$db->progress[ tok( 'k' ) ] = row( 9, array( 'stage3_data' => null ) );
-$o = $T::page_data( tok( 'k' ) )['offer'];
+$db->progress[ tok( '9' ) ] = row( 9, array( 'stage3_data' => null ) );
+$o = $T::page_data( tok( '9' ) )['offer'];
 check( '(k) a known client (token) → the url carries the code, as the dashboard offer card', 'https://altituding.com/full-report?code=YOURCODE' === $o['url'] );
 $GLOBALS['options']['hdlv2_stage1_offer'] = array( 'url' => '' );
 $o = $T::page_data( '' )['offer'];
 check( '(k) no offer configured → button absent, line "unlocks with the full report"', ! isset( $o['button'] ) && ! isset( $o['url'] ) && 'Your loved ones unlock with the full report.' === $o['line'] );
 $GLOBALS['options']['hdlv2_stage1_offer'] = array( 'practitioner_id' => 77 );
-$o = $T::page_data( tok( 'k' ) )['offer'];
+$o = $T::page_data( tok( '9' ) )['offer'];
 check( '(k) another practitioner\'s client → no button', ! isset( $o['button'] ) );
 
 // Science toggle (DA5).
@@ -249,8 +251,8 @@ $GLOBALS['inline'] = array();
 $_GET['t'] = tok( 'z' ); // unknown token
 $html = $T::render_shortcode();
 check( 'bad link → the expired message, no data printed', false !== strpos( $html, 'This link has expired. Please ask your practitioner for a fresh link.' ) && array() === $GLOBALS['inline'] );
-$db->progress[ tok( 'q' ) ] = row( 10, array( 'client_name' => '</script><script>x' ) );
-$_GET['t'] = tok( 'q' );
+$db->progress[ tok( '7' ) ] = row( 10, array( 'client_name' => '</script><script>x' ) );
+$_GET['t'] = tok( '7' );
 $T::render_shortcode();
 check( 'printed JSON cannot close the script tag', false === strpos( $GLOBALS['inline'][0] ?? '</script>', '</script>' ) );
 
@@ -258,13 +260,15 @@ check( 'printed JSON cannot close the script tag', false === strpos( $GLOBALS['i
 $db = fresh();
 check( 'report_url for a token', 'https://stby.test/healthspan-timeline/?t=' . tok( 'a' ) === $T::report_url( tok( 'a' ) ) );
 $db->progress['s1'] = row( 20, array( 'client_user_id' => 700, 'stage3_data' => null, 'stage3_completed_at' => null, 'token' => tok( 's' ) ) );
-$l = $T::dashboard_link( 700 );
-check( 'dashboard: Stage-1-only → the preview URL with the fragment', false !== strpos( $l, 'href="https://stby.test/healthspan-timeline/#a=52&amp;s=F&amp;r=1.10&amp;n=Kim"' ) && false !== strpos( $l, 'Your healthspan timeline' ) && false === strpos( $l, tok( 's' ) ) );
+$l = $T::dashboard_url( 700 );
+check( 'dashboard: Stage-1-only → the preview URL with the fragment, no token', 'https://stby.test/healthspan-timeline/#a=52&s=F&r=1.10&n=Kim' === $l );
 $db->progress['s1'] = row( 21, array( 'client_user_id' => 701, 'token' => tok( 'r' ) ) );
 $db->reports[21] = array( (object) array( 'id' => 31, 'report_type' => 'draft', 'report_content' => '{}' ) );
-check( 'dashboard: a client with a report → the token URL', false !== strpos( $T::dashboard_link( 701 ), '?t=' . tok( 'r' ) ) );
-check( 'dashboard: no record → nothing', '' === $T::dashboard_link( 999 ) );
+check( 'dashboard: a client with a report → the token URL', 'https://stby.test/healthspan-timeline/?t=' . tok( 'r' ) === $T::dashboard_url( 701 ) );
+$db->progress['s1'] = row( 22, array( 'client_user_id' => 702, 'token' => tok( 'p' ) ) );
+check( 'dashboard: Stage 3 done, no report yet → the token URL (preview with their Stage 3 numbers)', 'https://stby.test/healthspan-timeline/?t=' . tok( 'p' ) === $T::dashboard_url( 702 ) );
+check( 'dashboard: no record → nothing', '' === $T::dashboard_url( 999 ) );
 $GLOBALS['options'] = array();
-check( 'dashboard: flag off → nothing', '' === $T::dashboard_link( 701 ) );
+check( 'dashboard: flag off → nothing', '' === $T::dashboard_url( 701 ) );
 
 done();
