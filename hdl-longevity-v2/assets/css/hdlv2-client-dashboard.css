@@ -924,7 +924,7 @@ button.cd30-day {
   cursor: pointer;
 }
 button.cd30-day:hover { border-color: #10b981; }
-button.cd30-day[aria-pressed="true"] {
+button.cd30-day[aria-expanded="true"] {
   border-color: var(--hdlv2-cd-teal);
   box-shadow: 0 0 0 1px var(--hdlv2-cd-teal);
 }

@@ -294,7 +294,7 @@
     detail.querySelector('.cd30-when').textContent = m.when;
     detail.querySelector('.cd30-note').textContent = m.note;
     section.querySelectorAll('button.cd30-day').forEach(function (b) {
-      b.setAttribute('aria-pressed', b.getAttribute('data-day') === String(day) ? 'true' : 'false');
+      b.setAttribute('aria-expanded', b.getAttribute('data-day') === String(day) ? 'true' : 'false');
     });
     today.hidden = true;
     detail.hidden = false;
@@ -304,13 +304,13 @@
   function challengeToday(section) {
     var detail = section.querySelector('.cd30-detail');
     var today = section.querySelector('.cd30-today');
-    var tile = section.querySelector('button.cd30-day[aria-pressed="true"]');
+    var tile = section.querySelector('button.cd30-day[aria-expanded="true"]');
     if (!detail || !today) return;
     detail.querySelector('.cd30-video').textContent = ''; // stops a playing video
     detail.hidden = true;
     today.hidden = false;
     if (tile) {
-      tile.setAttribute('aria-pressed', 'false');
+      tile.setAttribute('aria-expanded', 'false');
       tile.focus();
     }
   }

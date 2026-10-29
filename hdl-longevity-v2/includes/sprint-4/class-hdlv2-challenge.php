@@ -397,7 +397,7 @@ class HDLV2_Challenge {
             $inner   = '<span class="cd30-n">' . $n . '</span>' . ( '' !== $name ? '<span class="cd30-title">' . esc_html( $name ) . '</span>' : '' );
             if ( null !== $done_at ) {
                 $label .= ', done ' . wp_date( 'j M', strtotime( $done_at . ' UTC' ) );
-                $h     .= '<li class="cd30-cell"><button type="button" class="cd30-day is-done" data-day="' . $n . '" aria-pressed="false" aria-label="' . esc_attr( $label ) . '">' . $inner . '</button></li>';
+                $h     .= '<li class="cd30-cell"><button type="button" class="cd30-day is-done" data-day="' . $n . '" aria-expanded="false" aria-controls="cd30-detail" aria-label="' . esc_attr( $label ) . '">' . $inner . '</button></li>';
             } elseif ( $n === $state['open_day'] ) {
                 $h .= '<li class="cd30-day is-open" aria-current="step" aria-label="' . esc_attr( $label . ', today' ) . '">' . $inner . '</li>';
             } else {
@@ -448,7 +448,7 @@ class HDLV2_Challenge {
         }
         $h .= '</div>';
         // D9 — a done day opened again; the dashboard JS fills it from the JSON.
-        $h .= '<div class="cd30-detail" hidden><h3 class="cd30-today-title" tabindex="-1"></h3><p class="cd30-text"></p><div class="cd30-video"></div><p class="cd30-when"></p><blockquote class="cd30-note"></blockquote><button type="button" class="cd30-back">Back to today</button></div>';
+        $h .= '<div class="cd30-detail" id="cd30-detail" hidden><h3 class="cd30-today-title" tabindex="-1"></h3><p class="cd30-text"></p><div class="cd30-video"></div><p class="cd30-when"></p><blockquote class="cd30-note"></blockquote><button type="button" class="cd30-back">Back to today</button></div>';
 
         if ( ! $paid ) {
             $h .= self::videos_card( $practitioner );

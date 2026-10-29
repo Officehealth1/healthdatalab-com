@@ -189,7 +189,8 @@ check( 'R10.4c the note cannot leave the script: < and & are escaped in the JSON
     && false !== strpos( $json, trim( json_encode( '</script> & tired', JSON_HEX_TAG | JSON_HEX_AMP ), '"' ) ) );
 $today = between( $h, '<div class="cd30-today">', '<div class="cd30-detail"' );
 check( 'R10.5 today\'s panel: the title, then what to do with its line breaks', false !== strpos( $today, '<h3 class="cd30-today-title">Move</h3><p class="cd30-text">Stand up every hour.<br />' . "\n" . 'Twice.</p>' ) );
-check( 'R10.6 the hidden day view after today\'s panel: title, text, video, when, note, Back to today', false !== strpos( $h, '<div class="cd30-detail" hidden><h3 class="cd30-today-title" tabindex="-1"></h3><p class="cd30-text"></p><div class="cd30-video"></div><p class="cd30-when"></p><blockquote class="cd30-note"></blockquote><button type="button" class="cd30-back">Back to today</button></div>' )
+check( 'R10.3b a done tile discloses the day view (aria-expanded + aria-controls), never a toggle', 2 === substr_count( $h, 'aria-expanded="false" aria-controls="cd30-detail"' ) && false === strpos( $h, 'aria-pressed' ) );
+check( 'R10.6 the hidden day view after today\'s panel: title, text, video, when, note, Back to today', false !== strpos( $h, '<div class="cd30-detail" id="cd30-detail" hidden><h3 class="cd30-today-title" tabindex="-1"></h3><p class="cd30-text"></p><div class="cd30-video"></div><p class="cd30-when"></p><blockquote class="cd30-note"></blockquote><button type="button" class="cd30-back">Back to today</button></div>' )
     && '' !== $today );
 $w = fresh();
 enrol_client( 5 );
@@ -255,11 +256,11 @@ $css = file_get_contents( dirname( __DIR__, 2 ) . '/assets/css/hdlv2-client-dash
 $js  = file_get_contents( dirname( __DIR__, 2 ) . '/assets/js/hdlv2-client-dashboard.js' );
 $cd30 = substr( $css, strpos( $css, '/* ── 30-day challenge' ) );
 check( 'R14.1 a done tile opens its day: one delegated click on button.cd30-day.is-done, Back to today, focus moves', false !== strpos( $js, "closest('button.cd30-day.is-done')" ) && false !== strpos( $js, "closest('.cd30-back')" )
-    && false !== strpos( $js, "JSON.parse(" ) && false !== strpos( $js, "'aria-pressed'" ) && 2 <= substr_count( $js, '.focus()' ) - 1 );
+    && false !== strpos( $js, "JSON.parse(" ) && false !== strpos( $js, "'aria-expanded'" ) && false === strpos( $js, 'aria-pressed' ) && 2 <= substr_count( $js, '.focus()' ) - 1 );
 check( 'R14.2 the video is built only from an 11-character id, through createElement, never innerHTML', false !== strpos( $js, "document.createElement('iframe')" ) && false === strpos( between( $js, 'function challengeDayView(', "\n  }\n" ), 'innerHTML' ) );
 check( 'R14.3 the note box: soft fill, no rail (Divi gives blockquote a left border, so the border is cleared)', 1 === preg_match( '/\.cd30-note \{[^}]*border: 0;[^}]*background: #f8f9fb;/', $cd30 ) && 0 === preg_match( '/border-left/', $cd30 ) );
 check( 'R14.4 the tile title: two lines, hidden on phones', 1 === preg_match( '/\.cd30-title \{[^}]*-webkit-line-clamp: 2;/', $cd30 ) && 1 === preg_match( '/@media \(max-width: 640px\) \{[^@]*\.cd30-title \{ display: none; \}/', $cd30 ) );
-check( 'R14.5 the done tile is a real button: focus ring, pressed state, the videos card styled as the offer', 1 === preg_match( '/button\.cd30-day:focus-visible/', $cd30 ) && 1 === preg_match( '/button\.cd30-day\[aria-pressed="true"\]/', $cd30 )
+check( 'R14.5 the done tile is a real button: focus ring, pressed state, the videos card styled as the offer', 1 === preg_match( '/button\.cd30-day:focus-visible/', $cd30 ) && 1 === preg_match( '/button\.cd30-day\[aria-expanded="true"\]/', $cd30 )
     && false !== strpos( $cd30, '.cd30-videos' ) && false === strpos( $cd30, '.cd30-date' ) );
 
 echo "── R15. a buyer who did all 30 days: the hero says so (F12) ──\n";
