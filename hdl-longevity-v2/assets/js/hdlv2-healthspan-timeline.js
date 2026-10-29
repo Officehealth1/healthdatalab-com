@@ -1,0 +1,507 @@
+/**
+ * HDL V2 — Healthspan Timeline (v0.48.29).
+ *
+ * Matthew's Cowork v3 page (evidence copy of 2026-10-13), ported into the
+ * plugin. The model functions keep the prototype's names so the Cowork page
+ * and tests/healthspan-timeline stay comparable. Data comes from
+ * window.HDLV2_HT, printed by HDLV2_Healthspan_Timeline:
+ *   mode 'full'    — the client's report numbers, loved ones editable;
+ *   mode 'preview' — the client's own lane live, loved ones blurred behind
+ *                    the offer line. Without a token the numbers come from
+ *                    the URL fragment (#a=&s=&r=&n=), which never reaches a server.
+ * Loved ones stay in this browser (localStorage, one key per client).
+ * The curve is the report's own engine (HDLTrajectoryChart); no second model.
+ */
+(function (root) {
+  'use strict';
+
+  /* ---------- knobs (DA4: the calculation review signs or changes them) ---------- */
+  var HDLV2_HT_KNOBS = {
+    recovK: 2.5,    // biological years recovered per 0.1 of pace change: placeholder, Matthew to sign
+    recovT: 3,      // years for a shift to settle in: placeholder, Matthew to sign
+    compK: 1.5,     // decline length ∝ pace^compK: placeholder, Matthew to sign
+    fsMax: 0.6,     // future science, slowing at "wild" 30 years after fsStart: placeholder, Matthew to sign
+    fsStart: 2035,  // future science start year: placeholder, Matthew to sign
+    // share of the usual time together left when YOU are in each stage, by closeness: placeholder, Matthew to sign
+    STAGE_TIME: { close: [1, 0.9, 0.65, 0.4, 0.05], distant: [1, 0.75, 0.45, 0.2, 0.02] },
+    // hours a week together: American Time Use Survey pattern (no UK equivalent)
+    DEFAULT_HRS: { spouse: 35, child: 14, grandchild: 3, parent: 3, sibling: 2, friend: 2, other: 2 },
+    // the four preset paces: placeholder, Matthew to sign
+    PROFILES: [
+      { n: 'Poor', r: 1.25, c: 'var(--ht-red)', hex: '#c93437', d: 'Sedentary, poor sleep, no plan', icon: 'sofa' },
+      { n: 'Average', r: 1.00, c: 'var(--ht-yellow)', hex: '#e0b128', d: 'Ageing with the calendar', icon: 'walk' },
+      { n: 'Healthy', r: 0.85, c: 'var(--ht-green)', hex: '#3fae4a', d: 'Trains, eats well, sleeps, measures', icon: 'run' },
+      { n: 'Optimal', r: 0.70, c: 'var(--ht-accent)', hex: '#3d8da0', d: 'Everything that is known to work, consistently', icon: 'spark' }
+    ],
+    // biological age where Yellow, Orange, Red, Grey start and the lane ends, at 1.00×.
+    // Green end = UK healthy life expectancy, end = UK life expectancy at birth (ONS 2021–23);
+    // the three between: placeholder, Matthew to sign.
+    STAGE_BOUNDS_F: [61.9, 72.3, 78.6, 81.8, 82.8],
+    STAGE_BOUNDS_M: [61.5, 70.2, 75.4, 77.8, 78.8],
+    // share living with 2+ conditions by age (Barnett et al., 2012, UK)
+    MM: [[20, 5], [30, 10], [40, 16], [50, 25], [60, 40], [70, 60], [80, 78], [90, 85], [100, 90]]
+  };
+  var K = HDLV2_HT_KNOBS;
+
+  /* ---------- model ---------- */
+  var NOW_Y = new Date().getFullYear(), NOW_F = NOW_Y + (new Date().getMonth() + 0.5) / 12;
+  var STAGES = [
+    { k: 1, name: 'Green', label: 'Free and capable', c: 'var(--ht-green)', hex: '#3fae4a', desc: 'Living on your own terms. Not perfect health, but able to do most of what you want.' },
+    { k: 2, name: 'Yellow', label: 'Early limits', c: 'var(--ht-yellow)', hex: '#e0b128', desc: 'Limits are present most days: long walks and travel get harder, more time on medication and appointments. Still your own life.' },
+    { k: 3, name: 'Orange', label: 'Health takes priority', c: 'var(--ht-orange)', hex: '#e5761f', desc: 'Managing health is a big part of the day. Others start covering for you.' },
+    { k: 4, name: 'Red', label: 'Dependent', c: 'var(--ht-red)', hex: '#c93437', desc: 'Going out is a mission. Others run parts of your life for you.' },
+    { k: 5, name: 'Grey', label: 'Bedridden', c: 'var(--ht-grey)', hex: '#b4bcb9', desc: 'Bedridden or in hospice care. Most of the day is spent coping.' }
+  ];
+  var REL = ['spouse', 'child', 'grandchild', 'parent', 'sibling', 'friend', 'other'];
+  var CLOSE = { spouse: 'close', child: 'close', parent: 'close', grandchild: 'distant', sibling: 'distant', friend: 'distant', other: 'distant' };
+
+  var S;
+  function defaultPeople(you) {
+    return [
+      { id: 'p1', name: 'Spouse', rel: 'spouse', born: you.born + 5, sex: you.sex === 'F' ? 'M' : 'F', rate: 'same' },
+      { id: 'p2', name: 'Child', rel: 'child', born: you.born + 25, sex: 'F', rate: 'same' },
+      { id: 'p3', name: 'Grandchild', rel: 'grandchild', born: you.born + 50, sex: 'M', rate: 'same' }
+    ];
+  }
+  function fresh(cfg) {
+    var y = (cfg && cfg.you) || {};
+    var you = {
+      name: y.name || 'You', born: +y.born || NOW_Y - 50, sex: y.sex === 'M' ? 'M' : 'F',
+      bio: y.bio == null ? '' : y.bio, rate0: +y.rate0 || 1, life: lifestyleFromScores(y.life_scores), lifeSource: y.life_source || ''
+    };
+    you.rate = you.rate0;
+    return { mode: cfg && cfg.mode === 'full' ? 'full' : 'preview', tab: 'you', you: you, people: defaultPeople(you), zoom: 0, fs: 0 };
+  }
+
+  var rateOf = function (p) { return p === S.you ? +S.you.rate : (p.rate === 'same' ? +S.you.rate : +p.rate); };
+  var rate0Of = function (p) { return p === S.you ? +S.you.rate0 : (p.rate === 'same' ? +S.you.rate0 : +p.rate); };
+  var bioNow = function (p) { return p === S.you && S.you.bio !== '' && !isNaN(+S.you.bio) ? +S.you.bio : (NOW_F - p.born); };
+  var fsFrac = function () { return S.fs / 100; };
+  function dividend(rate, fs) { var foundation = Math.max(0, Math.min(1, (1.6 - rate) / 0.9)); return K.fsMax * fs * (0.4 + 0.6 * foundation); }
+  // biological age at calendar t for pace r, starting pace r0 (recovery = shift response), fs = future-science fraction 0..1
+  function bioAtRate(p, t, r, r0, fs) {
+    var base = bioNow(p); if (t <= NOW_F) return base - r0 * (NOW_F - t);
+    var acc;
+    if (!fs || t <= K.fsStart || NOW_F >= K.fsStart + 30) acc = r * (t - NOW_F);
+    else {
+      var d = dividend(r, fs), T0 = Math.max(K.fsStart, NOW_F), T1 = K.fsStart + 30; acc = r * Math.max(0, T0 - NOW_F); var t1 = Math.min(t, T1);
+      acc += r * ((t1 - T0) - d * (Math.pow(t1 - K.fsStart, 2) - Math.pow(T0 - K.fsStart, 2)) / (2 * 30)); if (t > T1) acc += r * (1 - d) * (t - T1);
+    }
+    var R = (r0 - r) * 10 * K.recovK; var rec = R * (1 - Math.exp(-(t - NOW_F) / K.recovT));
+    return base + acc - rec;
+  }
+  var bioAt = function (p, t) { return bioAtRate(p, t, rateOf(p), rate0Of(p), fsFrac()); };
+  // stage boundaries for a person on pace r: green boundary fixed, later ones compressed/stretched by r^compK
+  function stagesFor(p, r) { var T = p.sex === 'M' ? K.STAGE_BOUNDS_M : K.STAGE_BOUNDS_F; var f = Math.pow(Math.max(0.5, Math.min(1.6, r)), K.compK); return T.map(function (v, i) { return i === 0 ? v : T[0] + (v - T[0]) * f; }); }
+  function stageOfBio(p, b, r) { var T = stagesFor(p, r); if (b >= T[4]) return 6; for (var i = 0; i < 4; i++) if (b < T[i]) return i + 1; return 5; }
+  var stageAt = function (p, t) { return t < p.born ? 0 : stageOfBio(p, bioAt(p, t), rateOf(p)); };
+  var stageAtRate = function (p, t, r, r0, fs) { return t < p.born ? 0 : stageOfBio(p, bioAtRate(p, t, r, r0, fs), r); };
+  function capability(p, b, r) { var T = stagesFor(p, r); var pts = [[30, 100], [T[0], 70], [T[1], 50], [T[2], 30], [T[3], 15], [T[4], 5]]; if (b <= 30) return 100; for (var i = 1; i < pts.length; i++) { if (b <= pts[i][0]) { var a0 = pts[i - 1][0], v0 = pts[i - 1][1], a1 = pts[i][0], v1 = pts[i][1]; return v0 + (v1 - v0) * (b - a0) / (a1 - a0); } } return 5; }
+  function multimorb(b) { var MM = K.MM; if (b <= 20) return 3; for (var i = 1; i < MM.length; i++) if (b <= MM[i][0]) { var a0 = MM[i - 1][0], v0 = MM[i - 1][1], a1 = MM[i][0], v1 = MM[i][1]; return v0 + (v1 - v0) * (b - a0) / (a1 - a0); } return 92; }
+  function difficulty(age, rate) { var d = 1 + Math.max(0, age - 30) / 8; d += Math.max(0, rate - 1) * 4; return Math.max(1, Math.min(10, d)); }
+  function gainPotential(life) { var h = (5 - Math.min(5, Math.max(1, life))) / 4; return Math.round(100 * (1 - Math.exp(-2.2 * h)) / (1 - Math.exp(-2.2))); }
+  function yearsByStage(p, r, r0, fs) { var out = [0, 0, 0, 0, 0]; for (var t = NOW_F; t < NOW_F + 140; t += 1 / 12) { var s = stageOfBio(p, bioAtRate(p, t, r, r0, fs), r); if (s === 6) break; out[s - 1] += 1 / 12; } return out; }
+  // weeks of real time together, bucketed by YOUR stage
+  function weeksTogether(p, mode) { // mode "new" | "ref"
+    var rY = mode === 'new' ? rateOf(S.you) : rate0Of(S.you), r0Y = rate0Of(S.you), fs = mode === 'new' ? fsFrac() : 0;
+    var rP = mode === 'new' ? rateOf(p) : rate0Of(p), r0P = rate0Of(p);
+    var hrs = K.DEFAULT_HRS[p.rel] != null ? K.DEFAULT_HRS[p.rel] : 2, prof = K.STAGE_TIME[CLOSE[p.rel] || 'distant']; var out = [0, 0, 0, 0, 0];
+    for (var t = NOW_F; t < NOW_F + 140; t += 1 / 12) {
+      if (t < p.born) continue; var sy = stageAtRate(S.you, t, rY, r0Y, fs), sp = stageAtRate(p, t, rP, r0P, fs); if (sy >= 6 || sp >= 6) break; if (sy === 0 || sp === 0) continue;
+      out[sy - 1] += hrs * (52 / 12) * prof[sy - 1] * prof[sp - 1];
+    }
+    return out.map(function (h) { return h / (7 * 16); }); // full weeks of 16 waking hours
+  }
+
+  /* ---------- inputs from the server and the fragment ---------- */
+  // Mean of the values the server picked (the 12 lifestyle scores, or the Stage 1 answers), one decimal; none → null.
+  function lifestyleFromScores(x) {
+    var v = x && typeof x === 'object' ? Object.keys(x).map(function (k) { return x[k]; }).filter(function (n) { return typeof n === 'number' && isFinite(n); }) : [];
+    return v.length ? Math.round(10 * v.reduce(function (a, b) { return a + b; }, 0) / v.length) / 10 : null;
+  }
+  function bornFromAge(age, iso) { return (iso ? +String(iso).slice(0, 4) : NOW_Y) - age; }
+  // #a=<age>&s=<F|M>&r=<rate>&n=<first name>; anything out of range → null (the page opens on its defaults).
+  function readFragment(hash) {
+    var q = {};
+    String(hash || '').replace(/^#/, '').split('&').forEach(function (kv) {
+      var i = kv.indexOf('='); if (i < 1) return;
+      try { q[kv.slice(0, i)] = decodeURIComponent(kv.slice(i + 1)); } catch (e) { /* malformed escape: ignore the pair */ }
+    });
+    var a = +q.a, r = +q.r;
+    if (!(a >= 18 && a <= 100 && Math.floor(a) === a) || (q.s !== 'F' && q.s !== 'M') || !(r >= 0.6 && r <= 1.6)) return null;
+    r = Math.round(r * 100) / 100;
+    return { name: String(q.n || '').trim().slice(0, 40) || 'You', born: bornFromAge(a), sex: q.s, rate0: r, bio: Math.round(r * a * 10) / 10 };
+  }
+  function paceLabel(r, src) {
+    return src === 'report'
+      ? 'Your pace of ageing from your report: ' + (+r).toFixed(2) + '× (1.00× = ageing with the calendar)'
+      : 'Your pace of ageing from your free check';
+  }
+  function visibleZoomBands() { return ['year', 'month']; } // DA5: weeks removed
+
+  /* ---------- helpers ---------- */
+  var rootEl = null;
+  var $ = function (s) { return rootEl.querySelector(s); };
+  var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); };
+  var stageHex = function (k) { return k >= 1 && k <= 5 ? STAGES[k - 1].hex : 'transparent'; };
+  var people = function () { return [S.you].concat(S.people).sort(function (a, b) { return a.born - b.born; }); };
+  var visiblePeople = function () { return S.mode === 'preview' ? [S.you] : people(); };
+  var ICON = {
+    sofa: '<path d="M8 26v-8a4 4 0 0 1 4-4h20a4 4 0 0 1 4 4v8"/><path d="M6 26h32v8H6z"/><path d="M10 34v4M34 34v4"/>',
+    walk: '<circle cx="24" cy="8" r="4"/><path d="M24 12v12M24 16l-7 6M24 16l6 5v6M24 24l-6 12M24 24l6 12"/>',
+    run: '<circle cx="27" cy="7" r="4"/><path d="M26 12l-6 7 6 5-4 11M20 19l-7 2M26 24l8 2 4 8M26 12l9 4"/>',
+    spark: '<path d="M22 6v10M22 28v10M8 22h10M30 22h10M12 12l6 6M26 26l6 6M32 12l-6 6M18 26l-6 6"/><circle cx="22" cy="22" r="4"/>'
+  };
+  var icon = function (k, c) { return '<svg viewBox="0 0 44 44" fill="none" stroke="' + c + '" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + ICON[k] + '</svg>'; };
+  function figure(cap, size) {
+    size = size || 40;
+    var c = cap >= 70 ? '#3fae4a' : cap >= 50 ? '#e0b128' : cap >= 30 ? '#e5761f' : cap >= 15 ? '#c93437' : '#8a9491';
+    var body = cap >= 70 ? '<circle cx="20" cy="8" r="5"/><path d="M20 13v16M20 18l-8 8M20 18l8 8M20 29l-6 12M20 29l6 12"/>'
+      : cap >= 50 ? '<circle cx="20" cy="8" r="5"/><path d="M20 13v16M20 18l-7 9M20 18l7 6v7M20 29l-5 12M20 29l5 12"/>'
+      : cap >= 30 ? '<circle cx="20" cy="8" r="5"/><path d="M20 13v15M20 17l-7 8M20 17l8 5M20 28l-6 11M20 28l6 11M29 22v19"/>'
+      : cap >= 15 ? '<circle cx="16" cy="9" r="5"/><path d="M16 14v12h12v8M16 20l-6 6M16 26l-4 10"/><path d="M8 40h22"/>'
+      : '<path d="M4 30h32M4 30v8M36 30v8"/><circle cx="10" cy="24" r="4"/><path d="M14 28h20"/>';
+    return '<svg width="' + size + '" height="' + (size * 1.1) + '" viewBox="0 0 40 44" fill="none" stroke="' + c + '" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + body + '</svg>';
+  }
+  var stageFig = function (k) { return figure([100, 60, 40, 20, 5][k - 1], 26); };
+  var fsLabel = function (v) { return v === 0 ? 'off' : v <= 25 ? 'cautious' : v <= 55 ? 'likely' : v <= 85 ? 'bold' : 'wild'; };
+
+  /* ---------- the page shell (DA5: no Settings tab, two zoom bands, science only when switched on) ---------- */
+  function shellHtml(cfg) {
+    var sci = !!cfg.show_science;
+    return '<header class="ht-top"><h1 id="ht-title"></h1><p class="ht-sub">In relation to the people you love. Take stock of where you are, see where today\'s path leads, then change the path and watch what moves.</p></header>'
+      + '<div class="ht-tabs" role="tablist" id="ht-tabs" aria-label="Inputs">'
+      + '<button type="button" role="tab" id="ht-tab-btn-you" aria-controls="ht-tab-you" data-t="you">You</button>'
+      + '<button type="button" role="tab" id="ht-tab-btn-people" aria-controls="ht-tab-people" data-t="people">Loved ones</button></div>'
+      + '<div class="ht-tab" id="ht-tab-you" role="tabpanel" aria-labelledby="ht-tab-btn-you">'
+      + '<div id="ht-you"></div>'
+      + '<div class="ht-eyebrow" style="margin-top:16px">Choose a new path · what happens if you shift</div>'
+      + '<div class="ht-profiles" id="ht-profiles"></div>'
+      + '<div class="ht-sliders">'
+      + '<div class="ht-sl"><label class="ht-eyebrow" for="ht-rate">New pace</label><input id="ht-rate" type="range" min="0.6" max="1.6" step="0.01"><output id="ht-rate-out" for="ht-rate">1.00×</output><span class="ht-play" id="ht-rate-note"></span></div>'
+      + (sci ? '<div class="ht-sl ht-fs"><label class="ht-eyebrow" for="ht-fs">Future science</label><input id="ht-fs" type="range" min="0" max="100" step="1"><output id="ht-fs-out" for="ht-fs">off</output><span class="ht-play" id="ht-fs-note"></span></div>' : '')
+      + '</div></div>'
+      + '<div class="ht-tab" id="ht-tab-people" role="tabpanel" aria-labelledby="ht-tab-btn-people" hidden>'
+      + '<div class="ht-row ht-head" aria-hidden="true"><span>Name</span><span>Relationship</span><span>Born</span><span>Sex</span><span>Pace of ageing</span><span></span></div>'
+      + '<div id="ht-people"></div>'
+      + '<form class="ht-row" id="ht-add" style="margin-top:12px"><input id="ht-a-name" placeholder="Name" aria-label="Name" maxlength="40" required><select id="ht-a-rel" aria-label="Relationship"></select><input id="ht-a-born" type="number" placeholder="Year" aria-label="Year born" required><select id="ht-a-sex" aria-label="Sex"><option value="F">F</option><option value="M">M</option></select><select id="ht-a-rate" aria-label="Pace of ageing"></select><button class="ht-btn" type="submit">Add</button></form>'
+      + '<div class="ht-lock" id="ht-people-lock" hidden></div>'
+      + '<p class="ht-note">"Same as you" assumes your habits shape the household. Time together uses population averages for each relationship.</p>'
+      + '</div>'
+      + '<div class="ht-band"><div class="ht-bandbar"><div><span class="ht-eyebrow">Timeline</span> <span id="ht-unit" class="ht-unit"></span></div>'
+      + '<div class="ht-zoom"><span>Years</span><input id="ht-zoom" type="range" min="0" max="100" value="0" aria-label="Zoom from years to months"><span>Months</span></div></div>'
+      + '<div class="ht-tl"><div class="ht-scroller" id="ht-scroller"><canvas id="ht-cv" role="img"></canvas></div><div class="ht-lockband" id="ht-lockband" hidden></div></div>'
+      + '<div class="ht-legend" id="ht-legend"></div></div>'
+      + '<div class="ht-panel ht-moment" id="ht-moment"></div>'
+      + '<section class="ht-sec"><div class="ht-ahead">'
+      + '<div class="ht-panel"><h2>Your years ahead</h2><p class="ht-lead">What is left, stage by stage, on the new path. The thin bar underneath is today\'s path, so the difference is visible.</p><div id="ht-stacks"></div></div>'
+      + '<div><div class="ht-panel ht-dep"><h2>Years you depend on others</h2><p class="ht-lead">Orange, red and grey are the years someone has to feed you, wash you and run your day. Yellow is not counted; limits are present, but you still run your own life.</p><div id="ht-dep"></div></div>'
+      + '<aside class="ht-panel ht-card" id="ht-card" hidden></aside></div>'
+      + '</div></section>'
+      + '<section class="ht-sec"><div class="ht-traj' + (sci ? '' : ' ht-traj-solo') + '">'
+      + '<div class="ht-panel ht-chart"><h2>Your trajectory</h2><p class="ht-lead">The trajectory chart your report uses, drawn from your pace. The teal line is the new path you pick above.</p><div id="ht-traj"></div></div>'
+      + (sci ? '<div class="ht-panel ht-future"><span class="ht-spec">Speculative, not hocus-pocus</span><h2>Science is moving</h2>'
+        + '<p>Regenerative medicine, cellular reprogramming, better diagnostics. We reliably underestimate exponential change, so the "Future science" slider lets you stretch the picture from cautious to wild.</p>'
+        + '<p>Whatever arrives will work best on a body that is already well kept. A solid foundation improves life now, improves it later, and raises the odds that the next tools work on you.</p>'
+        + '<p>The aim is not more years. It is more good years and fewer in the suffering phase. Length tends to follow as a side effect.</p><div class="ht-note" id="ht-fs-detail"></div></div>' : '')
+      + '</div></section>'
+      + '<section class="ht-sec"><h2>Time with the people you love</h2><p class="ht-lead">Each dot is one full week of real time together, coloured by your stage at the time. Green, yellow and orange all count; in orange the hours are fewer and more of them are care. Closer relationships hold up; more distant ones thin out as you decline. Every relationship is different.</p>'
+      + '<div class="ht-lockwrap"><div class="ht-lo" id="ht-loved"></div><div class="ht-lockmsg" id="ht-loved-lock" hidden></div></div></section>'
+      + '<p class="ht-disc" id="ht-disc"></p>';
+  }
+
+  /* ---------- timeline (fixed axis) ---------- */
+  var cv, ctx, geo = null, hover = null;
+  function drawTimeline() {
+    var preview = S.mode === 'preview';
+    // preview: the You lane first, then the default loved ones (drawn, blurred, not interactive)
+    var ps = preview ? [S.you].concat(S.people.slice().sort(function (a, b) { return a.born - b.born; })) : people();
+    var all = people(); var minY = Math.min.apply(null, all.map(function (p) { return p.born; })), maxY = Math.max.apply(null, all.map(function (p) { return p.born; })) + 110;
+    var span = maxY - minY + 1, W = $('#ht-scroller').clientWidth, left = 122, fitPx = (W - left - 16) / span, z = S.zoom;
+    // two zoom bands: 0–49 years, 50–100 months; pixel scale grows continuously
+    var unit = z < 50 ? 'year' : 'month', per = unit === 'year' ? 1 : 12;
+    var minPx = unit === 'year' ? fitPx : 36, maxPx = unit === 'year' ? 30 : 150, f = unit === 'year' ? z / 49 : (z - 50) / 50;
+    var pxYear = Math.max(fitPx, minPx + (maxPx - minPx) * f);
+    var cellW = pxYear / per, laneH = 24, youH = 48, refH = 5, gap = 12, top = 34;
+    var rows = ps.map(function (p) { return { p: p, h: p === S.you ? youH : laneH }; }); var yy = top; rows.forEach(function (r) { r.y = yy; yy += r.h + refH + 2 + gap; });
+    var width = Math.max(W, left + span * pxYear + 16), height = yy + 2;
+    var dpr = root.devicePixelRatio || 1; cv.width = width * dpr; cv.height = height * dpr; cv.style.width = width + 'px'; cv.style.height = height + 'px'; ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    var cs = getComputedStyle(rootEl), fg = cs.getPropertyValue('--ht-fg').trim(), muted = cs.getPropertyValue('--ht-muted').trim(), line = cs.getPropertyValue('--ht-line').trim(), past = cs.getPropertyValue('--ht-past').trim(), acc = cs.getPropertyValue('--ht-accent2').trim();
+    ctx.clearRect(0, 0, width, height);
+    ctx.font = '11px Inter, system-ui'; ctx.textAlign = 'center';
+    var step = pxYear > 60 ? 1 : pxYear > 25 ? 5 : 10;
+    for (var y = Math.ceil(minY / step) * step; y <= maxY; y += step) { var x = left + (y - minY) * pxYear; ctx.fillStyle = muted; ctx.fillText(y, x, top - 14); ctx.fillStyle = line; ctx.fillRect(x, top - 9, 1, 5); }
+    geo = { minY: minY, pxYear: pxYear, cellW: cellW, per: per, unit: unit, left: left, top: top, rows: rows.filter(function (r) { return visiblePeople().indexOf(r.p) !== -1; }) };
+    var n = Math.round(span * per), gapPx = cellW > 3 ? 1 : 0;
+    rows.forEach(function (row) {
+      var p = row.p, y0 = row.y, h = row.h;
+      ctx.textAlign = 'left'; ctx.fillStyle = p === S.you ? acc : fg; ctx.font = (p === S.you ? '700 16px' : '600 13px') + ' Inter, system-ui'; ctx.fillText(p.name.slice(0, 16), 8, y0 + h / 2 - 1);
+      ctx.font = '11px Inter, system-ui'; ctx.fillStyle = muted; var a = NOW_Y - p.born; ctx.fillText(a < 0 ? 'born ' + p.born : a + ' · ' + rateOf(p).toFixed(2) + '×', 8, y0 + h / 2 + 12);
+      for (var k = 0; k < n; k++) { var t = minY + (k + 0.5) / per; var st = stageAt(p, t); if (st === 0 || st === 6) continue; ctx.fillStyle = stageHex(st); ctx.fillRect(left + k * cellW, y0, Math.max(cellW - gapPx, 0.6), h); }
+      var refPer = Math.min(per, 12), refN = Math.round(span * refPer), refW = pxYear / refPer;
+      for (var j = 0; j < refN; j++) { var tr = minY + (j + 0.5) / refPer; if (tr < p.born) continue; var sr = stageOfBio(p, bioAtRate(p, tr, rate0Of(p), rate0Of(p), 0), rate0Of(p)); if (sr === 6) continue; ctx.fillStyle = stageHex(sr); ctx.fillRect(left + j * refW, y0 + h + 2, Math.max(refW, 0.6), refH); }
+      ctx.fillStyle = past; ctx.fillRect(left, y0, Math.max(0, (NOW_F - minY) * pxYear), h + refH + 2);
+    });
+    var tx = left + (NOW_F - minY) * pxYear; ctx.fillStyle = fg; ctx.fillRect(tx - 1, top - 4, 2, height - top); ctx.font = '700 10px Inter, system-ui'; ctx.textAlign = 'left'; ctx.fillText('TODAY', tx + 4, top - 4);
+    if (hover) { ctx.strokeStyle = fg; ctx.lineWidth = 2; ctx.strokeRect(hover.x + 0.5, hover.y + 0.5, Math.max(hover.w, 2), hover.h - 1); }
+    $('#ht-unit').innerHTML = 'one cell = <b>one ' + unit + '</b> · axis stays fixed when you change pace';
+    var band = $('#ht-lockband');
+    band.hidden = !preview || rows.length < 2;
+    if (!band.hidden) { band.style.top = (rows[1].y - gap / 2) + 'px'; band.style.height = (height - rows[1].y + gap / 2) + 'px'; }
+    var cur = yearsByStage(S.you, rateOf(S.you), rate0Of(S.you), fsFrac()), st0 = stageOfBio(S.you, bioNow(S.you), rateOf(S.you));
+    cv.setAttribute('aria-label', 'Timeline for ' + S.you.name + ': today in the ' + (STAGES[st0 - 1] || { name: 'last' }).name + ' stage; the new path gives ' + cur[0].toFixed(0) + ' green years.');
+  }
+  function onMove(e) {
+    if (!geo) return; var r = cv.getBoundingClientRect(); var x = e.clientX - r.left, y = e.clientY - r.top;
+    var row = geo.rows.find(function (rw) { return y >= rw.y && y < rw.y + rw.h; }); if (!row || x < geo.left) return;
+    var k = Math.floor((x - geo.left) / geo.cellW); var t = geo.minY + (k + 0.5) / geo.per;
+    hover = { x: geo.left + k * geo.cellW, y: row.y, w: geo.cellW, h: row.h, p: row.p, t: t }; drawTimeline(); renderMoment(row.p, t, geo.unit);
+  }
+
+  /* ---------- moment panel ---------- */
+  function renderMoment(p, t, unit, isNow) {
+    var d = $('#ht-moment'); var age = t - p.born; var r = rateOf(p); var b = age < 0 ? null : bioAt(p, t); var st = b === null ? 0 : stageOfBio(p, b, r); var gone = st === 6; var ok = b !== null && !gone;
+    var life = p === S.you ? S.you.life : 3;
+    var cap = ok ? capability(p, b, r) : 0, mm = ok ? multimorb(b) : 0, diff = ok ? difficulty(age, r) : 0, gain = ok && life != null ? gainPotential(life) : null;
+    var dateStr = isNow ? 'today' : unit === 'year' ? String(Math.floor(t)) : new Date(Math.floor(t), Math.floor((t % 1) * 12)).toLocaleString('en-GB', { month: 'short', year: 'numeric' });
+    var pill = b === null ? '<span class="ht-pill" style="--c:var(--ht-muted)">not yet born</span>' : gone ? '<span class="ht-pill" style="--c:var(--ht-muted)">beyond expected lifespan</span>' : '<span class="ht-pill" style="--c:' + STAGES[st - 1].c + '">' + STAGES[st - 1].name + ' · ' + STAGES[st - 1].label + '</span>';
+    var na = '<small>n/a</small>';
+    var lifeWords = p !== S.you ? 'Set from their own report\'s lifestyle score.'
+      : life == null ? 'Your lifestyle score comes with the full report.'
+      : 'From a lifestyle score of ' + life + '/5' + (S.you.lifeSource === 'stage1' ? ' (your free check)' : '') + ': ' + (gain > 60 ? 'the fast part of the curve, early changes pay off quickly.' : gain > 30 ? 'solid headroom left.' : 'already near the top; gains come slower now.');
+    d.innerHTML = '<div class="ht-eyebrow">' + (isNow ? 'Where you are right now' : 'This moment') + ' · hover the timeline to move it</div>'
+      + '<div class="ht-who"><b class="ht-name">' + esc(p.name) + '</b><span>' + dateStr + '</span><span>age <b>' + (age < 0 ? '–' : age.toFixed(unit === 'year' ? 0 : 1)) + '</b></span><span>biological age <b>' + (ok ? b.toFixed(1) : '–') + '</b></span>' + pill + '</div>'
+      + '<div class="ht-cards">'
+      + '<div class="ht-mcard"><div class="ht-eyebrow">Capability &amp; independence</div><div class="ht-v">' + figure(ok ? cap : 0) + (ok ? Math.round(cap) + '<small>/100</small>' : na) + '</div><div class="ht-bar"><i style="--c:' + (ok ? STAGES[st - 1].c : 'var(--ht-muted)') + ';--w:' + cap + '%"></i></div><div class="ht-s">' + (ok ? STAGES[st - 1].desc : b === null ? 'Not born yet at this point.' : 'Past the expected end of life on this path.') + '</div></div>'
+      + '<div class="ht-mcard"><div class="ht-eyebrow">Living with 2+ health conditions</div><div class="ht-v">' + (ok ? Math.round(mm) + '%' : na) + '</div><div class="ht-bar"><i style="--c:var(--ht-orange);--w:' + mm + '%"></i></div><div class="ht-s">Share of people at this biological age (UK pattern).</div></div>'
+      + '<div class="ht-mcard"><div class="ht-eyebrow">Difficulty of changing course</div><div class="ht-v">' + (ok ? diff.toFixed(1) + '<small>/10</small>' : na) + '</div><div class="ht-bar"><i style="--c:var(--ht-red);--w:' + (diff * 10) + '%"></i></div><div class="ht-s">' + (!ok ? '–' : diff < 4 ? 'Habits set now compound for decades.' : diff < 7 ? 'Still very doable; consistency beats intensity.' : 'Big gains still possible, but they take support and patience.') + '</div></div>'
+      + '<div class="ht-mcard"><div class="ht-eyebrow">Potential gain if you act</div><div class="ht-v">' + (gain != null ? gain + '%' : na) + '</div><div class="ht-bar"><i style="--c:var(--ht-green);--w:' + (gain || 0) + '%"></i></div><div class="ht-s">' + lifeWords + '</div></div>'
+      + '</div>';
+  }
+
+  /* ---------- years ahead + dependence ---------- */
+  function renderAhead() {
+    var Y = S.you, r = rateOf(Y), r0 = rate0Of(Y); var cur = yearsByStage(Y, r, r0, fsFrac()), ref = yearsByStage(Y, r0, r0, 0);
+    var sum = function (a) { return a.reduce(function (x, y) { return x + y; }, 0); };
+    var tot = sum(cur), rtot = sum(ref); var maxTot = Math.max(tot, rtot) || 1;
+    var bar = function (vals, cls) { var t = sum(vals); return '<div class="ht-sbar ' + cls + '" style="width:' + (100 * t / maxTot) + '%">' + vals.map(function (v, i) { return '<i style="--c:' + STAGES[i].c + ';--w:' + (100 * v / (t || 1)) + '%"><span>' + (cls || v < 2 ? '' : v.toFixed(0) + 'y') + '</span></i>'; }).join('') + '</div>'; };
+    var dg = cur[0] - ref[0];
+    $('#ht-stacks').innerHTML = '<div class="ht-stack"><div class="ht-lbl"><b>New path · ' + r.toFixed(2) + '×' + (S.fs ? ' + science' : '') + '</b><span>' + tot.toFixed(0) + ' years left, ' + cur[0].toFixed(0) + ' of them green</span></div>' + bar(cur, '') + bar(ref, 'ht-ref') + '<div class="ht-lbl" style="margin-top:4px"><span>Today\'s path · ' + r0.toFixed(2) + '×</span><span>' + rtot.toFixed(0) + ' years, ' + ref[0].toFixed(0) + ' green</span></div></div>'
+      + '<div class="ht-cmp">' + (Math.abs(dg) < 0.5 ? 'Same as today\'s path. Pick a new path above to see what shifts.' : '<b>' + (dg > 0 ? '+' : '') + dg.toFixed(1) + ' green years</b> and <b>' + ((tot - rtot) >= 0 ? '+' : '') + (tot - rtot).toFixed(1) + ' years</b> in total compared with today\'s path.') + '</div>';
+    var dep = cur[2] + cur[3] + cur[4], rdep = ref[2] + ref[3] + ref[4];
+    var figs = [3, 4, 5].map(function (k) { return new Array(Math.round(cur[k - 1]) + 1).join('x').split('').map(function () { return stageFig(k); }).join(''); }).join('');
+    $('#ht-dep').innerHTML = '<div class="ht-big">' + dep.toFixed(1) + '<small> years needing help</small></div><div class="ht-figrow">' + (figs || '<span class="ht-note" style="margin:0">none on this path</span>') + '</div>'
+      + '<div class="ht-kv"><span>Orange · others cover for you</span><b>' + cur[2].toFixed(1) + ' y</b><span>Red · others run parts of your life</span><b>' + cur[3].toFixed(1) + ' y</b><span>Grey · round-the-clock care</span><b>' + cur[4].toFixed(1) + ' y</b><span>On today\'s path</span><b>' + rdep.toFixed(1) + ' y</b></div>'
+      + '<div class="ht-cmp">' + (dep < rdep - 0.3 ? '<b>' + (rdep - dep).toFixed(1) + ' fewer years</b> your family carries you.' : dep > rdep + 0.3 ? '<b>' + (dep - rdep).toFixed(1) + ' more years</b> your family carries you.' : 'Same as today\'s path.') + '</div>';
+  }
+
+  /* ---------- trajectory: the report's engine, plus the new path ---------- */
+  // The engine's plot box (hdl-trajectory-chart-hero.js MARGIN, CW, CH, CHART_MAX_AGE; that file is frozen).
+  var TRAJ = { left: 55, top: 30, w: 780 - 55 - 30, h: 440 - 30 - 50, maxAge: 120 };
+  var trajKey = '';
+  function newPathD(E, age, r0, r) {
+    var d = '';
+    for (var a = age; a <= TRAJ.maxAge; a += 0.5) {
+      var h1 = E.interpolateHealthForRate(a, r); if (h1 === null) break;
+      var h0 = E.interpolateHealthForRate(a, r0);
+      // the shift settles in over recovT years, as on the lanes; the curves themselves are the engine's
+      var h = h0 === null ? h1 : h0 + (h1 - h0) * (1 - Math.exp(-(a - age) / K.recovT));
+      d += (d ? ' L' : 'M') + (TRAJ.left + a / TRAJ.maxAge * TRAJ.w).toFixed(1) + ',' + (TRAJ.top + TRAJ.h - h / 100 * TRAJ.h).toFixed(1);
+    }
+    return d;
+  }
+  function renderTraj() {
+    var E = root.HDLTrajectoryChart, el = $('#ht-traj');
+    if (!E || !E.render) return;
+    var age = NOW_Y - S.you.born, r0 = +S.you.rate0, key = age + '|' + r0;
+    if (key !== trajKey || !el.querySelector('svg')) {
+      E.render(el, { chronoAge: age, agingRate: r0, showBands: true, showProjections: true });
+      trajKey = key;
+      var svg = el.querySelector('svg');
+      if (svg) { var p = document.createElementNS('http://www.w3.org/2000/svg', 'path'); p.setAttribute('data-ht', 'new-path'); p.setAttribute('fill', 'none'); p.setAttribute('stroke', '#3d8da0'); p.setAttribute('stroke-width', '3'); svg.appendChild(p); }
+      var lg = el.querySelector('[data-hdl="legend"]');
+      if (lg) { var it = document.createElement('div'); it.style.cssText = 'display:flex;align-items:center;gap:6px;'; it.innerHTML = '<span style="display:inline-block;width:18px;height:0;border-top:3px solid #3d8da0;"></span><span>New path</span>'; lg.appendChild(it); }
+    }
+    var path = el.querySelector('[data-ht="new-path"]');
+    if (path) path.setAttribute('d', newPathD(E, age, r0, rateOf(S.you)));
+  }
+
+  /* ---------- loved ones ---------- */
+  function renderLoved() {
+    var preview = S.mode === 'preview';
+    $('#ht-loved').innerHTML = S.people.map(function (p) {
+      var cur = weeksTogether(p, 'new'), ref = weeksTogether(p, 'ref'); var w = Math.round(cur.reduce(function (a, b) { return a + b; }, 0)), rw = Math.round(ref.reduce(function (a, b) { return a + b; }, 0));
+      var counts = cur.map(Math.round); var shown = Math.min(Math.max(w, rw), 700);
+      var dots = '', k = 0; counts.forEach(function (c, i) { for (var j = 0; j < c && k < 700; j++, k++) dots += '<i style="--c:' + STAGES[i].c + '"></i>'; }); for (; k < shown; k++) dots += '<i style="--c:var(--ht-line)"></i>';
+      var s18 = stageAt(S.you, p.born + 18);
+      return '<div class="ht-loc"><div class="ht-nm">' + esc(p.name) + '<small>' + p.rel + ' · ' + rateOf(p).toFixed(2) + '×</small></div>'
+        + '<div class="ht-big">' + w + '<small> full weeks of real time together, from today</small></div>'
+        + '<div class="ht-dots">' + dots + '</div>' + (Math.max(w, rw) > 700 ? '<div class="ht-note" style="margin-top:4px">showing 700 of ' + Math.max(w, rw) + '</div>' : '')
+        + '<div class="ht-kv"><span>Green · Yellow · Orange weeks</span><b>' + counts[0] + ' · ' + counts[1] + ' · ' + counts[2] + '</b><span>On today\'s path</span><b>' + rw + ' weeks</b><span>Usual time together</span><b>' + (K.DEFAULT_HRS[p.rel] != null ? K.DEFAULT_HRS[p.rel] : 2) + ' h/week</b><span>You when they turn 18</span><b>' + (p.born > S.you.born ? (s18 >= 1 && s18 <= 5 ? STAGES[s18 - 1].name : s18 === 6 ? 'gone' : '–') : '–') + '</b></div></div>';
+    }).join('');
+    var lo = $('#ht-loved');
+    lo.classList.toggle('ht-blur', preview);
+    if (preview) { lo.setAttribute('aria-hidden', 'true'); lo.setAttribute('inert', ''); } else { lo.removeAttribute('aria-hidden'); lo.removeAttribute('inert'); }
+  }
+
+  /* ---------- the lock line, the card ---------- */
+  function lockHtml(offer) {
+    offer = offer || {};
+    return '<p>' + esc(offer.line || 'Your loved ones unlock with the full report.') + '</p>'
+      + (offer.button && /^https:\/\//i.test(offer.url || '') ? '<a class="ht-btn" href="' + esc(offer.url) + '" target="_blank" rel="noopener noreferrer">' + esc(offer.button) + '</a>' : '');
+  }
+  function renderStatic(cfg) {
+    $('#ht-title').textContent = cfg.title || 'Healthspan Timeline';
+    var preview = S.mode === 'preview';
+    ['#ht-lockband', '#ht-loved-lock', '#ht-people-lock'].forEach(function (s) { $(s).innerHTML = lockHtml(cfg.offer); });
+    $('#ht-loved-lock').hidden = !preview; $('#ht-people-lock').hidden = !preview; $('#ht-add').hidden = preview;
+    var card = cfg.card, el = $('#ht-card');
+    if (card && card.title && card.button && /^https:\/\//i.test(card.url || '')) {
+      el.innerHTML = '<h2></h2>' + (card.text ? '<p class="ht-lead"></p>' : '') + '<a class="ht-btn" target="_blank" rel="noopener noreferrer"></a>';
+      el.querySelector('h2').textContent = card.title;
+      if (card.text) el.querySelector('p').textContent = card.text;
+      var a = el.querySelector('a'); a.textContent = card.button; a.href = card.url;
+      el.hidden = false;
+    }
+    $('#ht-legend').innerHTML = STAGES.map(function (s) { return '<span><i style="--c:' + s.c + '"></i>' + s.name + ' · ' + s.label + '</span>'; }).join('') + '<span><i style="--c:var(--ht-line)"></i>Faded = already lived</span><span><i style="--c:var(--ht-muted);height:5px"></i>Thin bar under each lane = today\'s path, for comparison</span>';
+    $('#ht-disc').textContent = 'Estimates, not predictions. Stage boundaries use UK life and healthy-life expectancy (Office for National Statistics, 2021–23); the health-conditions curve uses published UK multimorbidity data (Barnett et al., 2012); time-together figures use US time-use survey averages because no UK equivalent exists; the shift response, decline compression and future-science slider are assumptions, not measurements. Your own biological age and pace come from your HealthDataLab report; everyone else\'s are assumptions you can edit. Not medical advice. Its job is to make the years ahead visible so you act on them now.';
+  }
+
+  /* ---------- inputs ---------- */
+  var relOpts = function (sel) { return REL.map(function (r) { return '<option value="' + r + '"' + (r === sel ? ' selected' : '') + '>' + r[0].toUpperCase() + r.slice(1) + '</option>'; }).join(''); };
+  var paceOpts = function (sel) { return '<option value="same"' + (sel === 'same' ? ' selected' : '') + '>Same as you</option>' + K.PROFILES.map(function (p) { return '<option value="' + p.r + '"' + (sel !== 'same' && Math.abs(+sel - p.r) < 0.005 ? ' selected' : '') + '>' + p.n + ' ' + p.r.toFixed(2) + '×</option>'; }).join(''); };
+  var highlightPace = false;
+  function renderYou() {
+    var Y = S.you, age = NOW_Y - Y.born, el = $('#ht-you');
+    var facts = '<span>age <b>' + age + '</b></span><span>biological age <b>' + (Y.bio !== '' ? (+Y.bio).toFixed(1) : age) + '</b></span><span>lifestyle <b>' + (Y.life != null ? Y.life + '/5' : 'n/a') + '</b></span>';
+    if (S.mode === 'full') {
+      el.innerHTML = '<div class="ht-facts"><b class="ht-name"></b><span>' + (Y.sex === 'M' ? 'Male' : 'Female') + '</span>' + facts + '</div><p class="ht-pace">' + esc(paceLabel(Y.rate0, 'report')) + '</p>';
+      el.querySelector('.ht-name').textContent = Y.name;
+      return;
+    }
+    el.innerHTML = '<div class="ht-row ht-you-row"><label>Name<input id="ht-y-name" maxlength="40"></label><label>Born<input id="ht-y-born" type="number" min="1920" max="' + (NOW_Y - 18) + '"></label>'
+      + '<label>Sex<select id="ht-y-sex"><option value="F">Female</option><option value="M">Male</option></select></label>'
+      + '<label class="ht-pace-in' + (highlightPace ? ' ht-hl' : '') + '">' + esc(paceLabel(Y.rate0, 'check')) + '<input id="ht-y-rate0" type="number" step="0.01" min="0.6" max="1.6"></label></div>'
+      + '<div class="ht-facts">' + facts + '</div>';
+    $('#ht-y-name').value = Y.name; $('#ht-y-born').value = Y.born; $('#ht-y-sex').value = Y.sex; $('#ht-y-rate0').value = (+Y.rate0).toFixed(2);
+    $('#ht-y-name').onchange = function (e) { S.you.name = e.target.value.trim().slice(0, 40) || 'You'; save(); renderAll(); };
+    $('#ht-y-born').onchange = function (e) { var v = parseInt(e.target.value, 10); if (v >= 1920 && v <= NOW_Y - 18) { S.you.born = v; S.you.bio = derivedBio(); save(); renderAll(); } };
+    $('#ht-y-sex').onchange = function (e) { S.you.sex = e.target.value === 'M' ? 'M' : 'F'; save(); renderAll(); };
+    $('#ht-y-rate0').onchange = function (e) { var v = +e.target.value; if (v >= 0.6 && v <= 1.6) { S.you.rate0 = v; S.you.rate = v; S.you.bio = derivedBio(); highlightPace = false; save(); renderAll(); } };
+  }
+  // the free check's biological age: pace × age (as the widget and HDLV2_Stage1_Commentary::biological_age)
+  function derivedBio() { return Math.round(S.you.rate0 * (NOW_Y - S.you.born) * 10) / 10; }
+  function renderInputs() {
+    var preview = S.mode === 'preview';
+    rootEl.querySelectorAll('#ht-tabs button').forEach(function (b) { b.setAttribute('aria-selected', b.dataset.t === S.tab ? 'true' : 'false'); b.tabIndex = b.dataset.t === S.tab ? 0 : -1; });
+    ['you', 'people'].forEach(function (t) { $('#ht-tab-' + t).hidden = S.tab !== t; });
+    renderYou();
+    var Y = S.you;
+    $('#ht-rate').value = Y.rate; $('#ht-rate-out').value = (+Y.rate).toFixed(2) + '×';
+    $('#ht-profiles').innerHTML = K.PROFILES.map(function (p) { return '<button type="button" class="ht-prof" style="--c:' + p.c + '" data-r="' + p.r + '" aria-pressed="' + (Math.abs(p.r - Y.rate) < 0.005) + '">' + icon(p.icon, p.hex) + '<span><b>' + p.n + ' · ' + p.r.toFixed(2) + '×</b><small>' + p.d + '</small></span></button>'; }).join('');
+    $('#ht-profiles').querySelectorAll('button').forEach(function (b) { b.onclick = function () { S.you.rate = +b.dataset.r; save(); renderAll(); }; });
+    var dr = Y.rate - Y.rate0;
+    $('#ht-rate-note').textContent = Math.abs(dr) < 0.02 ? 'Same as today\'s path. Pick a path or drag to see what a shift does.' : dr < 0 ? 'A shift of ' + (-dr).toFixed(2) + ': you\'d recover about ' + ((-dr) * 10 * K.recovK).toFixed(1) + ' biological years over ~' + K.recovT + ' years, then age slower.' : 'Faster than today by ' + dr.toFixed(2) + ': you\'d lose about ' + (dr * 10 * K.recovK).toFixed(1) + ' biological years, then age faster.';
+    if ($('#ht-fs')) {
+      var dv = dividend(rateOf(Y), fsFrac());
+      $('#ht-fs').value = S.fs; $('#ht-fs-out').value = fsLabel(S.fs);
+      $('#ht-fs-note').textContent = S.fs === 0 ? 'Off. Slide to imagine what research might add.' : fsLabel(S.fs) + ': pace eases from ' + K.fsStart + ', ' + (dv * 100).toFixed(0) + '% slower by ' + (K.fsStart + 30) + ' on your foundation.';
+      $('#ht-fs-detail').textContent = 'Your foundation decides your share: at ' + rateOf(Y).toFixed(2) + '× you earn ' + Math.round(100 * (0.4 + 0.6 * Math.max(0, Math.min(1, (1.6 - rateOf(Y)) / 0.9)))) + '% of whatever the slider offers.';
+    }
+    var pe = $('#ht-people'); pe.innerHTML = '';
+    S.people.forEach(function (p) {
+      var d = document.createElement('div'); d.className = 'ht-row' + (preview ? ' ht-locked' : '');
+      d.innerHTML = '<input aria-label="Name" maxlength="40"><select aria-label="Relationship">' + relOpts(p.rel) + '</select><input type="number" aria-label="Year born"><select aria-label="Sex"><option value="F"' + (p.sex === 'F' ? ' selected' : '') + '>F</option><option value="M"' + (p.sex === 'M' ? ' selected' : '') + '>M</option></select><select aria-label="Pace of ageing">' + paceOpts(p.rate) + '</select><button class="ht-x" type="button" aria-label="Remove ' + esc(p.name) + '">×</button>';
+      var c = d.children, n = c[0], r = c[1], b = c[2], sx = c[3], rt = c[4], x = c[5];
+      n.value = p.name; b.value = p.born;
+      if (preview) { [n, r, b, sx, rt, x].forEach(function (i) { i.disabled = true; }); pe.appendChild(d); return; }
+      n.onchange = function () { p.name = n.value.trim().slice(0, 40) || p.name; save(); renderAll(); }; r.onchange = function () { p.rel = REL.indexOf(r.value) !== -1 ? r.value : p.rel; save(); renderAll(); };
+      b.onchange = function () { var v = parseInt(b.value, 10); if (v > 1850 && v < 2200) { p.born = v; save(); renderAll(); } }; sx.onchange = function () { p.sex = sx.value === 'M' ? 'M' : 'F'; save(); renderAll(); };
+      rt.onchange = function () { p.rate = rt.value; save(); renderAll(); }; x.onclick = function () { S.people = S.people.filter(function (q) { return q !== p; }); save(); renderAll(); }; pe.appendChild(d);
+    });
+    $('#ht-a-rel').innerHTML = relOpts('friend');
+    $('#ht-a-rate').innerHTML = paceOpts('same');
+    $('#ht-zoom').value = S.zoom;
+  }
+  function renderAll() { renderInputs(); drawTimeline(); if (hover) renderMoment(hover.p, hover.t, geo.unit); else renderMoment(S.you, NOW_F, 'year', true); renderAhead(); renderTraj(); renderLoved(); }
+  function renderLive() { drawTimeline(); renderMoment(S.you, NOW_F, 'year', true); renderAhead(); renderTraj(); renderLoved(); }
+
+  /* ---------- storage (DA3: this browser only, one key per client) ---------- */
+  var STORE = 'hs-state-preview', fixedYou = false;
+  function cleanPerson(p) {
+    if (!p || typeof p !== 'object') return null;
+    var born = parseInt(p.born, 10), rate = p.rate === 'same' ? 'same' : +p.rate;
+    if (!(born > 1850 && born < 2200) || (rate !== 'same' && !(rate >= 0.6 && rate <= 1.6))) return null;
+    return { id: String(p.id || 'p' + born).slice(0, 20), name: String(p.name || '').slice(0, 40) || 'Someone', rel: REL.indexOf(p.rel) !== -1 ? p.rel : 'other', born: born, sex: p.sex === 'M' ? 'M' : 'F', rate: rate };
+  }
+  function restore() {
+    var s; try { s = JSON.parse(root.localStorage.getItem(STORE)); } catch (e) { s = null; }
+    if (!s || typeof s !== 'object') return;
+    if (s.zoom >= 0 && s.zoom <= 100) S.zoom = +s.zoom;
+    if (s.tab === 'you' || s.tab === 'people') S.tab = s.tab;
+    if (S.mode === 'full') {
+      if (Array.isArray(s.people)) S.people = s.people.map(cleanPerson).filter(Boolean).slice(0, 30);
+      if (s.rate >= 0.6 && s.rate <= 1.6) S.you.rate = +s.rate;
+      if ($('#ht-fs') && s.fs >= 0 && s.fs <= 100) S.fs = +s.fs;
+    } else if (!fixedYou && s.you && typeof s.you === 'object') {
+      var y = cleanPerson({ born: s.you.born, rate: s.you.rate0, name: s.you.name, sex: s.you.sex });
+      if (y) { S.you.name = y.name; S.you.born = y.born; S.you.sex = y.sex; S.you.rate0 = S.you.rate = y.rate; S.you.bio = derivedBio(); S.people = defaultPeople(S.you); highlightPace = false; }
+    }
+  }
+  function save() {
+    var keep = { zoom: S.zoom, tab: S.tab };
+    if (S.mode === 'full') { keep.people = S.people; keep.rate = S.you.rate; keep.fs = S.fs; }
+    else if (!fixedYou) keep.you = { name: S.you.name, born: S.you.born, sex: S.you.sex, rate0: S.you.rate0 };
+    try { root.localStorage.setItem(STORE, JSON.stringify(keep)); } catch (e) { /* private mode: the page still works, nothing kept */ }
+  }
+
+  /* ---------- boot ---------- */
+  function reset(cfg) { S = fresh(cfg || {}); hover = null; return S; }
+  function boot() {
+    rootEl = document.getElementById('hdlv2-ht-root');
+    if (!rootEl) return;
+    var cfg = root.HDLV2_HT || {};
+    var hasYou = !!(cfg.you && cfg.you.rate0);
+    if (!hasYou && cfg.mode !== 'full') {
+      var fr = readFragment(root.location.hash);
+      if (fr) { cfg = Object.assign({}, cfg, { you: fr }); hasYou = true; }
+    }
+    reset(cfg);
+    if (!hasYou) { S.you.bio = derivedBio(); }
+    fixedYou = hasYou; highlightPace = !hasYou;
+    STORE = S.mode === 'full' && cfg.store ? String(cfg.store) : 'hs-state-preview';
+    rootEl.innerHTML = shellHtml(cfg);
+    cv = $('#ht-cv'); ctx = cv.getContext('2d');
+    renderStatic(cfg);
+    restore();
+
+    cv.addEventListener('mousemove', onMove);
+    cv.addEventListener('mouseleave', function () { hover = null; drawTimeline(); renderMoment(S.you, NOW_F, 'year', true); });
+    $('#ht-tabs').onclick = function (e) { var b = e.target.closest('button'); if (!b) return; S.tab = b.dataset.t; save(); renderInputs(); };
+    $('#ht-rate').oninput = function (e) { S.you.rate = +e.target.value; $('#ht-rate-out').value = S.you.rate.toFixed(2) + '×'; rootEl.querySelectorAll('.ht-prof').forEach(function (b) { b.setAttribute('aria-pressed', Math.abs(+b.dataset.r - S.you.rate) < 0.005); }); renderLive(); };
+    $('#ht-rate').onchange = function () { save(); renderAll(); };
+    if ($('#ht-fs')) {
+      $('#ht-fs').oninput = function (e) { S.fs = +e.target.value; $('#ht-fs-out').value = fsLabel(S.fs); renderLive(); };
+      $('#ht-fs').onchange = function () { save(); renderAll(); };
+    }
+    $('#ht-add').onsubmit = function (e) {
+      e.preventDefault(); var name = $('#ht-a-name').value.trim().slice(0, 40), born = parseInt($('#ht-a-born').value, 10); if (!name || !(born > 1850 && born < 2200)) return;
+      var p = cleanPerson({ id: 'p' + Date.now(), name: name, rel: $('#ht-a-rel').value, born: born, sex: $('#ht-a-sex').value, rate: $('#ht-a-rate').value });
+      if (p) { S.people.push(p); save(); e.target.reset(); renderAll(); }
+    };
+    $('#ht-zoom').oninput = function (e) { S.zoom = +e.target.value; drawTimeline(); var sc = $('#ht-scroller'); if (geo) sc.scrollLeft = Math.max(0, geo.left + (NOW_F - geo.minY) * geo.pxYear - sc.clientWidth / 2); };
+    $('#ht-zoom').onchange = function () { save(); };
+    var rt; root.addEventListener('resize', function () { clearTimeout(rt); rt = setTimeout(drawTimeline, 120); });
+    if (document.fonts) document.fonts.ready.then(drawTimeline);
+    renderAll();
+    if (highlightPace && S.tab === 'you') $('#ht-y-rate0').focus({ preventScroll: true });
+  }
+
+  root.HDLV2HealthspanTimeline = {
+    KNOBS: K, NOW_Y: NOW_Y, NOW_F: NOW_F, state: function () { return S; }, reset: reset,
+    bioAtRate: bioAtRate, stagesFor: stagesFor, yearsByStage: yearsByStage, weeksTogether: weeksTogether, visiblePeople: visiblePeople,
+    lifestyleFromScores: lifestyleFromScores, bornFromAge: bornFromAge, readFragment: readFragment, paceLabel: paceLabel,
+    visibleZoomBands: visibleZoomBands, shellHtml: shellHtml
+  };
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
+})(window);
