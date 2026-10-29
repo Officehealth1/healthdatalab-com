@@ -1799,7 +1799,7 @@ class HDLV2_Client_Dashboard {
         // No custom site chrome — Divi already renders the page header / nav / footer.
         $h  = '<main class="hdlv2-cd shell" data-state="' . esc_attr( $state ) . '">';
 
-        $h .= $this->hero_for_state( $ctx, $state, $buyer );
+        $h .= $this->hero_for_state( $ctx, $state, $buyer, $buyer && HDLV2_Challenge::state( $user_id )['complete'] );
         if ( ! $buyer ) {
             $h .= $this->path_for_state( $ctx, $state );
         }
@@ -1822,7 +1822,7 @@ class HDLV2_Client_Dashboard {
     //  Per-state fragments
     // ──────────────────────────────────────────────────────────────────────
 
-    private function hero_for_state( $ctx, $state, $challenge_buyer = false ) {
+    private function hero_for_state( $ctx, $state, $challenge_buyer = false, $challenge_done = false ) {
         $first = esc_html( $ctx['first_name'] );
 
         $titles = array(
@@ -1842,7 +1842,8 @@ class HDLV2_Client_Dashboard {
         $title = isset( $titles[ $state ] ) ? $titles[ $state ] : $titles['brand-new'];
         $sub   = isset( $subs[ $state ] )   ? $subs[ $state ]   : $subs['brand-new'];
         if ( $challenge_buyer ) {
-            $sub = 'Your 30 days are below. Tick each day when it is done.';
+            // v0.48.27 (F12) — once all 30 are ticked there is nothing left to tick.
+            $sub = $challenge_done ? 'You did all 30 days. Your record is below.' : 'Your 30 days are below. Tick each day when it is done.';
         }
 
         $h  = '<section class="cd-hero">';

@@ -262,4 +262,16 @@ check( 'R14.4 the tile title: two lines, hidden on phones', 1 === preg_match( '/
 check( 'R14.5 the done tile is a real button: focus ring, pressed state, the videos card styled as the offer', 1 === preg_match( '/button\.cd30-day:focus-visible/', $cd30 ) && 1 === preg_match( '/button\.cd30-day\[aria-pressed="true"\]/', $cd30 )
     && false !== strpos( $cd30, '.cd30-videos' ) && false === strpos( $cd30, '.cd30-date' ) );
 
+echo "── R15. a buyer who did all 30 days: the hero says so (F12) ──\n";
+$w = fresh();
+enrol_client( 5 );
+$GLOBALS['users'][5] = 'sam@example.com';
+$w->leads[] = '122|sam@example.com';
+$w->seed( 5, 30, $yesterday );
+$h = $empty->invoke( $dash, 5, 'brand-new' );
+check( 'R15.1 all 30 done: "You did all 30 days. Your record is below."', false !== strpos( $h, '<p class="cd-hero-sub">You did all 30 days. Your record is below.</p>' ) && false === strpos( $h, $sub_buyer ) );
+$w->seed( 5, 29, $yesterday );
+unset( $w->rows[5][30] );
+check( 'R15.2 29 done: the buyer line stays', false !== strpos( $empty->invoke( $dash, 5, 'brand-new' ), '<p class="cd-hero-sub">' . $sub_buyer . '</p>' ) );
+
 done();
