@@ -1303,6 +1303,10 @@ class HDLV2_Client_Dashboard {
         if ( $pdf_url ) {
             $h .= '<a href="' . esc_url( $pdf_url ) . '" target="_blank" rel="noopener noreferrer" class="cdp-btn cdp-btn-line cdp-btn-large">Download PDF</a>';
         }
+        $timeline_url = class_exists( 'HDLV2_Healthspan_Timeline' ) ? HDLV2_Healthspan_Timeline::dashboard_url( get_current_user_id() ) : ''; // v0.48.29
+        if ( $timeline_url ) {
+            $h .= '<a href="' . esc_url( $timeline_url ) . '" class="cdp-btn cdp-btn-line cdp-btn-large">Your healthspan timeline &rarr;</a>';
+        }
         $h .= '</div>';
         $h .= '</div>';
 
@@ -1804,6 +1808,10 @@ class HDLV2_Client_Dashboard {
             $h .= $this->path_for_state( $ctx, $state );
         }
         $h .= $this->preview_for_state( $ctx, $state );
+        $timeline_url = class_exists( 'HDLV2_Healthspan_Timeline' ) ? HDLV2_Healthspan_Timeline::dashboard_url( $user_id ) : ''; // v0.48.29
+        if ( $timeline_url ) {
+            $h .= '<p class="cd-timeline-link"><a href="' . esc_url( $timeline_url ) . '" class="cd-btn">Your healthspan timeline &rarr;</a></p>';
+        }
         $h .= $challenge;
         // Slice C: inbox — mid-funnel clients must see practitioner messages
         // (the betas live in these states). v0.47.82: compact launcher card +

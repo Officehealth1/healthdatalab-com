@@ -2641,7 +2641,9 @@ class HDLV2_Widget_Config {
             // the snippet carried data-access.
             'access_mode'                   => isset( $row->access_mode ) && 'paid' === $row->access_mode ? 'paid' : 'open',
             'buy_url'                       => isset( $row->buy_url ) ? (string) $row->buy_url : '',
-        ) + ( HDLV2_Offer::applies_to( (int) $row->practitioner_user_id ) ? HDLV2_Offer::public_config_fields() : array() ) ) ); // v0.48.15 — the locked panel's price line
+        ) + ( HDLV2_Offer::applies_to( (int) $row->practitioner_user_id ) ? HDLV2_Offer::public_config_fields() : array() ) // v0.48.15 — the locked panel's price line
+          // v0.48.29 — the result screen's timeline teaser, beside the offer it sells (flag on only)
+          + ( HDLV2_Offer::applies_to( (int) $row->practitioner_user_id ) && class_exists( 'HDLV2_Healthspan_Timeline' ) ? HDLV2_Healthspan_Timeline::public_config_fields() : array() ) ) );
     }
 
     /**
