@@ -72,6 +72,7 @@ function wp_enqueue_script( $h ) { $GLOBALS['enqueued'][] = $h; }
 function wp_localize_script( $h, $name, $data ) { $GLOBALS['localized'][ $name ] = $data; }
 function add_query_arg( $k, $v, $url ) { return $url . ( strpos( $url, '?' ) === false ? '?' : '&' ) . $k . '=' . rawurlencode( $v ); }
 function number_format_i18n( $n ) { return (string) $n; }
+function get_user_meta( $u, $k, $single = false ) { return ''; } // no client here is on the 30-day challenge
 
 class HDLV2_Compatibility {
     public static function is_practitioner( $uid ) { return (bool) $GLOBALS['t']['is_prac']; }
@@ -104,6 +105,7 @@ class FakeWpdb {
 $GLOBALS['wpdb'] = new FakeWpdb();
 
 require __DIR__ . '/../../includes/sprint-4/class-hdlv2-message-thread-view.php';
+require_once __DIR__ . '/../../includes/sprint-4/class-hdlv2-challenge.php';
 require __DIR__ . '/../../includes/sprint-4/class-hdlv2-client-dashboard.php';
 
 $pass = 0; $fail = 0;
