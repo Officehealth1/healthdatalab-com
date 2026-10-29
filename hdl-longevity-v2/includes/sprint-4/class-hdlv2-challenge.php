@@ -11,7 +11,10 @@
  *  - Unlock (D1): day N opens once day N-1 is ticked AND the UTC date is
  *    later than that tick's date. Day 1 is open from enrolment.
  *  - Videos (D3): option `hdlv2_challenge_videos`, up to 30
- *    { day, title, youtube_id }; a day without one shows "Video coming".
+ *    { day, title, text, youtube_id }; a day without one shows "Video coming".
+ *  - v0.48.27 (D6): any client record gets the 30 days free (title, what to
+ *    do, tick and note; enrolment `source free` at the first tick); the $27
+ *    link adds the videos to the same enrolment.
  *  - POST hdl-v2/v1/challenge/tick — the signed-in client only, no ids taken.
  *  - The link: open_link() from the ?invite= login, signed_in_link() when
  *    the browser is already signed in.
@@ -30,6 +33,7 @@ class HDLV2_Challenge {
     const META          = 'hdlv2_challenge';
     const VIDEOS_OPTION = 'hdlv2_challenge_videos';
     const NOTE_MAX      = 500;
+    const TEXT_MAX      = 600;
 
     /** open_link() already ran in this request (the ?invite= login). */
     private static $opened = false;
@@ -295,7 +299,11 @@ class HDLV2_Challenge {
         ) );
     }
 
-    /** The videos setting, cleaned: day => { title, youtube_id }. Bad entries are dropped. */
+    /**
+     * The videos setting, cleaned: day => { title, text, youtube_id }. It holds
+     * each day's title, what to do and its video. v0.48.27 — a day with no
+     * video yet keeps its words; a malformed id drops the entry.
+     */
     public static function videos() {
         $raw = get_option( self::VIDEOS_OPTION, array() );
         if ( is_string( $raw ) ) {
@@ -305,11 +313,12 @@ class HDLV2_Challenge {
         foreach ( is_array( $raw ) ? $raw : array() as $v ) {
             $day = is_array( $v ) && isset( $v['day'] ) && is_numeric( $v['day'] ) ? (int) $v['day'] : 0;
             $id  = is_array( $v ) ? (string) ( $v['youtube_id'] ?? '' ) : '';
-            if ( $day < 1 || $day > self::DAYS || ! preg_match( '/^[A-Za-z0-9_-]{11}$/', $id ) ) {
+            if ( $day < 1 || $day > self::DAYS || ( '' !== $id && ! preg_match( '/^[A-Za-z0-9_-]{11}$/', $id ) ) ) {
                 continue;
             }
             $out[ $day ] = array(
                 'title'      => mb_substr( trim( (string) ( $v['title'] ?? '' ) ), 0, 120 ),
+                'text'       => mb_substr( sanitize_textarea_field( (string) ( $v['text'] ?? '' ) ), 0, self::TEXT_MAX ),
                 'youtube_id' => $id,
             );
         }
@@ -317,15 +326,32 @@ class HDLV2_Challenge {
         return $out;
     }
 
-    /** The dashboard section, or '' when the client is not enrolled. */
+    /**
+     * The dashboard section, or '' for a client with no enrolment and no
+     * client record. v0.48.27 (D6) — a client record that is not enrolled gets
+     * the 30 days free; rendering writes nothing (D7).
+     */
     public static function render_section( $user_id, $has_full_report ) {
-        $state = self::state( $user_id );
+        $enrolment = self::enrolment( $user_id );
+        $state     = self::state( $user_id );
         if ( ! $state ) {
-            return '';
+            if ( ! $has_full_report ) {
+                return '';
+            }
+            $state = array(
+                'days'          => array_fill( 1, self::DAYS, array( 'done_at' => null, 'note' => null ) ),
+                'open_day'      => 1,
+                'next_opens_at' => null,
+                'done_count'    => 0,
+                'streak'        => 0,
+                'complete'      => false,
+            );
         }
-        $videos = self::videos();
-        $day    = null === $state['open_day'] ? self::DAYS : $state['open_day'];
-        $done   = $state['done_count'];
+        $paid         = $enrolment && self::is_paid( $enrolment );
+        $practitioner = $enrolment ? (int) $enrolment['practitioner_id'] : self::practitioner_of( $user_id );
+        $videos       = self::videos();
+        $day          = null === $state['open_day'] ? self::DAYS : $state['open_day'];
+        $done         = $state['done_count'];
 
         $h  = '<section id="challenge" class="cd30" aria-labelledby="cd30-h">';
         $h .= '<div class="cd30-body">';
@@ -336,27 +362,50 @@ class HDLV2_Challenge {
         }
         $h .= '</p></div>';
 
-        $h .= '<ol class="cd30-grid" aria-label="Day by day">';
+        // D8 — done and open tiles carry the day's title; a locked day shows
+        // its number only, and its words reach neither the page nor the JSON (C5).
+        $h   .= '<ol class="cd30-grid" aria-label="Day by day">';
+        $json = array();
         for ( $n = 1; $n <= self::DAYS; $n++ ) {
             $done_at = $state['days'][ $n ]['done_at'];
+            $name    = $videos[ $n ]['title'] ?? '';
+            $label   = 'Day ' . $n . ( '' !== $name ? ', ' . $name : '' );
+            $inner   = '<span class="cd30-n">' . $n . '</span>' . ( '' !== $name ? '<span class="cd30-title">' . esc_html( $name ) . '</span>' : '' );
             if ( null !== $done_at ) {
-                $when = wp_date( 'j M', strtotime( $done_at . ' UTC' ) );
-                $h   .= '<li class="cd30-day is-done" aria-label="' . esc_attr( 'Day ' . $n . ', done ' . $when ) . '"><span class="cd30-n">' . $n . '</span><span class="cd30-date">' . esc_html( $when ) . '</span></li>';
+                $label .= ', done ' . wp_date( 'j M', strtotime( $done_at . ' UTC' ) );
+                $h     .= '<li class="cd30-cell"><button type="button" class="cd30-day is-done" data-day="' . $n . '" aria-pressed="false" aria-label="' . esc_attr( $label ) . '">' . $inner . '</button></li>';
             } elseif ( $n === $state['open_day'] ) {
-                $h .= '<li class="cd30-day is-open" aria-current="step"><span class="cd30-n">' . $n . '</span><span class="cd30-date">Today</span></li>';
+                $h .= '<li class="cd30-day is-open" aria-current="step" aria-label="' . esc_attr( $label . ', today' ) . '">' . $inner . '</li>';
             } else {
                 $h .= '<li class="cd30-day is-locked" aria-disabled="true"><span class="cd30-n">' . $n . '</span></li>';
+                continue;
+            }
+            $json[ $n ] = array(
+                'title'   => $name,
+                'text'    => $videos[ $n ]['text'] ?? '',
+                'done_at' => $done_at,
+                'note'    => $state['days'][ $n ]['note'],
+            );
+            if ( $paid && '' !== ( $videos[ $n ]['youtube_id'] ?? '' ) ) {
+                $json[ $n ]['youtube_id'] = $videos[ $n ]['youtube_id'];
             }
         }
         $h .= '</ol>';
+        // D9 — the days a done tile opens, read by the dashboard JS. Inside
+        // .cd30-body so each tick's re-render brings it up to date.
+        $h .= '<script type="application/json" class="cd30-days">' . wp_json_encode( (object) $json, JSON_HEX_TAG | JSON_HEX_AMP ) . '</script>';
 
         $video = $videos[ $day ] ?? null;
         $title = $video && '' !== $video['title'] ? $video['title'] : 'Day ' . $day;
         $h .= '<div class="cd30-today">';
         $h .= '<h3 class="cd30-today-title">' . esc_html( $title ) . '</h3>';
-        if ( $video ) {
+        if ( $video && '' !== $video['text'] ) {
+            $h .= '<p class="cd30-text">' . nl2br( esc_html( $video['text'] ) ) . '</p>';
+        }
+        // The videos are what the $27 buys (D6); a free client gets the card below.
+        if ( $paid && $video && '' !== $video['youtube_id'] ) {
             $h .= '<div class="hdlv2-video-embed"><iframe src="https://www.youtube-nocookie.com/embed/' . esc_attr( $video['youtube_id'] ) . '" title="' . esc_attr( $title ) . '" loading="lazy" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe></div>';
-        } else {
+        } elseif ( $paid ) {
             $h .= '<div class="cd30-video-coming">Video coming</div>';
         }
         if ( $state['complete'] ) {
@@ -374,12 +423,42 @@ class HDLV2_Challenge {
             $h .= '</form>';
         }
         $h .= '</div>';
+        // D9 — a done day opened again; the dashboard JS fills it from the JSON.
+        $h .= '<div class="cd30-detail" hidden><h3 class="cd30-today-title" tabindex="-1"></h3><p class="cd30-text"></p><div class="cd30-video"></div><p class="cd30-when"></p><blockquote class="cd30-note"></blockquote><button type="button" class="cd30-back">Back to today</button></div>';
 
-        $h .= self::offer_card( $has_full_report, (int) ( self::enrolment( $user_id )['practitioner_id'] ?? 0 ) );
+        if ( ! $paid ) {
+            $h .= self::videos_card( $practitioner );
+        }
+        $h .= self::offer_card( $has_full_report, $practitioner );
         $h .= '</div>';
         $h .= '<p class="cd30-live" aria-live="polite"></p>';
         $h .= '</section>';
         return $h;
+    }
+
+    /** A $27 (or granted) enrolment; `free` is the D7 one a first tick writes. */
+    private static function is_paid( $enrolment ) {
+        return 'free' !== ( $enrolment['source'] ?? 'free' );
+    }
+
+    /** The practitioner on the client's live record, 0 when none. */
+    private static function practitioner_of( $user_id ) {
+        global $wpdb;
+        return (int) $wpdb->get_var( $wpdb->prepare(
+            "SELECT practitioner_user_id FROM {$wpdb->prefix}hdlv2_form_progress WHERE client_user_id = %d AND deleted_at IS NULL ORDER BY id DESC LIMIT 1",
+            $user_id
+        ) );
+    }
+
+    /** D6/D10 — the card that sells the videos; its words are the offer setting's own. */
+    private static function videos_card( $practitioner_id ) {
+        if ( ! HDLV2_Offer::applies_to( $practitioner_id ) ) {
+            return '';
+        }
+        $o = HDLV2_Offer::get();
+        return '<aside class="cd30-videos"><h3>' . esc_html( $o['challenge_hook'] ) . '</h3>'
+             . '<p>Today ' . esc_html( HDLV2_Offer::money( $o['challenge_price'], $o ) ) . '</p>'
+             . '<a class="cd30-offer-btn" href="' . esc_url( $o['challenge_url'] ) . '">Get the 30 videos</a></aside>';
     }
 
     /** D4: the hook, prices, url and code are the Stage 1 offer's own. */

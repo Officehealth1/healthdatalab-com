@@ -185,7 +185,8 @@ check( 'R10.4 one JSON block inside .cd30-body: the done days and the open day o
 check( 'R10.4b each day: title, text, done_at (UTC) or null, the stored note, youtube_id only when paid and set', 'Walk and breathe' === $days[2]['title'] && "Breathe in four.\nOut six." === $days[2]['text']
     && $yesterday . ' 09:00:00' === $days[2]['done_at'] && null === $days[3]['done_at'] && null === $days[3]['note'] && "Short on time </script> & tired\nbut did it" === $days[1]['note']
     && 'aaaaaaaaaaa' === $days[1]['youtube_id'] && ! array_key_exists( 'youtube_id', $days[2] ) && 'abcDEF12345' === $days[3]['youtube_id'] );
-check( 'R10.4c the note cannot leave the script: < and & are escaped in the JSON', '' !== $json && false === strpos( $json, '<' ) && false === strpos( $json, '&' ) && false !== strpos( $json, '</script>' ) );
+check( 'R10.4c the note cannot leave the script: < and & are escaped in the JSON', '' !== $json && false === strpos( $json, '<' ) && false === strpos( $json, '&' )
+    && false !== strpos( $json, trim( json_encode( '</script> & tired', JSON_HEX_TAG | JSON_HEX_AMP ), '"' ) ) );
 $today = between( $h, '<div class="cd30-today">', '<div class="cd30-detail"' );
 check( 'R10.5 today\'s panel: the title, then what to do with its line breaks', false !== strpos( $today, '<h3 class="cd30-today-title">Move</h3><p class="cd30-text">Stand up every hour.<br />' . "\n" . 'Twice.</p>' ) );
 check( 'R10.6 the hidden day view after today\'s panel: title, text, video, when, note, Back to today', false !== strpos( $h, '<div class="cd30-detail" hidden><h3 class="cd30-today-title" tabindex="-1"></h3><p class="cd30-text"></p><div class="cd30-video"></div><p class="cd30-when"></p><blockquote class="cd30-note"></blockquote><button type="button" class="cd30-back">Back to today</button></div>' )
