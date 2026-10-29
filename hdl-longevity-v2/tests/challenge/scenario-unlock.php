@@ -195,4 +195,37 @@ check( 'U10.7 not a challenge link → nothing', null === $land() );
 HDLV2_Challenge::register_hooks();
 check( 'U10.8 hooked on init', ! empty( $GLOBALS['actions']['init'] ) );
 
+echo "── U11. free: the first tick enrols a client record; a \$27 link upgrades it (v0.48.27, D7) ──\n";
+$w = fresh();
+$GLOBALS['state'] = 'stage1-done';
+$w->practitioner_of[5] = 206;
+$r = HDLV2_Challenge::tick( 5, 1, 'first', at( '2026-10-28 10:00:00' ) );
+$e = HDLV2_Challenge::enrolment( 5 );
+check( 'U11.1 a client record, not enrolled: tick day 1 → free enrolment {started now, source free, invite 0, no ref, its own practitioner}', is_array( $r ) && 1 === $r['done_count']
+    && is_array( $e ) && '2026-10-28 10:00:00' === $e['started_at'] && 'free' === $e['source'] && 0 === $e['invite_id'] && '' === $e['external_ref'] && 206 === $e['practitioner_id'] );
+check( 'U11.1b …the row is saved and the timeline entry goes to that practitioner', isset( $w->rows[5][1] ) && 'first' === $w->rows[5][1]->note && 1 === count( $GLOBALS['timeline'] ) && 206 === $GLOBALS['timeline'][0][1] );
+$w = fresh();
+$r = HDLV2_Challenge::tick( 5, 1, 'x', at( '2026-10-28 10:00:00' ) );
+check( 'U11.2 no client record (brand-new), not enrolled → 403 not_enrolled, nothing written', 403 === status_of( $r ) && 'not_enrolled' === code_of( $r ) && ! $w->rows && ! $GLOBALS['usermeta'] && ! $GLOBALS['timeline'] );
+$w = fresh();
+$GLOBALS['state'] = 'stage1-done';
+$GLOBALS['users'][5] = 'buyer@example.test';
+$w->stage1_progress = array( 5 );
+$w->practitioner_of[5] = 206;
+HDLV2_Challenge::tick( 5, 1, 'first', at( '2026-10-28 10:00:00' ) );
+$rows = $w->rows;
+$inv  = (object) array( 'id' => 11, 'practitioner_id' => 122, 'external_ref' => 'cs_test_abc', 'client_email' => 'buyer@example.test' );
+$url  = HDLV2_Challenge::open_link( 5, $inv );
+$e    = HDLV2_Challenge::enrolment( 5 );
+check( 'U11.3 a $27 link on a free enrolment → paid {stripe, invite, ref}; the start, the practitioner and every tick kept; the dashboard', 'https://stby.test/my-dashboard/#challenge' === $url
+    && 'stripe' === $e['source'] && 11 === $e['invite_id'] && 'cs_test_abc' === $e['external_ref'] && '2026-10-28 10:00:00' === $e['started_at'] && 206 === $e['practitioner_id'] && $rows == $w->rows );
+$w = fresh();
+$GLOBALS['users'][5] = 'buyer@example.test';
+$w->stage1_progress = array( 5 );
+enrol_client( 5 );
+$before = $GLOBALS['usermeta'][5]['hdlv2_challenge'];
+HDLV2_Challenge::open_link( 5, (object) array( 'id' => 12, 'practitioner_id' => 206, 'external_ref' => 'walk-2', 'client_email' => 'buyer@example.test' ) );
+check( 'U11.4 a link on a paid enrolment → the enrolment unchanged', $before === $GLOBALS['usermeta'][5]['hdlv2_challenge'] );
+check( 'U11.5 enrol() on a paid enrolment still returns false', false === HDLV2_Challenge::enrol( 5, $inv ) );
+
 done();
