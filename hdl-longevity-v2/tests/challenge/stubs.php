@@ -37,7 +37,7 @@ function esc_url_raw( $x ) { return (string) $x; }
 function wp_date( $fmt, $ts = null ) { return gmdate( $fmt, $ts ?? time() ); }
 function add_query_arg( $key, $value, $url ) { return $url . ( false === strpos( $url, '?' ) ? '?' : '&' ) . $key . '=' . $value; }
 function get_user_meta( $u, $k, $single = false ) { return $GLOBALS['usermeta'][ $u ][ $k ] ?? ''; }
-function get_userdata( $u ) { return isset( $GLOBALS['users'][ $u ] ) ? (object) array( 'ID' => $u, 'user_email' => $GLOBALS['users'][ $u ] ) : false; }
+function get_userdata( $u ) { return isset( $GLOBALS['users'][ $u ] ) ? (object) array( 'ID' => $u, 'user_email' => $GLOBALS['users'][ $u ], 'first_name' => '', 'display_name' => strstr( $GLOBALS['users'][ $u ], '@', true ) ) : false; }
 function wp_get_current_user() { return get_userdata( get_current_user_id() ) ?: (object) array( 'ID' => 0, 'user_email' => '' ); }
 function hdlv2_is_staff_account( $u ) { return in_array( (int) $u, $GLOBALS['staff'] ?? array(), true ); }
 function is_admin() { return false; }

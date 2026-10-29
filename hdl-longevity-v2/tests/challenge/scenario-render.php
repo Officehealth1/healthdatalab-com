@@ -110,4 +110,44 @@ $widget = file_get_contents( dirname( __DIR__, 2 ) . '/widget/hdl-lead-magnet.js
 check( 'R8.6 widget: a challenge link gets the public result page (no Full Report promise)', false !== strpos( $widget, "invite.source !== 'paid_stage1' && invite.source !== 'challenge'" ) );
 check( 'R8.7 widget: after a challenge Stage 1 is saved, a button to the 30 days', false !== strpos( $widget, "/my-dashboard/#challenge" ) && false !== strpos( $widget, 'Start your 30 days' ) );
 
+echo "── R9. the dashboard around the section: a buyer whose Stage 1 is a pending lead (v0.48.26) ──\n";
+// The REAL HDLV2_Client_Dashboard::render_empty_state(); the script is taken as enqueued already.
+define( 'HDLV2_PLUGIN_URL', 'https://stby.test/wp-content/plugins/hdl-longevity-v2/' );
+define( 'HDLV2_VERSION', 'test' );
+function wp_script_is( $h, $list ) { return true; }
+function current_time( $f, $gmt = 0 ) { return gmdate( 'Y-m-d H:i:s' ); }
+require_once dirname( __DIR__, 2 ) . '/includes/sprint-4/class-hdlv2-message-thread-view.php';
+require_once dirname( __DIR__, 2 ) . '/includes/sprint-4/class-hdlv2-client-dashboard.php';
+$empty = new ReflectionMethod( 'HDLV2_Client_Dashboard', 'render_empty_state' );
+$empty->setAccessible( true );
+$dash  = HDLV2_Client_Dashboard::get_instance();
+$sub_buyer   = 'Your 30 days are below. Tick each day when it is done.';
+$sub_waiting = 'Your practitioner is reviewing your Stage 1 result. They&rsquo;ll email you when the next step is ready.';
+$card        = 'Step 1 done &mdash; waiting on your practitioner';
+
+$w = fresh();
+enrol_client( 5 );
+$GLOBALS['users'][5] = 'sam@example.com';
+$w->leads[] = '122|sam@example.com';
+$h = $empty->invoke( $dash, 5, 'brand-new' );
+check( 'R9.1 a buyer with a pending lead: stage1-done, the gauge title stays, the subline points at the 30 days', false !== strpos( $h, 'data-state="stage1-done"' )
+    && false !== strpos( $h, 'Hi Sam &mdash; your gauge is in.' ) && false !== strpos( $h, '<p class="cd-hero-sub">' . $sub_buyer . '</p>' ) && false === strpos( $h, $sub_waiting ) );
+check( 'R9.2 no "waiting on your practitioner" card; the 30 days and "How the assessment unfolds" stay', false === stripos( $h, 'waiting on your practitioner' ) && false === strpos( $h, 'cd-paths' )
+    && false !== strpos( $h, '<section id="challenge"' ) && false !== strpos( $h, 'How the assessment unfolds' ) );
+
+fresh();
+$GLOBALS['users'][6] = 'kim@example.com';
+$h = $empty->invoke( $dash, 6, 'stage1-done' );
+check( 'R9.3 a plain stage1-done client (no challenge) is unchanged: the waiting subline and the card', false !== strpos( $h, '<p class="cd-hero-sub">' . $sub_waiting . '</p>' )
+    && false !== strpos( $h, $card ) && false === strpos( $h, $sub_buyer ) );
+
+$w = fresh();
+enrol_client( 5 );
+$GLOBALS['users'][5] = 'sam@example.com';
+$w->leads[] = '122|sam@example.com';
+$w->rejected[] = '122|sam@example.com';
+$h = $empty->invoke( $dash, 5, 'brand-new' );
+check( 'R9.4 a buyer with no Stage 1 on file stays brand-new: "Take the quick gauge", no 30-days subline', false !== strpos( $h, 'data-state="brand-new"' )
+    && false !== strpos( $h, 'Take the quick gauge' ) && false === strpos( $h, $sub_buyer ) );
+
 done();

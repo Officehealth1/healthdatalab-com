@@ -1784,15 +1784,20 @@ class HDLV2_Client_Dashboard {
         $challenge = $this->challenge_section( $user_id );
         // v0.48.23 — a challenge buyer's Stage 1 is a pending lead, not a
         // client record yet: show it as sent, not "start with the gauge".
-        if ( 'brand-new' === $state && '' !== $challenge && HDLV2_Challenge::stage1_on_file( $user_id ) ) {
+        // v0.48.26 — nobody emails a buyer about a next step: the hero points
+        // at the 30 days and the "waiting on your practitioner" card is left out.
+        $buyer = 'brand-new' === $state && '' !== $challenge && HDLV2_Challenge::stage1_on_file( $user_id );
+        if ( $buyer ) {
             $state = 'stage1-done';
         }
 
         // No custom site chrome — Divi already renders the page header / nav / footer.
         $h  = '<main class="hdlv2-cd shell" data-state="' . esc_attr( $state ) . '">';
 
-        $h .= $this->hero_for_state( $ctx, $state );
-        $h .= $this->path_for_state( $ctx, $state );
+        $h .= $this->hero_for_state( $ctx, $state, $buyer );
+        if ( ! $buyer ) {
+            $h .= $this->path_for_state( $ctx, $state );
+        }
         $h .= $this->preview_for_state( $ctx, $state );
         $h .= $challenge;
         // Slice C: inbox — mid-funnel clients must see practitioner messages
@@ -1812,7 +1817,7 @@ class HDLV2_Client_Dashboard {
     //  Per-state fragments
     // ──────────────────────────────────────────────────────────────────────
 
-    private function hero_for_state( $ctx, $state ) {
+    private function hero_for_state( $ctx, $state, $challenge_buyer = false ) {
         $first = esc_html( $ctx['first_name'] );
 
         $titles = array(
@@ -1831,6 +1836,9 @@ class HDLV2_Client_Dashboard {
 
         $title = isset( $titles[ $state ] ) ? $titles[ $state ] : $titles['brand-new'];
         $sub   = isset( $subs[ $state ] )   ? $subs[ $state ]   : $subs['brand-new'];
+        if ( $challenge_buyer ) {
+            $sub = 'Your 30 days are below. Tick each day when it is done.';
+        }
 
         $h  = '<section class="cd-hero">';
         $h .= '<div class="cd-hero-row"><div>';
