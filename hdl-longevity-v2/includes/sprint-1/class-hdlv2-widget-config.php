@@ -485,7 +485,10 @@ class HDLV2_Widget_Config {
         // never takes the fast path below, and it is claimed only once the
         // submission has passed validation (see "claim the ticket").
         $paid_mode   = isset( $config->access_mode ) && 'paid' === $config->access_mode;
-        $is_ticket   = $invite && isset( $invite->source ) && 'paid_stage1' === $invite->source;
+        // v0.48.34 — a Healthspan Timeline link takes the same path (the full nine
+        // questions, the claim, the lead tied to the ticket); its reply also carries
+        // the consent key (see the end of the public path).
+        $is_ticket   = $invite && isset( $invite->source ) && in_array( $invite->source, array( 'paid_stage1', 'timeline_link' ), true );
         $ticket_id   = null;
         // v0.48.15 — a Full Report ticket only ever opens its own practitioner's form.
         $is_full     = $invite && isset( $invite->source ) && 'full_report' === $invite->source;
@@ -788,6 +791,11 @@ class HDLV2_Widget_Config {
             'rate'    => $rate,
         );
         set_transient( $dedupe_key, $public_response, 60 );
+        // v0.48.34 — the key the consent card needs, only in this reply to the browser that
+        // sent the answers: never cached, so a repeat post with the same email gets none.
+        if ( $ticket_id && $lead_id && 'timeline_link' === $invite->source && class_exists( 'HDLV2_Timeline_Links' ) ) {
+            $public_response['link_key'] = HDLV2_Timeline_Links::consent_key( $ticket_id, $lead_id );
+        }
         return rest_ensure_response( $public_response );
     }
 
@@ -3154,10 +3162,17 @@ class HDLV2_Widget_Config {
             }
         }
 
+        // v0.48.34 — a Healthspan Timeline link: its client_name is the inviter's label for the
+        // person, not their name, so it is not handed over; link_from = the inviter's first name.
+        $source = isset( $invite->source ) ? (string) $invite->source : 'practitioner';
+        $link   = 'timeline_link' === $source && class_exists( 'HDLV2_Timeline_Links' )
+            ? array( 'link_from' => HDLV2_Timeline_Links::link_from( (int) $invite->id ) )
+            : array();
+
         return rest_ensure_response( array(
             'valid'             => true,
             'practitioner_id'                => (int) $invite->practitioner_id,
-            'client_name'                    => $invite->client_name,
+            'client_name'                    => 'timeline_link' === $source ? '' : $invite->client_name,
             'client_email'                   => $invite->client_email,
             'practitioner_name'              => $config ? $config->practitioner_name : '',
             'logo_url'                       => $config ? $config->logo_url : '',
@@ -3171,8 +3186,8 @@ class HDLV2_Widget_Config {
             'prefill_stage1'                 => $prefill,
             // v0.47.85 — 'paid_stage1' tells the widget this link buys the
             // public path (no "Continue to Stage 2").
-            'source'                         => isset( $invite->source ) ? (string) $invite->source : 'practitioner',
-        ) );
+            'source'                         => $source,
+        ) + $link );
     }
 
     /**
@@ -3196,7 +3211,7 @@ class HDLV2_Widget_Config {
         $invites = $wpdb->get_results( $wpdb->prepare(
             "SELECT id, client_name, client_email, status, token, expires_at, created_at, opened_at, completed_at
              FROM {$wpdb->prefix}hdlv2_widget_invites
-             WHERE practitioner_id = %d AND source NOT IN ('paid_stage1','challenge')
+             WHERE practitioner_id = %d AND source NOT IN ('paid_stage1','challenge') AND source <> 'timeline_link'
              ORDER BY created_at DESC
              LIMIT 100",
             $user_id
@@ -3560,7 +3575,7 @@ class HDLV2_Widget_Config {
         $invites = $wpdb->get_results( $wpdb->prepare(
             "SELECT id, client_name, client_email, status, token, expires_at, created_at, opened_at, completed_at
              FROM {$wpdb->prefix}hdlv2_widget_invites
-             WHERE practitioner_id = %d AND source NOT IN ('paid_stage1','challenge')
+             WHERE practitioner_id = %d AND source NOT IN ('paid_stage1','challenge') AND source <> 'timeline_link'
              ORDER BY created_at DESC
              LIMIT 100",
             $user_id
@@ -3610,7 +3625,7 @@ class HDLV2_Widget_Config {
         $deleted = $wpdb->query( $wpdb->prepare(
             "DELETE FROM {$wpdb->prefix}hdlv2_widget_invites
              WHERE id = %d AND practitioner_id = %d AND status IN ('expired','revoked','completed')
-               AND source NOT IN ('paid_stage1','challenge')",
+               AND source NOT IN ('paid_stage1','challenge') AND source <> 'timeline_link'",
             $invite_id,
             $user_id
         ) );
