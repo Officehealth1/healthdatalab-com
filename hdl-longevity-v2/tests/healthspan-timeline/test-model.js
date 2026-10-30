@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Healthspan Timeline model (v0.48.29; icons + dependence bar v0.48.30; path buttons v0.48.31). Runs the REAL model functions from
+ * Healthspan Timeline model (v0.48.29; dependence bar v0.48.30; Phosphor icons v0.48.32). Runs the REAL model functions from
  * assets/js/hdlv2-healthspan-timeline.js in a vm with a stub document (no
  * #hdlv2-ht-root, so the page never boots) and checks the 10-13 items 1–8
  * plus the minimal client view (9–11).
@@ -111,37 +111,33 @@ ok(M.readFragment('#a=52&s=X&r=1.07') === null && M.readFragment('#a=52&s=F&r=3'
 ok(M.readFragment('#a=52&s=F&r=1&n=' + 'x'.repeat(60)).name.length === 40, '12d name capped at 40');
 ok(M.readFragment('') === null, '12e no fragment → null (defaults, pace field highlighted)');
 
-// v0.48.30: itshover icons only, geometry copied 1:1 from github.com/itshover/itshover (icons/*.tsx).
+// v0.48.32: one icon family on this page, Phosphor duotone (MIT), geometry 1:1 from
+// github.com/phosphor-icons/core assets/duotone/<name>-duotone.svg: [soft layer at opacity 0.2, outline].
 const SRC = fs.readFileSync(file, 'utf8');
 const CSS = fs.readFileSync(path.join(__dirname, '..', '..', 'assets', 'css', 'hdlv2-healthspan-timeline.css'), 'utf8');
-const ds = s => (String(s).match(/ d="[^"]+"/g) || []).map(x => x.slice(4, -1));
-const sameSet = (a, b) => JSON.stringify(a.slice().sort()) === JSON.stringify(b.slice().sort());
-const SOURCE = {
-  'user-icon': ['M8 7a4 4 0 1 0 8 0a4 4 0 0 0 -8 0', 'M6 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2'],
-  'users-group-icon': ['M10 13a2 2 0 1 0 4 0a2 2 0 0 0 -4 0', 'M8 21v-1a2 2 0 0 1 2 -2h4a2 2 0 0 1 2 2v1', 'M15 5a2 2 0 1 0 4 0a2 2 0 0 0 -4 0', 'M17 10h2a2 2 0 0 1 2 2v1', 'M5 5a2 2 0 1 0 4 0a2 2 0 0 0 -4 0', 'M3 13v-1a2 2 0 0 1 2 -2h2'],
-  'lock-icon': ['M5 13a2 2 0 0 1 2 -2h10a2 2 0 0 1 2 2v6a2 2 0 0 1 -2 2h-10a2 2 0 0 1 -2 -2v-6z', 'M11 16a1 1 0 1 0 2 0a1 1 0 0 0 -2 0', 'M8 11v-4a4 4 0 1 1 8 0v4']
+const PHOSPHOR = {
+  'couch': ["M240,120v48a8,8,0,0,1-8,8H24a8,8,0,0,1-8-8V120a8,8,0,0,1,8-8V72a8,8,0,0,1,8-8H224a8,8,0,0,1,8,8v40A8,8,0,0,1,240,120Z", "M240,106.17V72a16,16,0,0,0-16-16H32A16,16,0,0,0,16,72v34.17A16,16,0,0,0,8,120v48a16,16,0,0,0,16,16h8v16a8,8,0,0,0,16,0V184H208v16a8,8,0,0,0,16,0V184h8a16,16,0,0,0,16-16V120A16,16,0,0,0,240,106.17ZM224,104h-8a16,16,0,0,0-16,16v16H136V72h88ZM120,72v64H56V120a16,16,0,0,0-16-16H32V72Zm112,96H24V120H40v24a8,8,0,0,0,8,8H208a8,8,0,0,0,8-8V120h16Z"],
+  'person-simple-walk': ["M176,48a24,24,0,1,1-24-24A24,24,0,0,1,176,48Z", "M152,80a32,32,0,1,0-32-32A32,32,0,0,0,152,80Zm0-48a16,16,0,1,1-16,16A16,16,0,0,1,152,32Zm64,112a8,8,0,0,1-8,8c-35.31,0-52.95-17.81-67.12-32.12-2.74-2.77-5.36-5.4-8-7.84l-13.43,30.88,37.2,26.57A8,8,0,0,1,160,176v56a8,8,0,0,1-16,0V180.12l-31.07-22.2L79.34,235.19A8,8,0,0,1,72,240a7.84,7.84,0,0,1-3.19-.67,8,8,0,0,1-4.15-10.52l54.08-124.37c-9.31-1.65-20.92,1.2-34.7,8.58a163.88,163.88,0,0,0-30.57,21.77,8,8,0,0,1-10.95-11.66c2.5-2.35,61.69-57.22,98.72-25.08,3.83,3.32,7.48,7,11,10.58C166.19,122.7,179.36,136,208,136A8,8,0,0,1,216,144Z"],
+  'person-simple-run': ["M176,56a24,24,0,1,1-24-24A24,24,0,0,1,176,56Z", "M152,88a32,32,0,1,0-32-32A32,32,0,0,0,152,88Zm0-48a16,16,0,1,1-16,16A16,16,0,0,1,152,40Zm67.31,100.68c-.61.28-7.49,3.28-19.67,3.28-13.85,0-34.55-3.88-60.69-20a169.31,169.31,0,0,1-15.41,32.34,104.29,104.29,0,0,1,31.31,15.81C173.92,186.65,184,207.35,184,232a8,8,0,0,1-16,0c0-41.7-34.69-56.71-54.14-61.85-.55.7-1.12,1.41-1.69,2.1-19.64,23.8-44.25,36.18-71.63,36.18A92.29,92.29,0,0,1,31.2,208,8,8,0,0,1,32.8,192c25.92,2.59,48.47-7.49,67-30,12.49-15.14,21-33.61,25.25-47C86.13,92.34,61.27,111.63,61,111.84A8,8,0,1,1,51,99.36c1.5-1.2,37.22-29,89.51,6.57,45.47,30.91,71.93,20.31,72.18,20.19a8,8,0,1,1,6.63,14.56Z"],
+  'sparkle': ["M194.82,151.43l-55.09,20.3-20.3,55.09a7.92,7.92,0,0,1-14.86,0l-20.3-55.09-55.09-20.3a7.92,7.92,0,0,1,0-14.86l55.09-20.3,20.3-55.09a7.92,7.92,0,0,1,14.86,0l20.3,55.09,55.09,20.3A7.92,7.92,0,0,1,194.82,151.43Z", "M197.58,129.06,146,110l-19-51.62a15.92,15.92,0,0,0-29.88,0L78,110l-51.62,19a15.92,15.92,0,0,0,0,29.88L78,178l19,51.62a15.92,15.92,0,0,0,29.88,0L146,178l51.62-19a15.92,15.92,0,0,0,0-29.88ZM137,164.22a8,8,0,0,0-4.74,4.74L112,223.85,91.78,169A8,8,0,0,0,87,164.22L32.15,144,87,123.78A8,8,0,0,0,91.78,119L112,64.15,132.22,119a8,8,0,0,0,4.74,4.74L191.85,144ZM144,40a8,8,0,0,1,8-8h16V16a8,8,0,0,1,16,0V32h16a8,8,0,0,1,0,16H184V64a8,8,0,0,1-16,0V48H152A8,8,0,0,1,144,40ZM248,88a8,8,0,0,1-8,8h-8v8a8,8,0,0,1-16,0V96h-8a8,8,0,0,1,0-16h8V72a8,8,0,0,1,16,0v8h8A8,8,0,0,1,248,88Z"],
+  'person-arms-spread': ["M104,40a24,24,0,1,1,24,24A24,24,0,0,1,104,40ZM212,80H44c-12.87,0-16.71,17.5-5,22.9L96,128,73.13,214.93a12,12,0,0,0,21.75,10.14L128,168l33.12,57.07a12,12,0,0,0,21.75-10.14L160,128l57-25.1C228.69,97.5,224.85,80,212,80Z", "M160,40a32,32,0,1,0-32,32A32,32,0,0,0,160,40ZM128,56a16,16,0,1,1,16-16A16,16,0,0,1,128,56ZM231.5,87.71A19.62,19.62,0,0,0,212,72H44a20,20,0,0,0-8.38,38.16l.13.06,50.75,22.35-21,79.72A20,20,0,0,0,102,228.82l26-44.88,26,44.88a20,20,0,0,0,36.4-16.53l-21-79.72,50.75-22.35.13-.06A19.63,19.63,0,0,0,231.5,87.71Zm-17.8,7.9-56.93,25.07a8,8,0,0,0-4.51,9.36L175.13,217a7,7,0,0,0,.49,1.35,4,4,0,1,1-7.25,3.38c-.11-.22-.22-.43-.34-.63L134.92,164a8,8,0,0,0-13.84,0L88,221.06c-.12.2-.23.41-.34.63a4,4,0,1,1-7.25-3.38,7,7,0,0,0,.49-1.35L103.74,130a8,8,0,0,0-4.51-9.36L42.3,95.61A4,4,0,0,1,44,88H212a4,4,0,0,1,1.73,7.61Z"],
+  'users-three': ["M168,144a40,40,0,1,1-40-40A40,40,0,0,1,168,144ZM64,56A32,32,0,1,0,96,88,32,32,0,0,0,64,56Zm128,0a32,32,0,1,0,32,32A32,32,0,0,0,192,56Z", "M244.8,150.4a8,8,0,0,1-11.2-1.6A51.6,51.6,0,0,0,192,128a8,8,0,0,1,0-16,24,24,0,1,0-23.24-30,8,8,0,1,1-15.5-4A40,40,0,1,1,219,117.51a67.94,67.94,0,0,1,27.43,21.68A8,8,0,0,1,244.8,150.4ZM190.92,212a8,8,0,1,1-13.85,8,57,57,0,0,0-98.15,0,8,8,0,1,1-13.84-8,72.06,72.06,0,0,1,33.74-29.92,48,48,0,1,1,58.36,0A72.06,72.06,0,0,1,190.92,212ZM128,176a32,32,0,1,0-32-32A32,32,0,0,0,128,176ZM72,120a8,8,0,0,0-8-8A24,24,0,1,1,87.24,82a8,8,0,1,0,15.5-4A40,40,0,1,0,37,117.51,67.94,67.94,0,0,0,9.6,139.19a8,8,0,1,0,12.8,9.61A51.6,51.6,0,0,1,64,128,8,8,0,0,0,72,120Z"],
+  'lock': ["M216,96V208a8,8,0,0,1-8,8H48a8,8,0,0,1-8-8V96a8,8,0,0,1,8-8H208A8,8,0,0,1,216,96Z", "M208,80H176V56a48,48,0,0,0-96,0V80H48A16,16,0,0,0,32,96V208a16,16,0,0,0,16,16H208a16,16,0,0,0,16-16V96A16,16,0,0,0,208,80ZM96,56a32,32,0,0,1,64,0V80H96ZM208,208H48V96H208V208Zm-68-56a12,12,0,1,1-12-12A12,12,0,0,1,140,152Z"]
 };
-ok(typeof M.iconHtml === 'function' && typeof M.depBarHtml === 'function', '14a iconHtml and depBarHtml exposed');
-if (typeof M.iconHtml !== 'function' || typeof M.depBarHtml !== 'function') { console.log('\nSCENARIO: FAIL (' + PASS + '/' + (PASS + FAIL) + ')'); process.exit(1); }
-const icon = k => M.iconHtml(k, '#c93437');
-const named = (k, n) => new RegExp('^<svg[^>]* data-ht-icon="' + n + '"').test(icon(k));
-// v0.48.31: the path buttons carry no icon (a battery is not a lifestyle); three icons stay.
-ok(['user', 'users-group', 'lock'].every(k => /aria-hidden="true"/.test(icon(k)) && /focusable="false"/.test(icon(k))), '14b every icon aria-hidden, not focusable');
-ok(['poor', 'average', 'healthy', 'optimal'].every(k => M.iconHtml(k) === '') && !/battery|sparkles/.test(SRC), '14c no path-button icons left: no battery, no sparkles');
-ok(named('user', 'user-icon') && sameSet(ds(icon('user')), SOURCE['user-icon']), '14g capability = user-icon, geometry 1:1');
-ok(named('users-group', 'users-group-icon') && sameSet(ds(icon('users-group')), SOURCE['users-group-icon']), '14h dependence = users-group-icon, geometry 1:1');
-ok(named('lock', 'lock-icon') && sameSet(ds(icon('lock')), SOURCE['lock-icon']), '14i lock bands = lock-icon, geometry 1:1');
-ok(/ stroke="#c93437"/.test(icon('user')) && / stroke="currentColor"/.test(M.iconHtml('lock')) && M.iconHtml('nope') === '', '14j colour given or currentColor; unknown key → nothing');
-ok(K.PROFILES.every(p => !('icon' in p) && !('hex' in p)), '14k the presets carry no icon fields (nothing reads them)');
-// The path button: a dot and the pace in the band colour, the name, the words; nothing else.
-ok(typeof M.presetHtml === 'function', '16a presetHtml exposed');
-if (typeof M.presetHtml !== 'function') { console.log('\nSCENARIO: FAIL (' + PASS + '/' + (PASS + FAIL) + ')'); process.exit(1); }
-const poorBtn = M.presetHtml(K.PROFILES[0], 1.25), avgBtn = M.presetHtml(K.PROFILES[1], 1.25);
-ok(!/<svg/.test(poorBtn) && /class="ht-prof-dot"/.test(poorBtn) && /aria-hidden="true"/.test(poorBtn.match(/<i class="ht-prof-dot"[^>]*>/)[0]), '16b no <svg>; a decorative dot');
-ok(/<b>Poor<\/b>/.test(poorBtn) && /<span class="ht-prof-r">1\.25×<\/span>/.test(poorBtn) && /<small>Sedentary, poor sleep, no plan<\/small>/.test(poorBtn), '16c the name, the pace, the words');
-ok(/style="--c:var\(--ht-red\)"/.test(poorBtn) && /data-r="1\.25"/.test(poorBtn), '16d band colour and pace on the button');
-ok(/aria-pressed="true"/.test(poorBtn) && /aria-pressed="false"/.test(avgBtn), '16e pressed only for the pace in use');
-ok(!/function figure\(|stageFig|ICON\[|stroke-width="2\.6"/.test(SRC) && !/ht-figrow|\.ht-prof \.ht-ico/.test(CSS), '14l figure(), stageFig(), the hand-drawn icons, .ht-figrow and the preset icon rules are gone');
+const NAMES = Object.keys(PHOSPHOR);
+ok(typeof M.iconHtml === 'function' && typeof M.depBarHtml === 'function' && typeof M.presetHtml === 'function', '14a iconHtml, depBarHtml and presetHtml exposed');
+if (typeof M.iconHtml !== 'function' || typeof M.depBarHtml !== 'function' || typeof M.presetHtml !== 'function') { console.log('\nSCENARIO: FAIL (' + PASS + '/' + (PASS + FAIL) + ')'); process.exit(1); }
+const paths = s => [...String(s).matchAll(/<path d="([^"]+)"( opacity="0\.2")?\/>/g)].map(m => [m[1], !!m[2]]);
+ok(NAMES.every(n => { const h = M.iconHtml(n, '#c93437'); return (h.match(/<svg/g) || []).length === 1 && new RegExp('^<svg[^>]* data-ht-icon="' + n + '"').test(h) && / viewBox="0 0 256 256"/.test(h) && /aria-hidden="true"/.test(h) && /focusable="false"/.test(h); }), '14b the seven Phosphor names: one <svg> each, viewBox 256, aria-hidden, not focusable');
+ok(NAMES.every(n => { const ps = paths(M.iconHtml(n)); return ps.length === 2 && ps[0][0] === PHOSPHOR[n][0] && ps[0][1] && ps[1][0] === PHOSPHOR[n][1] && !ps[1][1]; }), '14c each: the soft layer (opacity 0.2) then the outline, geometry 1:1 with the source');
+ok(/ fill="#c93437"/.test(M.iconHtml('couch', '#c93437')) && / fill="currentColor"/.test(M.iconHtml('lock')) && M.iconHtml('nope') === '' && M.iconHtml('battery-charging-icon') === '', '14d colour on the fill (given or currentColor); unknown or old keys → nothing');
+ok(!/battery|sparkles-icon|user-icon|users-group-icon|lock-icon|stroke-width="2\.6"/.test(SRC), '14e no itshover or hand-drawn icon left in the page script');
+ok(JSON.stringify(K.PROFILES.map(p => p.icon)) === JSON.stringify(['couch', 'person-simple-walk', 'person-simple-run', 'sparkle']), '14f Poor couch, Average walking, Healthy running, Optimal sparkle');
+const btn = K.PROFILES.map(p => M.presetHtml(p, 1.25));
+ok(btn.every((h, i) => (h.match(/data-ht-icon="([^"]+)"/) || [])[1] === K.PROFILES[i].icon), '14g each path button carries its own glyph');
+ok(/<b>Poor<\/b>/.test(btn[0]) && /<span class="ht-prof-r">1\.25×<\/span>/.test(btn[0]) && /<small>Sedentary, poor sleep, no plan<\/small>/.test(btn[0]) && /style="--c:var\(--ht-red\)"/.test(btn[0]), '14h the button keeps the name, the pace, the words and its band colour');
+ok(/aria-pressed="true"/.test(btn[0]) && /aria-pressed="false"/.test(btn[1]), '14i pressed only for the pace in use');
+ok(!/function figure\(|stageFig|ICON\[/.test(SRC) && !/ht-figrow|vector-effect/.test(CSS), '14l figure(), stageFig(), .ht-figrow and the stroke rule for line icons are gone');
 ok(!/border-left/.test(CSS), '14m no border-left in the timeline styles (no accent rails)');
 
 // The dependence bar: one stacked bar in orange, red, grey; the segments are the whole bar.
