@@ -100,6 +100,9 @@ ok(off.indexOf('Weeks') === -1, '10c no Weeks zoom band');
 ok(M.paceLabel(0.97, 'report') === 'Your pace of ageing from your report: 0.97× (1.00× = ageing with the calendar)', '11a paceLabel report = the DA9 words');
 ok(M.paceLabel(1.1, 'check') === 'Your pace of ageing from your free check', '11b paceLabel check = the preview words');
 
+// The moment panel's age reads as the facts line does (whole years, never rounded up).
+ok(M.ageLabel(52.79, 'year') === '52' && M.ageLabel(52.79, 'month') === '52.8' && M.ageLabel(-1, 'year') === '–', '13 ageLabel: 52.79 → 52 in years, 52.8 in months, – before birth');
+
 // Fragment (preview without a token): validated, never trusted.
 const fr = M.readFragment('#a=52&s=M&r=1.07&n=Kim%3Cb%3E');
 ok(fr && fr.born === M.bornFromAge(52) && fr.sex === 'M' && fr.rate0 === 1.07 && fr.name === 'Kim<b>', '12a fragment read: age → born, sex, rate, name (text only)');

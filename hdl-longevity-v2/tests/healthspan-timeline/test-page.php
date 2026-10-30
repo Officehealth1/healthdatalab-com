@@ -21,6 +21,8 @@ $GLOBALS['owners']  = array(); // "prac|client" pairs practitioner_owns_client()
 function get_option( $k, $d = false ) { return $GLOBALS['options'][ $k ] ?? $d; }
 function add_action( $hook, $cb, $p = 10, $a = 1 ) {}
 function add_shortcode( $tag, $cb ) {}
+function add_filter( $hook, $cb, $p = 10, $a = 1 ) {}
+function is_admin() { return ! empty( $GLOBALS['is_admin'] ); }
 function get_current_user_id() { return $GLOBALS['current_user'] ?? 0; }
 function wp_json_encode( $x, $flags = 0 ) { return json_encode( $x, $flags ); }
 function absint( $x ) { return abs( (int) $x ); }
@@ -255,6 +257,17 @@ $db->progress[ tok( '7' ) ] = row( 10, array( 'client_name' => '</script><script
 $_GET['t'] = tok( '7' );
 $T::render_shortcode();
 check( 'printed JSON cannot close the script tag', false === strpos( $GLOBALS['inline'][0] ?? '</script>', '</script>' ) );
+
+// Ultimate Member's "logged-in only" site: the page is public (the token and the fragment are the access).
+$db = fresh();
+$u = $T::um_public( array( '/longevity-draft-report/' ) );
+check( 'UM: flag on → the page URL joins the exclusions, existing ones kept', array( '/longevity-draft-report/', 'https://stby.test/healthspan-timeline/' ) === $u );
+check( 'UM: a non-array option still works', array( 'https://stby.test/healthspan-timeline/' ) === $T::um_public( '' ) );
+$GLOBALS['is_admin'] = true;
+check( 'UM: never in wp-admin (the settings screen would save it)', array( '/x' ) === $T::um_public( array( '/x' ) ) );
+$GLOBALS['is_admin'] = false;
+$GLOBALS['options'] = array();
+check( 'UM: flag off → unchanged', array( '/x' ) === $T::um_public( array( '/x' ) ) );
 
 // Report-page card + dashboard line (Task 4).
 $db = fresh();

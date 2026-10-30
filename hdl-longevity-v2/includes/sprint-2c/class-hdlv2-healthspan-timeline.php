@@ -43,6 +43,7 @@ class HDLV2_Healthspan_Timeline {
     public static function init() {
         add_shortcode( 'hdlv2_healthspan_timeline', array( __CLASS__, 'render_shortcode' ) );
         add_action( 'template_redirect', array( __CLASS__, 'no_cache_page' ) );
+        add_filter( 'um_get_option_filter__access_exclude_uris', array( __CLASS__, 'um_public' ) );
     }
 
     public static function enabled() {
@@ -59,6 +60,20 @@ class HDLV2_Healthspan_Timeline {
             header( 'X-LiteSpeed-Cache-Control: no-cache' );
             header( 'Cache-Control: no-store, no-cache, must-revalidate, max-age=0' );
         }
+    }
+
+    /**
+     * Ultimate Member runs the site "logged-in only" and matches its exclusions against the full
+     * URL without the query. This page is public by design: the token and the fragment are the
+     * access. Never in wp-admin, so the UM settings screen does not save the entry.
+     */
+    public static function um_public( $uris ) {
+        if ( is_admin() || ! self::enabled() ) {
+            return $uris;
+        }
+        $uris   = is_array( $uris ) ? $uris : array();
+        $uris[] = self::page_url();
+        return $uris;
     }
 
     public static function page_url() {

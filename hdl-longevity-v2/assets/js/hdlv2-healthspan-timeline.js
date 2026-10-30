@@ -138,6 +138,8 @@
       : 'Your pace of ageing from your free check';
   }
   function visibleZoomBands() { return ['year', 'month']; } // DA5: weeks removed
+  // whole years as people say their age (52.8 → 52, as the facts line); one decimal on the month band
+  function ageLabel(age, unit) { return age < 0 ? '–' : unit === 'year' ? String(Math.floor(age)) : age.toFixed(1); }
 
   /* ---------- helpers ---------- */
   var rootEl = null;
@@ -270,7 +272,7 @@
       : life == null ? 'Your lifestyle score comes with the full report.'
       : 'From a lifestyle score of ' + life + '/5' + (S.you.lifeSource === 'stage1' ? ' (your free check)' : '') + ': ' + (gain > 60 ? 'the fast part of the curve, early changes pay off quickly.' : gain > 30 ? 'solid headroom left.' : 'already near the top; gains come slower now.');
     d.innerHTML = '<div class="ht-eyebrow">' + (isNow ? 'Where you are right now' : 'This moment') + ' · hover the timeline to move it</div>'
-      + '<div class="ht-who"><b class="ht-name">' + esc(p.name) + '</b><span>' + dateStr + '</span><span>age <b>' + (age < 0 ? '–' : age.toFixed(unit === 'year' ? 0 : 1)) + '</b></span><span>biological age <b>' + (ok ? b.toFixed(1) : '–') + '</b></span>' + pill + '</div>'
+      + '<div class="ht-who"><b class="ht-name">' + esc(p.name) + '</b><span>' + dateStr + '</span><span>age <b>' + ageLabel(age, unit) + '</b></span><span>biological age <b>' + (ok ? b.toFixed(1) : '–') + '</b></span>' + pill + '</div>'
       + '<div class="ht-cards">'
       + '<div class="ht-mcard"><div class="ht-eyebrow">Capability &amp; independence</div><div class="ht-v">' + figure(ok ? cap : 0) + (ok ? Math.round(cap) + '<small>/100</small>' : na) + '</div><div class="ht-bar"><i style="--c:' + (ok ? STAGES[st - 1].c : 'var(--ht-muted)') + ';--w:' + cap + '%"></i></div><div class="ht-s">' + (ok ? STAGES[st - 1].desc : b === null ? 'Not born yet at this point.' : 'Past the expected end of life on this path.') + '</div></div>'
       + '<div class="ht-mcard"><div class="ht-eyebrow">Living with 2+ health conditions</div><div class="ht-v">' + (ok ? Math.round(mm) + '%' : na) + '</div><div class="ht-bar"><i style="--c:var(--ht-orange);--w:' + mm + '%"></i></div><div class="ht-s">Share of people at this biological age (UK pattern).</div></div>'
@@ -501,7 +503,7 @@
     KNOBS: K, NOW_Y: NOW_Y, NOW_F: NOW_F, state: function () { return S; }, reset: reset,
     bioAtRate: bioAtRate, stagesFor: stagesFor, yearsByStage: yearsByStage, weeksTogether: weeksTogether, visiblePeople: visiblePeople,
     lifestyleFromScores: lifestyleFromScores, bornFromAge: bornFromAge, readFragment: readFragment, paceLabel: paceLabel,
-    visibleZoomBands: visibleZoomBands, shellHtml: shellHtml
+    visibleZoomBands: visibleZoomBands, ageLabel: ageLabel, shellHtml: shellHtml
   };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
 })(window);
