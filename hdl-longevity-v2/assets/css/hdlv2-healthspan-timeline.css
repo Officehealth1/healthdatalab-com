@@ -187,6 +187,28 @@ body.hdlv2-wide-page .entry-content .et_pb_section{padding-left:0;padding-right:
 /* the expired-link message */
 .hdlv2-ht-msg{max-width:640px;margin:60px auto;padding:32px 28px;text-align:center;font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#2c3e50;background:#f8f9fb;border:1px solid #e4e6ea;border-radius:12px}
 
+/* v0.48.34 — linked people: an outline button, the invite line under a guessed row, read-only linked
+   rows with a status chip, the invite box, and a skeleton row while the links load. */
+.hdlv2-ht .ht-btn.ht-btn-line{background:transparent;color:var(--ht-accent2);box-shadow:inset 0 0 0 1px var(--ht-line);padding:8px 14px}
+.hdlv2-ht .ht-btn.ht-btn-line:hover{background:#f8f9fb;color:var(--ht-accent2)}
+.hdlv2-ht .ht-btn:disabled{opacity:.6;cursor:default}
+.hdlv2-ht .ht-link-line{grid-column:1/-1}
+.hdlv2-ht #ht-linked .ht-row{margin-top:12px;padding-top:12px;border-top:1px solid var(--ht-line)}
+.hdlv2-ht .ht-linked .ht-cell{font-size:14px;overflow-wrap:anywhere}
+.hdlv2-ht .ht-link-act{grid-column:1/-1;display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.hdlv2-ht .ht-link-act .ht-note{margin:0}
+.hdlv2-ht .ht-mark{display:block;font-size:12px;color:var(--ht-muted)}
+.hdlv2-ht .ht-chip{display:inline-block;padding:3px 10px;border-radius:12px;font-size:12px;font-weight:600;line-height:1.4;color:#5b6470;background:#f8f9fb;border:1px solid #e4e6ea}
+.hdlv2-ht .ht-chip[data-status="accepted"]{color:#047857;background:#ecfdf5;border-color:#a7f3d0}
+.hdlv2-ht .ht-chip[data-status="invited"]{color:#1d4ed8;background:#eff6ff;border-color:#bfdbfe}
+.hdlv2-ht .ht-invite{margin-top:12px;padding:16px;border:1px solid var(--ht-line);border-radius:10px;background:#fafbfc}
+.hdlv2-ht .ht-invite-row{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+.hdlv2-ht .ht-invite-row input{flex:1 1 240px;min-width:0;font:inherit;font-size:13px;padding:9px 10px;border:1px solid var(--ht-line);border-radius:8px;background:#fff;color:var(--ht-fg)}
+.hdlv2-ht .ht-links-msg:empty{display:none}
+.hdlv2-ht .ht-skel{height:44px;margin-top:12px;border-radius:8px;background:linear-gradient(90deg,#f1f3f5 25%,#f8f9fb 50%,#f1f3f5 75%);background-size:200% 100%;animation:ht-skel 1.4s ease-in-out infinite}
+@keyframes ht-skel{from{background-position:200% 0}to{background-position:-200% 0}}
+@media (prefers-reduced-motion:reduce){.hdlv2-ht .ht-skel{animation:none}}
+
 @media (max-width:1024px){
   .hdlv2-ht h1{font-size:26px}
   .hdlv2-ht .ht-cards{grid-template-columns:repeat(2,minmax(0,1fr))}

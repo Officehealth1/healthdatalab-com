@@ -1308,6 +1308,11 @@ class HDLV2_Client_Dashboard {
             $h .= '<a href="' . esc_url( $timeline_url ) . '" class="cdp-btn cdp-btn-line cdp-btn-large">Your healthspan timeline &rarr;</a>';
         }
         $h .= '</div>';
+        // v0.48.34 — the loved ones who shared their numbers through this client's links.
+        $joined = class_exists( 'HDLV2_Timeline_Links' ) ? HDLV2_Timeline_Links::joined_count( get_current_user_id() ) : 0;
+        if ( $joined ) {
+            $h .= '<p class="cdp-report-subtitle">' . esc_html( $joined . ( 1 === $joined ? ' person' : ' people' ) . ' joined through you' ) . '</p>';
+        }
         $h .= '</div>';
 
         // ── At-a-glance meta strip — 5 stats ───────────────────────────────
