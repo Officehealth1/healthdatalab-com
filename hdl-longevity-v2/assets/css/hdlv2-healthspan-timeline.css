@@ -50,7 +50,7 @@ body.hdlv2-wide-page .entry-content .et_pb_section{padding-left:0;padding-right:
 .hdlv2-ht .ht-tabs button[aria-selected="true"]{background:var(--ht-accent);color:#fff}
 .hdlv2-ht .ht-tab{background:var(--ht-panel);border:1px solid var(--ht-line);border-radius:12px;padding:var(--ht-pad);margin-top:8px}
 .hdlv2-ht .ht-tab[hidden]{display:none}
-.hdlv2-ht .ht-row{display:grid;grid-template-columns:1.3fr 1fr 90px 80px 150px 40px;gap:8px;align-items:center}
+.hdlv2-ht .ht-row{display:grid;grid-template-columns:1.3fr 1fr 90px 80px 150px 72px;gap:8px;align-items:center}
 .hdlv2-ht .ht-row.ht-head{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--ht-muted);padding-bottom:4px}
 .hdlv2-ht .ht-row+.ht-row{margin-top:8px}
 .hdlv2-ht .ht-row[hidden]{display:none}
@@ -73,18 +73,17 @@ body.hdlv2-wide-page .entry-content .et_pb_section{padding-left:0;padding-right:
 .hdlv2-ht .ht-facts .ht-name{font-family:var(--ht-display);font-size:20px;color:var(--ht-accent2)}
 .hdlv2-ht .ht-pace{margin-top:8px;font-weight:600}
 
-/* the four paths: a tile each (icon and pace on top, then the name and its words) + the sliders */
+/* the four paths: a tile each (a dot and the pace in the band colour, the name, its words) + the sliders */
 .hdlv2-ht .ht-pick{margin-top:24px}
 .hdlv2-ht .ht-profiles{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-top:12px}
 .hdlv2-ht .ht-prof{font:inherit;text-align:left;border:1px solid var(--ht-line);border-radius:12px;background:#fff;color:var(--ht-fg);cursor:pointer;padding:14px;min-width:0;
-  display:grid;grid-template-columns:auto 1fr;grid-template-areas:"ico r" "n n" "d d";align-content:start;align-items:center;column-gap:8px;transition:border-color .15s,background-color .15s}
-.hdlv2-ht .ht-prof .ht-ico{grid-area:ico;width:36px;height:36px;transition:transform .15s}
-.hdlv2-ht .ht-prof b{grid-area:n;font-family:var(--ht-display);font-size:15px;font-weight:600;line-height:1.25;margin-top:10px}
-.hdlv2-ht .ht-prof-r{grid-area:r;justify-self:end;font-family:var(--ht-display);font-size:15px;font-weight:600;font-variant-numeric:tabular-nums}
-.hdlv2-ht .ht-prof small{grid-area:d;color:var(--ht-muted);font-size:13px;line-height:1.35;margin-top:2px}
+  display:grid;grid-template-columns:auto minmax(0,1fr) auto;grid-template-areas:"dot n r" "d d d";align-content:start;align-items:center;column-gap:8px;transition:border-color .15s,background-color .15s}
+.hdlv2-ht .ht-prof-dot{grid-area:dot;width:10px;height:10px;border-radius:50%;background:var(--c)}
+.hdlv2-ht .ht-prof b{grid-area:n;font-size:15px;font-weight:600;line-height:1.3}
+.hdlv2-ht .ht-prof-r{grid-area:r;font-family:var(--ht-display);font-size:18px;font-weight:700;line-height:1.2;color:var(--c);font-variant-numeric:tabular-nums}
+.hdlv2-ht .ht-prof small{grid-area:d;color:var(--ht-muted);font-size:13px;line-height:1.35;margin-top:6px}
 .hdlv2-ht .ht-prof:hover{border-color:color-mix(in srgb,var(--c) 45%,var(--ht-line))}
-@media (hover:hover) and (prefers-reduced-motion:no-preference){.hdlv2-ht .ht-prof:hover .ht-ico{transform:translateY(-2px)}}
-.hdlv2-ht .ht-prof[aria-pressed="true"]{border-color:var(--c);box-shadow:inset 0 0 0 1px var(--c);background:color-mix(in srgb,var(--c) 8%,#fff)}
+.hdlv2-ht .ht-prof[aria-pressed="true"]{border-color:var(--c);box-shadow:inset 0 0 0 1px var(--c);background:var(--ht-panel2)}
 .hdlv2-ht .ht-sliders{display:grid;grid-template-columns:1fr 1fr;gap:16px 24px;margin-top:20px}
 .hdlv2-ht .ht-sl{display:grid;grid-template-columns:auto 1fr auto;grid-template-areas:"l i o" "n n n";gap:8px 12px;align-items:center}
 .hdlv2-ht .ht-sl label{grid-area:l;min-width:88px}
@@ -171,25 +170,32 @@ body.hdlv2-wide-page .entry-content .et_pb_section{padding-left:0;padding-right:
 
 @media (max-width:1024px){
   .hdlv2-ht h1{font-size:26px}
-  .hdlv2-ht .ht-cards{grid-template-columns:repeat(2,minmax(0,1fr))}
-}
-@media (max-width:760px){
+  .hdlv2-ht .ht-cards,.hdlv2-ht .ht-profiles{grid-template-columns:repeat(2,minmax(0,1fr))}
+  /* the one-line people row needs about 1000 px: below that it stacks, so no select cuts its text */
   .hdlv2-ht .ht-row,.hdlv2-ht .ht-you-row{grid-template-columns:repeat(3,minmax(0,1fr))}
   .hdlv2-ht .ht-row.ht-head{display:none}
   .hdlv2-ht #ht-people .ht-row+.ht-row,.hdlv2-ht #ht-add{margin-top:12px;padding-top:12px;border-top:1px solid var(--ht-line)}
   .hdlv2-ht .ht-you-row .ht-pace-in{grid-column:1/-1}
+}
+@media (max-width:760px){
   .hdlv2-ht .ht-ahead,.hdlv2-ht .ht-traj,.hdlv2-ht .ht-sliders{grid-template-columns:1fr}
-  .hdlv2-ht .ht-profiles{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+  .hdlv2-ht .ht-profiles{gap:8px}
   .hdlv2-ht .ht-lo{grid-template-columns:1fr}
   .hdlv2-ht .ht-zoom input{width:120px}
 }
 @media (max-width:480px){
   .hdlv2-ht .ht-row,.hdlv2-ht .ht-you-row{grid-template-columns:repeat(2,minmax(0,1fr))}
   .hdlv2-ht .ht-you-row label:first-child{grid-column:1/-1}
-  .hdlv2-ht .ht-prof{padding:12px}
+  .hdlv2-ht .ht-prof{padding:12px;grid-template-columns:auto minmax(0,1fr);grid-template-areas:"dot n" "r r" "d d"}
+  .hdlv2-ht .ht-prof-r{margin-top:4px}
   .hdlv2-ht .ht-sl{grid-template-columns:1fr auto;grid-template-areas:"l o" "i i" "n n"}
   .hdlv2-ht .ht-cards{grid-template-columns:1fr;gap:16px}
   .hdlv2-ht .ht-mcard+.ht-mcard{border-top:1px solid var(--ht-line);padding-top:16px}
   .hdlv2-ht .ht-lockband,.hdlv2-ht .ht-lock{font-size:13px}
   .hdlv2-ht .ht-lockband .ht-btn,.hdlv2-ht .ht-lockmsg .ht-btn,.hdlv2-ht .ht-lock .ht-btn{display:block;width:100%}
+}
+@media (max-width:400px){
+  .hdlv2-ht #ht-people .ht-row>:nth-child(2),.hdlv2-ht #ht-people .ht-row>:nth-child(5),
+  .hdlv2-ht #ht-add>:nth-child(2),.hdlv2-ht #ht-add>:nth-child(5),.hdlv2-ht #ht-add>:first-child,.hdlv2-ht #ht-add .ht-btn{grid-column:1/-1}
+  .hdlv2-ht #ht-people .ht-x{grid-row:1;grid-column:2;justify-self:end}
 }
