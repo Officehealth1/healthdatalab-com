@@ -187,7 +187,7 @@
       + '<button type="button" role="tab" id="ht-tab-btn-people" aria-controls="ht-tab-people" data-t="people">Loved ones</button></div>'
       + '<div class="ht-tab" id="ht-tab-you" role="tabpanel" aria-labelledby="ht-tab-btn-you">'
       + '<div id="ht-you"></div>'
-      + '<div class="ht-eyebrow" style="margin-top:16px">Choose a new path · what happens if you shift</div>'
+      + '<div class="ht-eyebrow ht-pick">Choose a new path · what happens if you shift</div>'
       + '<div class="ht-profiles" id="ht-profiles"></div>'
       + '<div class="ht-sliders">'
       + '<div class="ht-sl"><label class="ht-eyebrow" for="ht-rate">New pace</label><input id="ht-rate" type="range" min="0.6" max="1.6" step="0.01"><output id="ht-rate-out" for="ht-rate">1.00×</output><span class="ht-play" id="ht-rate-note"></span></div>'
@@ -196,7 +196,7 @@
       + '<div class="ht-tab" id="ht-tab-people" role="tabpanel" aria-labelledby="ht-tab-btn-people" hidden>'
       + '<div class="ht-row ht-head" aria-hidden="true"><span>Name</span><span>Relationship</span><span>Born</span><span>Sex</span><span>Pace of ageing</span><span></span></div>'
       + '<div id="ht-people"></div>'
-      + '<form class="ht-row" id="ht-add" style="margin-top:12px"><input id="ht-a-name" placeholder="Name" aria-label="Name" maxlength="40" required><select id="ht-a-rel" aria-label="Relationship"></select><input id="ht-a-born" type="number" placeholder="Year" aria-label="Year born" required><select id="ht-a-sex" aria-label="Sex"><option value="F">F</option><option value="M">M</option></select><select id="ht-a-rate" aria-label="Pace of ageing"></select><button class="ht-btn" type="submit">Add</button></form>'
+      + '<form class="ht-row" id="ht-add"><input id="ht-a-name" placeholder="Name" aria-label="Name" maxlength="40" required><select id="ht-a-rel" aria-label="Relationship"></select><input id="ht-a-born" type="number" placeholder="Year" aria-label="Year born" required><select id="ht-a-sex" aria-label="Sex"><option value="F">F</option><option value="M">M</option></select><select id="ht-a-rate" aria-label="Pace of ageing"></select><button class="ht-btn" type="submit">Add</button></form>'
       + '<div class="ht-lock" id="ht-people-lock" hidden></div>'
       + '<p class="ht-note">"Same as you" assumes your habits shape the household. Time together uses population averages for each relationship.</p>'
       + '</div>'
@@ -229,7 +229,7 @@
     // preview: the You lane first, then the default loved ones (drawn, blurred, not interactive)
     var ps = preview ? [S.you].concat(S.people.slice().sort(function (a, b) { return a.born - b.born; })) : people();
     var all = people(); var minY = Math.min.apply(null, all.map(function (p) { return p.born; })), maxY = Math.max.apply(null, all.map(function (p) { return p.born; })) + 110;
-    var span = maxY - minY + 1, W = $('#ht-scroller').clientWidth, left = 122, fitPx = (W - left - 16) / span, z = S.zoom;
+    var span = maxY - minY + 1, W = $('#ht-scroller').clientWidth, left = W < 520 ? 96 : 122, fitPx = (W - left - 16) / span, z = S.zoom;
     // two zoom bands: 0–49 years, 50–100 months; pixel scale grows continuously
     var unit = z < 50 ? 'year' : 'month', per = unit === 'year' ? 1 : 12;
     var minPx = unit === 'year' ? fitPx : 36, maxPx = unit === 'year' ? 30 : 150, f = unit === 'year' ? z / 49 : (z - 50) / 50;
@@ -241,13 +241,14 @@
     var cs = getComputedStyle(rootEl), fg = cs.getPropertyValue('--ht-fg').trim(), muted = cs.getPropertyValue('--ht-muted').trim(), line = cs.getPropertyValue('--ht-line').trim(), past = cs.getPropertyValue('--ht-past').trim(), acc = cs.getPropertyValue('--ht-accent2').trim();
     ctx.clearRect(0, 0, width, height);
     ctx.font = '11px Inter, system-ui'; ctx.textAlign = 'center';
-    var step = pxYear > 60 ? 1 : pxYear > 25 ? 5 : 10;
+    // the first year step whose labels sit at least 36 px apart (10 years overlapped on a phone)
+    var step = [1, 5, 10, 20, 50].filter(function (n) { return n * pxYear >= 36; })[0] || 100;
     for (var y = Math.ceil(minY / step) * step; y <= maxY; y += step) { var x = left + (y - minY) * pxYear; ctx.fillStyle = muted; ctx.fillText(y, x, top - 14); ctx.fillStyle = line; ctx.fillRect(x, top - 9, 1, 5); }
     geo = { minY: minY, pxYear: pxYear, cellW: cellW, per: per, unit: unit, left: left, top: top, rows: rows.filter(function (r) { return visiblePeople().indexOf(r.p) !== -1; }) };
     var n = Math.round(span * per), gapPx = cellW > 3 ? 1 : 0;
     rows.forEach(function (row) {
       var p = row.p, y0 = row.y, h = row.h;
-      ctx.textAlign = 'left'; ctx.fillStyle = p === S.you ? acc : fg; ctx.font = (p === S.you ? '700 16px' : '600 13px') + ' Inter, system-ui'; ctx.fillText(p.name.slice(0, 16), 8, y0 + h / 2 - 1);
+      ctx.textAlign = 'left'; ctx.fillStyle = p === S.you ? acc : fg; ctx.font = (p === S.you ? '700 16px' : '600 13px') + ' Inter, system-ui'; ctx.fillText(fitName(p.name, left - 14), 8, y0 + h / 2 - 1);
       ctx.font = '11px Inter, system-ui'; ctx.fillStyle = muted; var a = NOW_Y - p.born; ctx.fillText(a < 0 ? 'born ' + p.born : a + ' · ' + rateOf(p).toFixed(2) + '×', 8, y0 + h / 2 + 12);
       for (var k = 0; k < n; k++) { var t = minY + (k + 0.5) / per; var st = stageAt(p, t); if (st === 0 || st === 6) continue; ctx.fillStyle = stageHex(st); ctx.fillRect(left + k * cellW, y0, Math.max(cellW - gapPx, 0.6), h); }
       var refPer = Math.min(per, 12), refN = Math.round(span * refPer), refW = pxYear / refPer;
@@ -262,6 +263,12 @@
     if (!band.hidden) { band.style.top = (rows[1].y - gap / 2) + 'px'; band.style.height = (height - rows[1].y + gap / 2) + 'px'; }
     var cur = yearsByStage(S.you, rateOf(S.you), rate0Of(S.you), fsFrac()), st0 = stageOfBio(S.you, bioNow(S.you), rateOf(S.you));
     cv.setAttribute('aria-label', 'Timeline for ' + S.you.name + ': today in the ' + (STAGES[st0 - 1] || { name: 'last' }).name + ' stage; the new path gives ' + cur[0].toFixed(0) + ' green years.');
+  }
+  // the lane's name in the label column: up to 16 characters, cut with an ellipsis where it would run into the lane
+  function fitName(s, max) {
+    s = s.slice(0, 16); if (ctx.measureText(s).width <= max) return s;
+    while (s.length > 1 && ctx.measureText(s + '…').width > max) s = s.slice(0, -1);
+    return s + '…';
   }
   function onMove(e) {
     if (!geo) return; var r = cv.getBoundingClientRect(); var x = e.clientX - r.left, y = e.clientY - r.top;
