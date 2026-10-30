@@ -175,6 +175,8 @@
     if (!(t > 0)) return '';
     return '<div class="ht-sbar ht-depbar" aria-hidden="true">' + v.map(function (n, i) { return '<i style="--c:' + STAGES[i + 2].c + ';--w:' + (100 * n / t).toFixed(2) + '%"></i>'; }).join('') + '</div>';
   }
+  // The filled part of a slider's track: --p, read by the CSS gradient, is where the thumb sits (the theme strips the native look).
+  function paintRange(el) { if (el) el.style.setProperty('--p', (100 * (el.value - el.min) / (el.max - el.min)).toFixed(1) + '%'); }
   var fsLabel = function (v) { return v === 0 ? 'off' : v <= 25 ? 'cautious' : v <= 55 ? 'likely' : v <= 85 ? 'bold' : 'wild'; };
 
   /* ---------- the page shell (DA5: no Settings tab, two zoom bands, science only when switched on) ---------- */
@@ -414,14 +416,14 @@
     ['you', 'people'].forEach(function (t) { $('#ht-tab-' + t).hidden = S.tab !== t; });
     renderYou();
     var Y = S.you;
-    $('#ht-rate').value = Y.rate; $('#ht-rate-out').value = (+Y.rate).toFixed(2) + '×';
+    $('#ht-rate').value = Y.rate; paintRange($('#ht-rate')); $('#ht-rate-out').value = (+Y.rate).toFixed(2) + '×';
     $('#ht-profiles').innerHTML = K.PROFILES.map(function (p) { return presetHtml(p, Y.rate); }).join('');
     $('#ht-profiles').querySelectorAll('button').forEach(function (b) { b.onclick = function () { S.you.rate = +b.dataset.r; save(); renderAll(); }; });
     var dr = Y.rate - Y.rate0;
     $('#ht-rate-note').textContent = Math.abs(dr) < 0.02 ? 'Same as today\'s path. Pick a path or drag to see what a shift does.' : dr < 0 ? 'A shift of ' + (-dr).toFixed(2) + ': you\'d recover about ' + ((-dr) * 10 * K.recovK).toFixed(1) + ' biological years over ~' + K.recovT + ' years, then age slower.' : 'Faster than today by ' + dr.toFixed(2) + ': you\'d lose about ' + (dr * 10 * K.recovK).toFixed(1) + ' biological years, then age faster.';
     if ($('#ht-fs')) {
       var dv = dividend(rateOf(Y), fsFrac());
-      $('#ht-fs').value = S.fs; $('#ht-fs-out').value = fsLabel(S.fs);
+      $('#ht-fs').value = S.fs; paintRange($('#ht-fs')); $('#ht-fs-out').value = fsLabel(S.fs);
       $('#ht-fs-note').textContent = S.fs === 0 ? 'Off. Slide to imagine what research might add.' : fsLabel(S.fs) + ': pace eases from ' + K.fsStart + ', ' + (dv * 100).toFixed(0) + '% slower by ' + (K.fsStart + 30) + ' on your foundation.';
       $('#ht-fs-detail').textContent = 'Your foundation decides your share: at ' + rateOf(Y).toFixed(2) + '× you earn ' + Math.round(100 * (0.4 + 0.6 * Math.max(0, Math.min(1, (1.6 - rateOf(Y)) / 0.9)))) + '% of whatever the slider offers.';
     }
@@ -438,7 +440,7 @@
     });
     $('#ht-a-rel').innerHTML = relOpts('friend');
     $('#ht-a-rate').innerHTML = paceOpts('same');
-    $('#ht-zoom').value = S.zoom;
+    $('#ht-zoom').value = S.zoom; paintRange($('#ht-zoom'));
   }
   function renderAll() { renderInputs(); drawTimeline(); if (hover) renderMoment(hover.p, hover.t, geo.unit); else renderMoment(S.you, NOW_F, 'year', true); renderAhead(); renderTraj(); renderLoved(); }
   function renderLive() { drawTimeline(); renderMoment(S.you, NOW_F, 'year', true); renderAhead(); renderTraj(); renderLoved(); }
@@ -495,10 +497,10 @@
     cv.addEventListener('mousemove', onMove);
     cv.addEventListener('mouseleave', function () { hover = null; drawTimeline(); renderMoment(S.you, NOW_F, 'year', true); });
     $('#ht-tabs').onclick = function (e) { var b = e.target.closest('button'); if (!b) return; S.tab = b.dataset.t; save(); renderInputs(); };
-    $('#ht-rate').oninput = function (e) { S.you.rate = +e.target.value; $('#ht-rate-out').value = S.you.rate.toFixed(2) + '×'; rootEl.querySelectorAll('.ht-prof').forEach(function (b) { b.setAttribute('aria-pressed', Math.abs(+b.dataset.r - S.you.rate) < 0.005); }); renderLive(); };
+    $('#ht-rate').oninput = function (e) { paintRange(e.target); S.you.rate = +e.target.value; $('#ht-rate-out').value = S.you.rate.toFixed(2) + '×'; rootEl.querySelectorAll('.ht-prof').forEach(function (b) { b.setAttribute('aria-pressed', Math.abs(+b.dataset.r - S.you.rate) < 0.005); }); renderLive(); };
     $('#ht-rate').onchange = function () { save(); renderAll(); };
     if ($('#ht-fs')) {
-      $('#ht-fs').oninput = function (e) { S.fs = +e.target.value; $('#ht-fs-out').value = fsLabel(S.fs); renderLive(); };
+      $('#ht-fs').oninput = function (e) { paintRange(e.target); S.fs = +e.target.value; $('#ht-fs-out').value = fsLabel(S.fs); renderLive(); };
       $('#ht-fs').onchange = function () { save(); renderAll(); };
     }
     $('#ht-add').onsubmit = function (e) {
@@ -506,7 +508,7 @@
       var p = cleanPerson({ id: 'p' + Date.now(), name: name, rel: $('#ht-a-rel').value, born: born, sex: $('#ht-a-sex').value, rate: $('#ht-a-rate').value });
       if (p) { S.people.push(p); save(); e.target.reset(); renderAll(); }
     };
-    $('#ht-zoom').oninput = function (e) { S.zoom = +e.target.value; drawTimeline(); var sc = $('#ht-scroller'); if (geo) sc.scrollLeft = Math.max(0, geo.left + (NOW_F - geo.minY) * geo.pxYear - sc.clientWidth / 2); };
+    $('#ht-zoom').oninput = function (e) { paintRange(e.target); S.zoom = +e.target.value; drawTimeline(); var sc = $('#ht-scroller'); if (geo) sc.scrollLeft = Math.max(0, geo.left + (NOW_F - geo.minY) * geo.pxYear - sc.clientWidth / 2); };
     $('#ht-zoom').onchange = function () { save(); };
     var rt; root.addEventListener('resize', function () { clearTimeout(rt); rt = setTimeout(drawTimeline, 120); });
     if (document.fonts) document.fonts.ready.then(drawTimeline);
@@ -518,7 +520,8 @@
     KNOBS: K, NOW_Y: NOW_Y, NOW_F: NOW_F, state: function () { return S; }, reset: reset,
     bioAtRate: bioAtRate, stagesFor: stagesFor, yearsByStage: yearsByStage, weeksTogether: weeksTogether, visiblePeople: visiblePeople,
     lifestyleFromScores: lifestyleFromScores, bornFromAge: bornFromAge, readFragment: readFragment, paceLabel: paceLabel,
-    visibleZoomBands: visibleZoomBands, ageLabel: ageLabel, shellHtml: shellHtml, iconHtml: iconHtml, depBarHtml: depBarHtml, presetHtml: presetHtml
+    visibleZoomBands: visibleZoomBands, ageLabel: ageLabel, shellHtml: shellHtml, iconHtml: iconHtml, depBarHtml: depBarHtml, presetHtml: presetHtml,
+    paintRange: paintRange
   };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
 })(window);

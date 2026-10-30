@@ -58,7 +58,15 @@ body.hdlv2-wide-page .entry-content .et_pb_section{padding-left:0;padding-right:
 .hdlv2-ht .ht-you-row label{display:grid;gap:4px;font-size:13px;color:var(--ht-muted);font-weight:600}
 .hdlv2-ht .ht-pace-in.ht-hl input{border-color:var(--ht-accent);background:#eef6f8;box-shadow:0 0 0 3px rgba(61,141,160,.18)}
 .hdlv2-ht input,.hdlv2-ht select{font:inherit;padding:8px 10px;min-height:40px;border:1px solid var(--ht-line);border-radius:8px;background:#fff;color:var(--ht-fg);width:100%;min-width:0;font-variant-numeric:tabular-nums}
-.hdlv2-ht input[type=range]{padding:0;min-height:0;border:0;background:transparent;accent-color:var(--ht-accent)}
+/* sliders drawn by the page (the theme strips the native look): a 4 px hairline track, teal up to the thumb (--p, set by paintRange), a 20 px thumb */
+.hdlv2-ht input[type=range]{-webkit-appearance:none;appearance:none;padding:0;min-height:0;height:24px;border:0;border-radius:0;background:transparent;cursor:pointer;--ht-range:var(--ht-accent)}
+.hdlv2-ht input[type=range]::-webkit-slider-runnable-track{height:4px;border-radius:2px;background:linear-gradient(to right,var(--ht-range) var(--p,0%),var(--ht-line) var(--p,0%))}
+.hdlv2-ht input[type=range]::-moz-range-track{height:4px;border-radius:2px;background:var(--ht-line)}
+.hdlv2-ht input[type=range]::-moz-range-progress{height:4px;border-radius:2px;background:var(--ht-range)}
+.hdlv2-ht input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;box-sizing:border-box;width:20px;height:20px;margin-top:-8px;border:2px solid #fff;border-radius:50%;background:var(--ht-range);box-shadow:0 1px 3px rgba(0,0,0,.15);transition:transform .15s}
+.hdlv2-ht input[type=range]::-moz-range-thumb{box-sizing:border-box;width:20px;height:20px;border:2px solid #fff;border-radius:50%;background:var(--ht-range);box-shadow:0 1px 3px rgba(0,0,0,.15);transition:transform .15s}
+.hdlv2-ht input[type=range]:hover::-webkit-slider-thumb{transform:scale(1.1)}
+.hdlv2-ht input[type=range]:hover::-moz-range-thumb{transform:scale(1.1)}
 .hdlv2-ht .ht-x{font:inherit;border:0;background:transparent;color:var(--ht-muted);cursor:pointer;font-size:18px;line-height:1;min-height:40px;padding:4px}
 .hdlv2-ht .ht-x:hover{color:var(--ht-red)}
 .hdlv2-ht .ht-locked input,.hdlv2-ht .ht-locked select,.hdlv2-ht .ht-locked .ht-x{opacity:.45}
@@ -91,7 +99,7 @@ body.hdlv2-wide-page .entry-content .et_pb_section{padding-left:0;padding-right:
 .hdlv2-ht .ht-sl output{grid-area:o;font-family:var(--ht-display);font-weight:700;font-size:20px;font-variant-numeric:tabular-nums;min-width:62px;text-align:right}
 .hdlv2-ht .ht-play{grid-area:n;font-size:13px;color:var(--ht-accent2);font-weight:600;min-height:20px}
 .hdlv2-ht .ht-fs output,.hdlv2-ht .ht-fs .ht-play{color:var(--ht-future)}
-.hdlv2-ht .ht-fs input{accent-color:var(--ht-future)}
+.hdlv2-ht .ht-fs input{--ht-range:var(--ht-future)}
 
 /* timeline: the one panel with the faint shadow */
 .hdlv2-ht .ht-band{border:1px solid var(--ht-line);border-radius:12px;background:var(--ht-panel);box-shadow:0 1px 3px rgba(0,0,0,.1);overflow:hidden}
