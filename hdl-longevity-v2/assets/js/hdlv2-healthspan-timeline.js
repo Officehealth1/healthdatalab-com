@@ -1,5 +1,5 @@
 /**
- * HDL V2 — Healthspan Timeline (v0.48.29; layout and itshover icons v0.48.30; path buttons v0.48.31).
+ * HDL V2 — Healthspan Timeline (v0.48.29; layout v0.48.30; Phosphor duotone icons v0.48.32).
  *
  * Matthew's Cowork v3 page (evidence copy of 2026-10-13), ported into the
  * plugin. The model functions keep the prototype's names so the Cowork page
@@ -28,10 +28,10 @@
     DEFAULT_HRS: { spouse: 35, child: 14, grandchild: 3, parent: 3, sibling: 2, friend: 2, other: 2 },
     // the four preset paces: placeholder, Matthew to sign
     PROFILES: [
-      { n: 'Poor', r: 1.25, c: 'var(--ht-red)', d: 'Sedentary, poor sleep, no plan' },
-      { n: 'Average', r: 1.00, c: 'var(--ht-yellow)', d: 'Ageing with the calendar' },
-      { n: 'Healthy', r: 0.85, c: 'var(--ht-green)', d: 'Trains, eats well, sleeps, measures' },
-      { n: 'Optimal', r: 0.70, c: 'var(--ht-accent)', d: 'Everything that is known to work, consistently' }
+      { n: 'Poor', r: 1.25, c: 'var(--ht-red)', d: 'Sedentary, poor sleep, no plan', icon: 'couch' },
+      { n: 'Average', r: 1.00, c: 'var(--ht-yellow)', d: 'Ageing with the calendar', icon: 'person-simple-walk' },
+      { n: 'Healthy', r: 0.85, c: 'var(--ht-green)', d: 'Trains, eats well, sleeps, measures', icon: 'person-simple-run' },
+      { n: 'Optimal', r: 0.70, c: 'var(--ht-accent)', d: 'Everything that is known to work, consistently', icon: 'sparkle' }
     ],
     // biological age where Yellow, Orange, Red, Grey start and the lane ends, at 1.00×.
     // Green end = UK healthy life expectancy, end = UK life expectancy at birth (ONS 2021–23);
@@ -148,22 +148,26 @@
   var stageHex = function (k) { return k >= 1 && k <= 5 ? STAGES[k - 1].hex : 'transparent'; };
   var people = function () { return [S.you].concat(S.people).sort(function (a, b) { return a.born - b.born; }); };
   var visiblePeople = function () { return S.mode === 'preview' ? [S.you] : people(); };
-  /* ---------- icons: itshover.com (github.com/itshover/itshover, Apache-2.0) ----------
-     Geometry 1:1 from icons/*.tsx, static, no runtime dependency, as hdlv2-client-list-enhance.js does. */
-  function ico(name, paths) { return { name: name, body: paths.map(function (d) { return '<path d="' + d + '"/>'; }).join('') }; }
+  /* ---------- icons: Phosphor duotone (github.com/phosphor-icons/core, assets/duotone) ----------
+     MIT License, Copyright (c) 2023 Phosphor Icons. Geometry 1:1, inlined, no runtime dependency, no CDN.
+     The one icon family on this page (Quim, 2026-10-30: itshover has no lifestyle glyphs); itshover stays
+     the rule everywhere else. Each entry: [the soft layer, drawn at opacity 0.2; the outline], both filled. */
   var HT_ICONS = {
-    user: ico('user-icon', ['M8 7a4 4 0 1 0 8 0a4 4 0 0 0 -8 0', 'M6 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2']),
-    'users-group': ico('users-group-icon', ['M10 13a2 2 0 1 0 4 0a2 2 0 0 0 -4 0', 'M8 21v-1a2 2 0 0 1 2 -2h4a2 2 0 0 1 2 2v1', 'M15 5a2 2 0 1 0 4 0a2 2 0 0 0 -4 0', 'M17 10h2a2 2 0 0 1 2 2v1', 'M5 5a2 2 0 1 0 4 0a2 2 0 0 0 -4 0', 'M3 13v-1a2 2 0 0 1 2 -2h2']),
-    lock: ico('lock-icon', ['M5 13a2 2 0 0 1 2 -2h10a2 2 0 0 1 2 2v6a2 2 0 0 1 -2 2h-10a2 2 0 0 1 -2 -2v-6z', 'M11 16a1 1 0 1 0 2 0a1 1 0 0 0 -2 0', 'M8 11v-4a4 4 0 1 1 8 0v4'])
+    'couch': ['M240,120v48a8,8,0,0,1-8,8H24a8,8,0,0,1-8-8V120a8,8,0,0,1,8-8V72a8,8,0,0,1,8-8H224a8,8,0,0,1,8,8v40A8,8,0,0,1,240,120Z', 'M240,106.17V72a16,16,0,0,0-16-16H32A16,16,0,0,0,16,72v34.17A16,16,0,0,0,8,120v48a16,16,0,0,0,16,16h8v16a8,8,0,0,0,16,0V184H208v16a8,8,0,0,0,16,0V184h8a16,16,0,0,0,16-16V120A16,16,0,0,0,240,106.17ZM224,104h-8a16,16,0,0,0-16,16v16H136V72h88ZM120,72v64H56V120a16,16,0,0,0-16-16H32V72Zm112,96H24V120H40v24a8,8,0,0,0,8,8H208a8,8,0,0,0,8-8V120h16Z'],
+    'person-simple-walk': ['M176,48a24,24,0,1,1-24-24A24,24,0,0,1,176,48Z', 'M152,80a32,32,0,1,0-32-32A32,32,0,0,0,152,80Zm0-48a16,16,0,1,1-16,16A16,16,0,0,1,152,32Zm64,112a8,8,0,0,1-8,8c-35.31,0-52.95-17.81-67.12-32.12-2.74-2.77-5.36-5.4-8-7.84l-13.43,30.88,37.2,26.57A8,8,0,0,1,160,176v56a8,8,0,0,1-16,0V180.12l-31.07-22.2L79.34,235.19A8,8,0,0,1,72,240a7.84,7.84,0,0,1-3.19-.67,8,8,0,0,1-4.15-10.52l54.08-124.37c-9.31-1.65-20.92,1.2-34.7,8.58a163.88,163.88,0,0,0-30.57,21.77,8,8,0,0,1-10.95-11.66c2.5-2.35,61.69-57.22,98.72-25.08,3.83,3.32,7.48,7,11,10.58C166.19,122.7,179.36,136,208,136A8,8,0,0,1,216,144Z'],
+    'person-simple-run': ['M176,56a24,24,0,1,1-24-24A24,24,0,0,1,176,56Z', 'M152,88a32,32,0,1,0-32-32A32,32,0,0,0,152,88Zm0-48a16,16,0,1,1-16,16A16,16,0,0,1,152,40Zm67.31,100.68c-.61.28-7.49,3.28-19.67,3.28-13.85,0-34.55-3.88-60.69-20a169.31,169.31,0,0,1-15.41,32.34,104.29,104.29,0,0,1,31.31,15.81C173.92,186.65,184,207.35,184,232a8,8,0,0,1-16,0c0-41.7-34.69-56.71-54.14-61.85-.55.7-1.12,1.41-1.69,2.1-19.64,23.8-44.25,36.18-71.63,36.18A92.29,92.29,0,0,1,31.2,208,8,8,0,0,1,32.8,192c25.92,2.59,48.47-7.49,67-30,12.49-15.14,21-33.61,25.25-47C86.13,92.34,61.27,111.63,61,111.84A8,8,0,1,1,51,99.36c1.5-1.2,37.22-29,89.51,6.57,45.47,30.91,71.93,20.31,72.18,20.19a8,8,0,1,1,6.63,14.56Z'],
+    'sparkle': ['M194.82,151.43l-55.09,20.3-20.3,55.09a7.92,7.92,0,0,1-14.86,0l-20.3-55.09-55.09-20.3a7.92,7.92,0,0,1,0-14.86l55.09-20.3,20.3-55.09a7.92,7.92,0,0,1,14.86,0l20.3,55.09,55.09,20.3A7.92,7.92,0,0,1,194.82,151.43Z', 'M197.58,129.06,146,110l-19-51.62a15.92,15.92,0,0,0-29.88,0L78,110l-51.62,19a15.92,15.92,0,0,0,0,29.88L78,178l19,51.62a15.92,15.92,0,0,0,29.88,0L146,178l51.62-19a15.92,15.92,0,0,0,0-29.88ZM137,164.22a8,8,0,0,0-4.74,4.74L112,223.85,91.78,169A8,8,0,0,0,87,164.22L32.15,144,87,123.78A8,8,0,0,0,91.78,119L112,64.15,132.22,119a8,8,0,0,0,4.74,4.74L191.85,144ZM144,40a8,8,0,0,1,8-8h16V16a8,8,0,0,1,16,0V32h16a8,8,0,0,1,0,16H184V64a8,8,0,0,1-16,0V48H152A8,8,0,0,1,144,40ZM248,88a8,8,0,0,1-8,8h-8v8a8,8,0,0,1-16,0V96h-8a8,8,0,0,1,0-16h8V72a8,8,0,0,1,16,0v8h8A8,8,0,0,1,248,88Z'],
+    'person-arms-spread': ['M104,40a24,24,0,1,1,24,24A24,24,0,0,1,104,40ZM212,80H44c-12.87,0-16.71,17.5-5,22.9L96,128,73.13,214.93a12,12,0,0,0,21.75,10.14L128,168l33.12,57.07a12,12,0,0,0,21.75-10.14L160,128l57-25.1C228.69,97.5,224.85,80,212,80Z', 'M160,40a32,32,0,1,0-32,32A32,32,0,0,0,160,40ZM128,56a16,16,0,1,1,16-16A16,16,0,0,1,128,56ZM231.5,87.71A19.62,19.62,0,0,0,212,72H44a20,20,0,0,0-8.38,38.16l.13.06,50.75,22.35-21,79.72A20,20,0,0,0,102,228.82l26-44.88,26,44.88a20,20,0,0,0,36.4-16.53l-21-79.72,50.75-22.35.13-.06A19.63,19.63,0,0,0,231.5,87.71Zm-17.8,7.9-56.93,25.07a8,8,0,0,0-4.51,9.36L175.13,217a7,7,0,0,0,.49,1.35,4,4,0,1,1-7.25,3.38c-.11-.22-.22-.43-.34-.63L134.92,164a8,8,0,0,0-13.84,0L88,221.06c-.12.2-.23.41-.34.63a4,4,0,1,1-7.25-3.38,7,7,0,0,0,.49-1.35L103.74,130a8,8,0,0,0-4.51-9.36L42.3,95.61A4,4,0,0,1,44,88H212a4,4,0,0,1,1.73,7.61Z'],
+    'users-three': ['M168,144a40,40,0,1,1-40-40A40,40,0,0,1,168,144ZM64,56A32,32,0,1,0,96,88,32,32,0,0,0,64,56Zm128,0a32,32,0,1,0,32,32A32,32,0,0,0,192,56Z', 'M244.8,150.4a8,8,0,0,1-11.2-1.6A51.6,51.6,0,0,0,192,128a8,8,0,0,1,0-16,24,24,0,1,0-23.24-30,8,8,0,1,1-15.5-4A40,40,0,1,1,219,117.51a67.94,67.94,0,0,1,27.43,21.68A8,8,0,0,1,244.8,150.4ZM190.92,212a8,8,0,1,1-13.85,8,57,57,0,0,0-98.15,0,8,8,0,1,1-13.84-8,72.06,72.06,0,0,1,33.74-29.92,48,48,0,1,1,58.36,0A72.06,72.06,0,0,1,190.92,212ZM128,176a32,32,0,1,0-32-32A32,32,0,0,0,128,176ZM72,120a8,8,0,0,0-8-8A24,24,0,1,1,87.24,82a8,8,0,1,0,15.5-4A40,40,0,1,0,37,117.51,67.94,67.94,0,0,0,9.6,139.19a8,8,0,1,0,12.8,9.61A51.6,51.6,0,0,1,64,128,8,8,0,0,0,72,120Z'],
+    'lock': ['M216,96V208a8,8,0,0,1-8,8H48a8,8,0,0,1-8-8V96a8,8,0,0,1,8-8H208A8,8,0,0,1,216,96Z', 'M208,80H176V56a48,48,0,0,0-96,0V80H48A16,16,0,0,0,32,96V208a16,16,0,0,0,16,16H208a16,16,0,0,0,16-16V96A16,16,0,0,0,208,80ZM96,56a32,32,0,0,1,64,0V80H96ZM208,208H48V96H208V208Zm-68-56a12,12,0,1,1-12-12A12,12,0,0,1,140,152Z']
   };
-  // the CSS holds every stroke at 2 px
   function iconHtml(key, colour) {
     var i = HT_ICONS[key]; if (!i) return '';
-    return '<svg class="ht-ico" data-ht-icon="' + i.name + '" viewBox="0 0 24 24" fill="none" stroke="' + (colour || 'currentColor') + '" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">' + i.body + '</svg>';
+    return '<svg class="ht-ico" data-ht-icon="' + key + '" viewBox="0 0 256 256" fill="' + (colour || 'currentColor') + '" aria-hidden="true" focusable="false"><path d="' + i[0] + '" opacity="0.2"/><path d="' + i[1] + '"/></svg>';
   }
-  // A path button: a dot and the pace in the band colour, the name, its words. No icon: none says anything about ageing.
+  // A path button: its glyph and the pace on top, then the name and its words; the glyph takes the band colour (CSS).
   function presetHtml(p, rate) {
-    return '<button type="button" class="ht-prof" style="--c:' + p.c + '" data-r="' + p.r + '" aria-pressed="' + (Math.abs(p.r - rate) < 0.005) + '"><i class="ht-prof-dot" aria-hidden="true"></i> <b>' + p.n + '</b> <span class="ht-prof-r">' + p.r.toFixed(2) + '×</span> <small>' + p.d + '</small></button>';
+    return '<button type="button" class="ht-prof" style="--c:' + p.c + '" data-r="' + p.r + '" aria-pressed="' + (Math.abs(p.r - rate) < 0.005) + '">' + iconHtml(p.icon) + ' <b>' + p.n + '</b> <span class="ht-prof-r">' + p.r.toFixed(2) + '×</span> <small>' + p.d + '</small></button>';
   }
   // Years needing help as one stacked bar: orange, red, grey, each its share of the bar (the numbers are in the list under it).
   function depBarHtml(y) {
@@ -286,7 +290,7 @@
     d.innerHTML = '<div class="ht-eyebrow">' + (isNow ? 'Where you are right now' : 'This moment') + ' · hover the timeline to move it</div>'
       + '<div class="ht-who"><b class="ht-name">' + esc(p.name) + '</b><span>' + dateStr + '</span><span>age <b>' + ageLabel(age, unit) + '</b></span><span>biological age <b>' + (ok ? b.toFixed(1) : '–') + '</b></span>' + pill + '</div>'
       + '<div class="ht-cards">'
-      + '<div class="ht-mcard"><div class="ht-eyebrow">Capability &amp; independence</div><div class="ht-v">' + iconHtml('user', ok ? STAGES[st - 1].hex : '#888') + (ok ? Math.round(cap) + '<small>/100</small>' : na) + '</div><div class="ht-bar"><i style="--c:' + (ok ? STAGES[st - 1].c : 'var(--ht-muted)') + ';--w:' + cap + '%"></i></div><div class="ht-s">' + (ok ? STAGES[st - 1].desc : b === null ? 'Not born yet at this point.' : 'Past the expected end of life on this path.') + '</div></div>'
+      + '<div class="ht-mcard"><div class="ht-eyebrow">Capability &amp; independence</div><div class="ht-v">' + iconHtml('person-arms-spread', ok ? STAGES[st - 1].hex : '#888') + (ok ? Math.round(cap) + '<small>/100</small>' : na) + '</div><div class="ht-bar"><i style="--c:' + (ok ? STAGES[st - 1].c : 'var(--ht-muted)') + ';--w:' + cap + '%"></i></div><div class="ht-s">' + (ok ? STAGES[st - 1].desc : b === null ? 'Not born yet at this point.' : 'Past the expected end of life on this path.') + '</div></div>'
       + '<div class="ht-mcard"><div class="ht-eyebrow">Living with 2+ health conditions</div><div class="ht-v">' + (ok ? Math.round(mm) + '%' : na) + '</div><div class="ht-bar"><i style="--c:var(--ht-orange);--w:' + mm + '%"></i></div><div class="ht-s">Share of people at this biological age (UK pattern).</div></div>'
       + '<div class="ht-mcard"><div class="ht-eyebrow">Difficulty of changing course</div><div class="ht-v">' + (ok ? diff.toFixed(1) + '<small>/10</small>' : na) + '</div><div class="ht-bar"><i style="--c:var(--ht-red);--w:' + (diff * 10) + '%"></i></div><div class="ht-s">' + (!ok ? '–' : diff < 4 ? 'Habits set now compound for decades.' : diff < 7 ? 'Still very doable; consistency beats intensity.' : 'Big gains still possible, but they take support and patience.') + '</div></div>'
       + '<div class="ht-mcard"><div class="ht-eyebrow">Potential gain if you act</div><div class="ht-v">' + (gain != null ? gain + '%' : na) + '</div><div class="ht-bar"><i style="--c:var(--ht-green);--w:' + (gain || 0) + '%"></i></div><div class="ht-s">' + lifeWords + '</div></div>'
@@ -303,7 +307,7 @@
     $('#ht-stacks').innerHTML = '<div class="ht-stack"><div class="ht-lbl"><b>New path · ' + r.toFixed(2) + '×' + (S.fs ? ' + science' : '') + '</b><span>' + tot.toFixed(0) + ' years left, ' + cur[0].toFixed(0) + ' of them green</span></div>' + bar(cur, '') + bar(ref, 'ht-ref') + '<div class="ht-lbl" style="margin-top:4px"><span>Today\'s path · ' + r0.toFixed(2) + '×</span><span>' + rtot.toFixed(0) + ' years, ' + ref[0].toFixed(0) + ' green</span></div></div>'
       + '<div class="ht-cmp">' + (Math.abs(dg) < 0.5 ? 'Same as today\'s path. Pick a new path above to see what shifts.' : '<b>' + (dg > 0 ? '+' : '') + dg.toFixed(1) + ' green years</b> and <b>' + ((tot - rtot) >= 0 ? '+' : '') + (tot - rtot).toFixed(1) + ' years</b> in total compared with today\'s path.') + '</div>';
     var dep = cur[2] + cur[3] + cur[4], rdep = ref[2] + ref[3] + ref[4];
-    $('#ht-dep').innerHTML = '<div class="ht-big">' + iconHtml('users-group') + dep.toFixed(1) + '<small> years needing help</small></div>' + (depBarHtml({ orange: cur[2], red: cur[3], grey: cur[4] }) || '<p class="ht-note">none on this path</p>')
+    $('#ht-dep').innerHTML = '<div class="ht-big">' + iconHtml('users-three') + dep.toFixed(1) + '<small> years needing help</small></div>' + (depBarHtml({ orange: cur[2], red: cur[3], grey: cur[4] }) || '<p class="ht-note">none on this path</p>')
       + '<div class="ht-kv"><span>Orange · others cover for you</span><b>' + cur[2].toFixed(1) + ' y</b><span>Red · others run parts of your life</span><b>' + cur[3].toFixed(1) + ' y</b><span>Grey · round-the-clock care</span><b>' + cur[4].toFixed(1) + ' y</b><span>On today\'s path</span><b>' + rdep.toFixed(1) + ' y</b></div>'
       + '<div class="ht-cmp">' + (dep < rdep - 0.3 ? '<b>' + (rdep - dep).toFixed(1) + ' fewer years</b> your family carries you.' : dep > rdep + 0.3 ? '<b>' + (dep - rdep).toFixed(1) + ' more years</b> your family carries you.' : 'Same as today\'s path.') + '</div>';
   }
