@@ -711,7 +711,11 @@
     // path: the token rides with the answers, but the result page is the
     // public one (no "Continue to Stage 2"). v0.48.23 — so does a 30-day
     // challenge link: it buys the videos, not the Full Report.
-    var fastInvite = !!inviteToken && invite.source !== 'paid_stage1' && invite.source !== 'challenge';
+    var fastInvite = !!inviteToken && invite.source !== 'paid_stage1' && invite.source !== 'challenge' && invite.source !== 'timeline_link';
+    // v0.48.34 — a Healthspan Timeline link a client passed on: the public path with the
+    // visitor's own name and email, then a yes or no to sharing three numbers with linkFrom.
+    var linkInvite = !!inviteToken && invite.source === 'timeline_link';
+    var linkFrom = linkInvite ? String(invite.link_from || 'Someone').slice(0, 40) : '';
     // Defensive — legacy practitioners without a logo_shape on file land
     // on 'square' (centred circle). Any unknown value also falls through
     // to 'square' so the CSS always finds a matching rule.
@@ -917,6 +921,9 @@
         +   '<div class="hdlw-q-rule"></div>'
         +   '<p class="hdlw-q-prompt">These are used to calibrate your results to population norms.</p>'
         + '</div>'
+        + (linkInvite
+            ? '<div class="hdlw-callout"><p class="hdlw-callout-body">' + escHtml(linkFrom) + ' invited you to see your healthspans side by side. Do your free check first.</p></div>'
+            : '')
         + '<div class="hdlw-fields">'
         +   '<div class="hdlw-field">'
         +     '<label class="hdlw-field-label" for="' + id + '-q1age">Age in years</label>'
@@ -1078,7 +1085,7 @@
 
     // --- Contact (lead capture) ---
     function renderContact() {
-      var isInv = !!inviteToken;
+      var isInv = !!inviteToken && !linkInvite; // a timeline link knows no name or email
       var pracForCopy = escHtml(cfg.pracName || 'your practitioner');
       var fieldsHtml = '';
 
@@ -1694,6 +1701,7 @@
             +   '</div>'
         )
         +     '</div>'
+        +     ( linkInvite ? '<div id="' + id + '-link" class="hdlw-r-card" role="region" aria-label="Share with ' + escapeHtml(linkFrom) + '" hidden></div>' : '' )
         +     ( timelineHref
             ? '<div class="hdlw-r-card hdlw-timeline-teaser">'
             +   '<svg viewBox="0 0 240 40" width="100%" height="40" preserveAspectRatio="none" aria-hidden="true" focusable="false">' + timelineStrip + '</svg>'
@@ -1796,6 +1804,45 @@
         }
         var thanks = document.getElementById(id + '-thanks');
         if (thanks) thanks.hidden = false;
+        if (linkInvite) showLinkCard(data.link_key || '');
+      }
+      // v0.48.34 — the yes or no. The key came back with this browser's own answers, so
+      // only the person who did the check can say yes. Nothing is shared under 18.
+      function showLinkCard(key) {
+        var box = document.getElementById(id + '-link');
+        if (!box) return;
+        box.hidden = false;
+        if (age < 18) { box.innerHTML = '<p>This link is for adults. Your report is yours; nothing is shared.</p>'; return; }
+        if (!key) { box.innerHTML = '<p>Nothing was shared. To share with ' + escapeHtml(linkFrom) + ', open the link again.</p>'; return; }
+        box.innerHTML = '<h2>' + escapeHtml(linkFrom) + ' invited you</h2>'
+          + '<p>Share your pace of ageing, age and sex with ' + escapeHtml(linkFrom) + '? They will see only these three numbers on their timeline. You can withdraw at any time.</p>'
+          + '<div class="hdlw-r-buttons"><button type="button" class="hdlw-r-btn-primary" data-d="yes">Yes, share</button>'
+          + '<button type="button" class="hdlw-r-btn-secondary" data-d="no">No, just my report</button></div>'
+          + '<p class="hdlw-r-status" role="status" aria-live="polite"></p>';
+        var btns = box.querySelectorAll('button'), note = box.querySelector('.hdlw-r-status');
+        for (var bi = 0; bi < btns.length; bi++) btns[bi].addEventListener('click', function () {
+          var d = this.getAttribute('data-d');
+          for (var bj = 0; bj < btns.length; bj++) btns[bj].disabled = true;
+          note.textContent = 'Saving your answer\u2026';
+          fetch(cfg.apiUrl.replace(/\/widget\/lead\/?$/, '/timeline/consent'), {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ invite_token: inviteToken, link_key: key, decision: d })
+          })
+            .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, body: j || {} }; }); })
+            .then(function (res) {
+              if (res.ok && res.body.status === 'accepted') {
+                box.innerHTML = '<p>You\u2019re now on ' + escapeHtml(res.body.link_from || linkFrom) + '\u2019s timeline as ' + escapeHtml(res.body.label || '') + '. Withdraw any time from the email we just sent.</p>';
+              } else if (res.ok && res.body.status === 'declined') {
+                box.innerHTML = '<p>Not shared. Your report is yours.</p>';
+              } else {
+                box.innerHTML = '<p>' + escapeHtml(res.body.message || 'This link is no longer valid.') + ' Nothing was shared.</p>';
+              }
+            })
+            .catch(function () {
+              note.textContent = 'We could not save your answer. Nothing was shared. Please try again.';
+              for (var bk = 0; bk < btns.length; bk++) btns[bk].disabled = false;
+            });
+        });
       }
       function failed(body, status) {
         var n = notSaved(body, !!inviteToken, status);
@@ -1982,8 +2029,33 @@
       });
   }
 
+  // v0.48.34 — ?withdraw=<token> from a Healthspan Timeline confirmation email: post it and say
+  // what happened; no questions on this visit.
+  function showWithdraw(el, token) {
+    loadFonts();
+    injectEditorialStyles();
+    var card = function (title, msg) {
+      el.innerHTML = '<div class="hdlw-shell"><div class="hdlw-error-card"><p class="hdlw-error-eyebrow">Healthspan timeline</p>'
+        + '<h3 class="hdlw-error-title">' + escHtml(title) + '</h3><p class="hdlw-error-msg" role="status">' + escHtml(msg) + '</p></div></div>';
+    };
+    var api = el.getAttribute('data-api') || '';
+    var url = api.replace(/\/widget\/lead\/?$/, '/timeline/withdraw');
+    var none = function () { card('Nothing to withdraw', 'This link has been used already, or the link has ended. Your numbers are not shared through it.'); };
+    if (!/^[a-f0-9]{64}$/.test(token) || url === api) { none(); return; }
+    card('Withdrawing your numbers', 'One moment\u2026');
+    fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ withdraw_token: token }) })
+      .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, body: j || {} }; }); })
+      .then(function (res) {
+        if (res.ok && res.body.status === 'withdrawn') card('Done', 'Done. ' + (res.body.link_from || 'They') + ' no longer sees your numbers.');
+        else none();
+      })
+      .catch(function () { card('We could not reach the server', 'Nothing has changed yet. Please open the link from your email again.'); });
+  }
+
   function init() {
     var inviteToken = getInviteToken();
+    var withdrawToken = '';
+    try { withdrawToken = new URLSearchParams(window.location.search).get('withdraw') || ''; } catch (e) { withdrawToken = ''; }
     var widgets = document.querySelectorAll('.hdl-rate-widget');
 
     // v0.47.85 — a widget locked by its own data-access attribute makes no
@@ -1996,7 +2068,9 @@
 
       var paidAttr = widgets[i].getAttribute('data-access') === 'paid';
 
-      if (inviteToken && i === 0) {
+      if (withdrawToken && i === 0) {
+        showWithdraw(widgets[i], withdrawToken);
+      } else if (inviteToken && i === 0) {
         needsGeo = true;
         (function (el, token) {
           showSpinner(el);
