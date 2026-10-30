@@ -1,4 +1,4 @@
-/* HDL V2 — Healthspan Timeline (v0.48.29, v0.48.30). The Cowork v3 page's styles,
+/* HDL V2 — Healthspan Timeline (v0.48.29, v0.48.30, v0.48.33). The Cowork v3 page's styles,
    scoped to .hdlv2-ht, on the brand tokens (CLAUDE.md, DESIGN.md), light only. The five
    stage colours are data colours and stay as Matthew drew them. */
 
@@ -41,11 +41,16 @@ body.hdlv2-wide-page .entry-content .et_pb_section{padding-left:0;padding-right:
 /* Phosphor duotone icons: 20 px inline, 36 px on the path buttons; the colour is the fill (soft layer at 20 %) */
 .hdlv2-ht .ht-ico{display:inline-block;flex:0 0 auto;width:20px;height:20px}
 .hdlv2-ht p>.ht-ico{vertical-align:-4px;margin-right:8px}
+/* one glyph per heading: navy beside a title (20 px) or an eyebrow (18 px), the soft layer at 15 %; the tabs' glyph is the tab's colour */
+.hdlv2-ht h2 .ht-ico,.hdlv2-ht .ht-eyebrow .ht-ico{margin-right:8px;vertical-align:-4px;color:var(--ht-fg)}
+.hdlv2-ht .ht-eyebrow .ht-ico{width:18px;height:18px}
+.hdlv2-ht :is(h2,.ht-eyebrow,.ht-tabs,.ht-v) .ht-ico path[opacity]{opacity:.15}
+.hdlv2-ht .ht-card h2 .ht-ico{color:var(--ht-accent)}
 .hdlv2-ht .ht-lockband p,.hdlv2-ht .ht-lockmsg p{text-wrap:balance}
 
 /* tabs: the active tab is the filled pill */
 .hdlv2-ht .ht-tabs{display:inline-flex;gap:4px;margin-top:var(--ht-gap);padding:4px;border:1px solid var(--ht-line);border-radius:999px;background:var(--ht-panel)}
-.hdlv2-ht .ht-tabs button{font:inherit;font-size:14px;font-weight:600;padding:8px 18px;min-height:40px;border:0;border-radius:999px;background:transparent;color:var(--ht-muted);cursor:pointer}
+.hdlv2-ht .ht-tabs button{display:inline-flex;align-items:center;gap:8px;font:inherit;font-size:14px;font-weight:600;padding:8px 18px;min-height:40px;border:0;border-radius:999px;background:transparent;color:var(--ht-muted);cursor:pointer}
 .hdlv2-ht .ht-tabs button[aria-selected="true"]{background:var(--ht-accent);color:#fff}
 .hdlv2-ht .ht-tab{background:var(--ht-panel);border:1px solid var(--ht-line);border-radius:12px;padding:var(--ht-pad);margin-top:8px}
 .hdlv2-ht .ht-tab[hidden]{display:none}
@@ -85,12 +90,18 @@ body.hdlv2-wide-page .entry-content .et_pb_section{padding-left:0;padding-right:
 .hdlv2-ht .ht-profiles{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-top:12px}
 .hdlv2-ht .ht-prof{font:inherit;text-align:left;border:1px solid var(--ht-line);border-radius:12px;background:#fff;color:var(--ht-fg);cursor:pointer;padding:14px;min-width:0;
   display:grid;grid-template-columns:auto 1fr;grid-template-areas:"ico r" "n n" "d d";align-content:start;align-items:center;column-gap:8px;transition:border-color .15s,background-color .15s}
-.hdlv2-ht .ht-prof .ht-ico{grid-area:ico;width:36px;height:36px;color:var(--c);transition:transform .15s}
+.hdlv2-ht .ht-prof .ht-ico{grid-area:ico;width:36px;height:36px;color:var(--c);transition:transform .18s ease-out}
 .hdlv2-ht .ht-prof b{grid-area:n;font-family:var(--ht-display);font-size:15px;font-weight:600;line-height:1.25;margin-top:10px}
 .hdlv2-ht .ht-prof-r{grid-area:r;justify-self:end;font-family:var(--ht-display);font-size:15px;font-weight:600;font-variant-numeric:tabular-nums}
 .hdlv2-ht .ht-prof small{grid-area:d;color:var(--ht-muted);font-size:13px;line-height:1.35;margin-top:2px}
 .hdlv2-ht .ht-prof:hover{border-color:color-mix(in srgb,var(--c) 45%,var(--ht-line))}
-@media (hover:hover) and (prefers-reduced-motion:no-preference){.hdlv2-ht .ht-prof:hover .ht-ico{transform:translateY(-2px)}}
+/* hover: the glyph lifts, the walker and the runner lean forward, the sparkle grows, the couch sinks */
+@media (hover:hover) and (prefers-reduced-motion:no-preference){
+  .hdlv2-ht .ht-prof:hover .ht-ico{transform:translateY(-2px)}
+  .hdlv2-ht .ht-prof:hover .ht-ico[data-ht-icon="person-simple-walk"],.hdlv2-ht .ht-prof:hover .ht-ico[data-ht-icon="person-simple-run"]{transform:translateY(-2px) rotate(6deg)}
+  .hdlv2-ht .ht-prof:hover .ht-ico[data-ht-icon="sparkle"]{transform:translateY(-2px) scale(1.1)}
+  .hdlv2-ht .ht-prof:hover .ht-ico[data-ht-icon="couch"]{transform:translateY(1px)}
+}
 .hdlv2-ht .ht-prof[aria-pressed="true"]{border-color:var(--c);box-shadow:inset 0 0 0 1px var(--c);background:color-mix(in srgb,var(--c) 8%,#fff)}
 .hdlv2-ht .ht-sliders{display:grid;grid-template-columns:1fr 1fr;gap:16px 24px;margin-top:20px}
 .hdlv2-ht .ht-sl{display:grid;grid-template-columns:auto 1fr auto;grid-template-areas:"l i o" "n n n";gap:8px 12px;align-items:center}

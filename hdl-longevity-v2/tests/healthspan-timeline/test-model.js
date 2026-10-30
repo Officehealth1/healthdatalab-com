@@ -186,7 +186,7 @@ ok(/::-webkit-slider-thumb\{[^}]*width:20px;height:20px/.test(CSS) && /::-moz-ra
 ok(/\.ht-fs input\{--ht-range:var\(--ht-future\)\}/.test(CSS), '17g the science slider in --ht-future');
 
 // v0.48.33: hover motion on the four tiles, CSS only, nothing under reduced motion.
-const MOTION = (CSS.match(/@media \(hover:hover\) and \(prefers-reduced-motion:no-preference\)\{([^]*?)\}\s*\n/) || ['', ''])[1];
+const MOTION = (CSS.match(/@media \(hover:hover\) and \(prefers-reduced-motion:no-preference\)\{([^]*?)\n\}/) || ['', ''])[1];
 ok(/person-simple-walk[^{]*person-simple-run[^{]*\{[^}]*rotate\(6deg\)/.test(MOTION) && /sparkle"\]\{[^}]*scale\(1\.1\)/.test(MOTION) && /couch"\]\{[^}]*translateY\(1px\)/.test(MOTION) && /\.ht-prof:hover \.ht-ico\{[^}]*translateY\(-2px\)/.test(MOTION), '18a lift 2 px, walk and run tilt 6°, sparkle 1.1, couch sinks 1 px, only without reduced motion');
 ok(/\.ht-prof \.ht-ico\{[^}]*transition:transform \.18s ease-out/.test(CSS), '18b 180 ms ease-out');
 

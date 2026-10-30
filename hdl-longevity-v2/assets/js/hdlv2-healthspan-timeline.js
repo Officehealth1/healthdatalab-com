@@ -1,5 +1,6 @@
 /**
- * HDL V2 — Healthspan Timeline (v0.48.29; layout v0.48.30; Phosphor duotone icons v0.48.32).
+ * HDL V2 — Healthspan Timeline (v0.48.29; layout v0.48.30; Phosphor duotone icons v0.48.32;
+ * a glyph on every heading, sliders drawn by the page v0.48.33).
  *
  * Matthew's Cowork v3 page (evidence copy of 2026-10-13), ported into the
  * plugin. The model functions keep the prototype's names so the Cowork page
@@ -159,7 +160,19 @@
     'sparkle': ['M194.82,151.43l-55.09,20.3-20.3,55.09a7.92,7.92,0,0,1-14.86,0l-20.3-55.09-55.09-20.3a7.92,7.92,0,0,1,0-14.86l55.09-20.3,20.3-55.09a7.92,7.92,0,0,1,14.86,0l20.3,55.09,55.09,20.3A7.92,7.92,0,0,1,194.82,151.43Z', 'M197.58,129.06,146,110l-19-51.62a15.92,15.92,0,0,0-29.88,0L78,110l-51.62,19a15.92,15.92,0,0,0,0,29.88L78,178l19,51.62a15.92,15.92,0,0,0,29.88,0L146,178l51.62-19a15.92,15.92,0,0,0,0-29.88ZM137,164.22a8,8,0,0,0-4.74,4.74L112,223.85,91.78,169A8,8,0,0,0,87,164.22L32.15,144,87,123.78A8,8,0,0,0,91.78,119L112,64.15,132.22,119a8,8,0,0,0,4.74,4.74L191.85,144ZM144,40a8,8,0,0,1,8-8h16V16a8,8,0,0,1,16,0V32h16a8,8,0,0,1,0,16H184V64a8,8,0,0,1-16,0V48H152A8,8,0,0,1,144,40ZM248,88a8,8,0,0,1-8,8h-8v8a8,8,0,0,1-16,0V96h-8a8,8,0,0,1,0-16h8V72a8,8,0,0,1,16,0v8h8A8,8,0,0,1,248,88Z'],
     'person-arms-spread': ['M104,40a24,24,0,1,1,24,24A24,24,0,0,1,104,40ZM212,80H44c-12.87,0-16.71,17.5-5,22.9L96,128,73.13,214.93a12,12,0,0,0,21.75,10.14L128,168l33.12,57.07a12,12,0,0,0,21.75-10.14L160,128l57-25.1C228.69,97.5,224.85,80,212,80Z', 'M160,40a32,32,0,1,0-32,32A32,32,0,0,0,160,40ZM128,56a16,16,0,1,1,16-16A16,16,0,0,1,128,56ZM231.5,87.71A19.62,19.62,0,0,0,212,72H44a20,20,0,0,0-8.38,38.16l.13.06,50.75,22.35-21,79.72A20,20,0,0,0,102,228.82l26-44.88,26,44.88a20,20,0,0,0,36.4-16.53l-21-79.72,50.75-22.35.13-.06A19.63,19.63,0,0,0,231.5,87.71Zm-17.8,7.9-56.93,25.07a8,8,0,0,0-4.51,9.36L175.13,217a7,7,0,0,0,.49,1.35,4,4,0,1,1-7.25,3.38c-.11-.22-.22-.43-.34-.63L134.92,164a8,8,0,0,0-13.84,0L88,221.06c-.12.2-.23.41-.34.63a4,4,0,1,1-7.25-3.38,7,7,0,0,0,.49-1.35L103.74,130a8,8,0,0,0-4.51-9.36L42.3,95.61A4,4,0,0,1,44,88H212a4,4,0,0,1,1.73,7.61Z'],
     'users-three': ['M168,144a40,40,0,1,1-40-40A40,40,0,0,1,168,144ZM64,56A32,32,0,1,0,96,88,32,32,0,0,0,64,56Zm128,0a32,32,0,1,0,32,32A32,32,0,0,0,192,56Z', 'M244.8,150.4a8,8,0,0,1-11.2-1.6A51.6,51.6,0,0,0,192,128a8,8,0,0,1,0-16,24,24,0,1,0-23.24-30,8,8,0,1,1-15.5-4A40,40,0,1,1,219,117.51a67.94,67.94,0,0,1,27.43,21.68A8,8,0,0,1,244.8,150.4ZM190.92,212a8,8,0,1,1-13.85,8,57,57,0,0,0-98.15,0,8,8,0,1,1-13.84-8,72.06,72.06,0,0,1,33.74-29.92,48,48,0,1,1,58.36,0A72.06,72.06,0,0,1,190.92,212ZM128,176a32,32,0,1,0-32-32A32,32,0,0,0,128,176ZM72,120a8,8,0,0,0-8-8A24,24,0,1,1,87.24,82a8,8,0,1,0,15.5-4A40,40,0,1,0,37,117.51,67.94,67.94,0,0,0,9.6,139.19a8,8,0,1,0,12.8,9.61A51.6,51.6,0,0,1,64,128,8,8,0,0,0,72,120Z'],
-    'lock': ['M216,96V208a8,8,0,0,1-8,8H48a8,8,0,0,1-8-8V96a8,8,0,0,1,8-8H208A8,8,0,0,1,216,96Z', 'M208,80H176V56a48,48,0,0,0-96,0V80H48A16,16,0,0,0,32,96V208a16,16,0,0,0,16,16H208a16,16,0,0,0,16-16V96A16,16,0,0,0,208,80ZM96,56a32,32,0,0,1,64,0V80H96ZM208,208H48V96H208V208Zm-68-56a12,12,0,1,1-12-12A12,12,0,0,1,140,152Z']
+    'lock': ['M216,96V208a8,8,0,0,1-8,8H48a8,8,0,0,1-8-8V96a8,8,0,0,1,8-8H208A8,8,0,0,1,216,96Z', 'M208,80H176V56a48,48,0,0,0-96,0V80H48A16,16,0,0,0,32,96V208a16,16,0,0,0,16,16H208a16,16,0,0,0,16-16V96A16,16,0,0,0,208,80ZM96,56a32,32,0,0,1,64,0V80H96ZM208,208H48V96H208V208Zm-68-56a12,12,0,1,1-12-12A12,12,0,0,1,140,152Z'],
+    // v0.48.33: one glyph per heading and per moment card
+    'heartbeat': ['M232,102c0,66-104,122-104,122S24,168,24,102A54,54,0,0,1,78,48c22.59,0,41.94,12.31,50,32,8.06-19.69,27.41-32,50-32A54,54,0,0,1,232,102Z', 'M72,144H32a8,8,0,0,1,0-16H67.72l13.62-20.44a8,8,0,0,1,13.32,0l25.34,38,9.34-14A8,8,0,0,1,136,128h24a8,8,0,0,1,0,16H140.28l-13.62,20.44a8,8,0,0,1-13.32,0L88,126.42l-9.34,14A8,8,0,0,1,72,144ZM178,40c-20.65,0-38.73,8.88-50,23.89C116.73,48.88,98.65,40,78,40a62.07,62.07,0,0,0-62,62c0,.75,0,1.5,0,2.25a8,8,0,1,0,16-.5c0-.58,0-1.17,0-1.75A46.06,46.06,0,0,1,78,56c19.45,0,35.78,10.36,42.6,27a8,8,0,0,0,14.8,0c6.82-16.67,23.15-27,42.6-27a46.06,46.06,0,0,1,46,46c0,53.61-77.76,102.15-96,112.8-10.83-6.31-42.63-26-66.68-52.21a8,8,0,1,0-11.8,10.82c31.17,34,72.93,56.68,74.69,57.63a8,8,0,0,0,7.58,0C136.21,228.66,240,172,240,102A62.07,62.07,0,0,0,178,40Z'],
+    'mountains': ['M144,52a20,20,0,1,1,20,20A20,20,0,0,1,144,52Zm49.44,55.92a8,8,0,0,0-13.77,0l-33,55.75-21-35.67H50.35L8,200H248Z', 'M164,80a28,28,0,1,0-28-28A28,28,0,0,0,164,80Zm0-40a12,12,0,1,1-12,12A12,12,0,0,1,164,40Zm90.88,155.92-54.56-92.08A15.87,15.87,0,0,0,186.55,96h0a15.85,15.85,0,0,0-13.76,7.84L146.63,148l-44.84-76.1a16,16,0,0,0-27.58,0L1.11,195.94A8,8,0,0,0,8,208H248a8,8,0,0,0,6.88-12.08ZM88,80l23.57,40H64.43ZM22,192l33-56h66l33,56Zm150.57,0-16.66-28.28L186.55,112,234,192Z'],
+    'trend-up': ['M232,56v64L168,56Z', 'M232,48H168a8,8,0,0,0-5.66,13.66L188.69,88,136,140.69l-34.34-34.35a8,8,0,0,0-11.32,0l-72,72a8,8,0,0,0,11.32,11.32L96,123.31l34.34,34.35a8,8,0,0,0,11.32,0L200,99.31l26.34,26.35A8,8,0,0,0,240,120V56A8,8,0,0,0,232,48Zm-8,52.69L187.31,64H224Z'],
+    'hourglass': ['M188.82,82,128,128,67.2,82.4A8,8,0,0,1,64,76V40a8,8,0,0,1,8-8H184a8,8,0,0,1,8,8V75.64A8,8,0,0,1,188.82,82ZM64,180v36a8,8,0,0,0,8,8H184a8,8,0,0,0,8-8V180.36a8,8,0,0,0-3.18-6.38L128,128,67.2,173.6A8,8,0,0,0,64,180Z', 'M200,75.64V40a16,16,0,0,0-16-16H72A16,16,0,0,0,56,40V76a16.07,16.07,0,0,0,6.4,12.8L114.67,128,62.4,167.2A16.07,16.07,0,0,0,56,180v36a16,16,0,0,0,16,16H184a16,16,0,0,0,16-16V180.36a16.09,16.09,0,0,0-6.35-12.77L141.27,128l52.38-39.59A16.09,16.09,0,0,0,200,75.64ZM184,216H72V180l56-42,56,42.35Zm0-140.36L128,118,72,76V40H184Z'],
+    'chart-line-up': ['M224,64V208H32V48H208A16,16,0,0,1,224,64Z', 'M232,208a8,8,0,0,1-8,8H32a8,8,0,0,1-8-8V48a8,8,0,0,1,16,0V156.69l50.34-50.35a8,8,0,0,1,11.32,0L128,132.69,180.69,80H160a8,8,0,0,1,0-16h40a8,8,0,0,1,8,8v40a8,8,0,0,1-16,0V91.31l-58.34,58.35a8,8,0,0,1-11.32,0L96,123.31l-56,56V200H224A8,8,0,0,1,232,208Z'],
+    'hand-heart': ['M16,152H48v56H16a8,8,0,0,1-8-8V160A8,8,0,0,1,16,152ZM192.54,40A39.12,39.12,0,0,0,156,64a39.12,39.12,0,0,0-36.54-24C97.67,40,80,58.31,80,80c0,14.56,7,27.71,16.73,40H140a20,20,0,0,1,0,40h4l37.78-8.68C203.82,135.07,232,109.23,232,80,232,58.31,214.33,40,192.54,40Z', 'M230.33,141.06a24.34,24.34,0,0,0-18.61-4.77C230.5,117.33,240,98.48,240,80c0-26.47-21.29-48-47.46-48A47.58,47.58,0,0,0,156,48.75,47.58,47.58,0,0,0,119.46,32C93.29,32,72,53.53,72,80c0,11,3.24,21.69,10.06,33a31.87,31.87,0,0,0-14.75,8.4L44.69,144H16A16,16,0,0,0,0,160v40a16,16,0,0,0,16,16H120a7.93,7.93,0,0,0,1.94-.24l64-16a6.94,6.94,0,0,0,1.19-.4L226,182.82l.44-.2a24.6,24.6,0,0,0,3.93-41.56ZM119.46,48A31.15,31.15,0,0,1,148.6,67a8,8,0,0,0,14.8,0,31.15,31.15,0,0,1,29.14-19C209.59,48,224,62.65,224,80c0,19.51-15.79,41.58-45.66,63.9l-11.09,2.55A28,28,0,0,0,140,112H100.68C92.05,100.36,88,90.12,88,80,88,62.65,102.41,48,119.46,48ZM16,160H40v40H16Zm203.43,8.21-38,16.18L119,200H56V155.31l22.63-22.62A15.86,15.86,0,0,1,89.94,128H140a12,12,0,0,1,0,24H112a8,8,0,0,0,0,16h32a8.32,8.32,0,0,0,1.79-.2l67-15.41.31-.08a8.6,8.6,0,0,1,6.3,15.9Z'],
+    'path': ['M224,200a24,24,0,1,1-24-24A24,24,0,0,1,224,200Z', 'M200,168a32.06,32.06,0,0,0-31,24H72a32,32,0,0,1,0-64h96a40,40,0,0,0,0-80H72a8,8,0,0,0,0,16h96a24,24,0,0,1,0,48H72a48,48,0,0,0,0,96h97a32,32,0,1,0,31-40Zm0,48a16,16,0,1,1,16-16A16,16,0,0,1,200,216Z'],
+    'compass': ['M128,32a96,96,0,1,0,96,96A96,96,0,0,0,128,32Zm16,112L80,176l32-64,64-32Z', 'M128,24A104,104,0,1,0,232,128,104.11,104.11,0,0,0,128,24Zm0,192a88,88,0,1,1,88-88A88.1,88.1,0,0,1,128,216ZM172.42,72.84l-64,32a8.05,8.05,0,0,0-3.58,3.58l-32,64A8,8,0,0,0,80,184a8.1,8.1,0,0,0,3.58-.84l64-32a8.05,8.05,0,0,0,3.58-3.58l32-64a8,8,0,0,0-10.74-10.74ZM138,138,97.89,158.11,118,118l40.15-20.07Z'],
+    'user': ['M192,96a64,64,0,1,1-64-64A64,64,0,0,1,192,96Z', 'M230.92,212c-15.23-26.33-38.7-45.21-66.09-54.16a72,72,0,1,0-73.66,0C63.78,166.78,40.31,185.66,25.08,212a8,8,0,1,0,13.85,8c18.84-32.56,52.14-52,89.07-52s70.23,19.44,89.07,52a8,8,0,1,0,13.85-8ZM72,96a56,56,0,1,1,56,56A56.06,56.06,0,0,1,72,96Z'],
+    'users': ['M136,108A52,52,0,1,1,84,56,52,52,0,0,1,136,108Z', 'M117.25,157.92a60,60,0,1,0-66.5,0A95.83,95.83,0,0,0,3.53,195.63a8,8,0,1,0,13.4,8.74,80,80,0,0,1,134.14,0,8,8,0,0,0,13.4-8.74A95.83,95.83,0,0,0,117.25,157.92ZM40,108a44,44,0,1,1,44,44A44.05,44.05,0,0,1,40,108Zm210.14,98.7a8,8,0,0,1-11.07-2.33A79.83,79.83,0,0,0,172,168a8,8,0,0,1,0-16,44,44,0,1,0-16.34-84.87,8,8,0,1,1-5.94-14.85,60,60,0,0,1,55.53,105.64,95.83,95.83,0,0,1,47.22,37.71A8,8,0,0,1,250.14,206.7Z'],
+    'flag-checkered': ['M224,56v60c-19.89,17.23-38.23,18.39-56,13.48v-60C185.76,74.39,204.11,73.23,224,56ZM104,102.52v-60C86.24,37.61,67.89,38.77,48,56v60c19.89-17.22,38.23-18.39,56-13.48v60c21.62,6,42.38,21,64,27v-60c-21.62-6-42.38-21-64-27Z', 'M227.32,48.75A8,8,0,0,0,218.76,50c-28,24.22-51.72,12.48-79.21-1.13C111.07,34.76,78.78,18.79,42.76,50A8,8,0,0,0,40,56V224a8,8,0,0,0,16,0V179.77c26.79-21.16,49.87-9.75,76.45,3.41,28.49,14.09,60.77,30.06,96.79-1.13a8,8,0,0,0,2.76-6V56A8,8,0,0,0,227.32,48.75ZM216,71.6v40.65c-14,11.06-27,13.22-40,10.88V79.34A60.05,60.05,0,0,0,216,71.6Zm-56,3.76v43c-6.66-2.67-13.43-6-20.45-9.48-8.82-4.37-18-8.91-27.55-12.18v-43c6.66,2.66,13.43,6,20.45,9.48C141.27,67.55,150.46,72.09,160,75.36ZM96,48.91V92.69a60.06,60.06,0,0,0-40,7.75V59.78C70,48.72,83,46.57,96,48.91ZM86.58,152A60.06,60.06,0,0,0,56,160.43V119.78c14-11.06,27-13.22,40-10.88v43.8A65.61,65.61,0,0,0,86.58,152ZM112,156.67v-43c6.66,2.66,13.43,6,20.45,9.48,8.82,4.37,18,8.9,27.55,12.17v43c-6.66-2.67-13.43-6-20.45-9.48C130.73,164.47,121.54,159.94,112,156.67Zm64,26.45v-43.8a65.61,65.61,0,0,0,9.42.72A60.11,60.11,0,0,0,216,131.57v40.68C202,183.31,189,185.46,176,183.12Z']
   };
   function iconHtml(key, colour) {
     var i = HT_ICONS[key]; if (!i) return '';
@@ -184,8 +197,8 @@
     var sci = !!cfg.show_science;
     return '<header class="ht-top"><h1 id="ht-title"></h1><p class="ht-sub">In relation to the people you love. Take stock of where you are, see where today\'s path leads, then change the path and watch what moves.</p></header>'
       + '<div class="ht-tabs" role="tablist" id="ht-tabs" aria-label="Inputs">'
-      + '<button type="button" role="tab" id="ht-tab-btn-you" aria-controls="ht-tab-you" data-t="you">You</button>'
-      + '<button type="button" role="tab" id="ht-tab-btn-people" aria-controls="ht-tab-people" data-t="people">Loved ones</button></div>'
+      + '<button type="button" role="tab" id="ht-tab-btn-you" aria-controls="ht-tab-you" data-t="you">' + iconHtml('user') + 'You</button>'
+      + '<button type="button" role="tab" id="ht-tab-btn-people" aria-controls="ht-tab-people" data-t="people">' + iconHtml('users') + 'Loved ones</button></div>'
       + '<div class="ht-tab" id="ht-tab-you" role="tabpanel" aria-labelledby="ht-tab-btn-you">'
       + '<div id="ht-you"></div>'
       + '<div class="ht-eyebrow ht-pick">Choose a new path · what happens if you shift</div>'
@@ -201,24 +214,24 @@
       + '<div class="ht-lock" id="ht-people-lock" hidden></div>'
       + '<p class="ht-note">"Same as you" assumes your habits shape the household. Time together uses population averages for each relationship.</p>'
       + '</div>'
-      + '<div class="ht-band"><div class="ht-bandbar"><div><span class="ht-eyebrow">Timeline</span> <span id="ht-unit" class="ht-unit"></span></div>'
+      + '<div class="ht-band"><div class="ht-bandbar"><div><span class="ht-eyebrow">' + iconHtml('path') + 'Timeline</span> <span id="ht-unit" class="ht-unit"></span></div>'
       + '<div class="ht-zoom"><span>Years</span><input id="ht-zoom" type="range" min="0" max="100" value="0" aria-label="Zoom from years to months"><span>Months</span></div></div>'
       + '<div class="ht-tl"><div class="ht-scroller" id="ht-scroller"><canvas id="ht-cv" role="img"></canvas></div><div class="ht-lockband" id="ht-lockband" hidden></div></div>'
       + '<div class="ht-legend" id="ht-legend"></div></div>'
       + '<div class="ht-panel ht-moment" id="ht-moment"></div>'
       + '<section class="ht-sec"><div class="ht-ahead">'
-      + '<div class="ht-panel"><h2>Your years ahead</h2><p class="ht-lead">What is left, stage by stage, on the new path. The thin bar underneath is today\'s path, so the difference is visible.</p><div id="ht-stacks"></div></div>'
+      + '<div class="ht-panel"><h2>' + iconHtml('hourglass') + 'Your years ahead</h2><p class="ht-lead">What is left, stage by stage, on the new path. The thin bar underneath is today\'s path, so the difference is visible.</p><div id="ht-stacks"></div></div>'
       + '<div><div class="ht-panel ht-dep"><h2>Years you depend on others</h2><p class="ht-lead">Orange, red and grey are the years someone has to feed you, wash you and run your day. Yellow is not counted; limits are present, but you still run your own life.</p><div id="ht-dep"></div></div>'
       + '<aside class="ht-panel ht-card" id="ht-card" hidden></aside></div>'
       + '</div></section>'
       + '<section class="ht-sec"><div class="ht-traj' + (sci ? '' : ' ht-traj-solo') + '">'
-      + '<div class="ht-panel ht-chart"><h2>Your trajectory</h2><p class="ht-lead">The trajectory chart your report uses, drawn from your pace. The teal line is the new path you pick above.</p><div id="ht-traj"></div></div>'
+      + '<div class="ht-panel ht-chart"><h2>' + iconHtml('chart-line-up') + 'Your trajectory</h2><p class="ht-lead">The trajectory chart your report uses, drawn from your pace. The teal line is the new path you pick above.</p><div id="ht-traj"></div></div>'
       + (sci ? '<div class="ht-panel ht-future"><span class="ht-spec">Speculative, not hocus-pocus</span><h2>Science is moving</h2>'
         + '<p>Regenerative medicine, cellular reprogramming, better diagnostics. We reliably underestimate exponential change, so the "Future science" slider lets you stretch the picture from cautious to wild.</p>'
         + '<p>Whatever arrives will work best on a body that is already well kept. A solid foundation improves life now, improves it later, and raises the odds that the next tools work on you.</p>'
         + '<p>The aim is not more years. It is more good years and fewer in the suffering phase. Length tends to follow as a side effect.</p><div class="ht-note" id="ht-fs-detail"></div></div>' : '')
       + '</div></section>'
-      + '<section class="ht-sec"><h2>Time with the people you love</h2><p class="ht-lead">Each dot is one full week of real time together, coloured by your stage at the time. Green, yellow and orange all count; in orange the hours are fewer and more of them are care. Closer relationships hold up; more distant ones thin out as you decline. Every relationship is different.</p>'
+      + '<section class="ht-sec"><h2>' + iconHtml('hand-heart') + 'Time with the people you love</h2><p class="ht-lead">Each dot is one full week of real time together, coloured by your stage at the time. Green, yellow and orange all count; in orange the hours are fewer and more of them are care. Closer relationships hold up; more distant ones thin out as you decline. Every relationship is different.</p>'
       + '<div class="ht-lockwrap"><div class="ht-lo" id="ht-loved"></div><div class="ht-lockmsg" id="ht-loved-lock" hidden></div></div></section>'
       + '<p class="ht-disc" id="ht-disc"></p>';
   }
@@ -279,8 +292,9 @@
   }
 
   /* ---------- moment panel ---------- */
-  function renderMoment(p, t, unit, isNow) {
-    var d = $('#ht-moment'); var age = t - p.born; var r = rateOf(p); var b = age < 0 ? null : bioAt(p, t); var st = b === null ? 0 : stageOfBio(p, b, r); var gone = st === 6; var ok = b !== null && !gone;
+  function renderMoment(p, t, unit, isNow) { $('#ht-moment').innerHTML = momentHtml(p, t, unit, isNow); }
+  function momentHtml(p, t, unit, isNow) {
+    var age = t - p.born; var r = rateOf(p); var b = age < 0 ? null : bioAt(p, t); var st = b === null ? 0 : stageOfBio(p, b, r); var gone = st === 6; var ok = b !== null && !gone;
     var life = p === S.you ? S.you.life : 3;
     var cap = ok ? capability(p, b, r) : 0, mm = ok ? multimorb(b) : 0, diff = ok ? difficulty(age, r) : 0, gain = ok && life != null ? gainPotential(life) : null;
     var dateStr = isNow ? 'today' : unit === 'year' ? String(Math.floor(t)) : new Date(Math.floor(t), Math.floor((t % 1) * 12)).toLocaleString('en-GB', { month: 'short', year: 'numeric' });
@@ -289,13 +303,13 @@
     var lifeWords = p !== S.you ? 'Set from their own report\'s lifestyle score.'
       : life == null ? 'Your lifestyle score comes with the full report.'
       : 'From a lifestyle score of ' + life + '/5' + (S.you.lifeSource === 'stage1' ? ' (your free check)' : '') + ': ' + (gain > 60 ? 'the fast part of the curve, early changes pay off quickly.' : gain > 30 ? 'solid headroom left.' : 'already near the top; gains come slower now.');
-    d.innerHTML = '<div class="ht-eyebrow">' + (isNow ? 'Where you are right now' : 'This moment') + ' · hover the timeline to move it</div>'
+    return '<div class="ht-eyebrow">' + iconHtml('compass') + (isNow ? 'Where you are right now' : 'This moment') + ' · hover the timeline to move it</div>'
       + '<div class="ht-who"><b class="ht-name">' + esc(p.name) + '</b><span>' + dateStr + '</span><span>age <b>' + ageLabel(age, unit) + '</b></span><span>biological age <b>' + (ok ? b.toFixed(1) : '–') + '</b></span>' + pill + '</div>'
       + '<div class="ht-cards">'
       + '<div class="ht-mcard"><div class="ht-eyebrow">Capability &amp; independence</div><div class="ht-v">' + iconHtml('person-arms-spread', ok ? STAGES[st - 1].hex : '#888') + (ok ? Math.round(cap) + '<small>/100</small>' : na) + '</div><div class="ht-bar"><i style="--c:' + (ok ? STAGES[st - 1].c : 'var(--ht-muted)') + ';--w:' + cap + '%"></i></div><div class="ht-s">' + (ok ? STAGES[st - 1].desc : b === null ? 'Not born yet at this point.' : 'Past the expected end of life on this path.') + '</div></div>'
-      + '<div class="ht-mcard"><div class="ht-eyebrow">Living with 2+ health conditions</div><div class="ht-v">' + (ok ? Math.round(mm) + '%' : na) + '</div><div class="ht-bar"><i style="--c:var(--ht-orange);--w:' + mm + '%"></i></div><div class="ht-s">Share of people at this biological age (UK pattern).</div></div>'
-      + '<div class="ht-mcard"><div class="ht-eyebrow">Difficulty of changing course</div><div class="ht-v">' + (ok ? diff.toFixed(1) + '<small>/10</small>' : na) + '</div><div class="ht-bar"><i style="--c:var(--ht-red);--w:' + (diff * 10) + '%"></i></div><div class="ht-s">' + (!ok ? '–' : diff < 4 ? 'Habits set now compound for decades.' : diff < 7 ? 'Still very doable; consistency beats intensity.' : 'Big gains still possible, but they take support and patience.') + '</div></div>'
-      + '<div class="ht-mcard"><div class="ht-eyebrow">Potential gain if you act</div><div class="ht-v">' + (gain != null ? gain + '%' : na) + '</div><div class="ht-bar"><i style="--c:var(--ht-green);--w:' + (gain || 0) + '%"></i></div><div class="ht-s">' + lifeWords + '</div></div>'
+      + '<div class="ht-mcard"><div class="ht-eyebrow">Living with 2+ health conditions</div><div class="ht-v">' + iconHtml('heartbeat') + (ok ? Math.round(mm) + '%' : na) + '</div><div class="ht-bar"><i style="--c:var(--ht-orange);--w:' + mm + '%"></i></div><div class="ht-s">Share of people at this biological age (UK pattern).</div></div>'
+      + '<div class="ht-mcard"><div class="ht-eyebrow">Difficulty of changing course</div><div class="ht-v">' + iconHtml('mountains') + (ok ? diff.toFixed(1) + '<small>/10</small>' : na) + '</div><div class="ht-bar"><i style="--c:var(--ht-red);--w:' + (diff * 10) + '%"></i></div><div class="ht-s">' + (!ok ? '–' : diff < 4 ? 'Habits set now compound for decades.' : diff < 7 ? 'Still very doable; consistency beats intensity.' : 'Big gains still possible, but they take support and patience.') + '</div></div>'
+      + '<div class="ht-mcard"><div class="ht-eyebrow">Potential gain if you act</div><div class="ht-v">' + iconHtml('trend-up') + (gain != null ? gain + '%' : na) + '</div><div class="ht-bar"><i style="--c:var(--ht-green);--w:' + (gain || 0) + '%"></i></div><div class="ht-s">' + lifeWords + '</div></div>'
       + '</div>';
   }
 
@@ -376,8 +390,8 @@
     $('#ht-loved-lock').hidden = !preview; $('#ht-people-lock').hidden = !preview; $('#ht-add').hidden = preview;
     var card = cfg.card, el = $('#ht-card');
     if (card && card.title && card.button && /^https:\/\//i.test(card.url || '')) {
-      el.innerHTML = '<h2></h2>' + (card.text ? '<p class="ht-lead"></p>' : '') + '<a class="ht-btn" target="_blank" rel="noopener noreferrer"></a>';
-      el.querySelector('h2').textContent = card.title;
+      el.innerHTML = '<h2>' + iconHtml('flag-checkered') + '<span></span></h2>' + (card.text ? '<p class="ht-lead"></p>' : '') + '<a class="ht-btn" target="_blank" rel="noopener noreferrer"></a>';
+      el.querySelector('h2 span').textContent = card.title;
       if (card.text) el.querySelector('p').textContent = card.text;
       var a = el.querySelector('a'); a.textContent = card.button; a.href = card.url;
       el.hidden = false;
@@ -521,7 +535,7 @@
     bioAtRate: bioAtRate, stagesFor: stagesFor, yearsByStage: yearsByStage, weeksTogether: weeksTogether, visiblePeople: visiblePeople,
     lifestyleFromScores: lifestyleFromScores, bornFromAge: bornFromAge, readFragment: readFragment, paceLabel: paceLabel,
     visibleZoomBands: visibleZoomBands, ageLabel: ageLabel, shellHtml: shellHtml, iconHtml: iconHtml, depBarHtml: depBarHtml, presetHtml: presetHtml,
-    paintRange: paintRange
+    HT_ICONS: HT_ICONS, momentHtml: momentHtml, paintRange: paintRange
   };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
 })(window);
