@@ -296,6 +296,10 @@ class HDLV2_Admin_Restore {
         $wpdb->query( 'START TRANSACTION' );
 
         try {
+            // v0.48.34 — Healthspan Timeline links this client made or consented to; first,
+            // while their form_progress and lead rows still exist to match on.
+            $counts['timeline_links'] = class_exists( 'HDLV2_Timeline_Links' ) ? HDLV2_Timeline_Links::forget_client( $practitioner_id, $client_id, $client_email ) : 0;
+
             // Resolve every form_progress row for this (prac, client) tuple
             // — they share children via the form_progress_id FK.
             $progress_ids = $wpdb->get_col( $wpdb->prepare(

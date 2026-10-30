@@ -418,6 +418,12 @@ class HDLV2_Client_Status {
             $now, $practitioner_id, $practitioner_id, $client_id
         ) );
 
+        // 7b) v0.48.34 — Healthspan Timeline links this client made (their lanes of loved ones)
+        // or consented to as someone's invitee: deleted with the record (DB6).
+        $cascade_counts['hdlv2_timeline_links'] = class_exists( 'HDLV2_Timeline_Links' )
+            ? HDLV2_Timeline_Links::forget_client( $practitioner_id, $client_id, $client_user ? $client_user->user_email : '' )
+            : 0;
+
         // 8) Revoke pending/opened widget_invites for this client. Stops a
         // stale invite email from triggering auto-login on the deleted user
         // (closes the loop with the V1-link auto-restore disable). Uses the
@@ -1583,6 +1589,8 @@ class HDLV2_Client_Status {
             'hdlv2_consultation_addenda',
             // v0.48.23 — the 30-day challenge's ticked days (DB v3.31).
             'hdlv2_challenge_days',
+            // v0.48.34 — Healthspan Timeline links (DB v3.32).
+            'hdlv2_timeline_links',
         );
 
         $tables_present = 0;
