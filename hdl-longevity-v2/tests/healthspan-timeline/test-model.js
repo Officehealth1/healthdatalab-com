@@ -162,6 +162,7 @@ ok(/<span class="ht-eyebrow">[^]*?data-ht-icon="path"[^]*?Timeline<\/span>/.test
 const h2s = [...sh.matchAll(/<h2>(.*?)<\/h2>/g)].map(m => [glyphs(m[1]).join(','), m[1].replace(/<svg.*?<\/svg>/g, '').trim()]);
 ok(JSON.stringify(h2s) === JSON.stringify([['hourglass', 'Your years ahead'], ['', 'Years you depend on others'], ['chart-line-up', 'Your trajectory'], ['hand-heart', 'Time with the people you love']]), '16c panel titles: hourglass, (users-three stays by the number), chart-line-up, hand-heart');
 ok(/iconHtml\('flag-checkered'\)/.test(SRC), '16d the challenge card title carries flag-checkered');
+ok(!/\.ht-chart svg\{/.test(CSS) && /#ht-traj svg\{width:100%/.test(CSS), '16i the full-width rule reaches the chart\'s own drawing only, not the title glyph (it drew the glyph 600 px wide)');
 ok(typeof M.momentHtml === 'function', '16e momentHtml exposed');
 if (typeof M.momentHtml === 'function') {
   S = person(50, 'F', 1.0);

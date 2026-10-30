@@ -164,7 +164,7 @@ body.hdlv2-wide-page .entry-content .et_pb_section{padding-left:0;padding-right:
 /* trajectory + future */
 .hdlv2-ht .ht-traj{display:grid;grid-template-columns:1.3fr 1fr;gap:24px}
 .hdlv2-ht .ht-traj.ht-traj-solo{grid-template-columns:1fr}
-.hdlv2-ht .ht-chart svg{width:100%;height:auto;display:block}
+.hdlv2-ht #ht-traj svg{width:100%;height:auto;display:block}
 .hdlv2-ht .ht-future p{margin:8px 0 0}
 .hdlv2-ht .ht-spec{font-size:11px;color:var(--ht-future);font-weight:600;text-transform:uppercase;letter-spacing:.5px}
 
