@@ -105,22 +105,20 @@ class HDLV2_Timeline_Links {
 
         global $wpdb;
         $table = $wpdb->prefix . 'hdlv2_timeline_links';
-        // ponytail: count-then-insert lets two posts in the same instant pass one over a cap; a lock per inviter if that ever matters.
+        // The caps, the link row, its ticket (external_ref tl:<link id>) and the tie between them: all or
+        // nothing, and one inviter's posts in turn (the lock on their record), so two at once cannot pass a cap.
+        $wpdb->query( 'START TRANSACTION' );
+        $wpdb->get_var( $wpdb->prepare( "SELECT id FROM {$wpdb->prefix}hdlv2_form_progress WHERE id = %d FOR UPDATE", (int) $owner->id ) );
         $total = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM $table WHERE owner_progress_id = %d", (int) $owner->id ) );
-        if ( $total >= self::MAX_TOTAL ) {
-            return new WP_Error( 'link_limit', 'You have reached the limit of 25 links.', array( 'status' => 429 ) );
-        }
         $today = (int) $wpdb->get_var( $wpdb->prepare(
             "SELECT COUNT(*) FROM $table WHERE owner_progress_id = %d AND created_at >= %s",
             (int) $owner->id, gmdate( 'Y-m-d 00:00:00' )
         ) );
-        if ( $today >= self::MAX_PER_DAY ) {
-            return new WP_Error( 'link_limit', 'You have made 10 links today. You can make more tomorrow.', array( 'status' => 429 ) );
+        if ( $total >= self::MAX_TOTAL || $today >= self::MAX_PER_DAY ) {
+            $wpdb->query( 'ROLLBACK' );
+            return new WP_Error( 'link_limit', $total >= self::MAX_TOTAL ? 'You have reached the limit of 25 links.' : 'You have made 10 links today. You can make more tomorrow.', array( 'status' => 429 ) );
         }
-
-        // The link row, its ticket (external_ref tl:<link id>) and the tie between them: all or nothing.
         $now = gmdate( 'Y-m-d H:i:s' );
-        $wpdb->query( 'START TRANSACTION' );
         $id = $wpdb->insert( $table, array(
             'owner_progress_id' => (int) $owner->id,
             'label'             => $label,

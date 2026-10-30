@@ -74,6 +74,13 @@ $cached = $GLOBALS['transients'] ? array_values( $GLOBALS['transients'] ) : arra
 $in_cache = false;
 foreach ( $cached as $c ) { if ( is_array( $c ) && isset( $c['link_key'] ) ) $in_cache = true; }
 check( 'T3.4 the key is not in the 60-second repeat cache (a second post with the same email gets no key)', ! $in_cache );
+$w->invites = array(
+    TOKEN => $w->invite,
+    str_repeat( 'cd', 32 ) => invite_row( array( 'id' => 90, 'token' => str_repeat( 'cd', 32 ), 'source' => 'timeline_link', 'client_email' => '', 'client_name' => 'Mum' ) ),
+);
+$r2 = post_lead( lead_params( 'sam@example.test', str_repeat( 'cd', 32 ) ) );
+check( 'T3.4b the same email through a second link within the minute claims that link and gets its own key', is_array( $r2 ) && 'completed' === $w->invites[ str_repeat( 'cd', 32 ) ]->status
+    && isset( $r2['link_key'] ) && $r2['link_key'] !== $r['link_key'] );
 $w = setup();
 $w->invite = invite_row( array( 'id' => 89, 'source' => 'timeline_link', 'practitioner_id' => 122, 'client_email' => '' ) );
 $r = post_lead( lead_params( 'sam@example.test', TOKEN ) );

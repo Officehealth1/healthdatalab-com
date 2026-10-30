@@ -80,6 +80,14 @@ check( 'L3.3 the 26th → 429 "You have reached the limit of 25 links."', 429 ==
 $r = HDLV2_Timeline_Links::rest_create( owner_req( array( 'label' => 'Mine', 'relationship' => 'friend' ), OTHER_T ) );
 check( 'L3.4 the caps are per inviter: another client still makes one', 201 === status_of( $r ) );
 
+$w = world();
+create_link();
+$q = implode( "\n", $w->queries );
+$t = strpos( $q, 'START TRANSACTION' ); $lock = strpos( $q, 'FOR UPDATE' ); $cnt = strpos( $q, 'COUNT(*) FROM wp_hdlv2_timeline_links' );
+check( 'L3.5 the caps are counted inside the transaction, after a lock on the inviter\'s record', false !== $t && false !== $lock && false !== $cnt && $t < $lock && $lock < $cnt );
+for ( $i = 0; $i < 10; $i++ ) { create_link( array( 'label' => 'Z' . $i ) ); }
+check( 'L3.6 a refused post leaves no open transaction', null === $w->txn );
+
 echo "── L4. list ──\n";
 $w = world();
 $a = body_of( create_link() );

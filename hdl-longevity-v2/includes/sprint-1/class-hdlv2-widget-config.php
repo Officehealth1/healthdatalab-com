@@ -599,7 +599,10 @@ class HDLV2_Widget_Config {
         // 60s window keyed on (practitioner, email[, invite]); cached payload
         // returned verbatim on repeat. Belt-and-braces: the widget JS also
         // disables the submit button on click.
-        $dedupe_key = 'hdlv2_lead_dedup_' . md5( $practitioner_id . '|' . $visitor_email . '|' . ( $invite_id ?: 'public' ) );
+        // v0.48.34 — a Healthspan Timeline link has its own slot: the same email through a second
+        // link within the minute must claim that link, not get the first one's reply.
+        $dedupe_scope = $invite_id ?: ( $ticket_id && 'timeline_link' === $invite->source ? 'tl' . $ticket_id : 'public' );
+        $dedupe_key   = 'hdlv2_lead_dedup_' . md5( $practitioner_id . '|' . $visitor_email . '|' . $dedupe_scope );
         $cached     = get_transient( $dedupe_key );
         if ( is_array( $cached ) ) {
             return rest_ensure_response( $cached );
