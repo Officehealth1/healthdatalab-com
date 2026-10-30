@@ -686,6 +686,8 @@
       if (publicCfg.cta_text)          cfg.ctaText   = publicCfg.cta_text;
       if (publicCfg.theme_color)       cfg.color     = publicCfg.theme_color;
       cfg.showBookOnPublic = !!publicCfg.show_book_button_after_widget;
+      // v0.48.29 — the Healthspan Timeline page; present only while its flag is on.
+      cfg.timelineUrl = safeBuyUrl(publicCfg.timeline_url || '');
     }
 
     var inviteToken = '', inviteName = '', inviteEmail = '';
@@ -1389,6 +1391,15 @@
       var firstName = (answers._name || '').split(/\s+/)[0] || 'there';
       var greeting = firstName === 'there' ? 'Hi there \u2014' : 'Hi ' + firstName + ' \u2014';
 
+      // v0.48.29 — the timeline teaser opens the page with these numbers in the
+      // fragment (never sent to a server). Adults only: the page reads 18 to 100.
+      var timelineHref = cfg.timelineUrl && age >= 18 && age <= 100
+        ? cfg.timelineUrl + '#a=' + age + '&s=' + (r.sex === 'male' ? 'M' : 'F') + '&r=' + rate.toFixed(2)
+          + '&n=' + encodeURIComponent(firstName === 'there' ? '' : firstName)
+        : '';
+      var timelineStrip = ['#3fae4a', '#3fae4a', '#3fae4a', '#3fae4a', '#3fae4a', '#e0b128', '#e0b128', '#e5761f', '#e5761f', '#c93437', '#c93437', '#b4bcb9']
+        .map(function (c, i) { return '<rect x="' + (i * 20) + '" y="0" width="18" height="40" rx="3" fill="' + c + '"/>'; }).join('');
+
       // Rate band drives the headline copy + the Awaken third paragraph.
       var bandColor, bandLabel, bandClass, awakenP1, awakenP3;
       var pct = Math.abs(Math.round((rate - 1) * 100));
@@ -1683,6 +1694,13 @@
             +   '</div>'
         )
         +     '</div>'
+        +     ( timelineHref
+            ? '<div class="hdlw-r-card hdlw-timeline-teaser">'
+            +   '<svg viewBox="0 0 240 40" width="100%" height="40" preserveAspectRatio="none" aria-hidden="true" focusable="false">' + timelineStrip + '</svg>'
+            +   '<p style="margin:14px 0 16px;font-weight:600;color:#2c3e50;">See your years beside the people you love</p>'
+            +   '<a class="hdlw-r-btn-secondary" href="' + escapeHtml(timelineHref) + '" target="_blank" rel="noopener noreferrer">Open my timeline</a>'
+            + '</div>'
+            : '' )
         +   '</div>'
 
         + '</div>' // end .hdlw-r-twocol

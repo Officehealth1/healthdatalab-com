@@ -3,7 +3,7 @@
  * Plugin Name: HDL Longevity V2 — Staged Workflow
  * Plugin URI: https://healthdatalab.net
  * Description: V2 longevity workflow: staged intake, WHY profiling, practitioner consultations, weekly flight plans, and AI coaching. Runs alongside the existing Health Data Lab plugin.
- * Version: 0.48.28
+ * Version: 0.48.33
  * Author: Health Data Lab
  * Author URI: https://healthdatalab.net
  * License: Proprietary
@@ -22,7 +22,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 // register_activation_hook callbacks, which fire synchronously during
 // `wp plugin activate`, can reference them. The activator needs
 // HDLV2_DB_VERSION / HDLV2_VERSION at call time to update version options.
-define( 'HDLV2_VERSION', '0.48.28' );
+define( 'HDLV2_VERSION', '0.48.33' );
 define( 'HDLV2_DB_VERSION', '3.31' );
 
 // Client funnel token (hdlv2_form_progress.token) lifetime. FIXED window
@@ -914,6 +914,9 @@ final class HDL_Longevity_V2 {
         // their /longevity-draft-report/?t=<token>. Powers the "My Report"
         // menu item for Consumer / Invited Client roles.
         require_once HDLV2_PLUGIN_DIR . 'includes/sprint-2c/class-hdlv2-my-report.php';
+
+        // v0.48.29 — Healthspan Timeline page (flag hdlv2_ff_healthspan_timeline, off by default)
+        require_once HDLV2_PLUGIN_DIR . 'includes/sprint-2c/class-hdlv2-healthspan-timeline.php';
 
         // v0.20.17 — V1 trajectory chart ported to PHP/SVG for PDF embedding
         require_once HDLV2_PLUGIN_DIR . 'includes/sprint-2c/class-hdlv2-trajectory-svg.php';
