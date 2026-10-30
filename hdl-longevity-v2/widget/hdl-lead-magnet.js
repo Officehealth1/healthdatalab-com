@@ -2035,7 +2035,7 @@
     loadFonts();
     injectEditorialStyles();
     var card = function (title, msg) {
-      el.innerHTML = '<div class="hdlw-shell"><div class="hdlw-error-card"><p class="hdlw-error-eyebrow">Healthspan timeline</p>'
+      el.innerHTML = '<div class="hdlw-shell"><div class="hdlw-error-card hdlw-locked"><p class="hdlw-error-eyebrow">Healthspan timeline</p>'
         + '<h3 class="hdlw-error-title">' + escHtml(title) + '</h3><p class="hdlw-error-msg" role="status">' + escHtml(msg) + '</p></div></div>';
     };
     var api = el.getAttribute('data-api') || '';
@@ -2046,7 +2046,7 @@
     fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ withdraw_token: token }) })
       .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, body: j || {} }; }); })
       .then(function (res) {
-        if (res.ok && res.body.status === 'withdrawn') card('Done', 'Done. ' + (res.body.link_from || 'They') + ' no longer sees your numbers.');
+        if (res.ok && res.body.status === 'withdrawn') card('Withdrawn', 'Done. ' + (res.body.link_from || 'They') + ' no longer sees your numbers.');
         else none();
       })
       .catch(function () { card('We could not reach the server', 'Nothing has changed yet. Please open the link from your email again.'); });
