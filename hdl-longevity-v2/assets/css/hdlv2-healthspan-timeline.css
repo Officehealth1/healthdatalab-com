@@ -42,6 +42,7 @@ body.hdlv2-wide-page .entry-content .et_pb_section{padding-left:0;padding-right:
 .hdlv2-ht .ht-ico{display:inline-block;flex:0 0 auto;width:20px;height:20px;overflow:visible}
 .hdlv2-ht .ht-ico *{vector-effect:non-scaling-stroke}
 .hdlv2-ht p>.ht-ico{width:16px;height:16px;vertical-align:-3px;margin-right:8px}
+.hdlv2-ht .ht-lockband p,.hdlv2-ht .ht-lockmsg p{text-wrap:balance}
 
 /* tabs: the active tab is the filled pill */
 .hdlv2-ht .ht-tabs{display:inline-flex;gap:4px;margin-top:var(--ht-gap);padding:4px;border:1px solid var(--ht-line);border-radius:999px;background:var(--ht-panel)}
