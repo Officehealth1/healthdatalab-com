@@ -1,5 +1,5 @@
 /**
- * HDL V2 — Healthspan Timeline (v0.48.29; layout and itshover icons v0.48.30).
+ * HDL V2 — Healthspan Timeline (v0.48.29; layout and itshover icons v0.48.30; path buttons v0.48.31).
  *
  * Matthew's Cowork v3 page (evidence copy of 2026-10-13), ported into the
  * plugin. The model functions keep the prototype's names so the Cowork page
@@ -28,10 +28,10 @@
     DEFAULT_HRS: { spouse: 35, child: 14, grandchild: 3, parent: 3, sibling: 2, friend: 2, other: 2 },
     // the four preset paces: placeholder, Matthew to sign
     PROFILES: [
-      { n: 'Poor', r: 1.25, c: 'var(--ht-red)', hex: '#c93437', d: 'Sedentary, poor sleep, no plan', icon: 'poor' },
-      { n: 'Average', r: 1.00, c: 'var(--ht-yellow)', hex: '#e0b128', d: 'Ageing with the calendar', icon: 'average' },
-      { n: 'Healthy', r: 0.85, c: 'var(--ht-green)', hex: '#3fae4a', d: 'Trains, eats well, sleeps, measures', icon: 'healthy' },
-      { n: 'Optimal', r: 0.70, c: 'var(--ht-accent)', hex: '#3d8da0', d: 'Everything that is known to work, consistently', icon: 'optimal' }
+      { n: 'Poor', r: 1.25, c: 'var(--ht-red)', d: 'Sedentary, poor sleep, no plan' },
+      { n: 'Average', r: 1.00, c: 'var(--ht-yellow)', d: 'Ageing with the calendar' },
+      { n: 'Healthy', r: 0.85, c: 'var(--ht-green)', d: 'Trains, eats well, sleeps, measures' },
+      { n: 'Optimal', r: 0.70, c: 'var(--ht-accent)', d: 'Everything that is known to work, consistently' }
     ],
     // biological age where Yellow, Orange, Red, Grey start and the lane ends, at 1.00×.
     // Green end = UK healthy life expectancy, end = UK life expectancy at birth (ONS 2021–23);
@@ -149,26 +149,21 @@
   var people = function () { return [S.you].concat(S.people).sort(function (a, b) { return a.born - b.born; }); };
   var visiblePeople = function () { return S.mode === 'preview' ? [S.you] : people(); };
   /* ---------- icons: itshover.com (github.com/itshover/itshover, Apache-2.0) ----------
-     Geometry 1:1 from icons/*.tsx, static, no runtime dependency, as hdlv2-client-list-enhance.js does.
-     The battery bars are frames of those icons' own fill animations: battery-charging-icon rests empty
-     and ends on four bars, battery-pause-icon rests on two. (battery-icon rests on a bolt: reads "charging".) */
-  function ico(name, vb, paths) { return { name: name, vb: vb, body: paths.map(function (d) { return '<path d="' + d + '"/>'; }).join('') }; }
-  var BATT = ['M46 20V28', 'M37 10H8C5.2386 10 3 12.2386 3 15V33C3 35.7614 5.2386 38 8 38H37C39.7614 38 42 35.7614 42 33V15C42 12.2386 39.7614 10 37 10Z'];
-  var BARS = ['M10 31V17', 'M17 31V17', 'M24 31V17', 'M31 31V17'];
+     Geometry 1:1 from icons/*.tsx, static, no runtime dependency, as hdlv2-client-list-enhance.js does. */
+  function ico(name, paths) { return { name: name, body: paths.map(function (d) { return '<path d="' + d + '"/>'; }).join('') }; }
   var HT_ICONS = {
-    poor: ico('battery-charging-icon', 48, BATT),
-    average: ico('battery-pause-icon', 48, BARS.slice(0, 2).concat(BATT)),
-    healthy: ico('battery-charging-icon', 48, BARS.concat(BATT)),
-    optimal: ico('sparkles-icon', 24, ['M16 18a2 2 0 0 1 2 2a2 2 0 0 1 2 -2a2 2 0 0 1 -2 -2a2 2 0 0 1 -2 2z', 'M16 6a2 2 0 0 1 2 2a2 2 0 0 1 2 -2a2 2 0 0 1 -2 -2a2 2 0 0 1 -2 2z', 'M9 18a6 6 0 0 1 6 -6a6 6 0 0 1 -6 -6a6 6 0 0 1 -6 6a6 6 0 0 1 6 6z']),
-    user: ico('user-icon', 24, ['M8 7a4 4 0 1 0 8 0a4 4 0 0 0 -8 0', 'M6 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2']),
-    group: ico('users-group-icon', 24, ['M10 13a2 2 0 1 0 4 0a2 2 0 0 0 -4 0', 'M8 21v-1a2 2 0 0 1 2 -2h4a2 2 0 0 1 2 2v1', 'M15 5a2 2 0 1 0 4 0a2 2 0 0 0 -4 0', 'M17 10h2a2 2 0 0 1 2 2v1', 'M5 5a2 2 0 1 0 4 0a2 2 0 0 0 -4 0', 'M3 13v-1a2 2 0 0 1 2 -2h2']),
-    lock: ico('lock-icon', 24, ['M5 13a2 2 0 0 1 2 -2h10a2 2 0 0 1 2 2v6a2 2 0 0 1 -2 2h-10a2 2 0 0 1 -2 -2v-6z', 'M11 16a1 1 0 1 0 2 0a1 1 0 0 0 -2 0', 'M8 11v-4a4 4 0 1 1 8 0v4'])
+    user: ico('user-icon', ['M8 7a4 4 0 1 0 8 0a4 4 0 0 0 -8 0', 'M6 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2']),
+    'users-group': ico('users-group-icon', ['M10 13a2 2 0 1 0 4 0a2 2 0 0 0 -4 0', 'M8 21v-1a2 2 0 0 1 2 -2h4a2 2 0 0 1 2 2v1', 'M15 5a2 2 0 1 0 4 0a2 2 0 0 0 -4 0', 'M17 10h2a2 2 0 0 1 2 2v1', 'M5 5a2 2 0 1 0 4 0a2 2 0 0 0 -4 0', 'M3 13v-1a2 2 0 0 1 2 -2h2']),
+    lock: ico('lock-icon', ['M5 13a2 2 0 0 1 2 -2h10a2 2 0 0 1 2 2v6a2 2 0 0 1 -2 2h-10a2 2 0 0 1 -2 -2v-6z', 'M11 16a1 1 0 1 0 2 0a1 1 0 0 0 -2 0', 'M8 11v-4a4 4 0 1 1 8 0v4'])
   };
-  // Caps and joins as the source (square on the 48-unit batteries); the CSS holds every stroke at 2 px.
+  // the CSS holds every stroke at 2 px
   function iconHtml(key, colour) {
     var i = HT_ICONS[key]; if (!i) return '';
-    var sq = i.vb === 48;
-    return '<svg class="ht-ico" data-ht-icon="' + i.name + '" viewBox="0 0 ' + i.vb + ' ' + i.vb + '" fill="none" stroke="' + (colour || 'currentColor') + '" stroke-width="2" stroke-linecap="' + (sq ? 'square' : 'round') + '" stroke-linejoin="' + (sq ? 'miter' : 'round') + '" aria-hidden="true" focusable="false">' + i.body + '</svg>';
+    return '<svg class="ht-ico" data-ht-icon="' + i.name + '" viewBox="0 0 24 24" fill="none" stroke="' + (colour || 'currentColor') + '" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">' + i.body + '</svg>';
+  }
+  // A path button: a dot and the pace in the band colour, the name, its words. No icon: none says anything about ageing.
+  function presetHtml(p, rate) {
+    return '<button type="button" class="ht-prof" style="--c:' + p.c + '" data-r="' + p.r + '" aria-pressed="' + (Math.abs(p.r - rate) < 0.005) + '"><i class="ht-prof-dot" aria-hidden="true"></i> <b>' + p.n + '</b> <span class="ht-prof-r">' + p.r.toFixed(2) + '×</span> <small>' + p.d + '</small></button>';
   }
   // Years needing help as one stacked bar: orange, red, grey, each its share of the bar (the numbers are in the list under it).
   function depBarHtml(y) {
@@ -308,7 +303,7 @@
     $('#ht-stacks').innerHTML = '<div class="ht-stack"><div class="ht-lbl"><b>New path · ' + r.toFixed(2) + '×' + (S.fs ? ' + science' : '') + '</b><span>' + tot.toFixed(0) + ' years left, ' + cur[0].toFixed(0) + ' of them green</span></div>' + bar(cur, '') + bar(ref, 'ht-ref') + '<div class="ht-lbl" style="margin-top:4px"><span>Today\'s path · ' + r0.toFixed(2) + '×</span><span>' + rtot.toFixed(0) + ' years, ' + ref[0].toFixed(0) + ' green</span></div></div>'
       + '<div class="ht-cmp">' + (Math.abs(dg) < 0.5 ? 'Same as today\'s path. Pick a new path above to see what shifts.' : '<b>' + (dg > 0 ? '+' : '') + dg.toFixed(1) + ' green years</b> and <b>' + ((tot - rtot) >= 0 ? '+' : '') + (tot - rtot).toFixed(1) + ' years</b> in total compared with today\'s path.') + '</div>';
     var dep = cur[2] + cur[3] + cur[4], rdep = ref[2] + ref[3] + ref[4];
-    $('#ht-dep').innerHTML = '<div class="ht-big">' + iconHtml('group') + dep.toFixed(1) + '<small> years needing help</small></div>' + (depBarHtml({ orange: cur[2], red: cur[3], grey: cur[4] }) || '<p class="ht-note">none on this path</p>')
+    $('#ht-dep').innerHTML = '<div class="ht-big">' + iconHtml('users-group') + dep.toFixed(1) + '<small> years needing help</small></div>' + (depBarHtml({ orange: cur[2], red: cur[3], grey: cur[4] }) || '<p class="ht-note">none on this path</p>')
       + '<div class="ht-kv"><span>Orange · others cover for you</span><b>' + cur[2].toFixed(1) + ' y</b><span>Red · others run parts of your life</span><b>' + cur[3].toFixed(1) + ' y</b><span>Grey · round-the-clock care</span><b>' + cur[4].toFixed(1) + ' y</b><span>On today\'s path</span><b>' + rdep.toFixed(1) + ' y</b></div>'
       + '<div class="ht-cmp">' + (dep < rdep - 0.3 ? '<b>' + (rdep - dep).toFixed(1) + ' fewer years</b> your family carries you.' : dep > rdep + 0.3 ? '<b>' + (dep - rdep).toFixed(1) + ' more years</b> your family carries you.' : 'Same as today\'s path.') + '</div>';
   }
@@ -416,7 +411,7 @@
     renderYou();
     var Y = S.you;
     $('#ht-rate').value = Y.rate; $('#ht-rate-out').value = (+Y.rate).toFixed(2) + '×';
-    $('#ht-profiles').innerHTML = K.PROFILES.map(function (p) { return '<button type="button" class="ht-prof" style="--c:' + p.c + '" data-r="' + p.r + '" aria-pressed="' + (Math.abs(p.r - Y.rate) < 0.005) + '">' + iconHtml(p.icon, p.hex) + ' <b>' + p.n + '</b> <span class="ht-prof-r">' + p.r.toFixed(2) + '×</span> <small>' + p.d + '</small></button>'; }).join('');
+    $('#ht-profiles').innerHTML = K.PROFILES.map(function (p) { return presetHtml(p, Y.rate); }).join('');
     $('#ht-profiles').querySelectorAll('button').forEach(function (b) { b.onclick = function () { S.you.rate = +b.dataset.r; save(); renderAll(); }; });
     var dr = Y.rate - Y.rate0;
     $('#ht-rate-note').textContent = Math.abs(dr) < 0.02 ? 'Same as today\'s path. Pick a path or drag to see what a shift does.' : dr < 0 ? 'A shift of ' + (-dr).toFixed(2) + ': you\'d recover about ' + ((-dr) * 10 * K.recovK).toFixed(1) + ' biological years over ~' + K.recovT + ' years, then age slower.' : 'Faster than today by ' + dr.toFixed(2) + ': you\'d lose about ' + (dr * 10 * K.recovK).toFixed(1) + ' biological years, then age faster.';
@@ -519,7 +514,7 @@
     KNOBS: K, NOW_Y: NOW_Y, NOW_F: NOW_F, state: function () { return S; }, reset: reset,
     bioAtRate: bioAtRate, stagesFor: stagesFor, yearsByStage: yearsByStage, weeksTogether: weeksTogether, visiblePeople: visiblePeople,
     lifestyleFromScores: lifestyleFromScores, bornFromAge: bornFromAge, readFragment: readFragment, paceLabel: paceLabel,
-    visibleZoomBands: visibleZoomBands, ageLabel: ageLabel, shellHtml: shellHtml, iconHtml: iconHtml, depBarHtml: depBarHtml
+    visibleZoomBands: visibleZoomBands, ageLabel: ageLabel, shellHtml: shellHtml, iconHtml: iconHtml, depBarHtml: depBarHtml, presetHtml: presetHtml
   };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
 })(window);
