@@ -1270,6 +1270,15 @@ class HDLV2_Client_Dashboard {
     // which lives inside the new charts card. The SVG-building math is the
     // same; only the wrapping (no separate card chrome) changed.
 
+    /**
+     * v0.48.34 — "<n> people joined through you": the loved ones who shared their numbers through
+     * this client's timeline links. '' while there are none or the links flag is off.
+     */
+    private function joined_line( $user_id, $class ) {
+        $n = class_exists( 'HDLV2_Timeline_Links' ) ? HDLV2_Timeline_Links::joined_count( $user_id ) : 0;
+        return $n ? '<p class="' . esc_attr( $class ) . '">' . esc_html( $n . ( 1 === $n ? ' person' : ' people' ) . ' joined through you' ) . '</p>' : '';
+    }
+
     private function pop_report_panel( $ctx ) {
         $report_url   = home_url( '/my-report/' );
         $issued       = $ctx['report_issued_at'] ? $this->fmt_date( $ctx['report_issued_at'] ) : '';
@@ -1308,11 +1317,7 @@ class HDLV2_Client_Dashboard {
             $h .= '<a href="' . esc_url( $timeline_url ) . '" class="cdp-btn cdp-btn-line cdp-btn-large">Your healthspan timeline &rarr;</a>';
         }
         $h .= '</div>';
-        // v0.48.34 — the loved ones who shared their numbers through this client's links.
-        $joined = class_exists( 'HDLV2_Timeline_Links' ) ? HDLV2_Timeline_Links::joined_count( get_current_user_id() ) : 0;
-        if ( $joined ) {
-            $h .= '<p class="cdp-report-subtitle">' . esc_html( $joined . ( 1 === $joined ? ' person' : ' people' ) . ' joined through you' ) . '</p>';
-        }
+        $h .= $this->joined_line( get_current_user_id(), 'cdp-report-subtitle' );
         $h .= '</div>';
 
         // ── At-a-glance meta strip — 5 stats ───────────────────────────────
@@ -1816,6 +1821,7 @@ class HDLV2_Client_Dashboard {
         $timeline_url = class_exists( 'HDLV2_Healthspan_Timeline' ) ? HDLV2_Healthspan_Timeline::dashboard_url( $user_id ) : ''; // v0.48.29
         if ( $timeline_url ) {
             $h .= '<p class="cd-timeline-link"><a href="' . esc_url( $timeline_url ) . '" class="cd-btn">Your healthspan timeline &rarr;</a></p>';
+            $h .= $this->joined_line( $user_id, 'cd-timeline-link' );
         }
         $h .= $challenge;
         // Slice C: inbox — mid-funnel clients must see practitioner messages
