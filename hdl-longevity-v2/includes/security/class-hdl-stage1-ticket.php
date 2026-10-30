@@ -216,12 +216,24 @@ class HDL_Stage1_Ticket {
     }
 
     /**
+     * v0.48.34 — a Healthspan Timeline link (Matthew, 2026-10-30): a client passes it to a loved
+     * one, who does the free Stage 1 through it and then says yes or no to sharing. No email is
+     * known or stored (the client shares the link themself); client_name holds the client's label
+     * for the person. Any access mode. Not reachable from the keyed route above.
+     *
+     * @return array|WP_Error as mint().
+     */
+    public static function mint_timeline_link( $practitioner_id, $label, $external_ref, $days ) {
+        return self::mint( $practitioner_id, '', $label, $external_ref, $days, 'timeline_link' );
+    }
+
+    /**
      * Mint the ticket for $external_ref, or return the one it already has.
      * Shared by the keyed route above and the dashboard's "Send Stage 1
      * link" (HDLV2_Widget_Config::ajax_send_stage1_link). Callers validate
      * their own input first.
      *
-     * @param string $source 'paid_stage1' (needs paid mode), 'full_report' or 'challenge'.
+     * @param string $source 'paid_stage1' (needs paid mode), 'full_report', 'challenge' or 'timeline_link'.
      * @return array|WP_Error { id, token, expires_at (stored UTC), idempotent,
      *                         email, name } — email/name are the ticket's own.
      */

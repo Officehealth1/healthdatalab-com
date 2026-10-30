@@ -29,7 +29,7 @@ class FakeWpdb {
     public $alters = array();
     public $writes = array();
     public $source_type = "enum('practitioner','automation','paid_stage1','full_report')";
-    public $tables = array( 'wp_hdlv2_challenge_days' => true ); // create_tables() ran first in upgrade()
+    public $tables = array( 'wp_hdlv2_challenge_days' => true, 'wp_hdlv2_timeline_links' => true ); // create_tables() ran first in upgrade() (v0.48.34: Phase AM checks its table too)
     public $fail_on = '';
 
     public function prepare( $q, ...$args ) {
@@ -82,7 +82,7 @@ function migrate() {
 echo "── L. Phase AL (v3.31) migration ──\n";
 $wpdb = new FakeWpdb();
 $ret  = migrate();
-ok( 'L.1 from 3.30: success, one ALTER', true === $ret && 1 === count( $wpdb->alters ) );
+ok( 'L.1 from 3.30: success, one ALTER (plus Phase AM\'s)', true === $ret && 2 === count( $wpdb->alters ) );
 ok( 'L.2 source ENUM gains challenge, keeps the old values + default', false !== strpos( $wpdb->alters[0] ?? '', "MODIFY COLUMN source ENUM('practitioner','automation','paid_stage1','full_report','challenge') NOT NULL DEFAULT 'practitioner'" ) );
 ok( 'L.3 existing rows untouched (no UPDATE / DELETE / INSERT)', 0 === count( $wpdb->writes ) );
 $wpdb->alters = array();
@@ -95,11 +95,11 @@ $wpdb->tables = array();
 ok( 'L.6 challenge_days table missing → false', false === migrate() );
 
 $src = file_get_contents( dirname( __DIR__, 2 ) . '/includes/class-hdlv2-activator.php' );
-ok( 'L.7 fresh installs: invites ENUM carries challenge', false !== strpos( $src, "source ENUM('practitioner','automation','paid_stage1','full_report','challenge') NOT NULL DEFAULT 'practitioner'," ) );
+ok( 'L.7 fresh installs: invites ENUM carries challenge', false !== strpos( $src, "source ENUM('practitioner','automation','paid_stage1','full_report','challenge','timeline_link') NOT NULL DEFAULT 'practitioner'," ) );
 ok( 'L.8 CREATE TABLE challenge_days: UNIQUE (client_user_id, day_no), note VARCHAR(500), dbDelta run', 1 === preg_match( '/CREATE TABLE \$table_challenge \(.*UNIQUE KEY client_day \(client_user_id, day_no\)/s', $src )
     && false !== strpos( $src, 'note VARCHAR(500) DEFAULT NULL' ) && false !== strpos( $src, 'dbDelta( $sql_challenge );' ) );
 $loader = file_get_contents( dirname( __DIR__, 2 ) . '/hdl-longevity-v2.php' );
-ok( 'L.9 loader: header + constant 0.48.33, DB 3.31', false !== strpos( $loader, ' * Version: 0.48.33' ) && false !== strpos( $loader, "define( 'HDLV2_VERSION', '0.48.33' );" ) && false !== strpos( $loader, "define( 'HDLV2_DB_VERSION', '3.31' );" ) );
+ok( 'L.9 loader: header + constant 0.48.34, DB 3.32', false !== strpos( $loader, ' * Version: 0.48.34' ) && false !== strpos( $loader, "define( 'HDLV2_VERSION', '0.48.34' );" ) && false !== strpos( $loader, "define( 'HDLV2_DB_VERSION', '3.32' );" ) );
 $health = file_get_contents( dirname( __DIR__, 2 ) . '/includes/sprint-4/class-hdlv2-client-status.php' );
 ok( 'L.10 /health expects the new table (17)', false !== strpos( $health, "'hdlv2_challenge_days'" ) );
 

@@ -308,4 +308,10 @@ check( 'body class: the page without the shortcode → unchanged', array( 'page'
 $GLOBALS['post'] = null;
 check( 'body class: no post → unchanged', array( 'page' ) === $W() );
 
+// v0.48.34 (Task 5b, calc review 2026-10-30): the small print says once what "pace" means here.
+// The disclaimer is set by the page script (renderStatic → #ht-disc), so this reads that line.
+$js   = (string) file_get_contents( dirname( __DIR__, 2 ) . '/assets/js/hdlv2-healthspan-timeline.js' );
+$disc = preg_match( "/\\\$\\('#ht-disc'\\)\\.textContent = '((?:[^'\\\\]|\\\\.)*)'/", $js, $m ) ? stripslashes( $m[1] ) : '';
+check( 'disclaimer: the pace sentence follows "Your own biological age and pace come from your HealthDataLab report"', false !== strpos( $disc, 'come from your HealthDataLab report. Your report measures pace against people your own age; this page reads it as years of ageing per calendar year, so the two are close but not the same measure.' ) );
+
 done();

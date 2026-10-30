@@ -1053,4 +1053,35 @@ class HDLV2_Email_Templates {
 
         return self::base_layout( $content, $data['practitioner_id'] ?? null, 'Your Trajectory Plan' );
     }
+
+    // ──────────────────────────────────────────────────────────────
+    //  HEALTHSPAN TIMELINE LINKS (v0.48.34) — sent once, at the invitee's yes
+    // ──────────────────────────────────────────────────────────────
+
+    /**
+     * To the client who made the link.
+     *
+     * @param array $data { label, page_url (their timeline, with their own token) }
+     */
+    public static function timeline_consent_owner( $data ) {
+        $content = "
+            <h2 style='margin:0 0 12px;color:" . self::DARK . ";font-family:Poppins,Inter,sans-serif;font-size:22px;font-weight:700;'>" . esc_html( $data['label'] . ' shared their pace of ageing with you' ) . "</h2>
+            <p style='color:#2c3e50;line-height:1.7;margin:0 0 20px;font-size:15px;'>Their lane on your timeline now uses the numbers from their own free check. Open your timeline to see your years side by side.</p>"
+            . self::cta_button( $data['page_url'], 'Open your timeline' );
+        return self::base_layout( $content, null, 'Your healthspan timeline' );
+    }
+
+    /**
+     * To the person who said yes: what was shared, with whom, and the way out.
+     *
+     * @param array $data { owner_first, label, withdraw (url) }
+     */
+    public static function timeline_consent_invitee( $data ) {
+        $content = "
+            <h2 style='margin:0 0 12px;color:" . self::DARK . ";font-family:Poppins,Inter,sans-serif;font-size:22px;font-weight:700;'>" . esc_html( sprintf( "You're on %s's timeline as %s", $data['owner_first'], $data['label'] ) ) . "</h2>
+            <p style='color:#2c3e50;line-height:1.7;margin:0 0 12px;font-size:15px;'>" . esc_html( sprintf( 'We shared three numbers with %s: your pace of ageing, age and sex. Nothing else from your answers is shared.', $data['owner_first'] ) ) . "</p>
+            <p style='color:#2c3e50;line-height:1.7;margin:0 0 20px;font-size:15px;'>You can withdraw at any time. Your numbers come off their timeline straight away.</p>"
+            . self::cta_button( $data['withdraw'], 'Withdraw my numbers' );
+        return self::base_layout( $content, null, 'Your healthspan timeline' );
+    }
 }

@@ -132,7 +132,13 @@ class HDLV2_Healthspan_Timeline {
             self::log_gate_once();
         }
         $report = self::report_row( (int) $row->id );
-        return self::frame( $report ? 'full' : 'preview', self::you( $row, $report ), (int) $row->id, (int) $row->practitioner_user_id );
+        $data   = self::frame( $report ? 'full' : 'preview', self::you( $row, $report ), (int) $row->id, (int) $row->practitioner_user_id );
+        // v0.48.34 — linked people (HDLV2_Timeline_Links): the routes' address and a REST nonce, full mode only.
+        $links = $report && class_exists( 'HDLV2_Timeline_Links' ) ? HDLV2_Timeline_Links::page_config( $row ) : array();
+        if ( $links ) {
+            $data['links'] = $links;
+        }
+        return $data;
     }
 
     public static function render_shortcode( $atts = array() ) {
@@ -201,7 +207,8 @@ class HDLV2_Healthspan_Timeline {
             || ( class_exists( 'HDLV2_Compatibility' ) && HDLV2_Compatibility::practitioner_owns_client( $uid, (int) $row->client_user_id ) ) );
     }
 
-    private static function report_row( $progress_id ) {
+    /** The Full Report gate: the latest final, else draft, report row of a progress row. Public for the links routes (v0.48.34). */
+    public static function report_row( $progress_id ) {
         global $wpdb;
         return $wpdb->get_row( $wpdb->prepare(
             "SELECT id, report_type, report_content

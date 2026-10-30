@@ -3,7 +3,7 @@
  * Plugin Name: HDL Longevity V2 — Staged Workflow
  * Plugin URI: https://healthdatalab.net
  * Description: V2 longevity workflow: staged intake, WHY profiling, practitioner consultations, weekly flight plans, and AI coaching. Runs alongside the existing Health Data Lab plugin.
- * Version: 0.48.33
+ * Version: 0.48.34
  * Author: Health Data Lab
  * Author URI: https://healthdatalab.net
  * License: Proprietary
@@ -22,8 +22,8 @@ if ( ! defined( 'ABSPATH' ) ) {
 // register_activation_hook callbacks, which fire synchronously during
 // `wp plugin activate`, can reference them. The activator needs
 // HDLV2_DB_VERSION / HDLV2_VERSION at call time to update version options.
-define( 'HDLV2_VERSION', '0.48.33' );
-define( 'HDLV2_DB_VERSION', '3.31' );
+define( 'HDLV2_VERSION', '0.48.34' );
+define( 'HDLV2_DB_VERSION', '3.32' );
 
 // Client funnel token (hdlv2_form_progress.token) lifetime. FIXED window
 // from issuance: set when the token is created and refreshed ONLY when the
@@ -95,10 +95,11 @@ add_action( 'init', function () {
         ) );
 
         if ( ! $invite ) {
-            // v0.47.85 — a used or revoked paid Stage 1 ticket is not an
-            // invitation: let the page render so the widget can say so.
+            // v0.47.85 — a used or revoked paid Stage 1 ticket (v0.48.34: or
+            // timeline link) is not an invitation: let the page render so the
+            // widget can say so.
             if ( $wpdb->get_var( $wpdb->prepare(
-                "SELECT 1 FROM {$wpdb->prefix}hdlv2_widget_invites WHERE token = %s AND source = 'paid_stage1' LIMIT 1",
+                "SELECT 1 FROM {$wpdb->prefix}hdlv2_widget_invites WHERE token = %s AND source IN ('paid_stage1','timeline_link') LIMIT 1",
                 $token
             ) ) ) {
                 return;
@@ -115,8 +116,8 @@ add_action( 'init', function () {
         }
         // v0.47.85 — a paid Stage 1 ticket opens the widget's questions and
         // nothing else: no account, no login. The widget on the page checks
-        // the ticket itself.
-        if ( isset( $invite->source ) && 'paid_stage1' === $invite->source ) {
+        // the ticket itself. v0.48.34 — so does a Healthspan Timeline link.
+        if ( isset( $invite->source ) && in_array( $invite->source, array( 'paid_stage1', 'timeline_link' ), true ) ) {
             return;
         }
         // v0.47.53 (B4) — fail CLOSED: an invite with no expiry (legacy row;
@@ -917,6 +918,8 @@ final class HDL_Longevity_V2 {
 
         // v0.48.29 — Healthspan Timeline page (flag hdlv2_ff_healthspan_timeline, off by default)
         require_once HDLV2_PLUGIN_DIR . 'includes/sprint-2c/class-hdlv2-healthspan-timeline.php';
+        // v0.48.34 — linked people on the timeline (flag hdlv2_ff_timeline_links, off by default)
+        require_once HDLV2_PLUGIN_DIR . 'includes/sprint-2c/class-hdlv2-timeline-links.php';
 
         // v0.20.17 — V1 trajectory chart ported to PHP/SVG for PDF embedding
         require_once HDLV2_PLUGIN_DIR . 'includes/sprint-2c/class-hdlv2-trajectory-svg.php';

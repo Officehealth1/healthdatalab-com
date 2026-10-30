@@ -1,6 +1,6 @@
 /**
  * HDL V2 — Healthspan Timeline (v0.48.29; layout v0.48.30; Phosphor duotone icons v0.48.32;
- * a glyph on every heading, sliders drawn by the page v0.48.33).
+ * a glyph on every heading, sliders drawn by the page v0.48.33; linked people v0.48.34).
  *
  * Matthew's Cowork v3 page (evidence copy of 2026-10-13), ported into the
  * plugin. The model functions keep the prototype's names so the Cowork page
@@ -10,7 +10,9 @@
  *   mode 'preview' — the client's own lane live, loved ones blurred behind
  *                    the offer line. Without a token the numbers come from
  *                    the URL fragment (#a=&s=&r=&n=), which never reaches a server.
- * Loved ones stay in this browser (localStorage, one key per client).
+ * Loved ones stay in this browser (localStorage, one key per client); with HDLV2_HT.links
+ * (v0.48.34) the client can also invite one by link, and a loved one who said yes is drawn
+ * from their own report's numbers (HDLV2_Timeline_Links on the server).
  * The curve is the report's own engine (HDLTrajectoryChart); no second model.
  */
 (function (root) {
@@ -147,7 +149,8 @@
   var $ = function (s) { return rootEl.querySelector(s); };
   var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); };
   var stageHex = function (k) { return k >= 1 && k <= 5 ? STAGES[k - 1].hex : 'transparent'; };
-  var people = function () { return [S.you].concat(S.people).sort(function (a, b) { return a.born - b.born; }); };
+  var others = function () { return S.people.concat((S.links || []).map(function (l) { return linkedPerson(l, S.you); })); };
+  var people = function () { return [S.you].concat(others()).sort(function (a, b) { return a.born - b.born; }); };
   var visiblePeople = function () { return S.mode === 'preview' ? [S.you] : people(); };
   /* ---------- icons: Phosphor duotone (github.com/phosphor-icons/core, assets/duotone) ----------
      MIT License, Copyright (c) 2023 Phosphor Icons. Geometry 1:1, inlined, no runtime dependency, no CDN.
@@ -209,7 +212,7 @@
       + '</div></div>'
       + '<div class="ht-tab" id="ht-tab-people" role="tabpanel" aria-labelledby="ht-tab-btn-people" hidden>'
       + '<div class="ht-row ht-head" aria-hidden="true"><span>Name</span><span>Relationship</span><span>Born</span><span>Sex</span><span>Pace of ageing</span><span></span></div>'
-      + '<div id="ht-people"></div>'
+      + '<div id="ht-people"></div><div id="ht-linked"></div><p class="ht-note ht-links-msg" id="ht-links-msg" role="status" aria-live="polite"></p>'
       + '<form class="ht-row" id="ht-add"><input id="ht-a-name" placeholder="Name" aria-label="Name" maxlength="40" required><select id="ht-a-rel" aria-label="Relationship"></select><input id="ht-a-born" type="number" placeholder="Year" aria-label="Year born" required><select id="ht-a-sex" aria-label="Sex"><option value="F">F</option><option value="M">M</option></select><select id="ht-a-rate" aria-label="Pace of ageing"></select><button class="ht-btn" type="submit">Add</button></form>'
       + '<div class="ht-lock" id="ht-people-lock" hidden></div>'
       + '<p class="ht-note">"Same as you" assumes your habits shape the household. Time together uses population averages for each relationship.</p>'
@@ -263,7 +266,7 @@
     rows.forEach(function (row) {
       var p = row.p, y0 = row.y, h = row.h;
       ctx.textAlign = 'left'; ctx.fillStyle = p === S.you ? acc : fg; ctx.font = (p === S.you ? '700 16px' : '600 13px') + ' Inter, system-ui'; ctx.fillText(fitName(p.name, left - 14), 8, y0 + h / 2 - 1);
-      ctx.font = '11px Inter, system-ui'; ctx.fillStyle = muted; var a = NOW_Y - p.born; ctx.fillText(a < 0 ? 'born ' + p.born : a + ' · ' + rateOf(p).toFixed(2) + '×', 8, y0 + h / 2 + 12);
+      ctx.font = '11px Inter, system-ui'; ctx.fillStyle = muted; var a = NOW_Y - p.born; ctx.fillText(p.fromReport ? (left < 110 ? 'their report' : 'from their report') : a < 0 ? 'born ' + p.born : a + ' · ' + rateOf(p).toFixed(2) + '×', 8, y0 + h / 2 + 12);
       for (var k = 0; k < n; k++) { var t = minY + (k + 0.5) / per; var st = stageAt(p, t); if (st === 0 || st === 6) continue; ctx.fillStyle = stageHex(st); ctx.fillRect(left + k * cellW, y0, Math.max(cellW - gapPx, 0.6), h); }
       var refPer = Math.min(per, 12), refN = Math.round(span * refPer), refW = pxYear / refPer;
       for (var j = 0; j < refN; j++) { var tr = minY + (j + 0.5) / refPer; if (tr < p.born) continue; var sr = stageOfBio(p, bioAtRate(p, tr, rate0Of(p), rate0Of(p), 0), rate0Of(p)); if (sr === 6) continue; ctx.fillStyle = stageHex(sr); ctx.fillRect(left + j * refW, y0 + h + 2, Math.max(refW, 0.6), refH); }
@@ -362,12 +365,12 @@
   /* ---------- loved ones ---------- */
   function renderLoved() {
     var preview = S.mode === 'preview';
-    $('#ht-loved').innerHTML = S.people.map(function (p) {
+    $('#ht-loved').innerHTML = others().map(function (p) {
       var cur = weeksTogether(p, 'new'), ref = weeksTogether(p, 'ref'); var w = Math.round(cur.reduce(function (a, b) { return a + b; }, 0)), rw = Math.round(ref.reduce(function (a, b) { return a + b; }, 0));
       var counts = cur.map(Math.round); var shown = Math.min(Math.max(w, rw), 700);
       var dots = '', k = 0; counts.forEach(function (c, i) { for (var j = 0; j < c && k < 700; j++, k++) dots += '<i style="--c:' + STAGES[i].c + '"></i>'; }); for (; k < shown; k++) dots += '<i style="--c:var(--ht-line)"></i>';
       var s18 = stageAt(S.you, p.born + 18);
-      return '<div class="ht-loc"><div class="ht-nm">' + esc(p.name) + '<small>' + p.rel + ' · ' + rateOf(p).toFixed(2) + '×</small></div>'
+      return '<div class="ht-loc"><div class="ht-nm">' + esc(p.name) + '<small>' + p.rel + ' · ' + rateOf(p).toFixed(2) + '×' + (p.fromReport ? ' · from their report' : '') + '</small></div>'
         + '<div class="ht-big">' + w + '<small> full weeks of real time together, from today</small></div>'
         + '<div class="ht-dots">' + dots + '</div>' + (Math.max(w, rw) > 700 ? '<div class="ht-note" style="margin-top:4px">showing 700 of ' + Math.max(w, rw) + '</div>' : '')
         + '<div class="ht-kv"><span>Green · Yellow · Orange weeks</span><b>' + counts[0] + ' · ' + counts[1] + ' · ' + counts[2] + '</b><span>On today\'s path</span><b>' + rw + ' weeks</b><span>Usual time together</span><b>' + (K.DEFAULT_HRS[p.rel] != null ? K.DEFAULT_HRS[p.rel] : 2) + ' h/week</b><span>You when they turn 18</span><b>' + (p.born > S.you.born ? (s18 >= 1 && s18 <= 5 ? STAGES[s18 - 1].name : s18 === 6 ? 'gone' : '–') : '–') + '</b></div></div>';
@@ -397,7 +400,7 @@
       el.hidden = false;
     }
     $('#ht-legend').innerHTML = STAGES.map(function (s) { return '<span><i style="--c:' + s.c + '"></i>' + s.name + ' · ' + s.label + '</span>'; }).join('') + '<span><i style="--c:var(--ht-line)"></i>Faded = already lived</span><span><i style="--c:var(--ht-muted);height:5px"></i>Thin bar under each lane = today\'s path, for comparison</span>';
-    $('#ht-disc').textContent = 'Estimates, not predictions. Stage boundaries use UK life and healthy-life expectancy (Office for National Statistics, 2021–23); the health-conditions curve uses published UK multimorbidity data (Barnett et al., 2012); time-together figures use US time-use survey averages because no UK equivalent exists; the shift response, decline compression and future-science slider are assumptions, not measurements. Your own biological age and pace come from your HealthDataLab report; everyone else\'s are assumptions you can edit. Not medical advice. Its job is to make the years ahead visible so you act on them now.';
+    $('#ht-disc').textContent = 'Estimates, not predictions. Stage boundaries use UK life and healthy-life expectancy (Office for National Statistics, 2021–23); the health-conditions curve uses published UK multimorbidity data (Barnett et al., 2012); time-together figures use US time-use survey averages because no UK equivalent exists; the shift response, decline compression and future-science slider are assumptions, not measurements. Your own biological age and pace come from your HealthDataLab report. Your report measures pace against people your own age; this page reads it as years of ageing per calendar year, so the two are close but not the same measure. Everyone else\'s are assumptions you can edit, unless they shared their own. Not medical advice. Its job is to make the years ahead visible so you act on them now.';
   }
 
   /* ---------- inputs ---------- */
@@ -451,13 +454,99 @@
       n.onchange = function () { p.name = n.value.trim().slice(0, 40) || p.name; save(); renderAll(); }; r.onchange = function () { p.rel = REL.indexOf(r.value) !== -1 ? r.value : p.rel; save(); renderAll(); };
       b.onchange = function () { var v = parseInt(b.value, 10); if (v > 1850 && v < 2200) { p.born = v; save(); renderAll(); } }; sx.onchange = function () { p.sex = sx.value === 'M' ? 'M' : 'F'; save(); renderAll(); };
       rt.onchange = function () { p.rate = rt.value; save(); renderAll(); }; x.onclick = function () { S.people = S.people.filter(function (q) { return q !== p; }); save(); renderAll(); }; pe.appendChild(d);
+      if (S.links) {
+        var inv = document.createElement('div'); inv.className = 'ht-link-line';
+        inv.innerHTML = '<button type="button" class="ht-btn ht-btn-line">Invite ' + esc(p.name) + ' by link</button>';
+        inv.firstChild.onclick = function () { invite(p, inv.firstChild); }; d.appendChild(inv);
+      }
     });
+    renderLinked();
     $('#ht-a-rel').innerHTML = relOpts('friend');
     $('#ht-a-rate').innerHTML = paceOpts('same');
     $('#ht-zoom').value = S.zoom; paintRange($('#ht-zoom'));
   }
   function renderAll() { renderInputs(); drawTimeline(); if (hover) renderMoment(hover.p, hover.t, geo.unit); else renderMoment(S.you, NOW_F, 'year', true); renderAhead(); renderTraj(); renderLoved(); }
   function renderLive() { drawTimeline(); renderMoment(S.you, NOW_F, 'year', true); renderAhead(); renderTraj(); renderLoved(); }
+
+  /* ---------- linked people (v0.48.34): HDLV2_HT.links → GET / POST / DELETE /timeline/links ---------- */
+  var CHIPS = { invited: 'Invited', accepted: 'Shared', declined: 'Declined', withdrawn: 'Withdrawn', revoked: 'Ended', expired: 'Ended' };
+  function chipLabel(status) { return CHIPS[status] || 'Ended'; }
+  // A link as a lane: a shared one from its three values (born = this year − age), anything else from the client's guess.
+  function linkedPerson(l, you) {
+    var sh = l.status === 'accepted' && l.shared ? l.shared : null;
+    return {
+      id: 'L' + l.id, name: l.label, rel: REL.indexOf(l.relationship) !== -1 ? l.relationship : 'other',
+      born: sh ? NOW_Y - sh.age : (l.born_guess > 1850 && l.born_guess < 2200 ? l.born_guess : you.born),
+      sex: (sh && sh.sex) || (l.sex_guess === 'M' ? 'M' : 'F'), rate: sh ? +sh.rate : 'same', fromReport: !!sh
+    };
+  }
+  var capWord = function (w) { return w ? w[0].toUpperCase() + w.slice(1) : ''; };
+  // Read-only: the chip, the three values when shared, and "End link" with its inline confirm while the link is open.
+  function linkedRowHtml(l) {
+    var sh = l.status === 'accepted' && l.shared ? l.shared : null, open = l.status === 'invited' || l.status === 'accepted';
+    var act = !open ? '' : l.confirming
+      ? '<span class="ht-note">End this link?</span><button type="button" class="ht-btn" data-act="end-yes" data-id="' + l.id + '">Confirm</button><button type="button" class="ht-btn ht-btn-line" data-act="end-no" data-id="' + l.id + '">Keep</button>'
+      : '<button type="button" class="ht-btn ht-btn-line" data-act="end" data-id="' + l.id + '">End link</button>';
+    return '<div class="ht-row ht-linked"><span class="ht-cell">' + esc(l.label) + '</span><span class="ht-cell">' + capWord(esc(l.relationship)) + '</span>'
+      + '<span class="ht-cell">' + (sh ? 'age ' + sh.age : esc(l.born_guess || '–')) + '</span><span class="ht-cell">' + esc((sh ? sh.sex : l.sex_guess) || '–') + '</span>'
+      + '<span class="ht-cell">' + (sh ? (+sh.rate).toFixed(2) + '× <small class="ht-mark">from their report</small>' : 'Same as you') + '</span>'
+      + '<span class="ht-link-act"><span class="ht-chip" data-status="' + esc(l.status) + '">' + chipLabel(l.status) + '</span>' + act + '</span></div>';
+  }
+  function inviteBoxHtml(url, canShare) {
+    return '<div class="ht-invite"><label class="ht-eyebrow" for="ht-invite-url">Send this link yourself, by any message</label>'
+      + '<div class="ht-invite-row"><input id="ht-invite-url" readonly value="' + esc(url) + '"><button type="button" class="ht-btn" data-act="copy">Copy</button>'
+      + (canShare ? '<button type="button" class="ht-btn ht-btn-line" data-act="share">Share</button>' : '') + '</div>'
+      + '<p class="ht-note">Nothing is sent by us. They do the free check through it, then choose whether to share three numbers with you.</p></div>';
+  }
+  var LINKS = null, OWNER = '';
+  function linksApi(method, path, body) {
+    var o = { method: method, credentials: 'same-origin', headers: { 'Accept': 'application/json', 'X-HDLV2-Token': OWNER, 'X-WP-Nonce': LINKS.nonce } };
+    if (body) { o.headers['Content-Type'] = 'application/json'; o.body = JSON.stringify(body); }
+    return fetch(LINKS.url + path, o).then(function (r) { return r.json().catch(function () { return {}; }).then(function (j) { return { status: r.status, body: j || {} }; }); });
+  }
+  var offline = function () { S.linkMsg = 'We could not reach the server. Please try again.'; renderAll(); };
+  function renderLinked() {
+    var el = $('#ht-linked'); if (!el) return;
+    el.innerHTML = !LINKS ? '' : !S.links ? '<div class="ht-skel" aria-hidden="true"></div>'
+      : S.links.map(function (l) { return linkedRowHtml(l) + (S.inviteBox && S.inviteBox.id === l.id ? inviteBoxHtml(S.inviteBox.url, typeof navigator !== 'undefined' && !!navigator.share) : ''); }).join('');
+    $('#ht-links-msg').textContent = S.linkMsg || '';
+  }
+  function loadLinks() {
+    linksApi('GET', '').then(function (res) {
+      if (res.status === 200 && Array.isArray(res.body.links)) { S.links = res.body.links; S.linkMsg = ''; } else { S.linkMsg = res.body.message || 'Your links could not be loaded.'; }
+      renderAll();
+    }, offline);
+  }
+  function invite(p, btn) {
+    btn.disabled = true; btn.textContent = 'Making the link…';
+    linksApi('POST', '', { label: p.name, relationship: p.rel, born_guess: p.born, sex_guess: p.sex }).then(function (res) {
+      if (res.status === 201 && res.body.link) {
+        S.people = S.people.filter(function (q) { return q !== p; }); save();
+        S.links.push(res.body.link); S.inviteBox = { id: res.body.id, url: res.body.url }; S.linkMsg = '';
+      } else { S.linkMsg = res.body.message || 'The link could not be made. Please try again.'; }
+      renderAll();
+    }, offline);
+  }
+  function onLinkAction(e) {
+    var b = e.target.closest('[data-act]'); if (!b) return;
+    var act = b.dataset.act, l = (S.links || []).filter(function (x) { return String(x.id) === b.dataset.id; })[0];
+    if (act === 'copy') {
+      var inp = $('#ht-invite-url'); inp.select();
+      var copied = function () { b.textContent = 'Copied'; };
+      if (navigator.clipboard) navigator.clipboard.writeText(inp.value).then(copied, function () { /* the text stays selected for a manual copy */ }); else if (document.execCommand('copy')) copied();
+    } else if (act === 'share') {
+      navigator.share({ title: 'See our healthspans side by side', url: $('#ht-invite-url').value }).catch(function () { /* closed the share sheet */ });
+    } else if (l && (act === 'end' || act === 'end-no')) {
+      l.confirming = act === 'end'; renderLinked();
+    } else if (l && act === 'end-yes') {
+      b.disabled = true;
+      linksApi('DELETE', '/' + l.id).then(function (res) {
+        if (res.status === 200) { l.status = 'revoked'; l.shared = null; if (S.inviteBox && S.inviteBox.id === l.id) S.inviteBox = null; S.linkMsg = ''; }
+        else { S.linkMsg = res.body.message || 'The link could not be ended. Please try again.'; }
+        l.confirming = false; renderAll();
+      }, offline);
+    }
+  }
 
   /* ---------- storage (DA3: this browser only, one key per client) ---------- */
   var STORE = 'hs-state-preview', fixedYou = false;
@@ -507,6 +596,10 @@
     cv = $('#ht-cv'); ctx = cv.getContext('2d');
     renderStatic(cfg);
     restore();
+    if (S.mode === 'full' && cfg.links && /^https:\/\//.test(cfg.links.url || '')) {
+      try { OWNER = new URLSearchParams(root.location.search).get('t') || ''; } catch (e) { OWNER = ''; }
+      if (/^[a-f0-9]{64}$/.test(OWNER)) { LINKS = cfg.links; $('#ht-tab-people').addEventListener('click', onLinkAction); loadLinks(); }
+    }
 
     cv.addEventListener('mousemove', onMove);
     cv.addEventListener('mouseleave', function () { hover = null; drawTimeline(); renderMoment(S.you, NOW_F, 'year', true); });
@@ -535,7 +628,8 @@
     bioAtRate: bioAtRate, stagesFor: stagesFor, yearsByStage: yearsByStage, weeksTogether: weeksTogether, visiblePeople: visiblePeople,
     lifestyleFromScores: lifestyleFromScores, bornFromAge: bornFromAge, readFragment: readFragment, paceLabel: paceLabel,
     visibleZoomBands: visibleZoomBands, ageLabel: ageLabel, shellHtml: shellHtml, iconHtml: iconHtml, depBarHtml: depBarHtml, presetHtml: presetHtml,
-    HT_ICONS: HT_ICONS, momentHtml: momentHtml, paintRange: paintRange
+    HT_ICONS: HT_ICONS, momentHtml: momentHtml, paintRange: paintRange,
+    linkedPerson: linkedPerson, chipLabel: chipLabel, linkedRowHtml: linkedRowHtml, inviteBoxHtml: inviteBoxHtml
   };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
 })(window);
