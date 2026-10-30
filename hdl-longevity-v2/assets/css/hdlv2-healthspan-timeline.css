@@ -1,15 +1,31 @@
-/* HDL V2 — Healthspan Timeline (v0.48.29). The Cowork v3 page's styles,
-   scoped to .hdlv2-ht, on the brand tokens (CLAUDE.md), light only. The five
+/* HDL V2 — Healthspan Timeline (v0.48.29, v0.48.30). The Cowork v3 page's styles,
+   scoped to .hdlv2-ht, on the brand tokens (CLAUDE.md, DESIGN.md), light only. The five
    stage colours are data colours and stay as Matthew drew them. */
+
+/* Divi puts the page in its 80 % row (300 px of a 375 px phone). HDLV2_Healthspan_Timeline::
+   wide_body_class adds body.hdlv2-wide-page on this page only; these are hdlv2-consultation.css's
+   overrides, copied, so the row takes the full width and the root sets the DESIGN.md gutters. */
+body.hdlv2-wide-page #left-area,
+body.hdlv2-wide-page #main-content .container > div:not(.et-l),
+body.hdlv2-wide-page article.page{width:100% !important;max-width:100% !important;padding-right:0 !important}
+body.hdlv2-wide-page #sidebar{display:none !important}
+body.hdlv2-wide-page .entry-content{width:100% !important;max-width:100% !important}
+body.hdlv2-wide-page .container{width:100% !important;max-width:1400px !important}
+body.hdlv2-wide-page .entry-content .et_pb_row{width:100% !important;max-width:100% !important}
+body.hdlv2-wide-page .entry-content .et_pb_section{padding-left:0;padding-right:0}
+
 .hdlv2-ht{
   --ht-bg:#fafbfc; --ht-fg:#2c3e50; --ht-muted:#888; --ht-line:#e4e6ea; --ht-panel:#fff; --ht-panel2:#f8f9fb;
   --ht-accent:#3d8da0; --ht-accent2:#004F59; --ht-future:#3b82f6; --ht-past:rgba(255,255,255,.55);
   --ht-green:#3fae4a; --ht-yellow:#e0b128; --ht-orange:#e5761f; --ht-red:#c93437; --ht-grey:#b4bcb9;
   --ht-display:'Poppins','Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
   --ht-body:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
-  box-sizing:border-box;max-width:1240px;margin:0 auto;padding:24px 16px 56px;background:var(--ht-bg);color:var(--ht-fg);
+  /* content up to 1200 px; overflow-x:clip is a belt only, the layout itself fits */
+  box-sizing:border-box;width:100%;max-width:1328px;margin:0 auto;padding:48px 64px 64px;overflow-x:clip;background:var(--ht-bg);color:var(--ht-fg);
   font-family:var(--ht-body);font-size:15px;line-height:1.45;color-scheme:light;
 }
+@media (max-width:1024px){.hdlv2-ht{padding:40px 32px 56px}}
+@media (max-width:640px){.hdlv2-ht{padding:32px 24px 48px}}
 .hdlv2-ht *,.hdlv2-ht *::before,.hdlv2-ht *::after{box-sizing:border-box}
 .hdlv2-ht h1{font-family:var(--ht-display);font-weight:700;font-size:clamp(26px,4vw,36px);line-height:1.1;margin:0;color:var(--ht-accent2);text-wrap:balance}
 .hdlv2-ht h2{font-family:var(--ht-display);font-weight:600;font-size:17px;margin:0 0 4px;color:var(--ht-accent2);line-height:1.3}

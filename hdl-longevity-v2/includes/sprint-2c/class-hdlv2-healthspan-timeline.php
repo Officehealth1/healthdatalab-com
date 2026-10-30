@@ -44,6 +44,7 @@ class HDLV2_Healthspan_Timeline {
         add_shortcode( 'hdlv2_healthspan_timeline', array( __CLASS__, 'render_shortcode' ) );
         add_action( 'template_redirect', array( __CLASS__, 'no_cache_page' ) );
         add_filter( 'um_get_option_filter__access_exclude_uris', array( __CLASS__, 'um_public' ) );
+        add_filter( 'body_class', array( __CLASS__, 'wide_body_class' ) );
     }
 
     public static function enabled() {
@@ -74,6 +75,21 @@ class HDLV2_Healthspan_Timeline {
         $uris   = is_array( $uris ) ? $uris : array();
         $uris[] = self::page_url();
         return $uris;
+    }
+
+    /**
+     * Divi puts the page in its 80 % row (300 px on a 375 px phone). The consultation page's body
+     * class lets this page's own CSS widen the row; only on this page, with the shortcode, flag on.
+     */
+    public static function wide_body_class( $classes ) {
+        if ( is_admin() || ! self::enabled() || ! is_page( self::SLUG ) ) {
+            return $classes;
+        }
+        $post = get_post();
+        if ( $post && has_shortcode( $post->post_content, 'hdlv2_healthspan_timeline' ) ) {
+            $classes[] = 'hdlv2-wide-page';
+        }
+        return $classes;
     }
 
     public static function page_url() {
