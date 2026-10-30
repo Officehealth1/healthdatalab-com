@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Healthspan Timeline model (v0.48.29). Runs the REAL model functions from
+ * Healthspan Timeline model (v0.48.29; icons + dependence bar v0.48.30). Runs the REAL model functions from
  * assets/js/hdlv2-healthspan-timeline.js in a vm with a stub document (no
  * #hdlv2-ht-root, so the page never boots) and checks the 10-13 items 1–8
  * plus the minimal client view (9–11).
@@ -110,6 +110,43 @@ ok(M.readFragment('#a=12&s=M&r=1.07') === null, '12b age under 18 → ignored');
 ok(M.readFragment('#a=52&s=X&r=1.07') === null && M.readFragment('#a=52&s=F&r=3') === null, '12c bad sex or rate out of 0.60–1.60 → ignored');
 ok(M.readFragment('#a=52&s=F&r=1&n=' + 'x'.repeat(60)).name.length === 40, '12d name capped at 40');
 ok(M.readFragment('') === null, '12e no fragment → null (defaults, pace field highlighted)');
+
+// v0.48.30: itshover icons only, geometry copied 1:1 from github.com/itshover/itshover (icons/*.tsx).
+const SRC = fs.readFileSync(file, 'utf8');
+const CSS = fs.readFileSync(path.join(__dirname, '..', '..', 'assets', 'css', 'hdlv2-healthspan-timeline.css'), 'utf8');
+const ds = s => (String(s).match(/ d="[^"]+"/g) || []).map(x => x.slice(4, -1));
+const sameSet = (a, b) => JSON.stringify(a.slice().sort()) === JSON.stringify(b.slice().sort());
+const BATT = ['M46 20V28', 'M37 10H8C5.2386 10 3 12.2386 3 15V33C3 35.7614 5.2386 38 8 38H37C39.7614 38 42 35.7614 42 33V15C42 12.2386 39.7614 10 37 10Z'];
+const BARS = ['M10 31V17', 'M17 31V17', 'M24 31V17', 'M31 31V17'];
+const SOURCE = {
+  'sparkles-icon': ['M16 18a2 2 0 0 1 2 2a2 2 0 0 1 2 -2a2 2 0 0 1 -2 -2a2 2 0 0 1 -2 2z', 'M16 6a2 2 0 0 1 2 2a2 2 0 0 1 2 -2a2 2 0 0 1 -2 -2a2 2 0 0 1 -2 2z', 'M9 18a6 6 0 0 1 6 -6a6 6 0 0 1 -6 -6a6 6 0 0 1 -6 6a6 6 0 0 1 6 6z'],
+  'user-icon': ['M8 7a4 4 0 1 0 8 0a4 4 0 0 0 -8 0', 'M6 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2'],
+  'users-group-icon': ['M10 13a2 2 0 1 0 4 0a2 2 0 0 0 -4 0', 'M8 21v-1a2 2 0 0 1 2 -2h4a2 2 0 0 1 2 2v1', 'M15 5a2 2 0 1 0 4 0a2 2 0 0 0 -4 0', 'M17 10h2a2 2 0 0 1 2 2v1', 'M5 5a2 2 0 1 0 4 0a2 2 0 0 0 -4 0', 'M3 13v-1a2 2 0 0 1 2 -2h2'],
+  'lock-icon': ['M5 13a2 2 0 0 1 2 -2h10a2 2 0 0 1 2 2v6a2 2 0 0 1 -2 2h-10a2 2 0 0 1 -2 -2v-6z', 'M11 16a1 1 0 1 0 2 0a1 1 0 0 0 -2 0', 'M8 11v-4a4 4 0 1 1 8 0v4']
+};
+ok(typeof M.iconHtml === 'function' && typeof M.depBarHtml === 'function', '14a iconHtml and depBarHtml exposed');
+if (typeof M.iconHtml !== 'function' || typeof M.depBarHtml !== 'function') { console.log('\nSCENARIO: FAIL (' + PASS + '/' + (PASS + FAIL) + ')'); process.exit(1); }
+const icon = k => M.iconHtml(k, '#c93437');
+const named = (k, n) => new RegExp('^<svg[^>]* data-ht-icon="' + n + '"').test(icon(k));
+ok(['poor', 'average', 'healthy', 'optimal', 'user', 'group', 'lock'].every(k => /aria-hidden="true"/.test(icon(k)) && /focusable="false"/.test(icon(k))), '14b every icon aria-hidden, not focusable');
+ok(named('poor', 'battery-charging-icon') && sameSet(ds(icon('poor')), BATT), '14c Poor = battery-charging-icon at rest (empty)');
+ok(named('average', 'battery-pause-icon') && sameSet(ds(icon('average')), BARS.slice(0, 2).concat(BATT)), '14d Average = battery-pause-icon at rest (two of four bars)');
+ok(named('healthy', 'battery-charging-icon') && sameSet(ds(icon('healthy')), BARS.concat(BATT)), '14e Healthy = battery-charging-icon at the end of its fill (four bars)');
+ok(named('optimal', 'sparkles-icon') && sameSet(ds(icon('optimal')), SOURCE['sparkles-icon']), '14f Optimal = sparkles-icon, geometry 1:1');
+ok(named('user', 'user-icon') && sameSet(ds(icon('user')), SOURCE['user-icon']), '14g capability = user-icon, geometry 1:1');
+ok(named('group', 'users-group-icon') && sameSet(ds(icon('group')), SOURCE['users-group-icon']), '14h dependence = users-group-icon, geometry 1:1');
+ok(named('lock', 'lock-icon') && sameSet(ds(icon('lock')), SOURCE['lock-icon']), '14i lock bands = lock-icon, geometry 1:1');
+ok(/ stroke="#c93437"/.test(icon('poor')) && / stroke="currentColor"/.test(M.iconHtml('lock')) && M.iconHtml('nope') === '', '14j colour given or currentColor; unknown key → nothing');
+ok(JSON.stringify(K.PROFILES.map(p => p.icon)) === JSON.stringify(['poor', 'average', 'healthy', 'optimal']), '14k the four presets map to the four icons');
+ok(!/function figure\(|stageFig|ICON\[|stroke-width="2\.6"/.test(SRC) && !/ht-figrow/.test(CSS), '14l figure(), stageFig(), the hand-drawn icons and .ht-figrow are gone');
+ok(!/border-left/.test(CSS), '14m no border-left in the timeline styles (no accent rails)');
+
+// The dependence bar: one stacked bar in orange, red, grey; the segments are the whole bar.
+const depBar = M.depBarHtml({ orange: 6.8, red: 3.5, grey: 1.1 });
+const w = [...depBar.matchAll(/--w:([\d.]+)%/g)].map(m => +m[1]);
+ok(w.length === 3 && Math.abs(w.reduce((a, b) => a + b, 0) - 100) < 0.1, '15a three segments that add to 100% (' + w.join(' + ') + ')');
+ok(depBar.indexOf('--ht-orange') < depBar.indexOf('--ht-red') && depBar.indexOf('--ht-red') < depBar.indexOf('--ht-grey') && /class="ht-sbar ht-depbar"/.test(depBar), '15b orange, red, grey in order, on the page\'s .ht-sbar');
+ok(M.depBarHtml({ orange: 0, red: 0, grey: 0 }) === '', '15c nothing dependent → no bar (the panel says "none on this path")');
 
 console.log('\nSCENARIO: ' + (FAIL ? 'FAIL' : 'PASS') + ' (' + PASS + '/' + (PASS + FAIL) + ')');
 process.exit(FAIL ? 1 : 0);

@@ -1,6 +1,6 @@
 <?php
 /**
- * Healthspan Timeline page data (v0.48.29). Standalone: no WordPress, no DB.
+ * Healthspan Timeline page data (v0.48.29; body class v0.48.30). Standalone: no WordPress, no DB.
  * Fake $wpdb holds form_progress rows (by token) and report rows (by
  * form_progress_id); the REAL HDLV2_Healthspan_Timeline, HDLV2_Offer and
  * HDLV2_Stage1_Commentary build the array the page prints.
@@ -21,7 +21,7 @@ $GLOBALS['owners']  = array(); // "prac|client" pairs practitioner_owns_client()
 function get_option( $k, $d = false ) { return $GLOBALS['options'][ $k ] ?? $d; }
 function add_action( $hook, $cb, $p = 10, $a = 1 ) {}
 function add_shortcode( $tag, $cb ) {}
-function add_filter( $hook, $cb, $p = 10, $a = 1 ) {}
+function add_filter( $hook, $cb, $p = 10, $a = 1 ) { $GLOBALS['filters'][ $hook ][] = $cb; }
 function is_admin() { return ! empty( $GLOBALS['is_admin'] ); }
 function get_current_user_id() { return $GLOBALS['current_user'] ?? 0; }
 function wp_json_encode( $x, $flags = 0 ) { return json_encode( $x, $flags ); }
@@ -34,6 +34,9 @@ function esc_url_raw( $x ) { return (string) $x; }
 function add_query_arg( $key, $value, $url ) { return $url . ( false === strpos( $url, '?' ) ? '?' : '&' ) . $key . '=' . $value; }
 function home_url( $p = '' ) { return 'https://stby.test' . $p; }
 function wp_unslash( $x ) { return $x; }
+function is_page( $slug = '' ) { return ( $GLOBALS['page_slug'] ?? '' ) === $slug; }
+function get_post() { return $GLOBALS['post'] ?? null; }
+function has_shortcode( $content, $tag ) { return false !== strpos( (string) $content, '[' . $tag ); }
 function wp_enqueue_script() {}
 function wp_enqueue_style() {}
 function wp_add_inline_script( $handle, $js, $pos = 'after' ) { $GLOBALS['inline'][] = $js; return true; }
@@ -283,5 +286,26 @@ check( 'dashboard: Stage 3 done, no report yet → the token URL (preview with t
 check( 'dashboard: no record → nothing', '' === $T::dashboard_url( 999 ) );
 $GLOBALS['options'] = array();
 check( 'dashboard: flag off → nothing', '' === $T::dashboard_url( 701 ) );
+
+// v0.48.30: Divi caps the page in its 80 % row; the consultation page's body class lets the CSS widen it.
+$db = fresh();
+$W = function () use ( $T ) { return $T::wide_body_class( array( 'page' ) ); };
+check( 'body class: the filter is registered', ! empty( $GLOBALS['filters']['body_class'] ) );
+$GLOBALS['page_slug'] = 'healthspan-timeline';
+$GLOBALS['post']      = (object) array( 'post_content' => '[hdlv2_healthspan_timeline]' );
+check( 'body class: flag on, the page, the shortcode → hdlv2-wide-page added', array( 'page', 'hdlv2-wide-page' ) === $W() );
+$GLOBALS['options'] = array();
+check( 'body class: flag off → unchanged', array( 'page' ) === $W() );
+$GLOBALS['options']['hdlv2_ff_healthspan_timeline'] = '1';
+$GLOBALS['is_admin'] = true;
+check( 'body class: wp-admin → unchanged', array( 'page' ) === $W() );
+$GLOBALS['is_admin']  = false;
+$GLOBALS['page_slug'] = 'about';
+check( 'body class: another page → unchanged', array( 'page' ) === $W() );
+$GLOBALS['page_slug'] = 'healthspan-timeline';
+$GLOBALS['post']      = (object) array( 'post_content' => 'no shortcode here' );
+check( 'body class: the page without the shortcode → unchanged', array( 'page' ) === $W() );
+$GLOBALS['post'] = null;
+check( 'body class: no post → unchanged', array( 'page' ) === $W() );
 
 done();
