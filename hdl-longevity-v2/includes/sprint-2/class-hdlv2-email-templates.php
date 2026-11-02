@@ -252,7 +252,8 @@ class HDLV2_Email_Templates {
         $content = "
             <h2 style='font-family:Poppins,Inter,sans-serif;font-size:22px;font-weight:700;color:" . self::DARK . ";margin:0 0 14px;'>Hi " . esc_html( $first ) . ", your assessment is complete</h2>
             <p style='font-size:15px;color:#2c3e50;line-height:1.7;margin:0 0 18px;'>You've finished all three stages of your longevity assessment. Here's what's next.</p>
-            {$cta_block}";
+            {$cta_block}"
+            . self::dashboard_button();
 
         return self::base_layout( $content, $data['practitioner_id'] ?? null, 'Your Draft Report' );
     }
@@ -473,6 +474,13 @@ class HDLV2_Email_Templates {
             . '</div>';
     }
 
+    /** v0.48.36 — the one door: "Open my dashboard" after a client email's own button; '' with the flag off. */
+    private static function dashboard_button() {
+        return class_exists( 'HDLV2_Products' ) && HDLV2_Products::enabled()
+            ? self::cta_button( home_url( '/my-dashboard/' ), 'Open my dashboard' )
+            : '';
+    }
+
     private static function cta_button( $url, $text ) {
         // v0.36.0 — editorial CTA matches .hdlw-cta (deep teal, 2px
         // radius, Inter weight 600 letter-spaced) so the email button
@@ -661,7 +669,8 @@ class HDLV2_Email_Templates {
 
         $content = "<h2 style='font-family:Poppins,Inter,sans-serif;font-size:22px;font-weight:700;color:" . self::DARK . ";margin:0 0 14px;'>{$heading}</h2>"
             . "<p style='font-size:15px;color:#2c3e50;line-height:1.7;margin:0 0 24px;'>{$body}</p>"
-            . $buttons;
+            . $buttons
+            . self::dashboard_button();
 
         $html = self::base_layout( $content, $data['practitioner_id'] ?? null, $banner );
 
@@ -1049,6 +1058,7 @@ class HDLV2_Email_Templates {
             <h2 style='margin:0 0 12px;color:" . self::DARK . ";font-family:Poppins,Inter,sans-serif;font-size:22px;font-weight:700;'>Hi " . esc_html( $first ) . ", your Trajectory Plan is ready</h2>
             <p style='color:#2c3e50;line-height:1.7;margin:0 0 20px;font-size:15px;'>Your personalised longevity report has been finalised by your practitioner. Your PDF copy will arrive in a separate email shortly &mdash; or review your full report online now:</p>"
             . self::cta_button( $url, 'View Your Trajectory Plan' )
+            . self::dashboard_button()
             . "<p style='font-size:12px;color:" . self::MUTED . ";line-height:1.5;margin:20px 0 0;text-align:center;'>Questions? Just reply to this email — your practitioner will see it.</p>";
 
         return self::base_layout( $content, $data['practitioner_id'] ?? null, 'Your Trajectory Plan' );

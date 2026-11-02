@@ -1,0 +1,103 @@
+/*
+ * HDL V2 — the five product tiles (v0.48.36): Stage 1, Full Report, Timeline, Flight Plan, 30 days.
+ * One file for both pages that show them: /my-dashboard/ (above everything) and the client panel on
+ * /clients/ (the practitioner's copy). DESIGN.md tokens: hairline border, no shadow, no rail,
+ * status pills from the status palette, Poppins label, Inter body.
+ */
+
+.cdp-products-wrap {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 28px 28px 0;
+}
+
+.cdp-products {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 12px;
+  margin: 0 0 24px;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+.cdp-products .cdp-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  min-height: 72px;
+  padding: 14px 16px;
+  box-sizing: border-box;
+  background: #fff;
+  border: 1px solid #e4e6ea;
+  border-radius: 12px;
+  color: #2c3e50;
+  text-decoration: none;
+}
+
+.cdp-products a.cdp-tile:hover {
+  background: #f8f9fb;
+}
+
+.cdp-products a.cdp-tile:focus-visible {
+  outline: 2px solid #3d8da0;
+  outline-offset: 2px;
+}
+
+.cdp-products .cdp-tile-label {
+  font-family: 'Poppins', 'Inter', sans-serif;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.25;
+  color: #2c3e50;
+}
+
+.cdp-products .cdp-tile-state {
+  padding: 3px 8px;
+  border: 1px solid #e4e6ea;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.3;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: #888;
+  background: #f8f9fb;
+}
+
+.cdp-products .is-yours .cdp-tile-state {
+  color: #10b981;
+  background: #ecfdf5;
+  border-color: #a7f3d0;
+}
+
+.cdp-products .is-in-progress .cdp-tile-state {
+  color: #3b82f6;
+  background: #eff6ff;
+  border-color: #bfdbfe;
+}
+
+.cdp-products .cdp-tile-note {
+  font-size: 13px;
+  line-height: 1.4;
+  color: #888;
+  overflow-wrap: anywhere;
+}
+
+/* The practitioner panel's loading state (a real fetch): five .hdlv2-skel tiles in the same grid. */
+.cdp-products .cdp-skel-tile {
+  min-height: 72px;
+  border-radius: 12px;
+}
+
+@media (max-width: 640px) {
+  .cdp-products-wrap {
+    padding: 20px 18px 0;
+  }
+  .cdp-products {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+  .cdp-products > :last-child {
+    grid-column: 1 / -1;
+  }
+}

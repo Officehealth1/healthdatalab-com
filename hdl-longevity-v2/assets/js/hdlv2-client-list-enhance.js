@@ -2211,7 +2211,30 @@
     // on the client object, so subsequent tab clicks (Progress, Stage 1/3)
     // reuse the same in-flight or resolved promise — net zero extra requests.
     mountSnapshot(c, panel);
+    mountProducts(c, panel);
     return panel;
+  }
+
+  // v0.48.36 — the client's five product tiles at the top of the panel: the same words and states
+  // the client sees on /my-dashboard/, rendered by the server (no links in this copy). One fetch per
+  // opened panel; five skeleton tiles while it runs; on any failure the slot goes and the tabs stand alone.
+  function mountProducts(c, panel) {
+    if (!CFG.products_enabled || !c.user_id) return;
+    var slot = document.createElement('div');
+    slot.setAttribute('aria-busy', 'true');
+    slot.innerHTML = '<div class="cdp-products" aria-hidden="true">'
+      + new Array(6).join('<span class="hdlv2-skel cdp-skel-tile"></span>') + '</div>';
+    panel.insertBefore(slot, panel.firstChild);
+    fetch(CFG.api_base + '/dashboard/client/' + encodeURIComponent(c.user_id) + '/products', {
+      headers: { 'X-WP-Nonce': CFG.nonce }, credentials: 'same-origin', cache: 'no-store'
+    })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (j) {
+        if (!j || !j.products_html) { slot.remove(); return; }
+        slot.innerHTML = j.products_html;
+        slot.removeAttribute('aria-busy');
+      })
+      .catch(function () { slot.remove(); });
   }
 
   // v0.41.19 — single source of truth for tab markup. The status arg is one

@@ -189,6 +189,12 @@ class HDLV2_Practitioner_Dashboard {
         // Skeleton CSS for the detail tabs + flight-notes button, enqueued
         // directly so it never depends on which page registered hdlv2-flight-plan first.
         wp_enqueue_style( 'hdlv2-loading-css' );
+        // v0.48.36 — the client's product tiles at the top of their panel (the tiles' own small
+        // stylesheet, not the whole client dashboard one).
+        $products_on = class_exists( 'HDLV2_Products' ) && HDLV2_Products::enabled();
+        if ( $products_on ) {
+            wp_enqueue_style( 'hdlv2-products' );
+        }
 
         $consultation_slug = apply_filters( 'hdlv2_consultation_slug', 'consultation' );
         $flight_plan_slug  = apply_filters( 'hdlv2_flight_plan_slug', 'my-flight-plan' );
@@ -238,6 +244,7 @@ class HDLV2_Practitioner_Dashboard {
             'automation_tier_enabled'    => (bool) get_option( 'hdlv2_automation_tier_enabled', false ),
             'redflag_scan_enabled'       => (bool) get_option( 'hdlv2_ff_redflag_scan', false ),
             'stalled_filter_enabled'     => (bool) get_option( 'hdlv2_ff_stalled_filter', false ),
+            'products_enabled'           => $products_on,
             'automation_hold_for_review' => (bool) get_option( 'hdlv2_automation_hold_for_review', false ),
             // Iridology add-on (IrisMapper) — Rule-0 booleans. No email here.
             'iris_feature_enabled'       => $iris_on,

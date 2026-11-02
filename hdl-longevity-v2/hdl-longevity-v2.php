@@ -3,7 +3,7 @@
  * Plugin Name: HDL Longevity V2 — Staged Workflow
  * Plugin URI: https://healthdatalab.net
  * Description: V2 longevity workflow: staged intake, WHY profiling, practitioner consultations, weekly flight plans, and AI coaching. Runs alongside the existing Health Data Lab plugin.
- * Version: 0.48.35
+ * Version: 0.48.36
  * Author: Health Data Lab
  * Author URI: https://healthdatalab.net
  * License: Proprietary
@@ -22,7 +22,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 // register_activation_hook callbacks, which fire synchronously during
 // `wp plugin activate`, can reference them. The activator needs
 // HDLV2_DB_VERSION / HDLV2_VERSION at call time to update version options.
-define( 'HDLV2_VERSION', '0.48.35' );
+define( 'HDLV2_VERSION', '0.48.36' );
 define( 'HDLV2_DB_VERSION', '3.33' );
 
 // Client funnel token (hdlv2_form_progress.token) lifetime. FIXED window
@@ -952,6 +952,8 @@ final class HDL_Longevity_V2 {
         require_once HDLV2_PLUGIN_DIR . 'includes/sprint-4/class-hdlv2-client-dashboard.php';
         // v0.48.23 — the 30-day challenge section + POST /challenge/tick.
         require_once HDLV2_PLUGIN_DIR . 'includes/sprint-4/class-hdlv2-challenge.php';
+        // v0.48.36 — the five product tiles on both dashboards + GET /dashboard/client/{id}/products.
+        require_once HDLV2_PLUGIN_DIR . 'includes/sprint-4/class-hdlv2-products.php';
         // v0.47.67 (Slice C) — token-mode message thread view (?msg=m1...),
         // rendered pre-UM at init priority 2; flag-gated HDLV2_MSG_LINK_ENABLED.
         // Required BEFORE nothing in particular (static calls resolve at render

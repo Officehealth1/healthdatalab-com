@@ -161,7 +161,9 @@ check( 'R1 one nav, labelled', 1 === substr_count( $h, '<nav class="cdp-products
 check( 'R2 five tiles', 5 === substr_count( $h, 'class="cdp-tile ' ) );
 check( 'R3 a tile with a url is a link, one without is not', 1 === substr_count( $h, 'href="https://stby.test/?hdlv2_stage1_pdf=820"' ) && false !== strpos( $h, '<span class="cdp-tile is-not-yet"' ) );
 check( 'R4 the three pills', false !== strpos( $h, '>Yours<' ) && false !== strpos( $h, '>Not yet<' ) );
-check( 'R5 words escaped', false !== strpos( HDLV2_Products::render_strip( HDLV2_Products::for_client( 504 ), false ), 'Pat Other' ) && false === strpos( $h, "D'haemer" ) );
+client( 521, 122, 3 );
+$w = HDLV2_Products::render_strip( HDLV2_Products::for_client( 521 ), false );
+check( 'R5 words escaped', false !== strpos( $w, 'Matthew D&#039;haemer is writing it' ) && false === strpos( $w, "D'haemer" ) );
 $p = HDLV2_Products::render_strip( $items, true );
 check( 'R6 practitioner view: same tiles and words', 5 === substr_count( $p, 'class="cdp-tile ' ) && false !== strpos( $p, 'Today $27' ) && false !== strpos( $p, 'Done 2 Nov' ) );
 check( 'R7 practitioner view: no link at all (no buy button, no client token)', false === strpos( $p, 'href=' ) );

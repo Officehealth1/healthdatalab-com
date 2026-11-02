@@ -227,6 +227,8 @@ class HDLV2_Rate_Limit_Policy {
             array( 'GET',  '#^/hdl-v2/v1/timeline/links$#',                     self::TIER_READ ),
             array( 'GET',  '#^/hdl-v2/v1/dashboard/clients$#',                  self::TIER_READ ),
             array( 'GET',  '#^/hdl-v2/v1/dashboard/client/[0-9]+/effort-outcomes$#', self::TIER_READ ),
+            // v0.48.36 — the client's five product tiles, once per opened client panel.
+            array( 'GET',  '#^/hdl-v2/v1/dashboard/client/[0-9]+/products$#',  self::TIER_READ ),
             // v0.25.2 — practitioner consultations index (/consultation/ landing).
             array( 'GET',  '#^/hdl-v2/v1/consultations/list$#',                  self::TIER_READ ),
             array( 'GET',  '#^/hdl-v2/v1/health$#',                             self::TIER_READ ),

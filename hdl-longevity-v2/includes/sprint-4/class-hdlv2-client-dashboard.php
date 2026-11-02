@@ -117,6 +117,22 @@ class HDLV2_Client_Dashboard {
             array(),
             HDLV2_VERSION
         );
+        // v0.48.36 — the product tiles; also enqueued on /clients/ by the practitioner dashboard.
+        wp_register_style( 'hdlv2-products', HDLV2_PLUGIN_URL . 'assets/css/hdlv2-products.css', array(), HDLV2_VERSION );
+    }
+
+    /** v0.48.36 — hdlv2_ff_dashboard_products: the tiles, the one-door menu item and sign-in card. */
+    private function products_on() {
+        return class_exists( 'HDLV2_Products' ) && HDLV2_Products::enabled();
+    }
+
+    /** v0.48.36 — the five product tiles, above everything; '' with hdlv2_ff_dashboard_products off. */
+    private function products_strip( $user_id ) {
+        if ( ! $this->products_on() ) {
+            return '';
+        }
+        wp_enqueue_style( 'hdlv2-products' );
+        return HDLV2_Products::render_strip( HDLV2_Products::for_client( $user_id ) );
     }
 
     // ──────────────────────────────────────────────────────────────────────
@@ -193,7 +209,13 @@ class HDLV2_Client_Dashboard {
      */
     public function filter_client_nav( $items, $args ) {
         if ( is_admin() || ! is_user_logged_in() || empty( $items ) ) return $items;
-        if ( ! $this->is_v2_client( get_current_user_id() ) ) return $items;
+        if ( ! $this->is_v2_client( get_current_user_id() ) ) {
+            // v0.48.36 — one door: every signed-in client's Dashboard item opens /my-dashboard/,
+            // not only V2-stamped ones (a client on /clients/ is bounced there anyway).
+            return $this->products_on() && ! HDLV2_Compatibility::is_practitioner( get_current_user_id() )
+                ? $this->point_dashboard_item( $items )
+                : $items;
+        }
 
         foreach ( $items as $key => $item ) {
             if ( ! is_object( $item ) || empty( $item->url ) ) continue;
@@ -212,14 +234,23 @@ class HDLV2_Client_Dashboard {
                 $item->title = 'My Report';
                 continue;
             }
-            if ( $path === '/clients/' ) {
-                // Practitioner roster page (clients only land here via a
-                // redirect back to /my-dashboard/). Point straight there.
+        }
+        return array_values( $this->point_dashboard_item( $items ) );
+    }
+
+    /**
+     * The Dashboard item: the practitioner roster page (clients only land there via a redirect
+     * back to /my-dashboard/), so point straight at /my-dashboard/.
+     */
+    private function point_dashboard_item( $items ) {
+        foreach ( $items as $item ) {
+            $path = is_object( $item ) && ! empty( $item->url ) ? wp_parse_url( $item->url, PHP_URL_PATH ) : '';
+            if ( $path && trailingslashit( $path ) === '/clients/' ) {
                 $item->url   = home_url( '/my-dashboard/' );
                 $item->title = 'Dashboard';
             }
         }
-        return array_values( $items );
+        return $items;
     }
 
     /**
@@ -442,6 +473,15 @@ class HDLV2_Client_Dashboard {
     // ──────────────────────────────────────────────────────────────────────
 
     private function render_login_prompt() {
+        if ( $this->products_on() ) {
+            // v0.48.36 — one sentence, one button, to the site's own sign-in page (wp_login_url()
+            // is wp-login.php here: Ultimate Member does not filter it), then back to the dashboard.
+            $login = function_exists( 'um_get_core_page' ) ? (string) um_get_core_page( 'login' ) : '';
+            $url   = '' !== $login
+                ? add_query_arg( 'redirect_to', rawurlencode( $this->dashboard_url() ), $login )
+                : wp_login_url( $this->dashboard_url() );
+            return $this->card( 'Sign in to see your dashboard', '', 'Sign in', $url );
+        }
         return $this->card(
             'Sign in to see your dashboard',
             'Use the link in your invitation email or sign in below.',
@@ -473,7 +513,10 @@ class HDLV2_Client_Dashboard {
         $ctx       = $this->load_populated_context( $user_id );
         $challenge = $this->challenge_section( $user_id, true );
 
+        $strip     = $this->products_strip( $user_id );
+
         $h  = '<div class="hdlv2-cd-pop">';
+        $h .= '' !== $strip ? '<div class="cdp-products-wrap">' . $strip . '</div>' : '';
         $h .= $this->pop_tabs_strip( '' !== $challenge );
         $h .= '<main class="hdlv2-cd-pop-page">';
         $h .= $this->pop_today_panel( $ctx );
@@ -1812,6 +1855,7 @@ class HDLV2_Client_Dashboard {
 
         // No custom site chrome — Divi already renders the page header / nav / footer.
         $h  = '<main class="hdlv2-cd shell" data-state="' . esc_attr( $state ) . '">';
+        $h .= $this->products_strip( $user_id );
 
         $h .= $this->hero_for_state( $ctx, $state, $buyer, $buyer && HDLV2_Challenge::state( $user_id )['complete'] );
         if ( ! $buyer ) {
@@ -2210,8 +2254,8 @@ class HDLV2_Client_Dashboard {
 
     private function card( $title, $body, $cta_label, $cta_url ) {
         return '<div style="max-width:560px;margin:60px auto;padding:40px 32px;background:#fff;border:1px solid #e4e6ea;border-radius:14px;box-shadow:0 4px 24px rgba(0,0,0,0.04);text-align:center;font-family:Inter,-apple-system,sans-serif;">'
-             . '<h2 style="font-family:Source Serif Pro,Georgia,serif;font-size:24px;font-weight:600;color:#111;margin:0 0 10px;">' . esc_html( $title ) . '</h2>'
-             . '<p style="font-size:14px;color:#666;margin:0 0 24px;line-height:1.5;">' . esc_html( $body ) . '</p>'
+             . '<h2 style="font-family:Source Serif Pro,Georgia,serif;font-size:24px;font-weight:600;color:#111;margin:0 0 ' . ( '' !== $body ? '10' : '24' ) . 'px;">' . esc_html( $title ) . '</h2>'
+             . ( '' !== $body ? '<p style="font-size:14px;color:#666;margin:0 0 24px;line-height:1.5;">' . esc_html( $body ) . '</p>' : '' )
              . '<a href="' . esc_url( $cta_url ) . '" style="display:inline-block;background:#3d8da0;color:#fff;padding:11px 24px;border-radius:8px;font-size:14px;font-weight:600;text-decoration:none;font-family:Inter,sans-serif;">' . esc_html( $cta_label ) . ' &rarr;</a>'
              . '</div>';
     }

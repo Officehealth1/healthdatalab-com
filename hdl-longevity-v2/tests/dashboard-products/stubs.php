@@ -26,8 +26,8 @@ function register_rest_route( $ns, $route, $args ) { $GLOBALS['routes'][ $ns . $
 function get_current_user_id() { return $GLOBALS['current_user']; }
 function is_user_logged_in() { return get_current_user_id() > 0; }
 function is_admin() { return false; }
-function current_user_can( $cap ) { return in_array( 'administrator', $GLOBALS['users'][ get_current_user_id() ]['roles'] ?? array(), true ); }
-function user_can( $u, $cap ) { return in_array( 'administrator', $GLOBALS['users'][ (int) $u ]['roles'] ?? array(), true ); }
+function current_user_can( $cap ) { return in_array( 'administrator', $GLOBALS['users'][ get_current_user_id() ][2] ?? array(), true ); }
+function user_can( $u, $cap ) { return in_array( 'administrator', $GLOBALS['users'][ (int) $u ][2] ?? array(), true ); }
 function rest_ensure_response( $x ) { return $x; }
 function is_wp_error( $x ) { return $x instanceof WP_Error; }
 function wp_json_encode( $x, $f = 0 ) { return json_encode( $x, $f ); }
@@ -63,7 +63,7 @@ class WP_Error {
 
 class HDLV2_Compatibility {
     public static function is_practitioner( $u ) {
-        $roles = $GLOBALS['users'][ (int) $u ]['roles'] ?? array();
+        $roles = $GLOBALS['users'][ (int) $u ][2] ?? array();
         return (bool) array_intersect( array( 'um_practitioner', 'practitioner', 'administrator' ), $roles );
     }
     public static function practitioner_owns_client( $p, $c ) { return user_can( $p, 'manage_options' ) || in_array( (int) $p . '|' . (int) $c, $GLOBALS['owns'], true ); }

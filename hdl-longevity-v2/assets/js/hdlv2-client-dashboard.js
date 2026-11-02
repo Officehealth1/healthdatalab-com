@@ -57,10 +57,15 @@
     });
 
     // v0.48.23 — #challenge (the challenge link's landing) opens its tab too.
-    var hash = (window.location.hash || '').replace(/^#(tab-)?/, '');
-    if (hash && root.querySelector('.cdp-tab[data-tab="' + hash + '"]')) {
-      activate(hash);
+    // v0.48.36 — and so does the 30 days tile above the tabs (same page, so only the hash changes).
+    function fromHash() {
+      var hash = (window.location.hash || '').replace(/^#(tab-)?/, '');
+      if (hash && root.querySelector('.cdp-tab[data-tab="' + hash + '"]')) {
+        activate(hash);
+      }
     }
+    fromHash();
+    window.addEventListener('hashchange', fromHash);
   }
 
   // ────────────────────────────────────────────────────────────────────
