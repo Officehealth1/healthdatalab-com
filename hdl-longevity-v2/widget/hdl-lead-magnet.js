@@ -1831,7 +1831,12 @@
             .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, body: j || {} }; }); })
             .then(function (res) {
               if (res.ok && res.body.status === 'accepted') {
-                box.innerHTML = '<p>You\u2019re now on ' + escapeHtml(res.body.link_from || linkFrom) + '\u2019s timeline as ' + escapeHtml(res.body.label || '') + '. Withdraw any time from the email we just sent.</p>';
+                // v0.48.35 — a family pack seat: the sign-in link is only ever in their inbox, never here.
+                var fr = res.body.full_report ? res.body.full_report.state : '';
+                box.innerHTML = '<p>You\u2019re now on ' + escapeHtml(res.body.link_from || linkFrom) + '\u2019s timeline as ' + escapeHtml(res.body.label || '') + '. '
+                  + (fr === 'sent' ? 'Your Full Report is unlocked. We emailed your link to ' + escapeHtml(answers._email || 'you') + '. '
+                    : fr === 'failed' ? 'Your Full Report could not be unlocked just now; your numbers are shared. ' : '')
+                  + 'Withdraw any time from the email we just sent.</p>';
               } else if (res.ok && res.body.status === 'declined') {
                 box.innerHTML = '<p>Not shared. Your report is yours.</p>';
               } else {

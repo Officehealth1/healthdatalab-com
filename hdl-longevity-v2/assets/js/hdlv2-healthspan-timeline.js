@@ -1,6 +1,7 @@
 /**
  * HDL V2 — Healthspan Timeline (v0.48.29; layout v0.48.30; Phosphor duotone icons v0.48.32;
- * a glyph on every heading, sliders drawn by the page v0.48.33; linked people v0.48.34).
+ * a glyph on every heading, sliders drawn by the page v0.48.33; linked people v0.48.34;
+ * family pack, grouped lanes, the shared number on the lane v0.48.35).
  *
  * Matthew's Cowork v3 page (evidence copy of 2026-10-13), ported into the
  * plugin. The model functions keep the prototype's names so the Cowork page
@@ -246,13 +247,13 @@
     // preview: the You lane first, then the default loved ones (drawn, blurred, not interactive)
     var ps = preview ? [S.you].concat(S.people.slice().sort(function (a, b) { return a.born - b.born; })) : people();
     var all = people(); var minY = Math.min.apply(null, all.map(function (p) { return p.born; })), maxY = Math.max.apply(null, all.map(function (p) { return p.born; })) + 110;
-    var span = maxY - minY + 1, W = $('#ht-scroller').clientWidth, left = W < 520 ? 96 : 122, fitPx = (W - left - 16) / span, z = S.zoom;
+    var span = maxY - minY + 1, W = $('#ht-scroller').clientWidth, left = W < 520 && !FAMILY ? 96 : 122, fitPx = (W - left - 16) / span, z = S.zoom;
     // two zoom bands: 0–49 years, 50–100 months; pixel scale grows continuously
     var unit = z < 50 ? 'year' : 'month', per = unit === 'year' ? 1 : 12;
     var minPx = unit === 'year' ? fitPx : 36, maxPx = unit === 'year' ? 30 : 150, f = unit === 'year' ? z / 49 : (z - 50) / 50;
     var pxYear = Math.max(fitPx, minPx + (maxPx - minPx) * f);
     var cellW = pxYear / per, laneH = 24, youH = 48, refH = 5, gap = 12, top = 34;
-    var rows = ps.map(function (p) { return { p: p, h: p === S.you ? youH : laneH }; }); var yy = top; rows.forEach(function (r) { r.y = yy; yy += r.h + refH + 2 + gap; });
+    var rows = !preview && FAMILY && S.group ? groupedRows(laneH, youH) : ps.map(function (p) { return { p: p, h: p === S.you ? youH : laneH }; }); var yy = top; rows.forEach(function (r) { r.y = yy; yy += r.title ? r.h : r.h + refH + 2 + gap; });
     var width = Math.max(W, left + span * pxYear + 16), height = yy + 2;
     var dpr = root.devicePixelRatio || 1; cv.width = width * dpr; cv.height = height * dpr; cv.style.width = width + 'px'; cv.style.height = height + 'px'; ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     var cs = getComputedStyle(rootEl), fg = cs.getPropertyValue('--ht-fg').trim(), muted = cs.getPropertyValue('--ht-muted').trim(), line = cs.getPropertyValue('--ht-line').trim(), past = cs.getPropertyValue('--ht-past').trim(), acc = cs.getPropertyValue('--ht-accent2').trim();
@@ -264,9 +265,10 @@
     geo = { minY: minY, pxYear: pxYear, cellW: cellW, per: per, unit: unit, left: left, top: top, rows: rows.filter(function (r) { return visiblePeople().indexOf(r.p) !== -1; }) };
     var n = Math.round(span * per), gapPx = cellW > 3 ? 1 : 0;
     rows.forEach(function (row) {
+      if (row.title) { ctx.textAlign = 'left'; ctx.fillStyle = muted; ctx.font = '600 11px Inter, system-ui'; ctx.fillText(row.title.toUpperCase(), 8, row.y + 12); ctx.fillStyle = line; ctx.fillRect(8, row.y + 18, width - 16, 1); return; }
       var p = row.p, y0 = row.y, h = row.h;
       ctx.textAlign = 'left'; ctx.fillStyle = p === S.you ? acc : fg; ctx.font = (p === S.you ? '700 16px' : '600 13px') + ' Inter, system-ui'; ctx.fillText(fitName(p.name, left - 14), 8, y0 + h / 2 - 1);
-      ctx.font = '11px Inter, system-ui'; ctx.fillStyle = muted; var a = NOW_Y - p.born; ctx.fillText(p.fromReport ? (left < 110 ? 'their report' : 'from their report') : a < 0 ? 'born ' + p.born : a + ' · ' + rateOf(p).toFixed(2) + '×', 8, y0 + h / 2 + 12);
+      ctx.font = '11px Inter, system-ui'; ctx.fillStyle = muted; ctx.fillText(laneSub(p, FAMILY, left < 110), 8, y0 + h / 2 + 12);
       for (var k = 0; k < n; k++) { var t = minY + (k + 0.5) / per; var st = stageAt(p, t); if (st === 0 || st === 6) continue; ctx.fillStyle = stageHex(st); ctx.fillRect(left + k * cellW, y0, Math.max(cellW - gapPx, 0.6), h); }
       var refPer = Math.min(per, 12), refN = Math.round(span * refPer), refW = pxYear / refPer;
       for (var j = 0; j < refN; j++) { var tr = minY + (j + 0.5) / refPer; if (tr < p.born) continue; var sr = stageOfBio(p, bioAtRate(p, tr, rate0Of(p), rate0Of(p), 0), rate0Of(p)); if (sr === 6) continue; ctx.fillStyle = stageHex(sr); ctx.fillRect(left + j * refW, y0 + h + 2, Math.max(refW, 0.6), refH); }
@@ -281,6 +283,26 @@
     var cur = yearsByStage(S.you, rateOf(S.you), rate0Of(S.you), fsFrac()), st0 = stageOfBio(S.you, bioNow(S.you), rateOf(S.you));
     cv.setAttribute('aria-label', 'Timeline for ' + S.you.name + ': today in the ' + (STAGES[st0 - 1] || { name: 'last' }).name + ' stage; the new path gives ' + cur[0].toFixed(0) + ' green years.');
   }
+  // Under the lane's name. A shared lane says its numbers and where they came from; a link that ended falls back to the client's guess and says so.
+  function laneSub(p, family, narrow) {
+    var a = NOW_Y - p.born;
+    if (p.fromReport) return family ? a + ' · ' + rateOf(p).toFixed(2) + '× · shared' : narrow ? 'their report' : 'from their report';
+    if (family && p.guessed) return 'guessed';
+    return a < 0 ? 'born ' + p.born : a + ' · ' + rateOf(p).toFixed(2) + '×';
+  }
+  function laneText(p, family) { return p.name + ' · ' + laneSub(p, family, false); }
+  // The one place the relationships map to the three headings.
+  var GROUPS = [{ title: 'Family', rels: ['spouse', 'child', 'grandchild', 'parent', 'sibling'] }, { title: 'Friends', rels: ['friend'] }, { title: 'Other', rels: ['other'] }];
+  function groupLanes(ps) { return GROUPS.map(function (g) { return { title: g.title, people: ps.filter(function (p) { return g.rels.indexOf(p.rel) !== -1; }) }; }); }
+  function groupedRows(laneH, youH) {
+    var rows = [{ p: S.you, h: youH }];
+    groupLanes(others()).forEach(function (g) {
+      rows.push({ title: g.title + ' · ' + g.people.length, h: 26 });
+      g.people.slice().sort(function (a, b) { return a.born - b.born; }).forEach(function (p) { rows.push({ p: p, h: laneH }); });
+    });
+    return rows;
+  }
+  function groupSwitchHtml(on) { return '<button type="button" class="ht-btn ht-btn-line ht-group-btn" id="ht-group" aria-pressed="' + (on ? 'true' : 'false') + '">Group by relationship</button>'; }
   // the lane's name in the label column: up to 16 characters, cut with an ellipsis where it would run into the lane
   function fitName(s, max) {
     s = s.slice(0, 16); if (ctx.measureText(s).width <= max) return s;
@@ -456,7 +478,7 @@
       rt.onchange = function () { p.rate = rt.value; save(); renderAll(); }; x.onclick = function () { S.people = S.people.filter(function (q) { return q !== p; }); save(); renderAll(); }; pe.appendChild(d);
       if (S.links) {
         var inv = document.createElement('div'); inv.className = 'ht-link-line';
-        inv.innerHTML = '<button type="button" class="ht-btn ht-btn-line">Invite ' + esc(p.name) + ' by link</button>';
+        inv.innerHTML = '<button type="button" class="ht-btn ht-btn-line">' + esc(inviteLabel(p.name, S.pack)) + '</button>';
         inv.firstChild.onclick = function () { invite(p, inv.firstChild); }; d.appendChild(inv);
       }
     });
@@ -477,9 +499,13 @@
     return {
       id: 'L' + l.id, name: l.label, rel: REL.indexOf(l.relationship) !== -1 ? l.relationship : 'other',
       born: sh ? NOW_Y - sh.age : (l.born_guess > 1850 && l.born_guess < 2200 ? l.born_guess : you.born),
-      sex: (sh && sh.sex) || (l.sex_guess === 'M' ? 'M' : 'F'), rate: sh ? +sh.rate : 'same', fromReport: !!sh
+      sex: (sh && sh.sex) || (l.sex_guess === 'M' ? 'M' : 'F'), rate: sh ? +sh.rate : 'same', fromReport: !!sh,
+      guessed: ['withdrawn', 'revoked', 'expired', 'declined'].indexOf(l.status) !== -1
     };
   }
+  var seatsLeft = function (pack) { return pack && pack.status === 'active' ? pack.seats_total - pack.seats_used : 0; };
+  function packLine(pack) { return !pack ? '' : pack.status === 'active' ? 'Family pack · ' + pack.seats_total + ' seats · ' + seatsLeft(pack) + ' left' : 'Family pack ended'; }
+  function inviteLabel(name, pack) { return 'Invite ' + name + ' by link' + (seatsLeft(pack) > 0 ? ' (uses a seat)' : ''); }
   var capWord = function (w) { return w ? w[0].toUpperCase() + w.slice(1) : ''; };
   // Read-only: the chip, the three values when shared, and "End link" with its inline confirm while the link is open.
   function linkedRowHtml(l) {
@@ -490,7 +516,7 @@
     return '<div class="ht-row ht-linked"><span class="ht-cell">' + esc(l.label) + '</span><span class="ht-cell">' + capWord(esc(l.relationship)) + '</span>'
       + '<span class="ht-cell">' + (sh ? 'age ' + sh.age : esc(l.born_guess || '–')) + '</span><span class="ht-cell">' + esc((sh ? sh.sex : l.sex_guess) || '–') + '</span>'
       + '<span class="ht-cell">' + (sh ? (+sh.rate).toFixed(2) + '× <small class="ht-mark">from their report</small>' : 'Same as you') + '</span>'
-      + '<span class="ht-link-act"><span class="ht-chip" data-status="' + esc(l.status) + '">' + chipLabel(l.status) + '</span>' + act + '</span></div>';
+      + '<span class="ht-link-act"><span class="ht-chip" data-status="' + esc(l.status) + '">' + chipLabel(l.status) + '</span>' + (l.full_report ? '<span class="ht-chip" data-status="report">Full Report</span>' : '') + act + '</span></div>';
   }
   function inviteBoxHtml(url, canShare) {
     return '<div class="ht-invite"><label class="ht-eyebrow" for="ht-invite-url">Send this link yourself, by any message</label>'
@@ -498,7 +524,7 @@
       + (canShare ? '<button type="button" class="ht-btn ht-btn-line" data-act="share">Share</button>' : '') + '</div>'
       + '<p class="ht-note">Nothing is sent by us. They do the free check through it, then choose whether to share three numbers with you.</p></div>';
   }
-  var LINKS = null, OWNER = '';
+  var LINKS = null, OWNER = '', FAMILY = false;
   function linksApi(method, path, body) {
     var o = { method: method, credentials: 'same-origin', headers: { 'Accept': 'application/json', 'X-HDLV2-Token': OWNER, 'X-WP-Nonce': LINKS.nonce } };
     if (body) { o.headers['Content-Type'] = 'application/json'; o.body = JSON.stringify(body); }
@@ -510,10 +536,11 @@
     el.innerHTML = !LINKS ? '' : !S.links ? '<div class="ht-skel" aria-hidden="true"></div>'
       : S.links.map(function (l) { return linkedRowHtml(l) + (S.inviteBox && S.inviteBox.id === l.id ? inviteBoxHtml(S.inviteBox.url, typeof navigator !== 'undefined' && !!navigator.share) : ''); }).join('');
     $('#ht-links-msg').textContent = S.linkMsg || '';
+    if (FAMILY) $('#ht-pack').textContent = packLine(S.pack);
   }
   function loadLinks() {
     linksApi('GET', '').then(function (res) {
-      if (res.status === 200 && Array.isArray(res.body.links)) { S.links = res.body.links; S.linkMsg = ''; } else { S.linkMsg = res.body.message || 'Your links could not be loaded.'; }
+      if (res.status === 200 && Array.isArray(res.body.links)) { S.links = res.body.links; S.pack = res.body.pack || null; S.linkMsg = ''; } else { S.linkMsg = res.body.message || 'Your links could not be loaded.'; }
       renderAll();
     }, offline);
   }
@@ -565,6 +592,7 @@
       if (Array.isArray(s.people)) S.people = s.people.map(cleanPerson).filter(Boolean).slice(0, 30);
       if (s.rate >= 0.6 && s.rate <= 1.6) S.you.rate = +s.rate;
       if ($('#ht-fs') && s.fs >= 0 && s.fs <= 100) S.fs = +s.fs;
+      if (s.group === true) S.group = true;
     } else if (!fixedYou && s.you && typeof s.you === 'object') {
       var y = cleanPerson({ born: s.you.born, rate: s.you.rate0, name: s.you.name, sex: s.you.sex });
       if (y) { S.you.name = y.name; S.you.born = y.born; S.you.sex = y.sex; S.you.rate0 = S.you.rate = y.rate; S.you.bio = derivedBio(); S.people = defaultPeople(S.you); highlightPace = false; }
@@ -572,7 +600,7 @@
   }
   function save() {
     var keep = { zoom: S.zoom, tab: S.tab };
-    if (S.mode === 'full') { keep.people = S.people; keep.rate = S.you.rate; keep.fs = S.fs; }
+    if (S.mode === 'full') { keep.people = S.people; keep.rate = S.you.rate; keep.fs = S.fs; keep.group = !!S.group; }
     else if (!fixedYou) keep.you = { name: S.you.name, born: S.you.born, sex: S.you.sex, rate0: S.you.rate0 };
     try { root.localStorage.setItem(STORE, JSON.stringify(keep)); } catch (e) { /* private mode: the page still works, nothing kept */ }
   }
@@ -598,7 +626,16 @@
     restore();
     if (S.mode === 'full' && cfg.links && /^https:\/\//.test(cfg.links.url || '')) {
       try { OWNER = new URLSearchParams(root.location.search).get('t') || ''; } catch (e) { OWNER = ''; }
-      if (/^[a-f0-9]{64}$/.test(OWNER)) { LINKS = cfg.links; $('#ht-tab-people').addEventListener('click', onLinkAction); loadLinks(); }
+      if (/^[a-f0-9]{64}$/.test(OWNER)) {
+        LINKS = cfg.links; $('#ht-tab-people').addEventListener('click', onLinkAction);
+        if (LINKS.family) {
+          FAMILY = true;
+          $('#ht-tab-people').insertAdjacentHTML('afterbegin', '<p class="ht-pack" id="ht-pack"></p>');
+          $('.ht-zoom').insertAdjacentHTML('beforebegin', groupSwitchHtml(!!S.group));
+          $('#ht-group').onclick = function () { S.group = !S.group; this.setAttribute('aria-pressed', S.group ? 'true' : 'false'); save(); drawTimeline(); };
+        }
+        loadLinks();
+      }
     }
 
     cv.addEventListener('mousemove', onMove);
@@ -629,7 +666,8 @@
     lifestyleFromScores: lifestyleFromScores, bornFromAge: bornFromAge, readFragment: readFragment, paceLabel: paceLabel,
     visibleZoomBands: visibleZoomBands, ageLabel: ageLabel, shellHtml: shellHtml, iconHtml: iconHtml, depBarHtml: depBarHtml, presetHtml: presetHtml,
     HT_ICONS: HT_ICONS, momentHtml: momentHtml, paintRange: paintRange,
-    linkedPerson: linkedPerson, chipLabel: chipLabel, linkedRowHtml: linkedRowHtml, inviteBoxHtml: inviteBoxHtml
+    linkedPerson: linkedPerson, chipLabel: chipLabel, linkedRowHtml: linkedRowHtml, inviteBoxHtml: inviteBoxHtml,
+    groupLanes: groupLanes, laneText: laneText, packLine: packLine, inviteLabel: inviteLabel, groupSwitchHtml: groupSwitchHtml
   };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
 })(window);

@@ -209,6 +209,12 @@ body.hdlv2-wide-page .entry-content .et_pb_section{padding-left:0;padding-right:
 @keyframes ht-skel{from{background-position:200% 0}to{background-position:-200% 0}}
 @media (prefers-reduced-motion:reduce){.hdlv2-ht .ht-skel{animation:none}}
 
+/* v0.48.35 — the family pack line; the group switch: the pressed state is the filled pill */
+.hdlv2-ht .ht-pack{margin:0 0 12px;font-size:14px;font-weight:600;color:var(--ht-accent2)}
+.hdlv2-ht .ht-pack:empty{display:none}
+.hdlv2-ht .ht-btn.ht-group-btn{min-height:40px}
+.hdlv2-ht .ht-btn.ht-group-btn[aria-pressed="true"],.hdlv2-ht .ht-btn.ht-group-btn[aria-pressed="true"]:hover{background:var(--ht-accent);color:#fff;box-shadow:none}
+
 @media (max-width:1024px){
   .hdlv2-ht h1{font-size:26px}
   .hdlv2-ht .ht-cards{grid-template-columns:repeat(2,minmax(0,1fr))}
