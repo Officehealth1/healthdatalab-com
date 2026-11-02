@@ -80,6 +80,7 @@ const w = fs.readFileSync(path.join(__dirname, '..', '..', 'widget/hdl-lead-magn
 ok(/Your Full Report is unlocked\. We emailed your link to /.test(w), 'the card points to the inbox');
 ok(/Your Full Report could not be unlocked just now; your numbers are shared\./.test(w), 'the failure line');
 ok(!/open_url/.test(w), 'the widget never reads a sign-in link from the response');
+ok(/fr === 'sent'\) \{ var wall = document\.getElementById\(id \+ '-thanks'\); if \(wall\) wall\.hidden = true; \}/.test(w), 'a seat hides the "wait for your practitioner" wall: it is no longer true');
 
 // No accent rails in the new CSS
 const css = fs.readFileSync(path.join(__dirname, '..', '..', 'assets/css/hdlv2-healthspan-timeline.css'), 'utf8');

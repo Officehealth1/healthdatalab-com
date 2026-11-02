@@ -1804,7 +1804,6 @@
   }
 
   function injectV2Badge(row, c) {
-    syncPack(row, c);
     // v0.47.84 — location subline in the V1-rendered name cell for matched
     // rows (V2-only rows get it in buildV2OnlyRow). Idempotent for
     // reconcileRows() re-renders; absent location renders nothing.
@@ -1815,6 +1814,7 @@
       locEl.textContent = '📍 ' + c.location;
       nameCell.appendChild(locEl);
     }
+    syncPack(row, c);
 
     var cell = row.querySelector('.status-badge-cell');
     if (!cell) return;
