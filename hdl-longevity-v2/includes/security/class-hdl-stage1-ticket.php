@@ -228,6 +228,46 @@ class HDL_Stage1_Ticket {
     }
 
     /**
+     * v0.48.35 — a family pack seat (Matthew, 2026-10-30): the Full Report ticket for one invitee
+     * who said yes. The email is the one they typed, never verified, and this link signs its
+     * owner in. So the caller sends open_url to that inbox and never back to the browser, and an
+     * email that already has an account gets the ticket alone: confirming would overwrite that
+     * client's Stage 1 with whatever the typist answered. Not reachable from the keyed route.
+     *
+     * @return array|WP_Error { id, token, expires_at, idempotent, open_url, stage1_found, auto_confirmed }.
+     */
+    public static function mint_family_seat( $practitioner_id, $email, $name, $external_ref, $days ) {
+        if ( email_exists( $email ) ) {
+            $ticket = self::mint( $practitioner_id, $email, $name, $external_ref, $days, 'full_report' );
+            if ( is_wp_error( $ticket ) ) {
+                return $ticket;
+            }
+            return array(
+                'id'             => $ticket['id'],
+                'token'          => $ticket['token'],
+                'expires_at'     => $ticket['expires_at'],
+                'idempotent'     => $ticket['idempotent'],
+                'open_url'       => self::open_url( $ticket['token'] ),
+                'stage1_found'   => false,
+                'auto_confirmed' => false,
+            );
+        }
+        $done = self::mint_full_report( $practitioner_id, $email, $name, $external_ref, $days );
+        if ( is_wp_error( $done ) ) {
+            return $done;
+        }
+        $data = $done instanceof WP_REST_Response ? $done->get_data() : $done;
+        global $wpdb;
+        $data['id'] = (int) $wpdb->get_var( $wpdb->prepare( "SELECT id FROM {$wpdb->prefix}hdlv2_widget_invites WHERE token = %s", $data['token'] ) );
+        return $data;
+    }
+
+    /** Where a full_report ticket opens: it signs in and goes to the form. */
+    public static function open_url( $token ) {
+        return site_url( '/rate-of-ageing-widget/?invite=' . $token );
+    }
+
+    /**
      * Mint the ticket for $external_ref, or return the one it already has.
      * Shared by the keyed route above and the dashboard's "Send Stage 1
      * link" (HDLV2_Widget_Config::ajax_send_stage1_link). Callers validate
