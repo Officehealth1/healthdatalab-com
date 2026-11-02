@@ -57,15 +57,23 @@
     });
 
     // v0.48.23 — #challenge (the challenge link's landing) opens its tab too.
-    // v0.48.36 — and so does the 30 days tile above the tabs (same page, so only the hash changes).
-    function fromHash() {
-      var hash = (window.location.hash || '').replace(/^#(tab-)?/, '');
-      if (hash && root.querySelector('.cdp-tab[data-tab="' + hash + '"]')) {
-        activate(hash);
-      }
+    var hash = (window.location.hash || '').replace(/^#(tab-)?/, '');
+    if (hash && root.querySelector('.cdp-tab[data-tab="' + hash + '"]')) {
+      activate(hash);
     }
-    fromHash();
-    window.addEventListener('hashchange', fromHash);
+
+    // v0.48.36 — the 30 days tile above the tabs links to #challenge on this page. Divi's smooth
+    // scroll swallows same-page # links (no hashchange), so open the tab here, in the capture phase,
+    // before it scrolls to the now-visible section.
+    document.addEventListener('click', function (e) {
+      var a = e.target.closest ? e.target.closest('.cdp-products a[href*="#"]') : null;
+      if (!a || a.pathname !== window.location.pathname) return;
+      var name = a.hash.replace(/^#(tab-)?/, '');
+      if (name && root.querySelector('.cdp-tab[data-tab="' + name + '"]')) {
+        e.preventDefault();
+        activate(name);
+      }
+    }, true);
   }
 
   // ────────────────────────────────────────────────────────────────────

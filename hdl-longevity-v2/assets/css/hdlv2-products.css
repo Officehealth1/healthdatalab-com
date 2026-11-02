@@ -38,6 +38,12 @@
   background: #f8f9fb;
 }
 
+/* A tile that opens something says so; a plain tile shows its state only. */
+.cdp-products a.cdp-tile .cdp-tile-label::after {
+  content: " \2192";
+  color: #3d8da0;
+}
+
 .cdp-products a.cdp-tile:focus-visible {
   outline: 2px solid #3d8da0;
   outline-offset: 2px;
