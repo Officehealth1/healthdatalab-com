@@ -54,4 +54,11 @@ end( $w->packs )->seats_used = 5;
 holds( $w, 'team+sam@irislab.com' );
 list( , , , $r ) = link_yes();
 check( 'X5.1 holder with no seat left: as Plan B, no line in the mail', 'none' === body_of( $r )['full_report']['state'] && false === strpos( $GLOBALS['mails'][1]['body'], 'Full Report' ) );
+
+echo "── X6. the same person, typed with capitals ──\n";
+$w = pack_world();
+grant();
+holds( $w, 'team+sam@irislab.com' );
+link_yes( 'Team+Sam@irislab.com' );
+check( 'X6.1 no seat spent, the mail says they already have one', 0 === seats() && false !== strpos( $GLOBALS['mails'][1]['body'], 'You already have a Full Report' ) && ! $GLOBALS['confirms'] );
 done();

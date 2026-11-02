@@ -53,7 +53,7 @@ class PackWpdb extends TlWpdb {
         if ( false !== strpos( $sql, "source = 'full_report'" ) ) {
             $this->queries[] = $sql;
             foreach ( array_reverse( $this->invites, true ) as $i ) {
-                if ( 'full_report' === $i->source && (int) $i->practitioner_id === (int) $this->b( 0 ) && strtolower( $i->client_email ) === strtolower( $this->b( 1 ) ) && 'revoked' !== $i->status ) return $i;
+                if ( 'full_report' === $i->source && (int) $i->practitioner_id === (int) $this->b( 0 ) && ( false !== strpos( $sql, 'LOWER(client_email)' ) ? strtolower( $i->client_email ) === $this->b( 1 ) : $i->client_email === $this->b( 1 ) ) && 'revoked' !== $i->status ) return $i;
             }
             return null;
         }
