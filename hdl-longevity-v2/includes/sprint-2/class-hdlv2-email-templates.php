@@ -477,7 +477,7 @@ class HDLV2_Email_Templates {
     /** v0.48.36 — the one door: "Open my dashboard" after a client email's own button; '' with the flag off. */
     private static function dashboard_button() {
         return class_exists( 'HDLV2_Products' ) && HDLV2_Products::enabled()
-            ? self::cta_button( home_url( '/my-dashboard/' ), 'Open my dashboard' )
+            ? self::cta_button( home_url( '/' . trim( apply_filters( 'hdlv2_client_dashboard_slug', 'my-dashboard' ), '/' ) . '/' ), 'Open my dashboard' )
             : '';
     }
 

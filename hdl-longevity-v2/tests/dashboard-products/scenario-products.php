@@ -58,7 +58,7 @@ client( 505, 122, 1 );
 $wpdb->tickets['c505@stby.test'] = (object) array( 'practitioner_id' => 122 );
 $t = by_key( HDLV2_Products::for_client( 505 ) );
 check( 'S5.1 Full Report in progress', 'in-progress' === $t['full_report']['state'] );
-check( 'S5.2 says what is under way, no price, no link', 'Questions under way' === $t['full_report']['note'] && null === $t['full_report']['price'] && '' === $t['full_report']['url'] );
+check( 'S5.2 bought, not started: says the questions come next, no price, no link', 'Bought · your questions next' === $t['full_report']['note'] && null === $t['full_report']['price'] && '' === $t['full_report']['url'] );
 check( 'S5.3 the ticket lookup asks for a bought full_report ticket', (bool) preg_grep( "/source = 'full_report'.*external_ref IS NOT NULL/s", $wpdb->calls ) );
 
 echo "S5b ticket bought before any record (practitioner from the ticket)\n";
@@ -68,6 +68,13 @@ $wpdb->tickets['c515@stby.test'] = (object) array( 'practitioner_id' => 130 );
 $t = by_key( HDLV2_Products::for_client( 515 ) );
 check( 'S5b.1 Full Report in progress', 'in-progress' === $t['full_report']['state'] );
 check( 'S5b.2 Stage 1 asks the ticket practitioner', 'Ask Pat Other' === $t['stage1']['note'] );
+check( 'S5b.3 nothing started yet: not "under way"', 'Bought · your questions next' === $t['full_report']['note'] );
+
+echo "S5c Stage 2 done (questions started)\n";
+$wpdb = fresh();
+client( 516, 122, 2 );
+$t = by_key( HDLV2_Products::for_client( 516 ) );
+check( 'S5c.1 in progress, under way', 'in-progress' === $t['full_report']['state'] && 'Questions under way' === $t['full_report']['note'] );
 
 echo "S6 Stage 3 done (no report yet)\n";
 $wpdb = fresh();
@@ -97,6 +104,7 @@ check( 'S8.2 Full Report final line', 'Final' === $t['full_report']['note'] );
 check( 'S8.3 Timeline carries the pack line', 'Family pack · 5 seats · 5 left' === $t['timeline']['note'] );
 check( 'S8.4 Flight Plan not yet', 'not-yet' === $t['flight_plan']['state'] && 'After your consultation' === $t['flight_plan']['note'] );
 check( 'S8.5 at most five lookups', count( $wpdb->calls ) <= 5 );
+check( 'S8.5b no report body is read to find out a report exists', ! preg_grep( '/report_content/', $wpdb->calls ) );
 $wpdb->packs[808]->status = 'ended';
 $t = by_key( HDLV2_Products::for_client( 508 ) );
 check( 'S8.6 an ended pack says so', 'Family pack ended' === $t['timeline']['note'] );
@@ -108,10 +116,13 @@ echo "S9 flight plan\n";
 $wpdb = fresh();
 client( 509, 122, 3 );
 $wpdb->reports[809] = (object) array( 'id' => 79, 'report_type' => 'final', 'report_content' => '{}' );
-$wpdb->plans[509]   = (object) array( 'id' => 41, 'week_number' => 3 );
+$wpdb->plans[509]   = (object) array( 'id' => 41, 'week_number' => 3, 'week_start' => '2026-10-26' );
 $t = by_key( HDLV2_Products::for_client( 509 ) );
 check( 'S9.1 Flight Plan yours, week line, opens the plan page', 'yours' === $t['flight_plan']['state'] && 'Week 3' === $t['flight_plan']['note'] && 'https://stby.test/my-flight-plan/' === $t['flight_plan']['url'] );
 check( 'S9.2 the plan lookup skips archived plans', (bool) preg_grep( '/hdlv2_flight_plans.*deleted_at IS NULL/s', $wpdb->calls ) );
+$wpdb->plans[509] = (object) array( 'id' => 42, 'week_number' => 1, 'week_start' => gmdate( 'Y-m-d', time() + 5 * DAY_IN_SECONDS ) );
+$t = by_key( HDLV2_Products::for_client( 509 ) );
+check( 'S9.3 only a plan for a later week: not yet (the page it opens shows the current week)', 'not-yet' === $t['flight_plan']['state'] );
 
 echo "S10 30-day challenge enrolled (paid and free)\n";
 $wpdb = fresh();

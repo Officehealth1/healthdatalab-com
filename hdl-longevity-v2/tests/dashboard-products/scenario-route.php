@@ -63,4 +63,8 @@ check( 'T5 signed out: 401', 401 === status( call_route( 601 ) ) );
 $GLOBALS['current_user'] = 1;
 check( 'T6 an administrator: 200', 200 === status( call_route( 601 ) ) );
 
+require_once dirname( __DIR__, 2 ) . '/includes/security/class-hdlv2-rate-limit-policy.php';
+check( 'T7 practitioner-read budget (as the roster), not the shared read one', HDLV2_Rate_Limit_Policy::is_prac_read_route( 'GET', '/hdl-v2/v1/dashboard/client/601/products' ) );
+check( 'T7.1 a POST is not', ! HDLV2_Rate_Limit_Policy::is_prac_read_route( 'POST', '/hdl-v2/v1/dashboard/client/601/products' ) );
+
 done();

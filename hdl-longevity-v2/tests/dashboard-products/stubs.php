@@ -40,6 +40,7 @@ function esc_url( $x ) { return htmlspecialchars( (string) $x, ENT_QUOTES, 'UTF-
 function esc_url_raw( $x ) { return (string) $x; }
 function wp_date( $fmt, $ts = null ) { return gmdate( $fmt, $ts ?? time() ); }
 function date_i18n( $fmt, $ts = null ) { return gmdate( $fmt, $ts ?? time() ); }
+function current_time( $type ) { return gmdate( 'Y-m-d' ); }
 function add_query_arg( $key, $value, $url ) { return $url . ( false === strpos( $url, '?' ) ? '?' : '&' ) . $key . '=' . $value; }
 function apply_filters( $tag, $value ) { return $value; }
 function home_url( $p = '' ) { return 'https://stby.test' . $p; }
@@ -89,7 +90,10 @@ class ProductsWpdb {
         if ( false !== strpos( $sql, 'hdlv2_form_progress' ) ) return $this->progress[ (int) $this->a( 0 ) ] ?? null;
         if ( false !== strpos( $sql, 'hdlv2_reports' ) ) return $this->reports[ (int) $this->a( 0 ) ] ?? null;
         if ( false !== strpos( $sql, 'hdlv2_widget_invites' ) && false !== strpos( $sql, "'full_report'" ) ) return $this->tickets[ strtolower( (string) $this->a( 0 ) ) ] ?? null;
-        if ( false !== strpos( $sql, 'hdlv2_flight_plans' ) ) return $this->plans[ (int) $this->a( 0 ) ] ?? null;
+        if ( false !== strpos( $sql, 'hdlv2_flight_plans' ) ) {
+            $p = $this->plans[ (int) $this->a( 0 ) ] ?? null; // a plan dated after the date asked for is not current
+            return $p && ! ( false !== strpos( $sql, 'week_start <=' ) && $p->week_start > $this->a( 1 ) ) ? $p : null;
+        }
         if ( false !== strpos( $sql, 'hdlv2_timeline_packs' ) ) return $this->packs[ (int) $this->a( 0 ) ] ?? null;
         return null;
     }

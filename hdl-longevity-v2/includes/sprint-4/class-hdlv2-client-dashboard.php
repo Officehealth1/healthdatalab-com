@@ -246,7 +246,7 @@ class HDLV2_Client_Dashboard {
         foreach ( $items as $item ) {
             $path = is_object( $item ) && ! empty( $item->url ) ? wp_parse_url( $item->url, PHP_URL_PATH ) : '';
             if ( $path && trailingslashit( $path ) === '/clients/' ) {
-                $item->url   = home_url( '/my-dashboard/' );
+                $item->url   = $this->dashboard_url();
                 $item->title = 'Dashboard';
             }
         }

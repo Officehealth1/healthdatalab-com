@@ -70,7 +70,13 @@ class HDLV2_Products {
              ORDER BY id DESC LIMIT 1",
             $user_id
         ) );
-        $report    = $row ? HDLV2_Healthspan_Timeline::report_row( (int) $row->id ) : null;
+        // The Full Report gate as HDLV2_Healthspan_Timeline::report_row(), without reading the report body.
+        $report    = $row ? $wpdb->get_row( $wpdb->prepare(
+            "SELECT id, report_type FROM {$wpdb->prefix}hdlv2_reports
+             WHERE form_progress_id = %d AND report_type IN ('final','draft')
+             ORDER BY report_type = 'final' DESC, id DESC LIMIT 1",
+            (int) $row->id
+        ) ) : null;
         $user      = get_userdata( $user_id );
         $email     = $user ? (string) $user->user_email : '';
         // A Full Report bought (Altituding, a family seat) whose report is not written yet.
@@ -80,11 +86,13 @@ class HDLV2_Products {
              ORDER BY id DESC LIMIT 1",
             $email
         ) ) : null;
+        // The current week, as the dashboard and /my-flight-plan/ pick it (a pre-built next week is not current).
         $plan      = $row ? $wpdb->get_row( $wpdb->prepare(
             "SELECT id, week_number FROM {$wpdb->prefix}hdlv2_flight_plans
-             WHERE client_id = %d AND deleted_at IS NULL
+             WHERE client_id = %d AND week_start <= %s AND deleted_at IS NULL
              ORDER BY week_start DESC, id DESC LIMIT 1",
-            $user_id
+            $user_id,
+            current_time( 'Y-m-d' )
         ) ) : null;
         $enrolment = HDLV2_Challenge::enrolment( $user_id );
 
@@ -112,7 +120,8 @@ class HDLV2_Products {
                 'final' === $report->report_type ? 'Final' : 'Draft · consultation next', home_url( '/my-report/' ) );
         } elseif ( $ticket || ( $row && ( $row->stage2_completed_at || $row->stage3_completed_at ) ) ) {
             $full = self::item( 'full_report', 'Full Report', 'in-progress',
-                $row && $row->stage3_completed_at ? $who . ' is writing it' : 'Questions under way' );
+                $row && $row->stage3_completed_at ? $who . ' is writing it'
+                : ( $row && $row->stage2_completed_at ? 'Questions under way' : 'Bought · your questions next' ) );
         } elseif ( $prac_id && HDLV2_Offer::applies_to( $prac_id ) ) {
             $o    = HDLV2_Offer::get();
             $full = self::item( 'full_report', 'Full Report', 'not-yet', 'Today ' . HDLV2_Offer::money( $o['full_today_price'], $o ),

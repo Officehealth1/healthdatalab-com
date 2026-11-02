@@ -99,7 +99,9 @@ class HDLV2_Rate_Limit_Policy {
             return false;
         }
         return (bool) ( preg_match( '#^/hdl-v2/v1/dashboard/clients$#', $route )
-                     || preg_match( '#^/hdl-v2/v1/widget/leads/pending$#', $route ) );
+                     || preg_match( '#^/hdl-v2/v1/widget/leads/pending$#', $route )
+                     // v0.48.36 — one per opened client panel, beside that panel's own reads.
+                     || preg_match( '#^/hdl-v2/v1/dashboard/client/[0-9]+/products$#', $route ) );
     }
 
     public static function tier_config( $tier ) {
