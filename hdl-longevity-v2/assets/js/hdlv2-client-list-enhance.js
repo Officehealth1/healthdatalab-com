@@ -1578,6 +1578,8 @@
         // sees it arrive.
         if (!state.matched[c.email_hash]) {
           var newRow = buildV2OnlyRow(c);
+      syncPack(newRow, c);
+          syncPack(newRow, c);
           newRow.dataset.status = c.status || '';
           state.tbody.insertBefore(newRow, state.tbody.firstChild);
           // Brief arrival flash so the practitioner sees it land (self-contained
@@ -1599,6 +1601,7 @@
       // P2 — keep the stage-aware resend button's label/tooltip/disabled state
       // in step with the fresh status (no-op unless the state actually moved).
       refreshResendButton(row, c);
+      syncPack(row, c);
       // Update inline pill
       var cell = row.querySelector('.status-badge-cell');
       if (!cell) return;
@@ -1795,7 +1798,13 @@
     });
   }
 
+  // v0.48.35 — the family pack line under the name; the script loads only with hdlv2_ff_timeline_pack on.
+  function syncPack(row, c) {
+    if (window.HDLV2PackRow) window.HDLV2PackRow.sync(row, c, CFG);
+  }
+
   function injectV2Badge(row, c) {
+    syncPack(row, c);
     // v0.47.84 — location subline in the V1-rendered name cell for matched
     // rows (V2-only rows get it in buildV2OnlyRow). Idempotent for
     // reconcileRows() re-renders; absent location renders nothing.
@@ -4618,6 +4627,12 @@
       '.hdlv2-st-location { font-size:13px; color:#888; margin:-6px 0 12px 2px; }',
       // v0.47.84 — location subline in the roster name cell + detail-head.
       '.hdlv2-row-location { font-size:12px; color:#888; font-weight:400; margin-top:2px; }',
+      '.hdlv2-pack-line { display:flex; flex-wrap:wrap; align-items:center; gap:4px 8px; margin-top:4px; font-size:12px; font-weight:400; color:#2c3e50; }',
+      '.hdlv2-pack-line button { font:inherit; font-weight:500; padding:4px 10px; min-height:28px; border:1px solid #e4e6ea; border-radius:8px; background:#fff; color:#3d8da0; cursor:pointer; }',
+      '.hdlv2-pack-line button.is-primary { background:#3d8da0; border-color:#3d8da0; color:#fff; }',
+      '.hdlv2-pack-line button:focus-visible { outline:2px solid #3d8da0; outline-offset:2px; }',
+      '.hdlv2-pack-msg { color:#dc2626; }',
+      '@media (max-width:640px) { .hdlv2-pack-line button { min-height:40px; } }',
       '.hdlv2-detail-location { font-size:13px; color:#888; margin-left:10px; white-space:nowrap; }',
       '.hdlv2-st-stat { flex:1; min-width:120px; padding:10px 14px; background:#fff; border:1px solid #e4e6ea; border-radius:10px; text-align:center; }',
       '.hdlv2-st-stat strong { display:block; font-family: Poppins, Inter, sans-serif; font-size:18px; font-weight:700; color:#004F59; margin-bottom:2px; line-height:1.1; }',

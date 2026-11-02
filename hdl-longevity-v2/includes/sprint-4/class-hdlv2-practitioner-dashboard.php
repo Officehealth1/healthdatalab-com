@@ -168,6 +168,17 @@ class HDLV2_Practitioner_Dashboard {
             true
         );
 
+        // v0.48.35 — the family pack line on the client row, only with its flag on.
+        if ( class_exists( 'HDLV2_Timeline_Links' ) && HDLV2_Timeline_Links::pack_enabled() ) {
+            wp_enqueue_script(
+                'hdlv2-timeline-pack-row',
+                HDLV2_PLUGIN_URL . 'assets/js/hdlv2-timeline-pack-row.js',
+                array(),
+                HDLV2_VERSION,
+                true
+            );
+        }
+
         wp_enqueue_script(
             'hdlv2-client-list-enhance',
             HDLV2_PLUGIN_URL . 'assets/js/hdlv2-client-list-enhance.js',
