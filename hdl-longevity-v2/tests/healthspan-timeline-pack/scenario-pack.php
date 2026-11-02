@@ -70,10 +70,10 @@ echo "── P5. a repeat yes ──\n";
 $w = pack_world();
 grant();
 list( $l, $tok, $key, $r ) = link_yes();
-$mails = count( $GLOBALS['mails'] );
+$nm = count( $GLOBALS['mails'] );
 $r2 = consent( $tok, $key, 'yes' );
 check( 'P5.1 the lead moved to the Full Report ticket, yet the repeat is not a 404', 200 === status_of( $r2 ) && 'accepted' === body_of( $r2 )['status'] );
-check( 'P5.2 same state, no second seat, no second email', 'sent' === body_of( $r2 )['full_report']['state'] && 1 === seats() && $mails === count( $GLOBALS['mails'] ) );
+check( 'P5.2 same state, no second seat, no second email', 'sent' === body_of( $r2 )['full_report']['state'] && 1 === seats() && $nm === count( $GLOBALS['mails'] ) );
 
 echo "── P6. the page\'s list, and the flag off ──\n";
 $w = pack_world();
@@ -110,7 +110,17 @@ grant();
 list( $l, $tok, $key ) = link_yes();
 $w->links[ $l ]->seat_invite_id = null; // the worker died between the reservation and the ticket
 $r = consent( $tok, $key, 'yes' );
+check( 'P7.5 within the minute the first may still be working: nothing is given back', 'sent' === body_of( $r )['full_report']['state'] && 1 === seats() );
+$w->links[ $l ]->consent_at = gmdate( 'Y-m-d H:i:s', time() - 300 );
+$r = consent( $tok, $key, 'yes' );
 check( 'P7.4 a repeat yes after a crash: the seat comes back, state failed', 'failed' === body_of( $r )['full_report']['state'] && 0 === seats() && empty( $w->links[ $l ]->pack_id ) );
+
+$w = pack_world();
+grant();
+$GLOBALS['mail_fail'] = true;
+list( , , , $r ) = link_yes();
+$GLOBALS['mail_fail'] = false;
+check( 'P7.6 the email with the link did not go: the card must not promise it', 'failed' === body_of( $r )['full_report']['state'] );
 
 echo "── P8. under 18 ──\n";
 $w = pack_world();

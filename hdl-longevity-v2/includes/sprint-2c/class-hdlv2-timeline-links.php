@@ -27,6 +27,14 @@
  *   POST   /timeline/consent     the invitee: {invite_token, link_key, decision yes|no}
  *   POST   /timeline/withdraw    the invitee: {withdraw_token} from their confirmation email
  *
+ * The family pack (v0.48.35, DB 3.33, also needs hdlv2_ff_timeline_pack): one payer's seats. A
+ * seat unlocks one invitee's own Full Report at their yes; their lane stays on the payer's
+ * timeline. The email is the one they typed, never verified, and the link signs its owner in:
+ * it goes to that inbox only, and the answer to the browser is the same whether or not the email
+ * already holds a report.
+ *   POST /timeline/packs            the practitioner grants: {progress_id}
+ *   POST /timeline/packs/<id>/end   the practitioner ends one; reports already given stay
+ *
  * @package HDL_Longevity_V2
  * @since   0.48.34
  */
@@ -44,6 +52,8 @@ class HDLV2_Timeline_Links {
     const REL         = array( 'spouse', 'child', 'grandchild', 'parent', 'sibling', 'friend', 'other' );
     const GONE        = 'This link is no longer valid.';
     const ADULTS      = 'This link is for adults. Your report is yours; nothing is shared.';
+    const PACK_FLAG   = 'hdlv2_ff_timeline_pack';
+    const PACK_SEATS  = 5;
 
     public static function init() {
         add_action( 'rest_api_init', array( __CLASS__, 'register_routes' ) );
@@ -51,6 +61,10 @@ class HDLV2_Timeline_Links {
 
     public static function enabled() {
         return HDLV2_Healthspan_Timeline::enabled() && (bool) get_option( self::FLAG, false );
+    }
+
+    public static function pack_enabled() {
+        return self::enabled() && (bool) get_option( self::PACK_FLAG, false );
     }
 
     public static function register_routes() {
@@ -72,6 +86,17 @@ class HDLV2_Timeline_Links {
         register_rest_route( 'hdl-v2/v1', '/timeline/withdraw', array(
             'methods' => 'POST', 'callback' => array( __CLASS__, 'rest_withdraw' ), 'permission_callback' => $open,
         ) );
+        if ( self::pack_enabled() ) {
+            $staff = function () {
+                return HDLV2_Compatibility::is_practitioner( get_current_user_id() ) || current_user_can( 'manage_options' );
+            };
+            register_rest_route( 'hdl-v2/v1', '/timeline/packs', array(
+                'methods' => 'POST', 'callback' => array( __CLASS__, 'rest_grant_pack' ), 'permission_callback' => $staff,
+            ) );
+            register_rest_route( 'hdl-v2/v1', '/timeline/packs/(?P<id>\d+)/end', array(
+                'methods' => 'POST', 'callback' => array( __CLASS__, 'rest_end_pack' ), 'permission_callback' => $staff,
+            ) );
+        }
     }
 
     // ── the inviter ────────────────────────────────────────────────
@@ -81,7 +106,11 @@ class HDLV2_Timeline_Links {
         if ( is_wp_error( $owner ) ) {
             return $owner;
         }
-        return rest_ensure_response( array( 'links' => self::links_of( (int) $owner->id ) ) );
+        $out = array( 'links' => self::links_of( (int) $owner->id ) );
+        if ( self::pack_enabled() ) {
+            $out['pack'] = self::pack_of( (int) $owner->id );
+        }
+        return rest_ensure_response( $out );
     }
 
     public static function rest_create( $request ) {
@@ -206,7 +235,7 @@ class HDLV2_Timeline_Links {
         }
         $answer = array( 'status' => 'accepted', 'link_from' => self::first_name( $owner->client_name, $owner->client_email ), 'label' => (string) $link->label );
         if ( 'accepted' === $link->status ) {
-            return rest_ensure_response( $answer ); // a second yes: same state, no second email
+            return rest_ensure_response( $answer + self::seat_answer( $link ) ); // a second yes: same state, no second email
         }
         if ( 'invited' !== $link->status ) {
             return self::gone();
@@ -228,14 +257,184 @@ class HDLV2_Timeline_Links {
         ), array( 'id' => (int) $link->id, 'status' => 'invited' ) );
         if ( ! $done ) {
             // A twin of this request said yes first: its answer stands and it sent the emails.
-            $status = $wpdb->get_row( $wpdb->prepare( "SELECT id, status FROM $table WHERE id = %d LIMIT 1", (int) $link->id ) );
-            return $status && 'accepted' === $status->status ? rest_ensure_response( $answer ) : self::gone();
+            $status = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM $table WHERE id = %d LIMIT 1", (int) $link->id ) );
+            return $status && 'accepted' === $status->status ? rest_ensure_response( $answer + self::seat_answer( $status ) ) : self::gone();
         }
         error_log( '[HDLV2 timeline-links] link ' . (int) $link->id . ' accepted' );
 
+        $seat = self::take_seat( $link, $lead, (int) $ticket->practitioner_id );
         $page = self::link_page( (int) $ticket->practitioner_id );
-        self::send_consent_emails( $owner, $link, $lead, add_query_arg( 'withdraw', $withdraw, '' !== $page ? $page : site_url( '/rate-of-ageing-widget/' ) ) );
-        return rest_ensure_response( $answer );
+        $sent = self::send_consent_emails( $owner, $link, $lead, add_query_arg( 'withdraw', $withdraw, '' !== $page ? $page : site_url( '/rate-of-ageing-widget/' ) ), $seat );
+        if ( 'sent' === $seat['state'] && ! $sent ) {
+            error_log( '[HDLV2 timeline-links] link ' . (int) $link->id . ': the Full Report email did not go' );
+            $seat['state'] = 'failed';
+        }
+        return rest_ensure_response( $answer + ( self::pack_enabled() ? array( 'full_report' => array( 'state' => $seat['state'] ) ) : array() ) );
+    }
+
+    // ── the family pack ────────────────────────────────────────────
+
+    public static function rest_grant_pack( $request ) {
+        $row = self::practitioner_client( absint( $request->get_param( 'progress_id' ) ) );
+        if ( ! $row ) {
+            return self::gone();
+        }
+        if ( ! HDLV2_Healthspan_Timeline::report_row( (int) $row->id ) ) {
+            return new WP_Error( 'full_report_needed', 'This client needs a Full Report first.', array( 'status' => 409 ) );
+        }
+        global $wpdb;
+        $packs = $wpdb->prefix . 'hdlv2_timeline_packs';
+        // One active pack per client: the lock on their record puts two grants in turn.
+        $wpdb->query( 'START TRANSACTION' );
+        $wpdb->get_var( $wpdb->prepare( "SELECT id FROM {$wpdb->prefix}hdlv2_form_progress WHERE id = %d FOR UPDATE", (int) $row->id ) );
+        $now_pack = self::pack_of( (int) $row->id );
+        if ( $now_pack && 'active' === $now_pack['status'] ) {
+            $wpdb->query( 'ROLLBACK' );
+            return new WP_Error( 'pack_exists', 'This client already has a family pack', array( 'status' => 409 ) );
+        }
+        $now = gmdate( 'Y-m-d H:i:s' );
+        $ok  = $wpdb->insert( $packs, array(
+            'owner_progress_id' => (int) $row->id,
+            'seats_total'       => self::PACK_SEATS,
+            'seats_used'        => 0,
+            'status'            => 'active',
+            'source'            => 'practitioner',
+            'created_at'        => $now,
+            'updated_at'        => $now,
+        ) );
+        if ( ! $ok ) {
+            $wpdb->query( 'ROLLBACK' );
+            error_log( '[HDLV2 timeline-links] pack not saved for progress ' . (int) $row->id );
+            return new WP_Error( 'pack_not_saved', 'The pack could not be granted. Please try again.', array( 'status' => 500 ) );
+        }
+        $wpdb->query( 'COMMIT' );
+        return new WP_REST_Response( array( 'pack' => self::pack_of( (int) $row->id ) ), 201 );
+    }
+
+    /** No new seat can be used; reports already given stay (a report given is not taken back). */
+    public static function rest_end_pack( $request ) {
+        global $wpdb;
+        $packs = $wpdb->prefix . 'hdlv2_timeline_packs';
+        $pack  = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM $packs WHERE id = %d LIMIT 1", absint( $request['id'] ) ) );
+        if ( ! $pack || ! self::practitioner_client( (int) $pack->owner_progress_id ) ) {
+            return self::gone();
+        }
+        $now = gmdate( 'Y-m-d H:i:s' );
+        $wpdb->update( $packs, array( 'status' => 'ended', 'ended_at' => $now, 'updated_at' => $now ), array( 'id' => (int) $pack->id, 'status' => 'active' ) );
+        return rest_ensure_response( array( 'pack' => self::pack_of( (int) $pack->owner_progress_id ) ) );
+    }
+
+    /**
+     * The seat at a yes, called once per link, after the link is accepted. The lock puts this
+     * client's yeses and an End pack in turn. It is committed before the ticket is made, because
+     * confirm_lead_row() opens its own transaction and that would silently commit this one; a
+     * ticket that fails gives the seat back.
+     *
+     * @return array { state: sent|none|failed, kind: unlocked|existing, url } kind and url only when sent.
+     */
+    private static function take_seat( $link, $lead, $practitioner_id ) {
+        $none = array( 'state' => 'none' );
+        if ( ! self::pack_enabled() || ! is_email( $lead->visitor_email ) ) {
+            return $none;
+        }
+        global $wpdb;
+        $links = $wpdb->prefix . 'hdlv2_timeline_links';
+        $packs = $wpdb->prefix . 'hdlv2_timeline_packs';
+        $email = (string) $lead->visitor_email;
+        $now   = gmdate( 'Y-m-d H:i:s' );
+
+        $wpdb->query( 'START TRANSACTION' );
+        $pack = $wpdb->get_row( $wpdb->prepare(
+            "SELECT id, seats_total, seats_used FROM $packs WHERE owner_progress_id = %d AND status = 'active' ORDER BY id DESC LIMIT 1 FOR UPDATE",
+            (int) $link->owner_progress_id
+        ) );
+        if ( ! $pack || (int) $pack->seats_used >= (int) $pack->seats_total ) {
+            $wpdb->query( 'COMMIT' );
+            return $none;
+        }
+        $held = $wpdb->get_row( $wpdb->prepare(
+            "SELECT id, token, status, expires_at FROM {$wpdb->prefix}hdlv2_widget_invites
+             WHERE practitioner_id = %d AND client_email = %s AND source = 'full_report' AND status <> 'revoked' ORDER BY id DESC LIMIT 1",
+            (int) $practitioner_id, $email
+        ) );
+        if ( ! $held ) {
+            $wpdb->update( $packs, array( 'seats_used' => (int) $pack->seats_used + 1, 'updated_at' => $now ), array( 'id' => (int) $pack->id ) );
+            $wpdb->update( $links, array( 'pack_id' => (int) $pack->id ), array( 'id' => (int) $link->id ) );
+        }
+        $wpdb->query( 'COMMIT' );
+
+        $ref = 'fam:' . (int) $pack->id . ':' . (int) $link->id;
+        if ( $held ) {
+            // Already theirs: no seat. A used or out-of-date ticket no longer opens, so it gets a new one.
+            $live = in_array( $held->status, array( 'pending', 'opened' ), true ) && strtotime( $held->expires_at . ' UTC' ) > time();
+            $use  = $live ? array( 'id' => $held->id, 'token' => $held->token ) : HDL_Stage1_Ticket::mint( $practitioner_id, $email, (string) $lead->visitor_name, $ref, self::DAYS, 'full_report' );
+            if ( is_wp_error( $use ) ) {
+                return array( 'state' => 'failed' );
+            }
+            $wpdb->update( $links, array( 'seat_invite_id' => (int) $use['id'] ), array( 'id' => (int) $link->id ) );
+            return array( 'state' => 'sent', 'kind' => 'existing', 'url' => HDL_Stage1_Ticket::open_url( $use['token'] ) );
+        }
+
+        $ticket = HDL_Stage1_Ticket::mint_family_seat( $practitioner_id, $email, (string) $lead->visitor_name, $ref, self::DAYS );
+        // open_url is null with hdlv2_full_report_auto_confirm off: nothing to send, so no seat either.
+        if ( is_wp_error( $ticket ) || empty( $ticket['open_url'] ) ) {
+            error_log( '[HDLV2 timeline-links] link ' . (int) $link->id . ': no Full Report ticket, seat given back' );
+            self::give_seat_back( (int) $pack->id, (int) $link->id );
+            return array( 'state' => 'failed' );
+        }
+        $wpdb->update( $links, array( 'seat_invite_id' => (int) $ticket['id'] ), array( 'id' => (int) $link->id ) );
+        return array( 'state' => 'sent', 'kind' => 'unlocked', 'url' => $ticket['open_url'] );
+    }
+
+    private static function give_seat_back( $pack_id, $link_id ) {
+        global $wpdb;
+        $packs = $wpdb->prefix . 'hdlv2_timeline_packs';
+        $wpdb->query( 'START TRANSACTION' );
+        $used = (int) $wpdb->get_var( $wpdb->prepare( "SELECT seats_used FROM $packs WHERE id = %d FOR UPDATE", $pack_id ) );
+        $wpdb->update( $packs, array( 'seats_used' => max( 0, $used - 1 ), 'updated_at' => gmdate( 'Y-m-d H:i:s' ) ), array( 'id' => $pack_id ) );
+        $wpdb->update( $wpdb->prefix . 'hdlv2_timeline_links', array( 'pack_id' => null ), array( 'id' => $link_id ) );
+        $wpdb->query( 'COMMIT' );
+    }
+
+    /**
+     * The answer to a repeat yes, from what the first one left. A seat with no ticket a minute on
+     * means the worker died between the two: the seat comes back. Sooner, the first is still working.
+     */
+    private static function seat_answer( $link ) {
+        if ( ! self::pack_enabled() ) {
+            return array();
+        }
+        $state = 'none';
+        if ( ! empty( $link->seat_invite_id ) ) {
+            $state = 'sent';
+        } elseif ( ! empty( $link->pack_id ) ) {
+            $state = 'sent';
+            if ( strtotime( (string) $link->consent_at . ' UTC' ) < time() - 60 ) {
+                self::give_seat_back( (int) $link->pack_id, (int) $link->id );
+                $state = 'failed';
+            }
+        }
+        return array( 'full_report' => array( 'state' => $state ) );
+    }
+
+    /** The client's record when the signed-in practitioner owns it (or an admin asks), else null. */
+    private static function practitioner_client( $progress_id ) {
+        global $wpdb;
+        $row = $progress_id ? $wpdb->get_row( $wpdb->prepare(
+            "SELECT id, practitioner_user_id FROM {$wpdb->prefix}hdlv2_form_progress WHERE id = %d AND deleted_at IS NULL LIMIT 1",
+            (int) $progress_id
+        ) ) : null;
+        return $row && ( (int) $row->practitioner_user_id === get_current_user_id() || current_user_can( 'manage_options' ) ) ? $row : null;
+    }
+
+    /** The client's newest pack: one active at most, so an active one is always the newest. */
+    private static function pack_of( $owner_id ) {
+        global $wpdb;
+        $r = $wpdb->get_row( $wpdb->prepare(
+            "SELECT id, seats_total, seats_used, status FROM {$wpdb->prefix}hdlv2_timeline_packs WHERE owner_progress_id = %d ORDER BY id DESC LIMIT 1",
+            (int) $owner_id
+        ) );
+        return $r ? array( 'id' => (int) $r->id, 'seats_total' => (int) $r->seats_total, 'seats_used' => (int) $r->seats_used, 'status' => (string) $r->status ) : null;
     }
 
     public static function rest_withdraw( $request ) {
@@ -293,7 +492,16 @@ class HDLV2_Timeline_Links {
         if ( ! self::enabled() || ! self::live( $row ) || ( $uid && $uid !== (int) $row->client_user_id ) ) {
             return array();
         }
-        return array( 'url' => rest_url( 'hdl-v2/v1/timeline/links' ), 'nonce' => wp_create_nonce( 'wp_rest' ) );
+        return array( 'url' => rest_url( 'hdl-v2/v1/timeline/links' ), 'nonce' => wp_create_nonce( 'wp_rest' ) )
+            + ( self::pack_enabled() ? array( 'family' => true ) : array() );
+    }
+
+    /** /dashboard/clients: the row's family pack line; null with the flag off or no record. */
+    public static function dashboard_pack( $progress_id ) {
+        if ( ! $progress_id || ! self::pack_enabled() ) {
+            return null;
+        }
+        return array( 'can_grant' => (bool) HDLV2_Healthspan_Timeline::report_row( (int) $progress_id ), 'pack' => self::pack_of( (int) $progress_id ) );
     }
 
     /** The dashboard's "<n> people joined through you": links accepted on the client's live records. */
@@ -321,6 +529,14 @@ class HDLV2_Timeline_Links {
         }
         global $wpdb;
         $p = $wpdb->prefix;
+        if ( version_compare( (string) get_option( 'hdlv2_db_version', '0' ), '3.33', '>=' ) ) {
+            $now = gmdate( 'Y-m-d H:i:s' );
+            $wpdb->query( $wpdb->prepare(
+                "UPDATE {$p}hdlv2_timeline_packs SET status = 'ended', ended_at = %s, updated_at = %s
+                 WHERE status = 'active' AND owner_progress_id IN ( SELECT id FROM {$p}hdlv2_form_progress WHERE practitioner_user_id = %d AND client_user_id = %d )",
+                $now, $now, (int) $practitioner_id, (int) $client_id
+            ) );
+        }
         return (int) $wpdb->query( $wpdb->prepare(
             "DELETE FROM {$p}hdlv2_timeline_links
              WHERE owner_progress_id IN ( SELECT id FROM {$p}hdlv2_form_progress WHERE practitioner_user_id = %d AND client_user_id = %d )
@@ -383,6 +599,13 @@ class HDLV2_Timeline_Links {
              WHERE invite_id = %d AND practitioner_user_id = %d ORDER BY id DESC LIMIT 1",
             (int) $ticket->id, (int) $ticket->practitioner_id
         ) ) : null;
+        // A seat's confirm moves the lead's invite_id on to the Full Report ticket: after the yes, the link knows its lead.
+        if ( ! $lead && $link && ! empty( $link->lead_id ) ) {
+            $lead = $wpdb->get_row( $wpdb->prepare(
+                "SELECT id, visitor_name, visitor_email, visitor_age, rate_of_ageing, stage1_data FROM {$p}hdlv2_widget_leads WHERE id = %d AND practitioner_user_id = %d LIMIT 1",
+                (int) $link->lead_id, (int) $ticket->practitioner_id
+            ) );
+        }
         if ( ! $lead || ! hash_equals( self::consent_key( $ticket->id, $lead->id ), $key ) ) {
             return null;
         }
@@ -392,8 +615,9 @@ class HDLV2_Timeline_Links {
     private static function links_of( $owner_id ) {
         global $wpdb;
         $p    = $wpdb->prefix;
+        $seat = self::pack_enabled() ? ', l.pack_id, l.seat_invite_id' : ''; // absent until Phase AN
         $rows = $wpdb->get_results( $wpdb->prepare(
-            "SELECT l.id, l.label, l.relationship, l.born_guess, l.sex_guess, l.status, l.shared_rate, l.shared_age, l.shared_sex, i.expires_at
+            "SELECT l.id, l.label, l.relationship, l.born_guess, l.sex_guess, l.status, l.shared_rate, l.shared_age, l.shared_sex{$seat}, i.expires_at
              FROM {$p}hdlv2_timeline_links l LEFT JOIN {$p}hdlv2_widget_invites i ON i.id = l.invite_id
              WHERE l.owner_progress_id = %d ORDER BY l.id",
             (int) $owner_id
@@ -412,6 +636,8 @@ class HDLV2_Timeline_Links {
 
     /** What the inviter's page gets for one link: never a token, an email or a lead. */
     private static function shape( $r ) {
+        // The chip is the seat the payer gave. A report the person already held is not theirs to see: three numbers is what was agreed.
+        $seat = self::pack_enabled() ? array( 'full_report' => 'accepted' === $r->status && ! empty( $r->pack_id ) && ! empty( $r->seat_invite_id ) ) : array();
         return array(
             'id'           => (int) $r->id,
             'label'        => (string) $r->label,
@@ -422,7 +648,7 @@ class HDLV2_Timeline_Links {
             'shared'       => 'accepted' === $r->status && null !== $r->shared_rate
                 ? array( 'rate' => (float) $r->shared_rate, 'age' => (int) $r->shared_age, 'sex' => $r->shared_sex ? (string) $r->shared_sex : null )
                 : null,
-        );
+        ) + $seat;
     }
 
     /** A withdraw or an end: the shared values and the withdraw token go with it. */
@@ -450,20 +676,25 @@ class HDLV2_Timeline_Links {
         return new WP_Error( 'link_gone', self::GONE, array( 'status' => 404 ) );
     }
 
-    private static function send_consent_emails( $owner, $link, $lead, $withdraw_url ) {
+    /** @return bool the invitee's email went. */
+    private static function send_consent_emails( $owner, $link, $lead, $withdraw_url, $seat ) {
         $headers = array( 'Content-Type: text/html; charset=UTF-8' );
         $data    = array(
             'owner_first' => self::first_name( $owner->client_name, $owner->client_email ),
             'label'       => (string) $link->label,
             'page_url'    => HDLV2_Healthspan_Timeline::report_url( $owner->token ),
             'withdraw'    => $withdraw_url,
+            'seat_used'   => 'unlocked' === ( $seat['kind'] ?? '' ),
+            'report_url'  => $seat['url'] ?? '',
+            'report_kind' => $seat['kind'] ?? '',
         );
         if ( is_email( $owner->client_email ) ) {
             wp_mail( $owner->client_email, $data['label'] . ' shared their pace of ageing with you', HDLV2_Email_Templates::timeline_consent_owner( $data ), $headers );
         }
-        if ( is_email( $lead->visitor_email ) ) {
-            wp_mail( $lead->visitor_email, 'You are on ' . $data['owner_first'] . '\'s healthspan timeline', HDLV2_Email_Templates::timeline_consent_invitee( $data ), $headers );
+        if ( ! is_email( $lead->visitor_email ) ) {
+            return false;
         }
+        return (bool) wp_mail( $lead->visitor_email, 'You are on ' . $data['owner_first'] . '\'s healthspan timeline', HDLV2_Email_Templates::timeline_consent_invitee( $data ), $headers );
     }
 }
 

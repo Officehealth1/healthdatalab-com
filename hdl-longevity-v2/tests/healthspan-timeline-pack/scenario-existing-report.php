@@ -17,9 +17,9 @@ $inv = $GLOBALS['mails'][1]; $own = $GLOBALS['mails'][0];
 check( 'X1.1 no seat, no confirm, no new ticket', 0 === seats() && ! $GLOBALS['confirms'] && 1 === count( array_filter( $w->invites, function ( $i ) { return 'full_report' === $i->source; } ) ) );
 check( 'X1.2 the mail: already have one, their own link', false !== strpos( $inv['body'], 'You already have a Full Report' ) && false !== strpos( $inv['body'], 'invite=' . $fr->token ) );
 check( 'X1.3 the owner hears nothing about it, and no chip: three numbers is what was agreed', false === strpos( $own['body'], 'Full Report' ) && false === body_of( HDLV2_Timeline_Links::rest_list( owner_req() ) )['links'][0]['full_report'] );
-$mails = count( $GLOBALS['mails'] );
+$nm = count( $GLOBALS['mails'] );
 $r2 = consent( $tok, $key, 'yes' );
-check( 'X1.4 a repeat yes: the same answer, no mail, no seat', body_of( $r2 ) === body_of( $r ) && $mails === count( $GLOBALS['mails'] ) && 0 === seats() );
+check( 'X1.4 a repeat yes: the same answer, no mail, no seat', body_of( $r2 ) === body_of( $r ) && $nm === count( $GLOBALS['mails'] ) && 0 === seats() );
 
 echo "── X2. the browser cannot tell the two apart ──\n";
 $w = pack_world();

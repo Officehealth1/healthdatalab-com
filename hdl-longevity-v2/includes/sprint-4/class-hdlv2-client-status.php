@@ -1394,6 +1394,8 @@ class HDLV2_Client_Status {
                 // with no report is offered "Resend report" (token rotation +
                 // dead link). $send is resolved once per row above.
                 'resend'           => self::resend_link_descriptor( $send['status'], $has_plan, ! empty( $send['has_report'] ) ),
+                // v0.48.35 — the family pack line on the row; null unless hdlv2_ff_timeline_pack is on.
+                'family'           => class_exists( 'HDLV2_Timeline_Links' ) ? HDLV2_Timeline_Links::dashboard_pack( $progress_id ) : null,
             );
         }
 
@@ -1591,6 +1593,8 @@ class HDLV2_Client_Status {
             'hdlv2_challenge_days',
             // v0.48.34 — Healthspan Timeline links (DB v3.32).
             'hdlv2_timeline_links',
+            // v0.48.35 — family packs (DB v3.33).
+            'hdlv2_timeline_packs',
         );
 
         $tables_present = 0;

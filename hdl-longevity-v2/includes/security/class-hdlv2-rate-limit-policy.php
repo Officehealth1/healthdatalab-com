@@ -210,6 +210,8 @@ class HDLV2_Rate_Limit_Policy {
             array( 'POST',   '#^/hdl-v2/v1/timeline/links$#',                   self::TIER_WRITE ),
             array( 'DELETE', '#^/hdl-v2/v1/timeline/links/[0-9]+$#',            self::TIER_WRITE ),
             array( 'POST',   '#^/hdl-v2/v1/timeline/(consent|withdraw)$#',      self::TIER_WRITE ),
+            // v0.48.35 — a practitioner grants or ends a family pack.
+            array( 'POST',   '#^/hdl-v2/v1/timeline/packs(/[0-9]+/end)?$#',     self::TIER_WRITE ),
             array( 'POST', '#^/hdl-v2/v1/audio/client-error$#',                 self::TIER_WRITE ),
             // v0.35.0 (Phase O) — practitioner rejects a widget lead. Silent
             // (no email, no Make.com call), so TIER_WRITE rather than AI_BURN.

@@ -44,7 +44,7 @@ function add_query_arg( $key, $value, $url ) { return $url . ( false === strpos(
 function wp_salt( $s = '' ) { return 'test-salt-' . $s; }
 function is_email( $x ) { return is_string( $x ) && false !== filter_var( $x, FILTER_VALIDATE_EMAIL ); }
 function apply_filters( $t, $v ) { return $v; }
-function wp_mail( $to, $subject, $body, $headers = array() ) { $GLOBALS['mails'][] = compact( 'to', 'subject', 'body' ); return true; }
+function wp_mail( $to, $subject, $body, $headers = array() ) { $GLOBALS['mails'][] = compact( 'to', 'subject', 'body' ); return empty( $GLOBALS['mail_fail'] ); }
 
 class WP_Error {
     public $code; public $message; public $data;
