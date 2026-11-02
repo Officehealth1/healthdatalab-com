@@ -22,6 +22,11 @@ $t = HDL_Stage1_Ticket::mint_family_seat( 122, 'team+victim@irislab.com', 'Mallo
 check( 'S2.1 no confirm: typed answers never overwrite an existing client from an unverified email', ! $GLOBALS['confirms'] );
 check( 'S2.2 the ticket and its link still exist, for the inbox', ! empty( $t['open_url'] ) && false === $t['auto_confirmed'] );
 
+$w = pack_world();
+$w->progress[24] = (object) array( 'id' => 24, 'token' => str_repeat( 'f5', 32 ), 'client_user_id' => null, 'practitioner_user_id' => 122, 'client_name' => 'Old Record', 'client_email' => 'team+old@irislab.com', 'token_expires_at' => null, 'deleted_at' => null );
+$t = HDL_Stage1_Ticket::mint_family_seat( 122, 'team+old@irislab.com', 'Mallory', 'fam:1:4', 90 );
+check( 'S2.3 a client record with no WP user: no confirm either (complete_signup would overwrite it)', ! $GLOBALS['confirms'] && ! empty( $t['open_url'] ) && false === $t['auto_confirmed'] );
+
 echo "── S3. the sign-in link goes to the inbox and nowhere else ──\n";
 $w = pack_world();
 grant();

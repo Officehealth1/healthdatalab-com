@@ -32,6 +32,7 @@ class PackWpdb extends TlWpdb {
     public $packs = array();
     public $implicit_commits = 0;
     public $fail_full_report = false;
+    public $fail_pack_update = false;
     private $pargs = array();
     private $pack_next = 40;
     private $snap = null;
@@ -71,6 +72,14 @@ class PackWpdb extends TlWpdb {
             foreach ( $this->invites as $i ) { if ( $i->token === $this->b( 0 ) ) return (string) $i->id; }
             return null;
         }
+        if ( false !== strpos( $sql, 'FROM wp_hdlv2_form_progress WHERE client_email =' ) ) {
+            foreach ( $this->progress as $r ) { if ( $r->client_email === $this->b( 0 ) && (int) $r->practitioner_user_id === (int) $this->b( 1 ) && empty( $r->deleted_at ) ) return (string) $r->id; }
+            return null;
+        }
+        if ( false !== strpos( $sql, 'FROM wp_hdlv2_reports' ) ) {
+            $this->queries[] = $sql;
+            return isset( $this->reports[ (int) $this->b( 0 ) ] ) ? (string) $this->reports[ (int) $this->b( 0 ) ]->id : null;
+        }
         return parent::get_var( $sql );
     }
     public function insert( $table, $data, $format = null ) {
@@ -85,6 +94,7 @@ class PackWpdb extends TlWpdb {
     }
     public function update( $table, $data, $where, $format = null, $wf = null ) {
         if ( false === strpos( $table, 'timeline_packs' ) ) return parent::update( $table, $data, $where, $format, $wf );
+        if ( $this->fail_pack_update ) return false;
         $n = 0;
         foreach ( $this->packs as $r ) {
             foreach ( $where as $k => $v ) { if ( (string) $r->$k !== (string) $v ) continue 2; }

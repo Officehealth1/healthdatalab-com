@@ -92,6 +92,25 @@ list( $l, , , $r ) = link_yes();
 $list = body_of( HDLV2_Timeline_Links::rest_list( owner_req() ) );
 check( 'P6.4 flag off: consent and list exactly as Plan B', ! isset( body_of( $r )['full_report'] ) && ! array_key_exists( 'pack', $list ) && ! array_key_exists( 'full_report', $list['links'][0] ) && ! $GLOBALS['confirms'] );
 
+$w = pack_world();
+$GLOBALS['options']['hdlv2_db_version'] = '3.32';
+$GLOBALS['routes'] = array();
+HDLV2_Timeline_Links::register_routes();
+$list = body_of( HDLV2_Timeline_Links::rest_list( owner_req() ) );
+check( 'P6.5 flag on but Phase AN not landed: the pack stays off, Plan B\'s list still works', ! isset( $GLOBALS['routes']['hdl-v2/v1/timeline/packs'] ) && ! array_key_exists( 'pack', $list ) );
+
+echo "── P6b. the dashboard row ──\n";
+$w = pack_world();
+$w->reports[21] = (object) array( 'id' => 31, 'report_type' => 'final', 'report_content' => '{}' );
+$before = count( $w->queries );
+$d = HDLV2_Timeline_Links::dashboard_pack( 21 );
+$reads = array_slice( $w->queries, $before );
+check( 'P6b.1 a report on file: can grant, no pack yet', true === $d['can_grant'] && null === $d['pack'] );
+check( 'P6b.2 the row never reads the report\'s content', ! array_filter( $reads, function ( $q ) { return false !== strpos( $q, 'report_content' ); } ) );
+check( 'P6b.3 no report: cannot grant', false === HDLV2_Timeline_Links::dashboard_pack( 99 )['can_grant'] );
+unset( $GLOBALS['options']['hdlv2_ff_timeline_pack'] );
+check( 'P6b.4 flag off: null', null === HDLV2_Timeline_Links::dashboard_pack( 21 ) );
+
 echo "── P7. the unlock fails ──\n";
 $w = pack_world();
 grant();
@@ -120,7 +139,22 @@ grant();
 $GLOBALS['mail_fail'] = true;
 list( , , , $r ) = link_yes();
 $GLOBALS['mail_fail'] = false;
-check( 'P7.6 the email with the link did not go: the card must not promise it', 'failed' === body_of( $r )['full_report']['state'] );
+check( 'P7.6 the email with the link did not go: the truth, unlocked but not sent; the seat stays used (a ticket and record exist, Resend recovers it)', 'unsent' === body_of( $r )['full_report']['state'] && 1 === seats() );
+$w = pack_world();
+$id = body_of( grant() )['pack']['id'];
+list( $l ) = link_yes();
+$w->packs[ $id ]->seats_used = 3;
+$give = new ReflectionMethod( 'HDLV2_Timeline_Links', 'give_seat_back' );
+$give->setAccessible( true );
+$give->invoke( null, $id, $l );
+$give->invoke( null, $id, $l );
+check( 'P7.7 two give-backs for one seat: counted once', 2 === seats() && empty( $w->links[ $l ]->pack_id ) );
+$w = pack_world();
+grant();
+$w->fail_pack_update = true;
+list( $l, , , $r ) = link_yes();
+check( 'P7.8 the seat could not be counted: no ticket, no confirm, state failed, numbers still shared', 'failed' === body_of( $r )['full_report']['state'] && 'accepted' === $w->links[ $l ]->status && ! $GLOBALS['confirms']
+    && ! array_filter( $w->invites, function ( $i ) { return 'full_report' === $i->source; } ) && empty( $w->links[ $l ]->pack_id ) );
 
 echo "── P8. under 18 ──\n";
 $w = pack_world();

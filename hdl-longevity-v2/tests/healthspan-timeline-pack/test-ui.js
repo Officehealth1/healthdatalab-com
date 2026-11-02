@@ -79,6 +79,7 @@ if (R) {
 const w = fs.readFileSync(path.join(__dirname, '..', '..', 'widget/hdl-lead-magnet.js'), 'utf8');
 ok(/Your Full Report is unlocked\. We emailed your link to /.test(w), 'the card points to the inbox');
 ok(/Your Full Report could not be unlocked just now; your numbers are shared\./.test(w), 'the failure line');
+ok(/Your Full Report is unlocked, but the email did not go\. Your practitioner can resend it\./.test(w), 'the email failed: the card says so');
 ok(!/open_url/.test(w), 'the widget never reads a sign-in link from the response');
 ok(/fr === 'sent'\) \{ var wall = document\.getElementById\(id \+ '-thanks'\); if \(wall\) wall\.hidden = true; \}/.test(w), 'a seat hides the "wait for your practitioner" wall: it is no longer true');
 

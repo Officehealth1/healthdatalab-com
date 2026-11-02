@@ -64,7 +64,8 @@ class HDLV2_Timeline_Links {
     }
 
     public static function pack_enabled() {
-        return self::enabled() && (bool) get_option( self::PACK_FLAG, false );
+        // Phase AN must have landed: with the flag on while it retries, the list's columns would not exist.
+        return self::enabled() && (bool) get_option( self::PACK_FLAG, false ) && version_compare( (string) get_option( 'hdlv2_db_version', '0' ), '3.33', '>=' );
     }
 
     public static function register_routes() {
@@ -266,8 +267,9 @@ class HDLV2_Timeline_Links {
         $page = self::link_page( (int) $ticket->practitioner_id );
         $sent = self::send_consent_emails( $owner, $link, $lead, add_query_arg( 'withdraw', $withdraw, '' !== $page ? $page : site_url( '/rate-of-ageing-widget/' ) ), $seat );
         if ( 'sent' === $seat['state'] && ! $sent ) {
-            error_log( '[HDLV2 timeline-links] link ' . (int) $link->id . ': the Full Report email did not go' );
-            $seat['state'] = 'failed';
+            // The ticket and the client record exist and the seat is used: the practitioner's Sent Invites can resend it.
+            error_log( '[HDLV2 timeline-links] link ' . (int) $link->id . ', lead ' . (int) $lead->id . ': the Full Report email did not go' );
+            $seat['state'] = 'unsent';
         }
         return rest_ensure_response( $answer + ( self::pack_enabled() ? array( 'full_report' => array( 'state' => $seat['state'] ) ) : array() ) );
     }
@@ -330,6 +332,8 @@ class HDLV2_Timeline_Links {
      * confirm_lead_row() opens its own transaction and that would silently commit this one; a
      * ticket that fails gives the seat back.
      *
+     * The caller turns sent into unsent when the email does not go.
+     *
      * @return array { state: sent|none|failed, kind: unlocked|existing, url } kind and url only when sent.
      */
     private static function take_seat( $link, $lead, $practitioner_id ) {
@@ -358,8 +362,12 @@ class HDLV2_Timeline_Links {
             (int) $practitioner_id, $email
         ) );
         if ( ! $held ) {
-            $wpdb->update( $packs, array( 'seats_used' => (int) $pack->seats_used + 1, 'updated_at' => $now ), array( 'id' => (int) $pack->id ) );
-            $wpdb->update( $links, array( 'pack_id' => (int) $pack->id ), array( 'id' => (int) $link->id ) );
+            if ( ! $wpdb->update( $packs, array( 'seats_used' => (int) $pack->seats_used + 1, 'updated_at' => $now ), array( 'id' => (int) $pack->id ) )
+                || ! $wpdb->update( $links, array( 'pack_id' => (int) $pack->id ), array( 'id' => (int) $link->id ) ) ) {
+                $wpdb->query( 'ROLLBACK' );
+                error_log( '[HDLV2 timeline-links] link ' . (int) $link->id . ': the seat could not be counted' );
+                return array( 'state' => 'failed' );
+            }
         }
         $wpdb->query( 'COMMIT' );
 
@@ -391,8 +399,10 @@ class HDLV2_Timeline_Links {
         $packs = $wpdb->prefix . 'hdlv2_timeline_packs';
         $wpdb->query( 'START TRANSACTION' );
         $used = (int) $wpdb->get_var( $wpdb->prepare( "SELECT seats_used FROM $packs WHERE id = %d FOR UPDATE", $pack_id ) );
-        $wpdb->update( $packs, array( 'seats_used' => max( 0, $used - 1 ), 'updated_at' => gmdate( 'Y-m-d H:i:s' ) ), array( 'id' => $pack_id ) );
-        $wpdb->update( $wpdb->prefix . 'hdlv2_timeline_links', array( 'pack_id' => null ), array( 'id' => $link_id ) );
+        // Only the request that clears the link's seat counts it back: two repeat yeses at once give back one.
+        if ( $wpdb->update( $wpdb->prefix . 'hdlv2_timeline_links', array( 'pack_id' => null ), array( 'id' => $link_id, 'pack_id' => $pack_id ) ) ) {
+            $wpdb->update( $packs, array( 'seats_used' => max( 0, $used - 1 ), 'updated_at' => gmdate( 'Y-m-d H:i:s' ) ), array( 'id' => $pack_id ) );
+        }
         $wpdb->query( 'COMMIT' );
     }
 
@@ -501,7 +511,12 @@ class HDLV2_Timeline_Links {
         if ( ! $progress_id || ! self::pack_enabled() ) {
             return null;
         }
-        return array( 'can_grant' => (bool) HDLV2_Healthspan_Timeline::report_row( (int) $progress_id ), 'pack' => self::pack_of( (int) $progress_id ) );
+        global $wpdb;
+        $has_report = $wpdb->get_var( $wpdb->prepare(
+            "SELECT id FROM {$wpdb->prefix}hdlv2_reports WHERE form_progress_id = %d AND report_type IN ('final','draft') LIMIT 1",
+            (int) $progress_id
+        ) );
+        return array( 'can_grant' => (bool) $has_report, 'pack' => self::pack_of( (int) $progress_id ) );
     }
 
     /** The dashboard's "<n> people joined through you": links accepted on the client's live records. */

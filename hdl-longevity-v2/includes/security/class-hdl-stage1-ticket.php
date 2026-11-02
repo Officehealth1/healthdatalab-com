@@ -231,13 +231,19 @@ class HDL_Stage1_Ticket {
      * v0.48.35 — a family pack seat (Matthew, 2026-10-30): the Full Report ticket for one invitee
      * who said yes. The email is the one they typed, never verified, and this link signs its
      * owner in. So the caller sends open_url to that inbox and never back to the browser, and an
-     * email that already has an account gets the ticket alone: confirming would overwrite that
-     * client's Stage 1 with whatever the typist answered. Not reachable from the keyed route.
+     * email that already has an account or a client record gets the ticket alone: confirming would
+     * overwrite that client's Stage 1 with whatever the typist answered. Not reachable from the
+     * keyed route.
      *
      * @return array|WP_Error { id, token, expires_at, idempotent, open_url, stage1_found, auto_confirmed }.
      */
     public static function mint_family_seat( $practitioner_id, $email, $name, $external_ref, $days ) {
-        if ( email_exists( $email ) ) {
+        global $wpdb;
+        $known = email_exists( $email ) || $wpdb->get_var( $wpdb->prepare(
+            "SELECT id FROM {$wpdb->prefix}hdlv2_form_progress WHERE client_email = %s AND practitioner_user_id = %d AND deleted_at IS NULL LIMIT 1",
+            $email, $practitioner_id
+        ) );
+        if ( $known ) {
             $ticket = self::mint( $practitioner_id, $email, $name, $external_ref, $days, 'full_report' );
             if ( is_wp_error( $ticket ) ) {
                 return $ticket;
@@ -257,7 +263,6 @@ class HDL_Stage1_Ticket {
             return $done;
         }
         $data = $done instanceof WP_REST_Response ? $done->get_data() : $done;
-        global $wpdb;
         $data['id'] = (int) $wpdb->get_var( $wpdb->prepare( "SELECT id FROM {$wpdb->prefix}hdlv2_widget_invites WHERE token = %s", $data['token'] ) );
         return $data;
     }
