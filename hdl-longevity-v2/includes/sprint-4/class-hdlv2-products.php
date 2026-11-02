@@ -82,9 +82,9 @@ class HDLV2_Products {
         // A Full Report bought (Altituding, a family seat) whose report is not written yet.
         $ticket    = ! $report && '' !== $email ? $wpdb->get_row( $wpdb->prepare(
             "SELECT practitioner_id FROM {$wpdb->prefix}hdlv2_widget_invites
-             WHERE client_email = %s AND source = 'full_report' AND external_ref IS NOT NULL AND status <> 'revoked'
+             WHERE LOWER(client_email) = %s AND source = 'full_report' AND external_ref IS NOT NULL AND status <> 'revoked'
              ORDER BY id DESC LIMIT 1",
-            $email
+            strtolower( $email )
         ) ) : null;
         // The current week, as the dashboard and /my-flight-plan/ pick it (a pre-built next week is not current).
         $plan      = $row ? $wpdb->get_row( $wpdb->prepare(

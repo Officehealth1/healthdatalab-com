@@ -358,8 +358,8 @@ class HDLV2_Timeline_Links {
         }
         $held = $wpdb->get_row( $wpdb->prepare(
             "SELECT id, token, status, expires_at FROM {$wpdb->prefix}hdlv2_widget_invites
-             WHERE practitioner_id = %d AND client_email = %s AND source = 'full_report' AND status <> 'revoked' ORDER BY id DESC LIMIT 1",
-            (int) $practitioner_id, $email
+             WHERE practitioner_id = %d AND LOWER(client_email) = %s AND source = 'full_report' AND status <> 'revoked' ORDER BY id DESC LIMIT 1",
+            (int) $practitioner_id, strtolower( $email )
         ) );
         if ( ! $held ) {
             if ( ! $wpdb->update( $packs, array( 'seats_used' => (int) $pack->seats_used + 1, 'updated_at' => $now ), array( 'id' => (int) $pack->id ) )

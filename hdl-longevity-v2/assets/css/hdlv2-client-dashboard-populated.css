@@ -46,6 +46,9 @@
 
 .hdlv2-cd-pop a { color: var(--teal); text-decoration: none; }
 .hdlv2-cd-pop a:hover { color: var(--teal-dark); }
+/* The 30 days videos button is an <a>: the two link rules above outrank its own white text. */
+.hdlv2-cd-pop .cd30-offer-btn,
+.hdlv2-cd-pop .cd30-offer-btn:hover { color: #fff; }
 .hdlv2-cd-pop button { font-family: inherit; }
 
 /* ── Tabs ────────────────────────────────────────────────────────────── */

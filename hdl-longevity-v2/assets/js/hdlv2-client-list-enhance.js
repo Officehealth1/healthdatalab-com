@@ -93,6 +93,14 @@
 
   function init() {
     injectStyles();
+    // v0.48.37 — open panels follow the window: re-fit once the drag settles.
+    var fitTimer = null;
+    window.addEventListener('resize', function () {
+      clearTimeout(fitTimer);
+      fitTimer = setTimeout(function () {
+        document.querySelectorAll('.hdlv2-detail-panel').forEach(fitDetailPanel);
+      }, 150);
+    });
     // P3 — swap the animated icon set into the V1 server-rendered rows
     // straight away (before the roster fetch resolves), so the
     // static→animated transition never flashes. Idempotent — later passes
@@ -1578,7 +1586,6 @@
         // sees it arrive.
         if (!state.matched[c.email_hash]) {
           var newRow = buildV2OnlyRow(c);
-      syncPack(newRow, c);
           syncPack(newRow, c);
           newRow.dataset.status = c.status || '';
           state.tbody.insertBefore(newRow, state.tbody.firstChild);
@@ -2008,12 +2015,22 @@
     detail.className = 'hdlv2-detail-row';
     var td = document.createElement('td');
     td.colSpan = state.colSpan;
-    td.appendChild(buildDetailPanel(c));
+    var panel = buildDetailPanel(c);
+    td.appendChild(panel);
     detail.appendChild(td);
     row.parentNode.insertBefore(detail, row.nextSibling);
+    fitDetailPanel(panel);
     btn.setAttribute('aria-expanded', 'true');
     btn.classList.add('open');
     row.classList.add('hdlv2-row-active');
+  }
+
+  // v0.48.37 — the panel sits in a cell as wide as the roster table, which scrolls sideways inside
+  // its box: give it the box's width (the CSS pins it to the box's left edge) so every tile and card
+  // shows at any width while the table still scrolls under it.
+  function fitDetailPanel(panel) {
+    var box = state.table.closest('.clients-table-container') || state.table.parentNode;
+    if (box && box.clientWidth) panel.style.width = box.clientWidth + 'px';
   }
 
   // -- Flight Consultation Notes -- per-client download (Phase 4) --
@@ -2299,15 +2316,15 @@
     // 4 tiles rendered as skeletons until mountSnapshot() resolves.
     // Labels are static so they read correctly even before data arrives.
     return '<div class="hdlv2-detail-snapshot" data-snapshot-mount>'
-      + snapshotTile('rate',     'Rate of Ageing', '—', '', 'accent-amber')
-      + snapshotTile('adh',      'Adherence',      '—', '', 'accent-teal')
-      + snapshotTile('weeks',    'Weeks active',   '—', '', 'accent-blue')
-      + snapshotTile('next',     'Next milestone', '—', '', 'accent-grey')
+      + snapshotTile('rate',     'Rate of Ageing', '—', '')
+      + snapshotTile('adh',      'Adherence',      '—', '')
+      + snapshotTile('weeks',    'Weeks active',   '—', '')
+      + snapshotTile('next',     'Next milestone', '—', '')
       + '</div>';
   }
 
-  function snapshotTile(key, label, value, sub, accent) {
-    return '<div class="hdlv2-snap-tile ' + accent + '" data-snap="' + key + '">'
+  function snapshotTile(key, label, value, sub) {
+    return '<div class="hdlv2-snap-tile" data-snap="' + key + '">'
       + '<div class="hdlv2-snap-tile-label">' + esc(label) + '</div>'
       + '<div class="hdlv2-snap-tile-value">' + value + '</div>'
       + '<div class="hdlv2-snap-tile-sub">' + sub + '</div>'
@@ -4566,7 +4583,7 @@
       // (bold leading cell + already-rotated chevron). !important beats V1 zebra.
       '.client-row.hdlv2-row-active > td { background:#f0f0f0 !important; }',
       '.client-row.hdlv2-row-active > td:first-child { box-shadow: inset 3px 0 0 #3d8da0; font-weight:600; }',
-      '.hdlv2-detail-panel { font-family: Inter, -apple-system, BlinkMacSystemFont, sans-serif; padding: 22px 28px 24px; color: #111; }',
+      '.hdlv2-detail-panel { font-family: Inter, -apple-system, BlinkMacSystemFont, sans-serif; padding: 22px 28px 24px; color: #111; position: sticky; left: 0; box-sizing: border-box; }',
       '.hdlv2-detail-head { display:flex; align-items:baseline; gap:10px; margin-bottom:14px; flex-wrap:wrap; }',
       '.hdlv2-detail-head strong { font-family: Poppins, Inter, sans-serif; font-size:15px; color:#111; }',
       '.hdlv2-detail-email { font-size:12px; color:#888; }',
@@ -4826,10 +4843,6 @@
       '.hdlv2-snap-tile-value .hdlv2-snap-tile-unit { font-size:13px; color:#666; font-weight:500; margin-left:2px; }',
       '.hdlv2-snap-tile-next-line { display:block; font-size:14px; line-height:1.25; color:#004F59; font-weight:600; }',
       '.hdlv2-snap-tile-sub { margin-top:4px; font-size:11px; color:#888; line-height:1.4; }',
-      '.hdlv2-snap-tile.accent-amber { border-left:3px solid #d97706; }',
-      '.hdlv2-snap-tile.accent-teal  { border-left:3px solid #3d8da0; }',
-      '.hdlv2-snap-tile.accent-blue  { border-left:3px solid #3b82f6; }',
-      '.hdlv2-snap-tile.accent-grey  { border-left:3px solid #cbd5e1; }',
 
       // ─────────────────────────────────────────────────────────────
       // v0.41.19 — Tab strip enhancements: status dot per tab, group
