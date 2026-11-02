@@ -72,6 +72,9 @@ class PackWpdb extends TlWpdb {
             foreach ( $this->invites as $i ) { if ( $i->token === $this->b( 0 ) ) return (string) $i->id; }
             return null;
         }
+        if ( false !== strpos( $sql, 'SELECT seats_used FROM wp_hdlv2_timeline_packs' ) ) {
+            return isset( $this->packs[ (int) $this->b( 0 ) ] ) ? (string) $this->packs[ (int) $this->b( 0 ) ]->seats_used : null;
+        }
         if ( false !== strpos( $sql, 'FROM wp_hdlv2_form_progress WHERE client_email =' ) ) {
             foreach ( $this->progress as $r ) { if ( $r->client_email === $this->b( 0 ) && (int) $r->practitioner_user_id === (int) $this->b( 1 ) && empty( $r->deleted_at ) ) return (string) $r->id; }
             return null;
