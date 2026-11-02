@@ -1833,7 +1833,7 @@
               if (res.ok && res.body.status === 'accepted') {
                 // v0.48.35 — a family pack seat: the sign-in link is only ever in their inbox, never here.
                 var fr = res.body.full_report ? res.body.full_report.state : '';
-                if (fr === 'sent') { var wall = document.getElementById(id + '-thanks'); if (wall) wall.hidden = true; }
+                if (fr === 'sent') { var wb = document.querySelector('#' + id + '-thanks .hdlw-r-thanks-body'); if (wb) wb.textContent = 'Your practitioner has been sent your data.'; }
                 box.innerHTML = '<p>You\u2019re now on ' + escapeHtml(res.body.link_from || linkFrom) + '\u2019s timeline as ' + escapeHtml(res.body.label || '') + '. '
                   + (fr === 'sent' ? 'Your Full Report is unlocked. We emailed your link to ' + escapeHtml(answers._email || 'you') + '. '
                     : fr === 'unsent' ? 'Your Full Report is unlocked, but the email did not go. Your practitioner can resend it. '
