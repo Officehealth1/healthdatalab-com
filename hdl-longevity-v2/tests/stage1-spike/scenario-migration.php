@@ -43,6 +43,7 @@ class FakeWpdb {
     }
     public function get_charset_collate() { return ''; }
     public function get_var( $q ) {
+        if ( preg_match( "/COLUMN_NAME = '(pack_id|seat_invite_id)'/", $q ) ) return '1'; // Phase AN (v3.33): create_tables() added them first
         // Phase AL (v3.31): modelled as done (dbDelta made the table, the ENUM has 'challenge').
         if ( false !== strpos( $q, 'COLUMN_TYPE' ) ) return "enum('practitioner','automation','paid_stage1','full_report','challenge','timeline_link')";
         if ( false !== strpos( $q, 'INFORMATION_SCHEMA.TABLES' ) ) return '1';
@@ -132,7 +133,7 @@ ok( 'K.11 cron map: drain every minute, replay every five, alert hourly',
     && false !== strpos( $src, "'hdlv2_stage1_waiting_replay'   => 'hdlv2_five_minutes'" )
     && false !== strpos( $src, "'hdlv2_stage1_alert'            => 'hourly'" ) );
 $loader = file_get_contents( dirname( __DIR__, 2 ) . '/hdl-longevity-v2.php' );
-ok( 'K.12 loader constants 0.48.34 / 3.32 (v0.48.34; Phase AK stays in it)', false !== strpos( $loader, "define( 'HDLV2_DB_VERSION', '3.32' );" ) && false !== strpos( $loader, "define( 'HDLV2_VERSION', '0.48.34' );" ) );
+ok( 'K.12 loader constants 0.48.35 / 3.33 (v0.48.35; Phase AK stays in it)', false !== strpos( $loader, "define( 'HDLV2_DB_VERSION', '3.33' );" ) && false !== strpos( $loader, "define( 'HDLV2_VERSION', '0.48.35' );" ) );
 
 echo "\nPASS=$pass FAIL=$fail\n";
 exit( $fail ? 1 : 0 );

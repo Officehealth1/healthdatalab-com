@@ -29,7 +29,7 @@ class FakeWpdb {
     public $alters = array();
     public $writes = array();
     public $source_type = "enum('practitioner','automation','paid_stage1','full_report')";
-    public $tables = array( 'wp_hdlv2_challenge_days' => true, 'wp_hdlv2_timeline_links' => true ); // create_tables() ran first in upgrade() (v0.48.34: Phase AM checks its table too)
+    public $tables = array( 'wp_hdlv2_challenge_days' => true, 'wp_hdlv2_timeline_links' => true, 'wp_hdlv2_timeline_packs' => true ); // create_tables() ran first in upgrade() (v0.48.34: Phase AM checks its table too)
     public $fail_on = '';
 
     public function prepare( $q, ...$args ) {
@@ -40,6 +40,7 @@ class FakeWpdb {
     }
     public function get_charset_collate() { return ''; }
     public function get_var( $q ) {
+        if ( preg_match( "/COLUMN_NAME = '(pack_id|seat_invite_id)'/", $q ) ) return '1'; // Phase AN (v3.33): create_tables() added them first
         if ( false !== strpos( $q, 'COLUMN_TYPE' ) ) return $this->source_type;
         if ( false !== strpos( $q, 'INFORMATION_SCHEMA.TABLES' ) && preg_match( "/TABLE_NAME = '(\w+)'/", $q, $m ) ) {
             return isset( $this->tables[ $m[1] ] ) ? '1' : '0';
@@ -99,7 +100,7 @@ ok( 'L.7 fresh installs: invites ENUM carries challenge', false !== strpos( $src
 ok( 'L.8 CREATE TABLE challenge_days: UNIQUE (client_user_id, day_no), note VARCHAR(500), dbDelta run', 1 === preg_match( '/CREATE TABLE \$table_challenge \(.*UNIQUE KEY client_day \(client_user_id, day_no\)/s', $src )
     && false !== strpos( $src, 'note VARCHAR(500) DEFAULT NULL' ) && false !== strpos( $src, 'dbDelta( $sql_challenge );' ) );
 $loader = file_get_contents( dirname( __DIR__, 2 ) . '/hdl-longevity-v2.php' );
-ok( 'L.9 loader: header + constant 0.48.34, DB 3.32', false !== strpos( $loader, ' * Version: 0.48.34' ) && false !== strpos( $loader, "define( 'HDLV2_VERSION', '0.48.34' );" ) && false !== strpos( $loader, "define( 'HDLV2_DB_VERSION', '3.32' );" ) );
+ok( 'L.9 loader: header + constant 0.48.35, DB 3.33', false !== strpos( $loader, ' * Version: 0.48.35' ) && false !== strpos( $loader, "define( 'HDLV2_VERSION', '0.48.35' );" ) && false !== strpos( $loader, "define( 'HDLV2_DB_VERSION', '3.33' );" ) );
 $health = file_get_contents( dirname( __DIR__, 2 ) . '/includes/sprint-4/class-hdlv2-client-status.php' );
 ok( 'L.10 /health expects the new table (17)', false !== strpos( $health, "'hdlv2_challenge_days'" ) );
 

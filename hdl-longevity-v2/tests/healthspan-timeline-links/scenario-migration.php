@@ -12,8 +12,8 @@ ini_set( 'error_log', '/dev/null' );
 define( 'ABSPATH', __DIR__ . '/' );
 define( 'DAY_IN_SECONDS', 86400 );
 define( 'HOUR_IN_SECONDS', 3600 );
-define( 'HDLV2_DB_VERSION', '3.32' );
-define( 'HDLV2_VERSION', '0.48.34' );
+define( 'HDLV2_DB_VERSION', '3.33' );
+define( 'HDLV2_VERSION', '0.48.35' );
 
 $GLOBALS['db_from'] = '3.31';
 function get_option( $k, $d = false ) { return 'hdlv2_db_version' === $k ? $GLOBALS['db_from'] : $d; }
@@ -28,7 +28,7 @@ class FakeWpdb {
     public $alters = array();
     public $writes = array();
     public $source_type = "enum('practitioner','automation','paid_stage1','full_report','challenge')";
-    public $tables = array( 'wp_hdlv2_challenge_days' => true, 'wp_hdlv2_timeline_links' => true ); // create_tables() ran first in upgrade()
+    public $tables = array( 'wp_hdlv2_challenge_days' => true, 'wp_hdlv2_timeline_links' => true, 'wp_hdlv2_timeline_packs' => true ); // create_tables() ran first in upgrade()
     public $fail_on = '';
 
     public function prepare( $q, ...$args ) {
@@ -39,6 +39,7 @@ class FakeWpdb {
     }
     public function get_charset_collate() { return ''; }
     public function get_var( $q ) {
+        if ( preg_match( "/COLUMN_NAME = '(pack_id|seat_invite_id)'/", $q ) ) return '1'; // Phase AN (v3.33): create_tables() added them first
         if ( false !== strpos( $q, 'COLUMN_TYPE' ) ) return $this->source_type;
         if ( false !== strpos( $q, 'INFORMATION_SCHEMA.TABLES' ) && preg_match( "/TABLE_NAME = '(\w+)'/", $q, $m ) ) {
             return isset( $this->tables[ $m[1] ] ) ? '1' : '0';
@@ -111,8 +112,8 @@ $missing = array_filter( $cols, function ( $c ) use ( $ddl ) { return false === 
 ok( 'M.8 CREATE TABLE timeline_links: every column and key (missing: ' . implode( ' | ', $missing ) . ')', $ddl && ! $missing );
 ok( 'M.9 dbDelta runs it', false !== strpos( $src, 'dbDelta( $sql_links );' ) );
 $loader = file_get_contents( dirname( __DIR__, 2 ) . '/hdl-longevity-v2.php' );
-ok( 'M.10 loader: header + constant 0.48.34, DB 3.32, the class loaded', false !== strpos( $loader, ' * Version: 0.48.34' ) && false !== strpos( $loader, "define( 'HDLV2_VERSION', '0.48.34' );" )
-    && false !== strpos( $loader, "define( 'HDLV2_DB_VERSION', '3.32' );" ) && false !== strpos( $loader, 'class-hdlv2-timeline-links.php' ) );
+ok( 'M.10 loader: header + constant 0.48.35, DB 3.33, the class loaded', false !== strpos( $loader, ' * Version: 0.48.35' ) && false !== strpos( $loader, "define( 'HDLV2_VERSION', '0.48.35' );" )
+    && false !== strpos( $loader, "define( 'HDLV2_DB_VERSION', '3.33' );" ) && false !== strpos( $loader, 'class-hdlv2-timeline-links.php' ) );
 
 echo "\nPASS=$pass FAIL=$fail\n";
 exit( $fail ? 1 : 0 );

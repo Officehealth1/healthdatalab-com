@@ -43,6 +43,7 @@ class FakeWpdb {
     }
     public function get_charset_collate() { return ''; }
     public function get_var( $q ) {
+        if ( preg_match( "/COLUMN_NAME = '(pack_id|seat_invite_id)'/", $q ) ) return '1'; // Phase AN (v3.33): create_tables() added them first
         if ( false !== strpos( $q, 'COLUMN_TYPE' ) ) return $this->source_type;
         if ( false !== strpos( $q, 'INFORMATION_SCHEMA.STATISTICS' ) ) return $this->has_ref_key ? '1' : '0';
         if ( false !== strpos( $q, 'INFORMATION_SCHEMA.TABLES' ) ) return '1'; // Phase AL (v3.31): dbDelta made hdlv2_challenge_days
@@ -107,7 +108,7 @@ ok( 'J.5 failed ALTER → run_migrations returns false (retries next boot)', fal
 $src = file_get_contents( dirname( __DIR__, 2 ) . '/includes/class-hdlv2-activator.php' );
 ok( 'J.6 fresh installs get the value too (CREATE TABLE)', false !== strpos( $src, "source ENUM('practitioner','automation','paid_stage1','full_report','challenge','timeline_link') NOT NULL DEFAULT 'practitioner'," ) );
 $loader = file_get_contents( dirname( __DIR__, 2 ) . '/hdl-longevity-v2.php' );
-ok( 'J.7 loader constant is 3.32 (v0.48.34; Phase AJ stays in it)', false !== strpos( $loader, "define( 'HDLV2_DB_VERSION', '3.32' );" ) );
+ok( 'J.7 loader constant is 3.33 (v0.48.35; Phase AJ stays in it)', false !== strpos( $loader, "define( 'HDLV2_DB_VERSION', '3.33' );" ) );
 
 echo "\nPASS=$pass FAIL=$fail\n";
 exit( $fail ? 1 : 0 );
