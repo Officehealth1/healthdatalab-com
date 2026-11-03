@@ -29,6 +29,9 @@ class HDLV2_Products {
 
     const STATE_WORDS = array( 'yours' => 'Yours', 'in-progress' => 'In progress', 'not-yet' => 'Not yet', 'open' => 'Free to start' );
 
+    /** v0.48.39 — the Flight Plan line of a client whose consultation is done (a final report) and who has no plan yet. */
+    const CHECKIN_NOTE = 'After your first check-in';
+
     /** v0.48.39 — the one-row tab of a product the client lacks: a 12 px lock (inline SVG, currentColor). */
     const LOCK = '<svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true" focusable="false"><rect x="2" y="5.25" width="8" height="5.75" rx="1.25" fill="currentColor"/><path d="M3.75 5.25V3.9a2.25 2.25 0 0 1 4.5 0v1.35" fill="none" stroke="currentColor" stroke-width="1.4"/></svg>';
 
@@ -170,13 +173,19 @@ class HDLV2_Products {
             $timeline = self::item( 'timeline', 'Timeline', 'not-yet', 'Comes with your Full Report' );
         }
 
-        // Flight Plan
-        $flight = $plan
-            ? self::item( 'flight_plan', 'Flight Plan', 'yours', 'Week ' . (int) $plan->week_number, home_url( '/my-flight-plan/' ) )
-            : self::item( 'flight_plan', 'Flight Plan', 'not-yet', 'After your consultation' );
+        $dashboard = home_url( '/' . trim( apply_filters( 'hdlv2_client_dashboard_slug', 'my-dashboard' ), '/' ) . '/' );
+
+        // Flight Plan. v0.48.39, one-row page: after a final report the consultation is done; the next step is the check-in (Today).
+        if ( $plan ) {
+            $flight = self::item( 'flight_plan', 'Flight Plan', 'yours', 'Week ' . (int) $plan->week_number, home_url( '/my-flight-plan/' ) );
+        } elseif ( $report && 'final' === $report->report_type && self::one_row_enabled() ) {
+            $flight = self::item( 'flight_plan', 'Flight Plan', 'not-yet', self::CHECKIN_NOTE, $dashboard . '#tab-today' );
+        } else {
+            $flight = self::item( 'flight_plan', 'Flight Plan', 'not-yet', 'After your consultation' );
+        }
 
         // 30 days: free for any client record (v0.48.27 D6), so a record that has not started reads "Free to start".
-        $challenge_url = home_url( '/' . trim( apply_filters( 'hdlv2_client_dashboard_slug', 'my-dashboard' ), '/' ) . '/#challenge' );
+        $challenge_url = $dashboard . '#challenge';
         if ( $enrolment ) {
             $challenge = self::item( 'challenge', '30 days', 'yours', 'Started ' . self::day( $enrolment['started_at'] ), $challenge_url );
         } elseif ( $record ) {
@@ -240,8 +249,9 @@ class HDLV2_Products {
     /**
      * v0.48.38 — the panel of a product the client does not have yet (or has bought and waits for):
      * what it is, and one way to get it. A price only where the Full Report item carries one (the
-     * Timeline comes with the Full Report, so it borrows that action); otherwise one button that
-     * opens the Messages tab. In progress: no action.
+     * Timeline comes with the Full Report, so it borrows that action); the Flight Plan after the
+     * consultation opens the check-in on Today (v0.48.39); otherwise one button that opens the
+     * Messages tab. In progress: no action.
      *
      * @param array  $item              one item of for_client()
      * @param array  $full_report_item  the Full Report item (the Timeline's way in)
@@ -257,6 +267,8 @@ class HDLV2_Products {
         if ( $sells ) {
             $h .= '<a class="cdp-btn cdp-btn-primary" href="' . esc_url( $seller['url'] ) . '">'
                 . esc_html( 'Get the ' . $seller['label'] . ' · ' . $seller['note'] ) . '</a>';
+        } elseif ( 'flight_plan' === $item['key'] && self::CHECKIN_NOTE === $item['note'] ) {
+            $h .= '<button type="button" class="cdp-btn cdp-btn-primary" data-open-tab="today">Begin your check-in</button>';
         } elseif ( 'not-yet' === $item['state'] && 'not-yet' === $seller['state'] ) {
             $h .= '<button type="button" class="cdp-btn cdp-btn-secondary" data-open-tab="messages">'
                 . esc_html( 'Ask ' . ( '' !== (string) $practitioner_name ? $practitioner_name : 'your practitioner' ) ) . '</button>';
