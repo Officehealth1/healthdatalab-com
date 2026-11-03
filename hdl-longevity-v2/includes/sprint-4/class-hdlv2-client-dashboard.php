@@ -875,7 +875,9 @@ class HDLV2_Client_Dashboard {
         $h .= '<span class="cdp-chart-panel-label">Pace of ageing</span>';
         $h .= '<span class="cdp-chart-panel-value">' . esc_html( number_format( (float) $rate, 2 ) ) . '&times;</span>';
         $h .= '</div>';
-        if ( $url ) {
+        if ( $this->one_row_on() ) {
+            $h .= '<div class="cdp-chart-panel-img">' . $this->gauge_svg( $rate ) . '</div>';
+        } elseif ( $url ) {
             $h .= '<div class="cdp-chart-panel-img"><img src="' . esc_url( $url ) . '" alt="Pace of ageing gauge — ' . esc_attr( number_format( (float) $rate, 2 ) ) . '×" loading="lazy"></div>';
         }
         $h .= '<p class="cdp-chart-panel-cap cdp-chart-insight">';
@@ -1313,6 +1315,44 @@ class HDLV2_Client_Dashboard {
             ),
         );
         return 'https://quickchart.io/chart?c=' . rawurlencode( wp_json_encode( $cfg ) ) . '&w=380&h=340&bkg=white';
+    }
+
+    /**
+     * v0.48.39 — the one-row page's gauge, drawn in the page: chart_url_gauge()'s scale (0.5–2.0),
+     * band edges (0.9, 1.1) and needle, in the status colours. No request leaves the page.
+     */
+    private function gauge_svg( $rate ) {
+        if ( ! $rate ) return '';
+        $r   = max( 0.5, min( 2.0, round( (float) $rate, 2 ) ) );
+        $deg = function ( $v ) { return 180 * ( $v - 0.5 ) / 1.5; }; // 0 = pointing left, 180 = right
+        $at  = function ( $d ) { // a point of the arc (radius 96, centre 120,120), $d degrees from the left
+            $a = deg2rad( $d );
+            return number_format( 120 - 96 * cos( $a ), 2, '.', '' ) . ' ' . number_format( 120 - 96 * sin( $a ), 2, '.', '' );
+        };
+        $gap = rad2deg( 1 / 96 ); // 1 px each side of a join: a 2 px white gap
+        $h   = '<svg class="cdp-gauge" viewBox="0 0 240 132" role="img" aria-label="'
+             . esc_attr( 'Pace of ageing ' . number_format( (float) $rate, 2 ) . ' times, ' . strtolower( $this->gauge_band( $r )[0] ) ) . '">';
+        foreach ( array( array( 0.5, 0.9, '#10b981' ), array( 0.9, 1.1, '#3b82f6' ), array( 1.1, 2.0, '#d97706' ) ) as $b ) {
+            $from = $deg( $b[0] ) + ( 0.5 === $b[0] ? 0 : $gap );
+            $to   = $deg( $b[1] ) - ( 2.0 === $b[1] ? 0 : $gap );
+            $h   .= '<path d="M' . $at( $from ) . ' A96 96 0 0 1 ' . $at( $to ) . '" fill="none" stroke="' . $b[2] . '" stroke-width="22"/>';
+        }
+        $h .= '<line x1="120" y1="120" x2="54.72" y2="120" stroke="#004F59" stroke-width="4" stroke-linecap="round" transform="rotate(' . round( $deg( $r ), 1 ) . ' 120 120)"/>';
+        $h .= '<circle cx="120" cy="120" r="6" fill="#004F59"/>';
+        return $h . '</svg>';
+    }
+
+    /** @return array{0:string,1:string} the gauge's band word and colour, at chart_url_gauge()'s edges. */
+    private function gauge_band( $rate ) {
+        $r = (float) $rate;
+        if ( $r <= 0.9 ) return array( 'Slower', '#10b981' );
+        if ( $r <= 1.1 ) return array( 'Average', '#3b82f6' );
+        return array( 'Faster', '#d97706' );
+    }
+
+    /** v0.48.39 — the one-row page draws its gauges (gauge_svg); the other pages keep the image. */
+    private function one_row_on() {
+        return $this->products_on() && HDLV2_Products::one_row_enabled();
     }
     private function chart_url_radar( $scores ) {
         if ( empty( $scores ) || ! class_exists( 'HDLV2_Final_Report' ) || ! method_exists( 'HDLV2_Final_Report', 'build_radar_chart_url' ) ) return '';
@@ -2113,7 +2153,9 @@ class HDLV2_Client_Dashboard {
         // gauge used on the Progress tab + the Stage-1 widget), replacing the old
         // decorative static arc that drew the identical shape for every rate.
         $gauge_url = $this->chart_url_gauge( $rate );
-        if ( $gauge_url ) {
+        if ( $this->one_row_on() ) {
+            $h .= $this->gauge_svg( $rate );
+        } elseif ( $gauge_url ) {
             $h .= '<img class="cd-gauge-real" src="' . esc_url( $gauge_url ) . '" width="380" height="340" alt="' . esc_attr( 'Pace of ageing gauge — ' . number_format( $rate, 2 ) . '×' ) . '" loading="lazy">';
         }
         $h .= '<div class="cd-preview-meta">';
