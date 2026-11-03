@@ -1344,7 +1344,7 @@ class HDLV2_Client_Dashboard {
 
     /** @return array{0:string,1:string} the gauge's band word and colour, at chart_url_gauge()'s edges. */
     private function gauge_band( $rate ) {
-        $r = (float) $rate;
+        $r = round( (float) $rate, 2 ); // as chart_url_gauge(): 0.904 reads Slower
         if ( $r <= 0.9 ) return array( 'Slower', '#10b981' );
         if ( $r <= 1.1 ) return array( 'Average', '#3b82f6' );
         return array( 'Faster', '#d97706' );
@@ -1955,11 +1955,14 @@ class HDLV2_Client_Dashboard {
         $prac      = $ctx['practitioner_name'];
         $yours     = array(); // tab => the panel of a product the client has; every other product tab is locked
 
+        // A Stage-1-only client already has a first look at the timeline (v0.48.29); it stays one click away.
+        $preview = 'yours' !== $items['timeline']['state'] && class_exists( 'HDLV2_Healthspan_Timeline' )
+            ? HDLV2_Healthspan_Timeline::dashboard_url( $user_id ) : '';
+        $more    = '' !== $preview
+            ? '<p class="cdp-product-more"><a href="' . esc_url( $preview ) . '">See a first look from your Stage 1 &rarr;</a></p>' : '';
+
         if ( 'yours' === $items['stage1']['state'] ) {
-            $pdf = $items['stage1']['url'];
-            $yours['stage1'] = $this->product_card( $items['stage1'], '' !== $pdf
-                    ? '<a class="cdp-btn cdp-btn-secondary" href="' . esc_url( $pdf ) . '">Open the Stage 1 report (PDF)</a>' : '' )
-                . '<div class="hdlv2-cd">' . $this->preview_gauge( $ctx ) . '</div>';
+            $yours['stage1'] = $this->product_card( $items['stage1'], $this->stage1_body( $ctx, $items['stage1'], $preview ) );
         }
         if ( 'yours' === $items['full_report']['state'] ) {
             $yours['report'] = $this->report_body( $ctx ) . $this->progress_body( $ctx );
@@ -1978,12 +1981,6 @@ class HDLV2_Client_Dashboard {
         if ( '' !== $challenge ) {
             $yours['challenge'] = $challenge; // free for any record: the section carries its own start
         }
-        // A Stage-1-only client already has a first look at the timeline (v0.48.29); it stays one click away.
-        $preview = 'yours' !== $items['timeline']['state'] && class_exists( 'HDLV2_Healthspan_Timeline' )
-            ? HDLV2_Healthspan_Timeline::dashboard_url( $user_id ) : '';
-        $more    = '' !== $preview
-            ? '<p class="cdp-product-more"><a href="' . esc_url( $preview ) . '">See a first look from your Stage 1 &rarr;</a></p>' : '';
-
         $h  = '<div class="hdlv2-cd-pop hdlv2-cd-one-row" data-state="' . esc_attr( $state ) . '">';
         $h .= HDLV2_Products::render_tabs( array_values( $items ) );
         $h .= '<main class="hdlv2-cd-pop-page">';
@@ -2003,6 +2000,29 @@ class HDLV2_Client_Dashboard {
         $item  = $items[ 'report' === $tab ? 'full_report' : $tab ];
         $inner = isset( $yours[ $tab ] ) ? $yours[ $tab ] : HDLV2_Products::render_locked( $item, $items['full_report'], $prac ) . $more;
         return '<section data-tab-panel="' . $tab . '" class="cdp-panel">' . $inner . '</section>';
+    }
+
+    /**
+     * v0.48.39 — the Stage 1 tab's card body: the gauge beside what it says (the sentence the
+     * preview already carried), then the actions this client has: the PDF when stored, the first
+     * look at the timeline when the Timeline is not theirs.
+     */
+    private function stage1_body( $ctx, array $item, $preview ) {
+        $rate = isset( $ctx['stage1_rate'] ) ? (float) $ctx['stage1_rate'] : null;
+        $h    = '';
+        if ( $rate ) {
+            list( $word, $colour ) = $this->gauge_band( $rate );
+            $captured = $ctx['stage1_captured_at'] ? $this->fmt_date( $ctx['stage1_captured_at'] ) : '';
+            $h .= '<div class="cdp-stage1-body">' . $this->gauge_svg( $rate ) . '<div class="cdp-stage1-words">'
+                . '<p class="cdp-stage1-value">' . esc_html( number_format( $rate, 2 ) ) . '&times;</p>'
+                . '<p class="cdp-stage1-band" style="color:' . $colour . '">' . esc_html( $word ) . '</p>'
+                . '<p class="cdp-stage1-line">Your pace of ageing &mdash; the starting point for everything that comes next.</p>'
+                . ( '' !== $captured ? '<p class="cdp-stage1-foot">Captured ' . esc_html( $captured ) . '</p>' : '' )
+                . '</div></div>';
+        }
+        $actions = ( '' !== $item['url'] ? '<a class="cdp-btn cdp-btn-secondary" href="' . esc_url( $item['url'] ) . '">Open the Stage 1 report (PDF)</a>' : '' )
+                 . ( '' !== $preview ? '<a class="cdp-stage1-more" href="' . esc_url( $preview ) . '">See a first look at your timeline &rarr;</a>' : '' );
+        return $h . ( '' !== $actions ? '<div class="cdp-stage1-actions">' . $actions . '</div>' : '' );
     }
 
     /** A product's name, pill and line, with its one action. */

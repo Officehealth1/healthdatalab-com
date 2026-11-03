@@ -1141,6 +1141,48 @@
 .hdlv2-cd-one-row .cdp-btn-secondary:hover { background: #f8f9fb; color: var(--teal-dark); border-color: #e4e6ea; }
 .hdlv2-cd-one-row .cdp-product-more { font-size: 14px; margin: 14px 0 0; }
 
+/* v0.48.39 — the Stage 1 card: the gauge beside what it says, then its actions. */
+.hdlv2-cd-one-row .cdp-stage1-body {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 24px;
+  align-items: center;
+  margin: 18px 0 0;
+}
+.hdlv2-cd-one-row .cdp-gauge { display: block; width: 100%; max-width: 240px; height: auto; }
+.hdlv2-cd-one-row .cdp-stage1-body .cdp-gauge,
+.hdlv2-cd-one-row .cd-preview .cdp-gauge { width: 172px; }
+.hdlv2-cd-one-row .cdp-stage1-words p { margin: 0; }
+.hdlv2-cd-one-row .cdp-stage1-value {
+  font-family: 'Poppins', 'Inter', sans-serif;
+  font-size: 40px;
+  font-weight: 600;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  color: #111;
+}
+.hdlv2-cd-one-row .cdp-stage1-words .cdp-stage1-band {
+  margin: 6px 0 10px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+.hdlv2-cd-one-row .cdp-stage1-line { font-size: 14px; line-height: 1.5; color: #555; }
+.hdlv2-cd-one-row .cdp-stage1-words .cdp-stage1-foot { margin-top: 10px; font-size: 13px; color: #888; }
+.hdlv2-cd-one-row .cdp-stage1-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 20px;
+  margin-top: 20px;
+  padding-top: 4px;
+  border-top: 1px solid #e4e6ea;
+}
+.hdlv2-cd-one-row .cdp-stage1-more { font-size: 14px; font-weight: 500; color: var(--teal); margin-top: 16px; }
+.hdlv2-cd-one-row .cdp-stage1-more:hover { color: var(--teal-dark); }
+.hdlv2-cd-one-row .cdp-stage1-more:focus-visible { outline: 2px solid #3d8da0; outline-offset: 2px; }
+
 @media (max-width: 640px) {
   .hdlv2-cd-one-row .cdp-tabs { position: static; border-bottom: 0; }
   .hdlv2-cd-one-row .cdp-tabs-inner {
@@ -1160,4 +1202,5 @@
   .hdlv2-cd-one-row .cdp-tab.active { border-color: var(--teal); background: var(--teal-tint); color: var(--teal-dark); }
   .hdlv2-cd-one-row .cdp-tabs-inner > :last-child { grid-column: 1 / -1; }
   .hdlv2-cd-one-row .cdp-product-card { padding: 20px; }
+  .hdlv2-cd-one-row .cdp-stage1-body { grid-template-columns: 1fr; justify-items: center; gap: 16px; text-align: center; }
 }

@@ -67,8 +67,8 @@ check( 'H2.1 render_one_row(): the tab row, then the panels in TAB_ORDER',
 check( 'H2.2 no strip, no launcher popup, no Progress panel on the one-row path',
     false === strpos( $new_src, 'products_strip(' ) && false === strpos( $new_src, 'inbox_launcher_host(' ) && false === strpos( $new_src, 'pop_progress_panel(' ) );
 check( 'H2.3 Full Report yours = the report body, then the progress body (Q3)', false !== strpos( $one, '$this->report_body( $ctx ) . $this->progress_body( $ctx )' ) );
-check( 'H2.4 the fragments are called from the new panels: preview_gauge, pop_week_card, steps_grid, help_footer, hero, path, preview',
-    false !== strpos( $one, 'preview_gauge(' ) && false !== strpos( $one, 'pop_week_card(' )
+check( 'H2.4 the fragments are called from the new panels: stage1_body (v0.48.39), pop_week_card, steps_grid, help_footer, hero, path, preview',
+    false !== strpos( $one, 'stage1_body(' ) && false !== strpos( $one, 'pop_week_card(' )
     && false !== strpos( $today, 'steps_grid(' ) && false !== strpos( $today, 'help_footer()' )
     && false !== strpos( $today, 'hero_for_state(' ) && false !== strpos( $today, 'path_for_state(' ) && false !== strpos( $today, 'preview_for_state(' ) );
 check( 'H2.5 the populated context is loaded in every state (a draft report is not "populated")', false !== strpos( $one, '$this->load_populated_context( $user_id )' ) );
