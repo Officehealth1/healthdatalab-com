@@ -13,13 +13,13 @@ $pop  = file_get_contents( $root . 'assets/css/hdlv2-client-dashboard-populated.
 $pcss = file_get_contents( $root . 'assets/css/hdlv2-products.css' );
 $js   = file_get_contents( $root . 'assets/js/hdlv2-client-dashboard.js' );
 
-/** A PHP method's source, from its line to the next method of the class. */
+/** A PHP method's source, from its line to its closing brace (four-space indent). */
 function method_src( $src, $name ) {
     $at = strpos( $src, 'function ' . $name . '(' );
     if ( false === $at ) return '';
-    $at = strrpos( substr( $src, 0, $at ), "\n" ) + 1;
-    return preg_match( '/\n    (private|public|protected) (static )?function /', $src, $m, PREG_OFFSET_CAPTURE, $at + 10 )
-        ? substr( $src, $at, $m[0][1] - $at ) : substr( $src, $at );
+    $at  = strrpos( substr( $src, 0, $at ), "\n" ) + 1;
+    $end = strpos( $src, "\n    }\n", $at );
+    return substr( $src, $at, $end + 7 - $at );
 }
 /** Positions of needles in order; true when each is found after the one before. */
 function in_order( $src, array $needles ) {
@@ -44,16 +44,16 @@ check( 'H1.1 render_shortcode() branches on products_on() && one_row_enabled() t
 check( 'H1.2 render_one_row() has one return (no early exit per state) and serves populated and the rest',
     1 === substr_count( $one, 'return ' ) && false !== strpos( $one, 'pop_today_panel(' ) && false !== strpos( $one, 'one_row_today_panel(' ) );
 $base = array( // md5 of each method's source at 4a0fa73: the flag-off page is built by the same code
-    'render_populated'    => '17222f96cba794df46aa52df9eb24434',
-    'render_empty_state'  => 'c0058ae80a0cded3f76708ddb03c2c0c',
+    'render_populated'    => 'bea86414c51e436e85b6d3114479bf51',
+    'render_empty_state'  => '98f00d039a4568cdcf5b10d307770a38',
     'pop_tabs_strip'      => 'a81c05e7480ccf8a138c3a18301e289c',
     'pop_today_panel'     => 'a74b1e4f4ffe79d16c475ea85c4f1b8e',
-    'products_strip'      => '42ccfaab0c07491a4305ff29862ab3a3',
+    'products_strip'      => '4aa4b8943a506d29eae92a28831142bd',
     'inbox_launcher_host' => '1b1d77e2cc09e9b304a8cb110e45ebb1',
     'hero_for_state'      => '55a43d0082508cff41c5fb6e8f7288c7',
     'path_for_state'      => '9ea8e6dd5be563e687f3b87d9c91dac0',
     'steps_grid'          => 'fab19fd6aa21a898291be590b7b17784',
-    'help_footer'         => 'f60134673715ea1b5b7494b9f47c7ba3',
+    'help_footer'         => '42a2311a1ff5b45529c42552368db271',
 );
 $changed = array_keys( array_filter( $base, function ( $md5, $n ) use ( $dash ) { return md5( method_src( $dash, $n ) ) !== $md5; }, ARRAY_FILTER_USE_BOTH ) );
 check( 'H1.3 the flag-off path untouched (ten methods byte-equal to the base)' . ( $changed ? ': ' . implode( ', ', $changed ) : '' ), ! $changed );
@@ -63,7 +63,7 @@ check( 'H1.4 the report and progress panels call the shared bodies (no copy)',
 
 echo "H2 the seven panels\n";
 check( 'H2.1 render_one_row(): the tab row, then the panels in TAB_ORDER',
-    in_order( $one, array( 'HDLV2_Products::render_tabs(', "'today'", "'stage1'", "'report'", "'timeline'", "'flight_plan'", "'challenge'", 'pop_messages_panel()' ) ) );
+    in_order( $one, array( 'HDLV2_Products::render_tabs(', 'pop_today_panel(', "'stage1'", "'report'", "'timeline'", "'flight_plan'", "'challenge'", 'pop_messages_panel()' ) ) );
 check( 'H2.2 no strip, no launcher popup, no Progress panel on the one-row path',
     false === strpos( $new_src, 'products_strip(' ) && false === strpos( $new_src, 'inbox_launcher_host(' ) && false === strpos( $new_src, 'pop_progress_panel(' ) );
 check( 'H2.3 Full Report yours = the report body, then the progress body (Q3)', false !== strpos( $one, '$this->report_body( $ctx ) . $this->progress_body( $ctx )' ) );

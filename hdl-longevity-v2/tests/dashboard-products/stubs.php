@@ -40,7 +40,7 @@ function esc_url( $x ) { return htmlspecialchars( (string) $x, ENT_QUOTES, 'UTF-
 function esc_url_raw( $x ) { return (string) $x; }
 function wp_date( $fmt, $ts = null ) { return gmdate( $fmt, $ts ?? time() ); }
 function date_i18n( $fmt, $ts = null ) { return gmdate( $fmt, $ts ?? time() ); }
-function current_time( $type ) { return gmdate( 'Y-m-d' ); }
+function current_time( $type ) { return 'timestamp' === $type ? time() : gmdate( 'Y-m-d' ); }
 function add_query_arg( $key, $value, $url ) { return $url . ( false === strpos( $url, '?' ) ? '?' : '&' ) . $key . '=' . $value; }
 function apply_filters( $tag, $value ) { return $value; }
 function home_url( $p = '' ) { return 'https://stby.test' . $p; }

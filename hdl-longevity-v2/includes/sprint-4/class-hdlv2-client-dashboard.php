@@ -370,19 +370,29 @@ class HDLV2_Client_Dashboard {
 
         $state = HDLV2_Compatibility::get_client_journey_state( $user_id );
 
+        // v0.48.38 — one row of tabs, the products among them, in every journey state.
+        if ( $this->products_on() && HDLV2_Products::one_row_enabled() ) {
+            return $this->render_one_row( $user_id, $state );
+        }
+
         if ( $state === 'populated' ) {
             // Enqueue populated CSS + JS only when needed (saves a request on empty states).
-            wp_enqueue_style(
-                'hdlv2-client-dashboard-populated',
-                HDLV2_PLUGIN_URL . 'assets/css/hdlv2-client-dashboard-populated.css',
-                array(),
-                HDLV2_VERSION
-            );
-            $this->enqueue_dashboard_js( $user_id );
+            $this->enqueue_populated_assets( $user_id );
             return $this->render_populated( $user_id );
         }
 
         return $this->render_empty_state( $user_id, $state );
+    }
+
+    /** The populated sheet and the dashboard script (the populated page, and the one row in every state). */
+    private function enqueue_populated_assets( $user_id ) {
+        wp_enqueue_style(
+            'hdlv2-client-dashboard-populated',
+            HDLV2_PLUGIN_URL . 'assets/css/hdlv2-client-dashboard-populated.css',
+            array(),
+            HDLV2_VERSION
+        );
+        $this->enqueue_dashboard_js( $user_id );
     }
 
     /**
@@ -749,9 +759,14 @@ class HDLV2_Client_Dashboard {
     }
 
     private function pop_progress_panel( $ctx ) {
+        return '<section data-tab-panel="progress" class="cdp-panel">' . $this->progress_body( $ctx ) . '</section>';
+    }
+
+    /** v0.48.38 — the Progress content; in the one row it sits under the report (Q3). */
+    private function progress_body( $ctx ) {
         $first = esc_html( $ctx['first_name'] );
 
-        $h  = '<section data-tab-panel="progress" class="cdp-panel">';
+        $h  = '';
 
         // ── Personalised greeting + lede ──
         $weeks = (int) ( $ctx['weeks_tracked'] ?? 0 );
@@ -819,7 +834,6 @@ class HDLV2_Client_Dashboard {
             $h .= '</div></details>';
         }
 
-        $h .= '</section>';
         return $h;
     }
 
@@ -1323,6 +1337,11 @@ class HDLV2_Client_Dashboard {
     }
 
     private function pop_report_panel( $ctx ) {
+        return '<section data-tab-panel="report" class="cdp-panel">' . $this->report_body( $ctx ) . '</section>';
+    }
+
+    /** v0.48.38 — the My Report content; also the top of the one row's Full Report tab. */
+    private function report_body( $ctx ) {
         $report_url   = home_url( '/my-report/' );
         $issued       = $ctx['report_issued_at'] ? $this->fmt_date( $ctx['report_issued_at'] ) : '';
         $reviewer     = esc_html( $ctx['practitioner_name'] ?: 'Your practitioner' );
@@ -1333,7 +1352,7 @@ class HDLV2_Client_Dashboard {
         $status_label = $is_final ? 'Final' : 'Draft';
         $display_name = esc_html( $ctx['display_name'] ?? $ctx['first_name'] );
 
-        $h = '<section data-tab-panel="report" class="cdp-panel">';
+        $h = '';
 
         // ── Cover ──────────────────────────────────────────────────────────
         $h .= '<div class="cdp-report-cover cdp-reveal cdp-reveal-1">';
@@ -1424,7 +1443,6 @@ class HDLV2_Client_Dashboard {
             $h .= '</div>';
         }
 
-        $h .= '</section>';
         return $h;
     }
 
@@ -1879,6 +1897,99 @@ class HDLV2_Client_Dashboard {
 
         $h .= '</main>';
         return $h;
+    }
+
+    /**
+     * v0.48.38 — /my-dashboard/ as one row of tabs, one shape in every journey state: Today, the
+     * five products (HDLV2_Products), Messages. A product the client has opens what it is; one they
+     * lack opens a panel that says how to get it. The populated context is loaded in every state:
+     * a draft report is 'stage3-done', not 'populated', and its tab still shows the report.
+     */
+    private function render_one_row( $user_id, $state ) {
+        $this->enqueue_populated_assets( $user_id );
+        wp_enqueue_style( 'hdlv2-products' );
+
+        $ctx       = $this->load_populated_context( $user_id );
+        $items     = array_column( HDLV2_Products::for_client( $user_id ), null, 'key' );
+        $challenge = $this->challenge_section( $user_id, 'brand-new' !== $state );
+        $prac      = $ctx['practitioner_name'];
+        $yours     = array(); // tab => the panel of a product the client has; every other product tab is locked
+
+        if ( 'yours' === $items['stage1']['state'] ) {
+            $pdf = $items['stage1']['url'];
+            $yours['stage1'] = $this->product_card( $items['stage1'], '' !== $pdf
+                    ? '<a class="cdp-btn cdp-btn-secondary" href="' . esc_url( $pdf ) . '">Open the Stage 1 report (PDF)</a>' : '' )
+                . '<div class="hdlv2-cd">' . $this->preview_gauge( $ctx ) . '</div>';
+        }
+        if ( 'yours' === $items['full_report']['state'] ) {
+            $yours['report'] = $this->report_body( $ctx ) . $this->progress_body( $ctx );
+        }
+        if ( 'yours' === $items['timeline']['state'] ) {
+            $yours['timeline'] = $this->product_card( $items['timeline'],
+                '<a class="cdp-btn cdp-btn-primary" href="' . esc_url( $items['timeline']['url'] ) . '">Open your Timeline &rarr;</a>'
+                . $this->joined_line( $user_id, 'cdp-product-about' ) );
+        }
+        if ( 'yours' === $items['flight_plan']['state'] && $ctx['flight_plan'] ) {
+            $plan_url = home_url( '/my-flight-plan/' );
+            $yours['flight_plan'] = $this->product_card( $items['flight_plan'],
+                    '<a class="cdp-btn cdp-btn-secondary" href="' . esc_url( $plan_url ) . '">Open this week&rsquo;s plan</a>' )
+                . $this->pop_week_card( $ctx, $plan_url );
+        }
+        if ( '' !== $challenge ) {
+            $yours['challenge'] = $challenge; // free for any record: the section carries its own start
+        }
+        // A Stage-1-only client already has a first look at the timeline (v0.48.29); it stays one click away.
+        $preview = 'yours' !== $items['timeline']['state'] && class_exists( 'HDLV2_Healthspan_Timeline' )
+            ? HDLV2_Healthspan_Timeline::dashboard_url( $user_id ) : '';
+        $more    = '' !== $preview
+            ? '<p class="cdp-product-more"><a href="' . esc_url( $preview ) . '">See a first look from your Stage 1 &rarr;</a></p>' : '';
+
+        $h  = '<div class="hdlv2-cd-pop hdlv2-cd-one-row" data-state="' . esc_attr( $state ) . '">';
+        $h .= HDLV2_Products::render_tabs( array_values( $items ) );
+        $h .= '<main class="hdlv2-cd-pop-page">';
+        $h .= 'populated' === $state ? $this->pop_today_panel( $ctx ) : $this->one_row_today_panel( $ctx, $state, $user_id, $challenge );
+        $h .= $this->one_row_product_panel( 'stage1', $items, $yours, $prac );
+        $h .= $this->one_row_product_panel( 'report', $items, $yours, $prac );
+        $h .= $this->one_row_product_panel( 'timeline', $items, $yours, $prac, $more );
+        $h .= $this->one_row_product_panel( 'flight_plan', $items, $yours, $prac );
+        $h .= $this->one_row_product_panel( 'challenge', $items, $yours, $prac );
+        $h .= $this->pop_messages_panel();
+        $h .= '</main></div>';
+        return $h;
+    }
+
+    /** One product tab's panel: what the client has, or the locked panel (+ $more under it). */
+    private function one_row_product_panel( $tab, array $items, array $yours, $prac, $more = '' ) {
+        $item  = $items[ 'report' === $tab ? 'full_report' : $tab ];
+        $inner = isset( $yours[ $tab ] ) ? $yours[ $tab ] : HDLV2_Products::render_locked( $item, $items['full_report'], $prac ) . $more;
+        return '<section data-tab-panel="' . $tab . '" class="cdp-panel">' . $inner . '</section>';
+    }
+
+    /** A product's name, pill and line, with its one action. */
+    private function product_card( array $item, $action ) {
+        return '<div class="cdp-product-card">' . HDLV2_Products::product_head( $item ) . $action . '</div>';
+    }
+
+    /**
+     * The one row's Today before the journey is complete: render_empty_state()'s fragments without
+     * the strip, the timeline button, the 30 days and the Messages popup (each now has its tab).
+     */
+    private function one_row_today_panel( $ctx, $state, $user_id, $challenge ) {
+        // As render_empty_state(): a challenge buyer's Stage 1 is a pending lead, shown as sent.
+        $buyer = 'brand-new' === $state && '' !== $challenge && HDLV2_Challenge::stage1_on_file( $user_id );
+        if ( $buyer ) {
+            $state = 'stage1-done';
+        }
+        $h  = '<section data-tab-panel="today" class="cdp-panel cdp-panel-active"><div class="hdlv2-cd">';
+        $h .= $this->hero_for_state( $ctx, $state, $buyer, $buyer && HDLV2_Challenge::state( $user_id )['complete'] );
+        if ( ! $buyer ) {
+            $h .= $this->path_for_state( $ctx, $state );
+        }
+        $h .= $this->preview_for_state( $ctx, $state );
+        $h .= '<h2 class="cd-section-title">How the assessment unfolds</h2>';
+        $h .= $this->steps_grid( $state );
+        $h .= $this->help_footer();
+        return $h . '</div></section>';
     }
 
     // ──────────────────────────────────────────────────────────────────────
