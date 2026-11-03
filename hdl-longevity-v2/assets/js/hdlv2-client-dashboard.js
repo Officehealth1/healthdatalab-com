@@ -76,9 +76,10 @@
 
     // v0.48.36 — the 30 days tile above the tabs links to #challenge on this page. Divi's smooth
     // scroll swallows same-page # links (no hashchange), so open the tab here, in the capture phase,
-    // before it scrolls to the now-visible section.
+    // before it scrolls to the now-visible section. v0.48.39: a #tab- link inside the page too (the
+    // countdown card's "What changes between now and then").
     document.addEventListener('click', function (e) {
-      var a = e.target.closest ? e.target.closest('.cdp-products a[href*="#"]') : null;
+      var a = e.target.closest ? e.target.closest('.hdlv2-cd-pop-page a[href^="#tab-"], .cdp-products a[href*="#"]') : null;
       if (!a || a.pathname !== window.location.pathname) return;
       var name = a.hash.replace(/^#(tab-)?/, '');
       if (name && root.querySelector('.cdp-tab[data-tab="' + name + '"]')) {

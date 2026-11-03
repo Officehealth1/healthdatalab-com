@@ -47,7 +47,7 @@ class HDLV2_Products {
         'full_report' => array( 'Your real measurements, reviewed with your practitioner in a consultation.', 'Your personalised Trajectory Plan, as a PDF and on this page.' ),
         'timeline'    => array( 'Your healthspan, year by year, as one picture.', 'It comes with your Full Report. A family pack adds seats for the people you choose.' ),
         'flight_plan' => array( 'A plan for the week, every week, after your consultation.', 'Built from your Sunday check-in.' ),
-        'challenge'   => array( 'One small step a day for 30 days.', 'Free for every client.' ),
+        'challenge'   => array( 'One small step a day for 30 days.', 'Free once your Stage 1 is in.' ),
     );
 
     public static function init() {
