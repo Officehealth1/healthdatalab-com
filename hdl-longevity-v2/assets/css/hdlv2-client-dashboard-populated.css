@@ -1211,3 +1211,38 @@
   .hdlv2-cd-one-row .cdp-product-card { padding: 20px; }
   .hdlv2-cd-one-row .cdp-stage1-body { grid-template-columns: 1fr; justify-items: center; gap: 16px; text-align: center; }
 }
+
+/* ── View as client (v0.48.40): the practitioner reads the client's page; nothing on it writes.
+   Every rule sits under [data-view-as], which only the practitioner's view carries. ── */
+.hdlv2-cd-pop[data-view-as] .cdp-view-as {
+  box-sizing: border-box;
+  width: calc(100% - 56px);
+  max-width: 1024px;
+  margin: 24px auto 0;
+  padding: 14px 18px;
+  background: #f8f9fb;
+  border: 1px solid #e4e6ea;
+  border-radius: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 20px;
+  font-family: 'Inter', sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+  color: #2c3e50;
+}
+.hdlv2-cd-pop[data-view-as] .cdp-view-as p { margin: 0; padding: 0; }
+.hdlv2-cd-pop[data-view-as] .cdp-view-as a { color: #3d8da0; font-weight: 500; white-space: nowrap; }
+.hdlv2-cd-pop[data-view-as] .cdp-view-as a:hover { color: #004F59; text-decoration: underline; }
+.hdlv2-cd-pop[data-view-as] .cdp-view-as a:focus-visible { outline: 2px solid #3d8da0; outline-offset: 2px; border-radius: 4px; }
+.hdlv2-cd-pop[data-view-as] .cdp-view-as-note,
+.hdlv2-cd-pop[data-view-as] .hdlv2-inbox-readonly { margin: 0; padding: 0; font-size: 14px; color: #888; }
+.hdlv2-cd-pop[data-view-as] .hdlv2-inbox-readonly { margin-top: 14px; padding-top: 14px; border-top: 1px solid #e4e6ea; }
+.hdlv2-cd-pop[data-view-as] .cdp-stage1-actions .cdp-view-as-note { margin-top: 16px; }
+.hdlv2-cd-pop[data-view-as] .cdp-action-check:disabled { cursor: default; opacity: 0.6; }
+
+@media (max-width: 640px) {
+  .hdlv2-cd-pop[data-view-as] .cdp-view-as { width: calc(100% - 36px); margin-top: 16px; }
+}

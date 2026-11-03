@@ -354,8 +354,10 @@ class HDLV2_Challenge {
      * The dashboard section, or '' for a client with no enrolment and no
      * client record. v0.48.27 (D6) — a client record that is not enrolled gets
      * the 30 days free; rendering writes nothing (D7).
+     *
+     * @param bool $read_only v0.48.40 — the practitioner's view of the page: no form, nothing to buy.
      */
-    public static function render_section( $user_id, $has_full_report ) {
+    public static function render_section( $user_id, $has_full_report, $read_only = false ) {
         $enrolment = self::enrolment( $user_id );
         $state     = self::state( $user_id );
         if ( ! $state ) {
@@ -439,7 +441,7 @@ class HDLV2_Challenge {
             // rewrites this line in the buyer's own clock.
             $opens = gmdate( 'Y-m-d\TH:i:s\Z', strtotime( $state['next_opens_at'] . ' UTC' ) );
             $h    .= '<p class="cd30-next" data-next-opens-at="' . esc_attr( $opens ) . '" data-day="' . $day . '">Day ' . $day . ' done. Day ' . ( $day + 1 ) . ' opens after midnight UTC.</p>';
-        } else {
+        } elseif ( ! $read_only ) {
             $h .= '<form class="cd30-tick" data-day="' . $day . '">';
             $h .= '<label for="cd30-note">How did it go? (optional)</label><textarea id="cd30-note" name="note" maxlength="500" rows="3"></textarea>';
             $h .= '<button type="submit" class="cd30-done">Done for today</button>';
@@ -450,10 +452,10 @@ class HDLV2_Challenge {
         // D9 — a done day opened again; the dashboard JS fills it from the JSON.
         $h .= '<div class="cd30-detail" id="cd30-detail" hidden><h3 class="cd30-today-title" tabindex="-1"></h3><p class="cd30-text"></p><div class="cd30-video"></div><p class="cd30-when"></p><blockquote class="cd30-note"></blockquote><button type="button" class="cd30-back">Back to today</button></div>';
 
-        if ( ! $paid ) {
+        if ( ! $paid && ! $read_only ) {
             $h .= self::videos_card( $practitioner );
         }
-        $h .= self::offer_card( $has_full_report, $practitioner );
+        $h .= $read_only ? '' : self::offer_card( $has_full_report, $practitioner );
         $h .= '</div>';
         $h .= '<p class="cd30-live" aria-live="polite"></p>';
         $h .= '</section>';

@@ -47,11 +47,13 @@ $base = array( // md5 of each method's source at 4a0fa73: the flag-off page is b
     'render_populated'    => 'bea86414c51e436e85b6d3114479bf51',
     'render_empty_state'  => '98f00d039a4568cdcf5b10d307770a38',
     'pop_tabs_strip'      => 'a81c05e7480ccf8a138c3a18301e289c',
-    'pop_today_panel'     => 'a74b1e4f4ffe79d16c475ea85c4f1b8e',
+    // v0.48.40: pop_today_panel and path_for_state gained a view_as branch (the practitioner's read-only
+    // view); the client's own output is held by tests/view-as-client S2.14–S2.18 and the STBY pixel pairs.
+    'pop_today_panel'     => 'e4d353bde09fe8b056db92316e96cd89',
     'products_strip'      => '4aa4b8943a506d29eae92a28831142bd',
     'inbox_launcher_host' => '1b1d77e2cc09e9b304a8cb110e45ebb1',
     'hero_for_state'      => '55a43d0082508cff41c5fb6e8f7288c7',
-    'path_for_state'      => '9ea8e6dd5be563e687f3b87d9c91dac0',
+    'path_for_state'      => '1035b52b8767abac157b3501a0432e47',
     'steps_grid'          => 'fab19fd6aa21a898291be590b7b17784',
     'help_footer'         => '42a2311a1ff5b45529c42552368db271',
 );

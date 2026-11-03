@@ -254,10 +254,11 @@ class HDLV2_Products {
      * @param array  $item              one item of for_client()
      * @param array  $full_report_item  the Full Report item (the Timeline's way in)
      * @param string $practitioner_name '' = "your practitioner"
+     * @param bool   $read_only         v0.48.40 — the practitioner's view of the page: the two lines, no button
      */
-    public static function render_locked( array $item, array $full_report_item, $practitioner_name ) {
+    public static function render_locked( array $item, array $full_report_item, $practitioner_name, $read_only = false ) {
         $seller = 'timeline' === $item['key'] ? $full_report_item : $item;
-        $sells  = 'not-yet' === $item['state'] && null !== $seller['price'] && '' !== $seller['url'];
+        $sells  = ! $read_only && 'not-yet' === $item['state'] && null !== $seller['price'] && '' !== $seller['url'];
         $h      = '<div class="cdp-product-card cdp-locked">' . self::product_head( $item, ! ( $sells && 'timeline' !== $item['key'] ) );
         foreach ( self::ABOUT[ $item['key'] ] as $line ) {
             $h .= '<p class="cdp-product-about">' . esc_html( $line ) . '</p>';
@@ -265,7 +266,7 @@ class HDLV2_Products {
         if ( $sells ) {
             $h .= '<a class="cdp-btn cdp-btn-primary" href="' . esc_url( $seller['url'] ) . '">'
                 . esc_html( 'Get the ' . $seller['label'] . ' · ' . $seller['note'] ) . '</a>';
-        } elseif ( ( 'not-yet' === $item['state'] && 'not-yet' === $seller['state'] ) || 'open' === $item['state'] ) {
+        } elseif ( ! $read_only && ( ( 'not-yet' === $item['state'] && 'not-yet' === $seller['state'] ) || 'open' === $item['state'] ) ) {
             $h .= '<button type="button" class="cdp-btn cdp-btn-secondary" data-open-tab="messages">'
                 . esc_html( 'Ask ' . ( '' !== (string) $practitioner_name ? $practitioner_name : 'your practitioner' ) ) . '</button>';
         }
