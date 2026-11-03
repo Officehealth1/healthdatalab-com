@@ -831,7 +831,7 @@ class HDLV2_Client_Dashboard {
             $h .= 'No actions for this day yet.';
         }
         $h .= '</span>';
-        $h .= '<a href="' . esc_url( $plan_url ) . '">Open the whole week &rarr;</a>';
+        $h .= $this->client_link( '<a href="' . esc_url( $plan_url ) . '">Open the whole week &rarr;</a>' );
         $h .= '</div>';
 
         $h .= '</div>';
@@ -998,7 +998,7 @@ class HDLV2_Client_Dashboard {
         $h .= '<div class="cdp-chart-panel-img"><img src="' . esc_url( $url ) . '" alt="Health profile radar — ' . $plotted_count . ' metrics on a 0-5 scale" loading="lazy"></div>';
         $h .= '<p class="cdp-chart-panel-cap cdp-chart-insight">';
         $h .= '<span class="cdp-chart-insight-tag cdp-chart-insight-tag-' . esc_attr( $tag_class ) . '">' . esc_html( $tag ) . '</span>';
-        $h .= '<span>' . $insight . ' <a href="' . esc_url( $report_url ) . '">Detail in your report &rarr;</a></span>';
+        $h .= '<span>' . $insight . $this->client_link( ' <a href="' . esc_url( $report_url ) . '">Detail in your report &rarr;</a>' ) . '</span>';
         $h .= '</p>';
         $h .= '</div>';
         return $h;
@@ -1493,7 +1493,7 @@ class HDLV2_Client_Dashboard {
         }
         $h .= '</p>';
         $h .= '<div class="cdp-cover-actions">';
-        $h .= '<a href="' . esc_url( $report_url ) . '" class="cdp-btn cdp-btn-light cdp-btn-large">Open my report &rarr;</a>';
+        $h .= $this->client_link( '<a href="' . esc_url( $report_url ) . '" class="cdp-btn cdp-btn-light cdp-btn-large">Open my report &rarr;</a>' );
         if ( $pdf_url ) {
             $h .= '<a href="' . esc_url( $pdf_url ) . '" target="_blank" rel="noopener noreferrer" class="cdp-btn cdp-btn-line cdp-btn-large">Download PDF</a>';
         }
@@ -1556,7 +1556,7 @@ class HDLV2_Client_Dashboard {
 
             // CTA below the priorities — drives back to /my-report/
             $h .= '<div class="cdp-recos-foot">';
-            $h .= '<a href="' . esc_url( $report_url ) . '" class="cdp-btn cdp-btn-primary">Open the full report &rarr;</a>';
+            $h .= $this->client_link( '<a href="' . esc_url( $report_url ) . '" class="cdp-btn cdp-btn-primary">Open the full report &rarr;</a>' );
             if ( $pdf_url ) {
                 $h .= '<a href="' . esc_url( $pdf_url ) . '" target="_blank" rel="noopener noreferrer" class="cdp-btn cdp-btn-line">Download PDF</a>';
             }
@@ -1565,7 +1565,7 @@ class HDLV2_Client_Dashboard {
             $h .= '</div>';
         } else {
             $h .= '<div class="cdp-card cdp-card-quiet cdp-reveal cdp-reveal-3">';
-            $h .= '<p>The full report contains your practitioner&rsquo;s recommendations and personalised plan. <a href="' . esc_url( $report_url ) . '">Open the full report &rarr;</a></p>';
+            $h .= '<p>The full report contains your practitioner&rsquo;s recommendations and personalised plan.' . $this->client_link( ' <a href="' . esc_url( $report_url ) . '">Open the full report &rarr;</a>' ) . '</p>';
             $h .= '</div>';
         }
 
@@ -2061,7 +2061,7 @@ class HDLV2_Client_Dashboard {
         if ( 'yours' === $items['flight_plan']['state'] && $ctx['flight_plan'] ) {
             $plan_url = home_url( '/my-flight-plan/' );
             $yours['flight_plan'] = $this->product_card( $items['flight_plan'],
-                    '<a class="cdp-btn cdp-btn-secondary" href="' . esc_url( $plan_url ) . '">Open this week&rsquo;s plan</a>' )
+                    $this->view_as ? $this->own_sign_in_note() : '<a class="cdp-btn cdp-btn-secondary" href="' . esc_url( $plan_url ) . '">Open this week&rsquo;s plan</a>' )
                 . $this->pop_week_card( $ctx, $plan_url );
         }
         if ( '' !== $challenge ) {
@@ -2129,6 +2129,14 @@ class HDLV2_Client_Dashboard {
     /** v0.48.40 — in the practitioner's view, in place of a link that carries the client's sign-in. */
     private function own_sign_in_note() {
         return '<p class="cdp-view-as-note">Opens from the client&rsquo;s own sign-in</p>';
+    }
+
+    /**
+     * v0.48.40 — a link to /my-report/ or /my-flight-plan/, which show the signed-in user's own: left
+     * out of the practitioner's view (they would land on "This page is for clients" or an empty plan).
+     */
+    private function client_link( $html ) {
+        return $this->view_as ? '' : $html;
     }
 
     /**

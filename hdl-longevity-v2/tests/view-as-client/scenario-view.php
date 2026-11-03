@@ -156,6 +156,10 @@ check( 'S2.7 the Timeline (the Demo Owner\'s): "Opens from the client\'s own sig
 check( 'S2.8 nowhere: the client\'s token, a buy link, an Ask button, a form, "Done for today"',
     '' !== $v && false === strpos( $v, $TOKEN ) && false === strpos( $v, 'token=' ) && false === stripos( $v, 'altituding' ) && false === strpos( $v, 'data-open-tab=' )
     && false === strpos( $v, '<form' ) && false === strpos( $v, 'Done for today' ) );
+check( 'S2.22 no link to a page that opens only for the signed-in client (/my-report/, /my-flight-plan/: the practitioner would land on "This page is for clients" or an empty plan)',
+    '' !== $v && false === strpos( $v, 'href="' . home_url( '/my-report/' ) . '"' ) && false === strpos( $v, 'href="' . home_url( '/my-flight-plan/' ) . '"' ) );
+check( 'S2.23 the Flight Plan card\'s one action reads "Opens from the client\'s own sign-in"',
+    false !== strpos( panel( $v, 'flight_plan' ), 'Opens from the client&rsquo;s own sign-in' ) && false === strpos( panel( $v, 'flight_plan' ), 'Open this week' ) );
 $week = (string) call_private( $D, 'pop_week_card', array(
     'flight_plan'  => array( 'id' => 41, 'week_number' => 3, 'week_start' => '2026-10-26', 'identity_statement' => '' ),
     'ticks_by_day' => array( 'monday' => array( 'total' => 1, 'done' => 0, 'actions' => array( array( 'tick_id' => 9, 'category' => 'food', 'action_text' => 'Eat a green thing', 'ticked' => 0 ) ) ) ),
@@ -190,9 +194,10 @@ $GLOBALS['current_user'] = 508; $GLOBALS['journey_state'] = 'populated';
 list( $to, $own ) = visit();
 check( 'S2.15 the Demo Owner\'s own page: no data-view-as, no banner, no view-as line',
     null === $to && false === strpos( $own, 'data-view-as' ) && false === strpos( $own, 'cdp-view-as' ) && false === strpos( $own, 'Opens from the client' ) );
-check( 'S2.16 …and every control the view takes away is there: Begin, the 30 days form, the reply form, the Timeline link',
+check( 'S2.16 …and every control the view takes away is there: Begin, the 30 days form, the reply form, the Timeline, report and plan links',
     false !== strpos( $own, 'weekly-check-in' ) && false !== strpos( $own, 'Done for today' ) && false !== strpos( $own, 'data-inbox-reply' )
-    && false !== strpos( $own, 'healthspan-timeline/?t=' . $TOKEN ) );
+    && false !== strpos( $own, 'healthspan-timeline/?t=' . $TOKEN )
+    && false !== strpos( $own, 'href="' . home_url( '/my-report/' ) . '"' ) && false !== strpos( $own, 'href="' . home_url( '/my-flight-plan/' ) . '"' ) );
 $week0 = (string) call_private( $D, 'pop_week_card', array(
     'flight_plan'  => array( 'id' => 41, 'week_number' => 3, 'week_start' => '2026-10-26', 'identity_statement' => '' ),
     'ticks_by_day' => array( 'monday' => array( 'total' => 1, 'done' => 0, 'actions' => array( array( 'tick_id' => 9, 'category' => 'food', 'action_text' => 'Eat a green thing', 'ticked' => 0 ) ) ) ),
