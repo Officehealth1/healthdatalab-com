@@ -142,9 +142,10 @@ check( 'S4.1 the one-row page swaps the display serif for Poppins (one token, un
     1 === preg_match( "/\.hdlv2-cd-one-row \{[^}]*--hdlv2-cd-serif: 'Poppins', 'Inter', sans-serif;/", $block ) );
 check( 'S4.2 the block: no serif but sans-serif, no border-left but 0, no inset bar, no ::before',
     ! preg_match( '/(?<!sans-)serif(?!-)/', str_replace( '--hdlv2-cd-serif', '', $block ) )
-    && ! preg_match( '/border-left:\s*(?!0;)/', $block ) && false === strpos( $block, 'inset 3px' ) && false === strpos( $block, '::before' ) );
-check( 'S4.3 .cdp-identity and .cdp-why-card lose their rail on the one-row page',
-    1 === preg_match( '/\.hdlv2-cd-one-row \.cdp-identity,\s*\.hdlv2-cd-one-row \.cdp-why-card \{[^}]*border-left: 0;/', $block ) );
+    && ! preg_match( '/border-left:\s*+(?!0;)/', $block ) && false === strpos( $block, 'inset 3px' ) && false === strpos( $block, '::before' ) );
+check( 'S4.3 .cdp-identity and .cdp-why-card lose their rail on the one-row page (the WHY card keeps its hairline all round)',
+    1 === preg_match( '/\.hdlv2-cd-one-row \.cdp-identity \{[^}]*border-left: 0;[^}]*border-radius: 10px/', $block )
+    && 1 === preg_match( '/\.hdlv2-cd-one-row \.cdp-why-card \{[^}]*border: 1px solid var\(--line\);[^}]*border-radius: 18px/', $block ) );
 check( 'S4.4 the Stage 1 card: gauge | words grid, one column on a phone',
     1 === preg_match( '/\.hdlv2-cd-one-row \.cdp-stage1-body \{[^}]*grid-template-columns: auto 1fr/', $block )
     && 1 === preg_match( '/@media \(max-width: 640px\) \{.*\.hdlv2-cd-one-row \.cdp-stage1-body \{[^}]*grid-template-columns: 1fr/s', $block ) );

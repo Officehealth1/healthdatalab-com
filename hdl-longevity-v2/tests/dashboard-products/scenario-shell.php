@@ -85,7 +85,7 @@ check( 'H3.1 ≤ 640 px: .hdlv2-cd-one-row .cdp-tabs-inner is a two-column grid'
     1 === preg_match( '/\.hdlv2-cd-one-row \.cdp-tabs-inner \{[^}]*display: grid;[^}]*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/', $phone ) );
 check( 'H3.2 ≤ 640 px: the row is not sticky, and the last tab spans both columns',
     1 === preg_match( '/\.hdlv2-cd-one-row \.cdp-tabs \{[^}]*position: static/', $phone ) && 1 === preg_match( '/\.cdp-tabs-inner > :last-child \{[^}]*grid-column: 1 \/ -1/', $phone ) );
-check( 'H3.3 no rails in the new rules (no border-left, no ::before)', '' !== $block && false === strpos( $block, 'border-left' ) && false === strpos( $block, '::before' ) );
+check( 'H3.3 no rails in the new rules (border-left only to remove one (v0.48.39), no ::before)', '' !== $block && ! preg_match( '/border-left:\s*+(?!0;)/', $block ) && false === strpos( $block, '::before' ) );
 check( 'H3.4 a visible 2 px teal focus ring on the tabs and the buttons',
     1 === preg_match( '/\.cdp-tab:focus-visible[^{]*\{[^}]*outline: 2px solid #3d8da0/', $block ) && 1 === preg_match( '/\.cdp-btn:focus-visible[^{]*\{[^}]*outline: 2px solid #3d8da0/', $block ) );
 check( 'H3.5 the tab pill shares the tile pill\'s tokens (one source)',

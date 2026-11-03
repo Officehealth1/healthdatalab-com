@@ -1139,6 +1139,15 @@
 .hdlv2-cd-one-row .cdp-btn-secondary:hover { background: #f8f9fb; color: var(--teal-dark); border-color: #e4e6ea; }
 .hdlv2-cd-one-row .cdp-product-more { font-size: 14px; margin: 14px 0 0; }
 
+/* v0.48.39 — DESIGN.md display type on this page: the waiting fragments, the 30 days and the
+ * Messages headings take their display face from this token: Poppins here (flag off keeps Source Serif). */
+.hdlv2-cd-one-row { --hdlv2-cd-serif: 'Poppins', 'Inter', sans-serif; }
+.hdlv2-cd-one-row .hdlv2-cd .cd-preview-quote { font-weight: 600; }
+
+/* No rails on this page: the week's identity line and the WHY card keep their fill and hairline. */
+.hdlv2-cd-one-row .cdp-identity { border-left: 0; border-radius: 10px; padding-left: 16px; }
+.hdlv2-cd-one-row .cdp-why-card { border: 1px solid var(--line); border-radius: 18px; }
+
 /* v0.48.39 — the Stage 1 card: the gauge beside what it says, then its actions. */
 .hdlv2-cd-one-row .cdp-stage1-body {
   display: grid;
