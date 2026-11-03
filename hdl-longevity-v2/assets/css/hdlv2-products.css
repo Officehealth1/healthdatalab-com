@@ -1,8 +1,9 @@
 /*
  * HDL V2 — the five product tiles (v0.48.36): Stage 1, Full Report, Timeline, Flight Plan, 30 days.
  * One file for both pages that show them: /my-dashboard/ (above everything) and the client panel on
- * /clients/ (the practitioner's copy). v0.48.38: the one-row tabs' pills (.cdp-tab-state) share the tokens. DESIGN.md tokens: hairline border, no shadow, no rail,
- * status pills from the status palette, Poppins label, Inter body.
+ * /clients/ (the practitioner's copy). DESIGN.md tokens: hairline border, no shadow, no rail,
+ * status pills from the status palette, Poppins label, Inter body. v0.48.38: the one-row tabs'
+ * pills (.cdp-tab-state) share the tile pill's rules.
  */
 
 .cdp-products-wrap {
