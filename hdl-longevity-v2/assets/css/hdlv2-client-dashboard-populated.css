@@ -1089,6 +1089,7 @@
   gap: 6px;
   text-align: left;
   white-space: normal;
+  -webkit-tap-highlight-color: transparent; /* the outline or underline is the pressed state */
 }
 .hdlv2-cd-one-row .cdp-tab-label {
   font-size: 15px;
