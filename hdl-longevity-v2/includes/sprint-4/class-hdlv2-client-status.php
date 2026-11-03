@@ -1363,7 +1363,7 @@ class HDLV2_Client_Status {
             // from the display status['status'] badge above).
             $send = self::resolve_resend_status( $client_id );
 
-            $result[] = array(
+            $entry = array(
                 'user_id'          => (int) $client_id,
                 'progress_id'      => $progress_id,
                 'why_id'           => $why ? (int) $why->id : null,
@@ -1406,6 +1406,13 @@ class HDLV2_Client_Status {
                 // v0.48.35 — the family pack line on the row; null unless hdlv2_ff_timeline_pack is on.
                 'family'           => class_exists( 'HDLV2_Timeline_Links' ) ? HDLV2_Timeline_Links::dashboard_pack( $progress_id ) : null,
             );
+            // v0.48.40 — "See it as they see it": the client's dashboard, read-only. Absent with
+            // hdlv2_ff_view_as_client off, so the payload is as before.
+            $view_as = class_exists( 'HDLV2_Client_Dashboard' ) ? HDLV2_Client_Dashboard::view_as_url( $progress_id ) : '';
+            if ( '' !== $view_as ) {
+                $entry['view_as_url'] = $view_as;
+            }
+            $result[] = $entry;
         }
 
         return rest_ensure_response( $result );

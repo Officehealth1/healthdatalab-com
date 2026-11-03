@@ -2229,7 +2229,20 @@
     // reuse the same in-flight or resolved promise — net zero extra requests.
     mountSnapshot(c, panel);
     mountProducts(c, panel);
+    mountViewAs(c, panel);
     return panel;
+  }
+
+  // v0.48.40 — "See it as <first name> sees it →": the client's own dashboard, read-only. The link is
+  // built by the server (/dashboard/clients view_as_url, absent with hdlv2_ff_view_as_client off) and
+  // sits first in the panel, above the product tiles.
+  function mountViewAs(c, panel) {
+    if (!c.view_as_url) return;
+    var a = document.createElement('a');
+    a.className = 'hdlv2-view-as';
+    a.href = c.view_as_url;
+    a.textContent = 'See it as ' + (String(c.name || '').trim().split(/\s+/)[0] || 'your client') + ' sees it \u2192';
+    panel.insertBefore(a, panel.firstChild);
   }
 
   // v0.48.36 — the client's five product tiles at the top of the panel: the same words and states
