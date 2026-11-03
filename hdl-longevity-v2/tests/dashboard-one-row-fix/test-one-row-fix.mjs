@@ -3,7 +3,6 @@
  * One-row fix (v0.48.39): the two tab behaviours of the REAL initTabs() in
  * assets/js/hdlv2-client-dashboard.js, run in vm against a small fake DOM.
  *   - W-a: the countdown card's "What changes between now and then" (#tab-today) opens Today.
- *   - Story 3: a data-open-tab="today" button opens Today.
  * Run: node tests/dashboard-one-row-fix/test-one-row-fix.mjs   Exit: 0 all pass, 1 any fail
  */
 import fs from 'node:fs';
@@ -66,7 +65,7 @@ function page() {
 console.log('W-a the countdown link');
 let p = page();
 let e = p.click(target('a', { href: '#tab-today', class: 'cdp-countdown-cta' }, ['hdlv2-cd-pop', 'hdlv2-cd-pop-page', 'cdp-countdown-card']));
-ok(e.prevented && p.open().join() === 'today', 'W-a.1 "What changes between now and then" (#tab-today, inside the page) opens Today');
+ok(e.prevented && p.open().join() === 'today' && p.win.scrolled === 1, 'W-a.1 "What changes between now and then" (#tab-today, inside the page) opens Today, at the top');
 p = page();
 e = p.click(target('a', { href: '#challenge' }, ['cdp-products', 'cdp-tile']));
 ok(e.prevented && p.open().join() === 'challenge', 'W-a.2 the old strip link (#challenge) still opens its tab');
@@ -76,11 +75,6 @@ ok(!e.prevented && p.open().join() === '', 'W-a.3 a #tab- link outside the dashb
 p = page();
 e = p.click(target('a', { href: '#tab-nowhere' }, ['hdlv2-cd-pop-page']));
 ok(!e.prevented && p.open().join() === '', 'W-a.4 a #tab- link to no tab is left alone');
-
-console.log('S3 the check-in button');
-p = page();
-e = p.click(target('button', { 'data-open-tab': 'today' }, ['hdlv2-cd-pop-page', 'cdp-panel']));
-ok(e.prevented && p.open().join() === 'today' && p.win.scrolled === 1, 'S3.7 data-open-tab="today" opens Today at the top of the page');
 
 console.log(`\nPASS=${PASS} FAIL=${FAIL}`);
 process.exit(FAIL ? 1 : 0);

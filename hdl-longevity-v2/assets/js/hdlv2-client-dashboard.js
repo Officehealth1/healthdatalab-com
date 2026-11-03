@@ -85,6 +85,7 @@
       if (name && root.querySelector('.cdp-tab[data-tab="' + name + '"]')) {
         e.preventDefault();
         activate(name);
+        window.scrollTo({ top: 0, behavior: 'smooth' }); // v0.48.39: the countdown link sits at the foot of a tab
       }
     }, true);
   }

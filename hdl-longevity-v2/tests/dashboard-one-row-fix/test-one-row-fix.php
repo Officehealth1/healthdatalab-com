@@ -108,22 +108,24 @@ check( 'S2.8 flag off: the 30 days stays "not-yet" (the strip on the old page is
 fresh();
 $GLOBALS['options'][ HDLV2_Products::FLAG_ONE_ROW ] = 1;
 client( 516, 122, 2 );
+$op = HDLV2_Products::render_locked( array( 'key' => 'challenge', 'label' => '30 days', 'state' => 'open', 'url' => '', 'note' => 'Free to start', 'price' => null ), array( 'state' => 'not-yet', 'price' => null, 'url' => '' ), 'Pat Other' );
+check( 'S2.8b an open 30 days that reaches the locked panel asks (no dead end), with no lock', false !== strpos( $op, 'data-open-tab="messages">Ask Pat Other</button>' ) && false === strpos( $op, 'cdp-tab-state' ) );
 check( 'S2.9 in progress keeps its words', false !== strpos( HDLV2_Products::render_tabs( HDLV2_Products::for_client( 516 ) ), '<span class="cdp-tab-state is-in-progress">In progress</span>' ) );
 check( 'S2.10 CSS: .is-open in the success palette, .cdp-sr hidden text, the lock sized under the tab row only',
     1 === preg_match( '/\.cdp-products \.is-open \.cdp-tile-state[^{]*\{[^}]*#10b981/', $pcss )
     && 1 === preg_match( '/\.cdp-tabs-products \.cdp-sr,\s*\.cdp-product-head \.cdp-sr \{[^}]*clip: rect\(0, 0, 0, 0\)/', $pcss )
     && 1 === preg_match( '/\.cdp-tabs-products \.cdp-tab-state\.is-not-yet svg,\s*\.cdp-product-head \.cdp-tab-state\.is-not-yet svg \{[^}]*width: 12px/', $pcss ) );
 
-echo "S3 the Flight Plan door is the real next step\n";
+echo "S3 the Flight Plan line is true for a client whose consultation is done\n";
 owner();
 $oi = by_key( HDLV2_Products::for_client( 508 ) );
-check( 'S3.1 final report, no plan: not-yet, "After your first check-in", Today\'s anchor',
-    'not-yet' === $oi['flight_plan']['state'] && 'After your first check-in' === $oi['flight_plan']['note'] && 'https://stby.test/my-dashboard/#tab-today' === $oi['flight_plan']['url'] );
+check( 'S3.1 final report, no plan: not-yet, "Matthew D\'haemer is preparing it" (finalise queues the first plan), no link',
+    'not-yet' === $oi['flight_plan']['state'] && "Matthew D'haemer is preparing it" === $oi['flight_plan']['note'] && '' === $oi['flight_plan']['url'] );
 $fp = HDLV2_Products::render_locked( $oi['flight_plan'], $oi['full_report'], "Matthew D'haemer" );
-check( 'S3.2 its one button opens Today: "Begin your check-in", no Ask, no link',
-    1 === substr_count( $fp, '<button type="button" class="cdp-btn cdp-btn-primary" data-open-tab="today">Begin your check-in</button>' )
-    && false === strpos( $fp, 'Ask ' ) && false === strpos( $fp, '<a ' ) && false !== strpos( $fp, '>After your first check-in<' ) );
-check( 'S3.3 the rendered Flight Plan tab carries that button', false !== strpos( panel( $o, 'flight_plan' ), 'data-open-tab="today">Begin your check-in</button>' ) );
+check( 'S3.2 its one button asks the practitioner; no check-in door, no link',
+    1 === substr_count( $fp, 'data-open-tab="messages">Ask Matthew D&#039;haemer</button>' ) && false === strpos( $fp, 'Begin your check-in' ) && false === strpos( $fp, 'data-open-tab="today"' )
+    && false === strpos( $fp, '<a ' ) && false !== strpos( $fp, '>Matthew D&#039;haemer is preparing it<' ) );
+check( 'S3.3 the rendered Flight Plan tab says so', false !== strpos( panel( $o, 'flight_plan' ), 'Matthew D&#039;haemer is preparing it' ) );
 kim();
 $kf = by_key( HDLV2_Products::for_client( 502 ) )['flight_plan'];
 check( 'S3.4 no report (Kim): "After your consultation" and Ask, as before',

@@ -54,6 +54,12 @@ if ( ! defined( 'ABSPATH' ) ) exit;
 
 class HDLV2_Client_Dashboard {
 
+    /**
+     * v0.48.39 — the drawn gauge's bands: upper edge, word, status colour. The edges are
+     * chart_url_gauge()'s (0.9, 1.1 on 0.5–2.0); a change to them is a change to both.
+     */
+    const GAUGE_BANDS = array( array( 0.9, 'Slower', '#10b981' ), array( 1.1, 'Average', '#3b82f6' ), array( 2.0, 'Faster', '#d97706' ) );
+
     private static $instance = null;
 
     public static function get_instance() {
@@ -1332,10 +1338,12 @@ class HDLV2_Client_Dashboard {
         $gap = rad2deg( 1 / 96 ); // 1 px each side of a join: a 2 px white gap
         $h   = '<svg class="cdp-gauge" viewBox="0 0 240 132" role="img" aria-label="'
              . esc_attr( 'Pace of ageing ' . number_format( (float) $rate, 2 ) . ' times, ' . strtolower( $this->gauge_band( $r )[0] ) ) . '">';
-        foreach ( array( array( 0.5, 0.9, '#10b981' ), array( 0.9, 1.1, '#3b82f6' ), array( 1.1, 2.0, '#d97706' ) ) as $b ) {
-            $from = $deg( $b[0] ) + ( 0.5 === $b[0] ? 0 : $gap );
-            $to   = $deg( $b[1] ) - ( 2.0 === $b[1] ? 0 : $gap );
+        $lo  = 0.5;
+        foreach ( self::GAUGE_BANDS as $b ) {
+            $from = $deg( $lo ) + ( 0.5 === $lo ? 0 : $gap );
+            $to   = $deg( $b[0] ) - ( 2.0 === $b[0] ? 0 : $gap );
             $h   .= '<path d="M' . $at( $from ) . ' A96 96 0 0 1 ' . $at( $to ) . '" fill="none" stroke="' . $b[2] . '" stroke-width="22"/>';
+            $lo   = $b[0];
         }
         $h .= '<line x1="120" y1="120" x2="54.72" y2="120" stroke="#004F59" stroke-width="4" stroke-linecap="round" transform="rotate(' . round( $deg( $r ), 1 ) . ' 120 120)"/>';
         $h .= '<circle cx="120" cy="120" r="6" fill="#004F59"/>';
@@ -1345,9 +1353,10 @@ class HDLV2_Client_Dashboard {
     /** @return array{0:string,1:string} the gauge's band word and colour, at chart_url_gauge()'s edges. */
     private function gauge_band( $rate ) {
         $r = round( (float) $rate, 2 ); // as chart_url_gauge(): 0.904 reads Slower
-        if ( $r <= 0.9 ) return array( 'Slower', '#10b981' );
-        if ( $r <= 1.1 ) return array( 'Average', '#3b82f6' );
-        return array( 'Faster', '#d97706' );
+        foreach ( self::GAUGE_BANDS as $b ) {
+            if ( $r <= $b[0] ) return array( $b[1], $b[2] );
+        }
+        return array( $b[1], $b[2] ); // above the scale: the last band
     }
 
     /** v0.48.39 — the one-row page draws its gauges (gauge_svg); the other pages keep the image. */
