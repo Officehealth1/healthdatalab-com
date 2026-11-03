@@ -64,9 +64,9 @@ check( 'S2.1 the card shows the Stage 1 report\'s dial as an image, 380×340', '
 $st = stat_row( $s1 );
 check( 'S2.2 Bio Age 54.6 · Chrono 52 · To Address −2.6 yrs, in the gauge column',
     false !== strpos( $s1, '<div class="cdp-stage1-gauge">' )
-    && 1 === preg_match( '#<span class="cdp-stat-label">Bio Age</span><span class="cdp-stat-value">54\.6</span>#', $st )
-    && 1 === preg_match( '#<span class="cdp-stat-label">Chrono</span><span class="cdp-stat-value">52</span>#', $st )
-    && 1 === preg_match( '#<span class="cdp-stat-label">To Address</span><span class="cdp-stat-value">&minus;2\.6 yrs</span>#', $st ) );
+    && 1 === preg_match( '#<span class="cdp-stage1-stat-label">Bio Age</span><span class="cdp-stage1-stat-value">54\.6</span>#', $st )
+    && 1 === preg_match( '#<span class="cdp-stage1-stat-label">Chrono</span><span class="cdp-stage1-stat-value">52</span>#', $st )
+    && 1 === preg_match( '#<span class="cdp-stage1-stat-label">To Address</span><span class="cdp-stage1-stat-value">&minus;2\.6 yrs</span>#', $st ) );
 check( 'S2.3 "Pace of Ageing" and 1.05× in the data column',
     1 === preg_match( '#<div class="cdp-stage1-data"><p class="cdp-stage1-label">Pace of Ageing</p><p class="cdp-stage1-value">1\.05<span class="cdp-stage1-unit">&times;</span></p>#', $s1 ) );
 check( 'S2.4 the pill reads the report\'s word, info colour for Average',
@@ -85,9 +85,9 @@ $gap = function ( $rate, $age ) use ( $D ) {
     return stat_row( (string) call_private( $D, 'stage1_body', array( 'stage1_rate' => $rate, 'stage1_data' => $s, 'display_name' => 'A B' ), array( 'url' => '' ), '' ) );
 };
 check( 'S2.9 the gap as the PDF\'s Liquid: 0.9×50 → In Favour +5 yrs; 1.02×50 → To Address −1 yr; 1×50 → Status On Pace',
-    false !== strpos( $gap( 0.9, 50 ), 'In Favour</span><span class="cdp-stat-value">+5 yrs<' )
-    && false !== strpos( $gap( 1.02, 50 ), 'To Address</span><span class="cdp-stat-value">&minus;1 yr<' )
-    && false !== strpos( $gap( 1.0, 50 ), 'Status</span><span class="cdp-stat-value">On Pace<' ) );
+    false !== strpos( $gap( 0.9, 50 ), 'In Favour</span><span class="cdp-stage1-stat-value">+5 yrs<' )
+    && false !== strpos( $gap( 1.02, 50 ), 'To Address</span><span class="cdp-stage1-stat-value">&minus;1 yr<' )
+    && false !== strpos( $gap( 1.0, 50 ), 'Status</span><span class="cdp-stage1-stat-value">On Pace<' ) );
 $noage = (string) call_private( $D, 'stage1_body', array( 'stage1_rate' => 1.1, 'stage1_data' => array( 'server_result' => array( 'rate' => 1.1 ) ), 'display_name' => 'A B' ), array( 'url' => '' ), '' );
 check( 'S2.10 no age: no stats row; no Stage 1 data: the interpret_rate() message as the sentence',
     '' !== $noage && false === strpos( $noage, 'cdp-stage1-stats' ) && false !== strpos( $noage, 'cdp-chart-insight-tag-watch">Faster than average<' )

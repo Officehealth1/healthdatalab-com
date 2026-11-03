@@ -2080,9 +2080,9 @@ class HDLV2_Client_Dashboard {
                 $years = ( 1.0 === $abs ? ' yr' : ' yrs' );
                 $delta = $gap > 0 ? array( 'In Favour', '+' . $abs . $years ) : ( $gap < 0 ? array( 'To Address', '&minus;' . $abs . $years ) : array( 'Status', 'On Pace' ) );
                 $stats = '<div class="cdp-stage1-stats">'
-                    . '<div class="cdp-stat"><span class="cdp-stat-label">Bio Age</span><span class="cdp-stat-value">' . esc_html( number_format( $bio, 1 ) ) . '</span></div>'
-                    . '<div class="cdp-stat"><span class="cdp-stat-label">Chrono</span><span class="cdp-stat-value">' . esc_html( (string) $age ) . '</span></div>'
-                    . '<div class="cdp-stat"><span class="cdp-stat-label">' . $delta[0] . '</span><span class="cdp-stat-value">' . $delta[1] . '</span></div>'
+                    . '<div class="cdp-stage1-stat"><span class="cdp-stage1-stat-label">Bio Age</span><span class="cdp-stage1-stat-value">' . esc_html( number_format( $bio, 1 ) ) . '</span></div>'
+                    . '<div class="cdp-stage1-stat"><span class="cdp-stage1-stat-label">Chrono</span><span class="cdp-stage1-stat-value">' . esc_html( (string) $age ) . '</span></div>'
+                    . '<div class="cdp-stage1-stat"><span class="cdp-stage1-stat-label">' . $delta[0] . '</span><span class="cdp-stage1-stat-value">' . $delta[1] . '</span></div>'
                     . '</div>';
             }
             $h .= '<div class="cdp-stage1-body">'
