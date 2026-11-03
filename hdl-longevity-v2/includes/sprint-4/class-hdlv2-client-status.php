@@ -239,21 +239,7 @@ class HDLV2_Client_Status {
             'methods'  => 'GET',
             'callback' => array( $this, 'rest_get_client_record' ),
             'permission_callback' => function ( $req ) {
-                $progress_id = absint( $req['progress_id'] );
-                if ( ! $progress_id ) return false;
-                global $wpdb;
-                // v0.41.17 — `AND deleted_at IS NULL`. Without this, after
-                // a re-invite the practitioner still owns the new
-                // form_progress for this client_user_id, and the IDOR
-                // check (owner-by-progress_id) would pass for the OLD
-                // archived progress_id — leaking Stage 1/2/3/Final data.
-                $owner = (int) $wpdb->get_var( $wpdb->prepare(
-                    "SELECT practitioner_user_id FROM {$wpdb->prefix}hdlv2_form_progress
-                     WHERE id = %d AND deleted_at IS NULL",
-                    $progress_id
-                ) );
-                if ( ! $owner ) return false;
-                return $owner === get_current_user_id() || current_user_can( 'manage_options' );
+                return HDLV2_Client_Status::practitioner_owns_progress( $req['progress_id'], get_current_user_id() );
             },
         ) );
 
@@ -453,6 +439,29 @@ class HDLV2_Client_Status {
             'invites_cancelled' => $invites_cancelled,
             'client_id'         => $client_id,
         ) );
+    }
+
+    /**
+     * The practitioner of this live form_progress row is $user_id, or $user_id is an administrator.
+     * One check for the client-record route and the practitioner's read-only view of a client's
+     * dashboard (v0.48.40).
+     */
+    public static function practitioner_owns_progress( $progress_id, $user_id ) {
+        $progress_id = absint( $progress_id );
+        if ( ! $progress_id ) return false;
+        global $wpdb;
+        // v0.41.17 — `AND deleted_at IS NULL`. Without this, after
+        // a re-invite the practitioner still owns the new
+        // form_progress for this client_user_id, and the IDOR
+        // check (owner-by-progress_id) would pass for the OLD
+        // archived progress_id — leaking Stage 1/2/3/Final data.
+        $owner = (int) $wpdb->get_var( $wpdb->prepare(
+            "SELECT practitioner_user_id FROM {$wpdb->prefix}hdlv2_form_progress
+             WHERE id = %d AND deleted_at IS NULL",
+            $progress_id
+        ) );
+        if ( ! $owner ) return false;
+        return $owner === (int) $user_id || user_can( (int) $user_id, 'manage_options' );
     }
 
     /**
