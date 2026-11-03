@@ -1083,10 +1083,7 @@
   min-height: 64px;
   margin: 0;
   padding: 14px 6px 12px;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 6px;
+  display: block; /* v0.48.39: the lock flows after the label; a pill sits under it */
   text-align: left;
   white-space: normal;
   -webkit-tap-highlight-color: transparent; /* the outline or underline is the pressed state */
@@ -1096,7 +1093,8 @@
   font-weight: 600;
   line-height: 1.25;
 }
-.hdlv2-cd-one-row .cdp-tab .cdp-tab-state { white-space: nowrap; }
+.hdlv2-cd-one-row .cdp-tab .cdp-tab-state { display: block; width: max-content; margin-top: 6px; white-space: nowrap; }
+.hdlv2-cd-one-row .cdp-tab .cdp-tab-state.is-not-yet { display: inline-block; margin: 0 0 0 6px; vertical-align: -1px; }
 .hdlv2-cd-one-row .cdp-tab:focus-visible,
 .hdlv2-cd-one-row .cdp-btn:focus-visible,
 .hdlv2-cd-one-row .cdp-product-more a:focus-visible {

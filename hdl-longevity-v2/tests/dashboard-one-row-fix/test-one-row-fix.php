@@ -100,7 +100,8 @@ check( 'S2.5 the 30 days with a record and no start is "open", "Free to start"',
 $strip = HDLV2_Products::render_strip( array_values( $ki ), true );
 check( 'S2.6 the practitioner\'s strip keeps a word on every tile: "Free to start" for the open 30 days',
     1 === preg_match( '#<span class="cdp-tile is-open"><span class="cdp-tile-label">30 days</span><span class="cdp-tile-state">Free to start</span>#', $strip )
-    && 3 === substr_count( $strip, '<span class="cdp-tile-state">Not yet</span>' ) && 1 === substr_count( $strip, '<span class="cdp-tile-state">Yours</span>' ) );
+    && 3 === substr_count( $strip, '<span class="cdp-tile-state">Not yet</span>' ) && 1 === substr_count( $strip, '<span class="cdp-tile-state">Yours</span>' )
+    && false === strpos( $strip, '<span class="cdp-tile-note">Free to start</span>' ) ); // the word once, not twice
 check( 'S2.7 the locked panel head carries the lock too', 1 === preg_match( '#cdp-tab-state is-not-yet" title="Not yet"><svg#', HDLV2_Products::render_locked( $ki['flight_plan'], $ki['full_report'], "Matthew D'haemer" ) ) );
 $GLOBALS['options'][ HDLV2_Products::FLAG_ONE_ROW ] = 0;
 check( 'S2.8 flag off: the 30 days stays "not-yet" (the strip on the old page is unchanged)', 'not-yet' === by_key( HDLV2_Products::for_client( 502 ) )['challenge']['state'] );
@@ -110,8 +111,8 @@ client( 516, 122, 2 );
 check( 'S2.9 in progress keeps its words', false !== strpos( HDLV2_Products::render_tabs( HDLV2_Products::for_client( 516 ) ), '<span class="cdp-tab-state is-in-progress">In progress</span>' ) );
 check( 'S2.10 CSS: .is-open in the success palette, .cdp-sr hidden text, the lock sized under the tab row only',
     1 === preg_match( '/\.cdp-products \.is-open \.cdp-tile-state[^{]*\{[^}]*#10b981/', $pcss )
-    && 1 === preg_match( '/\.cdp-tabs-products \.cdp-sr \{[^}]*clip: rect\(0, 0, 0, 0\)/', $pcss )
-    && 1 === preg_match( '/\.cdp-tabs-products \.cdp-tab-state\.is-not-yet svg \{[^}]*width: 12px/', $pcss ) );
+    && 1 === preg_match( '/\.cdp-tabs-products \.cdp-sr,\s*\.cdp-product-head \.cdp-sr \{[^}]*clip: rect\(0, 0, 0, 0\)/', $pcss )
+    && 1 === preg_match( '/\.cdp-tabs-products \.cdp-tab-state\.is-not-yet svg,\s*\.cdp-product-head \.cdp-tab-state\.is-not-yet svg \{[^}]*width: 12px/', $pcss ) );
 
 echo "S3 the Flight Plan door is the real next step\n";
 owner();

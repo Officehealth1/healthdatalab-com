@@ -27,7 +27,10 @@ class HDLV2_Products {
 
     const FLAG = 'hdlv2_ff_dashboard_products';
 
-    const STATE_WORDS = array( 'yours' => 'Yours', 'in-progress' => 'In progress', 'not-yet' => 'Not yet' );
+    const STATE_WORDS = array( 'yours' => 'Yours', 'in-progress' => 'In progress', 'not-yet' => 'Not yet', 'open' => 'Free to start' );
+
+    /** v0.48.39 — the one-row tab of a product the client lacks: a 12 px lock (inline SVG, currentColor). */
+    const LOCK = '<svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true" focusable="false"><rect x="2" y="5.25" width="8" height="5.75" rx="1.25" fill="currentColor"/><path d="M3.75 5.25V3.9a2.25 2.25 0 0 1 4.5 0v1.35" fill="none" stroke="currentColor" stroke-width="1.4"/></svg>';
 
     /** v0.48.38 — /my-dashboard/ as one row of tabs, the products among them. Absent = off = the 0.48.37 page. */
     const FLAG_ONE_ROW = 'hdlv2_ff_dashboard_one_row';
@@ -177,7 +180,8 @@ class HDLV2_Products {
         if ( $enrolment ) {
             $challenge = self::item( 'challenge', '30 days', 'yours', 'Started ' . self::day( $enrolment['started_at'] ), $challenge_url );
         } elseif ( $record ) {
-            $challenge = self::item( 'challenge', '30 days', 'not-yet', 'Free to start', $challenge_url );
+            // v0.48.39 — on the one-row page it is its own state: the tab opens a challenge they can start.
+            $challenge = self::item( 'challenge', '30 days', self::one_row_enabled() ? 'open' : 'not-yet', 'Free to start', $challenge_url );
         } else {
             $challenge = self::item( 'challenge', '30 days', 'not-yet', $ask );
         }
@@ -197,7 +201,7 @@ class HDLV2_Products {
         foreach ( $items as $i ) {
             $inner = '<span class="cdp-tile-label">' . esc_html( $i['label'] ) . '</span>'
                    . '<span class="cdp-tile-state">' . esc_html( self::STATE_WORDS[ $i['state'] ] ) . '</span>'
-                   . '<span class="cdp-tile-note">' . esc_html( $i['note'] ) . '</span>';
+                   . ( self::STATE_WORDS[ $i['state'] ] !== $i['note'] ? '<span class="cdp-tile-note">' . esc_html( $i['note'] ) . '</span>' : '' );
             $class = 'cdp-tile is-' . $i['state'];
             $h    .= ! $for_practitioner && '' !== $i['url']
                 ? '<a class="' . $class . '" href="' . esc_url( $i['url'] ) . '">' . $inner . '</a>'
@@ -208,7 +212,7 @@ class HDLV2_Products {
 
     /**
      * v0.48.38 — the one row: Today, the five products, Messages. Buttons only (they open a panel on
-     * this page); each product carries its pill. The tab script (hdlv2-client-dashboard.js) reads
+     * this page); each product carries its pill (v0.48.39: see pill()). The tab script (hdlv2-client-dashboard.js) reads
      * .cdp-tab[data-tab].
      */
     public static function render_tabs( array $items, $active = 'today' ) {
@@ -266,8 +270,18 @@ class HDLV2_Products {
             . ( $with_note ? '<p class="cdp-product-note">' . esc_html( $item['note'] ) . '</p>' : '' );
     }
 
+    /**
+     * v0.48.39 — what the client has, or can start, carries nothing (the label says it); what they
+     * lack carries the lock, its word for screen readers; in progress keeps its words.
+     */
     private static function pill( $state ) {
-        return '<span class="cdp-tab-state is-' . $state . '">' . esc_html( self::STATE_WORDS[ $state ] ) . '</span>';
+        if ( 'yours' === $state || 'open' === $state ) {
+            return '';
+        }
+        $word = esc_html( self::STATE_WORDS[ $state ] );
+        return 'not-yet' === $state
+            ? '<span class="cdp-tab-state is-not-yet" title="' . $word . '">' . self::LOCK . '<span class="cdp-sr">' . $word . '</span></span>'
+            : '<span class="cdp-tab-state is-' . $state . '">' . $word . '</span>';
     }
 
     private static function item( $key, $label, $state, $note, $url = '', $price = null ) {

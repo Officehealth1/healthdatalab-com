@@ -73,7 +73,7 @@
 }
 
 .cdp-products .is-yours .cdp-tile-state,
-.cdp-tab-state.is-yours {
+.cdp-products .is-open .cdp-tile-state {
   color: #10b981;
   background: #ecfdf5;
   border-color: #a7f3d0;
@@ -84,6 +84,30 @@
   color: #3b82f6;
   background: #eff6ff;
   border-color: #bfdbfe;
+}
+
+/* v0.48.39 — a product the one-row client lacks: a lock after its name, its word for screen readers. */
+.cdp-tabs-products .cdp-tab-state.is-not-yet,
+.cdp-product-head .cdp-tab-state.is-not-yet {
+  display: inline-flex;
+  padding: 0;
+  border: 0;
+  color: #888;
+  background: none;
+}
+.cdp-tabs-products .cdp-tab-state.is-not-yet svg,
+.cdp-product-head .cdp-tab-state.is-not-yet svg { display: block; width: 12px; height: 12px; }
+.cdp-tabs-products .cdp-sr,
+.cdp-product-head .cdp-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 .cdp-products .cdp-tile-note {

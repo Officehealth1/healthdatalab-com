@@ -13,10 +13,10 @@ if ( ! class_exists( 'HDLV2_Products' ) || ! method_exists( 'HDLV2_Products', 'r
 $ORDER = array( 'today', 'stage1', 'report', 'timeline', 'flight_plan', 'challenge', 'messages' );
 $OFFER = 'https://altituding.com/full-report?code=YOURCODE';
 
-/** The pill text of one tab ('' when the tab has none). */
+/** The pill of one tab as "state:words" ('' when the tab has none). v0.48.39: a lock carries its words for screen readers. */
 function pill( $html, $key ) {
     if ( ! preg_match( '#<button[^>]*data-tab="' . $key . '"[^>]*>(.*?)</button>#s', $html, $m ) ) return null;
-    return preg_match( '#<span class="cdp-tab-state is-([a-z-]+)">([^<]*)</span>#', $m[1], $p ) ? $p[1] . ':' . $p[2] : '';
+    return preg_match( '#<span class="cdp-tab-state is-([a-z-]+)"(?: title="[^"]*")?>(?:<svg.*?</svg><span class="cdp-sr">)?([^<]*)</span>#s', $m[1], $p ) ? $p[1] . ':' . $p[2] : '';
 }
 
 echo "T1 render_tabs: one row of seven buttons\n";
@@ -29,8 +29,8 @@ check( 'T1.1 seven buttons, keys in TAB_ORDER', $m[1] === $ORDER && HDLV2_Produc
 check( 'T1.2 exactly one aria-selected="true", on Today by default', 1 === substr_count( $h, 'aria-selected="true"' ) && 'true' === $m[2][0] && false !== strpos( $h, 'class="cdp-tab active" data-tab="today"' ) );
 $r = HDLV2_Products::render_tabs( $kim, 'report' );
 check( 'T1.3 $active moves the selection (one only)', 1 === substr_count( $r, 'aria-selected="true"' ) && false !== strpos( $r, 'class="cdp-tab active" data-tab="report"' ) );
-check( 'T1.4 Kim (Stage 1 only): Stage 1 Yours, the other four Not yet',
-    'yours:Yours' === pill( $h, 'stage1' ) && 'not-yet:Not yet' === pill( $h, 'report' ) && 'not-yet:Not yet' === pill( $h, 'timeline' )
+check( 'T1.4 Kim (Stage 1 only): Stage 1 carries nothing (v0.48.39), the other four Not yet',
+    '' === pill( $h, 'stage1' ) && 'not-yet:Not yet' === pill( $h, 'report' ) && 'not-yet:Not yet' === pill( $h, 'timeline' )
     && 'not-yet:Not yet' === pill( $h, 'flight_plan' ) && 'not-yet:Not yet' === pill( $h, 'challenge' ) );
 check( 'T1.5 Today and Messages carry no pill', '' === pill( $h, 'today' ) && '' === pill( $h, 'messages' ) );
 check( 'T1.6 the row is buttons only: no link, no href, no target', false === strpos( $h, '<a ' ) && false === strpos( $h, 'href=' ) && false === strpos( $h, 'target=' ) );
@@ -54,8 +54,7 @@ $wpdb->packs[808]   = (object) array( 'id' => 5, 'seats_total' => 5, 'seats_used
 $wpdb->plans[508]   = (object) array( 'id' => 41, 'week_number' => 3, 'week_start' => '2026-10-26' );
 $GLOBALS['usermeta'][508]['hdlv2_challenge'] = json_encode( array( 'started_at' => '2026-10-28 08:00:00', 'source' => 'free', 'external_ref' => '', 'invite_id' => 0, 'practitioner_id' => 122 ) );
 $t8 = HDLV2_Products::render_tabs( HDLV2_Products::for_client( 508 ) );
-check( 'T1.11 everything: all five product tabs Yours',
-    5 === substr_count( $t8, 'class="cdp-tab-state is-yours">Yours<' ) && false === strpos( $t8, 'is-not-yet' ) );
+check( 'T1.11 everything: no product tab carries a pill (v0.48.39: the label says it)', false === strpos( $t8, 'cdp-tab-state' ) );
 
 echo "T1f the flag\n";
 $GLOBALS['options'] = array();
@@ -74,9 +73,9 @@ check( 'T2.1 Kim\'s Full Report: one primary link to the offer, its text from th
     1 === substr_count( $full, '<a class="cdp-btn cdp-btn-primary" href="' . $OFFER . '">' )
     && 1 === preg_match( '#<a class="cdp-btn cdp-btn-primary" href="[^"]+">Get the Full Report · Today \$27</a>#u', $full )
     && 1 === substr_count( $full, '<a ' ) && false === strpos( $full, '<button' ) );
-check( 'T2.2 the card: product name, grey Not yet pill, the two lines about it',
+check( 'T2.2 the card: product name, the lock (v0.48.39), the two lines about it',
     0 === strpos( $full, '<div class="cdp-product-card cdp-locked">' ) && false !== strpos( $full, '<h2 class="cdp-product-title">Full Report</h2>' )
-    && false !== strpos( $full, '<span class="cdp-tab-state is-not-yet">Not yet</span>' )
+    && false !== strpos( $full, '<span class="cdp-tab-state is-not-yet" title="Not yet"><svg' )
     && false !== strpos( $full, esc_html( HDLV2_Products::ABOUT['full_report'][0] ) ) && false !== strpos( $full, esc_html( HDLV2_Products::ABOUT['full_report'][1] ) ) );
 $tl = HDLV2_Products::render_locked( $k['timeline'], $k['full_report'], "Matthew D'haemer" );
 check( 'T2.3 Timeline locked: its line, and the Full Report\'s action (that is how it is obtained)',

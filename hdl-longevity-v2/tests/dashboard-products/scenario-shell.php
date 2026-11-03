@@ -89,7 +89,8 @@ check( 'H3.3 no rails in the new rules (no border-left, no ::before)', '' !== $b
 check( 'H3.4 a visible 2 px teal focus ring on the tabs and the buttons',
     1 === preg_match( '/\.cdp-tab:focus-visible[^{]*\{[^}]*outline: 2px solid #3d8da0/', $block ) && 1 === preg_match( '/\.cdp-btn:focus-visible[^{]*\{[^}]*outline: 2px solid #3d8da0/', $block ) );
 check( 'H3.5 the tab pill shares the tile pill\'s tokens (one source)',
-    1 === preg_match( '/\.cdp-products \.cdp-tile-state,\s*\.cdp-tab-state \{/', $pcss ) && 1 === preg_match( '/\.cdp-tab-state\.is-yours \{[^}]*#10b981/', $pcss )
+    1 === preg_match( '/\.cdp-products \.cdp-tile-state,\s*\.cdp-tab-state \{/', $pcss ) // v0.48.39: no tab shows "Yours"
+    && 1 === preg_match( '/\.cdp-products \.is-yours \.cdp-tile-state,\s*\.cdp-products \.is-open \.cdp-tile-state \{[^}]*#10b981/', $pcss )
     && 1 === preg_match( '/\.cdp-tab-state\.is-in-progress \{[^}]*#3b82f6/', $pcss ) );
 check( 'H3.6 status colours from the palette only (no Flat UI defaults)', ! preg_match( '/#2ecc71|#e67e22|#e74c3c|#c0392b/i', $block ) );
 
