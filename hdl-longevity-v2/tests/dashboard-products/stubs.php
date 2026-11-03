@@ -68,7 +68,7 @@ class HDLV2_Compatibility {
         return (bool) array_intersect( array( 'um_practitioner', 'practitioner', 'administrator' ), $roles );
     }
     public static function practitioner_owns_client( $p, $c ) { return user_can( $p, 'manage_options' ) || in_array( (int) $p . '|' . (int) $c, $GLOBALS['owns'], true ); }
-    public static function get_client_journey_state( $u ) { return 'brand-new'; }
+    public static function get_client_journey_state( $u ) { return $GLOBALS['journey_state'] ?? 'brand-new'; }
 }
 
 /** Rows by the key each lookup uses; every call is counted. */

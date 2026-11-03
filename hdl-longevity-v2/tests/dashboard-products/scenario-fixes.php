@@ -1,6 +1,6 @@
 <?php
 /**
- * The two gates' fixes (v0.48.37): the client panel fits the roster's box, the videos button is
+ * The two gates' fixes (v0.48.38): the client panel fits the roster's box, the videos button is
  * readable, no rails on the KPI cards, one syncPack per new row, case-blind held-report lookups.
  * Source assertions, no WordPress.
  *   php tests/dashboard-products/scenario-fixes.php
@@ -73,8 +73,8 @@ check( 'A6.2 for_client(): LOWER(client_email) = %s with strtolower( $email )',
 check( 'A6.3 no exact client_email = %s left in either', false === strpos( $tl, ' client_email = %s' ) && false === strpos( $pr, ' client_email = %s' ) );
 
 echo "A7 version\n";
-check( 'A7.1 plugin header 0.48.37', 1 === preg_match( '/\* Version:\s+0\.48\.37\b/', $main ) );
-check( 'A7.2 HDLV2_VERSION 0.48.37', false !== strpos( $main, "define( 'HDLV2_VERSION', '0.48.37' )" ) );
+check( 'A7.1 plugin header 0.48.38', 1 === preg_match( '/\* Version:\s+0\.48\.37\b/', $main ) );
+check( 'A7.2 HDLV2_VERSION 0.48.38', false !== strpos( $main, "define( 'HDLV2_VERSION', '0.48.38' )" ) );
 check( 'A7.3 HDLV2_DB_VERSION stays 3.33', false !== strpos( $main, "define( 'HDLV2_DB_VERSION', '3.33' )" ) );
 
 echo "\nPASS=$PASS FAIL=$FAIL\n";
