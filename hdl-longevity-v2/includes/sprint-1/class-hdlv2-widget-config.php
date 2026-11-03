@@ -1070,6 +1070,36 @@ class HDLV2_Widget_Config {
     }
 
     /**
+     * The Stage 1 report's gauge: the dial only. The PDF prints the rate and the interpretation pill
+     * in its own type beside it (v0.30.0), so the image carries neither. v0.48.41 — public: the
+     * client dashboard's Stage 1 card and Today's preview show this same picture.
+     */
+    public static function stage1_report_gauge_url( $rate ) {
+        if ( ! $rate ) return '';
+        $clamped = max( 0.8, min( 1.4, round( (float) $rate, 2 ) ) );
+        $cfg = array(
+            'type' => 'gauge',
+            'data' => array( 'labels' => array('Slower','Average','Faster'), 'datasets' => array( array(
+                'data' => array(0.9,1.1,1.4), 'value' => $clamped, 'minValue' => 0.8, 'maxValue' => 1.4,
+                'backgroundColor' => array('rgba(67,191,85,0.95)','rgba(65,165,238,0.95)','rgba(255,111,75,0.95)'),
+                'borderWidth' => 1, 'borderColor' => 'rgba(255,255,255,0.8)', 'borderRadius' => 5,
+            ) ) ),
+            'options' => array(
+                'layout' => array( 'padding' => array('top'=>30,'bottom'=>15,'left'=>15,'right'=>15) ),
+                'plugins' => array( 'datalabels' => array('display'=>false) ),
+                'needle' => array('radiusPercentage'=>2.5,'widthPercentage'=>4,'lengthPercentage'=>68,'color'=>'#004F59','shadowColor'=>'rgba(0,79,89,0.4)','shadowBlur'=>8,'shadowOffsetY'=>4,'borderWidth'=>2,'borderColor'=>'rgba(255,255,255,1)'),
+                // v0.30.0 — disabled; premium template renders value typographically.
+                'valueLabel' => array('display'=>false),
+                'centerArea' => array('displayText'=>false,'backgroundColor'=>'transparent'),
+                'arc' => array('borderWidth'=>0,'padding'=>2,'margin'=>3,'roundedCorners'=>true),
+                // v0.30.0 — disabled; premium template renders interpretation as a pill.
+                'subtitle' => array('display'=>false),
+            ),
+        );
+        return 'https://quickchart.io/chart?c=' . rawurlencode( wp_json_encode( $cfg ) ) . '&w=380&h=340&bkg=white';
+    }
+
+    /**
      * Build the QuickChart gauge URL for a rate. Centralised so all 3 callers
      * (verification email, practitioner notify, Make.com PDF payload) match.
      */
@@ -1107,7 +1137,7 @@ class HDLV2_Widget_Config {
     /**
      * Plain-language interpretation for a rate value.
      */
-    private static function interpret_rate( $rate ) {
+    public static function interpret_rate( $rate ) {
         if ( ! $rate )              return array( 'label' => '', 'message' => '' );
         $rate_disp = number_format( (float) $rate, 2 ); // v0.47.15 2-dp parity
         if ( $rate <= 0.95 )        return array( 'label' => 'Slower than average', 'message' => 'Your pace of ageing is ' . $rate_disp . '× — you\'re ageing slower than average. Your lifestyle factors are working in your favour.' );
@@ -1346,36 +1376,8 @@ class HDLV2_Widget_Config {
 
         if ( $send_make_pdf && $rate ) {
             $practitioner_data = get_userdata( $practitioner_id );
-            // Build gauge URL for PDF.
-            //
-            // v0.30.0 — Premium template renders rate value + interpretation
-            // pill in its own typography, so the gauge image is now dial-only:
-            // valueLabel.display = false and subtitle.display = false. This
-            // strips the "0.96" and "Slower" baked into the QuickChart PNG so
-            // the PDF doesn't double-show the same number. Practitioner email
-            // gauge (separate config above, ~line 758) keeps its baked-in
-            // labels — that surface has minimal typography around it.
-            $clamped_rate = max( 0.8, min( 1.4, round( (float) $rate, 2 ) ) );
-            $s1_gauge_cfg = array(
-                'type' => 'gauge',
-                'data' => array( 'labels' => array('Slower','Average','Faster'), 'datasets' => array( array(
-                    'data' => array(0.9,1.1,1.4), 'value' => $clamped_rate, 'minValue' => 0.8, 'maxValue' => 1.4,
-                    'backgroundColor' => array('rgba(67,191,85,0.95)','rgba(65,165,238,0.95)','rgba(255,111,75,0.95)'),
-                    'borderWidth' => 1, 'borderColor' => 'rgba(255,255,255,0.8)', 'borderRadius' => 5,
-                ) ) ),
-                'options' => array(
-                    'layout' => array( 'padding' => array('top'=>30,'bottom'=>15,'left'=>15,'right'=>15) ),
-                    'plugins' => array( 'datalabels' => array('display'=>false) ),
-                    'needle' => array('radiusPercentage'=>2.5,'widthPercentage'=>4,'lengthPercentage'=>68,'color'=>'#004F59','shadowColor'=>'rgba(0,79,89,0.4)','shadowBlur'=>8,'shadowOffsetY'=>4,'borderWidth'=>2,'borderColor'=>'rgba(255,255,255,1)'),
-                    // v0.30.0 — disabled; premium template renders value typographically.
-                    'valueLabel' => array('display'=>false),
-                    'centerArea' => array('displayText'=>false,'backgroundColor'=>'transparent'),
-                    'arc' => array('borderWidth'=>0,'padding'=>2,'margin'=>3,'roundedCorners'=>true),
-                    // v0.30.0 — disabled; premium template renders interpretation as a pill.
-                    'subtitle' => array('display'=>false),
-                ),
-            );
-            $s1_gauge_url = 'https://quickchart.io/chart?c=' . rawurlencode( wp_json_encode( $s1_gauge_cfg ) ) . '&w=380&h=340&bkg=white';
+            // The Stage 1 report's dial (v0.48.41: one helper, the client dashboard shows it too).
+            $s1_gauge_url = self::stage1_report_gauge_url( $rate );
 
             // Practitioner logo — canonical helper with HDL fallback because
             // this surface (Stage 1 result page email + PDFMonkey Stage 1
