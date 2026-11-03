@@ -950,7 +950,7 @@ class HDLV2_Client_Dashboard {
         $h .= '<span class="cdp-chart-panel-value">' . esc_html( number_format( (float) $rate, 2 ) ) . '&times;</span>';
         $h .= '</div>';
         if ( $this->one_row_on() ) {
-            $h .= '<div class="cdp-chart-panel-img">' . $this->report_gauge_img( class_exists( 'HDLV2_Final_Report' ) ? HDLV2_Final_Report::gauge_url( $rate ) : '', $rate ) . '</div>';
+            $h .= '<div class="cdp-chart-panel-img">' . $this->report_gauge_img( $rate && class_exists( 'HDLV2_Final_Report' ) ? HDLV2_Final_Report::gauge_url( $rate ) : '', $rate ) . '</div>';
         } elseif ( $url ) {
             $h .= '<div class="cdp-chart-panel-img"><img src="' . esc_url( $url ) . '" alt="Pace of ageing gauge — ' . esc_attr( number_format( (float) $rate, 2 ) ) . '×" loading="lazy"></div>';
         }
@@ -2066,12 +2066,12 @@ class HDLV2_Client_Dashboard {
         $h    = '';
         if ( $rate && class_exists( 'HDLV2_Widget_Config' ) ) {
             $s1     = $ctx['stage1_data'] ?? null;
-            $age    = is_array( $s1 ) ? (int) ( $s1['q1_age'] ?? 0 ) : 0;
+            $age    = is_array( $s1 ) ? (int) ( $s1['q1_age'] ?? $s1['server_result']['q1_age'] ?? 0 ) : 0; // as chrono_age reads it
             $bio    = HDLV2_Stage1_Commentary::biological_age( $rate, $age );
             $interp = HDLV2_Widget_Config::interpret_rate( $rate );
             $tag    = array( 'Slower than average' => 'good', 'Average' => 'info' )[ $interp['label'] ] ?? 'watch'; // the PDF's optimal / info / watch
             $line   = is_array( $s1 )
-                ? HDLV2_Stage1_Commentary::build_structured( $s1, is_array( $s1['server_result'] ?? null ) ? $s1['server_result'] : array( 'rate' => $rate ), (string) ( $ctx['display_name'] ?? '' ) )['headline_text']
+                ? HDLV2_Stage1_Commentary::build_structured( $s1, array( 'rate' => $rate ) + ( is_array( $s1['server_result'] ?? null ) ? $s1['server_result'] : array() ), (string) ( $ctx['display_name'] ?? '' ) )['headline_text'] // the printed rate, always
                 : $interp['message'];
             $stats  = '';
             if ( null !== $bio ) { // as the PDF's Liquid: age − bio, in years

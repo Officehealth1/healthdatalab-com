@@ -94,6 +94,16 @@ check( 'S2.10 no age: no stats row; no Stage 1 data: the interpret_rate() messag
     && false !== strpos( (string) call_private( $D, 'stage1_body', array( 'stage1_rate' => 0.9, 'stage1_data' => null, 'display_name' => 'A B' ), array( 'url' => '' ), '' ),
         esc_html( HDLV2_Widget_Config::interpret_rate( 0.9 )['message'] ) ) );
 
+echo "S2b review: older Stage 1 rows, a zero rate\n";
+$old = array( 'q2a' => 'b', 'rate' => 0.9, 'server_result' => array( 'q1_age' => 50 ) ); // rate at the top, age only in server_result
+$ob  = (string) call_private( $D, 'stage1_body', array( 'stage1_rate' => 0.9, 'stage1_data' => $old, 'display_name' => 'A B' ), array( 'url' => '' ), '' );
+check( 'S2.11 the headline is built from the printed rate (0.90), not build_structured\'s 1.0 default; the age falls back to server_result',
+    false !== strpos( $ob, esc_html( HDLV2_Stage1_Commentary::build_structured( $old, array( 'rate' => 0.9, 'q1_age' => 50 ), 'A B' )['headline_text'] ) )
+    && false === strpos( $ob, esc_html( HDLV2_Stage1_Commentary::build_structured( $old, $old['server_result'], 'A B' )['headline_text'] ) )
+    && false !== strpos( $ob, 'Chrono</span><span class="cdp-stage1-stat-value">50<' ) );
+on();
+check( 'S2.12 a zero Stage 3 rate on the one-row page: no gauge image', false === strpos( (string) call_private( $D, 'chart_panel_gauge', array( 'stage3_rate' => 0.0 ) ), '<img' ) );
+
 echo "S3 the health profile where the report has one\n";
 $scores = array( 'physicalActivity' => 3, 'sleepDuration' => 4, 'bmiScore' => 2, 'skinElasticity' => 5 );
 $radar  = (string) call_private( $D, 'chart_panel_radar', array( 'stage3_scores' => $scores ) );
