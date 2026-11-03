@@ -60,7 +60,13 @@ class HDLV2_Client_Dashboard {
      */
     const GAUGE_BANDS = array( array( 0.9, 'Slower', '#10b981' ), array( 1.1, 'Average', '#3b82f6' ), array( 2.0, 'Faster', '#d97706' ) );
 
+    /** v0.48.40 — a practitioner opens a client's dashboard, read-only. Absent = off. */
+    const VIEW_AS_FLAG = 'hdlv2_ff_view_as_client';
+
     private static $instance = null;
+
+    /** v0.48.40 — array( progress_id, client_user_id ) while a practitioner looks at a client's page; null otherwise. */
+    private $view_as = null;
 
     public static function get_instance() {
         if ( null === self::$instance ) self::$instance = new self();
@@ -323,6 +329,9 @@ class HDLV2_Client_Dashboard {
         $is_practitioner = HDLV2_Compatibility::is_practitioner( $user_id );
 
         $dashboard_slug = $this->dashboard_slug();
+
+        // v0.48.40 — a practitioner's valid "See it as they see it" link stays on the client's page.
+        if ( $is_practitioner && is_page( $dashboard_slug ) && $this->view_as_request() ) return;
         $clients_slug   = trim( apply_filters( 'hdlv2_clients_page_slug', 'clients' ), '/' );
 
         // Practitioner on /my-dashboard/ → /clients/.
@@ -346,6 +355,60 @@ class HDLV2_Client_Dashboard {
         return home_url( '/' . $this->dashboard_slug() . '/' );
     }
 
+    /** v0.48.40 — the view needs the one-row page: it is the only one with a read-only rendering. */
+    public static function view_as_enabled() {
+        return (bool) get_option( self::VIEW_AS_FLAG, false )
+            && class_exists( 'HDLV2_Products' ) && HDLV2_Products::enabled() && HDLV2_Products::one_row_enabled();
+    }
+
+    /**
+     * v0.48.40 — the door on the practitioner's client panel ('' when off): this page with ?as= the
+     * client's progress row and a nonce, which binds the link to the practitioner's own session.
+     */
+    public static function view_as_url( $progress_id ) {
+        $progress_id = absint( $progress_id );
+        if ( ! $progress_id || ! self::view_as_enabled() ) {
+            return '';
+        }
+        $url = add_query_arg( 'as', $progress_id, self::get_instance()->dashboard_url() );
+        return add_query_arg( '_wpnonce', wp_create_nonce( 'hdlv2_view_as_' . $progress_id ), $url );
+    }
+
+    /**
+     * v0.48.40 — the ?as=<progress_id>&_wpnonce= link, checked: the flag, the nonce, the caller owns the
+     * live row (or is an administrator), and the row is the client's newest live one (this page shows
+     * that row; an older row of the caller's must not open a client someone else now has).
+     *
+     * @return array|null array( progress_id, client_user_id ), or null: the page is the caller's own.
+     */
+    private function view_as_request() {
+        $as = $_GET['as'] ?? '';
+        if ( ! is_string( $as ) || ! ctype_digit( $as ) || ! self::view_as_enabled() ) {
+            return null;
+        }
+        $id    = (int) $as;
+        $nonce = isset( $_GET['_wpnonce'] ) && is_string( $_GET['_wpnonce'] ) ? sanitize_text_field( wp_unslash( $_GET['_wpnonce'] ) ) : '';
+        if ( ! $id || ! wp_verify_nonce( $nonce, 'hdlv2_view_as_' . $id )
+             || ! HDLV2_Client_Status::practitioner_owns_progress( $id, get_current_user_id() ) ) {
+            return null;
+        }
+        global $wpdb;
+        $client = (int) $wpdb->get_var( $wpdb->prepare(
+            "SELECT client_user_id FROM {$wpdb->prefix}hdlv2_form_progress
+             WHERE id = %d AND deleted_at IS NULL",
+            $id
+        ) );
+        $newest = $client ? (int) $wpdb->get_var( $wpdb->prepare(
+            "SELECT MAX(id) FROM {$wpdb->prefix}hdlv2_form_progress
+             WHERE client_user_id = %d AND deleted_at IS NULL",
+            $client
+        ) ) : 0;
+        if ( ! $client || $newest !== $id || $client === get_current_user_id() || ! get_userdata( $client ) ) {
+            return null;
+        }
+        return array( 'progress_id' => $id, 'client_user_id' => $client );
+    }
+
     public function render_shortcode( $atts ) {
         wp_enqueue_style( 'hdlv2-client-dashboard' );
 
@@ -354,6 +417,14 @@ class HDLV2_Client_Dashboard {
         }
 
         $user_id = get_current_user_id();
+
+        // v0.48.40 — a practitioner's "See it as they see it" link: the page renders for the client.
+        // One line per open in the server log (no table: the DB version stays).
+        $this->view_as = $this->view_as_request();
+        if ( $this->view_as ) {
+            error_log( sprintf( '[HDLV2 view_as_client] practitioner=%d progress=%d at=%s', $user_id, $this->view_as['progress_id'], gmdate( 'c' ) ) );
+            $user_id = $this->view_as['client_user_id'];
+        }
 
         // v0.36.7 — Admin bypass paired with the maybe_redirect_wrong_role
         // bypass above. Admins skip the practitioner-redirect-card so they
