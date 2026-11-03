@@ -92,8 +92,11 @@
 
   Inbox.prototype.boot = function () {
     var self = this;
+    // v0.48.40 — the practitioner's read-only view of the client page: read the thread, never
+    // reply or mark it read.
+    this.readOnly = !!document.querySelector('[data-view-as]');
 
-    if (this.form) {
+    if (this.form && !this.readOnly) {
       this.form.addEventListener('submit', function (e) {
         e.preventDefault();
         self.sendReply();
@@ -186,7 +189,7 @@
 
   Inbox.prototype.maybeMarkRead = function () {
     var self = this;
-    if (!this.seen || !this.hasUnreadFromPrac || this.dead) return;
+    if (this.readOnly || !this.seen || !this.hasUnreadFromPrac || this.dead) return;
     if (this.markedGeneration === this.generation) return;
     this.markedGeneration = this.generation;
     post(this.cfg, 'hdl_mark_read', { reader_role: 'client' })

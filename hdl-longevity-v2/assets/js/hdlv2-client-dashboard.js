@@ -19,6 +19,10 @@
 
   var CFG = window.HDLV2_CD_POP || {};
 
+  // v0.48.40 — the practitioner's read-only view of this page (data-view-as on the dashboard root):
+  // the ticks and the 30 days form send nothing.
+  function viewAs() { return !!document.querySelector('[data-view-as]'); }
+
   // ────────────────────────────────────────────────────────────────────
   //  Tabs
   // ────────────────────────────────────────────────────────────────────
@@ -122,7 +126,7 @@
   //  Action ticking
   // ────────────────────────────────────────────────────────────────────
   function initTicks(card) {
-    if (!CFG.restUrl || !CFG.nonce) {
+    if (!CFG.restUrl || !CFG.nonce || viewAs()) {
       // No REST config — fall back to read-only.
       return;
     }
@@ -357,6 +361,7 @@
         challengeToday(section);
       }
     });
+    if (viewAs()) return;
     document.addEventListener('submit', function (e) {
       var form = e.target;
       if (!form.classList || !form.classList.contains('cd30-tick')) return;
