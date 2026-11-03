@@ -115,6 +115,12 @@ require_once $P . 'sprint-1/class-hdlv2-offer.php';
 require_once $P . 'sprint-4/class-hdlv2-challenge.php';
 require_once $P . 'sprint-2c/class-hdlv2-healthspan-timeline.php';
 require_once $P . 'sprint-2c/class-hdlv2-timeline-links.php';
+// v0.48.41 — the reports' own gauge helpers and the Stage 1 headline, which the one-row page shows.
+function wp_strip_all_tags( $x ) { return trim( strip_tags( (string) $x ) ); }
+require_once $P . 'sprint-2/class-hdlv2-stage1-commentary.php';
+require_once $P . 'sprint-1/class-hdlv2-widget-config.php';
+require_once $P . 'sprint-2/class-hdlv2-staged-form.php';
+require_once $P . 'sprint-2c/class-hdlv2-final-report.php';
 if ( file_exists( $P . 'sprint-4/class-hdlv2-products.php' ) ) {
     require_once $P . 'sprint-4/class-hdlv2-products.php';
 }

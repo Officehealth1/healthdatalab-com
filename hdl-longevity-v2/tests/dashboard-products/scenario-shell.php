@@ -132,7 +132,7 @@ check( 'R2 Kim: no tile strip, no second tab row, no launcher popup', false === 
 check( 'R3 Kim: the Full Report tab sells at the offer price, Flight Plan asks, the gauge sits under Stage 1',
     1 === preg_match( '#data-tab-panel="report"[^>]*>.*?href="https://altituding.com/full-report\?code=YOURCODE">Get the Full Report · Today \$27</a>#su', $k )
     && 1 === preg_match( '#data-tab-panel="flight_plan"[^>]*>.*?data-open-tab="messages">Ask Matthew D&\#039;haemer</button>#s', $k )
-    && 1 === preg_match( '#data-tab-panel="stage1"[^>]*>.*?<svg class="cdp-gauge"#s', $k ) ); // v0.48.39: drawn in the page
+    && 1 === preg_match( '#data-tab-panel="stage1"[^>]*>.*?<img class="cdp-report-gauge"#s', $k ) ); // v0.48.41: the Stage 1 report's image
 check( 'R4 Kim: Today keeps the hero, the waiting card and "How the assessment unfolds"', false !== strpos( $k, 'cd-hero-title' ) && false !== strpos( $k, 'waiting on your practitioner' ) && false !== strpos( $k, 'How the assessment unfolds' ) );
 check( 'R5 Kim: Messages panel holds the inbox shell', 1 === preg_match( '#data-tab-panel="messages"[^>]*>.*?data-inbox-thread#s', $k ) );
 

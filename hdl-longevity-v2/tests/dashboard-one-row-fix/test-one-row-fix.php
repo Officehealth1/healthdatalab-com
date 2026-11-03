@@ -35,37 +35,21 @@ $s1 = panel( $k, 'stage1' );
 check( 'S1.1 one card in the Stage 1 panel: "Stage 1", "Done 2 Nov", no pill',
     1 === substr_count( $s1, 'class="cdp-product-card' ) && false !== strpos( $s1, '<h2 class="cdp-product-title">Stage 1</h2>' )
     && false !== strpos( $s1, '<p class="cdp-product-note">Done 2 Nov</p>' ) && false === strpos( $s1, 'cdp-tab-state' ) );
-check( 'S1.2 the gauge is drawn in the page: one <svg role="img"> with its label, no image, no quickchart',
-    1 === substr_count( $s1, '<svg' ) && false !== strpos( $s1, 'role="img" aria-label="Pace of ageing 1.05 times, average"' )
-    && false === strpos( $s1, '<img' ) && false === stripos( $s1, 'quickchart' ) );
-check( 'S1.3 three band arcs in the status colours, a needle rotated for 1.05 (66°)',
-    1 === preg_match_all( '#<path [^>]*stroke="\#10b981"#', $s1 ) && 1 === preg_match_all( '#<path [^>]*stroke="\#3b82f6"#', $s1 )
-    && 1 === preg_match_all( '#<path [^>]*stroke="\#d97706"#', $s1 ) && 3 === substr_count( $s1, '<path ' )
-    && 1 === preg_match( '#<line [^>]*stroke="\#004F59"[^>]*transform="rotate\(66 120 120\)"#', $s1 ) );
-check( 'S1.4 beside it: the value, the band word in its colour, the sentence already there, "Captured 2 Nov 2026"',
-    1 === preg_match( '#class="cdp-stage1-value">1\.05&times;<#', $s1 ) && 1 === preg_match( '#class="cdp-stage1-band" style="color:\#3b82f6">Average<#', $s1 )
-    && false !== strpos( $s1, 'Your pace of ageing &mdash; the starting point for everything that comes next.' )
-    && false !== strpos( $s1, 'Captured 2 Nov 2026' ) );
+// S1.2–S1.4 and S1.8–S1.10 pinned the drawn gauge, which v0.48.41 replaced with the Stage 1 report's
+// own picture: tests/dashboard-stage1-visuals/ holds the card now.
+check( 'S1.2 v0.48.41: the gauge is the Stage 1 report\'s image, no drawn SVG', false !== strpos( $s1, 'class="cdp-report-gauge"' ) && false === strpos( $s1, '<svg' ) );
 check( 'S1.5 the PDF button with a stored path, and the first look at the timeline (the Timeline is not Kim\'s)',
     false !== strpos( $s1, '>Open the Stage 1 report (PDF)</a>' ) && false !== strpos( $s1, 'See a first look at your timeline &rarr;' ) );
 check( 'S1.6 the Timeline panel keeps its own first look', false !== strpos( panel( $k, 'timeline' ), 'See a first look from your Stage 1 &rarr;' ) );
 kim();
 $s1b = panel( $D->render_shortcode( array() ), 'stage1' );
-check( 'S1.7 no stored PDF: no PDF button', false === strpos( $s1b, 'Open the Stage 1 report (PDF)' ) && false !== strpos( $s1b, '<svg' ) );
-
-$b = function ( $r ) use ( $D ) { $x = call_private( $D, 'gauge_band', $r ); return $x ? $x[0] : null; };
-check( 'S1.8 band words from the gauge\'s own edges: 0.85 Slower, 0.9 Slower, 1.05 Average, 1.1 Average, 1.3 Faster',
-    'Slower' === $b( 0.85 ) && 'Slower' === $b( 0.9 ) && 'Average' === $b( 1.05 ) && 'Average' === $b( 1.1 ) && 'Faster' === $b( 1.3 ) );
-$g = function ( $r ) use ( $D ) { return (string) call_private( $D, 'gauge_svg', $r ); };
-check( 'S1.9 the needle is clamped to the 0.5–2.0 scale as chart_url_gauge() clamps (0.3 → 0°, 2.5 → 180°)',
-    false !== strpos( $g( 0.3 ), 'rotate(0 120 120)' ) && false !== strpos( $g( 2.5 ), 'rotate(180 120 120)' ) && false !== strpos( $g( 1.25 ), 'rotate(90 120 120)' ) );
-check( 'S1.10 no text inside the SVG', '' !== $g( 1.05 ) && false === strpos( $g( 1.05 ), '<text' ) );
+check( 'S1.7 no stored PDF: no PDF button', false === strpos( $s1b, 'Open the Stage 1 report (PDF)' ) && false !== strpos( $s1b, 'cdp-report-gauge' ) );
 
 owner();
 $o  = $D->render_shortcode( array() );
 $fr = panel( $o, 'report' );
-check( 'S1.11 the Full Report\'s gauge is drawn by the same helper (one gauge style on the page)',
-    false !== strpos( $fr, 'aria-label="Pace of ageing 1.20 times, faster"' ) && false === strpos( $fr, '%22gauge%22' ) && false === strpos( $fr, 'cdp-chart-panel-img"><img' ) );
+check( 'S1.11 v0.48.41: the Full Report\'s gauge is the final report\'s image (stage 3 dial), not drawn',
+    false !== strpos( $fr, '<img class="cdp-report-gauge"' ) && false !== strpos( $fr, '%22minValue%22%3A0.5' ) && false === strpos( $fr, 'aria-label="Pace of ageing 1.20 times' ) );
 check( 'S1.12 the owner\'s Stage 1 card: no first look (the Timeline is theirs)', false === strpos( panel( $o, 'stage1' ), 'See a first look' ) );
 $GLOBALS['options'][ HDLV2_Products::FLAG_ONE_ROW ] = 0;
 $off = $D->render_shortcode( array() );
@@ -148,9 +132,9 @@ check( 'S4.2 the block: no serif but sans-serif, no border-left but 0, no inset 
 check( 'S4.3 .cdp-identity and .cdp-why-card lose their rail on the one-row page (the WHY card keeps its hairline all round)',
     1 === preg_match( '/\.hdlv2-cd-one-row \.cdp-identity \{[^}]*border-left: 0;[^}]*border-radius: 10px/', $block )
     && 1 === preg_match( '/\.hdlv2-cd-one-row \.cdp-why-card \{[^}]*border: 1px solid var\(--line\);[^}]*border-radius: 18px/', $block ) );
-check( 'S4.4 the Stage 1 card: gauge | words grid, one column on a phone',
-    1 === preg_match( '/\.hdlv2-cd-one-row \.cdp-stage1-body \{[^}]*grid-template-columns: auto 1fr/', $block )
-    && 1 === preg_match( '/@media \(max-width: 640px\) \{.*\.hdlv2-cd-one-row \.cdp-stage1-body \{[^}]*grid-template-columns: 1fr/s', $block ) );
+check( 'S4.4 the Stage 1 card: gauge | words grid, one column on a phone (v0.48.41: the report\'s two columns)',
+    1 === preg_match( '/\.hdlv2-cd-one-row \.cdp-stage1-body \{[^}]*grid-template-columns: minmax\(0, 280px\) 1fr/', $css )
+    && 1 === preg_match( '/@media \(max-width: 640px\) \{.*\.hdlv2-cd-one-row \.cdp-stage1-body \{[^}]*grid-template-columns: 1fr/s', $css ) );
 
 echo "S5 the two gate warnings\n";
 check( 'S5.1 the 30 days line names its condition (W-b)', 'Free once your Stage 1 is in.' === HDLV2_Products::ABOUT['challenge'][1] );

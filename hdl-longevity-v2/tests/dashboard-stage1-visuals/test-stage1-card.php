@@ -7,11 +7,7 @@
  * Pace of Ageing, the pill, the headline); the Full Report's pace panel is the final report's dial;
  * Today's preview is the Stage 1 report's dial. The drawn gauge (gauge_svg) is gone.
  */
-require dirname( __DIR__ ) . '/dashboard-one-row-fix/stubs.php';
-function wp_strip_all_tags( $s ) { return trim( strip_tags( (string) $s ) ); } // the headline builder's plain-text pass
-foreach ( array( 'sprint-1/class-hdlv2-widget-config.php', 'sprint-2/class-hdlv2-staged-form.php', 'sprint-2c/class-hdlv2-final-report.php' ) as $f ) {
-    require_once $R . 'includes/' . $f;
-}
+require dirname( __DIR__ ) . '/dashboard-one-row-fix/stubs.php'; // loads the real Widget_Config, Staged_Form, Final_Report
 
 $D   = HDLV2_Client_Dashboard::get_instance();
 $css = file_get_contents( $R . 'assets/css/hdlv2-client-dashboard-populated.css' );
@@ -51,7 +47,7 @@ check( 'S1.3 the PDF\'s gauge is byte-equal to ed7a664 for 0.7, 0.85, 1.05, 1.3,
 $frurl = is_callable( array( 'HDLV2_Final_Report', 'gauge_url' ) ) ? HDLV2_Final_Report::gauge_url( 1.2 ) : '';
 check( 'S1.4 HDLV2_Final_Report::gauge_url( 1.2 ) is public and is the final report\'s dial: Staged_Form, stage3 (0.5–2.0)',
     '' !== $frurl && HDLV2_Staged_Form::build_gauge_url( 1.2, array( 'stage3' => true ) ) === $frurl
-    && 0.5 === cfg( $frurl )['data']['datasets'][0]['minValue'] && 2.0 === cfg( $frurl )['data']['datasets'][0]['maxValue']
+    && 0.5 === cfg( $frurl )['data']['datasets'][0]['minValue'] && 2.0 == cfg( $frurl )['data']['datasets'][0]['maxValue']
     && 1 === substr_count( file_get_contents( $R . 'includes/sprint-2c/class-hdlv2-final-report.php' ), '$final_gauge_url = self::gauge_url( $calc_result[\'rate\'] ?? 1.0 );' ) );
 check( 'S1.5 HDLV2_Widget_Config::interpret_rate() is public, body unchanged (0.95 / 1.05)',
     is_callable( array( 'HDLV2_Widget_Config', 'interpret_rate' ) )
@@ -125,7 +121,7 @@ $o = $D->render_shortcode( array() );
 check( 'S4.4 the whole one-row page: two report images (Stage 1, Full Report), no SVG gauge', 2 === substr_count( $o, 'class="cdp-report-gauge"' ) && false === strpos( $o, '<svg class="cdp-gauge' ) );
 
 echo "S5 CSS under the one-row page only\n";
-$blk = (string) strstr( $css, '/* v0.48.41' );
+$blk = (string) strstr( (string) strstr( $css, '/* v0.48.41' ), '/* ── View as client', true ); // up to the view-as block
 check( 'S5.1 one v0.48.41 block, every selector under .hdlv2-cd-one-row, no rail, no colour outside DESIGN.md',
     '' !== $blk && 0 === preg_match( '/border-left\s*:\s*[^0;]/', $blk )
     && 0 === preg_match_all( '/^(?!\s*(\.hdlv2-cd-one-row|@media|\}|\/\*|\*|$|[a-z-]+\s*:))/m', $blk )
