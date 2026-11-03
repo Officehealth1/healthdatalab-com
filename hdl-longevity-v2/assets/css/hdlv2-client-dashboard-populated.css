@@ -1159,7 +1159,7 @@
 .hdlv2-cd-one-row .cdp-gauge { display: block; width: 100%; max-width: 240px; height: auto; }
 .hdlv2-cd-one-row .cdp-stage1-body .cdp-gauge,
 .hdlv2-cd-one-row .cd-preview .cdp-gauge { width: 172px; }
-.hdlv2-cd-one-row .cdp-stage1-words p { margin: 0; }
+.hdlv2-cd-one-row .cdp-stage1-words p { margin: 0; padding: 0; } /* the theme pads every p */
 .hdlv2-cd-one-row .cdp-stage1-value {
   font-family: 'Poppins', 'Inter', sans-serif;
   font-size: 40px;
