@@ -1069,3 +1069,94 @@
   .hdlv2-cd-pop .cdp-act-row { grid-template-columns: 1fr; gap: 4px; }
   .hdlv2-cd-pop .cdp-ci-pct { text-align: left; }
 }
+
+/* ── One row (v0.48.38): the products are the tabs ──────────────────────
+ * hdlv2_ff_dashboard_one_row. Every state gets .hdlv2-cd-pop.hdlv2-cd-one-row;
+ * the waiting-state fragments keep their own sheet inside a .hdlv2-cd box.
+ * DESIGN.md tokens; the active tab is its underline (desktop) or its filled
+ * outline (phone), never a side bar.
+ */
+.hdlv2-cd-one-row .cdp-tabs-inner { gap: 4px; overflow: visible; }
+.hdlv2-cd-one-row .cdp-tab {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 64px;
+  margin: 0;
+  padding: 14px 6px 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  text-align: left;
+  white-space: normal;
+}
+.hdlv2-cd-one-row .cdp-tab-label {
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.25;
+}
+.hdlv2-cd-one-row .cdp-tab .cdp-tab-state { white-space: nowrap; }
+.hdlv2-cd-one-row .cdp-tab:focus-visible,
+.hdlv2-cd-one-row .cdp-btn:focus-visible,
+.hdlv2-cd-one-row .cdp-product-more a:focus-visible {
+  outline: 2px solid #3d8da0;
+  outline-offset: 2px;
+}
+
+/* A product's card: its name, pill and line, what it is, one action. */
+.hdlv2-cd-one-row .cdp-product-card {
+  max-width: 640px;
+  padding: 24px;
+  background: #fff;
+  border: 1px solid #e4e6ea;
+  border-radius: 12px;
+}
+.hdlv2-cd-one-row .cdp-product-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 6px;
+}
+.hdlv2-cd-one-row .cdp-product-title {
+  font-family: 'Poppins', 'Inter', sans-serif;
+  font-size: 22px;
+  font-weight: 600;
+  line-height: 1.3;
+  color: #2c3e50;
+  margin: 0;
+}
+.hdlv2-cd-one-row .cdp-product-note { font-size: 14px; color: #888; margin: 0 0 14px; }
+.hdlv2-cd-one-row .cdp-product-about { font-size: 16px; line-height: 1.5; color: #2c3e50; margin: 0 0 4px; }
+.hdlv2-cd-one-row .cdp-product-about + .cdp-product-about { color: #888; }
+.hdlv2-cd-one-row .cdp-product-card .cdp-btn {
+  margin-top: 16px;
+  padding: 10px 20px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+}
+.hdlv2-cd-one-row .cdp-btn-secondary { background: #fff; color: var(--teal); border-color: #e4e6ea; }
+.hdlv2-cd-one-row .cdp-btn-secondary:hover { background: #f8f9fb; color: var(--teal-dark); border-color: #e4e6ea; }
+.hdlv2-cd-one-row .cdp-product-more { font-size: 14px; margin: 14px 0 0; }
+
+@media (max-width: 640px) {
+  .hdlv2-cd-one-row .cdp-tabs { position: static; border-bottom: 0; }
+  .hdlv2-cd-one-row .cdp-tabs-inner {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+    padding: 16px 18px 0;
+    overflow: visible;
+  }
+  .hdlv2-cd-one-row .cdp-tab {
+    margin: 0;
+    padding: 14px 16px;
+    background: #fff;
+    border: 1px solid #e4e6ea;
+    border-radius: 12px;
+  }
+  .hdlv2-cd-one-row .cdp-tab.active { border-color: var(--teal); background: var(--teal-tint); color: var(--teal-dark); }
+  .hdlv2-cd-one-row .cdp-tabs-inner > :last-child { grid-column: 1 / -1; }
+  .hdlv2-cd-one-row .cdp-product-card { padding: 20px; }
+}
