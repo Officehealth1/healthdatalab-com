@@ -121,7 +121,7 @@ client( 502, 122, 1, array( 'stage1_data' => $S1, 'stage3_data' => null ) );
 $GLOBALS['current_user'] = 502;
 $GLOBALS['journey_state'] = 'stage1-done';
 $k = $D->render_shortcode( array() );
-preg_match_all( '#data-tab-panel="([a-z_]+)"#', $k, $pm );
+preg_match_all( '#data-tab-panel="([a-z0-9_]+)"#', $k, $pm );
 check( 'R1 Kim (stage1-done): one row, seven panels in order, Today open', $pm[1] === HDLV2_Products::TAB_ORDER
     && 1 === substr_count( $k, 'class="cdp-tabs cdp-tabs-products"' ) && 1 === substr_count( $k, 'class="cdp-panel cdp-panel-active"' )
     && false !== strpos( $k, '<section data-tab-panel="today" class="cdp-panel cdp-panel-active"><div class="hdlv2-cd">' ) );
@@ -141,7 +141,7 @@ $wpdb->packs[808]   = (object) array( 'id' => 5, 'seats_total' => 5, 'seats_used
 $GLOBALS['current_user'] = 508;
 $GLOBALS['journey_state'] = 'populated';
 $d = $D->render_shortcode( array() );
-preg_match_all( '#data-tab-panel="([a-z_]+)"#', $d, $pm );
+preg_match_all( '#data-tab-panel="([a-z0-9_]+)"#', $d, $pm );
 check( 'R6 Demo Owner (populated): seven panels in order, no Progress panel', $pm[1] === HDLV2_Products::TAB_ORDER );
 check( 'R7 Demo Owner: the Full Report tab is the report cover then "Where you stand"', 1 === preg_match( '#data-tab-panel="report"[^>]*>.*?cdp-report-cover.*?Where you stand#s', $d ) );
 check( 'R8 Demo Owner: the Timeline tab opens the timeline with the pack line',

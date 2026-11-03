@@ -12,6 +12,9 @@
  * Flag hdlv2_ff_dashboard_products, absent = off: render_strip() returns '' and the route is
  * not registered.
  *
+ * v0.48.38: with hdlv2_ff_dashboard_one_row also on, /my-dashboard/ shows the products as tabs
+ * (render_tabs()) and a product the client lacks as a panel that says how to get it (render_locked()).
+ *
  * @package HDL_Longevity_V2
  * @since   0.48.36
  */
@@ -26,12 +29,31 @@ class HDLV2_Products {
 
     const STATE_WORDS = array( 'yours' => 'Yours', 'in-progress' => 'In progress', 'not-yet' => 'Not yet' );
 
+    /** v0.48.38 — /my-dashboard/ as one row of tabs, the products among them. Absent = off = the 0.48.37 page. */
+    const FLAG_ONE_ROW = 'hdlv2_ff_dashboard_one_row';
+
+    /** The tabs, in order. 'report' is the Full Report (the key old #tab-report links open). */
+    const TAB_ORDER = array( 'today', 'stage1', 'report', 'timeline', 'flight_plan', 'challenge', 'messages' );
+
+    /** What each product is, two lines, on the panel a locked tab opens. Placeholder copy: Matthew's words replace it. */
+    const ABOUT = array(
+        'stage1'      => array( 'Nine questions, about three minutes.', 'Your pace of ageing, straight away.' ),
+        'full_report' => array( 'Your real measurements, reviewed with your practitioner in a consultation.', 'Your personalised Trajectory Plan, as a PDF and on this page.' ),
+        'timeline'    => array( 'Your healthspan, year by year, as one picture.', 'It comes with your Full Report. A family pack adds seats for the people you choose.' ),
+        'flight_plan' => array( 'A plan for the week, every week, after your consultation.', 'Built from your Sunday check-in.' ),
+        'challenge'   => array( 'One small step a day for 30 days.', 'Free for every client.' ),
+    );
+
     public static function init() {
         add_action( 'rest_api_init', array( __CLASS__, 'register_routes' ) );
     }
 
     public static function enabled() {
         return (bool) get_option( self::FLAG, false );
+    }
+
+    public static function one_row_enabled() {
+        return (bool) get_option( self::FLAG_ONE_ROW, false );
     }
 
     public static function register_routes() {
@@ -182,6 +204,70 @@ class HDLV2_Products {
                 : '<span class="' . $class . '">' . $inner . '</span>';
         }
         return $h . '</nav>';
+    }
+
+    /**
+     * v0.48.38 — the one row: Today, the five products, Messages. Buttons only (they open a panel on
+     * this page); each product carries its pill. The tab script (hdlv2-client-dashboard.js) reads
+     * .cdp-tab[data-tab].
+     */
+    public static function render_tabs( array $items, $active = 'today' ) {
+        $by = array();
+        foreach ( $items as $i ) {
+            $by[ 'full_report' === $i['key'] ? 'report' : $i['key'] ] = $i;
+        }
+        $h = '<nav class="cdp-tabs cdp-tabs-products" role="tablist" aria-label="Dashboard sections"><div class="cdp-tabs-inner">';
+        foreach ( self::TAB_ORDER as $key ) {
+            $on = $key === $active;
+            $h .= '<button type="button" class="cdp-tab' . ( $on ? ' active' : '' ) . '" data-tab="' . $key . '" role="tab" aria-selected="' . ( $on ? 'true' : 'false' ) . '">';
+            if ( 'today' === $key ) {
+                $h .= '<span class="cdp-tab-label">Today</span>';
+            } elseif ( 'messages' === $key ) {
+                // The badge is filled by hdlv2-inbox.js from the poll's unread_count and stays hidden at zero.
+                $h .= '<span class="cdp-tab-label">Messages <span class="hdlv2-inbox-badge cdp-tab-badge" data-inbox-badge hidden>0</span></span>';
+            } else {
+                $h .= '<span class="cdp-tab-label">' . esc_html( $by[ $key ]['label'] ) . '</span>' . self::pill( $by[ $key ]['state'] );
+            }
+            $h .= '</button>';
+        }
+        return $h . '</div></nav>';
+    }
+
+    /**
+     * v0.48.38 — the panel of a product the client does not have yet (or has bought and waits for):
+     * what it is, and one way to get it. A price only where the Full Report item carries one (the
+     * Timeline comes with the Full Report, so it borrows that action); otherwise one button that
+     * opens the Messages tab. In progress: no action.
+     *
+     * @param array  $item              one item of for_client()
+     * @param array  $full_report_item  the Full Report item (the Timeline's way in)
+     * @param string $practitioner_name '' = "your practitioner"
+     */
+    public static function render_locked( array $item, array $full_report_item, $practitioner_name ) {
+        $seller = 'timeline' === $item['key'] ? $full_report_item : $item;
+        $sells  = 'not-yet' === $item['state'] && null !== $seller['price'] && '' !== $seller['url'];
+        $h      = '<div class="cdp-product-card cdp-locked">' . self::product_head( $item, ! ( $sells && 'timeline' !== $item['key'] ) );
+        foreach ( self::ABOUT[ $item['key'] ] as $line ) {
+            $h .= '<p class="cdp-product-about">' . esc_html( $line ) . '</p>';
+        }
+        if ( $sells ) {
+            $h .= '<a class="cdp-btn cdp-btn-primary" href="' . esc_url( $seller['url'] ) . '">'
+                . esc_html( 'Get the ' . $seller['label'] . ' · ' . $seller['note'] ) . '</a>';
+        } elseif ( 'not-yet' === $item['state'] && 'not-yet' === $seller['state'] ) {
+            $h .= '<button type="button" class="cdp-btn cdp-btn-secondary" data-open-tab="messages">'
+                . esc_html( 'Ask ' . ( '' !== (string) $practitioner_name ? $practitioner_name : 'your practitioner' ) ) . '</button>';
+        }
+        return $h . '</div>';
+    }
+
+    /** The product's name, its pill and (unless a button already carries it) its line. */
+    public static function product_head( array $item, $with_note = true ) {
+        return '<div class="cdp-product-head"><h2 class="cdp-product-title">' . esc_html( $item['label'] ) . '</h2>' . self::pill( $item['state'] ) . '</div>'
+            . ( $with_note ? '<p class="cdp-product-note">' . esc_html( $item['note'] ) . '</p>' : '' );
+    }
+
+    private static function pill( $state ) {
+        return '<span class="cdp-tab-state is-' . $state . '">' . esc_html( self::STATE_WORDS[ $state ] ) . '</span>';
     }
 
     private static function item( $key, $label, $state, $note, $url = '', $price = null ) {

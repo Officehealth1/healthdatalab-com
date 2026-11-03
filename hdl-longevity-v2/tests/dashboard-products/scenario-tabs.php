@@ -24,7 +24,7 @@ $wpdb = fresh();
 client( 502, 122, 1, array( 'stage1_pdf_url' => 'https://stby.test/?hdlv2_stage1_pdf=802', 'stage1_pdf_stored_path' => 'stage1/802.pdf' ) );
 $kim = HDLV2_Products::for_client( 502 );
 $h   = HDLV2_Products::render_tabs( $kim );
-preg_match_all( '#<button type="button" class="cdp-tab[^"]*" data-tab="([a-z_]+)" role="tab" aria-selected="(true|false)"#', $h, $m );
+preg_match_all( '#<button type="button" class="cdp-tab[^"]*" data-tab="([a-z0-9_]+)" role="tab" aria-selected="(true|false)"#', $h, $m );
 check( 'T1.1 seven buttons, keys in TAB_ORDER', $m[1] === $ORDER && HDLV2_Products::TAB_ORDER === $ORDER );
 check( 'T1.2 exactly one aria-selected="true", on Today by default', 1 === substr_count( $h, 'aria-selected="true"' ) && 'true' === $m[2][0] && false !== strpos( $h, 'class="cdp-tab active" data-tab="today"' ) );
 $r = HDLV2_Products::render_tabs( $kim, 'report' );
