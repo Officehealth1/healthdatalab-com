@@ -56,6 +56,18 @@
       });
     });
 
+    // v0.48.38 — a button on a panel ("Ask <practitioner>") opens another tab on this page.
+    root.addEventListener('click', function (e) {
+      var b = e.target.closest ? e.target.closest('[data-open-tab]') : null;
+      if (!b) return;
+      var name = b.getAttribute('data-open-tab');
+      if (root.querySelector('.cdp-tab[data-tab="' + name + '"]')) {
+        e.preventDefault();
+        activate(name);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+    });
+
     // v0.48.23 — #challenge (the challenge link's landing) opens its tab too.
     var hash = (window.location.hash || '').replace(/^#(tab-)?/, '');
     if (hash && root.querySelector('.cdp-tab[data-tab="' + hash + '"]')) {
