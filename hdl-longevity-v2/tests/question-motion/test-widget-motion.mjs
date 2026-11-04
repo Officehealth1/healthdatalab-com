@@ -33,7 +33,7 @@ const src = cut('  var QUESTIONS = {', '\n  };\n') + cut('  var QUESTION_MOTION 
 
 function render(qKey, motion) {
   const ctx = { contentEl: { innerHTML: '', querySelectorAll: () => [] }, answers: {}, id: 'hdlw-122', advance() {}, escHtml: esc,
-    IMG_BASE: BASE + 'assets/images/silhouettes/', cfg: { questionMotion: motion, assetVer: '0.48.43' } };
+    IMG_BASE: BASE + 'assets/images/silhouettes/', cfg: { questionMotion: motion, assetVer: '0.48.44' } };
   vm.runInNewContext(src + `\nrenderMCQ(${JSON.stringify(qKey)}, ${STEP[qKey]});\nthis.MOTION = typeof QUESTION_MOTION === 'undefined' ? null : QUESTION_MOTION;\nthis.POSES = typeof OPTION_POSES === 'undefined' ? null : OPTION_POSES;`, ctx);
   return { html: ctx.contentEl.innerHTML, motion: ctx.MOTION, poses: ctx.POSES };
 }
@@ -61,7 +61,7 @@ for (const q of Object.keys(STEP)) {
   const [file, word] = WANT[q];
   if (!drawn(file)) { ok(sha(html) === OFF[q], `W7.${q} ${q}: not drawn yet, so no picture and the card unchanged`); continue; }
   const fig = html.match(/<figure class="hdlw-q-motion">.*?<\/figure>/);
-  const url = `${BASE}assets/images/motion/${file}?ver=0.48.43`;
+  const url = `${BASE}assets/images/motion/${file}?ver=0.48.44`;
   const pic = `<picture><source srcset="${url}&amp;still=1#still" media="(prefers-reduced-motion: reduce)"><img src="${url}" alt="" width="96" height="96" loading="eager" decoding="async"></picture>`;
   ok(!!fig && fig[0] === '<figure class="hdlw-q-motion">' + pic + '<figcaption>' + esc(word) + '</figcaption></figure>', `W2.${q} ${q}: ${file}, "${word}"`);
   ok(!!fig && html.indexOf('<div class="hdlw-q-rule"></div>' + fig[0] + '<p class="hdlw-q-prompt">') > 0, `W3.${q} ${q}: after the rule, before the prompt`);
@@ -72,7 +72,7 @@ const POSE = { a: 'q5-floor-a.svg', b: 'q5-floor-b.svg', c: 'q5-floor-c.svg', d:
 const q5 = render('q5', true);
 ok(JSON.stringify(q5.poses) === JSON.stringify({ q5: POSE }), 'P1 OPTION_POSES lists Q5 only, answers a to e, one file each');
 const imgs = q5.html.match(/<img class="hdlw-opt-pose"[^>]*>/g) || [];
-ok(imgs.length === 5 && Object.keys(POSE).every((v, i) => imgs[i] === `<img class="hdlw-opt-pose" src="${BASE}assets/images/motion/${POSE[v]}?ver=0.48.43" alt="" width="40" height="40" loading="eager" decoding="async">`),
+ok(imgs.length === 5 && Object.keys(POSE).every((v, i) => imgs[i] === `<img class="hdlw-opt-pose" src="${BASE}assets/images/motion/${POSE[v]}?ver=0.48.44" alt="" width="40" height="40" loading="eager" decoding="async">`),
   'P2 five poses in answer order, 40 px, decorative (alt="": the answer text says it)');
 ok(Object.keys(POSE).every((v) => new RegExp(`<div class="hdlw-opt hdlw-opt-posed" data-val="${v}"><span class="hdlw-opt-num">0\\d</span><img class="hdlw-opt-pose"[^>]*><span class="hdlw-opt-text">`).test(q5.html)),
   'P3 each pose sits between the answer number and the answer text');
