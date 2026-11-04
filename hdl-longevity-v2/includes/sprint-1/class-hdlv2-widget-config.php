@@ -1010,6 +1010,11 @@ class HDLV2_Widget_Config {
      *
      * @return array { country: 'US'|'' , region: 'Texas'|'' }
      */
+    /** v0.48.42 — the Stage 1 question pictures (hdlv2_ff_question_motion; absent = off). */
+    public static function question_motion_enabled() {
+        return (bool) get_option( 'hdlv2_ff_question_motion', false );
+    }
+
     public static function sanitize_visitor_location( $country_raw, $region_raw ) {
         $none = array( 'country' => '', 'region' => '' );
         if ( ! is_scalar( $country_raw ) ) {
@@ -2649,6 +2654,9 @@ class HDLV2_Widget_Config {
             // the embedded widget shows the 2-question safety screen before the
             // result. Default off = widget behaves exactly as before.
             'safety_screen_enabled'         => (bool) get_option( 'hdlv2_ff_safety_screen', false ),
+            // v0.48.42 — the question pictures, and the plugin version for their ?ver= cache key.
+            'question_motion_enabled'       => self::question_motion_enabled(),
+            'asset_ver'                     => HDLV2_VERSION,
             // v0.47.85 — paid mode: the widget shows its locked panel to a
             // visitor without a personal link. Covers embeds pasted before
             // the snippet carried data-access.
@@ -3187,6 +3195,8 @@ class HDLV2_Widget_Config {
             'theme_color'                    => $config ? $config->theme_color : '#3d8da0',
             'show_book_button_after_widget'  => $config ? ! empty( $config->show_book_button_after_widget ) : false,
             'safety_screen_enabled'          => (bool) get_option( 'hdlv2_ff_safety_screen', false ),
+            'question_motion_enabled'        => self::question_motion_enabled(), // v0.48.42
+            'asset_ver'                      => HDLV2_VERSION,
             'api_url'                        => rest_url( 'hdl-v2/v1/widget/lead' ),
             'prefill_stage1'                 => $prefill,
             // v0.47.85 — 'paid_stage1' tells the widget this link buys the

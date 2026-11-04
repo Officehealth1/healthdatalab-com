@@ -1291,6 +1291,9 @@ class HDLV2_Staged_Form {
             'api_base'   => rest_url( 'hdl-v2/v1/form' ),
             'nonce'      => wp_create_nonce( 'wp_rest' ),
             'plugin_url' => HDLV2_PLUGIN_URL,
+            // v0.48.42 — the test pictures and row icons (hdlv2_ff_question_motion; absent = off).
+            'question_motion' => (bool) get_option( 'hdlv2_ff_question_motion', false ),
+            'asset_ver'       => HDLV2_VERSION,
         ) );
 
         return '<div id="hdlv2-assessment" class="hdlv2-assessment-root"></div>';
