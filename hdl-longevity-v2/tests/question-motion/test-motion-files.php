@@ -1,6 +1,7 @@
 <?php
 /**
- * Question motion (v0.48.42; Q5 poses v0.48.43): every scene in assets/images/motion/ obeys DESIGN.md "## Motion".
+ * Question motion (v0.48.42; Q5 poses v0.48.43; Q5 poses rise on hover v0.48.45): every scene in
+ * assets/images/motion/ obeys DESIGN.md "## Motion".
  * One palette, two stroke weights, round caps, one easing, a 400 ms grid, 4-8 s scenes,
  * reduced motion, no words, no outside references, at most 8 KB. Plain PHP, no stubs.
  * Run: php tests/question-motion/test-motion-files.php   Exit: 0 all pass, 1 any fail
@@ -9,8 +10,8 @@ $pass = 0; $fail = 0;
 function ok( $c, $l ) { global $pass, $fail; $c ? $pass++ : $fail++; echo ( $c ? '  PASS  ' : '  FAIL  ' ) . $l . "\n"; }
 
 $dir      = dirname( __DIR__, 2 ) . '/assets/images/motion/';
-$poses    = array( 'q5-floor-a.svg', 'q5-floor-b.svg', 'q5-floor-c.svg', 'q5-floor-d.svg', 'q5-floor-e.svg' ); // T6d option B: still, on Q5's answers
-$static   = array_merge( array( 'g-waist-hip.svg' ), $poses );
+$poses    = array( 'q5-floor-a.svg', 'q5-floor-b.svg', 'q5-floor-c.svg', 'q5-floor-d.svg', 'q5-floor-e.svg' ); // T6d option B on Q5's answers; T6l: each rises once on hover
+$static   = array( 'g-waist-hip.svg' );
 $expected = array( 'q3-zone2.svg', 'q4-stairs.svg', 'q5-floor-a.svg', 'q5-floor-b.svg', 'q5-floor-c.svg', 'q5-floor-d.svg', 'q5-floor-e.svg', 'q6-sleep.svg', 'q7-smoking.svg', 'q8-social.svg',
 	'q9-diet.svg', 't-balance.svg', 't-chair-stands.svg', 't-skin-pinch.svg', 'g-waist-hip.svg' );
 $palette  = array( '#004f59', '#3d8da0', '#e4e6ea', '#f8f9fb', '#ffffff' );
@@ -72,7 +73,35 @@ foreach ( $expected as $name ) {
 		if ( preg_match( '/\b[0-9.]+m?s\b/', preg_replace( '/^(cubic-bezier|steps)\([^)]*\)/', '', $rest ) ) ) $delay = true;
 	}
 	ok( $grid, "$n every duration a multiple of 400 ms" );
-	ok( $longest >= 4000 && $longest <= 8000, "$n scene length 4-8 s ($longest ms)" );
+	if ( in_array( $name, $poses, true ) ) {
+		// T6l: an answer pose plays once when hovered and rests standing: one iteration, forwards, 1.2 or 1.6 s,
+		// every part the same length; its static rules draw the FIRST keyframe (the pose on the button).
+		$once = array_filter( $an, function ( $a ) use ( $ease ) { return 1 === preg_match( '/^' . preg_quote( $ease, '/' ) . '\s+1\s+forwards$/', trim( $a[3] ) ); } );
+		ok( $an && count( $once ) === count( $an ), "$n plays once and holds the end (easing, 1, forwards on every part)" );
+		ok( 1 === count( array_unique( $dur ) ) && in_array( $longest, array( 1200.0, 1600.0 ), true ), "$n one length, 1.2 or 1.6 s ($longest ms)" );
+		$css   = preg_match( '#<style>(.*?)</style>#s', $s, $st ) ? $st[1] : '';
+		$plain = preg_replace( '/@media[^{]*\{(?:[^{}]*\{[^{}]*\})*\s*\}|@keyframes\s+[a-z0-9-]+\s*\{(?:[^{}]*\{[^{}]*\})*\s*\}/i', '', $css );
+		$props = function ( $body ) { $o = array(); foreach ( explode( ';', $body ) as $d ) { $kv = explode( ':', $d, 2 ); if ( 2 === count( $kv ) ) $o[ trim( $kv[0] ) ] = trim( $kv[1] ); } return $o; };
+		preg_match_all( '/@keyframes\s+([a-z0-9-]+)\s*\{((?:[^{}]*\{[^{}]*\})*)\s*\}/i', $s, $pkf, PREG_SET_ORDER );
+		$diff  = array(); $checked = 0;
+		preg_match_all( '/([^{}]+)\{([^{}]*)\}/', $plain, $rules, PREG_SET_ORDER );
+		foreach ( $rules as $r ) {
+			if ( ! preg_match( '/animation\s*:\s*([a-z0-9-]+)/i', $r[2], $nm ) || 'none' === $nm[1] ) continue;
+			$checked++;
+			$static_p = $props( $r[2] ); unset( $static_p['animation'] );
+			$first = null;
+			foreach ( $pkf as $k ) {
+				if ( $k[1] !== $nm[1] ) continue;
+				preg_match_all( '/([^{}]+)\{([^{}]*)\}/', $k[2], $blocks, PREG_SET_ORDER );
+				foreach ( $blocks as $b ) if ( in_array( '0%', array_map( 'trim', explode( ',', $b[1] ) ), true ) ) $first = $props( $b[2] );
+			}
+			if ( null === $first ) { $diff[] = $nm[1] . ' has no 0% stop'; continue; }
+			foreach ( $first as $prop => $v ) if ( ! isset( $static_p[ $prop ] ) || $static_p[ $prop ] !== $v ) $diff[] = $nm[1] . ' ' . $prop;
+		}
+		ok( $checked && ! $diff, "$n its static rules draw the first keyframe (the pose on the button, $checked parts)" . ( $diff ? ' (' . implode( ', ', $diff ) . ')' : '' ) );
+	} else {
+		ok( $longest >= 4000 && $longest <= 8000, "$n scene length 4-8 s ($longest ms)" );
+	}
 	ok( $eased, "$n one easing, $ease (steps() for a timer)" );
 	ok( ! $delay, "$n no delays (timing lives in the keyframes)" );
 	preg_match_all( '/@keyframes\s+([a-z0-9-]+)\s*\{((?:[^{}]*\{[^{}]*\})*)\s*\}/i', $s, $kf, PREG_SET_ORDER );

@@ -271,6 +271,18 @@
     q5: { a: 'q5-floor-a.svg', b: 'q5-floor-b.svg', c: 'q5-floor-c.svg', d: 'q5-floor-d.svg', e: 'q5-floor-e.svg' }
   };
 
+  // v0.48.45 — a Q5 pose gets up when its answer is hovered (mouse only, motion allowed). The file
+  // plays once from load, even hidden, and a browser keeps one copy per address, so a plain swap
+  // shows it already standing: each hover loads the moving file on a fresh address (&n=, never
+  // repeated in the page) and shows it once loaded; the still stays until then. One small fetch per hover.
+  var posePlays = 0;
+  function playPose() {
+    var row = this, cell = row.querySelector('.hdlw-opt-pose'), mv = cell && cell.querySelector('.hdlw-opt-pose-move');
+    if (!mv) return;
+    mv.onload = function () { if (row.matches(':hover')) row.classList.add('hdlw-opt-playing'); };
+    mv.src = cell.getAttribute('data-move') + '&n=' + (++posePlays);
+  }
+
   // Steps: q1, q2, q3, q4, q5, q6, q7, q8, q9, contact, result
   var STEP_COUNT = 11;
 
@@ -337,8 +349,10 @@
       + '.hdlw-q-motion figcaption{font-family:' + B.body + ';font-size:13px;line-height:1.3;color:' + B.muted + ';margin:0}'
       + '.hdlw-opt.hdlw-opt-posed{grid-template-columns:26px 40px 1fr;align-items:center}'
       + '.hdlw-opt-pose{width:40px;height:40px;border-radius:50%;background:#f8f9fb;display:block}'
+      + '.hdlw-opt-pose img{width:100%;height:100%;display:block}.hdlw-opt-pose .hdlw-opt-pose-move{display:none}'
       + '@media (max-width:480px){.hdlw-q-motion{margin:0 0 16px}.hdlw-q-motion img{width:80px;height:80px}'
-      + '.hdlw-opt.hdlw-opt-posed{grid-template-columns:26px 36px 1fr}.hdlw-opt-pose{width:36px;height:36px}}';
+      + '.hdlw-opt.hdlw-opt-posed{grid-template-columns:26px 36px 1fr}.hdlw-opt-pose{width:36px;height:36px}}'
+      + '@media (hover: hover) and (prefers-reduced-motion: no-preference){.hdlw-opt-playing .hdlw-opt-pose-still{display:none}.hdlw-opt-playing .hdlw-opt-pose-move{display:block}}';
     document.head.appendChild(s);
   }
 
@@ -1103,10 +1117,11 @@
         var o = q.opts[i];
         var sel = answers[qKey] === o.v ? ' hdlw-selected' : '';
         var num = (i + 1) < 10 ? '0' + (i + 1) : String(i + 1);
-        var pose = poses && poses[o.v];
+        var pose = poses && poses[o.v] && motionSrc(poses[o.v]);
         html += '<div class="hdlw-opt' + sel + (pose ? ' hdlw-opt-posed' : '') + '" data-val="' + escHtml(o.v) + '">'
           +   '<span class="hdlw-opt-num">' + num + '</span>'
-          +   ( pose ? '<img class="hdlw-opt-pose" src="' + motionSrc(pose) + '" alt="" width="40" height="40" loading="eager" decoding="async">' : '' )
+          +   ( pose ? '<span class="hdlw-opt-pose" data-move="' + pose + '"><img class="hdlw-opt-pose-still" src="' + pose + '&amp;still=1#still" alt="" width="40" height="40" loading="eager" decoding="async">'
+              + '<img class="hdlw-opt-pose-move" alt="" width="40" height="40" decoding="async"></span>' : '' )
           +   '<span class="hdlw-opt-text">' + escHtml(o.t) + '</span>'
           + '</div>';
       }
@@ -1122,6 +1137,12 @@
           this.classList.add('hdlw-selected');
           advance();
         });
+      }
+      if (poses && typeof matchMedia === 'function' && matchMedia('(hover: hover) and (prefers-reduced-motion: no-preference)').matches) {
+        for (var h = 0; h < opts.length; h++) {
+          opts[h].addEventListener('mouseenter', playPose);
+          opts[h].addEventListener('mouseleave', function () { this.classList.remove('hdlw-opt-playing'); });
+        }
       }
     }
 

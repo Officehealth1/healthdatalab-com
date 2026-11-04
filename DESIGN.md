@@ -128,7 +128,7 @@ checks every file against this section.
 - One easing: `cubic-bezier(.4,0,.2,1)`. The timer arc alone uses `steps(24)`.
 - Every duration, and every keyframe stop, falls on a 400 ms grid.
 - A scene lasts 4 to 8 s. It ends with at least 1.2 s of rest on its final
-  pose.
+  pose. (Answer poses are the one exception: see Size.)
 - At most two things move at once. A figure counts as one, joints and all.
 - No bounce, overshoot, squash or stretch. Scenes loop forever and have no
   sound.
@@ -139,7 +139,7 @@ checks every file against this section.
 - Every animated file carries
   `@media (prefers-reduced-motion: reduce) { * { animation: none !important } }`.
 - The static rules draw the final pose, so the picture rests on it when
-  movement is off.
+  movement is off. (Answer poses draw their first: see Size.)
 - A picture shown through `<img>` may not see the page's motion setting
   (Chrome with DevTools emulation did not, 2026-11-04). So the root `<svg>`
   carries `id="still"` and `#still:target *{animation:none!important}`. The page
@@ -157,10 +157,18 @@ checks every file against this section.
 
 ### Size
 - Shown as a 96 px circle, or 80 px under 480 px wide, on `#f8f9fb`.
-- Answer poses (Q5 only): one still picture on each answer, between the
-  number and the text, 40 px (36 px under 480 px). No caption: the answer
-  text says it. One scale and one ground line across the set, so the row
-  reads in order. Nothing moves on a button.
+- Answer poses (Q5 only): one picture on each answer, between the number and
+  the text, 40 px (36 px under 480 px). No caption: the answer text says it.
+  One scale and one ground line across the set, so the row reads in order.
+- With a mouse, hovering an answer plays its pose once: the figure gets up to
+  standing its own way in 1.2 s or 1.6 s and rests there (one iteration,
+  `forwards`, no loop). Leaving the answer shows the pose again at once.
+  Touch and reduced motion see the pose only.
+- For a pose, the static rules draw the first keyframe (the pose on the
+  button), not the final one: standing is the same on all five.
+- A browser runs a one-shot SVG animation from load, even while hidden, and
+  keeps one copy per address. So each hover loads the moving file on a fresh
+  address (`&n=`) and shows it once loaded. One small fetch per hover.
 - A file is at most 8 KB.
 
 ### Rule that wins
