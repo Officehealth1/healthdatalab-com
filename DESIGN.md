@@ -88,6 +88,72 @@ floats.
   then the secondary facts, then the action full width.
 - Touch targets at least 40px tall.
 
+## Motion
+
+The small looping pictures on the Stage 1 questions and the second form's
+tests (`hdl-longevity-v2/assets/images/motion/`). One author, one rig, one
+palette, one timing grid; `tests/question-motion/test-motion-files.php`
+checks every file against this section.
+
+### Rig
+- One figure in every scene: head `circle r="9"` filled `#004F59`, torso one
+  stroke, each leg two strokes (thigh 16, shin 16), each arm two strokes
+  (upper 13, fore 13); stroke-width 6, `#004F59`, round caps.
+- No face, hands, hair, clothes or gender cue.
+- The same proportions in every file on the 120 grid: head 18, torso 30,
+  leg 32, arm 26. A scene scales the whole rig, never one limb.
+- Joints are nested groups: the joint's position is a `transform`
+  attribute, the movement is a CSS `rotate()` on the group inside it.
+
+### Props and ground
+- Stairs, chair, bed, plate, hand outline, measuring bands: stroke 2,
+  `#3d8da0` at `opacity="0.55"`, round caps, or filled `#e4e6ea`.
+- Ground line: `#e4e6ea`, stroke 2.
+- Timer arc (balance, chair stands, skin pinch): a stroke-2 `#3d8da0` arc
+  that fills clockwise over the timed part with `steps(24)`.
+
+### Frame
+- `viewBox="0 0 120 120"`. First come a `#e4e6ea` disc (r 60) and a
+  `#f8f9fb` disc (r 59) over it: a 1-unit ring with no stroke.
+- Everything sits inside the disc, with 8 units of air to the ring.
+
+### Colours
+- Only `#004F59`, `#3d8da0`, `#e4e6ea`, `#f8f9fb`, `#ffffff`. Opacity
+  attributes are allowed; no other colour, no gradient.
+
+### Timing
+- One easing: `cubic-bezier(.4,0,.2,1)`. The timer arc alone uses `steps(24)`.
+- Every duration, and every keyframe stop, falls on a 400 ms grid.
+- A scene lasts 4 to 8 s. It ends with at least 1.2 s of rest on its final
+  pose.
+- At most two groups move at once.
+- No bounce, overshoot, squash or stretch. Scenes loop forever and have no
+  sound.
+- Each moving group has one `animation` shorthand (name, duration, easing,
+  `infinite`), with no delays. The timing lives in the keyframes.
+
+### Reduced motion
+- Every animated file carries
+  `@media (prefers-reduced-motion: reduce) { * { animation: none !important } }`.
+- The static rules draw the final pose, so the picture rests on it when
+  movement is off.
+- A still picture (the waist and hip guide) has no animation at all.
+
+### Words
+- No words inside a file: no `<text>`, image, link, `url()` or script.
+- The caption is HTML under the picture, in the page's muted caption style.
+  It is one to three words and comes from the page's own copy, so it
+  translates with the page.
+
+### Size
+- Shown as a 96 px circle, or 80 px under 480 px wide, on `#f8f9fb`.
+- A file is at most 8 KB.
+
+### Rule that wins
+- No generated image, no video, no stock clip, no GIF and no animation
+  library.
+- A new scene is drawn with this rig, or not at all.
+
 ## Rules that win over any reference
 - No accent rails (`border-left` bars, `::before` stripes) on rows, cards or nav.
 - No native `alert` / `confirm` / `prompt`.
