@@ -126,7 +126,7 @@ checks every file against this section.
 - Every duration, and every keyframe stop, falls on a 400 ms grid.
 - A scene lasts 4 to 8 s. It ends with at least 1.2 s of rest on its final
   pose.
-- At most two groups move at once.
+- At most two things move at once. A figure counts as one, joints and all.
 - No bounce, overshoot, squash or stretch. Scenes loop forever and have no
   sound.
 - Each moving group has one `animation` shorthand (name, duration, easing,
@@ -137,6 +137,11 @@ checks every file against this section.
   `@media (prefers-reduced-motion: reduce) { * { animation: none !important } }`.
 - The static rules draw the final pose, so the picture rests on it when
   movement is off.
+- A picture shown through `<img>` may not see the page's motion setting
+  (Chrome with DevTools emulation did not, 2026-11-04). So the root `<svg>`
+  carries `id="still"` and `#still:target *{animation:none!important}`. The page
+  asks for `file.svg#still` through
+  `<picture><source srcset="…#still" media="(prefers-reduced-motion: reduce)">`.
 - A still picture (the waist and hip guide) has no animation at all.
 
 ### Words

@@ -53,6 +53,7 @@ foreach ( $expected as $name ) {
 		ok( ! preg_match( '/@keyframes|animation\s*:(?!\s*none)|animation-(name|duration)/', $s ), "$n is still (no keyframes, no animation)" );
 		continue;
 	}
+	ok( 1 === preg_match( '/<svg\b[^>]*\bid="still"/', $s ) && false !== strpos( $s, '#still:target *{animation:none!important}' ), "$n file.svg#still is the still picture (for <picture> media=reduce)" );
 	ok( 1 === preg_match( '/@media\s*\(prefers-reduced-motion:\s*reduce\)\s*\{\s*\*\s*\{\s*animation:\s*none\s*!important;?\s*\}\s*\}/', $s ), "$n stops for reduced motion" );
 
 	// Timing: animation shorthands "name D easing ..."; every duration on the 400 ms grid, the longest 4-8 s,

@@ -5,7 +5,9 @@
  *   - flag off: Q3-Q9 render the 310d61d strings (sha256 fixtures taken before the change),
  *     and the editorial style block is the 310d61d function, unchanged.
  *   - flag on: one <figure class="hdlw-q-motion"> between the rule and the prompt, the question's
- *     file and caption; nothing else in the card moves; Q1 and Q2 never get one.
+ *     file and caption; nothing else in the card moves; Q1 and Q2 never get one. The picture is a
+ *     <picture> whose reduced-motion source is file.svg#still: an SVG inside <img> does not see the
+ *     page's motion setting in Chrome (DESIGN.md, Motion, Reduced motion).
  * Run: node tests/question-motion/test-widget-motion.mjs   Exit: 0 all pass, 1 any fail
  */
 import fs from 'node:fs';
@@ -49,8 +51,9 @@ for (const q of Object.keys(STEP)) {
   const { html } = render(q, true);
   const [file, word] = WANT[q];
   const fig = html.match(/<figure class="hdlw-q-motion">.*?<\/figure>/);
-  const img = `<img src="${BASE}assets/images/motion/${file}?ver=0.48.42" alt="" width="96" height="96" loading="eager" decoding="async">`;
-  ok(!!fig && fig[0].startsWith('<figure class="hdlw-q-motion">' + img + '<figcaption>') && (word === null || fig[0].endsWith('<figcaption>' + esc(word) + '</figcaption></figure>')),
+  const url = `${BASE}assets/images/motion/${file}?ver=0.48.42`;
+  const pic = `<picture><source srcset="${url}#still" media="(prefers-reduced-motion: reduce)"><img src="${url}" alt="" width="96" height="96" loading="eager" decoding="async"></picture>`;
+  ok(!!fig && fig[0].startsWith('<figure class="hdlw-q-motion">' + pic + '<figcaption>') && (word === null || fig[0].endsWith('<figcaption>' + esc(word) + '</figcaption></figure>')),
     `W2.${q} ${q}: ${file}${word ? ', "' + word + '"' : ''}`);
   ok(!!fig && html.indexOf('<div class="hdlw-q-rule"></div>' + fig[0] + '<p class="hdlw-q-prompt">') > 0, `W3.${q} ${q}: after the rule, before the prompt`);
   ok(!!fig && sha(html.replace(fig[0], '')) === OFF[q], `W4.${q} ${q}: nothing else in the card moved`);

@@ -5,7 +5,8 @@
  *   - flag off (hdlv2_form.question_motion absent): the 310d61d strings (sha256 fixtures).
  *   - flag on: balance, chair-stand and skin-pinch screens carry their picture before "How to do it";
  *     the body block carries the waist/hip figure above the waist and hip fields; each of the six
- *     screen-0 rows starts its label with its Phosphor icon. Nothing else moves.
+ *     screen-0 rows starts its label with its Phosphor icon. Nothing else moves. A moving picture is a
+ *     <picture> whose reduced-motion source is file.svg#still (DESIGN.md, Motion, Reduced motion).
  * Run: node tests/question-motion/test-form-motion.mjs   Exit: 0 all pass, 1 any fail
  */
 import fs from 'node:fs';
@@ -60,7 +61,8 @@ for (const m of [null, false]) {
 }
 
 console.log('── flag on: the three tests show how ──');
-const fig = (file, word) => `<figure class="hdlv2-tap-motion"><img src="${BASE}assets/images/motion/${file}?ver=0.48.42" alt="" width="96" height="96" loading="eager" decoding="async"><figcaption>${word}</figcaption></figure>`;
+const fig = (file, word) => { const url = `${BASE}assets/images/motion/${file}?ver=0.48.42`;
+  return `<figure class="hdlv2-tap-motion"><picture><source srcset="${url}#still" media="(prefers-reduced-motion: reduce)"><img src="${url}" alt="" width="96" height="96" loading="eager" decoding="async"></picture><figcaption>${word}</figcaption></figure>`; };
 const WANT = { sitToStand: fig('t-chair-stands.svg', 'Chair stands'), balance: fig('t-balance.svg', 'One leg'), skinElasticity: fig('t-skin-pinch.svg', 'Pinch, release') };
 const order = run(false, 'this.OUT = TAP_ORDER;').OUT;
 const offSteps = Array.from({ length: 13 }, (_, n) => step(false, n));
