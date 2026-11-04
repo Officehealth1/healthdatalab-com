@@ -109,6 +109,8 @@ checks every file against this section.
 ### Props and ground
 - Stairs, chair, bed, plate, hand outline, measuring bands: stroke 2,
   `#3d8da0` at `opacity="0.55"`, round caps, or filled `#e4e6ea`.
+- Food on the Q9 plate: `#e4e6ea` fill with a stroke-2 `#3d8da0` outline at
+  full strength, so it stands off the plate's 0.55 rim.
 - Ground line: `#e4e6ea`, stroke 2.
 - Timer arc (balance, chair stands, skin pinch): a stroke-2 `#3d8da0` arc
   that fills clockwise over the timed part with `steps(24)`.
