@@ -1,5 +1,11 @@
 [build]
-  publish = "."
+  # SECURITY: publish ONLY the assembled static frontend (deny-by-default).
+  # Backend PHP source (hdl-longevity-v2/), serverless SOURCE (netlify/functions/*.js),
+  # package files, ops scripts, internal docs and CLAUDE.md are NOT copied into the
+  # publish dir, so they are no longer publicly served. Functions still execute at
+  # /.netlify/functions/ (bundled from `functions` below — independent of publish).
+  command = "mkdir -p _site && cp -a index.html about.html course.html help-centre.html personal-report.html pricing.html privacy.html terms.html 404.html sitemap.xml robots.txt assets _site/"
+  publish = "_site"
   functions = "netlify/functions"
 
 
