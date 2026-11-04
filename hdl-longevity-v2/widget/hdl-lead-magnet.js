@@ -321,10 +321,10 @@
     if (document.getElementById('hdl-motion-style')) return;
     var s = document.createElement('style');
     s.id = 'hdl-motion-style';
-    s.textContent = '.hdlw-q-motion{margin:4px 0 20px;display:flex;flex-direction:column;align-items:flex-start;gap:8px}'
+    s.textContent = '.hdlw-q-motion{margin:0 0 20px;padding-top:4px;display:flex;flex-direction:column;align-items:flex-start;gap:8px}'
       + '.hdlw-q-motion img{width:96px;height:96px;border-radius:50%;background:#f8f9fb;display:block}'
       + '.hdlw-q-motion figcaption{font-family:' + B.body + ';font-size:13px;line-height:1.3;color:' + B.muted + ';margin:0}'
-      + '@media (max-width:480px){.hdlw-q-motion{margin:4px 0 16px}.hdlw-q-motion img{width:80px;height:80px}}';
+      + '@media (max-width:480px){.hdlw-q-motion{margin:0 0 16px}.hdlw-q-motion img{width:80px;height:80px}}';
     document.head.appendChild(s);
   }
 
