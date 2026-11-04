@@ -257,7 +257,8 @@
   // hdlv2_ff_question_motion is on. Only drawn scenes are listed, so a question
   // without one shows nothing; tests/question-motion checks this against the files.
   var QUESTION_MOTION = {
-    q3: { file: 'q3-zone2.svg', caption: 'Brisk walking' }
+    q3: { file: 'q3-zone2.svg', caption: 'Brisk walking' },
+    q4: { file: 'q4-stairs.svg', caption: 'Climbing stairs' }
   };
 
   // Steps: q1, q2, q3, q4, q5, q6, q7, q8, q9, contact, result
