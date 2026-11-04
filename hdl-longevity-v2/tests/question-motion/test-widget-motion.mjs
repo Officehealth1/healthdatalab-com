@@ -70,8 +70,9 @@ const editorial = cut('  function injectEditorialStyles() {', '\n  }\n');
 ok(sha(editorial) === '0847f730280e62fc3f56e0e78364f889dd7372350c6ed9755c449bb7a1561350', 'W6.1 injectEditorialStyles is the 310d61d function, byte for byte');
 const motionCss = cut('  function injectMotionStyles() {', '\n  }\n');
 ok(/\.hdlw-q-motion img\{width:96px;height:96px;border-radius:50%;background:#f8f9fb;display:block\}/.test(motionCss)
-  && /@media \(max-width:480px\)\{\.hdlw-q-motion img\{width:80px;height:80px\}\}/.test(motionCss), 'W6.2 injectMotionStyles: 96 px circle, 80 px under 480 px');
-ok(/\.hdlw-q-motion figcaption\{font-family:' \+ B\.body \+ ';font-size:12\.5px;color:' \+ B\.muted \+ ';margin:0\}/.test(motionCss), 'W6.3 the caption in the hint\'s two tokens (B.body, B.muted)');
+  && /@media \(max-width:480px\)\{\.hdlw-q-motion\{margin:4px 0 16px\}\.hdlw-q-motion img\{width:80px;height:80px\}\}/.test(motionCss), 'W6.2 injectMotionStyles: 96 px circle, 80 px under 480 px');
+ok(/\.hdlw-q-motion\{margin:4px 0 20px;display:flex;flex-direction:column;align-items:flex-start;gap:8px\}/.test(motionCss), 'W6.7 T6a air: 20 px under the caption (16 px under 480 px), 8 px picture to caption');
+ok(/\.hdlw-q-motion figcaption\{font-family:' \+ B\.body \+ ';font-size:13px;line-height:1\.3;color:' \+ B\.muted \+ ';margin:0\}/.test(motionCss), 'W6.3 the caption in the hint\'s two tokens (B.body, B.muted)');
 ok(/if \(cfg\.questionMotion\) injectMotionStyles\(\);/.test(js) && (js.match(/injectMotionStyles\(\)/g) || []).length === 2, 'W6.4 injectMotionStyles is called once, only when the flag is on');
 ok(/cfg\.questionMotion = !!\(\(publicCfg && publicCfg\.question_motion_enabled\) \|\| \(invite && invite\.question_motion_enabled\)\);/.test(js), 'W6.5 the flag reaches the widget from the public config or the invite payload');
 ok(/cfg\.assetVer = String\(\(publicCfg && publicCfg\.asset_ver\) \|\| \(invite && invite\.asset_ver\) \|\| ''\);/.test(js), 'W6.6 the asset version rides the same two payloads');

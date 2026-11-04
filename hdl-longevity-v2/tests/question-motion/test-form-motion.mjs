@@ -101,5 +101,12 @@ ok(r.includes('hdlv2-tap-row-icon') && r.replace(/<svg class="hdlv2-tap-row-icon
 ok(icons.physicalActivity === run(true, 'this.OUT = ICONS.mobility;').OUT && icons.socialConnections === run(true, 'this.OUT = ICONS.connection;').OUT,
   'F11 the walking and people icons are the ones the choices page already uses');
 
+console.log('── T6a air: the picture rules in hdlv2-form.css ──');
+const css = fs.readFileSync(new URL('../../assets/css/hdlv2-form.css', import.meta.url), 'utf8');
+ok(/\.hdlv2-tap-motion,\s*\.hdlv2-body-guide \{ margin: 0 0 16px; display: flex; flex-direction: column; align-items: flex-start; gap: 8px; \}/.test(css),
+  'F14.1 phones: 16 px under the caption, 8 px picture to caption');
+ok(/@media \(min-width: 640px\) \{\s*\.hdlv2-tap-motion \{ float: left; margin: 0 20px 16px 0; \}/.test(css), 'F14.2 640 px and wider: 20 px beside the how-box, 16 px under the caption');
+ok(/\.hdlv2-tap-motion \+ \.hdlv2-tap-how \+ \.hdlv2-s1-options \{ clear: both; \}/.test(css), 'F14.3 the answers start below the picture and its caption');
+
 console.log(`PASS=${PASS} FAIL=${FAIL}`);
 process.exit(FAIL ? 1 : 0);
