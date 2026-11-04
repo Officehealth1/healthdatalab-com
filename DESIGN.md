@@ -154,6 +154,10 @@ checks every file against this section.
 
 ### Size
 - Shown as a 96 px circle, or 80 px under 480 px wide, on `#f8f9fb`.
+- Answer poses (Q5 only): one still picture on each answer, between the
+  number and the text, 40 px (36 px under 480 px). No caption: the answer
+  text says it. One scale and one ground line across the set, so the row
+  reads in order. Nothing moves on a button.
 - A file is at most 8 KB.
 
 ### Rule that wins

@@ -1,6 +1,6 @@
 <?php
 /**
- * Question motion (v0.48.42): every scene in assets/images/motion/ obeys DESIGN.md "## Motion".
+ * Question motion (v0.48.42; Q5 poses v0.48.43): every scene in assets/images/motion/ obeys DESIGN.md "## Motion".
  * One palette, two stroke weights, round caps, one easing, a 400 ms grid, 4-8 s scenes,
  * reduced motion, no words, no outside references, at most 8 KB. Plain PHP, no stubs.
  * Run: php tests/question-motion/test-motion-files.php   Exit: 0 all pass, 1 any fail
@@ -9,8 +9,9 @@ $pass = 0; $fail = 0;
 function ok( $c, $l ) { global $pass, $fail; $c ? $pass++ : $fail++; echo ( $c ? '  PASS  ' : '  FAIL  ' ) . $l . "\n"; }
 
 $dir      = dirname( __DIR__, 2 ) . '/assets/images/motion/';
-$static   = array( 'g-waist-hip.svg' );
-$expected = array( 'q3-zone2.svg', 'q4-stairs.svg', 'q5-floor-rise.svg', 'q6-sleep.svg', 'q7-smoking.svg', 'q8-social.svg',
+$poses    = array( 'q5-floor-a.svg', 'q5-floor-b.svg', 'q5-floor-c.svg', 'q5-floor-d.svg', 'q5-floor-e.svg' ); // T6d option B: still, on Q5's answers
+$static   = array_merge( array( 'g-waist-hip.svg' ), $poses );
+$expected = array( 'q3-zone2.svg', 'q4-stairs.svg', 'q5-floor-a.svg', 'q5-floor-b.svg', 'q5-floor-c.svg', 'q5-floor-d.svg', 'q5-floor-e.svg', 'q6-sleep.svg', 'q7-smoking.svg', 'q8-social.svg',
 	'q9-diet.svg', 't-balance.svg', 't-chair-stands.svg', 't-skin-pinch.svg', 'g-waist-hip.svg' );
 $palette  = array( '#004f59', '#3d8da0', '#e4e6ea', '#f8f9fb', '#ffffff' );
 $ease     = 'cubic-bezier(.4,0,.2,1)';
@@ -92,14 +93,17 @@ $root  = dirname( __DIR__, 2 );
 $have  = array_map( 'basename', glob( $dir . '*.svg' ) ?: array() );
 $files = function ( $src, $map ) {
 	if ( ! preg_match( '/var ' . $map . ' = \{(.*?)\n  \};/s', $src, $m ) ) return null;
-	preg_match_all( "/file: '([a-z0-9-]+\\.svg)'/", $m[1], $f );
+	preg_match_all( "/'([a-z0-9-]+\\.svg)'/", $m[1], $f );
 	sort( $f[1] ); return $f[1];
 };
 $w = $files( file_get_contents( $root . '/widget/hdl-lead-magnet.js' ), 'QUESTION_MOTION' );
 $f = $files( file_get_contents( $root . '/assets/js/hdlv2-staged-form.js' ), 'TAP_MOTION' );
-$wq = array_values( array_filter( $have, function ( $x ) { return 0 === strpos( $x, 'q' ); } ) ); sort( $wq );
+$wq = array_values( array_filter( $have, function ( $x ) use ( $poses ) { return 0 === strpos( $x, 'q' ) && ! in_array( $x, $poses, true ); } ) ); sort( $wq );
+$wp = array_values( array_intersect( $have, $poses ) ); sort( $wp );
+$p  = $files( file_get_contents( $root . '/widget/hdl-lead-magnet.js' ), 'OPTION_POSES' );
 $ft = array_values( array_filter( $have, function ( $x ) { return 0 !== strpos( $x, 'q' ); } ) ); sort( $ft );
 ok( null !== $w && $w === $wq, 'the widget map (QUESTION_MOTION) lists exactly the drawn q- scenes: ' . implode( ', ', (array) $w ) );
+ok( null !== $p && $p === $wp, 'the widget answer-pose map (OPTION_POSES) lists exactly the drawn Q5 poses: ' . implode( ', ', (array) $p ) );
 ok( null !== $f && $f === $ft, 'the form map (TAP_MOTION) lists exactly the drawn t- and g- scenes: ' . implode( ', ', (array) $f ) );
 echo "PASS=$pass FAIL=$fail\n";
 exit( $fail ? 1 : 0 );

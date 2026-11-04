@@ -261,6 +261,12 @@
     q4: { file: 'q4-stairs.svg', caption: 'Climbing stairs' }
   };
 
+  // v0.48.43 — Q5's answers each carry a still pose (Matthew: "the animation in the choice
+  // itself"), left of the answer text, flag on only; Q5 has no picture at the top.
+  var OPTION_POSES = {
+    q5: { a: 'q5-floor-a.svg', b: 'q5-floor-b.svg', c: 'q5-floor-c.svg', d: 'q5-floor-d.svg', e: 'q5-floor-e.svg' }
+  };
+
   // Steps: q1, q2, q3, q4, q5, q6, q7, q8, q9, contact, result
   var STEP_COUNT = 11;
 
@@ -325,7 +331,10 @@
     s.textContent = '.hdlw-q-motion{margin:0 0 20px;padding-top:4px;display:flex;flex-direction:column;align-items:flex-start;gap:8px}'
       + '.hdlw-q-motion img{width:96px;height:96px;border-radius:50%;background:#f8f9fb;display:block}'
       + '.hdlw-q-motion figcaption{font-family:' + B.body + ';font-size:13px;line-height:1.3;color:' + B.muted + ';margin:0}'
-      + '@media (max-width:480px){.hdlw-q-motion{margin:0 0 16px}.hdlw-q-motion img{width:80px;height:80px}}';
+      + '.hdlw-opt.hdlw-opt-posed{grid-template-columns:26px 40px 1fr;align-items:center}'
+      + '.hdlw-opt-pose{width:40px;height:40px;border-radius:50%;background:#f8f9fb;display:block}'
+      + '@media (max-width:480px){.hdlw-q-motion{margin:0 0 16px}.hdlw-q-motion img{width:80px;height:80px}'
+      + '.hdlw-opt.hdlw-opt-posed{grid-template-columns:26px 36px 1fr}.hdlw-opt-pose{width:36px;height:36px}}';
     document.head.appendChild(s);
   }
 
@@ -1068,8 +1077,10 @@
       // v0.48.42 — the question's picture. The reduced-motion source is file.svg#still on its
       // own address (&still=1): an SVG inside <img> does not see the page's motion setting, and
       // a browser that already holds the moving picture would reuse it for a bare #still.
+      var motionSrc = function (file) { return escHtml(IMG_BASE.replace('silhouettes/', 'motion/') + file + '?ver=' + encodeURIComponent(cfg.assetVer || '')); };
       var m = cfg.questionMotion && IMG_BASE && QUESTION_MOTION[qKey];
-      var src = m ? escHtml(IMG_BASE.replace('silhouettes/', 'motion/') + m.file + '?ver=' + encodeURIComponent(cfg.assetVer || '')) : '';
+      var src = m ? motionSrc(m.file) : '';
+      var poses = cfg.questionMotion && IMG_BASE && OPTION_POSES[qKey];
 
       var html = ''
         + '<div class="hdlw-q-opener">'
@@ -1088,8 +1099,10 @@
         var o = q.opts[i];
         var sel = answers[qKey] === o.v ? ' hdlw-selected' : '';
         var num = (i + 1) < 10 ? '0' + (i + 1) : String(i + 1);
-        html += '<div class="hdlw-opt' + sel + '" data-val="' + escHtml(o.v) + '">'
+        var pose = poses && poses[o.v];
+        html += '<div class="hdlw-opt' + sel + (pose ? ' hdlw-opt-posed' : '') + '" data-val="' + escHtml(o.v) + '">'
           +   '<span class="hdlw-opt-num">' + num + '</span>'
+          +   ( pose ? '<img class="hdlw-opt-pose" src="' + motionSrc(pose) + '" alt="" width="40" height="40" loading="eager" decoding="async">' : '' )
           +   '<span class="hdlw-opt-text">' + escHtml(o.t) + '</span>'
           + '</div>';
       }
