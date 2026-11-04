@@ -258,7 +258,8 @@
   // without one shows nothing; tests/question-motion checks this against the files.
   var QUESTION_MOTION = {
     q3: { file: 'q3-zone2.svg', caption: 'Brisk walking' },
-    q4: { file: 'q4-stairs.svg', caption: 'Climbing stairs' }
+    q4: { file: 'q4-stairs.svg', caption: 'Climbing stairs' },
+    q6: { file: 'q6-sleep.svg', caption: 'A night’s sleep' }
   };
 
   // v0.48.43 — Q5's answers each carry a still pose (Matthew: "the animation in the choice
