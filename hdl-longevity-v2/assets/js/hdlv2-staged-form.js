@@ -407,12 +407,13 @@
   };
 
   // A picture and its caption. A moving one is a <picture> whose reduced-motion source is
-  // file.svg#still: an SVG inside <img> does not see the page's motion setting.
+  // file.svg#still on its own address (&still=1): an SVG inside <img> does not see the page's
+  // motion setting, and a browser holding the moving picture would reuse it for a bare #still.
   function motionFigure(cls, m) {
     var url = esc(S1_IMG_BASE.replace('silhouettes/', 'motion/') + m.file + '?ver=' + encodeURIComponent(CFG.asset_ver || ''));
     var img = '<img src="' + url + '" alt="" width="96" height="96" loading="eager" decoding="async">';
     return '<figure class="' + cls + '">'
-      + (m.still ? img : '<picture><source srcset="' + url + '#still" media="(prefers-reduced-motion: reduce)">' + img + '</picture>')
+      + (m.still ? img : '<picture><source srcset="' + url + '&amp;still=1#still" media="(prefers-reduced-motion: reduce)">' + img + '</picture>')
       + '<figcaption>' + esc(m.caption) + '</figcaption></figure>';
   }
 

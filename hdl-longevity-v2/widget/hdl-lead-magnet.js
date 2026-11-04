@@ -1064,8 +1064,9 @@
       var stepNum = String(stepIdx + 1);
       if (stepNum.length < 2) stepNum = '0' + stepNum;
       var section = 'Section ' + stepNum + ' · ' + (q.category || q.title);
-      // v0.48.42 — the question's picture. The reduced-motion source is file.svg#still:
-      // an SVG inside <img> does not see the page's motion setting.
+      // v0.48.42 — the question's picture. The reduced-motion source is file.svg#still on its
+      // own address (&still=1): an SVG inside <img> does not see the page's motion setting, and
+      // a browser that already holds the moving picture would reuse it for a bare #still.
       var m = cfg.questionMotion && IMG_BASE && QUESTION_MOTION[qKey];
       var src = m ? escHtml(IMG_BASE.replace('silhouettes/', 'motion/') + m.file + '?ver=' + encodeURIComponent(cfg.assetVer || '')) : '';
 
@@ -1074,7 +1075,7 @@
         +   '<p class="hdlw-q-section">' + escHtml(section) + '</p>'
         +   '<h2 class="hdlw-q-title">' + escHtml(q.title) + '</h2>'
         +   '<div class="hdlw-q-rule"></div>'
-        +   ( m ? '<figure class="hdlw-q-motion"><picture><source srcset="' + src + '#still" media="(prefers-reduced-motion: reduce)">'
+        +   ( m ? '<figure class="hdlw-q-motion"><picture><source srcset="' + src + '&amp;still=1#still" media="(prefers-reduced-motion: reduce)">'
             + '<img src="' + src + '" alt="" width="96" height="96" loading="eager" decoding="async"></picture>'
             + '<figcaption>' + escHtml(m.caption) + '</figcaption></figure>' : '' )
         +   '<p class="hdlw-q-prompt">' + escHtml(q.text) + '</p>'

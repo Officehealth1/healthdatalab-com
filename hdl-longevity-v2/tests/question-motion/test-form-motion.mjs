@@ -64,7 +64,7 @@ for (const m of [null, false]) {
 console.log('── flag on: the three tests show how (each once its scene is drawn) ──');
 const drawn = (file) => fs.existsSync(new URL('../../assets/images/motion/' + file, import.meta.url));
 const fig = (file, word) => { const url = `${BASE}assets/images/motion/${file}?ver=0.48.42`;
-  return `<figure class="hdlv2-tap-motion"><picture><source srcset="${url}#still" media="(prefers-reduced-motion: reduce)"><img src="${url}" alt="" width="96" height="96" loading="eager" decoding="async"></picture><figcaption>${word}</figcaption></figure>`; };
+  return `<figure class="hdlv2-tap-motion"><picture><source srcset="${url}&amp;still=1#still" media="(prefers-reduced-motion: reduce)"><img src="${url}" alt="" width="96" height="96" loading="eager" decoding="async"></picture><figcaption>${word}</figcaption></figure>`; };
 const FILE = { sitToStand: 't-chair-stands.svg', balance: 't-balance.svg', skinElasticity: 't-skin-pinch.svg' };
 const WANT = { sitToStand: fig(FILE.sitToStand, 'Chair stands'), balance: fig(FILE.balance, 'One leg'), skinElasticity: fig(FILE.skinElasticity, 'Pinch, release') };
 const order = run(false, 'this.OUT = TAP_ORDER;').OUT;

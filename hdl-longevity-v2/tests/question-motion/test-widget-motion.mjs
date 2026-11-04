@@ -58,7 +58,7 @@ for (const q of Object.keys(STEP)) {
   if (!drawn(file)) { ok(sha(html) === OFF[q], `W7.${q} ${q}: not drawn yet, so no picture and the card unchanged`); continue; }
   const fig = html.match(/<figure class="hdlw-q-motion">.*?<\/figure>/);
   const url = `${BASE}assets/images/motion/${file}?ver=0.48.42`;
-  const pic = `<picture><source srcset="${url}#still" media="(prefers-reduced-motion: reduce)"><img src="${url}" alt="" width="96" height="96" loading="eager" decoding="async"></picture>`;
+  const pic = `<picture><source srcset="${url}&amp;still=1#still" media="(prefers-reduced-motion: reduce)"><img src="${url}" alt="" width="96" height="96" loading="eager" decoding="async"></picture>`;
   ok(!!fig && fig[0] === '<figure class="hdlw-q-motion">' + pic + '<figcaption>' + esc(word) + '</figcaption></figure>', `W2.${q} ${q}: ${file}, "${word}"`);
   ok(!!fig && html.indexOf('<div class="hdlw-q-rule"></div>' + fig[0] + '<p class="hdlw-q-prompt">') > 0, `W3.${q} ${q}: after the rule, before the prompt`);
   ok(!!fig && sha(html.replace(fig[0], '')) === OFF[q], `W4.${q} ${q}: nothing else in the card moved`);

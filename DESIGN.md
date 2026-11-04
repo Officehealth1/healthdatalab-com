@@ -140,8 +140,10 @@ checks every file against this section.
 - A picture shown through `<img>` may not see the page's motion setting
   (Chrome with DevTools emulation did not, 2026-11-04). So the root `<svg>`
   carries `id="still"` and `#still:target *{animation:none!important}`. The page
-  asks for `file.svg#still` through
-  `<picture><source srcset="…#still" media="(prefers-reduced-motion: reduce)">`.
+  asks for the still through
+  `<picture><source srcset="…&still=1#still" media="(prefers-reduced-motion: reduce)">`.
+  The extra `&still=1` gives the still its own address. A browser that already
+  holds the moving picture reuses it for a bare `#still` and keeps it moving.
 - A still picture (the waist and hip guide) has no animation at all.
 
 ### Words
