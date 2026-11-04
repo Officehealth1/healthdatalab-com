@@ -261,7 +261,8 @@
     q4: { file: 'q4-stairs.svg', caption: 'Climbing stairs' },
     q6: { file: 'q6-sleep.svg', caption: 'A night’s sleep' },
     q7: { file: 'q7-smoking.svg', caption: 'Smoking' },
-    q8: { file: 'q8-social.svg', caption: 'Time together' }
+    q8: { file: 'q8-social.svg', caption: 'Time together' },
+    q9: { file: 'q9-diet.svg', caption: 'How you eat' }
   };
 
   // v0.48.43 — Q5's answers each carry a still pose (Matthew: "the animation in the choice

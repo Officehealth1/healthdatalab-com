@@ -44,7 +44,7 @@ const OFF = {
 };
 const WANT = { q3: ['q3-zone2.svg', 'Brisk walking'], q4: ['q4-stairs.svg', 'Climbing stairs'], q5: null, // T6d option B: poses on the answers, no picture at the top (checked below)
  
-  q6: ['q6-sleep.svg', 'A night’s sleep'], q7: ['q7-smoking.svg', 'Smoking'], q8: ['q8-social.svg', 'Time together'], q9: ['q9-diet.svg', 'Your plate'] };
+  q6: ['q6-sleep.svg', 'A night’s sleep'], q7: ['q7-smoking.svg', 'Smoking'], q8: ['q8-social.svg', 'Time together'], q9: ['q9-diet.svg', 'How you eat'] }; // Q9 caption: Quim, 2026-11-04 ("How you eat", the second form's own words)
 
 console.log('── flag off: the 310d61d strings ──');
 for (const q of Object.keys(STEP)) ok(sha(render(q, false).html) === OFF[q], `W1.${q} ${q} card unchanged with the flag off`);

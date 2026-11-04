@@ -96,9 +96,10 @@ palette, one timing grid; `tests/question-motion/test-motion-files.php`
 checks every file against this section.
 
 ### Rig
-- One figure in every scene: head `circle r="9"` filled `#004F59`, torso one
-  stroke, each leg two strokes (thigh 16, shin 16), each arm two strokes
-  (upper 13, fore 13); stroke-width 6, `#004F59`, round caps.
+- The same figure wherever a person is drawn (Q8 draws two, the Q9 plate
+  none): head `circle r="9"` filled `#004F59`, torso one stroke, each leg
+  two strokes (thigh 16, shin 16), each arm two strokes (upper 13, fore
+  13); stroke-width 6, `#004F59`, round caps.
 - No face, hands, hair, clothes or gender cue.
 - The same proportions in every file on the 120 grid: head 18, torso 30,
   leg 32, arm 26. A scene scales the whole rig, never one limb.
