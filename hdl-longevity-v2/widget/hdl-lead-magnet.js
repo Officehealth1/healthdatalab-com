@@ -253,6 +253,13 @@
     }
   };
 
+  // v0.48.42 — the question pictures (DESIGN.md "## Motion"), shown when
+  // hdlv2_ff_question_motion is on. Only drawn scenes are listed, so a question
+  // without one shows nothing; tests/question-motion checks this against the files.
+  var QUESTION_MOTION = {
+    q3: { file: 'q3-zone2.svg', caption: 'Brisk walking' }
+  };
+
   // Steps: q1, q2, q3, q4, q5, q6, q7, q8, q9, contact, result
   var STEP_COUNT = 11;
 
@@ -307,6 +314,19 @@
   // /assets/images/stage1-icons/*.png are replaced by italic citation
   // microcopy (`q.cite`) sitting under each question prompt. The PNG files
   // remain on disk for compatibility but nothing references them.
+
+  // v0.48.42 — the question pictures' rules, injected only when the flag is on,
+  // so the editorial block above stays byte-identical with it off.
+  function injectMotionStyles() {
+    if (document.getElementById('hdl-motion-style')) return;
+    var s = document.createElement('style');
+    s.id = 'hdl-motion-style';
+    s.textContent = '.hdlw-q-motion{margin:0 0 12px;display:flex;flex-direction:column;align-items:flex-start;gap:6px}'
+      + '.hdlw-q-motion img{width:96px;height:96px;border-radius:50%;background:#f8f9fb;display:block}'
+      + '.hdlw-q-motion figcaption{font-family:' + B.body + ';font-size:12.5px;color:' + B.muted + ';margin:0}'
+      + '@media (max-width:480px){.hdlw-q-motion img{width:80px;height:80px}}';
+    document.head.appendChild(s);
+  }
 
   // ---------- INVITE MODE ----------
 
@@ -727,6 +747,10 @@
     // config payload (public path) and the invite verify payload (invite
     // path), so it reaches both Stage-1 entry routes.
     cfg.safetyScreen = !!((publicCfg && publicCfg.safety_screen_enabled) || (invite && invite.safety_screen_enabled));
+    // v0.48.42 — the question pictures (hdlv2_ff_question_motion), on the same two payloads.
+    cfg.questionMotion = !!((publicCfg && publicCfg.question_motion_enabled) || (invite && invite.question_motion_enabled));
+    cfg.assetVer = String((publicCfg && publicCfg.asset_ver) || (invite && invite.asset_ver) || '');
+    if (cfg.questionMotion) injectMotionStyles();
 
     var id = 'hdlw-' + cfg.pracId;
     var c = cfg.color;
@@ -1040,12 +1064,19 @@
       var stepNum = String(stepIdx + 1);
       if (stepNum.length < 2) stepNum = '0' + stepNum;
       var section = 'Section ' + stepNum + ' · ' + (q.category || q.title);
+      // v0.48.42 — the question's picture. The reduced-motion source is file.svg#still:
+      // an SVG inside <img> does not see the page's motion setting.
+      var m = cfg.questionMotion && IMG_BASE && QUESTION_MOTION[qKey];
+      var src = m ? escHtml(IMG_BASE.replace('silhouettes/', 'motion/') + m.file + '?ver=' + encodeURIComponent(cfg.assetVer || '')) : '';
 
       var html = ''
         + '<div class="hdlw-q-opener">'
         +   '<p class="hdlw-q-section">' + escHtml(section) + '</p>'
         +   '<h2 class="hdlw-q-title">' + escHtml(q.title) + '</h2>'
         +   '<div class="hdlw-q-rule"></div>'
+        +   ( m ? '<figure class="hdlw-q-motion"><picture><source srcset="' + src + '#still" media="(prefers-reduced-motion: reduce)">'
+            + '<img src="' + src + '" alt="" width="96" height="96" loading="eager" decoding="async"></picture>'
+            + '<figcaption>' + escHtml(m.caption) + '</figcaption></figure>' : '' )
         +   '<p class="hdlw-q-prompt">' + escHtml(q.text) + '</p>'
         +   ( q.hint ? '<p class="hdlw-q-hint">' + escHtml(q.hint) + '</p>' : '' )
         +   ( q.cite ? '<p class="hdlw-q-cite">' + escHtml(q.cite) + '</p>' : '' )

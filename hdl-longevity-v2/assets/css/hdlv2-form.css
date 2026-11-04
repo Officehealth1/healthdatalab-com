@@ -2641,3 +2641,20 @@
   .hdlv2-ty-body     { padding: 26px 22px 20px; }
   .hdlv2-ty-h1       { font-size: 20px; }
 }
+
+/* v0.48.42 — the test pictures, the waist and hip guide and the screen-1 row icons
+   (hdlv2_ff_question_motion; DESIGN.md "## Motion"). Nothing here matches with the flag off. */
+.hdlv2-tap-motion,
+.hdlv2-body-guide { margin: 0 0 12px; display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
+.hdlv2-tap-motion img,
+.hdlv2-body-guide img { width: 80px; height: 80px; border-radius: 50%; background: #f8f9fb; display: block; }
+.hdlv2-tap-motion figcaption,
+.hdlv2-body-guide figcaption { font-size: 12.5px; color: var(--hdl-ink-500, #6b7280); margin: 0; }
+.hdlv2-tap-motion + .hdlv2-tap-how + .hdlv2-s1-options { clear: both; }
+@media (min-width: 640px) {
+  .hdlv2-tap-motion { float: left; margin: 0 16px 8px 0; }
+  .hdlv2-tap-motion + .hdlv2-tap-how { display: flow-root; }
+  .hdlv2-tap-motion img,
+  .hdlv2-body-guide img { width: 96px; height: 96px; }
+}
+.hdlv2-tap-row-icon { width: 20px; height: 20px; margin-right: 8px; color: #3d8da0; fill: currentColor; vertical-align: -4px; }

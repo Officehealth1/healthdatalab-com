@@ -399,6 +399,23 @@
     sunlightExposure: { title: 'When do you usually get daylight outdoors?', plain: TAP_NEUTRAL },
     dailyHydration: { title: 'How much water do you drink in a day?', plain: TAP_NEUTRAL }
   };
+  // v0.48.42 — the test pictures (DESIGN.md "## Motion"), shown when hdlv2_ff_question_motion
+  // is on. Only drawn scenes are listed, so a screen without one shows nothing;
+  // tests/question-motion checks this against the files.
+  var TAP_MOTION = {
+    sitToStand: { file: 't-chair-stands.svg', caption: 'Chair stands' }
+  };
+
+  // A picture and its caption. A moving one is a <picture> whose reduced-motion source is
+  // file.svg#still: an SVG inside <img> does not see the page's motion setting.
+  function motionFigure(cls, m) {
+    var url = esc(S1_IMG_BASE.replace('silhouettes/', 'motion/') + m.file + '?ver=' + encodeURIComponent(CFG.asset_ver || ''));
+    var img = '<img src="' + url + '" alt="" width="96" height="96" loading="eager" decoding="async">';
+    return '<figure class="' + cls + '">'
+      + (m.still ? img : '<picture><source srcset="' + url + '#still" media="(prefers-reduced-motion: reduce)">' + img + '</picture>')
+      + '<figcaption>' + esc(m.caption) + '</figcaption></figure>';
+  }
+
   // Reason line when the person's choices need the ability a question measures.
   var ABILITY_SENTENCES = {
     strength: 'This test shows how strong your legs are for that.',
@@ -1415,7 +1432,8 @@
   // the 256 grid, filled, the soft layer at the file's own 0.2 opacity;
   // decoration beside a word (aria-hidden). Files: barbell, person-simple-walk,
   // person-simple-tai-chi, heartbeat, brain, users-three; groups heart,
-  // house-line, star.
+  // house-line, star. v0.48.42 — screen-1 row icons (ROW_ICONS): person-simple-walk,
+  // moon-stars, bed, cigarette, users-three, fork-knife.
   var ICONS = {
     strength: '<path d="M96,64V192a8,8,0,0,1-8,8H64a8,8,0,0,1-8-8V64a8,8,0,0,1,8-8H88A8,8,0,0,1,96,64Zm96-8H168a8,8,0,0,0-8,8V192a8,8,0,0,0,8,8h24a8,8,0,0,0,8-8V64A8,8,0,0,0,192,56Z" opacity="0.2"/><path d="M248,120h-8V88a16,16,0,0,0-16-16H208V64a16,16,0,0,0-16-16H168a16,16,0,0,0-16,16v56H104V64A16,16,0,0,0,88,48H64A16,16,0,0,0,48,64v8H32A16,16,0,0,0,16,88v32H8a8,8,0,0,0,0,16h8v32a16,16,0,0,0,16,16H48v8a16,16,0,0,0,16,16H88a16,16,0,0,0,16-16V136h48v56a16,16,0,0,0,16,16h24a16,16,0,0,0,16-16v-8h16a16,16,0,0,0,16-16V136h8a8,8,0,0,0,0-16ZM32,168V88H48v80Zm56,24H64V64H88V192Zm104,0H168V64h24V175.83c0,.06,0,.11,0,.17s0,.12,0,.17V192Zm32-24H208V88h16Z"/>',
     mobility: '<path d="M176,48a24,24,0,1,1-24-24A24,24,0,0,1,176,48Z" opacity="0.2"/><path d="M152,80a32,32,0,1,0-32-32A32,32,0,0,0,152,80Zm0-48a16,16,0,1,1-16,16A16,16,0,0,1,152,32Zm64,112a8,8,0,0,1-8,8c-35.31,0-52.95-17.81-67.12-32.12-2.74-2.77-5.36-5.4-8-7.84l-13.43,30.88,37.2,26.57A8,8,0,0,1,160,176v56a8,8,0,0,1-16,0V180.12l-31.07-22.2L79.34,235.19A8,8,0,0,1,72,240a7.84,7.84,0,0,1-3.19-.67,8,8,0,0,1-4.15-10.52l54.08-124.37c-9.31-1.65-20.92,1.2-34.7,8.58a163.88,163.88,0,0,0-30.57,21.77,8,8,0,0,1-10.95-11.66c2.5-2.35,61.69-57.22,98.72-25.08,3.83,3.32,7.48,7,11,10.58C166.19,122.7,179.36,136,208,136A8,8,0,0,1,216,144Z"/>',
@@ -1427,6 +1445,16 @@
     freedom: '<path d="M216,116.69V216H152V152H104v64H40V116.69l82.34-82.35a8,8,0,0,1,11.32,0Z" opacity="0.2"/><path d="M240,208H224V136l2.34,2.34A8,8,0,0,0,237.66,127L139.31,28.68a16,16,0,0,0-22.62,0L18.34,127a8,8,0,0,0,11.32,11.31L32,136v72H16a8,8,0,0,0,0,16H240a8,8,0,0,0,0-16ZM48,120l80-80,80,80v88H160V152a8,8,0,0,0-8-8H104a8,8,0,0,0-8,8v56H48Zm96,88H112V160h32Z"/>',
     things: '<path d="M229.06,108.79l-48.7,42,14.88,62.79a8.4,8.4,0,0,1-12.52,9.17L128,189.09,73.28,222.74a8.4,8.4,0,0,1-12.52-9.17l14.88-62.79-48.7-42A8.46,8.46,0,0,1,31.73,94L95.64,88.8l24.62-59.6a8.36,8.36,0,0,1,15.48,0l24.62,59.6L224.27,94A8.46,8.46,0,0,1,229.06,108.79Z" opacity="0.2"/><path d="M239.18,97.26A16.38,16.38,0,0,0,224.92,86l-59-4.76L143.14,26.15a16.36,16.36,0,0,0-30.27,0L90.11,81.23,31.08,86a16.46,16.46,0,0,0-9.37,28.86l45,38.83L53,211.75a16.38,16.38,0,0,0,24.5,17.82L128,198.49l50.53,31.08A16.4,16.4,0,0,0,203,211.75l-13.76-58.07,45-38.83A16.43,16.43,0,0,0,239.18,97.26Zm-15.34,5.47-48.7,42a8,8,0,0,0-2.56,7.91l14.88,62.8a.37.37,0,0,1-.17.48c-.18.14-.23.11-.38,0l-54.72-33.65a8,8,0,0,0-8.38,0L69.09,215.94c-.15.09-.19.12-.38,0a.37.37,0,0,1-.17-.48l14.88-62.8a8,8,0,0,0-2.56-7.91l-48.7-42c-.12-.1-.23-.19-.13-.5s.18-.27.33-.29l63.92-5.16A8,8,0,0,0,103,91.86l24.62-59.61c.08-.17.11-.25.35-.25s.27.08.35.25L153,91.86a8,8,0,0,0,6.75,4.92l63.92,5.16c.15,0,.24,0,.33.29S224,102.63,223.84,102.73Z"/>'
   };
+  // v0.48.42 — an icon before each screen-1 row (hdlv2_ff_question_motion), same family and weight.
+  var ROW_ICONS = {
+    physicalActivity: ICONS.mobility,
+    sleepDuration: '<path d="M210.69,158.18A88,88,0,1,1,97.82,45.31,96.08,96.08,0,0,0,192,160,96.78,96.78,0,0,0,210.69,158.18Z" opacity="0.2"/><path d="M240,96a8,8,0,0,1-8,8H216v16a8,8,0,0,1-16,0V104H184a8,8,0,0,1,0-16h16V72a8,8,0,0,1,16,0V88h16A8,8,0,0,1,240,96ZM144,56h8v8a8,8,0,0,0,16,0V56h8a8,8,0,0,0,0-16h-8V32a8,8,0,0,0-16,0v8h-8a8,8,0,0,0,0,16Zm72.77,97a8,8,0,0,1,1.43,8A96,96,0,1,1,95.07,37.8a8,8,0,0,1,10.6,9.06A88.07,88.07,0,0,0,209.14,150.33,8,8,0,0,1,216.77,153Zm-19.39,14.88c-1.79.09-3.59.14-5.38.14A104.11,104.11,0,0,1,88,64c0-1.79,0-3.59.14-5.38A80,80,0,1,0,197.38,167.86Z"/>',
+    sleepQuality: '<path d="M248,112v56H112V80H216A32,32,0,0,1,248,112Z" opacity="0.2"/><path d="M216,72H32V48a8,8,0,0,0-16,0V208a8,8,0,0,0,16,0V176H240v32a8,8,0,0,0,16,0V112A40,40,0,0,0,216,72ZM32,88h72v72H32Zm88,72V88h96a24,24,0,0,1,24,24v48Z"/>',
+    smokingStatus: '<path d="M88,136v48H32a8,8,0,0,1-8-8V144a8,8,0,0,1,8-8Z" opacity="0.2"/><path d="M224,128H32a16,16,0,0,0-16,16v32a16,16,0,0,0,16,16H224a16,16,0,0,0,16-16V144A16,16,0,0,0,224,128ZM32,144H80v32H32Zm192,32H96V144H224v32ZM201,60.08c8-14.23,7.42-21.71,6.36-24.91a7.79,7.79,0,0,0-2.64-3.86,8,8,0,1,1,6.5-14.62,22.57,22.57,0,0,1,11.32,13.44c3.36,10.14.81,22.85-7.6,37.79-8,14.23-7.42,21.72-6.36,24.92a7.79,7.79,0,0,0,2.64,3.85,8,8,0,1,1-6.5,14.62,22.53,22.53,0,0,1-11.32-13.44C190.07,87.73,192.62,75,201,60.08Zm-40,0c8-14.23,7.42-21.71,6.36-24.91a7.79,7.79,0,0,0-2.64-3.86,8,8,0,1,1,6.5-14.62,22.57,22.57,0,0,1,11.32,13.44c3.36,10.14.81,22.85-7.6,37.79-8,14.23-7.42,21.72-6.36,24.92a7.79,7.79,0,0,0,2.64,3.85,8,8,0,1,1-6.5,14.62,22.53,22.53,0,0,1-11.32-13.44C150.07,87.73,152.62,75,161,60.08Z"/>',
+    socialConnections: ICONS.connection,
+    dietQuality: '<path d="M208,40V168H152S152,64,208,40Z" opacity="0.2"/><path d="M72,88V40a8,8,0,0,1,16,0V88a8,8,0,0,1-16,0ZM216,40V224a8,8,0,0,1-16,0V176H152a8,8,0,0,1-8-8,268.75,268.75,0,0,1,7.22-56.88c9.78-40.49,28.32-67.63,53.63-78.47A8,8,0,0,1,216,40ZM200,53.9c-32.17,24.57-38.47,84.42-39.7,106.1H200ZM119.89,38.69a8,8,0,1,0-15.78,2.63L112,88.63a32,32,0,0,1-64,0l7.88-47.31a8,8,0,1,0-15.78-2.63l-8,48A8.17,8.17,0,0,0,32,88a48.07,48.07,0,0,0,40,47.32V224a8,8,0,0,0,16,0V135.32A48.07,48.07,0,0,0,128,88a8.17,8.17,0,0,0-.11-1.31Z"/>'
+  };
+
 
   // v0.48.2 — the tick circle at the right of every statement, in both
   // states; CSS draws the ring and fills it when the statement is chosen.
@@ -1806,7 +1834,9 @@
         + '<div class="hdlv2-field-grid cols-2">'
         + fieldInputWithSkip('height', 'Height (cm)', 'number', d.height, '170')
         + fieldInputWithSkip('weight', 'Weight (kg)', 'number', d.weight, '75')
-        + '</div><div class="hdlv2-field-grid cols-2">'
+        + '</div>'
+        + (CFG.question_motion && S1_IMG_BASE && TAP_MOTION.waist ? motionFigure('hdlv2-body-guide', TAP_MOTION.waist) : '')
+        + '<div class="hdlv2-field-grid cols-2">'
         + fieldInputWithSkip('waist', 'Waist (cm)', 'number', d.waist, '85', {
             tooltip: 'Measure around your waist at the level of your belly button. Keep the tape measure horizontal.'
           })
@@ -1998,6 +2028,7 @@
     var s1d = (data && data.stage1_data) || {};
     var d = formData;
     var field = tapStep >= 1 && tapStep <= tapOrder.length ? tapOrder[tapStep - 1] : null;
+    var tm = field && CFG.question_motion && S1_IMG_BASE && TAP_MOTION[field];
     var screen;
     if (tapStep === 0) {
       screen = tapHeading('Here is what you told us')
@@ -2009,7 +2040,7 @@
       screen = tapHeading(esc(q.title))
         + (q.hint ? '<p class="hdlv2-s1-prompt">' + esc(q.hint) + '</p>' : '')
         + '<p class="hdlv2-tap-reason">' + tapReason(field, data.second_form_ties) + '</p>'
-        + (q.how ? '<p class="hdlv2-tap-how"><strong>How to do it:</strong> ' + esc(q.how) + '</p>' : '')
+        + (q.how ? (tm ? motionFigure('hdlv2-tap-motion', tm) : '') + '<p class="hdlv2-tap-how"><strong>How to do it:</strong> ' + esc(q.how) + '</p>' : '')
         + '<div class="hdlv2-s1-options" role="radiogroup" aria-labelledby="hdlv2-tap-title">' + tapCards(field, d[field]) + '</div>'
         + '<button type="button" id="hdlv2-tap-skip" class="hdlv2-tap-skip">Skip this one</button>'
         + '<p class="hdlv2-s1-kbd-hint">Press <kbd>A</kbd>–<kbd>F</kbd> to choose</p>';
@@ -2057,7 +2088,9 @@
       var open = !opt || tapOpenRow === f;
       return '<div class="hdlv2-tap-row">'
         + '<div class="hdlv2-tap-row-head">'
-        +   '<span class="hdlv2-tap-row-label" id="hdlv2-tap-label-' + f + '">' + esc(TAP_FIRST_LABELS[f]) + '</span>'
+        +   '<span class="hdlv2-tap-row-label" id="hdlv2-tap-label-' + f + '">'
+        +     (CFG.question_motion ? '<svg class="hdlv2-tap-row-icon" aria-hidden="true" viewBox="0 0 256 256">' + ROW_ICONS[f] + '</svg>' : '')
+        +     esc(TAP_FIRST_LABELS[f]) + '</span>'
         +   '<span class="hdlv2-tap-row-value' + (opt ? '' : ' is-empty') + '">' + esc(opt ? opt.l : 'Not answered yet') + '</span>'
         +   (opt ? '<button type="button" class="hdlv2-tap-change" id="hdlv2-tap-change-' + f + '" data-row="' + f + '" aria-expanded="' + open + '" aria-controls="hdlv2-tap-opts-' + f + '">Change</button>' : '')
         + '</div>'

@@ -7,6 +7,7 @@
  *     the body block carries the waist/hip figure above the waist and hip fields; each of the six
  *     screen-0 rows starts its label with its Phosphor icon. Nothing else moves. A moving picture is a
  *     <picture> whose reduced-motion source is file.svg#still (DESIGN.md, Motion, Reduced motion).
+ *   - a picture whose scene is not drawn yet (no file in assets/images/motion/) shows nothing (Round 1b).
  * Run: node tests/question-motion/test-form-motion.mjs   Exit: 0 all pass, 1 any fail
  */
 import fs from 'node:fs';
@@ -25,7 +26,7 @@ const BASE = 'https://example.test/wp-content/plugins/hdl-longevity-v2/';
 const src = [cut('  var S3_OPTIONS = {', '\n  };\n'), cut('  var TEST_HOW = {', '\n  };\n'), cut('  var TAP_STEPS = ', ';\n'),
   cut('  var TAP_FIRST = ', ';\n'), cut('  var TAP_FIRST_LABELS = {', '\n  };\n'), cut('  var TAP_ORDER = ', ';\n'), cut('  var TAP_NEUTRAL = ', ';\n'),
   cut('  var TAP_TITLES = {', '\n  };\n'), cut('  var S1_IMG_BASE = ', '\n  })();\n'), cut('  var TAP_MOTION = {', '\n  };\n'),
-  cut('  var ROW_ICONS = {', '\n  };\n'), cut('  var ICONS = {', '\n  };\n'), cut('  function motionFigure(', '\n  }\n'),
+  cut('  var ICONS = {', '\n  };\n'), cut('  var ROW_ICONS = {', '\n  };\n'), cut('  function motionFigure(', '\n  }\n'),
   fn('tapHeading'), fn('tapReason'), fn('tapFirstRows'), fn('renderTapStep'), fn('wizardSectionContent')].join('\n');
 
 function run(motion, call) {
@@ -60,15 +61,19 @@ for (const m of [null, false]) {
   ok(sha(body(m)) === OFF.body, `F3.${label} the measurements block unchanged`);
 }
 
-console.log('── flag on: the three tests show how ──');
+console.log('── flag on: the three tests show how (each once its scene is drawn) ──');
+const drawn = (file) => fs.existsSync(new URL('../../assets/images/motion/' + file, import.meta.url));
 const fig = (file, word) => { const url = `${BASE}assets/images/motion/${file}?ver=0.48.42`;
   return `<figure class="hdlv2-tap-motion"><picture><source srcset="${url}#still" media="(prefers-reduced-motion: reduce)"><img src="${url}" alt="" width="96" height="96" loading="eager" decoding="async"></picture><figcaption>${word}</figcaption></figure>`; };
-const WANT = { sitToStand: fig('t-chair-stands.svg', 'Chair stands'), balance: fig('t-balance.svg', 'One leg'), skinElasticity: fig('t-skin-pinch.svg', 'Pinch, release') };
+const FILE = { sitToStand: 't-chair-stands.svg', balance: 't-balance.svg', skinElasticity: 't-skin-pinch.svg' };
+const WANT = { sitToStand: fig(FILE.sitToStand, 'Chair stands'), balance: fig(FILE.balance, 'One leg'), skinElasticity: fig(FILE.skinElasticity, 'Pinch, release') };
 const order = run(false, 'this.OUT = TAP_ORDER;').OUT;
 const offSteps = Array.from({ length: 13 }, (_, n) => step(false, n));
 for (let n = 0; n < 13; n++) {
   const on = step(true, n), f = order[n - 1];
-  if (WANT[f]) {
+  if (WANT[f] && !drawn(FILE[f])) {
+    ok(on === offSteps[n], `F12.${f} not drawn yet, so no picture and the screen unchanged`);
+  } else if (WANT[f]) {
     ok(on.includes(WANT[f] + '<p class="hdlv2-tap-how">'), `F4.${f} its picture and caption, right before "How to do it"`);
     ok(on.includes(WANT[f]) && on.replace(WANT[f], '') === offSteps[n], `F5.${f} nothing else on the screen moved`);
   } else if (n !== 0) {
@@ -79,8 +84,9 @@ for (let n = 0; n < 13; n++) {
 console.log('── flag on: the waist and hip figure ──');
 const guide = `<figure class="hdlv2-body-guide"><img src="${BASE}assets/images/motion/g-waist-hip.svg?ver=0.48.42" alt="" width="96" height="96" loading="eager" decoding="async"><figcaption>Waist \u00b7 Hip</figcaption></figure>`;
 const b = body(true);
-ok(b.includes('[in:weight:Weight (kg):undefined:75:]</div>' + guide + '<div class="hdlv2-field-grid cols-2">[in:waist:'), 'F7.1 the figure sits between height/weight and the waist/hip fields');
-ok(b.includes(guide) && b.replace(guide, '') === body(false), 'F7.2 nothing else in the block moved');
+if (!drawn('g-waist-hip.svg')) ok(b === body(false), 'F13 the waist and hip figure is not drawn yet, so the block is unchanged');
+else ok(b.includes('[in:weight:Weight (kg):undefined:75:]</div>' + guide + '<div class="hdlv2-field-grid cols-2">[in:waist:'), 'F7.1 the figure sits between height/weight and the waist/hip fields');
+if (drawn('g-waist-hip.svg')) ok(b.includes(guide) && b.replace(guide, '') === body(false), 'F7.2 nothing else in the block moved');
 
 console.log('── flag on: an icon on each screen-0 row ──');
 const r = rows(true), icons = run(true, "this.OUT = typeof ROW_ICONS === 'undefined' ? null : ROW_ICONS;").OUT || {};

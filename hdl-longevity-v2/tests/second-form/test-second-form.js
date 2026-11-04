@@ -56,7 +56,8 @@ const NEW_FNS = ['tapFirstValues', 'tapCards', 'tapQuestionOrder', 'tapReason', 
 
 function context(extra) {
   const ctx = {};
-  const code = DOC + 'var formData = {};\n'
+  // v0.48.42: the body block reads CFG.question_motion; absent here, as on a page with the flag off.
+  const code = DOC + 'var formData = {}, CFG = {};\n'
     + VARS.concat(NEW_NAMES).map(v).join('\n') + '\n'
     + HELPERS.concat(NEW_FNS).map(fn).join('\n') + '\n'
     + (extra || '')

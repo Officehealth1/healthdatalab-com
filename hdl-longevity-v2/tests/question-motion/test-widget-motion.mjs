@@ -8,6 +8,8 @@
  *     file and caption; nothing else in the card moves; Q1 and Q2 never get one. The picture is a
  *     <picture> whose reduced-motion source is file.svg#still: an SVG inside <img> does not see the
  *     page's motion setting in Chrome (DESIGN.md, Motion, Reduced motion).
+ *   - a question whose scene is not drawn yet (no file in assets/images/motion/) shows nothing:
+ *     its card stays the 310d61d string even with the flag on (Round 1b).
  * Run: node tests/question-motion/test-widget-motion.mjs   Exit: 0 all pass, 1 any fail
  */
 import fs from 'node:fs';
@@ -39,22 +41,25 @@ const OFF = {
   q3: '39f5cc42b2863316b65c3d39a28f4fdfad0b281523b1b306603aa31f2fbe36fd', q4: 'a5c1e146970449c083e9e17b7ee5dcf6bb68aad9ed52ce0930c5210c9a36cba9', q5: '4e136ad6a7c5d76caa1e6c852cc700635c491ee59344e897ca0243e310c115da', q6: '1cb37b1ae39ec545ec336364f8e2efbdc9dbfeed952efc6ac9430a8048242e78', q7: 'a52b342302117acb76d9947dab32064d31c9fba2f8565b3f8bbe1bd5803a4e0a', q8: 'd7d7c5278e86d248e26422ccb49ea162d6bfbf33a534b6bf460c62d032d2e794', q9: '95e1de36cbe65651ea1804765a05df3c45c45390f8e8e1bdab78a91512d41aff'
 };
 const WANT = { q3: ['q3-zone2.svg', 'Brisk walking'], q4: ['q4-stairs.svg', 'Stairs'], q5: ['q5-floor-rise.svg', 'Up from the floor'],
-  q6: ['q6-sleep.svg', 'A night’s sleep'], q7: ['q7-smoking.svg', null], q8: ['q8-social.svg', 'Time together'], q9: ['q9-diet.svg', 'Your plate'] };
+  q6: ['q6-sleep.svg', 'A night’s sleep'], q7: ['q7-smoking.svg', 'Smoking'], q8: ['q8-social.svg', 'Time together'], q9: ['q9-diet.svg', 'Your plate'] };
 
 console.log('── flag off: the 310d61d strings ──');
 for (const q of Object.keys(STEP)) ok(sha(render(q, false).html) === OFF[q], `W1.${q} ${q} card unchanged with the flag off`);
 
-console.log('── flag on: one figure between the rule and the prompt ──');
+console.log('── flag on: one figure between the rule and the prompt, for each drawn scene ──');
+const drawn = (file) => fs.existsSync(new URL('../../assets/images/motion/' + file, import.meta.url));
 const motion = render('q3', true).motion;
-ok(!!motion && Object.keys(motion).join() === 'q3,q4,q5,q6,q7,q8,q9', 'W2.1 a picture for Q3-Q9 only (no q1, no q2)');
+const want = Object.keys(STEP).filter((q) => drawn(WANT[q][0]));
+ok(!!motion && Object.keys(motion).join() === want.join() && want.every((q) => motion[q].file === WANT[q][0] && motion[q].caption === WANT[q][1]),
+  `W2.1 the map lists exactly the drawn scenes (${want.join(', ') || 'none'}), with their files and captions; never q1 or q2`);
 for (const q of Object.keys(STEP)) {
   const { html } = render(q, true);
   const [file, word] = WANT[q];
+  if (!drawn(file)) { ok(sha(html) === OFF[q], `W7.${q} ${q}: not drawn yet, so no picture and the card unchanged`); continue; }
   const fig = html.match(/<figure class="hdlw-q-motion">.*?<\/figure>/);
   const url = `${BASE}assets/images/motion/${file}?ver=0.48.42`;
   const pic = `<picture><source srcset="${url}#still" media="(prefers-reduced-motion: reduce)"><img src="${url}" alt="" width="96" height="96" loading="eager" decoding="async"></picture>`;
-  ok(!!fig && fig[0].startsWith('<figure class="hdlw-q-motion">' + pic + '<figcaption>') && (word === null || fig[0].endsWith('<figcaption>' + esc(word) + '</figcaption></figure>')),
-    `W2.${q} ${q}: ${file}${word ? ', "' + word + '"' : ''}`);
+  ok(!!fig && fig[0] === '<figure class="hdlw-q-motion">' + pic + '<figcaption>' + esc(word) + '</figcaption></figure>', `W2.${q} ${q}: ${file}, "${word}"`);
   ok(!!fig && html.indexOf('<div class="hdlw-q-rule"></div>' + fig[0] + '<p class="hdlw-q-prompt">') > 0, `W3.${q} ${q}: after the rule, before the prompt`);
   ok(!!fig && sha(html.replace(fig[0], '')) === OFF[q], `W4.${q} ${q}: nothing else in the card moved`);
 }

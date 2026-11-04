@@ -87,5 +87,19 @@ foreach ( $expected as $name ) {
 	ok( $kf && ! $off, "$n every keyframe stop on the 400 ms grid" . ( $off ? ' (' . implode( ', ', $off ) . ')' : '' ) );
 	ok( count( $kf ) === count( array_unique( array_map( function ( $a ) { return $a[1]; }, $an ) ) ), "$n every animation has its keyframes and nothing else is declared" );
 }
+// Round 1b: each page's caption map lists exactly the scenes drawn for it, so nothing points at a missing file.
+$root  = dirname( __DIR__, 2 );
+$have  = array_map( 'basename', glob( $dir . '*.svg' ) ?: array() );
+$files = function ( $src, $map ) {
+	if ( ! preg_match( '/var ' . $map . ' = \{(.*?)\n  \};/s', $src, $m ) ) return null;
+	preg_match_all( "/file: '([a-z0-9-]+\\.svg)'/", $m[1], $f );
+	sort( $f[1] ); return $f[1];
+};
+$w = $files( file_get_contents( $root . '/widget/hdl-lead-magnet.js' ), 'QUESTION_MOTION' );
+$f = $files( file_get_contents( $root . '/assets/js/hdlv2-staged-form.js' ), 'TAP_MOTION' );
+$wq = array_values( array_filter( $have, function ( $x ) { return 0 === strpos( $x, 'q' ); } ) ); sort( $wq );
+$ft = array_values( array_filter( $have, function ( $x ) { return 0 !== strpos( $x, 'q' ); } ) ); sort( $ft );
+ok( null !== $w && $w === $wq, 'the widget map (QUESTION_MOTION) lists exactly the drawn q- scenes: ' . implode( ', ', (array) $w ) );
+ok( null !== $f && $f === $ft, 'the form map (TAP_MOTION) lists exactly the drawn t- and g- scenes: ' . implode( ', ', (array) $f ) );
 echo "PASS=$pass FAIL=$fail\n";
 exit( $fail ? 1 : 0 );
