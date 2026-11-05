@@ -106,6 +106,40 @@ class HDLV2_Stage1_Commentary {
         return $age > 0 ? round( (float) $rate * $age, 1 ) : null;
     }
 
+    /**
+     * v0.48.50 — the three-colour band the result page's words use (green ≤ 0.95,
+     * blue ≤ 1.05, red above: widget/hdl-lead-magnet.js renderResult). The Stage 1
+     * email and the result page's video pick by it. The gauge picture's colour
+     * edges (0.9 / 1.1) are a separate thing and stay. Pinned equal to the
+     * widget by tests/stage1-email-facts.
+     */
+    public static function band_key( $rate ) {
+        $rate = (float) $rate;
+        return $rate <= 0.95 ? 'green' : ( $rate <= 1.05 ? 'blue' : 'red' );
+    }
+
+    /**
+     * v0.48.50 — Matthew's short video per band, from `hdlv2_stage1_band_videos`
+     * ({"green":URL,"blue":URL,"red":URL}; absent = none). Only the three bands and
+     * http(s) URLs survive.
+     *
+     * @return array band => URL
+     */
+    public static function band_videos() {
+        $saved = get_option( 'hdlv2_stage1_band_videos', array() );
+        if ( is_string( $saved ) ) {
+            $saved = json_decode( $saved, true );
+        }
+        $out = array();
+        foreach ( array( 'green', 'blue', 'red' ) as $band ) {
+            $url = is_array( $saved ) && is_string( $saved[ $band ] ?? null ) ? esc_url_raw( trim( $saved[ $band ] ) ) : '';
+            if ( preg_match( '#^https?://#i', $url ) ) {
+                $out[ $band ] = $url;
+            }
+        }
+        return $out;
+    }
+
     // ──────────────────────────────────────────────────────────────
     //  PARAGRAPH 1 — HEADLINE (rate band)
     // ──────────────────────────────────────────────────────────────

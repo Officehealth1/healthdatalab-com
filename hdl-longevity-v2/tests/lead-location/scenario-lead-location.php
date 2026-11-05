@@ -11,7 +11,7 @@
  * practitioner Confirm. Display strings are built server-side by
  * HDLV2_Widget_Config::format_visitor_location() ("Texas, US" / "US" / "").
  *
- * Contract guards: the Make.com Stage-1 payload stays EXACTLY 24 keys and
+ * Contract guards: the Make.com Stage-1 payload stays EXACTLY 36 keys (24 + ten offer keys since v0.48.50 + band, band_video_url) and
  * stage1_data never contains location keys (location lives in columns only).
  *
  * Run:  php scenario-lead-location.php   (self-asserting, exit 0/1)
@@ -492,7 +492,7 @@ call_private_static( 'complete_signup', array( array(
 $upd = $wpdb->last_update_of( 'hdlv2_form_progress' );
 check( 'F4 returning client update refreshes location', is_array( $upd ) && ( $upd['visitor_country'] ?? '' ) === 'IE' );
 
-echo "── G. Make.com Stage-1 payload contract (33 keys since v0.48.15, no location) ──\n";
+echo "── G. Make.com Stage-1 payload contract (36 keys since v0.48.50, no location) ──\n";
 $GLOBALS['captured_posts'] = array();
 $wpdb = fresh_wpdb();
 $inst = widget_instance();
@@ -508,7 +508,7 @@ foreach ( $GLOBALS['captured_posts'] as $p ) {
     if ( strpos( $p['url'], 'hook.example.test/stage1' ) !== false ) { $make = json_decode( $p['args']['body'], true ); }
 }
 check( 'G1 Make Stage-1 webhook fired', is_array( $make ) );
-check( 'G2 payload has EXACTLY 33 keys (24 + the nine offer keys, v0.48.15)', is_array( $make ) && count( $make ) === 33 );
+check( 'G2 payload has EXACTLY 36 keys (24 + nine offer keys v0.48.15 + band, band_video_url, offer_code_ends v0.48.50)', is_array( $make ) && count( $make ) === 36 );
 check( 'G5 offer keys are strings', is_array( $make ) && 9 === count( array_filter( array_intersect_key( $make, array_flip( array( 'offer_show', 'offer_title', 'offer_hook', 'offer_today', 'offer_list', 'offer_code', 'offer_url', 'offer_caption', 'offer_video_url' ) ) ), 'is_string' ) ) );
 check( 'G3 no top-level location keys', is_array( $make ) && ! array_key_exists( 'visitor_country', $make ) && ! array_key_exists( 'visitor_region', $make ) );
 check( 'G4 stage1_data sub-object clean of location', is_array( $make ) && is_array( $make['stage1_data'] ?? null ) && ! array_key_exists( 'visitor_country', $make['stage1_data'] ) && ! array_key_exists( 'visitor_region', $make['stage1_data'] ) );
