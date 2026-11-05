@@ -403,7 +403,8 @@
   // is on. Only drawn scenes are listed, so a screen without one shows nothing;
   // tests/question-motion checks this against the files.
   var TAP_MOTION = {
-    sitToStand: { file: 't-chair-stands.svg', caption: 'Chair stands' }
+    sitToStand: { file: 't-chair-stands.svg', caption: 'Chair stands' },
+    balance: { file: 't-balance.svg', caption: 'One leg' }
   };
 
   // A picture and its caption. A moving one is a <picture> whose reduced-motion source is
