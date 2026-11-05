@@ -170,8 +170,9 @@ if (has('tapReason')) {
   ok(get('TAP_NEUTRAL') === 'This answer goes into your rate of ageing result.'
     && NEUTRAL.every((f) => titles[f] && titles[f].plain === get('TAP_NEUTRAL')), 'the five scored lifestyle questions carry the one neutral line');
   ok(J(TODAY.filter((f) => NEUTRAL.indexOf(f) === -1).map((f) => titles[f] && titles[f].plain)) === J(['This test shows how strong your legs are.',
-    'A quick check of your breathing.', 'This shows how steady you are on your feet.', 'A quick check of your skin.', 'Tells your practitioner what you already take.']),
-    'the other five lines unchanged');
+    'A quick check of your breathing.', 'This shows how steady you are on your feet.', 'A quick check of your skin.',
+    'It doesn’t matter which ones. We’re looking at your habit of giving your body extra support.']),
+    'the other five lines unchanged (v0.48.48: the supplements line in Matthew\'s words)');
 }
 
 // ── 6. Landing screen on reload ──
@@ -205,7 +206,14 @@ const H1 = (t) => t.replace("(single ? 'Your assessment' : 'More Health Details 
 ok(newWiz === H1(oldWiz.slice(0, a) + '    var content = wizardSectionContent(sec, s1d, d);\n\n' + oldWiz.slice(b)),
   'renderWizardSection is b0b1352\'s text with only the content block moved out (and the H1 header)');
 HELPERS.forEach((h) => ok(fn(h) === fnIn(old, h), h + '() unchanged since b0b1352'));
-['S3_OPTIONS', 'S1_TO_S3_DEFAULTS', 'S3_SECTIONS'].forEach((n) => ok(v(n) === varIn(old, n), n + ' unchanged since b0b1352'));
+['S3_OPTIONS', 'S3_SECTIONS'].forEach((n) => ok(v(n) === varIn(old, n), n + ' unchanged since b0b1352'));
+// v0.48.48 (W31, W32): Stage 1 never asked about exercise or sleep quality, so those two guesses went.
+{
+  const map = (text) => { const c = {}; vm.runInNewContext(varIn(text, 'S1_TO_S3_DEFAULTS'), c); return c.S1_TO_S3_DEFAULTS; };
+  const was = map(old);
+  delete was.q3; delete was.q6.sleepQuality;
+  ok(J(map(src)) === J(was), 'S1_TO_S3_DEFAULTS is b0b1352\'s map without q3 → physicalActivity and q6 → sleepQuality');
+}
 // Old content block vs the new function: same HTML and same formData writes.
 const octx = context('function oldContent(sec, s1d, d) {\n' + block + '    return content;\n  }\nthis.oldContent = oldContent;');
 if (typeof octx.oldContent === 'function' && has('wizardSectionContent')) {
@@ -214,13 +222,17 @@ if (typeof octx.oldContent === 'function' && has('wizardSectionContent')) {
     [{ q1_age: 52, q1_sex: 'male', q3: 'c', q6: 'e', q7: 'a', q8: 'b', q9: 'd' }, {}],
     [{ q1_age: 40, gender: 'female', q3: 'a' }, { height: '180', hip: 'skip', sitToStand: '3', sleepQuality: '2', dietQuality: '5', family_history: 'None (to my knowledge)', medications: 'Statin <x>' }]
   ];
+  // v0.48.48 (W35, W37): the brain hint drops reading and the skin how-to gains the hydration line,
+  // on both forms. Put back, the old sections are b0b1352's bytes again.
+  const asBefore = (h) => h.split(' If you are dehydrated this will be slower, so do the test well hydrated.').join('')
+    .split('e.g. learning a new skill, puzzles, complex problem-solving at work.').join('e.g. reading, learning new skills, puzzles, problem-solving at work.');
   let same = true;
   octx.get('S3_SECTIONS').forEach((sec) => fixtures.forEach(([s1d, d]) => {
     octx.setFormData({}); const oh = octx.oldContent(sec, s1d, Object.assign({}, d)); const of = J(octx.get('formData'));
     octx.setFormData({}); const nh = octx.get('wizardSectionContent')(sec, s1d, Object.assign({}, d)); const nf = J(octx.get('formData'));
-    if (oh !== nh || of !== nf || !oh) same = false;
+    if (oh !== asBefore(nh) || of !== nf || !oh) same = false;
   }));
-  ok(same, 'old sections render byte-identical HTML and formData writes for 18 fixed cases');
+  ok(same, 'old sections render byte-identical HTML and formData writes for 18 fixed cases (PR 2 wording aside)');
 } else ok(false, 'old content block could be run');
 
 // The tap screens' wiring.
@@ -229,7 +241,7 @@ ok(step !== '', 'renderTapStep() exists');
 ok(/Step ' \+ \(tapStep \+ 1\) \+ ' of ' \+ TAP_STEPS/.test(step) || /Step '\s*\+/.test(step), 'counter reads "Step N of 13"');
 ok(/var TAP_STEPS = 13;/.test(src), 'thirteen steps');
 ok(src.indexOf('Here is what you told us') !== -1 && src.indexOf('We filled these in from your first answers. If one is not right, tap Change.') !== -1, 'screen 1 copy as written');
-ok(src.indexOf('Looks right, carry on') !== -1 && src.indexOf('Not answered yet') !== -1, 'screen 1 button and empty-row text as written');
+ok(src.indexOf('Looks right, carry on') !== -1 && src.indexOf('Unknown — please select') !== -1, 'screen 1 button and empty-row text as written (v0.48.48)');
 ok(src.indexOf('Skip this one') !== -1 && /Press <kbd>A<\/kbd>–<kbd>F<\/kbd> to choose/.test(src), 'Skip and the key hint as written');
 ok(src.indexOf('Your measurements') !== -1 && src.replace(/\\u2019/g, '\u2019').indexOf('Use a tape measure and, if you have one, a blood pressure monitor. Skip anything you don\u2019t have to hand.') !== -1, 'screen 12 copy as written');
 ok(src.indexOf('Your health background') !== -1, 'screen 13 heading as written');

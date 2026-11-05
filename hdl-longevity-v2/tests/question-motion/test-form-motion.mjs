@@ -53,11 +53,26 @@ const body = (motion) => run(motion, `this.OUT = wizardSectionContent({ id: 'bod
 // 310d61d outputs (captured before the change): tap steps 0-12, the screen-0 rows, the body block.
 const OFF = { steps: 'c482278ae0d07b6a99a51768021c6354f34091f7e9664f69239e271e41be2867', rows: 'b874c38b5e4628fe84b6f4472104afed796cdd673ce8bcaa60191fd2b4398461', body: 'e376b1924acf7100c67a338621cb746ecfeb7d553fa889fe1c8de8799ae9cf59' };
 
-console.log('── flag off (absent, then false): the 310d61d strings ──');
+// v0.48.48 (PR 2): Matthew's wording is for everyone, outside the flag. Put back, it must give the
+// 310d61d bytes again, so nothing else on these screens moved. [new, 310d61d] as rendered.
+const PR2 = [
+  ['<p class="hdlv2-s1-prompt">Your answers here build your draft longevity report.</p>', ''],
+  ['How often do you give your brain a challenging task?', 'How often do you give your brain something new to work on?'],
+  ['e.g. learning a new skill, puzzles, complex problem-solving at work.', 'e.g. reading, learning new skills, puzzles, problem-solving at work.'],
+  ['It doesn’t matter which ones. We’re looking at your habit of giving your body extra support.', 'Tells your practitioner what you already take.'],
+  [' If you are dehydrated this will be slower, so do the test well hydrated.', ''],
+  ['Unknown — please select', 'Not answered yet'],
+  ['How well you sleep · sleep quality', 'How well you sleep'],
+];
+const asBefore = (s) => PR2.reduce((t, [now, was]) => t.split(now).join(was), s);
+
+console.log('── flag off (absent, then false): the 310d61d strings, PR 2 wording aside ──');
 for (const m of [null, false]) {
   const label = m === null ? 'absent' : 'false';
-  ok(sha(Array.from({ length: 13 }, (_, n) => step(m, n)).join('\n')) === OFF.steps, `F1.${label} all thirteen tap screens unchanged`);
-  ok(sha(rows(m)) === OFF.rows, `F2.${label} screen-0 rows unchanged`);
+  const all = Array.from({ length: 13 }, (_, n) => step(m, n)).join('\n'), r0 = rows(m);
+  ok(PR2.every(([now]) => (all + r0).includes(now)), `F0.${label} every PR 2 string is on these screens`);
+  ok(sha(asBefore(all)) === OFF.steps, `F1.${label} all thirteen tap screens unchanged`);
+  ok(sha(asBefore(r0)) === OFF.rows, `F2.${label} screen-0 rows unchanged`);
   ok(sha(body(m)) === OFF.body, `F3.${label} the measurements block unchanged`);
 }
 

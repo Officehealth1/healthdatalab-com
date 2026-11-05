@@ -255,27 +255,17 @@
   // counterpart exists. The mappings are deterministic and best-effort —
   // the client always sees the pre-filled value and can change it.
   //
-  // Q6 (sleep) maps to BOTH sleepDuration AND sleepQuality because the
-  // Stage 1 question conflates duration and quality into a single answer.
-  // Option 'e' is the paradoxical "9+ hours but still feel tired" — high
-  // duration, poor quality.
-  //
-  // Q3 (Zone 2 activity, hours/week) maps to physicalActivity. Option 'e'
-  // ("More than 4 hours/week") is mapped to '4' (High), not '5' (Very high) —
-  // V1's Very-high band ("intense training 4+ times/week") implies structure
-  // + intensity beyond just Zone 2 hours, so we land conservatively and let
-  // the client adjust upward if applicable.
+  // Q6 (sleep) maps to sleepDuration only. v0.48.48 — Stage 1 never asks how
+  // well you sleep, and q3 asks zone-2 hours, not exercise, so sleepQuality
+  // and physicalActivity are no longer guessed from them: screen 1 shows
+  // "Unknown — please select" and the client picks (Matthew, 2026-11-04).
   //
   // Cognitive Activity is intentionally absent — Stage 1 has no equivalent
   // question, so Stage 3 collects it fresh.
   // ─────────────────────────────────────────────────────────────────
   var S1_TO_S3_DEFAULTS = {
-    q3: {
-      physicalActivity: { a: '0', b: '1', c: '2', d: '3', e: '4' }
-    },
     q6: {
-      sleepDuration: { a: '0', b: '2', c: '3', d: '4', e: '5' },
-      sleepQuality:  { a: '0', b: '1', c: '3', d: '4', e: '1' }
+      sleepDuration: { a: '0', b: '2', c: '3', d: '4', e: '5' }
     },
     q7: {
       smokingStatus: { a: '0', b: '2', c: '4', d: '4', e: '5' }
@@ -362,7 +352,7 @@
     sitToStand: 'Using a standard chair (about 43 cm seat height, no armrests), sit with feet flat on the floor and arms crossed on your shoulders. On "go", stand up fully and sit back down as many times as possible in 30 seconds. Count only complete reps. Measures lower-body strength.',
     breathHold: 'After a normal exhale, hold your breath for as long as comfortable. Use a stopwatch. Take your best safe attempt — don’t push past discomfort.',
     balance: 'Stand on one leg without support and time how long you can hold it. Use a stopwatch. Take your best attempt. Stand near something for safety in case you wobble.',
-    skinElasticity: 'Gently pinch the skin on the back of your hand for 2 seconds, release, and time how long it takes to flatten back. Use a stopwatch.'
+    skinElasticity: 'Gently pinch the skin on the back of your hand for 2 seconds, release, and time how long it takes to flatten back. Use a stopwatch. If you are dehydrated this will be slower, so do the test well hydrated.'
   };
 
   // v0.47.94 — the single-flow second form as tap cards: screen 1 confirms
@@ -378,7 +368,7 @@
   var TAP_FIRST_LABELS = {
     physicalActivity: 'How active you are',
     sleepDuration: 'How long you sleep',
-    sleepQuality: 'How well you sleep',
+    sleepQuality: 'How well you sleep · sleep quality',
     smokingStatus: 'Smoking',
     socialConnections: 'Time with people you care about',
     dietQuality: 'How you eat'
@@ -393,9 +383,9 @@
     balance: { title: 'How long can you stand on one leg?', plain: 'This shows how steady you are on your feet.', how: TEST_HOW.balance },
     skinElasticity: { title: 'Pinch the skin on the back of your hand. How long does it take to flatten?', plain: 'A quick check of your skin.', how: TEST_HOW.skinElasticity },
     stressLevels: { title: 'How stressed do you feel on most days?', plain: TAP_NEUTRAL },
-    cognitiveActivity: { title: 'How often do you give your brain something new to work on?', hint: 'e.g. reading, learning new skills, puzzles, problem-solving at work.', plain: TAP_NEUTRAL },
+    cognitiveActivity: { title: 'How often do you give your brain a challenging task?', hint: 'e.g. learning a new skill, puzzles, complex problem-solving at work.', plain: TAP_NEUTRAL },
     alcoholConsumption: { title: 'How many alcoholic drinks do you have in a usual week?', plain: TAP_NEUTRAL },
-    supplementIntake: { title: 'How often do you take vitamins or supplements?', plain: 'Tells your practitioner what you already take.' },
+    supplementIntake: { title: 'How often do you take vitamins or supplements?', plain: 'It doesn’t matter which ones. We’re looking at your habit of giving your body extra support.' },
     sunlightExposure: { title: 'When do you usually get daylight outdoors?', plain: TAP_NEUTRAL },
     dailyHydration: { title: 'How much water do you drink in a day?', plain: TAP_NEUTRAL }
   };
@@ -1321,7 +1311,7 @@
 
     root.innerHTML = '<div class="hdlv2-card hdlv2-ty-card">'
       + thankYouHeader(pracName, pracLogo)
-      + '<div class="hdlv2-ty-banner"><h1>Stage&nbsp;2&nbsp;·&nbsp;Your&nbsp;WHY</h1></div>'
+      + '<div class="hdlv2-ty-banner"><h1>Full&nbsp;Report&nbsp;·&nbsp;Your&nbsp;WHY</h1></div>'
       + '<div class="hdlv2-ty-body">'
       +   '<h2 class="hdlv2-ty-h1">Thank you for sharing, ' + esc(firstName) + '.</h2>'
       +   '<p class="hdlv2-ty-lead">' + leadLine + '</p>'
@@ -1583,7 +1573,7 @@
       +   '<p id="hdlv2-picks-count" class="hdlv2-picks-count" aria-live="polite"></p>'
       +   '<section class="hdlv2-why-needs" id="hdlv2-why-needs"' + (rows.length ? '' : ' hidden') + '>'
       +     '<h3>What your picks need from your body</h3>'
-      +     '<p>Each thing you picked needs some of these. Your plan starts with the ones your health answers show are weakest.</p>'
+      +     '<p>For the life you picked, these are the abilities to keep in surplus today. Everyone ages; the surplus is what you build now.</p>'
       +     '<div class="hdlv2-why-needs-body">'
       +       '<div id="hdlv2-abilities" class="hdlv2-abilities">' + abilityBars(rows) + '</div>'
       +       '<div class="hdlv2-why-radar"><div id="hdlv2-why-radar">' + radarChart(radarData(rows, names), 440) + '</div>'
@@ -1905,8 +1895,9 @@
         + fieldSelect('stressLevels','Stress Levels',S3_OPTIONS.stressLevels,d.stressLevels)
         + fieldSelect('socialConnections','Social Connections',S3_OPTIONS.socialConnections, s1Prefill('socialConnections', s1d, d.socialConnections))
         // v0.38.0 — Hint per spec: name examples so clients know what counts as cognitive activity.
+        // v0.48.48 — the tap screen's hint, so both forms say it one way (no reading, W35).
         + fieldSelect('cognitiveActivity','Cognitive Activity',S3_OPTIONS.cognitiveActivity,d.cognitiveActivity, {
-            hint: 'e.g. reading, learning new skills, puzzles, problem-solving at work.'
+            hint: TAP_TITLES.cognitiveActivity.hint
           })
         + '</div>';
     } else if (sec.id === 'lifestyle') {
@@ -2037,6 +2028,7 @@
     if (tapStep === 0) {
       screen = tapHeading('Here is what you told us')
         + '<p class="hdlv2-s1-prompt">We filled these in from your first answers. If one is not right, tap Change.</p>'
+        + '<p class="hdlv2-s1-prompt">Your answers here build your draft longevity report.</p>'
         + '<div id="hdlv2-tap-rows" class="hdlv2-tap-rows">' + tapFirstRows(tapFirstValues(s1d, d)) + '</div>'
         + '<button type="button" id="hdlv2-tap-next" class="hdlv2-btn hdlv2-s1-next">Looks right, carry on</button>';
     } else if (field) {
@@ -2095,7 +2087,7 @@
         +   '<span class="hdlv2-tap-row-label" id="hdlv2-tap-label-' + f + '">'
         +     (CFG.question_motion ? '<svg class="hdlv2-tap-row-icon" aria-hidden="true" viewBox="0 0 256 256">' + ROW_ICONS[f] + '</svg>' : '')
         +     esc(TAP_FIRST_LABELS[f]) + '</span>'
-        +   '<span class="hdlv2-tap-row-value' + (opt ? '' : ' is-empty') + '">' + esc(opt ? opt.l : 'Not answered yet') + '</span>'
+        +   '<span class="hdlv2-tap-row-value' + (opt ? '' : ' is-empty') + '">' + esc(opt ? opt.l : 'Unknown — please select') + '</span>'
         +   (opt ? '<button type="button" class="hdlv2-tap-change" id="hdlv2-tap-change-' + f + '" data-row="' + f + '" aria-expanded="' + open + '" aria-controls="hdlv2-tap-opts-' + f + '">Change</button>' : '')
         + '</div>'
         + '<div class="hdlv2-s1-options" id="hdlv2-tap-opts-' + f + '" role="radiogroup" aria-labelledby="hdlv2-tap-label-' + f + '" data-row="' + f + '"' + (open ? '' : ' hidden') + '>'
@@ -2287,10 +2279,10 @@
 
     root.innerHTML = '<div class="hdlv2-card hdlv2-ty-card">'
       + thankYouHeader(pracName, pracLogo)
-      + '<div class="hdlv2-ty-banner"><h1>Stage&nbsp;3&nbsp;complete</h1></div>'
+      + '<div class="hdlv2-ty-banner"><h1>Full&nbsp;Report&nbsp;complete</h1></div>'
       + '<div class="hdlv2-ty-body">'
       +   '<h2 class="hdlv2-ty-h1">Thanks, ' + esc(firstName) + ' — your assessment is in.</h2>'
-      +   '<p class="hdlv2-ty-lead">We’ve just sent your draft report to your email. It should arrive within a few minutes.</p>'
+      +   '<p class="hdlv2-ty-lead">From what you’ve told us we’ve built your draft longevity report. It’s on its way to your email and should arrive within a few minutes.</p>'
       +   '<p class="hdlv2-ty-subhead">What happens next</p>'
       +   '<ol class="hdlv2-ty-list">'
       +     '<li>Check your inbox for your Draft Report.</li>'

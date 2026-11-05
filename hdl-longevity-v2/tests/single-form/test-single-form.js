@@ -242,7 +242,7 @@ ok(/<h2>What matters most to you<\/h2>/.test(html), 'title: What matters most to
 ok(html.indexOf('<p>Pick the 5 to 10 that matter most to you in your last decade of life.</p>') !== -1, 'one opening line, as written');
 ok(/People I love[\s\S]*My freedom[\s\S]*Things I love/.test(html), 'group headings in order');
 ok(html.indexOf('<h3>What your picks need from your body</h3>') !== -1, 'section heading, as written');
-ok(html.indexOf('<p>Each thing you picked needs some of these. Your plan starts with the ones your health answers show are weakest.</p>') !== -1, 'section line, as written');
+ok(html.indexOf('<p>For the life you picked, these are the abilities to keep in surplus today. Everyone ages; the surplus is what you build now.</p>') !== -1, 'section line, as written (v0.48.48, W25)');
 ok(html.indexOf('<p class="hdlv2-why-caption">5 is the most a life can ask of one ability. Your answers on the next pages show where you stand today on each one.</p>') !== -1, 'radar caption, as written (v0.48.11)');
 ok(/id="hdlv2-abilities"/.test(html) && /id="hdlv2-why-radar"/.test(html) && html.indexOf('id="hdlv2-abilities"') < html.indexOf('id="hdlv2-why-radar"'),
   'the bars (#hdlv2-abilities) and the radar are both on the page, bars first');
