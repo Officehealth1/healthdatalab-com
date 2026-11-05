@@ -49,8 +49,9 @@ const DOC = 'var document = { createElement: function () { var t = ""; return {'
   + ' set textContent(s) { t = s; },'
   + ' get innerHTML() { return t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); } }; } };\n';
 
-const HELPERS = ['fieldInputWithSkip', 'renderTooltip', 'fieldSelect', 'fieldTextarea', 'fieldReadonly', 'prefillHint', 'esc', 's1Prefill'];
-const VARS = ['NONE_SENTINEL', 'S3_OPTIONS', 'S1_TO_S3_DEFAULTS', 'S3_SECTIONS'];
+const HELPERS = ['fieldInputWithSkip', 'renderTooltip', 'fieldSelect', 'fieldTextarea', 'fieldReadonly', 'prefillHint', 'esc', 's1Prefill',
+  'r1', 'toImperial', 'unitsDefault', 'unitsNow', 'unitsSwitch', 'measureInput']; // v0.48.50 (W41): the units switch
+const VARS = ['NONE_SENTINEL', 'S3_OPTIONS', 'S1_TO_S3_DEFAULTS', 'S3_SECTIONS', 'IN_CM'];
 const NEW_NAMES = ['TAP_FIRST', 'TAP_FIRST_LABELS', 'TAP_ORDER', 'TEST_HOW', 'TAP_NEUTRAL', 'TAP_TITLES', 'ABILITY_SENTENCES'];
 const NEW_FNS = ['tapFirstValues', 'tapCards', 'tapQuestionOrder', 'tapReason', 'tapLandingStep', 'wizardSectionContent'];
 
@@ -202,10 +203,12 @@ const block = oldWiz.slice(a, b);
 // v0.48.15 (H1) — the one header line now reads "Your Full Report" on both branches.
 // v0.48.15 (H6) — and the practitioner's logo band above it.
 const H1 = (t) => t.replace("(single ? 'Your assessment' : 'More Health Details \\u2014 Stage 3')", "'Your Full Report'")
-  .replace("+ '<div class=\"hdlv2-header\"><h2>' + 'Your Full Report'", "+ brandBar(serverData) + '<div class=\"hdlv2-header\"><h2>' + 'Your Full Report'");
+  .replace("+ '<div class=\"hdlv2-header\"><h2>' + 'Your Full Report'", "+ brandBar(serverData) + '<div class=\"hdlv2-header\"><h2>' + 'Your Full Report'")
+  // v0.48.50 (W41) — the units switch redraws the section.
+  .replace("    bindFieldListeners();\n", "    bindFieldListeners();\n    bindUnits(function () { renderWizardSection(data); });\n");
 ok(newWiz === H1(oldWiz.slice(0, a) + '    var content = wizardSectionContent(sec, s1d, d);\n\n' + oldWiz.slice(b)),
   'renderWizardSection is b0b1352\'s text with only the content block moved out (and the H1 header)');
-HELPERS.forEach((h) => ok(fn(h) === fnIn(old, h), h + '() unchanged since b0b1352'));
+HELPERS.filter((h) => fnIn(old, h)).forEach((h) => ok(fn(h) === fnIn(old, h), h + '() unchanged since b0b1352'));
 ['S3_OPTIONS', 'S3_SECTIONS'].forEach((n) => ok(v(n) === varIn(old, n), n + ' unchanged since b0b1352'));
 // v0.48.48 (W31, W32): Stage 1 never asked about exercise or sleep quality, so those two guesses went.
 {
@@ -224,7 +227,8 @@ if (typeof octx.oldContent === 'function' && has('wizardSectionContent')) {
   ];
   // v0.48.48 (W35, W37): the brain hint drops reading and the skin how-to gains the hydration line,
   // on both forms. Put back, the old sections are b0b1352's bytes again.
-  const asBefore = (h) => h.split(' If you are dehydrated this will be slower, so do the test well hydrated.').join('')
+  // v0.48.50 (W41): the units switch above the body measures (metric, the default with no browser language).
+  const asBefore = (h) => h.split('<div class="hdlv2-units" role="radiogroup" aria-label="Units"><button type="button" role="radio" class="hdlv2-units-opt is-on" data-units="metric" aria-checked="true">cm · kg</button><button type="button" role="radio" class="hdlv2-units-opt" data-units="imperial" aria-checked="false">ft in · lb</button></div>').join('').split(' If you are dehydrated this will be slower, so do the test well hydrated.').join('')
     .split('e.g. learning a new skill, puzzles, complex problem-solving at work.').join('e.g. reading, learning new skills, puzzles, problem-solving at work.');
   let same = true;
   octx.get('S3_SECTIONS').forEach((sec) => fixtures.forEach(([s1d, d]) => {

@@ -466,7 +466,8 @@ class HDLV2_Staged_Form {
 
         // v0.48.5 — only the page's three fields come from the browser; the
         // marker, vision_text and the label map are server-written.
-        $data   = array_intersect_key( $data, array_flip( array( 'why_picks', 'key_people_text', 'own_words' ) ) );
+        // v0.48.50: + key_people, the who-for rows.
+        $data   = array_intersect_key( $data, array_flip( array( 'why_picks', 'key_people', 'key_people_text', 'own_words' ) ) );
         $merged = array_merge( $existing, $data );
 
         if ( ! $submitted ) {
@@ -478,6 +479,7 @@ class HDLV2_Staged_Form {
             }
             if ( is_string( $data['key_people_text'] ?? null ) ) $fields['key_people_text'] = mb_substr( $data['key_people_text'], 0, HDLV2_Why_Picks::MAX_PEOPLE_LEN );
             if ( is_string( $data['own_words'] ?? null ) ) $fields['own_words'] = mb_substr( $data['own_words'], 0, HDLV2_Why_Picks::MAX_OWN_WORDS_LEN );
+            if ( isset( $data['key_people'] ) ) $fields['key_people'] = HDLV2_Why_Picks::clean_people( $data['key_people'] );
             $merged = array_merge( $existing, $fields );
             // Conditional on the WHY still being open: an autosave that read
             // the row before a submit and lands after it must not wipe the
@@ -505,6 +507,11 @@ class HDLV2_Staged_Form {
         }
 
         $merged['why_picks']       = array_values( $merged['why_picks'] );
+        // v0.48.50 — with the rows, the text is the server's own composition of them.
+        if ( array_key_exists( 'key_people', $data ) ) {
+            $merged['key_people']      = HDLV2_Why_Picks::clean_people( $data['key_people'] );
+            $merged['key_people_text'] = HDLV2_Why_Picks::people_text( $merged['key_people'] );
+        }
         $merged['key_people_text'] = sanitize_textarea_field( (string) ( $merged['key_people_text'] ?? '' ) );
         $merged['own_words']       = sanitize_textarea_field( (string) ( $merged['own_words'] ?? '' ) );
         // v0.48.5 — the wording each pick had today, so a later rewording
@@ -1294,6 +1301,10 @@ class HDLV2_Staged_Form {
             // v0.48.42 — the test pictures and row icons (hdlv2_ff_question_motion; absent = off).
             'question_motion' => (bool) get_option( 'hdlv2_ff_question_motion', false ),
             'asset_ver'       => HDLV2_VERSION,
+            // v0.48.50 (W27) — the picks chart's need from the middle out (absent = off).
+            'need_scale_v2'   => (bool) get_option( 'hdlv2_ff_need_scale_v2', false ),
+            // v0.48.50 (W33-W40) — the research note's test wording, sun and water answers (absent = off).
+            'second_form_wording_v2' => (bool) get_option( 'hdlv2_ff_second_form_wording_v2', false ),
         ) );
 
         return '<div id="hdlv2-assessment" class="hdlv2-assessment-root"></div>';

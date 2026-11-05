@@ -469,6 +469,23 @@ class HDLV2_Flight_Notes {
 				'3' => 'Regularly', '4' => 'Often', '5' => 'Daily',
 			),
 		);
+		// v0.48.50 (W39, W40; hdlv2_ff_second_form_wording_v2) — the form's new sun and water answers,
+		// by score (the form lists the sun ones A-F in its own order). Water says "glasses a day" so
+		// the label reads alone on the consultation page.
+		static $v2 = array(
+			'sunlightExposure' => array(
+				'0' => "Hardly ever, I'm indoors most days", '1' => 'Now and then, not most days',
+				'2' => 'Most days, and I burned two or more times in the past year', '3' => 'Most days, and I burned once in the past year',
+				'4' => 'Most days, but less than 20 minutes', '5' => 'Most days, 20 minutes or more, and I rarely burn',
+			),
+			'dailyHydration'   => array(
+				'0' => 'None or one glass a day', '1' => '2 to 3 glasses a day', '2' => '4 to 5 glasses a day',
+				'3' => '6 to 7 glasses a day', '4' => '8 to 9 glasses a day', '5' => '10 or more glasses a day',
+			),
+		);
+		if ( isset( $v2[ $field ] ) && get_option( 'hdlv2_ff_second_form_wording_v2', false ) ) {
+			return $v2[ $field ][ (string) (int) $value ] ?? '';
+		}
 		if ( ! isset( $map[ $field ] ) ) {
 			return '';
 		}

@@ -26,7 +26,7 @@ function body(name) {
 }
 const ICON_SRC = (src.match(/  var ICONS = \{[\s\S]*?\n  \};/) || [''])[0];
 const ESC = 'function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", "\\"": "&quot;" }[c]; }); }';
-const ctx = {};
+const ctx = { CFG: {} }; // v0.48.50: the need-scale flag (hdlv2_ff_need_scale_v2), off here; A-12v2 turns it on
 vm.runInNewContext(ESC + '\n' + ICON_SRC + '\n' + ['abilityCounts', 'radarData', 'chartLabel', 'pickIcon', 'radarChart', 'abilityBars'].map(body).join('\n')
   + '\nthis.abilityCounts = abilityCounts; this.radarData = radarData; this.chartLabel = chartLabel; this.radarChart = radarChart; this.abilityBars = abilityBars; this.ICONS = ICONS;', ctx);
 
@@ -48,6 +48,18 @@ fx.cases.forEach((c) => {
 });
 if (mismatch.length) console.log('      mismatch: ' + mismatch.slice(0, 3).join(' / '));
 ok(fx.cases.length > 20 && mismatch.length === 0, 'A-12 page need == server need on all ' + fx.cases.length + ' fixture pick sets');
+// A-12v2 (v0.48.50, W27) the same with the need-scale flag on, against the PHP with the option set.
+ctx.CFG.need_scale_v2 = true;
+mismatch = [];
+(fx.cases_v2 || []).forEach((c) => {
+  const got = {};
+  rowsFor(c.picks).forEach((r) => { got[r.id] = r.need; });
+  if (JSON.stringify(Object.keys(got).sort()) !== JSON.stringify(Object.keys(c.need).sort())
+    || Object.keys(c.need).some((k) => got[k] !== c.need[k])) mismatch.push(c.picks.join(','));
+});
+if (mismatch.length) console.log('      mismatch v2: ' + mismatch.slice(0, 3).join(' / '));
+ok((fx.cases_v2 || []).length === fx.cases.length && mismatch.length === 0, 'A-12v2 flag on: page need == server need on all ' + fx.cases.length + ' pick sets');
+ctx.CFG.need_scale_v2 = false;
 const worked = rowsFor(fx.cases[0].picks);
 ok(JSON.stringify(worked.map((r) => r.id)) === '["strength","mobility","balance","stamina","mind","connection"]',
   'A-12b rows most-needed first, ties in the server\'s ability order');

@@ -389,6 +389,46 @@
     sunlightExposure: { title: 'When do you usually get daylight outdoors?', plain: TAP_NEUTRAL },
     dailyHydration: { title: 'How much water do you drink in a day?', plain: TAP_NEUTRAL }
   };
+  // v0.48.50 (W33, W36, W37, W39, W40; hdlv2_ff_second_form_wording_v2) — the research note's
+  // wording (evidence 2026-11-04): three how-to texts, and the sun and water questions with new
+  // answers on the same 0-5 scores. The sun answers are listed in the order shown (A-F); each
+  // carries its score (D 5, C 4, E 3, F 2, B 1, A 0). HDLV2_Flight_Notes::s3_label() is the twin.
+  var WORDING_V2 = {
+    how: {
+      balance: 'Stand on one leg with your arms by your sides and the other foot lifted off the floor. Start the stopwatch when your foot lifts. Wobbling is fine. Stop the clock when the lifted foot touches the floor, your standing foot moves, or you hold on to something. Take the best of three tries. Stand near something for safety.',
+      breathHold: 'Sit and breathe normally for a minute. Breathe out normally, pinch your nose and start the stopwatch. Stop at the first clear urge to breathe, like a swallow or a twitch in your throat or tummy. Your next breath should be calm. If you gasp, you held too long.',
+      skinElasticity: 'Rest your hand flat on a table. Pinch the skin on the back of your hand for 2 seconds, then let go and start the stopwatch. Stop when the ridge has gone and the skin looks flat again. Ignore a faint line that stays. If you are dehydrated this will be slower, so do the test well hydrated.'
+    },
+    titles: {
+      sunlightExposure: 'How often do you spend time outdoors in daylight?',
+      dailyHydration: 'On a usual day, how many glasses of water do you drink? A glass is about a cup.'
+    },
+    options: {
+      sunlightExposure: [
+        { v: '', l: 'Select...' },
+        { v: '0', l: "Hardly ever, I'm indoors most days" },
+        { v: '1', l: 'Now and then, not most days' },
+        { v: '4', l: 'Most days, but less than 20 minutes' },
+        { v: '5', l: 'Most days, 20 minutes or more, and I rarely burn' },
+        { v: '3', l: 'Most days, and I burned once in the past year' },
+        { v: '2', l: 'Most days, and I burned two or more times in the past year' }
+      ],
+      dailyHydration: [
+        { v: '', l: 'Select...' },
+        { v: '0', l: 'None or one' },
+        { v: '1', l: '2 to 3' },
+        { v: '2', l: '4 to 5' },
+        { v: '3', l: '6 to 7' },
+        { v: '4', l: '8 to 9' },
+        { v: '5', l: '10 or more' }
+      ]
+    }
+  };
+  if (CFG.second_form_wording_v2) {
+    Object.keys(WORDING_V2.how).forEach(function (k) { TEST_HOW[k] = TAP_TITLES[k].how = WORDING_V2.how[k]; });
+    Object.keys(WORDING_V2.titles).forEach(function (k) { TAP_TITLES[k].title = WORDING_V2.titles[k]; });
+    Object.keys(WORDING_V2.options).forEach(function (k) { S3_OPTIONS[k] = WORDING_V2.options[k]; });
+  }
   // v0.48.42 — the test pictures (DESIGN.md "## Motion"), shown when hdlv2_ff_question_motion
   // is on. Only drawn scenes are listed, so a screen without one shows nothing;
   // tests/question-motion checks this against the files.
@@ -498,6 +538,8 @@
 
   // ── AUTO-SAVE ──
   function onFieldChange(e) {
+    var imp = e.target.getAttribute('data-imp');
+    if (imp) { writeImperial(imp); e.target.classList.remove('error'); if (saveTimer) clearTimeout(saveTimer); saveTimer = setTimeout(function(){ autoSave(currentStage); }, 2000); return; }
     var name = e.target.getAttribute('data-field');
     if (!name) return;
     formData[name] = e.target.value.trim();
@@ -1370,7 +1412,12 @@
     return Object.keys(abilities || {})
       .filter(function (id) { return counts[id] > 0; })
       .map(function (id) {
-        return { id: id, label: abilities[id], count: counts[id], need: Math.min(5, Math.round(50 * sums[id] / (3 * n)) / 10) };
+        // v0.48.50 (W27, hdlv2_ff_need_scale_v2): out from the middle, 2.5 + 1.25 x (average weight - 1)
+        // over the picks that need it, 2 dp; the server's tally() is the twin.
+        var need = CFG.need_scale_v2
+          ? Math.round((250 * counts[id] + 125 * (sums[id] - counts[id])) / counts[id]) / 100
+          : Math.round(50 * sums[id] / (3 * n)) / 10;
+        return { id: id, label: abilities[id], count: counts[id], need: Math.min(5, need) };
       })
       .sort(function (a, b) { return b.need - a.need; });
   }
@@ -1585,7 +1632,7 @@
       +       '<p class="hdlv2-why-caption">5 is the most a life can ask of one ability. Your answers on the next pages show where you stand today on each one.</p></div>'
       +     '</div>'
       +   '</section>'
-      +   picksTextarea('key_people_text', 'Who are you doing this for? First names.', d.key_people_text, 'Jenny, Leo, Mia', 300)
+      +   whoForHtml(peopleFromData(d))
       +   picksTextarea('own_words', 'Anything else? (optional)', d.own_words, '', 600)
       +   '<button type="button" id="hdlv2-picks-next" class="hdlv2-btn">Next &#8594;</button>'
       + '</div>' + saveIndicator(true) + footer() + '</div>';
@@ -1601,6 +1648,7 @@
       });
     });
     bindFieldListeners();
+    bindWhoFor();
     document.getElementById('hdlv2-picks-next').addEventListener('click', submitWhyPicks);
     // Same function each time, so the browser keeps one listener however often the page renders.
     window.addEventListener('resize', redrawRadar);
@@ -1697,15 +1745,110 @@
       + '<div class="hdlv2-field-foot"><span></span><div class="hdlv2-char-count" id="hdlv2-charcount-' + name + '">' + v.length + ' / ' + maxlength + '</div></div></div>';
   }
 
+  // v0.48.50 (W29) — who the client stays strong for: up to six first names, each with who
+  // they are. The roles are the healthspan timeline's (REL there), so it can draw them as
+  // Loved ones. key_people_text stays the composed text every older reader uses.
+  var WHO_ROLES = [['spouse', 'Spouse or partner'], ['child', 'Child'], ['grandchild', 'Grandchild'], ['parent', 'Parent'],
+    ['sibling', 'Brother or sister'], ['friend', 'Friend'], ['other', 'Other']];
+  var WHO_MAX = 6, WHO_MIN_ROWS = 3, WHO_NAME_MAX = 30;
+
+  // The saved rows, or the names of an older row's free text ("Jenny, Leo") with no role yet.
+  function peopleFromData(d) {
+    if (Array.isArray(d.key_people)) return d.key_people.slice(0, WHO_MAX);
+    return String(d.key_people_text || '').split(',').map(function (n) { return { name: n.trim().slice(0, WHO_NAME_MAX), rel: '' }; })
+      .filter(function (p) { return p.name; }).slice(0, WHO_MAX);
+  }
+
+  function whoForRow(i, p) {
+    var opts = '<option value=""' + (p.rel ? '' : ' selected') + '>Who are they?</option>' + WHO_ROLES.map(function (r) {
+      return '<option value="' + r[0] + '"' + (p.rel === r[0] ? ' selected' : '') + '>' + r[1] + '</option>';
+    }).join('');
+    return '<div class="hdlv2-who-row">'
+      + '<input type="text" maxlength="30" placeholder="First name" aria-label="First name, person ' + (i + 1) + '" value="' + esc(p.name || '') + '">'
+      + '<select aria-label="Who is person ' + (i + 1) + '">' + opts + '</select>'
+      + (i >= WHO_MIN_ROWS ? '<button type="button" class="hdlv2-who-remove" aria-label="Remove person ' + (i + 1) + '">Remove</button>' : '')
+      + '</div>';
+  }
+
+  function whoForHtml(people) {
+    var rows = people.slice(0, WHO_MAX);
+    while (rows.length < WHO_MIN_ROWS) rows.push({ name: '', rel: '' });
+    return '<fieldset class="hdlv2-field hdlv2-who-for" id="hdlv2-who-for">'
+      + '<legend>Who are you staying strong for?</legend>'
+      + '<p class="hdlv2-who-help">Name them. We\u2019ll remember them for your timeline.</p>'
+      + '<div class="hdlv2-who-rows">' + rows.map(function (p, i) { return whoForRow(i, p); }).join('') + '</div>'
+      + '<button type="button" class="hdlv2-who-add"' + (rows.length >= WHO_MAX ? ' hidden' : '') + '>+ Add another</button>'
+      + '</fieldset>';
+  }
+
+  function composePeople(rows) {
+    return rows.map(function (p) { return { name: String(p.name || '').trim().slice(0, WHO_NAME_MAX), rel: p.rel || '' }; })
+      .filter(function (p) { return p.name; }).slice(0, WHO_MAX);
+  }
+
+  function composePeopleText(rows) {
+    return composePeople(rows).map(function (p) { return p.rel ? p.name + ' (' + p.rel + ')' : p.name; }).join(', ');
+  }
+
+  function readWhoRows() {
+    return Array.prototype.map.call(root.querySelectorAll('#hdlv2-who-for .hdlv2-who-row'), function (r) {
+      return { name: r.querySelector('input').value, rel: r.querySelector('select').value };
+    });
+  }
+
+  // Typing or picking a role saves like a tap on a statement; add and remove redraw the rows.
+  function bindWhoFor() {
+    var box = document.getElementById('hdlv2-who-for');
+    if (!box) return;
+    function sync() {
+      var rows = readWhoRows();
+      formData.key_people = composePeople(rows);
+      formData.key_people_text = composePeopleText(rows);
+      clearSaveError();
+      if (saveTimer) clearTimeout(saveTimer);
+      saveTimer = setTimeout(function () { saveWhenFree(2); }, 1500);
+    }
+    function redraw(rows, focusAt) {
+      box.querySelector('.hdlv2-who-rows').innerHTML = rows.map(function (p, i) { return whoForRow(i, p); }).join('');
+      box.querySelector('.hdlv2-who-add').hidden = rows.length >= WHO_MAX;
+      var inputs = box.querySelectorAll('.hdlv2-who-row input');
+      if (inputs[focusAt]) inputs[focusAt].focus();
+    }
+    box.addEventListener('input', sync);
+    box.addEventListener('change', sync);
+    box.addEventListener('click', function (e) {
+      var rows = readWhoRows();
+      if (e.target.classList.contains('hdlv2-who-add') && rows.length < WHO_MAX) {
+        rows.push({ name: '', rel: '' });
+        redraw(rows, rows.length - 1);
+      } else if (e.target.classList.contains('hdlv2-who-remove')) {
+        var at = Array.prototype.indexOf.call(box.querySelectorAll('.hdlv2-who-row'), e.target.parentNode);
+        rows.splice(at, 1);
+        redraw(rows, Math.min(at, rows.length - 1));
+        sync();
+      }
+    });
+  }
+
   function submitWhyPicks() {
     if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
     if (queuedSaveTimer) { clearTimeout(queuedSaveTimer); queuedSaveTimer = null; }
     // Let an in-flight autosave finish first so it cannot land after Next.
     if (saving) { setTimeout(submitWhyPicks, 300); return; }
-    ['key_people_text', 'own_words'].forEach(function (n) {
+    ['own_words'].forEach(function (n) {
       var el = document.getElementById('hdlv2-f-' + n);
       if (el) formData[n] = el.value.trim();
     });
+    var who = readWhoRows();
+    formData.key_people = composePeople(who);
+    formData.key_people_text = composePeopleText(who);
+    // A name with no role yet: say so and go to it; the server refuses it too.
+    var noRole = who.findIndex(function (p) { return String(p.name || '').trim() && !p.rel; });
+    if (noRole !== -1) {
+      setSaveStatus('error', 'Please pick who each person is.');
+      root.querySelectorAll('#hdlv2-who-for .hdlv2-who-row select')[noRole].focus();
+      return;
+    }
     var btn = document.getElementById('hdlv2-picks-next');
     btn.disabled = true; btn.textContent = 'Saving\u2026';
     function reset(msg) { btn.disabled = false; btn.innerHTML = 'Next &#8594;'; setSaveStatus('error', msg); }
@@ -1801,6 +1944,7 @@
       + '</div></div>' + saveIndicator() + footer() + '</div>';
 
     bindFieldListeners();
+    bindUnits(function () { renderWizardSection(data); });
     // v0.38.0 — bindSkipCheckboxes() removed; "I don't know" checkbox dropped
     // from numeric inputs per spec. The single section-level helper line now
     // covers skip semantics. Stored 'skip' values still load (back-compat).
@@ -1830,16 +1974,17 @@
         + '</div>'
         + prefillHint()
         + '<h5 class="hdlv2-subgroup-heading">Body shape</h5>'
+        + unitsSwitch(unitsNow())
         + '<div class="hdlv2-field-grid cols-2">'
-        + fieldInputWithSkip('height', 'Height (cm)', 'number', d.height, '170')
-        + fieldInputWithSkip('weight', 'Weight (kg)', 'number', d.weight, '75')
+        + measureInput('height', d)
+        + measureInput('weight', d)
         + '</div>'
         + (CFG.question_motion && S1_IMG_BASE && TAP_MOTION.waist ? motionFigure('hdlv2-body-guide', TAP_MOTION.waist) : '')
         + '<div class="hdlv2-field-grid cols-2">'
-        + fieldInputWithSkip('waist', 'Waist (cm)', 'number', d.waist, '85', {
+        + measureInput('waist', d, {
             tooltip: 'Measure around your waist at the level of your belly button. Keep the tape measure horizontal.'
           })
-        + fieldInputWithSkip('hip', 'Hip (cm)', 'number', d.hip, '95', {
+        + measureInput('hip', d, {
             tooltip: 'Measure around the widest part of your hips. Keep the tape measure horizontal.'
           })
         + '</div>'
@@ -1981,12 +2126,13 @@
     return order.length + 1;
   }
 
-  // Six answer cards from S3_OPTIONS: value '0' is chip A ... '5' is F.
+  // Six answer cards from S3_OPTIONS, chips A-F in the listed order (value '0' is A ... '5' is F
+  // everywhere except the v0.48.50 sun answers, listed in their own A-F order).
   function tapCards(field, value) {
-    return S3_OPTIONS[field].filter(function (o) { return o.v !== ''; }).map(function (o) {
+    return S3_OPTIONS[field].filter(function (o) { return o.v !== ''; }).map(function (o, i) {
       var sel = String(value) === o.v;
       return '<button type="button" class="hdlv2-s1-opt' + (sel ? ' selected' : '') + '" data-val="' + o.v + '" role="radio" aria-checked="' + sel + '">'
-        + '<span class="hdlv2-s1-chip" aria-hidden="true">' + String.fromCharCode(65 + Number(o.v)) + '</span>'
+        + '<span class="hdlv2-s1-chip" aria-hidden="true">' + String.fromCharCode(65 + i) + '</span>'
         + '<span class="hdlv2-s1-opt-text">' + esc(o.l) + '</span></button>';
     }).join('');
   }
@@ -2075,6 +2221,7 @@
     else if (field) bindTapQuestion(data, field);
     else {
       bindFieldListeners();
+      bindUnits(function () { renderTapStep(data, false); });
       bindTapComplete(data);
     }
     // Keyboard and screen-reader users hear where they are after each step.
@@ -2390,6 +2537,85 @@
   // semantics. Pre-existing rows that stored 'skip' render as an empty
   // input (back-compat); the calculator already treats null/empty
   // identically to 'skip' via clamp_score().
+  // v0.48.50 (W41) — the four body measures in cm/kg or ft in/lb. formData always holds metric
+  // (the server works out BMI, WHR and WHtR in cm and kg); imperial is shown from it and typed
+  // into boxes with no data-field, which writeImperial() converts back on change. The choice
+  // follows the browser language (en-US imperial) until the client picks, then hdlv2-units.
+  var IN_CM = 2.54, LB_KG = 0.45359237, UNITS_KEY = 'hdlv2-units', unitsChosen = null;
+  function r1(x) { return Math.round(x * 10) / 10; }
+  function toMetric(v) {
+    var out = {};
+    if (v.ftIn) out.height_cm = r1(((+v.ftIn[0] || 0) * 12 + (+v.ftIn[1] || 0)) * IN_CM);
+    if (v.lb != null) out.weight_kg = r1(v.lb * LB_KG);
+    if (v.waistIn != null) out.waist_cm = r1(v.waistIn * IN_CM);
+    if (v.hipIn != null) out.hip_cm = r1(v.hipIn * IN_CM);
+    return out;
+  }
+  function toImperial(m) {
+    var out = {};
+    if (m.height_cm != null) { var t = r1(m.height_cm / IN_CM), ft = Math.floor(t / 12); out.ftIn = [ft, r1(t - ft * 12)]; }
+    if (m.weight_kg != null) out.lb = r1(m.weight_kg / LB_KG);
+    if (m.waist_cm != null) out.waistIn = r1(m.waist_cm / IN_CM);
+    if (m.hip_cm != null) out.hipIn = r1(m.hip_cm / IN_CM);
+    return out;
+  }
+  function unitsDefault(lang) { return /^en-US$/i.test(lang || '') ? 'imperial' : 'metric'; }
+  function unitsNow() {
+    if (unitsChosen) return unitsChosen;
+    try { var u = localStorage.getItem(UNITS_KEY); if (u === 'metric' || u === 'imperial') return u; } catch (e) { /* blocked storage: the default */ }
+    return unitsDefault(typeof navigator !== 'undefined' && navigator ? navigator.language : '');
+  }
+  function unitsSwitch(units) {
+    var opt = function (u, label) {
+      return '<button type="button" role="radio" class="hdlv2-units-opt' + (units === u ? ' is-on' : '') + '" data-units="' + u + '" aria-checked="' + (units === u) + '">' + label + '</button>';
+    };
+    return '<div class="hdlv2-units" role="radiogroup" aria-label="Units">' + opt('metric', 'cm · kg') + opt('imperial', 'ft in · lb') + '</div>';
+  }
+  function measureInput(name, d, opts) {
+    var cm = { height: ['Height (cm)', '170'], weight: ['Weight (kg)', '75'], waist: ['Waist (cm)', '85'], hip: ['Hip (cm)', '95'] }[name];
+    if (unitsNow() === 'metric') return fieldInputWithSkip(name, cm[0], 'number', d[name], cm[1], opts);
+    var n = parseFloat(d[name]), key = { height: 'height_cm', weight: 'weight_kg', waist: 'waist_cm', hip: 'hip_cm' }[name];
+    var imp = isFinite(n) ? toImperial((function () { var o = {}; o[key] = n; return o; })()) : {};
+    var box = function (id, value, ph, label) {
+      return '<input id="' + id + '" data-imp="' + name + '" type="number" min="0" step="any" inputmode="decimal" value="' + esc(value == null ? '' : value) + '" placeholder="' + ph + '"' + (label ? ' aria-label="' + label + '"' : '') + '>';
+    };
+    var tip = opts && opts.tooltip ? renderTooltip(opts.tooltip) : '';
+    if (name === 'height') {
+      return '<div class="hdlv2-field"><label for="hdlv2-f-height-ft">Height (ft, in)' + tip + '</label><div class="hdlv2-units-pair">'
+        + box('hdlv2-f-height-ft', imp.ftIn && imp.ftIn[0], '5', 'Height, feet') + box('hdlv2-f-height-in', imp.ftIn && imp.ftIn[1], '7', 'Height, inches') + '</div></div>';
+    }
+    var lab = { weight: ['Weight (lb)', '165', 'lb'], waist: ['Waist (in)', '33', 'waistIn'], hip: ['Hip (in)', '37', 'hipIn'] }[name];
+    return '<div class="hdlv2-field"><label for="hdlv2-f-' + name + '-imp">' + lab[0] + tip + '</label>' + box('hdlv2-f-' + name + '-imp', imp[lab[2]], lab[1]) + '</div>';
+  }
+  // An imperial box changed: its measure goes into formData in metric ('' when emptied).
+  function writeImperial(name) {
+    var num = function (id) { var el = document.getElementById(id), v = el ? String(el.value).trim() : ''; return v === '' ? null : Number(v); };
+    var v = {};
+    if (name === 'height') {
+      var ft = num('hdlv2-f-height-ft'), inch = num('hdlv2-f-height-in');
+      if (ft !== null || inch !== null) v.ftIn = [ft || 0, inch || 0];
+    } else {
+      var x = num('hdlv2-f-' + name + '-imp');
+      if (x !== null) v[{ weight: 'lb', waist: 'waistIn', hip: 'hipIn' }[name]] = x;
+    }
+    var m = toMetric(v)[{ height: 'height_cm', weight: 'weight_kg', waist: 'waist_cm', hip: 'hip_cm' }[name]];
+    formData[name] = m != null && isFinite(m) ? String(m) : '';
+  }
+  // The switch redraws the screen; the box being left has already written its value (blur).
+  function bindUnits(rerender) {
+    root.querySelectorAll('.hdlv2-units-opt').forEach(function (b) {
+      b.addEventListener('click', function () {
+        var u = b.getAttribute('data-units');
+        if (u === unitsNow()) return;
+        unitsChosen = u;
+        try { localStorage.setItem(UNITS_KEY, u); } catch (e) { /* kept for this page only */ }
+        rerender();
+        var on = root.querySelector('.hdlv2-units-opt[data-units="' + u + '"]');
+        if (on) on.focus();
+      });
+    });
+  }
+
   function fieldInputWithSkip(name, label, type, value, placeholder, opts) {
     opts = opts || {};
     var isSkipped = value === 'skip';
