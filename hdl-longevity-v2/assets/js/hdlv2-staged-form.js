@@ -389,6 +389,46 @@
     sunlightExposure: { title: 'When do you usually get daylight outdoors?', plain: TAP_NEUTRAL },
     dailyHydration: { title: 'How much water do you drink in a day?', plain: TAP_NEUTRAL }
   };
+  // v0.48.50 (W33, W36, W37, W39, W40; hdlv2_ff_second_form_wording_v2) — the research note's
+  // wording (evidence 2026-11-04): three how-to texts, and the sun and water questions with new
+  // answers on the same 0-5 scores. The sun answers are listed in the order shown (A-F); each
+  // carries its score (D 5, C 4, E 3, F 2, B 1, A 0). HDLV2_Flight_Notes::s3_label() is the twin.
+  var WORDING_V2 = {
+    how: {
+      balance: 'Stand on one leg with your arms by your sides and the other foot lifted off the floor. Start the stopwatch when your foot lifts. Wobbling is fine. Stop the clock when the lifted foot touches the floor, your standing foot moves, or you hold on to something. Take the best of three tries. Stand near something for safety.',
+      breathHold: 'Sit and breathe normally for a minute. Breathe out normally, pinch your nose and start the stopwatch. Stop at the first clear urge to breathe, like a swallow or a twitch in your throat or tummy. Your next breath should be calm. If you gasp, you held too long.',
+      skinElasticity: 'Rest your hand flat on a table. Pinch the skin on the back of your hand for 2 seconds, then let go and start the stopwatch. Stop when the ridge has gone and the skin looks flat again. Ignore a faint line that stays. If you are dehydrated this will be slower, so do the test well hydrated.'
+    },
+    titles: {
+      sunlightExposure: 'How often do you spend time outdoors in daylight?',
+      dailyHydration: 'On a usual day, how many glasses of water do you drink? A glass is about a cup.'
+    },
+    options: {
+      sunlightExposure: [
+        { v: '', l: 'Select...' },
+        { v: '0', l: "Hardly ever, I'm indoors most days" },
+        { v: '1', l: 'Now and then, not most days' },
+        { v: '4', l: 'Most days, but less than 20 minutes' },
+        { v: '5', l: 'Most days, 20 minutes or more, and I rarely burn' },
+        { v: '3', l: 'Most days, and I burned once in the past year' },
+        { v: '2', l: 'Most days, and I burned two or more times in the past year' }
+      ],
+      dailyHydration: [
+        { v: '', l: 'Select...' },
+        { v: '0', l: 'None or one' },
+        { v: '1', l: '2 to 3' },
+        { v: '2', l: '4 to 5' },
+        { v: '3', l: '6 to 7' },
+        { v: '4', l: '8 to 9' },
+        { v: '5', l: '10 or more' }
+      ]
+    }
+  };
+  if (CFG.second_form_wording_v2) {
+    Object.keys(WORDING_V2.how).forEach(function (k) { TEST_HOW[k] = TAP_TITLES[k].how = WORDING_V2.how[k]; });
+    Object.keys(WORDING_V2.titles).forEach(function (k) { TAP_TITLES[k].title = WORDING_V2.titles[k]; });
+    Object.keys(WORDING_V2.options).forEach(function (k) { S3_OPTIONS[k] = WORDING_V2.options[k]; });
+  }
   // v0.48.42 — the test pictures (DESIGN.md "## Motion"), shown when hdlv2_ff_question_motion
   // is on. Only drawn scenes are listed, so a screen without one shows nothing;
   // tests/question-motion checks this against the files.
@@ -2082,12 +2122,13 @@
     return order.length + 1;
   }
 
-  // Six answer cards from S3_OPTIONS: value '0' is chip A ... '5' is F.
+  // Six answer cards from S3_OPTIONS, chips A-F in the listed order (value '0' is A ... '5' is F
+  // everywhere except the v0.48.50 sun answers, listed in their own A-F order).
   function tapCards(field, value) {
-    return S3_OPTIONS[field].filter(function (o) { return o.v !== ''; }).map(function (o) {
+    return S3_OPTIONS[field].filter(function (o) { return o.v !== ''; }).map(function (o, i) {
       var sel = String(value) === o.v;
       return '<button type="button" class="hdlv2-s1-opt' + (sel ? ' selected' : '') + '" data-val="' + o.v + '" role="radio" aria-checked="' + sel + '">'
-        + '<span class="hdlv2-s1-chip" aria-hidden="true">' + String.fromCharCode(65 + Number(o.v)) + '</span>'
+        + '<span class="hdlv2-s1-chip" aria-hidden="true">' + String.fromCharCode(65 + i) + '</span>'
         + '<span class="hdlv2-s1-opt-text">' + esc(o.l) + '</span></button>';
     }).join('');
   }

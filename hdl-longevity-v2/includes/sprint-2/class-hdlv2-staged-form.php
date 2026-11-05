@@ -1303,6 +1303,8 @@ class HDLV2_Staged_Form {
             'asset_ver'       => HDLV2_VERSION,
             // v0.48.50 (W27) — the picks chart's need from the middle out (absent = off).
             'need_scale_v2'   => (bool) get_option( 'hdlv2_ff_need_scale_v2', false ),
+            // v0.48.50 (W33-W40) — the research note's test wording, sun and water answers (absent = off).
+            'second_form_wording_v2' => (bool) get_option( 'hdlv2_ff_second_form_wording_v2', false ),
         ) );
 
         return '<div id="hdlv2-assessment" class="hdlv2-assessment-root"></div>';
