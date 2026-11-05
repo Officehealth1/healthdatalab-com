@@ -405,7 +405,8 @@
   var TAP_MOTION = {
     sitToStand: { file: 't-chair-stands.svg', caption: 'Chair stands' },
     balance: { file: 't-balance.svg', caption: 'One leg' },
-    skinElasticity: { file: 't-skin-pinch.svg', caption: 'Pinch, release' }
+    skinElasticity: { file: 't-skin-pinch.svg', caption: 'Pinch, release' },
+    waist: { file: 'g-waist-hip.svg', caption: 'Waist · Hip', still: true }
   };
 
   // A picture and its caption. A moving one is a <picture> whose reduced-motion source is
