@@ -617,6 +617,21 @@
 .hdlv2-why .hdlv2-footer { text-align: left; padding: 8px 16px; font-size: 14px; color: #666; }
 .hdlv2-why .hdlv2-footer a { color: #666; }
 .hdlv2-why .hdlv2-field { margin-top: 32px; }
+/* v0.48.50 (W29) — "Who are you staying strong for?": a name and a role per row; the third
+   column holds Remove from the fourth row on. Fields take .hdlv2-field input/select. */
+.hdlv2-who-for { border: 0; padding: 0; min-width: 0; }
+.hdlv2-who-for legend { padding: 0; margin-bottom: 4px; font-size: 17px; line-height: 1.4; color: #2c3e50; font-weight: 500; }
+.hdlv2-who-help { margin: 0 0 12px; font-size: 15px; line-height: 1.5; color: #888; }
+.hdlv2-who-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 80px; gap: 8px; align-items: center; margin: 0 0 8px; }
+.hdlv2-who-add,
+.hdlv2-who-remove { min-height: 40px; padding: 8px 4px; background: none; border: 0; font: inherit; font-size: 15px; font-weight: 600; color: #3d8da0; cursor: pointer; }
+.hdlv2-who-remove { font-weight: 500; color: #888; }
+.hdlv2-who-add:focus-visible,
+.hdlv2-who-remove:focus-visible { outline: 2px solid #3d8da0; outline-offset: 2px; }
+@media (max-width: 480px) {
+  .hdlv2-who-row { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .hdlv2-who-remove { grid-column: 1 / -1; justify-self: start; min-height: 32px; padding: 0 4px; }
+}
 /* 24px sides from 760px keep each of the three columns at 230px or more on
    an iPad (820); 32px once there is room. */
 @media (min-width: 760px) {
@@ -1530,6 +1545,9 @@
 }
 
 .hdlv2-tap-row-value.is-empty { color: #888; font-style: italic; }
+
+/* v0.48.49 — screen 1 waits for its Unknown rows: the prompt's size, warning text, nothing else. */
+.hdlv2-tap-wait { font-size: 16px; line-height: 1.55; color: #d97706; margin: 12px 0 0; }
 
 .hdlv2-tap-row .hdlv2-s1-options { margin-top: 12px; }
 
@@ -2658,3 +2676,11 @@
   .hdlv2-body-guide img { width: 96px; height: 96px; }
 }
 .hdlv2-tap-row-icon { width: 20px; height: 20px; margin-right: 8px; color: #3d8da0; fill: currentColor; vertical-align: -4px; }
+
+/* v0.48.50 (W41) — measurements in cm · kg or ft in · lb: two pills, the active one filled
+   teal (no rail); imperial height is two boxes side by side. */
+.hdlv2-units { display: flex; width: max-content; max-width: 100%; gap: 4px; padding: 4px; margin: 0 0 12px; background: #f8f9fb; border: 1px solid #e4e6ea; border-radius: 999px; }
+.hdlv2-units-opt { min-height: 40px; padding: 6px 16px; white-space: nowrap; border: 0; border-radius: 999px; background: none; font: inherit; font-size: 15px; font-weight: 600; color: #2c3e50; cursor: pointer; }
+.hdlv2-units-opt.is-on { background: #3d8da0; color: #fff; }
+.hdlv2-units-opt:focus-visible { outline: 2px solid #3d8da0; outline-offset: 2px; }
+.hdlv2-units-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }

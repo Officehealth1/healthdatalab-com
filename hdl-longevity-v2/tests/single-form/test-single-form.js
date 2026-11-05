@@ -68,7 +68,7 @@ ok(/aria-live="polite"/.test(page), 'the counter is announced (aria-live)');
 ok(!/\b(alert|confirm|prompt)\(/.test(page), 'no native popups on the new page');
 
 // ── v0.48.0: every statement on the page, far fewer words; v0.48.1: bars + radar ──
-const ctx2 = {};
+const ctx2 = { CFG: {} }; // v0.48.50: need-scale flag off
 try {
   vm.runInNewContext(limits + '\n' + body('abilityCounts') + '\n' + body('pickCountLine') + '\n' + body('radarData') + '\n' + body('chartLabel')
     + '\nthis.abilityCounts = abilityCounts; this.pickCountLine = pickCountLine; this.radarData = radarData; this.chartLabel = chartLabel;', ctx2);
@@ -209,17 +209,19 @@ function fakeEl() {
 }
 const fakeRoot = Object.assign(fakeEl(), { querySelectorAll: function () { return []; } });
 const pageCtx = {
-  root: fakeRoot, formData: {}, serverData: {}, saveTimer: null, PICK_MIN: 5, PICK_MAX: 10,
+  root: fakeRoot, formData: {}, serverData: {}, saveTimer: null, PICK_MIN: 5, PICK_MAX: 10, CFG: {}, // CFG: v0.48.50 need scale flag, off
   document: { getElementById: function () { return fakeEl(); } }, window: { addEventListener: function () {} },
   setRootClasses: function () {}, saveIndicator: function () { return ''; }, footer: function () { return ''; }, brandBar: function () { return ''; },
   bindFieldListeners: function () {}, submitWhyPicks: function () {}, clearSaveError: function () {}, autoSave: function () {},
   esc: function (s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
 };
-const PAGE_FNS = ['togglePick', 'canContinue', 'abilityCounts', 'pickCountLine', 'radarData', 'chartLabel', 'pickIcon', 'radarChart', 'abilityBars', 'renderWhyPicks', 'redrawRadar', 'reducedMotion', 'updatePicks', 'picksTextarea'];
+const PAGE_FNS = ['togglePick', 'canContinue', 'abilityCounts', 'pickCountLine', 'radarData', 'chartLabel', 'pickIcon', 'radarChart', 'abilityBars', 'renderWhyPicks', 'redrawRadar', 'reducedMotion', 'updatePicks', 'picksTextarea',
+  'peopleFromData', 'whoForRow', 'whoForHtml', 'bindWhoFor']; // v0.48.50 (W29): the who-for rows
+const WHO_VARS = (src.match(/  var WHO_ROLES = [\s\S]*?;\n/) || [''])[0] + (src.match(/  var WHO_MAX = [^\n]*\n/) || [''])[0];
 const ICON_SRC = (src.match(/  var ICONS = \{[\s\S]*?\n  \};/) || [''])[0];
 let html = '';
 try {
-  vm.runInNewContext(ICON_SRC + '\n' + (src.match(/  var TICK = [\s\S]*?;\n/) || [''])[0] + (src.match(/  var radarShown = [^\n]*\n/) || [''])[0] + PAGE_FNS.map(body).join('\n') + '\nthis.renderWhyPicks = renderWhyPicks;', pageCtx);
+  vm.runInNewContext(ICON_SRC + '\n' + (src.match(/  var TICK = [\s\S]*?;\n/) || [''])[0] + (src.match(/  var radarShown = [^\n]*\n/) || [''])[0] + WHO_VARS + PAGE_FNS.map(body).join('\n') + '\nthis.renderWhyPicks = renderWhyPicks;', pageCtx);
   // v0.48.9: the groups are uneven (6 / 8 / 7); the page draws what it is sent.
   const gN = function (gid, title, n) {
     const items = [];
@@ -242,7 +244,7 @@ ok(/<h2>What matters most to you<\/h2>/.test(html), 'title: What matters most to
 ok(html.indexOf('<p>Pick the 5 to 10 that matter most to you in your last decade of life.</p>') !== -1, 'one opening line, as written');
 ok(/People I love[\s\S]*My freedom[\s\S]*Things I love/.test(html), 'group headings in order');
 ok(html.indexOf('<h3>What your picks need from your body</h3>') !== -1, 'section heading, as written');
-ok(html.indexOf('<p>Each thing you picked needs some of these. Your plan starts with the ones your health answers show are weakest.</p>') !== -1, 'section line, as written');
+ok(html.indexOf('<p>For the life you picked, these are the abilities to keep in surplus today. Everyone ages; the surplus is what you build now.</p>') !== -1, 'section line, as written (v0.48.48, W25)');
 ok(html.indexOf('<p class="hdlv2-why-caption">5 is the most a life can ask of one ability. Your answers on the next pages show where you stand today on each one.</p>') !== -1, 'radar caption, as written (v0.48.11)');
 ok(/id="hdlv2-abilities"/.test(html) && /id="hdlv2-why-radar"/.test(html) && html.indexOf('id="hdlv2-abilities"') < html.indexOf('id="hdlv2-why-radar"'),
   'the bars (#hdlv2-abilities) and the radar are both on the page, bars first');
@@ -251,7 +253,8 @@ ok(/<section class="hdlv2-why-needs" id="hdlv2-why-needs" hidden>/.test(html) &&
 ok(/needs\.hidden = !rows\.length;[\s\S]*redrawRadar\(\)/.test(body('updatePicks')),
   'a tap shows the section once an ability has a pick (and hides it at none), before the radar is measured and redrawn');
 ok(/class="hdlv2-why-radar"[\s\S]*class="hdlv2-why-caption"/.test(html), 'the caption sits under the radar');
-ok(html.indexOf("Who are you doing this for? First names.") !== -1 && html.indexOf('placeholder="Jenny, Leo, Mia"') !== -1, 'people label and placeholder, as written');
+// v0.48.50 (W29): the people box became name + role rows (tests/who-for has the rows themselves).
+ok(html.indexOf('<legend>Who are you staying strong for?</legend>') !== -1 && html.indexOf('placeholder="First name"') !== -1, 'people question and placeholder, as written (v0.48.50)');
 ok(html.indexOf('Anything else? (optional)') !== -1, 'own-words label, as written');
 ok(/>Next</.test(html) || />Next &#8594;</.test(html), 'Next button');
 ok(/role="img"[^>]*aria-label="Nothing picked yet\."/.test(html), 'the chart is on the page from the start, empty, with its spoken label');
@@ -436,6 +439,7 @@ function wiringHarness() {
   bars.querySelectorAll = function () { return rows; };
   const ids = { 'hdlv2-picks-count': el(), 'hdlv2-why-needs': el(), 'hdlv2-abilities': bars, 'hdlv2-why-radar': el(), 'hdlv2-picks-next': el() };
   const sb = {
+    CFG: {}, // v0.48.50: the need-scale flag, off
     H, root, formData: {}, serverData: {}, saveTimer: null, queuedSaveTimer: null, saving: false,
     document: { getElementById: (id) => ids[id] || null }, window: { addEventListener() {} },
     setTimeout: (f, ms) => { const t = { at: H.clock + ms, f }; H.timers.push(t); return t; },
@@ -446,7 +450,7 @@ function wiringHarness() {
     esc: pageCtx.esc
   };
   try {
-    vm.runInNewContext(limits + '\n' + ICON_SRC + '\n' + (src.match(/  var TICK = [\s\S]*?;\n/) || [''])[0] + (src.match(/  var radarShown = [^\n]*\n/) || [''])[0] + PAGE_FNS.map(body).join('\n') + '\n' + body('saveWhenFree')
+    vm.runInNewContext(limits + '\n' + ICON_SRC + '\n' + (src.match(/  var TICK = [\s\S]*?;\n/) || [''])[0] + (src.match(/  var radarShown = [^\n]*\n/) || [''])[0] + WHO_VARS + PAGE_FNS.map(body).join('\n') + '\n' + body('saveWhenFree')
       + '\nthis.renderWhyPicks = renderWhyPicks; this.formData = formData;', sb);
   } catch (e) { console.log('      wiring harness threw: ' + e.message); }
   H.advance = (ms) => {

@@ -92,7 +92,7 @@ check( 'D1.1 claims A and B only, in id order', array( 1, 2 ) === $w->claims );
 check( 'D1.2 every claim is the atomic UPDATE … WHERE id = %d AND stage1_fired_at IS NULL', 2 === count( array_filter( $w->sql_matching( 'AND stage1_fired_at IS NULL' ), function ( $q ) { return 0 === strpos( ltrim( $q ), 'UPDATE' ); } ) ) );
 check( 'D1.3 exactly two outbound calls per lead (QuickChart GET + Make POST)', 2 === count( gets() ) && 2 === count( make_posts() ) && 4 === count( http_calls() ) );
 $pay = json_decode( make_posts()[0]['args']['body'], true );
-check( 'D1.4 the Make payload is the 33-key Stage 1 payload', is_array( $pay ) && 33 === count( $pay ) && 'stage1' === $pay['report_type'] );
+check( 'D1.4 the Make payload is the 36-key Stage 1 payload (v0.48.50)', is_array( $pay ) && 36 === count( $pay ) && 'stage1' === $pay['report_type'] );
 check( 'D1.5 payload carries the stored name, email, phone, rate and answers', 'Lead 1' === $pay['client_name'] && 'd1@example.test' === $pay['client_email'] && '07700 900000' === $pay['client_phone'] && '1.02' === $pay['rate_of_ageing'] && 'b' === $pay['stage1_data']['q9'] );
 check( 'D1.6 form_token = the stored cache token', str_repeat( 'c', 64 ) === $pay['form_token'] );
 $payB = json_decode( make_posts()[1]['args']['body'], true );

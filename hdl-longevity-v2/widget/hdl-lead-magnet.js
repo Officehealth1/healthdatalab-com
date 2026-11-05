@@ -160,6 +160,20 @@
     return 'https://quickchart.io/chart?c=' + encodeURIComponent(JSON.stringify(cfg)) + '&w=380&h=340&bkg=white';
   }
 
+  // v0.48.50 (W9) — Matthew's short video for this band (hdlv2_stage1_band_videos), under the
+  // gauge. A YouTube link or id only; anything else, or no URL for the band, renders nothing.
+  function bandVideoHtml(band, videos) {
+    var url = videos && typeof videos[band] === 'string' ? videos[band] : '';
+    var m = /^https?:\/\/(?:www\.)?youtu\.be\/([A-Za-z0-9_-]{11})(?:[?#]|$)/.exec(url)
+      || /^https?:\/\/(?:www\.|m\.)?youtube\.com\/watch\?(?:[^#]*&)?v=([A-Za-z0-9_-]{11})(?:[&#]|$)/.exec(url)
+      || /^([A-Za-z0-9_-]{11})$/.exec(url);
+    if (!m) return '';
+    return '<div class="hdlw-band-video" style="margin:18px auto 0;max-width:640px;aspect-ratio:16/9;border-radius:12px;overflow:hidden;background:#f8f9fb;">'
+      + '<iframe src="https://www.youtube-nocookie.com/embed/' + m[1] + '" title="Matthew on your result" loading="lazy" '
+      + 'allow="accelerometer; encrypted-media; gyroscope; picture-in-picture" allowfullscreen '
+      + 'style="display:block;width:100%;height:100%;border:0;"></iframe></div>';
+  }
+
   // ---------- QUESTION DEFINITIONS ----------
 
   var QUESTIONS = {
@@ -778,6 +792,7 @@
     // v0.48.42 — the question pictures (hdlv2_ff_question_motion), on the same two payloads.
     cfg.questionMotion = !!((publicCfg && publicCfg.question_motion_enabled) || (invite && invite.question_motion_enabled));
     cfg.assetVer = String((publicCfg && publicCfg.asset_ver) || (invite && invite.asset_ver) || '');
+    cfg.bandVideos = (publicCfg && publicCfg.band_videos) || (invite && invite.band_videos) || null; // v0.48.50 (W9)
     if (cfg.questionMotion) injectMotionStyles();
 
     var id = 'hdlw-' + cfg.pracId;
@@ -1699,6 +1714,7 @@
         +       '<h2>Your Health Gauge</h2>'
         +       '<p class="hdlw-r-lede">A snapshot of how fast you\u2019re ageing today, based on your quick answers.</p>'
         +       '<img class="hdlw-r-gauge-img" src="' + gaugeUrl(rate) + '" alt="Rate of ageing gauge \u2014 ' + rateDisplay + '">'
+        +       bandVideoHtml({ good: 'green', avg: 'blue', warn: 'red' }[bandClass], cfg.bandVideos)
         +     '</div>'
         +     '<div class="hdlw-r-stat">'
         +       '<p class="hdlw-r-stat-label">Rate of Ageing</p>'

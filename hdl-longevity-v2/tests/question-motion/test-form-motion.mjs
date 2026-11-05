@@ -27,14 +27,19 @@ const src = [cut('  var S3_OPTIONS = {', '\n  };\n'), cut('  var TEST_HOW = {', 
   cut('  var TAP_FIRST = ', ';\n'), cut('  var TAP_FIRST_LABELS = {', '\n  };\n'), cut('  var TAP_ORDER = ', ';\n'), cut('  var TAP_NEUTRAL = ', ';\n'),
   cut('  var TAP_TITLES = {', '\n  };\n'), cut('  var S1_IMG_BASE = ', '\n  })();\n'), cut('  var TAP_MOTION = {', '\n  };\n'),
   cut('  var ICONS = {', '\n  };\n'), cut('  var ROW_ICONS = {', '\n  };\n'), cut('  function motionFigure(', '\n  }\n'),
-  fn('tapHeading'), fn('tapReason'), fn('tapFirstRows'), fn('renderTapStep'), fn('wizardSectionContent')].join('\n');
+  fn('tapHeading'), fn('tapReason'), fn('tapFirstRows'), fn('renderTapStep'), fn('wizardSectionContent'),
+  // v0.48.50 (W41): the units switch and the four measures.
+  cut('  var IN_CM = ', ';\n'), fn('r1'), fn('toImperial'), fn('unitsDefault'), fn('unitsNow'), fn('unitsSwitch'), fn('measureInput')].join('\n');
+// v0.48.50 (W41): the switch above the body measures, metric (no browser language here). Taken out, the block is as before.
+const UNITS = '<div class="hdlv2-units" role="radiogroup" aria-label="Units"><button type="button" role="radio" class="hdlv2-units-opt is-on" data-units="metric" aria-checked="true">cm · kg</button><button type="button" role="radio" class="hdlv2-units-opt" data-units="imperial" aria-checked="false">ft in · lb</button></div>';
+const noUnits = (s) => s.split(UNITS).join('');
 
 function run(motion, call) {
   const ctx = {
-    window: { hdlv2_form: motion === null ? {} : { plugin_url: BASE, question_motion: motion, asset_ver: '0.48.47' } },
+    window: { hdlv2_form: motion === null ? {} : { plugin_url: BASE, question_motion: motion, asset_ver: '0.48.51' } },
     document: { getElementById: () => null, getElementsByTagName: () => [] },
     esc: (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'),
-    setRootClasses() {}, tapLeave() {}, bindTapRows() {}, bindTapQuestion() {}, bindFieldListeners() {}, bindTapComplete() {},
+    setRootClasses() {}, tapLeave() {}, bindTapRows() {}, bindTapQuestion() {}, bindFieldListeners() {}, bindTapComplete() {}, bindUnits() {},
     brandBar: () => '[brand]', saveIndicator: () => '[save]', footer: () => '[footer]', serverData: {}, ABILITY_SENTENCES: {},
     tapCards: (f, v) => `[cards:${f}:${v}]`, tapFirstValues: () => VALS, tapSection: (id) => ({ id }),
     fieldReadonly: (l, v, u) => `[ro:${l}:${v}:${u}]`, prefillHint: () => '[hint]',
@@ -53,17 +58,33 @@ const body = (motion) => run(motion, `this.OUT = wizardSectionContent({ id: 'bod
 // 310d61d outputs (captured before the change): tap steps 0-12, the screen-0 rows, the body block.
 const OFF = { steps: 'c482278ae0d07b6a99a51768021c6354f34091f7e9664f69239e271e41be2867', rows: 'b874c38b5e4628fe84b6f4472104afed796cdd673ce8bcaa60191fd2b4398461', body: 'e376b1924acf7100c67a338621cb746ecfeb7d553fa889fe1c8de8799ae9cf59' };
 
-console.log('── flag off (absent, then false): the 310d61d strings ──');
+// v0.48.49 (PR 2): Matthew's wording is for everyone, outside the flag. Put back, it must give the
+// 310d61d bytes again, so nothing else on these screens moved. [new, 310d61d] as rendered.
+const PR2 = [
+  ['<p class="hdlv2-s1-prompt">Your answers here build your draft longevity report.</p>', ''],
+  ['How often do you give your brain a challenging task?', 'How often do you give your brain something new to work on?'],
+  ['e.g. learning a new skill, puzzles, complex problem-solving at work.', 'e.g. reading, learning new skills, puzzles, problem-solving at work.'],
+  ['It doesn’t matter which ones. We’re looking at your habit of giving your body extra support.', 'Tells your practitioner what you already take.'],
+  [' If you are dehydrated this will be slower, so do the test well hydrated.', ''],
+  ['Unknown — please select', 'Not answered yet'],
+  ['How well you sleep · sleep quality', 'How well you sleep'],
+  ['We filled in what we could from your first answers. Pick any row marked Unknown, and tap Change if one is not right.', 'We filled these in from your first answers. If one is not right, tap Change.'],
+];
+const asBefore = (s) => PR2.reduce((t, [now, was]) => t.split(now).join(was), s);
+
+console.log('── flag off (absent, then false): the 310d61d strings, PR 2 wording aside ──');
 for (const m of [null, false]) {
   const label = m === null ? 'absent' : 'false';
-  ok(sha(Array.from({ length: 13 }, (_, n) => step(m, n)).join('\n')) === OFF.steps, `F1.${label} all thirteen tap screens unchanged`);
-  ok(sha(rows(m)) === OFF.rows, `F2.${label} screen-0 rows unchanged`);
-  ok(sha(body(m)) === OFF.body, `F3.${label} the measurements block unchanged`);
+  const all = Array.from({ length: 13 }, (_, n) => step(m, n)).join('\n'), r0 = rows(m);
+  ok(PR2.every(([now]) => (all + r0).includes(now)), `F0.${label} every PR 2 string is on these screens`);
+  ok(sha(asBefore(all)) === OFF.steps, `F1.${label} all thirteen tap screens unchanged`);
+  ok(sha(asBefore(r0)) === OFF.rows, `F2.${label} screen-0 rows unchanged`);
+  ok(body(m).includes(UNITS) && sha(noUnits(body(m))) === OFF.body, `F3.${label} the measurements block unchanged but for the units switch (v0.48.50)`);
 }
 
 console.log('── flag on: the three tests show how (each once its scene is drawn) ──');
 const drawn = (file) => fs.existsSync(new URL('../../assets/images/motion/' + file, import.meta.url));
-const fig = (file, word) => { const url = `${BASE}assets/images/motion/${file}?ver=0.48.47`;
+const fig = (file, word) => { const url = `${BASE}assets/images/motion/${file}?ver=0.48.51`;
   return `<figure class="hdlv2-tap-motion"><picture><source srcset="${url}&amp;still=1#still" media="(prefers-reduced-motion: reduce)"><img src="${url}" alt="" width="96" height="96" loading="eager" decoding="async"></picture><figcaption>${word}</figcaption></figure>`; };
 const FILE = { sitToStand: 't-chair-stands.svg', balance: 't-balance.svg', skinElasticity: 't-skin-pinch.svg' };
 const WANT = { sitToStand: fig(FILE.sitToStand, 'Chair stands'), balance: fig(FILE.balance, 'One leg'), skinElasticity: fig(FILE.skinElasticity, 'Pinch, release') };
@@ -82,7 +103,7 @@ for (let n = 0; n < 13; n++) {
 }
 
 console.log('── flag on: the waist and hip figure ──');
-const guide = `<figure class="hdlv2-body-guide"><img src="${BASE}assets/images/motion/g-waist-hip.svg?ver=0.48.47" alt="" width="96" height="96" loading="eager" decoding="async"><figcaption>Waist \u00b7 Hip</figcaption></figure>`;
+const guide = `<figure class="hdlv2-body-guide"><img src="${BASE}assets/images/motion/g-waist-hip.svg?ver=0.48.51" alt="" width="96" height="96" loading="eager" decoding="async"><figcaption>Waist \u00b7 Hip</figcaption></figure>`;
 const b = body(true);
 if (!drawn('g-waist-hip.svg')) ok(b === body(false), 'F13 the waist and hip figure is not drawn yet, so the block is unchanged');
 else ok(b.includes('[in:weight:Weight (kg):undefined:75:]</div>' + guide + '<div class="hdlv2-field-grid cols-2">[in:waist:'), 'F7.1 the figure sits between height/weight and the waist/hip fields');

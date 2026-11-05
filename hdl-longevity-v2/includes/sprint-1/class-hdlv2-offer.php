@@ -90,8 +90,10 @@ class HDLV2_Offer {
     }
 
     /**
-     * The nine Stage 1 PDF payload keys. Strings only: Make caches a field's
+     * The ten Stage 1 PDF payload keys. Strings only: Make caches a field's
      * type from the first payload it sees (see the note on rate_of_ageing).
+     * offer_code_ends (v0.48.50) is '' here; personal() fills it with the
+     * person's own code's end date (YYYY-MM-DD).
      */
     public static function payload_keys( $show = true ) {
         $o = self::get();
@@ -105,6 +107,7 @@ class HDLV2_Offer {
             'offer_url'       => $o['url'],
             'offer_caption'   => $o['caption'],
             'offer_video_url' => $o['video_url'],
+            'offer_code_ends' => '',
         );
     }
 
@@ -115,24 +118,38 @@ class HDLV2_Offer {
      * wp-config constants absent: the shared code from the option, in the
      * link too (0.48.22), so the PDF always goes out and its button opens the gate.
      *
-     * @param string $ref   lead-<id> or invite-<id>; never the email.
-     * @param string $email the lead's address, pre-filled at Stripe; it never goes into the code request.
-     * @return array { offer_code, offer_url }
+     * v0.48.50: the request also carries the lead's email and band, so Altituding
+     * can put the code and its end date on the Brevo contact for the follow-up
+     * emails (it already holds the contact from the Stage 1 sign-up); the answer's
+     * expires_at becomes offer_code_ends ('' on the shared code).
+     *
+     * @param string $ref   lead-<id> or invite-<id>.
+     * @param string $email the lead's address, pre-filled at Stripe and sent to Altituding when valid.
+     * @param string $band  green / blue / red (HDLV2_Stage1_Commentary::band_key).
+     * @return array { offer_code, offer_url, offer_code_ends }
      */
-    public static function personal( $ref, $email = '' ) {
+    public static function personal( $ref, $email = '', $band = '' ) {
         $o      = self::get();
         $shared = array(
-            'offer_code' => $o['code'],
-            'offer_url'  => self::with_email( add_query_arg( 'code', rawurlencode( $o['code'] ), $o['url'] ), $email ),
+            'offer_code'      => $o['code'],
+            'offer_url'       => self::with_email( add_query_arg( 'code', rawurlencode( $o['code'] ), $o['url'] ), $email ),
+            'offer_code_ends' => '',
         );
         $url    = defined( 'HDLV2_FULL_CODE_URL' ) ? (string) HDLV2_FULL_CODE_URL : '';
         $key    = self::code_key();
         if ( '' === $url || '' === $key || ! preg_match( '/^[A-Za-z0-9_-]{1,64}$/', (string) $ref ) ) {
             return $shared;
         }
+        $ask = array( 'ref' => (string) $ref );
+        if ( is_email( $email ) ) {
+            $ask['email'] = $email;
+        }
+        if ( in_array( $band, array( 'green', 'blue', 'red' ), true ) ) {
+            $ask['band'] = $band;
+        }
         // 3 s: a drain tick sends up to 20 PDFs inside one minute.
         $res  = wp_remote_post( $url, array(
-            'body'    => wp_json_encode( array( 'ref' => (string) $ref ) ),
+            'body'    => wp_json_encode( $ask ),
             'headers' => array( 'Content-Type' => 'application/json', 'X-HDL-Full-Code-Key' => $key ),
             'timeout' => 3,
         ) );
@@ -143,7 +160,14 @@ class HDLV2_Offer {
             error_log( '[HDLV2 offer] personal code failed (HTTP ' . $http . ') — shared code used' );
             return $shared;
         }
-        return array( 'offer_code' => $code, 'offer_url' => self::with_email( add_query_arg( 'code', rawurlencode( $code ), $o['url'] ), $email ) );
+        // Seconds since 1970, from now to five years on; anything else (absent, ms, text) leaves the date out.
+        $ends = $body['expires_at'] ?? null;
+        $ends = is_int( $ends ) && $ends > time() && $ends < time() + 5 * 366 * 86400 ? gmdate( 'Y-m-d', $ends ) : '';
+        return array(
+            'offer_code'      => $code,
+            'offer_url'       => self::with_email( add_query_arg( 'code', rawurlencode( $code ), $o['url'] ), $email ),
+            'offer_code_ends' => $ends,
+        );
     }
 
     /**

@@ -74,7 +74,18 @@
       bio: y.bio == null ? '' : y.bio, rate0: +y.rate0 || 1, life: lifestyleFromScores(y.life_scores), lifeSource: y.life_source || ''
     };
     you.rate = you.rate0;
-    return { mode: cfg && cfg.mode === 'full' ? 'full' : 'preview', tab: 'you', you: you, people: defaultPeople(you), zoom: 0, fs: 0 };
+    var mode = cfg && cfg.mode === 'full' ? 'full' : 'preview';
+    var named = mode === 'full' ? namedPeople(cfg.key_people, you) : [];
+    return { mode: mode, tab: 'you', you: you, people: named.length ? named : defaultPeople(you), zoom: 0, fs: 0 };
+  }
+  // v0.48.50 (W29) — the people named on the Full Report form ("Who are you staying strong for?").
+  // A birth year from the role (as the sample people) so the lane draws; the client edits it here.
+  // A list already kept in this browser still wins (restore()).
+  var BORN_BY_REL = { spouse: 5, child: 25, grandchild: 50, parent: -25 };
+  function namedPeople(list, you) {
+    return (Array.isArray(list) ? list : []).map(function (p, i) {
+      return p && p.name ? cleanPerson({ id: 'k' + (i + 1), name: p.name, rel: p.rel, born: you.born + (BORN_BY_REL[p.rel] || 0), sex: '', rate: 'same' }) : null;
+    }).filter(Boolean).slice(0, 30);
   }
 
   var rateOf = function (p) { return p === S.you ? +S.you.rate : (p.rate === 'same' ? +S.you.rate : +p.rate); };

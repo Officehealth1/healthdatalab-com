@@ -1,0 +1,19 @@
+{
+  "note": "v0.48.50 (W27). One fixture for both twins. need_off = the b462b02 scale (5 x sum / (3 x picks), 1 dp); need_on = hdlv2_ff_need_scale_v2: 2.5 + 1.25 x (average weight of the picks that need it - 1), 2 dp. An ability no pick needs is absent (0 on the chart).",
+  "groups": [{ "id": "people", "title": "People I love", "items": [
+    { "id": "w1", "label": "One", "needs": ["strength", "mind"], "weights": { "strength": 1, "mind": 2 } },
+    { "id": "w2", "label": "Two", "needs": ["strength"], "weights": { "strength": 2 } },
+    { "id": "w3", "label": "Three", "needs": ["strength", "balance"], "weights": { "strength": 3, "balance": 1 } },
+    { "id": "w0", "label": "None", "needs": ["connection"], "weights": { "connection": 3 } }
+  ] }],
+  "short": { "strength": "Strength", "mobility": "Mobility", "balance": "Balance", "stamina": "Stamina", "mind": "Mind", "connection": "Connection" },
+  "cases": [
+    { "picks": ["w1"], "need_off": { "strength": 1.7, "mind": 3.3 }, "need_on": { "strength": 2.5, "mind": 3.75 } },
+    { "picks": ["w2"], "need_off": { "strength": 3.3 }, "need_on": { "strength": 3.75 } },
+    { "picks": ["w3"], "need_off": { "strength": 5.0, "balance": 1.7 }, "need_on": { "strength": 5.0, "balance": 2.5 } },
+    { "picks": ["w1", "w3"], "need_off": { "strength": 3.3, "mind": 1.7, "balance": 0.8 }, "need_on": { "strength": 3.75, "mind": 3.75, "balance": 2.5 } },
+    { "picks": ["w1", "w2", "w3"], "need_off": { "strength": 3.3, "mind": 1.1, "balance": 0.6 }, "need_on": { "strength": 3.75, "mind": 3.75, "balance": 2.5 } },
+    { "picks": ["w1", "w1x"], "need_off": { "strength": 1.7, "mind": 3.3 }, "need_on": { "strength": 2.5, "mind": 3.75 } },
+    { "picks": [], "need_off": {}, "need_on": {} }
+  ]
+}

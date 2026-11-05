@@ -119,7 +119,7 @@ class HDLV2_Healthspan_Timeline {
         }
         global $wpdb;
         $row = $wpdb->get_row( $wpdb->prepare(
-            "SELECT id, client_user_id, practitioner_user_id, client_name, stage1_data, stage3_data, created_at, token_expires_at
+            "SELECT id, client_user_id, practitioner_user_id, client_name, stage1_data, stage2_data, stage3_data, created_at, token_expires_at
              FROM {$wpdb->prefix}hdlv2_form_progress
              WHERE token = %s AND deleted_at IS NULL
              LIMIT 1",
@@ -137,6 +137,13 @@ class HDLV2_Healthspan_Timeline {
         $links = $report && class_exists( 'HDLV2_Timeline_Links' ) ? HDLV2_Timeline_Links::page_config( $row ) : array();
         if ( $links ) {
             $data['links'] = $links;
+        }
+        // v0.48.50 (W29) — the people the client named on the Full Report form seed the Loved ones (full mode).
+        if ( $report && class_exists( 'HDLV2_Why_Picks' ) ) {
+            $people = HDLV2_Why_Picks::people_for_timeline( $row->stage2_data );
+            if ( $people ) {
+                $data['key_people'] = $people;
+            }
         }
         return $data;
     }
