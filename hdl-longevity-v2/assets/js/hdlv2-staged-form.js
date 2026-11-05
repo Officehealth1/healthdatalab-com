@@ -1512,6 +1512,11 @@
 
     var out = '<svg class="hdlv2-why-wheel-svg" viewBox="0 0 ' + width + ' ' + f(h) + '" data-cx="' + f(cx) + '" data-cy="' + f(cy) + '" data-r="' + R + '"'
       + ' role="img" aria-label="' + esc(chartLabel(data.spokes)) + '">';
+    // v0.48.48 (W26) — inside is weak, outside is strong: the three status
+    // backgrounds under the web, painted outer first so the red centre is on top.
+    ['#ecfdf5', '#fffbeb', '#fef2f2'].forEach(function (fill, i) {
+      out += '<polygon class="hdlv2-why-band" points="' + dir.map(function (d) { return pt(R * (3 - i) / 3, d); }).join(' ') + '" fill="' + fill + '"/>';
+    });
     for (var k = 1; k <= top; k++) {
       out += '<polygon class="hdlv2-why-ring" points="' + dir.map(function (d) { return pt(R * k / top, d); }).join(' ') + '" fill="none" ' + web + '/>';
     }
