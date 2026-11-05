@@ -27,14 +27,19 @@ const src = [cut('  var S3_OPTIONS = {', '\n  };\n'), cut('  var TEST_HOW = {', 
   cut('  var TAP_FIRST = ', ';\n'), cut('  var TAP_FIRST_LABELS = {', '\n  };\n'), cut('  var TAP_ORDER = ', ';\n'), cut('  var TAP_NEUTRAL = ', ';\n'),
   cut('  var TAP_TITLES = {', '\n  };\n'), cut('  var S1_IMG_BASE = ', '\n  })();\n'), cut('  var TAP_MOTION = {', '\n  };\n'),
   cut('  var ICONS = {', '\n  };\n'), cut('  var ROW_ICONS = {', '\n  };\n'), cut('  function motionFigure(', '\n  }\n'),
-  fn('tapHeading'), fn('tapReason'), fn('tapFirstRows'), fn('renderTapStep'), fn('wizardSectionContent')].join('\n');
+  fn('tapHeading'), fn('tapReason'), fn('tapFirstRows'), fn('renderTapStep'), fn('wizardSectionContent'),
+  // v0.48.50 (W41): the units switch and the four measures.
+  cut('  var IN_CM = ', ';\n'), fn('r1'), fn('toImperial'), fn('unitsDefault'), fn('unitsNow'), fn('unitsSwitch'), fn('measureInput')].join('\n');
+// v0.48.50 (W41): the switch above the body measures, metric (no browser language here). Taken out, the block is as before.
+const UNITS = '<div class="hdlv2-units" role="radiogroup" aria-label="Units"><button type="button" role="radio" class="hdlv2-units-opt is-on" data-units="metric" aria-checked="true">cm · kg</button><button type="button" role="radio" class="hdlv2-units-opt" data-units="imperial" aria-checked="false">ft in · lb</button></div>';
+const noUnits = (s) => s.split(UNITS).join('');
 
 function run(motion, call) {
   const ctx = {
     window: { hdlv2_form: motion === null ? {} : { plugin_url: BASE, question_motion: motion, asset_ver: '0.48.50' } },
     document: { getElementById: () => null, getElementsByTagName: () => [] },
     esc: (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'),
-    setRootClasses() {}, tapLeave() {}, bindTapRows() {}, bindTapQuestion() {}, bindFieldListeners() {}, bindTapComplete() {},
+    setRootClasses() {}, tapLeave() {}, bindTapRows() {}, bindTapQuestion() {}, bindFieldListeners() {}, bindTapComplete() {}, bindUnits() {},
     brandBar: () => '[brand]', saveIndicator: () => '[save]', footer: () => '[footer]', serverData: {}, ABILITY_SENTENCES: {},
     tapCards: (f, v) => `[cards:${f}:${v}]`, tapFirstValues: () => VALS, tapSection: (id) => ({ id }),
     fieldReadonly: (l, v, u) => `[ro:${l}:${v}:${u}]`, prefillHint: () => '[hint]',
@@ -74,7 +79,7 @@ for (const m of [null, false]) {
   ok(PR2.every(([now]) => (all + r0).includes(now)), `F0.${label} every PR 2 string is on these screens`);
   ok(sha(asBefore(all)) === OFF.steps, `F1.${label} all thirteen tap screens unchanged`);
   ok(sha(asBefore(r0)) === OFF.rows, `F2.${label} screen-0 rows unchanged`);
-  ok(sha(body(m)) === OFF.body, `F3.${label} the measurements block unchanged`);
+  ok(body(m).includes(UNITS) && sha(noUnits(body(m))) === OFF.body, `F3.${label} the measurements block unchanged but for the units switch (v0.48.50)`);
 }
 
 console.log('── flag on: the three tests show how (each once its scene is drawn) ──');

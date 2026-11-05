@@ -538,6 +538,8 @@
 
   // ── AUTO-SAVE ──
   function onFieldChange(e) {
+    var imp = e.target.getAttribute('data-imp');
+    if (imp) { writeImperial(imp); e.target.classList.remove('error'); if (saveTimer) clearTimeout(saveTimer); saveTimer = setTimeout(function(){ autoSave(currentStage); }, 2000); return; }
     var name = e.target.getAttribute('data-field');
     if (!name) return;
     formData[name] = e.target.value.trim();
@@ -1942,6 +1944,7 @@
       + '</div></div>' + saveIndicator() + footer() + '</div>';
 
     bindFieldListeners();
+    bindUnits(function () { renderWizardSection(data); });
     // v0.38.0 — bindSkipCheckboxes() removed; "I don't know" checkbox dropped
     // from numeric inputs per spec. The single section-level helper line now
     // covers skip semantics. Stored 'skip' values still load (back-compat).
@@ -1972,15 +1975,16 @@
         + prefillHint()
         + '<h5 class="hdlv2-subgroup-heading">Body shape</h5>'
         + '<div class="hdlv2-field-grid cols-2">'
-        + fieldInputWithSkip('height', 'Height (cm)', 'number', d.height, '170')
-        + fieldInputWithSkip('weight', 'Weight (kg)', 'number', d.weight, '75')
+        + unitsSwitch(unitsNow())
+        + measureInput('height', d)
+        + measureInput('weight', d)
         + '</div>'
         + (CFG.question_motion && S1_IMG_BASE && TAP_MOTION.waist ? motionFigure('hdlv2-body-guide', TAP_MOTION.waist) : '')
         + '<div class="hdlv2-field-grid cols-2">'
-        + fieldInputWithSkip('waist', 'Waist (cm)', 'number', d.waist, '85', {
+        + measureInput('waist', d, {
             tooltip: 'Measure around your waist at the level of your belly button. Keep the tape measure horizontal.'
           })
-        + fieldInputWithSkip('hip', 'Hip (cm)', 'number', d.hip, '95', {
+        + measureInput('hip', d, {
             tooltip: 'Measure around the widest part of your hips. Keep the tape measure horizontal.'
           })
         + '</div>'
@@ -2217,6 +2221,7 @@
     else if (field) bindTapQuestion(data, field);
     else {
       bindFieldListeners();
+      bindUnits(function () { renderTapStep(data, false); });
       bindTapComplete(data);
     }
     // Keyboard and screen-reader users hear where they are after each step.
@@ -2532,6 +2537,85 @@
   // semantics. Pre-existing rows that stored 'skip' render as an empty
   // input (back-compat); the calculator already treats null/empty
   // identically to 'skip' via clamp_score().
+  // v0.48.50 (W41) — the four body measures in cm/kg or ft in/lb. formData always holds metric
+  // (the server works out BMI, WHR and WHtR in cm and kg); imperial is shown from it and typed
+  // into boxes with no data-field, which writeImperial() converts back on change. The choice
+  // follows the browser language (en-US imperial) until the client picks, then hdlv2-units.
+  var IN_CM = 2.54, LB_KG = 0.45359237, UNITS_KEY = 'hdlv2-units', unitsChosen = null;
+  function r1(x) { return Math.round(x * 10) / 10; }
+  function toMetric(v) {
+    var out = {};
+    if (v.ftIn) out.height_cm = r1(((+v.ftIn[0] || 0) * 12 + (+v.ftIn[1] || 0)) * IN_CM);
+    if (v.lb != null) out.weight_kg = r1(v.lb * LB_KG);
+    if (v.waistIn != null) out.waist_cm = r1(v.waistIn * IN_CM);
+    if (v.hipIn != null) out.hip_cm = r1(v.hipIn * IN_CM);
+    return out;
+  }
+  function toImperial(m) {
+    var out = {};
+    if (m.height_cm != null) { var t = r1(m.height_cm / IN_CM), ft = Math.floor(t / 12); out.ftIn = [ft, r1(t - ft * 12)]; }
+    if (m.weight_kg != null) out.lb = r1(m.weight_kg / LB_KG);
+    if (m.waist_cm != null) out.waistIn = r1(m.waist_cm / IN_CM);
+    if (m.hip_cm != null) out.hipIn = r1(m.hip_cm / IN_CM);
+    return out;
+  }
+  function unitsDefault(lang) { return /^en-US$/i.test(lang || '') ? 'imperial' : 'metric'; }
+  function unitsNow() {
+    if (unitsChosen) return unitsChosen;
+    try { var u = localStorage.getItem(UNITS_KEY); if (u === 'metric' || u === 'imperial') return u; } catch (e) { /* blocked storage: the default */ }
+    return unitsDefault(typeof navigator !== 'undefined' && navigator ? navigator.language : '');
+  }
+  function unitsSwitch(units) {
+    var opt = function (u, label) {
+      return '<button type="button" role="radio" class="hdlv2-units-opt' + (units === u ? ' is-on' : '') + '" data-units="' + u + '" aria-checked="' + (units === u) + '">' + label + '</button>';
+    };
+    return '<div class="hdlv2-units" role="radiogroup" aria-label="Units">' + opt('metric', 'cm · kg') + opt('imperial', 'ft in · lb') + '</div>';
+  }
+  function measureInput(name, d, opts) {
+    var cm = { height: ['Height (cm)', '170'], weight: ['Weight (kg)', '75'], waist: ['Waist (cm)', '85'], hip: ['Hip (cm)', '95'] }[name];
+    if (unitsNow() === 'metric') return fieldInputWithSkip(name, cm[0], 'number', d[name], cm[1], opts);
+    var n = parseFloat(d[name]), key = { height: 'height_cm', weight: 'weight_kg', waist: 'waist_cm', hip: 'hip_cm' }[name];
+    var imp = isFinite(n) ? toImperial((function () { var o = {}; o[key] = n; return o; })()) : {};
+    var box = function (id, value, ph, label) {
+      return '<input id="' + id + '" data-imp="' + name + '" type="number" min="0" step="any" inputmode="decimal" value="' + esc(value == null ? '' : value) + '" placeholder="' + ph + '"' + (label ? ' aria-label="' + label + '"' : '') + '>';
+    };
+    var tip = opts && opts.tooltip ? renderTooltip(opts.tooltip) : '';
+    if (name === 'height') {
+      return '<div class="hdlv2-field"><label for="hdlv2-f-height-ft">Height (ft, in)' + tip + '</label><div class="hdlv2-units-pair">'
+        + box('hdlv2-f-height-ft', imp.ftIn && imp.ftIn[0], '5', 'Height, feet') + box('hdlv2-f-height-in', imp.ftIn && imp.ftIn[1], '7', 'Height, inches') + '</div></div>';
+    }
+    var lab = { weight: ['Weight (lb)', '165', 'lb'], waist: ['Waist (in)', '33', 'waistIn'], hip: ['Hip (in)', '37', 'hipIn'] }[name];
+    return '<div class="hdlv2-field"><label for="hdlv2-f-' + name + '-imp">' + lab[0] + tip + '</label>' + box('hdlv2-f-' + name + '-imp', imp[lab[2]], lab[1]) + '</div>';
+  }
+  // An imperial box changed: its measure goes into formData in metric ('' when emptied).
+  function writeImperial(name) {
+    var num = function (id) { var el = document.getElementById(id), v = el ? String(el.value).trim() : ''; return v === '' ? null : Number(v); };
+    var v = {};
+    if (name === 'height') {
+      var ft = num('hdlv2-f-height-ft'), inch = num('hdlv2-f-height-in');
+      if (ft !== null || inch !== null) v.ftIn = [ft || 0, inch || 0];
+    } else {
+      var x = num('hdlv2-f-' + name + '-imp');
+      if (x !== null) v[{ weight: 'lb', waist: 'waistIn', hip: 'hipIn' }[name]] = x;
+    }
+    var m = toMetric(v)[{ height: 'height_cm', weight: 'weight_kg', waist: 'waist_cm', hip: 'hip_cm' }[name]];
+    formData[name] = m != null && isFinite(m) ? String(m) : '';
+  }
+  // The switch redraws the screen; the box being left has already written its value (blur).
+  function bindUnits(rerender) {
+    root.querySelectorAll('.hdlv2-units-opt').forEach(function (b) {
+      b.addEventListener('click', function () {
+        var u = b.getAttribute('data-units');
+        if (u === unitsNow()) return;
+        unitsChosen = u;
+        try { localStorage.setItem(UNITS_KEY, u); } catch (e) { /* kept for this page only */ }
+        rerender();
+        var on = root.querySelector('.hdlv2-units-opt[data-units="' + u + '"]');
+        if (on) on.focus();
+      });
+    });
+  }
+
   function fieldInputWithSkip(name, label, type, value, placeholder, opts) {
     opts = opts || {};
     var isSkipped = value === 'skip';
