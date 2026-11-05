@@ -223,6 +223,7 @@ enrol_free_client( 5, 206 );
 check( 'R11.4 a free enrolment under another practitioner: the 30 days, no videos card', false !== strpos( $h = HDLV2_Challenge::render_section( 5, true ), '<section id="challenge"' ) && false === strpos( $h, 'cd30-videos' ) );
 enrol_free_client( 5, 122 );
 $GLOBALS['options']['hdlv2_stage1_offer'] = array( 'code' => 'X1', 'challenge_price' => '29', 'challenge_hook' => 'Thirty short videos', 'challenge_url' => 'https://altituding.com/thirty' );
+$GLOBALS['options']['hdlv2_challenge_videos'] = $days_opt;
 $h = HDLV2_Challenge::render_section( 5, true );
 check( 'R11.5 the price, hook and url come from hdlv2_stage1_offer (no second copy)', false !== strpos( $h, '<h3>Thirty short videos</h3><p>Today $29</p><a class="cd30-offer-btn" href="https://altituding.com/thirty">' ) );
 $GLOBALS['options']['hdlv2_stage1_offer'] = array( 'challenge_price' => 'free', 'challenge_url' => 'javascript:alert(1)' );
@@ -230,6 +231,22 @@ $o = HDLV2_Offer::get();
 $offer_src = file_get_contents( dirname( __DIR__, 2 ) . '/includes/sprint-1/class-hdlv2-offer.php' );
 check( 'R11.6 a bad price falls back to the default; a missing hook is the default; challenge_url is cleaned as a url', '27' === $o['challenge_price'] && 'A video for every one of your 30 days' === $o['challenge_hook']
     && 1 === preg_match( "/'url' === \\\$k \\|\\| 'video_url' === \\\$k \\|\\| 'challenge_url' === \\\$k/", $offer_src ) );
+
+echo "── R11b. no videos yet: the card stays, greyed, \"Coming soon\" (v0.48.52, Quim 2026-11-05) ──\n";
+$w = fresh();
+enrol_free_client( 5, 122 );
+$h = between( HDLV2_Challenge::render_section( 5, true ), '<aside class="cd30-videos', '</aside>' );
+check( 'R11.7 option absent: the hook and the price stay; the button is a disabled span with the same words and no link; the label is tied to it', false !== strpos( $h, '<aside class="cd30-videos is-soon"><h3>A video for every one of your 30 days</h3><p>Today $27</p>' )
+    && false !== strpos( $h, '<span class="cd30-offer-btn is-soon" role="button" aria-disabled="true" tabindex="0" aria-describedby="cd30-soon">Get the 30 videos</span>' )
+    && false !== strpos( $h, '<span class="cd30-soon" role="tooltip" id="cd30-soon">Coming soon</span>' )
+    && false === strpos( $h, 'href=' ) && false === strpos( $h, 'title=' ) && false === strpos( $h, 'altituding.com/challenge' ) );
+$GLOBALS['options']['hdlv2_challenge_videos'] = array( array( 'day' => 1, 'title' => 'Walk', 'text' => 'Walk ten minutes.', 'youtube_id' => '' ) );
+$h = between( HDLV2_Challenge::render_section( 5, true ), '<aside class="cd30-videos', '</aside>' );
+check( 'R11.7b day texts without a video id: still greyed (the videos are what the card sells)', false !== strpos( $h, 'is-soon' ) && false === strpos( $h, 'href=' ) && false === HDLV2_Challenge::challenge_videos_ready() );
+$GLOBALS['options']['hdlv2_challenge_videos'] = $days_opt;
+$h = between( HDLV2_Challenge::render_section( 5, true ), '<aside class="cd30-videos', '</aside>' );
+check( 'R11.8 one video set: the card and its link as before, no label', 0 === strpos( $h, '<aside class="cd30-videos"><h3>' ) && false !== strpos( $h, '<a class="cd30-offer-btn" href="https://altituding.com/challenge">Get the 30 videos</a>' )
+    && false === strpos( $h, 'is-soon' ) && false === strpos( $h, 'Coming soon' ) && true === HDLV2_Challenge::challenge_videos_ready() );
 
 echo "── R12. all 30 done: every day in the JSON, day 30 in the panel ──\n";
 $w = fresh();
@@ -248,7 +265,7 @@ $GLOBALS['users'][6] = 'kim@example.com';
 $w->practitioner_of[6] = 122;
 $GLOBALS['state'] = 'stage1-done';
 $h = $empty->invoke( $dash, 6, 'stage1-done' );
-check( 'R13.1 a stage1-done client with no enrolment: the 30 days and the videos card; the hero and the waiting card unchanged', false !== strpos( $h, '<section id="challenge"' ) && false !== strpos( $h, 'class="cd30-videos"' )
+check( 'R13.1 a stage1-done client with no enrolment: the 30 days and the videos card; the hero and the waiting card unchanged', false !== strpos( $h, '<section id="challenge"' ) && false !== strpos( $h, 'class="cd30-videos' )
     && false !== strpos( $h, '<p class="cd-hero-sub">' . $sub_waiting . '</p>' ) && false !== strpos( $h, $card ) && ! isset( $GLOBALS['usermeta'][6] ) );
 
 echo "── R14. the CSS and JS of the day view (v0.48.27) ──\n";
@@ -262,6 +279,10 @@ check( 'R14.3 the note box: soft fill, no rail (Divi gives blockquote a left bor
 check( 'R14.4 the tile title: two lines, hidden on phones', 1 === preg_match( '/\.cd30-title \{[^}]*-webkit-line-clamp: 2;/', $cd30 ) && 1 === preg_match( '/@media \(max-width: 640px\) \{[^@]*\.cd30-title \{ display: none; \}/', $cd30 ) );
 check( 'R14.5 the done tile is a real button: focus ring, pressed state, the videos card styled as the offer', 1 === preg_match( '/button\.cd30-day:focus-visible/', $cd30 ) && 1 === preg_match( '/button\.cd30-day\[aria-expanded="true"\]/', $cd30 )
     && false !== strpos( $cd30, '.cd30-videos' ) && false === strpos( $cd30, '.cd30-date' ) );
+
+check( 'R14.6 the greyed card: content at 0.55, the label hidden until hover or keyboard focus, always shown without hover, no rail', 1 === preg_match( '/\.cd30-videos\.is-soon > :not\(\.cd30-soon\) \{[^}]*opacity: 0?\.55;/', $cd30 )
+    && 1 === preg_match( '/\.cd30-offer-btn\.is-soon:hover \+ \.cd30-soon,\s*\.cd30-offer-btn\.is-soon:focus-visible \+ \.cd30-soon \{[^}]*visibility: visible;/', $cd30 )
+    && 1 === preg_match( '/@media \(hover: none\) \{[^@]*\.cd30-soon \{[^}]*visibility: visible;/', $cd30 ) && 1 === preg_match( '/\.cd30-offer-btn\.is-soon \{[^}]*cursor: not-allowed;/', $cd30 ) && 0 === preg_match( '/border-left/', $cd30 ) );
 
 echo "── R15. a buyer who did all 30 days: the hero says so (F12) ──\n";
 $w = fresh();

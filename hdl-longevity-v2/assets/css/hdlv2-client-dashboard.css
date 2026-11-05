@@ -1112,6 +1112,27 @@ button.cd30-day:focus-visible,
   text-decoration: none;
 }
 .cd30-offer-btn:hover { background: #004F59; color: #fff; }
+/* v0.48.52 — no videos yet: the card stays, greyed; "Coming soon" on hover or keyboard focus, always on touch. */
+.cd30-videos.is-soon > :not(.cd30-soon) { opacity: 0.55; }
+.cd30-offer-btn.is-soon { background: #888; cursor: not-allowed; }
+.cd30-offer-btn.is-soon:hover { background: #888; color: #fff; }
+.cd30-soon {
+  display: inline-block;
+  margin-left: 10px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  background: #2c3e50;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 500;
+  vertical-align: middle;
+  visibility: hidden;
+}
+.cd30-offer-btn.is-soon:hover + .cd30-soon,
+.cd30-offer-btn.is-soon:focus-visible + .cd30-soon { visibility: visible; }
+@media (hover: none) {
+  .cd30-soon { visibility: visible; }
+}
 .cd30-live {
   position: absolute;
   width: 1px;

@@ -351,6 +351,20 @@ class HDLV2_Challenge {
     }
 
     /**
+     * v0.48.52 — the videos card sells only once a video exists (Quim,
+     * 2026-11-05): until then it stays, greyed, with "Coming soon". Day texts
+     * without an id do not count; one id brings the card back by itself.
+     */
+    public static function challenge_videos_ready() {
+        foreach ( self::videos() as $v ) {
+            if ( '' !== $v['youtube_id'] ) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
      * The dashboard section, or '' for a client with no enrolment and no
      * client record. v0.48.27 (D6) — a client record that is not enrolled gets
      * the 30 days free; rendering writes nothing (D7).
@@ -481,10 +495,15 @@ class HDLV2_Challenge {
         if ( ! HDLV2_Offer::applies_to( $practitioner_id ) ) {
             return '';
         }
-        $o = HDLV2_Offer::get();
-        return '<aside class="cd30-videos"><h3>' . esc_html( $o['challenge_hook'] ) . '</h3>'
+        $o     = HDLV2_Offer::get();
+        $ready = self::challenge_videos_ready();
+        $cta   = $ready
+            ? '<a class="cd30-offer-btn" href="' . esc_url( $o['challenge_url'] ) . '">Get the 30 videos</a>'
+            : '<span class="cd30-offer-btn is-soon" role="button" aria-disabled="true" tabindex="0" aria-describedby="cd30-soon">Get the 30 videos</span>'
+              . '<span class="cd30-soon" role="tooltip" id="cd30-soon">Coming soon</span>';
+        return '<aside class="cd30-videos' . ( $ready ? '' : ' is-soon' ) . '"><h3>' . esc_html( $o['challenge_hook'] ) . '</h3>'
              . '<p>Today ' . esc_html( HDLV2_Offer::money( $o['challenge_price'], $o ) ) . '</p>'
-             . '<a class="cd30-offer-btn" href="' . esc_url( $o['challenge_url'] ) . '">Get the 30 videos</a></aside>';
+             . $cta . '</aside>';
     }
 
     /** D4: the hook, prices, url and code are the Stage 1 offer's own. */

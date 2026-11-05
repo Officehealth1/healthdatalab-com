@@ -133,7 +133,7 @@ ok( 'K.11 cron map: drain every minute, replay every five, alert hourly',
     && false !== strpos( $src, "'hdlv2_stage1_waiting_replay'   => 'hdlv2_five_minutes'" )
     && false !== strpos( $src, "'hdlv2_stage1_alert'            => 'hourly'" ) );
 $loader = file_get_contents( dirname( __DIR__, 2 ) . '/hdl-longevity-v2.php' );
-ok( 'K.12 loader constants 0.48.51 / 3.33 (v0.48.35; Phase AK stays in it)', false !== strpos( $loader, "define( 'HDLV2_DB_VERSION', '3.33' );" ) && false !== strpos( $loader, "define( 'HDLV2_VERSION', '0.48.51' );" ) );
+ok( 'K.12 loader constants 0.48.52 / 3.33 (v0.48.35; Phase AK stays in it)', false !== strpos( $loader, "define( 'HDLV2_DB_VERSION', '3.33' );" ) && false !== strpos( $loader, "define( 'HDLV2_VERSION', '0.48.52' );" ) );
 
 echo "\nPASS=$pass FAIL=$fail\n";
 exit( $fail ? 1 : 0 );
