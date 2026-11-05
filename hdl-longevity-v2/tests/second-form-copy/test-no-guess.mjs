@@ -92,6 +92,46 @@ if (typeof land === 'function') {
   ok(land(Object.assign({ physicalActivity: '2', sleepQuality: '3' }, four), ORDER) === 1, 'N7.3 all six: the first question');
 } else ok(false, 'tapLandingStep() exists');
 
+// v0.48.49 (T13-fix): "Looks right, carry on" waits too. A click with a row empty stays on screen 1,
+// says why once, under the button, and puts focus on the first answer of the first empty row.
+console.log('── the screen-1 button waits until both are answered ──');
+const WAIT = '<p class="hdlv2-tap-wait" role="status">Please answer the rows marked Unknown.</p>';
+function press(saved, clicks) {
+  const t = { goes: [], inserted: [], focused: null };
+  const btn = { insertAdjacentHTML(pos, html) { t.inserted.push([pos, html]); } };
+  const c = {
+    formData: Object.assign({}, saved), tapGo: (d, n) => t.goes.push(n),
+    document: {
+      getElementById: (id) => (id === 'hdlv2-tap-next' ? btn : null),
+      querySelector: (sel) => (sel === '.hdlv2-tap-wait' ? (t.inserted.length ? {} : null)
+        : /^#hdlv2-tap-opts-\w+ \.hdlv2-s1-opt$/.test(sel) ? { focus() { t.focused = sel; } } : null),
+    },
+  };
+  vm.runInNewContext([cut('  var S1_TO_S3_DEFAULTS = {', '\n  };\n'), cut('  var TAP_FIRST = ', ';\n'),
+    fn('s1Prefill'), fn('tapFirstValues'), fn('tapFirstNext')].join('\n')
+    + `\nfor (var i = 0; i < ${clicks}; i++) tapFirstNext({ stage1_data: { q3: 'c', q6: 'b', q7: 'a', q8: 'd', q9: 'e' } });`, c);
+  return t;
+}
+if (fn('tapFirstNext')) {
+  const two = press({}, 1);
+  ok(two.goes.length === 0, 'N9.1 both rows empty: the click stays on screen 1');
+  ok(J(two.inserted) === J([['afterend', WAIT]]), 'N9.2 one line, straight under the button');
+  ok(two.focused === '#hdlv2-tap-opts-physicalActivity .hdlv2-s1-opt', 'N9.3 focus on the first answer of "How active you are"');
+  const again = press({}, 2);
+  ok(again.inserted.length === 1 && again.goes.length === 0, 'N9.4 a second click adds no second line');
+  const one = press({ physicalActivity: '2' }, 1);
+  ok(one.goes.length === 0 && one.focused === '#hdlv2-tap-opts-sleepQuality .hdlv2-s1-opt', 'N9.5 one row left: waits, focus on sleep quality');
+  const all = press({ physicalActivity: '2', sleepQuality: '3' }, 1);
+  ok(J(all.goes) === J([1]) && all.inserted.length === 0, 'N9.6 all six answered: on to step 2, no line');
+} else ok(false, 'tapFirstNext() exists');
+const step0 = fn('renderTapStep');
+ok(/next\.addEventListener\('click', function \(\) \{ if \(tapStep === 0\) tapFirstNext\(data\); else tapGo\(data, 1\); \}\);/.test(step0),
+  'N9.7 screen 1 uses it; the measurements screen\'s Next is unchanged');
+ok(step0.indexOf('hdlv2-tap-wait') === -1, 'N9.8 the line is never in the first markup');
+const css = fs.readFileSync(new URL('../../assets/css/hdlv2-form.css', import.meta.url), 'utf8');
+const rule = (css.match(/\.hdlv2-tap-wait \{[^}]*\}/) || [''])[0];
+ok(/color: #d97706;/.test(rule) && /font-size: 16px;/.test(rule) && !/border|background|box-shadow/.test(rule), 'N9.9 warning text #d97706 at the prompt size; no border, bar or fill');
+
 console.log('── the labels ──');
 const LABELS = get('TAP_FIRST_LABELS') || {};
 ok(LABELS.sleepQuality === 'How well you sleep · sleep quality', 'N8.1 sleep quality says "quality"');

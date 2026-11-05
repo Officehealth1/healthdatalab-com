@@ -1531,6 +1531,9 @@
 
 .hdlv2-tap-row-value.is-empty { color: #888; font-style: italic; }
 
+/* v0.48.49 — screen 1 waits for its Unknown rows: the prompt's size, warning text, nothing else. */
+.hdlv2-tap-wait { font-size: 16px; line-height: 1.55; color: #d97706; margin: 12px 0 0; }
+
 .hdlv2-tap-row .hdlv2-s1-options { margin-top: 12px; }
 
 .hdlv2-tap-change,

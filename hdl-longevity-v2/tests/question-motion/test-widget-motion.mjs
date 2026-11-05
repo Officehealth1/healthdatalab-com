@@ -39,7 +39,7 @@ const src = cut('  var QUESTIONS = {', '\n  };\n') + cut('  var QUESTION_MOTION 
 
 function render(qKey, motion) {
   const ctx = { contentEl: { innerHTML: '', querySelectorAll: () => [] }, answers: {}, id: 'hdlw-122', advance() {}, escHtml: esc,
-    IMG_BASE: BASE + 'assets/images/silhouettes/', cfg: { questionMotion: motion, assetVer: '0.48.48' } };
+    IMG_BASE: BASE + 'assets/images/silhouettes/', cfg: { questionMotion: motion, assetVer: '0.48.49' } };
   vm.runInNewContext(src + `\nrenderMCQ(${JSON.stringify(qKey)}, ${STEP[qKey]});\nthis.MOTION = typeof QUESTION_MOTION === 'undefined' ? null : QUESTION_MOTION;\nthis.POSES = typeof OPTION_POSES === 'undefined' ? null : OPTION_POSES;`, ctx);
   return { html: ctx.contentEl.innerHTML, motion: ctx.MOTION, poses: ctx.POSES };
 }
@@ -55,7 +55,7 @@ function hoverRig(mediaMatches, times = 1) {
       classList: { add: (c) => cls.add(c), remove: (c) => cls.delete(c) },
       fire(t) { if (t === 'mouseenter') this.hovered = true; if (t === 'mouseleave') this.hovered = false; (handlers[t] || []).forEach((f) => f.call(this)); } };
   };
-  const ctx = { answers: {}, id: 'hdlw-122', advance() {}, escHtml: esc, IMG_BASE: BASE + 'assets/images/silhouettes/', cfg: { questionMotion: true, assetVer: '0.48.48' },
+  const ctx = { answers: {}, id: 'hdlw-122', advance() {}, escHtml: esc, IMG_BASE: BASE + 'assets/images/silhouettes/', cfg: { questionMotion: true, assetVer: '0.48.49' },
     matchMedia: (q) => ({ matches: mediaMatches && q === '(hover: hover) and (prefers-reduced-motion: no-preference)' }), renders: [] };
   ctx.contentEl = { innerHTML: '', querySelectorAll(sel) {
     if (sel !== '.hdlw-opt') return [];
@@ -88,7 +88,7 @@ for (const q of Object.keys(STEP)) {
   const [file, word] = WANT[q];
   if (!drawn(file)) { ok(sha(html) === OFF[q], `W7.${q} ${q}: not drawn yet, so no picture and the card unchanged`); continue; }
   const fig = html.match(/<figure class="hdlw-q-motion">.*?<\/figure>/);
-  const url = `${BASE}assets/images/motion/${file}?ver=0.48.48`;
+  const url = `${BASE}assets/images/motion/${file}?ver=0.48.49`;
   const pic = `<picture><source srcset="${url}&amp;still=1#still" media="(prefers-reduced-motion: reduce)"><img src="${url}" alt="" width="96" height="96" loading="eager" decoding="async"></picture>`;
   ok(!!fig && fig[0] === '<figure class="hdlw-q-motion">' + pic + '<figcaption>' + esc(word) + '</figcaption></figure>', `W2.${q} ${q}: ${file}, "${word}"`);
   ok(!!fig && html.indexOf('<div class="hdlw-q-rule"></div>' + fig[0] + '<p class="hdlw-q-prompt">') > 0, `W3.${q} ${q}: after the rule, before the prompt`);
@@ -100,7 +100,7 @@ const q5 = render('q5', true);
 ok(JSON.stringify(q5.poses) === JSON.stringify({ q5: POSE }), 'P1 OPTION_POSES lists Q5 only, answers a to e, one file each');
 const imgs = q5.html.match(/<img class="hdlw-opt-pose"[^>]*>/g) || [];
 const cells = q5.html.match(/<span class="hdlw-opt-pose"[^>]*>.*?<\/span>/g) || [];
-const cellFor = (v) => { const u = `${BASE}assets/images/motion/${POSE[v]}?ver=0.48.48`;
+const cellFor = (v) => { const u = `${BASE}assets/images/motion/${POSE[v]}?ver=0.48.49`;
   return `<span class="hdlw-opt-pose" data-move="${u}"><img class="hdlw-opt-pose-still" src="${u}&amp;still=1#still" alt="" width="40" height="40" loading="eager" decoding="async">`
     + '<img class="hdlw-opt-pose-move" alt="" width="40" height="40" decoding="async"></span>'; };
 ok(cells.length === 5 && Object.keys(POSE).every((v, i) => cells[i] === cellFor(v)),
@@ -115,7 +115,7 @@ ok(!/hdlw-opt-pose/.test(render('q5', false).html), 'P7 flag off: no poses');
 console.log('── Q5 hover (T6l): a fresh moving picture per hover, shown once loaded ──');
 try {
   const [rows] = hoverRig(true);
-  const d = rows[3], url = `${BASE}assets/images/motion/q5-floor-d.svg?ver=0.48.48`;
+  const d = rows[3], url = `${BASE}assets/images/motion/q5-floor-d.svg?ver=0.48.49`;
   d.fire('mouseenter');
   ok(d.mv.src === url + '&n=1' && !d.cls.has('hdlw-opt-playing'), 'P8 hover: the moving picture loads on a fresh address (&n=1); the still stays until it has loaded');
   d.mv.onload();

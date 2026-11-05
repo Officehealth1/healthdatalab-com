@@ -240,7 +240,7 @@ const step = fn('renderTapStep');
 ok(step !== '', 'renderTapStep() exists');
 ok(/Step ' \+ \(tapStep \+ 1\) \+ ' of ' \+ TAP_STEPS/.test(step) || /Step '\s*\+/.test(step), 'counter reads "Step N of 13"');
 ok(/var TAP_STEPS = 13;/.test(src), 'thirteen steps');
-ok(src.indexOf('Here is what you told us') !== -1 && src.indexOf('We filled these in from your first answers. If one is not right, tap Change.') !== -1, 'screen 1 copy as written');
+ok(src.indexOf('Here is what you told us') !== -1 && src.indexOf('We filled in what we could from your first answers. Pick any row marked Unknown, and tap Change if one is not right.') !== -1, 'screen 1 copy as written (v0.48.49)');
 ok(src.indexOf('Looks right, carry on') !== -1 && src.indexOf('Unknown — please select') !== -1, 'screen 1 button and empty-row text as written (v0.48.48)');
 ok(src.indexOf('Skip this one') !== -1 && /Press <kbd>A<\/kbd>–<kbd>F<\/kbd> to choose/.test(src), 'Skip and the key hint as written');
 ok(src.indexOf('Your measurements') !== -1 && src.replace(/\\u2019/g, '\u2019').indexOf('Use a tape measure and, if you have one, a blood pressure monitor. Skip anything you don\u2019t have to hand.') !== -1, 'screen 12 copy as written');

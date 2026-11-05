@@ -58,9 +58,11 @@ ok(has("'<p class=\"hdlv2-ty-lead\">From what you’ve told us we’ve built you
 ok(!has('We’ve just sent your draft report to your email.'), 'C6.2 the old lead is gone');
 let s0 = '';
 try { vm.runInNewContext('renderTapStep({ stage1_data: {} }, false); this.OUT = root.innerHTML;', ctx); s0 = ctx.OUT || ''; } catch (e) { console.log('  (render error: ' + e.message + ')'); }
-ok(s0.indexOf('<p class="hdlv2-s1-prompt">We filled these in from your first answers. If one is not right, tap Change.</p>'
+ok(s0.indexOf('<p class="hdlv2-s1-prompt">We filled in what we could from your first answers. Pick any row marked Unknown, and tap Change if one is not right.</p>'
   + '<p class="hdlv2-s1-prompt">Your answers here build your draft longevity report.</p><div id="hdlv2-tap-rows"') !== -1,
-  'C6.3 screen 1: the draft line sits under the prompt, above the rows');
+  'C6.3 screen 1: the prompt, then the draft line, above the rows');
+// v0.48.49 (T13-fix): the prompt is true with zero, one or two rows left to answer.
+ok(!has('We filled these in from your first answers. If one is not right, tap Change.'), 'C6.4 the old prompt is gone');
 
 console.log(`PASS=${PASS} FAIL=${FAIL}`);
 process.exit(FAIL ? 1 : 0);

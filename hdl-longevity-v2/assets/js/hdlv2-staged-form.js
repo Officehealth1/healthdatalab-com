@@ -2032,7 +2032,7 @@
     var screen;
     if (tapStep === 0) {
       screen = tapHeading('Here is what you told us')
-        + '<p class="hdlv2-s1-prompt">We filled these in from your first answers. If one is not right, tap Change.</p>'
+        + '<p class="hdlv2-s1-prompt">We filled in what we could from your first answers. Pick any row marked Unknown, and tap Change if one is not right.</p>'
         + '<p class="hdlv2-s1-prompt">Your answers here build your draft longevity report.</p>'
         + '<div id="hdlv2-tap-rows" class="hdlv2-tap-rows">' + tapFirstRows(tapFirstValues(s1d, d)) + '</div>'
         + '<button type="button" id="hdlv2-tap-next" class="hdlv2-btn hdlv2-s1-next">Looks right, carry on</button>';
@@ -2070,7 +2070,7 @@
     var back = document.getElementById('hdlv2-tap-back');
     if (back) back.addEventListener('click', function () { tapGo(data, -1); });
     var next = document.getElementById('hdlv2-tap-next');
-    if (next) next.addEventListener('click', function () { tapGo(data, 1); });
+    if (next) next.addEventListener('click', function () { if (tapStep === 0) tapFirstNext(data); else tapGo(data, 1); });
     if (tapStep === 0) bindTapRows(data);
     else if (field) bindTapQuestion(data, field);
     else {
@@ -2099,6 +2099,20 @@
         +   tapCards(f, vals[f])
         + '</div></div>';
     }).join('');
+  }
+
+  // v0.48.49 — "Looks right, carry on" waits until the six rows are answered
+  // (Matthew: "unknown, please select"). The line under the button says why,
+  // once, and focus goes to the first answer of the first row still empty.
+  function tapFirstNext(data) {
+    var vals = tapFirstValues((data && data.stage1_data) || {}, formData);
+    var empty = TAP_FIRST.filter(function (f) { return !vals[f]; });
+    if (!empty.length) { tapGo(data, 1); return; }
+    if (!document.querySelector('.hdlv2-tap-wait')) {
+      document.getElementById('hdlv2-tap-next').insertAdjacentHTML('afterend', '<p class="hdlv2-tap-wait" role="status">Please answer the rows marked Unknown.</p>');
+    }
+    var first = document.querySelector('#hdlv2-tap-opts-' + empty[0] + ' .hdlv2-s1-opt');
+    if (first) first.focus();
   }
 
   function bindTapRows(data) {
