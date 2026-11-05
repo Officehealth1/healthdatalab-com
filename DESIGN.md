@@ -107,10 +107,15 @@ checks every file against this section.
   attribute, the movement is a CSS `rotate()` on the group inside it.
 
 ### Props and ground
-- Stairs, chair, bed, plate, hand outline, measuring bands: stroke 2,
-  `#3d8da0` at `opacity="0.55"`, round caps, or filled `#e4e6ea`.
+- Stairs, chair, bed, plate, hand outline: stroke 2, `#3d8da0` at
+  `opacity="0.55"`, round caps, or filled `#e4e6ea`.
 - Food on the Q9 plate: `#e4e6ea` fill with a stroke-2 `#3d8da0` outline at
   full strength, so it stands off the plate's 0.55 rim.
+- Measuring bands (the waist and hip guide): stroke 2, `#3d8da0` at full
+  strength, dashed `3 3`, round caps, drawn over the figure so they read
+  across it.
+- The two pinching fingers (skin pinch) are the person's own: stroke 6
+  `#004F59`, round caps, the figure's ink. The hand under them is a prop.
 - Ground line: `#e4e6ea`, stroke 2.
 - Timer arc (balance, chair stands, skin pinch): a stroke-2 `#3d8da0` arc
   that fills clockwise over the timed part with `steps(24)`.
