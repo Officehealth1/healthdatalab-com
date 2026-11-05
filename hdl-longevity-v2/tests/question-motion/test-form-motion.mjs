@@ -31,7 +31,7 @@ const src = [cut('  var S3_OPTIONS = {', '\n  };\n'), cut('  var TEST_HOW = {', 
 
 function run(motion, call) {
   const ctx = {
-    window: { hdlv2_form: motion === null ? {} : { plugin_url: BASE, question_motion: motion, asset_ver: '0.48.46' } },
+    window: { hdlv2_form: motion === null ? {} : { plugin_url: BASE, question_motion: motion, asset_ver: '0.48.47' } },
     document: { getElementById: () => null, getElementsByTagName: () => [] },
     esc: (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'),
     setRootClasses() {}, tapLeave() {}, bindTapRows() {}, bindTapQuestion() {}, bindFieldListeners() {}, bindTapComplete() {},
@@ -63,7 +63,7 @@ for (const m of [null, false]) {
 
 console.log('── flag on: the three tests show how (each once its scene is drawn) ──');
 const drawn = (file) => fs.existsSync(new URL('../../assets/images/motion/' + file, import.meta.url));
-const fig = (file, word) => { const url = `${BASE}assets/images/motion/${file}?ver=0.48.46`;
+const fig = (file, word) => { const url = `${BASE}assets/images/motion/${file}?ver=0.48.47`;
   return `<figure class="hdlv2-tap-motion"><picture><source srcset="${url}&amp;still=1#still" media="(prefers-reduced-motion: reduce)"><img src="${url}" alt="" width="96" height="96" loading="eager" decoding="async"></picture><figcaption>${word}</figcaption></figure>`; };
 const FILE = { sitToStand: 't-chair-stands.svg', balance: 't-balance.svg', skinElasticity: 't-skin-pinch.svg' };
 const WANT = { sitToStand: fig(FILE.sitToStand, 'Chair stands'), balance: fig(FILE.balance, 'One leg'), skinElasticity: fig(FILE.skinElasticity, 'Pinch, release') };
@@ -82,7 +82,7 @@ for (let n = 0; n < 13; n++) {
 }
 
 console.log('── flag on: the waist and hip figure ──');
-const guide = `<figure class="hdlv2-body-guide"><img src="${BASE}assets/images/motion/g-waist-hip.svg?ver=0.48.46" alt="" width="96" height="96" loading="eager" decoding="async"><figcaption>Waist \u00b7 Hip</figcaption></figure>`;
+const guide = `<figure class="hdlv2-body-guide"><img src="${BASE}assets/images/motion/g-waist-hip.svg?ver=0.48.47" alt="" width="96" height="96" loading="eager" decoding="async"><figcaption>Waist \u00b7 Hip</figcaption></figure>`;
 const b = body(true);
 if (!drawn('g-waist-hip.svg')) ok(b === body(false), 'F13 the waist and hip figure is not drawn yet, so the block is unchanged');
 else ok(b.includes('[in:weight:Weight (kg):undefined:75:]</div>' + guide + '<div class="hdlv2-field-grid cols-2">[in:waist:'), 'F7.1 the figure sits between height/weight and the waist/hip fields');
