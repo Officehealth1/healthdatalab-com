@@ -834,5 +834,488 @@
                 "connection": 0.5
             }
         }
+    ],
+    "cases_v2": [
+        {
+            "picks": [
+                "floor_grandkids",
+                "lift_grandchild",
+                "live_in_own_home",
+                "keep_my_sport",
+                "hike_hills"
+            ],
+            "need": {
+                "strength": 3.75,
+                "mobility": 3.75,
+                "balance": 3.75,
+                "stamina": 3.75,
+                "mind": 5.0,
+                "connection": 3.13
+            }
+        },
+        {
+            "picks": [
+                "floor_grandkids"
+            ],
+            "need": {
+                "strength": 3.75,
+                "mobility": 5.0,
+                "balance": 2.5,
+                "stamina": 2.5,
+                "connection": 2.5
+            }
+        },
+        {
+            "picks": [
+                "lift_grandchild"
+            ],
+            "need": {
+                "strength": 5.0,
+                "mobility": 2.5,
+                "balance": 3.75
+            }
+        },
+        {
+            "picks": [
+                "fetch_with_dog"
+            ],
+            "need": {
+                "strength": 2.5,
+                "mobility": 2.5,
+                "balance": 2.5,
+                "stamina": 5.0
+            }
+        },
+        {
+            "picks": [
+                "dance_wedding"
+            ],
+            "need": {
+                "mobility": 3.75,
+                "balance": 3.75,
+                "stamina": 3.75,
+                "connection": 5.0
+            }
+        },
+        {
+            "picks": [
+                "remember_family"
+            ],
+            "need": {
+                "mind": 5.0,
+                "connection": 5.0
+            }
+        },
+        {
+            "picks": [
+                "help_loved_one"
+            ],
+            "need": {
+                "strength": 5.0,
+                "mobility": 3.75,
+                "balance": 3.75,
+                "mind": 2.5,
+                "connection": 2.5
+            }
+        },
+        {
+            "picks": [
+                "not_a_burden"
+            ],
+            "need": {
+                "strength": 3.75,
+                "mobility": 3.75,
+                "balance": 3.75,
+                "stamina": 2.5,
+                "mind": 3.75,
+                "connection": 2.5
+            }
+        },
+        {
+            "picks": [
+                "live_in_own_home"
+            ],
+            "need": {
+                "strength": 3.75,
+                "mobility": 3.75,
+                "balance": 5.0,
+                "stamina": 2.5,
+                "mind": 5.0
+            }
+        },
+        {
+            "picks": [
+                "stairs_no_rail"
+            ],
+            "need": {
+                "strength": 3.75,
+                "mobility": 3.75,
+                "balance": 5.0,
+                "stamina": 3.75
+            }
+        },
+        {
+            "picks": [
+                "up_after_fall"
+            ],
+            "need": {
+                "strength": 5.0,
+                "mobility": 5.0,
+                "balance": 3.75
+            }
+        },
+        {
+            "picks": [
+                "keep_driving"
+            ],
+            "need": {
+                "mobility": 3.75,
+                "balance": 2.5,
+                "mind": 5.0
+            }
+        },
+        {
+            "picks": [
+                "manage_own_affairs"
+            ],
+            "need": {
+                "stamina": 3.75,
+                "mind": 5.0,
+                "connection": 2.5
+            }
+        },
+        {
+            "picks": [
+                "dress_myself"
+            ],
+            "need": {
+                "strength": 2.5,
+                "mobility": 5.0,
+                "balance": 3.75
+            }
+        },
+        {
+            "picks": [
+                "uneven_ground"
+            ],
+            "need": {
+                "strength": 3.75,
+                "mobility": 2.5,
+                "balance": 5.0
+            }
+        },
+        {
+            "picks": [
+                "keep_my_sport"
+            ],
+            "need": {
+                "strength": 3.75,
+                "mobility": 5.0,
+                "balance": 3.75,
+                "stamina": 5.0
+            }
+        },
+        {
+            "picks": [
+                "day_in_garden"
+            ],
+            "need": {
+                "strength": 3.75,
+                "mobility": 5.0,
+                "balance": 2.5,
+                "stamina": 3.75
+            }
+        },
+        {
+            "picks": [
+                "hike_hills"
+            ],
+            "need": {
+                "strength": 2.5,
+                "mobility": 2.5,
+                "balance": 3.75,
+                "stamina": 5.0,
+                "connection": 3.75
+            }
+        },
+        {
+            "picks": [
+                "swim_in_sea"
+            ],
+            "need": {
+                "strength": 3.75,
+                "mobility": 3.75,
+                "stamina": 5.0
+            }
+        },
+        {
+            "picks": [
+                "walk_city_all_day"
+            ],
+            "need": {
+                "mobility": 2.5,
+                "stamina": 5.0,
+                "mind": 2.5
+            }
+        },
+        {
+            "picks": [
+                "keep_working"
+            ],
+            "need": {
+                "stamina": 3.75,
+                "mind": 5.0,
+                "connection": 2.5
+            }
+        },
+        {
+            "picks": [
+                "wake_rested"
+            ],
+            "need": {
+                "stamina": 5.0,
+                "mind": 2.5
+            }
+        },
+        {
+            "picks": [
+                "floor_grandkids",
+                "lift_grandchild",
+                "fetch_with_dog",
+                "dance_wedding",
+                "remember_family"
+            ],
+            "need": {
+                "strength": 3.75,
+                "mobility": 3.44,
+                "balance": 3.13,
+                "stamina": 3.75,
+                "mind": 5.0,
+                "connection": 4.17
+            }
+        },
+        {
+            "picks": [
+                "fetch_with_dog",
+                "dance_wedding",
+                "remember_family",
+                "help_loved_one",
+                "not_a_burden"
+            ],
+            "need": {
+                "strength": 3.75,
+                "mobility": 3.44,
+                "balance": 3.44,
+                "stamina": 3.75,
+                "mind": 3.75,
+                "connection": 3.75
+            }
+        },
+        {
+            "picks": [
+                "remember_family",
+                "help_loved_one",
+                "not_a_burden",
+                "live_in_own_home",
+                "stairs_no_rail"
+            ],
+            "need": {
+                "strength": 4.06,
+                "mobility": 3.75,
+                "balance": 4.38,
+                "stamina": 2.92,
+                "mind": 4.06,
+                "connection": 3.33
+            }
+        },
+        {
+            "picks": [
+                "not_a_burden",
+                "live_in_own_home",
+                "stairs_no_rail",
+                "up_after_fall",
+                "keep_driving"
+            ],
+            "need": {
+                "strength": 4.06,
+                "mobility": 4.0,
+                "balance": 4.0,
+                "stamina": 2.92,
+                "mind": 4.58,
+                "connection": 2.5
+            }
+        },
+        {
+            "picks": [
+                "stairs_no_rail",
+                "up_after_fall",
+                "keep_driving",
+                "manage_own_affairs",
+                "dress_myself"
+            ],
+            "need": {
+                "strength": 3.75,
+                "mobility": 4.38,
+                "balance": 3.75,
+                "stamina": 3.75,
+                "mind": 5.0,
+                "connection": 2.5
+            }
+        },
+        {
+            "picks": [
+                "keep_driving",
+                "manage_own_affairs",
+                "dress_myself",
+                "uneven_ground",
+                "keep_my_sport"
+            ],
+            "need": {
+                "strength": 3.33,
+                "mobility": 4.06,
+                "balance": 3.75,
+                "stamina": 4.38,
+                "mind": 5.0,
+                "connection": 2.5
+            }
+        },
+        {
+            "picks": [
+                "dress_myself",
+                "uneven_ground",
+                "keep_my_sport",
+                "day_in_garden",
+                "hike_hills"
+            ],
+            "need": {
+                "strength": 3.25,
+                "mobility": 4.0,
+                "balance": 3.75,
+                "stamina": 4.58,
+                "connection": 3.75
+            }
+        },
+        {
+            "picks": [
+                "keep_my_sport",
+                "day_in_garden",
+                "hike_hills",
+                "swim_in_sea",
+                "walk_city_all_day"
+            ],
+            "need": {
+                "strength": 3.44,
+                "mobility": 3.75,
+                "balance": 3.33,
+                "stamina": 4.75,
+                "mind": 2.5,
+                "connection": 3.75
+            }
+        },
+        {
+            "picks": [
+                "hike_hills",
+                "swim_in_sea",
+                "walk_city_all_day",
+                "keep_working",
+                "wake_rested"
+            ],
+            "need": {
+                "strength": 3.13,
+                "mobility": 2.92,
+                "balance": 3.75,
+                "stamina": 4.75,
+                "mind": 3.33,
+                "connection": 3.13
+            }
+        },
+        {
+            "picks": [
+                "floor_grandkids",
+                "lift_grandchild",
+                "fetch_with_dog",
+                "dance_wedding",
+                "remember_family",
+                "help_loved_one",
+                "not_a_burden",
+                "live_in_own_home",
+                "stairs_no_rail",
+                "up_after_fall"
+            ],
+            "need": {
+                "strength": 4.06,
+                "mobility": 3.75,
+                "balance": 3.75,
+                "stamina": 3.33,
+                "mind": 4.06,
+                "connection": 3.5
+            }
+        },
+        {
+            "picks": [
+                "dance_wedding",
+                "remember_family",
+                "help_loved_one",
+                "not_a_burden",
+                "live_in_own_home",
+                "stairs_no_rail",
+                "up_after_fall",
+                "keep_driving",
+                "manage_own_affairs",
+                "dress_myself"
+            ],
+            "need": {
+                "strength": 3.96,
+                "mobility": 4.06,
+                "balance": 3.91,
+                "stamina": 3.25,
+                "mind": 4.38,
+                "connection": 3.5
+            }
+        },
+        {
+            "picks": [
+                "not_a_burden",
+                "live_in_own_home",
+                "stairs_no_rail",
+                "up_after_fall",
+                "keep_driving",
+                "manage_own_affairs",
+                "dress_myself",
+                "uneven_ground",
+                "keep_my_sport",
+                "day_in_garden"
+            ],
+            "need": {
+                "strength": 3.75,
+                "mobility": 4.17,
+                "balance": 3.89,
+                "stamina": 3.54,
+                "mind": 4.69,
+                "connection": 2.5
+            }
+        },
+        {
+            "picks": [
+                "up_after_fall",
+                "keep_driving",
+                "manage_own_affairs",
+                "dress_myself",
+                "uneven_ground",
+                "keep_my_sport",
+                "day_in_garden",
+                "hike_hills",
+                "swim_in_sea",
+                "walk_city_all_day"
+            ],
+            "need": {
+                "strength": 3.57,
+                "mobility": 3.89,
+                "balance": 3.57,
+                "stamina": 4.58,
+                "mind": 4.17,
+                "connection": 3.13
+            }
+        }
     ]
 }

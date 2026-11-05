@@ -255,27 +255,17 @@
   // counterpart exists. The mappings are deterministic and best-effort —
   // the client always sees the pre-filled value and can change it.
   //
-  // Q6 (sleep) maps to BOTH sleepDuration AND sleepQuality because the
-  // Stage 1 question conflates duration and quality into a single answer.
-  // Option 'e' is the paradoxical "9+ hours but still feel tired" — high
-  // duration, poor quality.
-  //
-  // Q3 (Zone 2 activity, hours/week) maps to physicalActivity. Option 'e'
-  // ("More than 4 hours/week") is mapped to '4' (High), not '5' (Very high) —
-  // V1's Very-high band ("intense training 4+ times/week") implies structure
-  // + intensity beyond just Zone 2 hours, so we land conservatively and let
-  // the client adjust upward if applicable.
+  // Q6 (sleep) maps to sleepDuration only. v0.48.48 — Stage 1 never asks how
+  // well you sleep, and q3 asks zone-2 hours, not exercise, so sleepQuality
+  // and physicalActivity are no longer guessed from them: screen 1 shows
+  // "Unknown — please select" and the client picks (Matthew, 2026-11-04).
   //
   // Cognitive Activity is intentionally absent — Stage 1 has no equivalent
   // question, so Stage 3 collects it fresh.
   // ─────────────────────────────────────────────────────────────────
   var S1_TO_S3_DEFAULTS = {
-    q3: {
-      physicalActivity: { a: '0', b: '1', c: '2', d: '3', e: '4' }
-    },
     q6: {
-      sleepDuration: { a: '0', b: '2', c: '3', d: '4', e: '5' },
-      sleepQuality:  { a: '0', b: '1', c: '3', d: '4', e: '1' }
+      sleepDuration: { a: '0', b: '2', c: '3', d: '4', e: '5' }
     },
     q7: {
       smokingStatus: { a: '0', b: '2', c: '4', d: '4', e: '5' }
@@ -362,7 +352,7 @@
     sitToStand: 'Using a standard chair (about 43 cm seat height, no armrests), sit with feet flat on the floor and arms crossed on your shoulders. On "go", stand up fully and sit back down as many times as possible in 30 seconds. Count only complete reps. Measures lower-body strength.',
     breathHold: 'After a normal exhale, hold your breath for as long as comfortable. Use a stopwatch. Take your best safe attempt — don’t push past discomfort.',
     balance: 'Stand on one leg without support and time how long you can hold it. Use a stopwatch. Take your best attempt. Stand near something for safety in case you wobble.',
-    skinElasticity: 'Gently pinch the skin on the back of your hand for 2 seconds, release, and time how long it takes to flatten back. Use a stopwatch.'
+    skinElasticity: 'Gently pinch the skin on the back of your hand for 2 seconds, release, and time how long it takes to flatten back. Use a stopwatch. If you are dehydrated this will be slower, so do the test well hydrated.'
   };
 
   // v0.47.94 — the single-flow second form as tap cards: screen 1 confirms
@@ -378,7 +368,7 @@
   var TAP_FIRST_LABELS = {
     physicalActivity: 'How active you are',
     sleepDuration: 'How long you sleep',
-    sleepQuality: 'How well you sleep',
+    sleepQuality: 'How well you sleep · sleep quality',
     smokingStatus: 'Smoking',
     socialConnections: 'Time with people you care about',
     dietQuality: 'How you eat'
@@ -393,12 +383,73 @@
     balance: { title: 'How long can you stand on one leg?', plain: 'This shows how steady you are on your feet.', how: TEST_HOW.balance },
     skinElasticity: { title: 'Pinch the skin on the back of your hand. How long does it take to flatten?', plain: 'A quick check of your skin.', how: TEST_HOW.skinElasticity },
     stressLevels: { title: 'How stressed do you feel on most days?', plain: TAP_NEUTRAL },
-    cognitiveActivity: { title: 'How often do you give your brain something new to work on?', hint: 'e.g. reading, learning new skills, puzzles, problem-solving at work.', plain: TAP_NEUTRAL },
+    cognitiveActivity: { title: 'How often do you give your brain a challenging task?', hint: 'e.g. learning a new skill, puzzles, complex problem-solving at work.', plain: TAP_NEUTRAL },
     alcoholConsumption: { title: 'How many alcoholic drinks do you have in a usual week?', plain: TAP_NEUTRAL },
-    supplementIntake: { title: 'How often do you take vitamins or supplements?', plain: 'Tells your practitioner what you already take.' },
+    supplementIntake: { title: 'How often do you take vitamins or supplements?', plain: 'It doesn’t matter which ones. We’re looking at your habit of giving your body extra support.' },
     sunlightExposure: { title: 'When do you usually get daylight outdoors?', plain: TAP_NEUTRAL },
     dailyHydration: { title: 'How much water do you drink in a day?', plain: TAP_NEUTRAL }
   };
+  // v0.48.50 (W33, W36, W37, W39, W40; hdlv2_ff_second_form_wording_v2) — the research note's
+  // wording (evidence 2026-11-04): three how-to texts, and the sun and water questions with new
+  // answers on the same 0-5 scores. The sun answers are listed in the order shown (A-F); each
+  // carries its score (D 5, C 4, E 3, F 2, B 1, A 0). HDLV2_Flight_Notes::s3_label() is the twin.
+  var WORDING_V2 = {
+    how: {
+      balance: 'Stand on one leg with your arms by your sides and the other foot lifted off the floor. Start the stopwatch when your foot lifts. Wobbling is fine. Stop the clock when the lifted foot touches the floor, your standing foot moves, or you hold on to something. Take the best of three tries. Stand near something for safety.',
+      breathHold: 'Sit and breathe normally for a minute. Breathe out normally, pinch your nose and start the stopwatch. Stop at the first clear urge to breathe, like a swallow or a twitch in your throat or tummy. Your next breath should be calm. If you gasp, you held too long.',
+      skinElasticity: 'Rest your hand flat on a table. Pinch the skin on the back of your hand for 2 seconds, then let go and start the stopwatch. Stop when the ridge has gone and the skin looks flat again. Ignore a faint line that stays. If you are dehydrated this will be slower, so do the test well hydrated.'
+    },
+    titles: {
+      sunlightExposure: 'How often do you spend time outdoors in daylight?',
+      dailyHydration: 'On a usual day, how many glasses of water do you drink? A glass is about a cup.'
+    },
+    options: {
+      sunlightExposure: [
+        { v: '', l: 'Select...' },
+        { v: '0', l: "Hardly ever, I'm indoors most days" },
+        { v: '1', l: 'Now and then, not most days' },
+        { v: '4', l: 'Most days, but less than 20 minutes' },
+        { v: '5', l: 'Most days, 20 minutes or more, and I rarely burn' },
+        { v: '3', l: 'Most days, and I burned once in the past year' },
+        { v: '2', l: 'Most days, and I burned two or more times in the past year' }
+      ],
+      dailyHydration: [
+        { v: '', l: 'Select...' },
+        { v: '0', l: 'None or one' },
+        { v: '1', l: '2 to 3' },
+        { v: '2', l: '4 to 5' },
+        { v: '3', l: '6 to 7' },
+        { v: '4', l: '8 to 9' },
+        { v: '5', l: '10 or more' }
+      ]
+    }
+  };
+  if (CFG.second_form_wording_v2) {
+    Object.keys(WORDING_V2.how).forEach(function (k) { TEST_HOW[k] = TAP_TITLES[k].how = WORDING_V2.how[k]; });
+    Object.keys(WORDING_V2.titles).forEach(function (k) { TAP_TITLES[k].title = WORDING_V2.titles[k]; });
+    Object.keys(WORDING_V2.options).forEach(function (k) { S3_OPTIONS[k] = WORDING_V2.options[k]; });
+  }
+  // v0.48.42 — the test pictures (DESIGN.md "## Motion"), shown when hdlv2_ff_question_motion
+  // is on. Only drawn scenes are listed, so a screen without one shows nothing;
+  // tests/question-motion checks this against the files.
+  var TAP_MOTION = {
+    sitToStand: { file: 't-chair-stands.svg', caption: 'Chair stands' },
+    balance: { file: 't-balance.svg', caption: 'One leg' },
+    skinElasticity: { file: 't-skin-pinch.svg', caption: 'Pinch, release' },
+    waist: { file: 'g-waist-hip.svg', caption: 'Waist · Hip', still: true }
+  };
+
+  // A picture and its caption. A moving one is a <picture> whose reduced-motion source is
+  // file.svg#still on its own address (&still=1): an SVG inside <img> does not see the page's
+  // motion setting, and a browser holding the moving picture would reuse it for a bare #still.
+  function motionFigure(cls, m) {
+    var url = esc(S1_IMG_BASE.replace('silhouettes/', 'motion/') + m.file + '?ver=' + encodeURIComponent(CFG.asset_ver || ''));
+    var img = '<img src="' + url + '" alt="" width="96" height="96" loading="eager" decoding="async">';
+    return '<figure class="' + cls + '">'
+      + (m.still ? img : '<picture><source srcset="' + url + '&amp;still=1#still" media="(prefers-reduced-motion: reduce)">' + img + '</picture>')
+      + '<figcaption>' + esc(m.caption) + '</figcaption></figure>';
+  }
+
   // Reason line when the person's choices need the ability a question measures.
   var ABILITY_SENTENCES = {
     strength: 'This test shows how strong your legs are for that.',
@@ -487,6 +538,8 @@
 
   // ── AUTO-SAVE ──
   function onFieldChange(e) {
+    var imp = e.target.getAttribute('data-imp');
+    if (imp) { writeImperial(imp); e.target.classList.remove('error'); if (saveTimer) clearTimeout(saveTimer); saveTimer = setTimeout(function(){ autoSave(currentStage); }, 2000); return; }
     var name = e.target.getAttribute('data-field');
     if (!name) return;
     formData[name] = e.target.value.trim();
@@ -1300,7 +1353,7 @@
 
     root.innerHTML = '<div class="hdlv2-card hdlv2-ty-card">'
       + thankYouHeader(pracName, pracLogo)
-      + '<div class="hdlv2-ty-banner"><h1>Stage&nbsp;2&nbsp;·&nbsp;Your&nbsp;WHY</h1></div>'
+      + '<div class="hdlv2-ty-banner"><h1>Full&nbsp;Report&nbsp;·&nbsp;Your&nbsp;WHY</h1></div>'
       + '<div class="hdlv2-ty-body">'
       +   '<h2 class="hdlv2-ty-h1">Thank you for sharing, ' + esc(firstName) + '.</h2>'
       +   '<p class="hdlv2-ty-lead">' + leadLine + '</p>'
@@ -1359,7 +1412,12 @@
     return Object.keys(abilities || {})
       .filter(function (id) { return counts[id] > 0; })
       .map(function (id) {
-        return { id: id, label: abilities[id], count: counts[id], need: Math.min(5, Math.round(50 * sums[id] / (3 * n)) / 10) };
+        // v0.48.50 (W27, hdlv2_ff_need_scale_v2): out from the middle, 2.5 + 1.25 x (average weight - 1)
+        // over the picks that need it, 2 dp; the server's tally() is the twin.
+        var need = CFG.need_scale_v2
+          ? Math.round((250 * counts[id] + 125 * (sums[id] - counts[id])) / counts[id]) / 100
+          : Math.round(50 * sums[id] / (3 * n)) / 10;
+        return { id: id, label: abilities[id], count: counts[id], need: Math.min(5, need) };
       })
       .sort(function (a, b) { return b.need - a.need; });
   }
@@ -1415,7 +1473,8 @@
   // the 256 grid, filled, the soft layer at the file's own 0.2 opacity;
   // decoration beside a word (aria-hidden). Files: barbell, person-simple-walk,
   // person-simple-tai-chi, heartbeat, brain, users-three; groups heart,
-  // house-line, star.
+  // house-line, star. v0.48.42 — screen-1 row icons (ROW_ICONS): person-simple-walk,
+  // moon-stars, bed, cigarette, users-three, fork-knife.
   var ICONS = {
     strength: '<path d="M96,64V192a8,8,0,0,1-8,8H64a8,8,0,0,1-8-8V64a8,8,0,0,1,8-8H88A8,8,0,0,1,96,64Zm96-8H168a8,8,0,0,0-8,8V192a8,8,0,0,0,8,8h24a8,8,0,0,0,8-8V64A8,8,0,0,0,192,56Z" opacity="0.2"/><path d="M248,120h-8V88a16,16,0,0,0-16-16H208V64a16,16,0,0,0-16-16H168a16,16,0,0,0-16,16v56H104V64A16,16,0,0,0,88,48H64A16,16,0,0,0,48,64v8H32A16,16,0,0,0,16,88v32H8a8,8,0,0,0,0,16h8v32a16,16,0,0,0,16,16H48v8a16,16,0,0,0,16,16H88a16,16,0,0,0,16-16V136h48v56a16,16,0,0,0,16,16h24a16,16,0,0,0,16-16v-8h16a16,16,0,0,0,16-16V136h8a8,8,0,0,0,0-16ZM32,168V88H48v80Zm56,24H64V64H88V192Zm104,0H168V64h24V175.83c0,.06,0,.11,0,.17s0,.12,0,.17V192Zm32-24H208V88h16Z"/>',
     mobility: '<path d="M176,48a24,24,0,1,1-24-24A24,24,0,0,1,176,48Z" opacity="0.2"/><path d="M152,80a32,32,0,1,0-32-32A32,32,0,0,0,152,80Zm0-48a16,16,0,1,1-16,16A16,16,0,0,1,152,32Zm64,112a8,8,0,0,1-8,8c-35.31,0-52.95-17.81-67.12-32.12-2.74-2.77-5.36-5.4-8-7.84l-13.43,30.88,37.2,26.57A8,8,0,0,1,160,176v56a8,8,0,0,1-16,0V180.12l-31.07-22.2L79.34,235.19A8,8,0,0,1,72,240a7.84,7.84,0,0,1-3.19-.67,8,8,0,0,1-4.15-10.52l54.08-124.37c-9.31-1.65-20.92,1.2-34.7,8.58a163.88,163.88,0,0,0-30.57,21.77,8,8,0,0,1-10.95-11.66c2.5-2.35,61.69-57.22,98.72-25.08,3.83,3.32,7.48,7,11,10.58C166.19,122.7,179.36,136,208,136A8,8,0,0,1,216,144Z"/>',
@@ -1427,6 +1486,16 @@
     freedom: '<path d="M216,116.69V216H152V152H104v64H40V116.69l82.34-82.35a8,8,0,0,1,11.32,0Z" opacity="0.2"/><path d="M240,208H224V136l2.34,2.34A8,8,0,0,0,237.66,127L139.31,28.68a16,16,0,0,0-22.62,0L18.34,127a8,8,0,0,0,11.32,11.31L32,136v72H16a8,8,0,0,0,0,16H240a8,8,0,0,0,0-16ZM48,120l80-80,80,80v88H160V152a8,8,0,0,0-8-8H104a8,8,0,0,0-8,8v56H48Zm96,88H112V160h32Z"/>',
     things: '<path d="M229.06,108.79l-48.7,42,14.88,62.79a8.4,8.4,0,0,1-12.52,9.17L128,189.09,73.28,222.74a8.4,8.4,0,0,1-12.52-9.17l14.88-62.79-48.7-42A8.46,8.46,0,0,1,31.73,94L95.64,88.8l24.62-59.6a8.36,8.36,0,0,1,15.48,0l24.62,59.6L224.27,94A8.46,8.46,0,0,1,229.06,108.79Z" opacity="0.2"/><path d="M239.18,97.26A16.38,16.38,0,0,0,224.92,86l-59-4.76L143.14,26.15a16.36,16.36,0,0,0-30.27,0L90.11,81.23,31.08,86a16.46,16.46,0,0,0-9.37,28.86l45,38.83L53,211.75a16.38,16.38,0,0,0,24.5,17.82L128,198.49l50.53,31.08A16.4,16.4,0,0,0,203,211.75l-13.76-58.07,45-38.83A16.43,16.43,0,0,0,239.18,97.26Zm-15.34,5.47-48.7,42a8,8,0,0,0-2.56,7.91l14.88,62.8a.37.37,0,0,1-.17.48c-.18.14-.23.11-.38,0l-54.72-33.65a8,8,0,0,0-8.38,0L69.09,215.94c-.15.09-.19.12-.38,0a.37.37,0,0,1-.17-.48l14.88-62.8a8,8,0,0,0-2.56-7.91l-48.7-42c-.12-.1-.23-.19-.13-.5s.18-.27.33-.29l63.92-5.16A8,8,0,0,0,103,91.86l24.62-59.61c.08-.17.11-.25.35-.25s.27.08.35.25L153,91.86a8,8,0,0,0,6.75,4.92l63.92,5.16c.15,0,.24,0,.33.29S224,102.63,223.84,102.73Z"/>'
   };
+  // v0.48.42 — an icon before each screen-1 row (hdlv2_ff_question_motion), same family and weight.
+  var ROW_ICONS = {
+    physicalActivity: ICONS.mobility,
+    sleepDuration: '<path d="M210.69,158.18A88,88,0,1,1,97.82,45.31,96.08,96.08,0,0,0,192,160,96.78,96.78,0,0,0,210.69,158.18Z" opacity="0.2"/><path d="M240,96a8,8,0,0,1-8,8H216v16a8,8,0,0,1-16,0V104H184a8,8,0,0,1,0-16h16V72a8,8,0,0,1,16,0V88h16A8,8,0,0,1,240,96ZM144,56h8v8a8,8,0,0,0,16,0V56h8a8,8,0,0,0,0-16h-8V32a8,8,0,0,0-16,0v8h-8a8,8,0,0,0,0,16Zm72.77,97a8,8,0,0,1,1.43,8A96,96,0,1,1,95.07,37.8a8,8,0,0,1,10.6,9.06A88.07,88.07,0,0,0,209.14,150.33,8,8,0,0,1,216.77,153Zm-19.39,14.88c-1.79.09-3.59.14-5.38.14A104.11,104.11,0,0,1,88,64c0-1.79,0-3.59.14-5.38A80,80,0,1,0,197.38,167.86Z"/>',
+    sleepQuality: '<path d="M248,112v56H112V80H216A32,32,0,0,1,248,112Z" opacity="0.2"/><path d="M216,72H32V48a8,8,0,0,0-16,0V208a8,8,0,0,0,16,0V176H240v32a8,8,0,0,0,16,0V112A40,40,0,0,0,216,72ZM32,88h72v72H32Zm88,72V88h96a24,24,0,0,1,24,24v48Z"/>',
+    smokingStatus: '<path d="M88,136v48H32a8,8,0,0,1-8-8V144a8,8,0,0,1,8-8Z" opacity="0.2"/><path d="M224,128H32a16,16,0,0,0-16,16v32a16,16,0,0,0,16,16H224a16,16,0,0,0,16-16V144A16,16,0,0,0,224,128ZM32,144H80v32H32Zm192,32H96V144H224v32ZM201,60.08c8-14.23,7.42-21.71,6.36-24.91a7.79,7.79,0,0,0-2.64-3.86,8,8,0,1,1,6.5-14.62,22.57,22.57,0,0,1,11.32,13.44c3.36,10.14.81,22.85-7.6,37.79-8,14.23-7.42,21.72-6.36,24.92a7.79,7.79,0,0,0,2.64,3.85,8,8,0,1,1-6.5,14.62,22.53,22.53,0,0,1-11.32-13.44C190.07,87.73,192.62,75,201,60.08Zm-40,0c8-14.23,7.42-21.71,6.36-24.91a7.79,7.79,0,0,0-2.64-3.86,8,8,0,1,1,6.5-14.62,22.57,22.57,0,0,1,11.32,13.44c3.36,10.14.81,22.85-7.6,37.79-8,14.23-7.42,21.72-6.36,24.92a7.79,7.79,0,0,0,2.64,3.85,8,8,0,1,1-6.5,14.62,22.53,22.53,0,0,1-11.32-13.44C150.07,87.73,152.62,75,161,60.08Z"/>',
+    socialConnections: ICONS.connection,
+    dietQuality: '<path d="M208,40V168H152S152,64,208,40Z" opacity="0.2"/><path d="M72,88V40a8,8,0,0,1,16,0V88a8,8,0,0,1-16,0ZM216,40V224a8,8,0,0,1-16,0V176H152a8,8,0,0,1-8-8,268.75,268.75,0,0,1,7.22-56.88c9.78-40.49,28.32-67.63,53.63-78.47A8,8,0,0,1,216,40ZM200,53.9c-32.17,24.57-38.47,84.42-39.7,106.1H200ZM119.89,38.69a8,8,0,1,0-15.78,2.63L112,88.63a32,32,0,0,1-64,0l7.88-47.31a8,8,0,1,0-15.78-2.63l-8,48A8.17,8.17,0,0,0,32,88a48.07,48.07,0,0,0,40,47.32V224a8,8,0,0,0,16,0V135.32A48.07,48.07,0,0,0,128,88a8.17,8.17,0,0,0-.11-1.31Z"/>'
+  };
+
 
   // v0.48.2 — the tick circle at the right of every statement, in both
   // states; CSS draws the ring and fills it when the statement is chosen.
@@ -1490,6 +1559,11 @@
 
     var out = '<svg class="hdlv2-why-wheel-svg" viewBox="0 0 ' + width + ' ' + f(h) + '" data-cx="' + f(cx) + '" data-cy="' + f(cy) + '" data-r="' + R + '"'
       + ' role="img" aria-label="' + esc(chartLabel(data.spokes)) + '">';
+    // v0.48.48 (W26) — inside is weak, outside is strong: the three status
+    // backgrounds under the web, painted outer first so the red centre is on top.
+    ['#ecfdf5', '#fffbeb', '#fef2f2'].forEach(function (fill, i) {
+      out += '<polygon class="hdlv2-why-band" points="' + dir.map(function (d) { return pt(R * (3 - i) / 3, d); }).join(' ') + '" fill="' + fill + '"/>';
+    });
     for (var k = 1; k <= top; k++) {
       out += '<polygon class="hdlv2-why-ring" points="' + dir.map(function (d) { return pt(R * k / top, d); }).join(' ') + '" fill="none" ' + web + '/>';
     }
@@ -1551,14 +1625,14 @@
       +   '<p id="hdlv2-picks-count" class="hdlv2-picks-count" aria-live="polite"></p>'
       +   '<section class="hdlv2-why-needs" id="hdlv2-why-needs"' + (rows.length ? '' : ' hidden') + '>'
       +     '<h3>What your picks need from your body</h3>'
-      +     '<p>Each thing you picked needs some of these. Your plan starts with the ones your health answers show are weakest.</p>'
+      +     '<p>For the life you picked, these are the abilities to keep in surplus today. Everyone ages; the surplus is what you build now.</p>'
       +     '<div class="hdlv2-why-needs-body">'
       +       '<div id="hdlv2-abilities" class="hdlv2-abilities">' + abilityBars(rows) + '</div>'
       +       '<div class="hdlv2-why-radar"><div id="hdlv2-why-radar">' + radarChart(radarData(rows, names), 440) + '</div>'
       +       '<p class="hdlv2-why-caption">5 is the most a life can ask of one ability. Your answers on the next pages show where you stand today on each one.</p></div>'
       +     '</div>'
       +   '</section>'
-      +   picksTextarea('key_people_text', 'Who are you doing this for? First names.', d.key_people_text, 'Jenny, Leo, Mia', 300)
+      +   whoForHtml(peopleFromData(d))
       +   picksTextarea('own_words', 'Anything else? (optional)', d.own_words, '', 600)
       +   '<button type="button" id="hdlv2-picks-next" class="hdlv2-btn">Next &#8594;</button>'
       + '</div>' + saveIndicator(true) + footer() + '</div>';
@@ -1574,6 +1648,7 @@
       });
     });
     bindFieldListeners();
+    bindWhoFor();
     document.getElementById('hdlv2-picks-next').addEventListener('click', submitWhyPicks);
     // Same function each time, so the browser keeps one listener however often the page renders.
     window.addEventListener('resize', redrawRadar);
@@ -1670,15 +1745,110 @@
       + '<div class="hdlv2-field-foot"><span></span><div class="hdlv2-char-count" id="hdlv2-charcount-' + name + '">' + v.length + ' / ' + maxlength + '</div></div></div>';
   }
 
+  // v0.48.50 (W29) — who the client stays strong for: up to six first names, each with who
+  // they are. The roles are the healthspan timeline's (REL there), so it can draw them as
+  // Loved ones. key_people_text stays the composed text every older reader uses.
+  var WHO_ROLES = [['spouse', 'Spouse or partner'], ['child', 'Child'], ['grandchild', 'Grandchild'], ['parent', 'Parent'],
+    ['sibling', 'Brother or sister'], ['friend', 'Friend'], ['other', 'Other']];
+  var WHO_MAX = 6, WHO_MIN_ROWS = 3, WHO_NAME_MAX = 30;
+
+  // The saved rows, or the names of an older row's free text ("Jenny, Leo") with no role yet.
+  function peopleFromData(d) {
+    if (Array.isArray(d.key_people)) return d.key_people.slice(0, WHO_MAX);
+    return String(d.key_people_text || '').split(',').map(function (n) { return { name: n.trim().slice(0, WHO_NAME_MAX), rel: '' }; })
+      .filter(function (p) { return p.name; }).slice(0, WHO_MAX);
+  }
+
+  function whoForRow(i, p) {
+    var opts = '<option value=""' + (p.rel ? '' : ' selected') + '>Who are they?</option>' + WHO_ROLES.map(function (r) {
+      return '<option value="' + r[0] + '"' + (p.rel === r[0] ? ' selected' : '') + '>' + r[1] + '</option>';
+    }).join('');
+    return '<div class="hdlv2-who-row">'
+      + '<input type="text" maxlength="30" placeholder="First name" aria-label="First name, person ' + (i + 1) + '" value="' + esc(p.name || '') + '">'
+      + '<select aria-label="Who is person ' + (i + 1) + '">' + opts + '</select>'
+      + (i >= WHO_MIN_ROWS ? '<button type="button" class="hdlv2-who-remove" aria-label="Remove person ' + (i + 1) + '">Remove</button>' : '')
+      + '</div>';
+  }
+
+  function whoForHtml(people) {
+    var rows = people.slice(0, WHO_MAX);
+    while (rows.length < WHO_MIN_ROWS) rows.push({ name: '', rel: '' });
+    return '<fieldset class="hdlv2-field hdlv2-who-for" id="hdlv2-who-for">'
+      + '<legend>Who are you staying strong for?</legend>'
+      + '<p class="hdlv2-who-help">Name them. We\u2019ll remember them for your timeline.</p>'
+      + '<div class="hdlv2-who-rows">' + rows.map(function (p, i) { return whoForRow(i, p); }).join('') + '</div>'
+      + '<button type="button" class="hdlv2-who-add"' + (rows.length >= WHO_MAX ? ' hidden' : '') + '>+ Add another</button>'
+      + '</fieldset>';
+  }
+
+  function composePeople(rows) {
+    return rows.map(function (p) { return { name: String(p.name || '').trim().slice(0, WHO_NAME_MAX), rel: p.rel || '' }; })
+      .filter(function (p) { return p.name; }).slice(0, WHO_MAX);
+  }
+
+  function composePeopleText(rows) {
+    return composePeople(rows).map(function (p) { return p.rel ? p.name + ' (' + p.rel + ')' : p.name; }).join(', ');
+  }
+
+  function readWhoRows() {
+    return Array.prototype.map.call(root.querySelectorAll('#hdlv2-who-for .hdlv2-who-row'), function (r) {
+      return { name: r.querySelector('input').value, rel: r.querySelector('select').value };
+    });
+  }
+
+  // Typing or picking a role saves like a tap on a statement; add and remove redraw the rows.
+  function bindWhoFor() {
+    var box = document.getElementById('hdlv2-who-for');
+    if (!box) return;
+    function sync() {
+      var rows = readWhoRows();
+      formData.key_people = composePeople(rows);
+      formData.key_people_text = composePeopleText(rows);
+      clearSaveError();
+      if (saveTimer) clearTimeout(saveTimer);
+      saveTimer = setTimeout(function () { saveWhenFree(2); }, 1500);
+    }
+    function redraw(rows, focusAt) {
+      box.querySelector('.hdlv2-who-rows').innerHTML = rows.map(function (p, i) { return whoForRow(i, p); }).join('');
+      box.querySelector('.hdlv2-who-add').hidden = rows.length >= WHO_MAX;
+      var inputs = box.querySelectorAll('.hdlv2-who-row input');
+      if (inputs[focusAt]) inputs[focusAt].focus();
+    }
+    box.addEventListener('input', sync);
+    box.addEventListener('change', sync);
+    box.addEventListener('click', function (e) {
+      var rows = readWhoRows();
+      if (e.target.classList.contains('hdlv2-who-add') && rows.length < WHO_MAX) {
+        rows.push({ name: '', rel: '' });
+        redraw(rows, rows.length - 1);
+      } else if (e.target.classList.contains('hdlv2-who-remove')) {
+        var at = Array.prototype.indexOf.call(box.querySelectorAll('.hdlv2-who-row'), e.target.parentNode);
+        rows.splice(at, 1);
+        redraw(rows, Math.min(at, rows.length - 1));
+        sync();
+      }
+    });
+  }
+
   function submitWhyPicks() {
     if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
     if (queuedSaveTimer) { clearTimeout(queuedSaveTimer); queuedSaveTimer = null; }
     // Let an in-flight autosave finish first so it cannot land after Next.
     if (saving) { setTimeout(submitWhyPicks, 300); return; }
-    ['key_people_text', 'own_words'].forEach(function (n) {
+    ['own_words'].forEach(function (n) {
       var el = document.getElementById('hdlv2-f-' + n);
       if (el) formData[n] = el.value.trim();
     });
+    var who = readWhoRows();
+    formData.key_people = composePeople(who);
+    formData.key_people_text = composePeopleText(who);
+    // A name with no role yet: say so and go to it; the server refuses it too.
+    var noRole = who.findIndex(function (p) { return String(p.name || '').trim() && !p.rel; });
+    if (noRole !== -1) {
+      setSaveStatus('error', 'Please pick who each person is.');
+      root.querySelectorAll('#hdlv2-who-for .hdlv2-who-row select')[noRole].focus();
+      return;
+    }
     var btn = document.getElementById('hdlv2-picks-next');
     btn.disabled = true; btn.textContent = 'Saving\u2026';
     function reset(msg) { btn.disabled = false; btn.innerHTML = 'Next &#8594;'; setSaveStatus('error', msg); }
@@ -1774,6 +1944,7 @@
       + '</div></div>' + saveIndicator() + footer() + '</div>';
 
     bindFieldListeners();
+    bindUnits(function () { renderWizardSection(data); });
     // v0.38.0 — bindSkipCheckboxes() removed; "I don't know" checkbox dropped
     // from numeric inputs per spec. The single section-level helper line now
     // covers skip semantics. Stored 'skip' values still load (back-compat).
@@ -1803,14 +1974,17 @@
         + '</div>'
         + prefillHint()
         + '<h5 class="hdlv2-subgroup-heading">Body shape</h5>'
+        + unitsSwitch(unitsNow())
         + '<div class="hdlv2-field-grid cols-2">'
-        + fieldInputWithSkip('height', 'Height (cm)', 'number', d.height, '170')
-        + fieldInputWithSkip('weight', 'Weight (kg)', 'number', d.weight, '75')
-        + '</div><div class="hdlv2-field-grid cols-2">'
-        + fieldInputWithSkip('waist', 'Waist (cm)', 'number', d.waist, '85', {
+        + measureInput('height', d)
+        + measureInput('weight', d)
+        + '</div>'
+        + (CFG.question_motion && S1_IMG_BASE && TAP_MOTION.waist ? motionFigure('hdlv2-body-guide', TAP_MOTION.waist) : '')
+        + '<div class="hdlv2-field-grid cols-2">'
+        + measureInput('waist', d, {
             tooltip: 'Measure around your waist at the level of your belly button. Keep the tape measure horizontal.'
           })
-        + fieldInputWithSkip('hip', 'Hip (cm)', 'number', d.hip, '95', {
+        + measureInput('hip', d, {
             tooltip: 'Measure around the widest part of your hips. Keep the tape measure horizontal.'
           })
         + '</div>'
@@ -1871,8 +2045,9 @@
         + fieldSelect('stressLevels','Stress Levels',S3_OPTIONS.stressLevels,d.stressLevels)
         + fieldSelect('socialConnections','Social Connections',S3_OPTIONS.socialConnections, s1Prefill('socialConnections', s1d, d.socialConnections))
         // v0.38.0 — Hint per spec: name examples so clients know what counts as cognitive activity.
+        // v0.48.48 — the tap screen's hint, so both forms say it one way (no reading, W35).
         + fieldSelect('cognitiveActivity','Cognitive Activity',S3_OPTIONS.cognitiveActivity,d.cognitiveActivity, {
-            hint: 'e.g. reading, learning new skills, puzzles, problem-solving at work.'
+            hint: TAP_TITLES.cognitiveActivity.hint
           })
         + '</div>';
     } else if (sec.id === 'lifestyle') {
@@ -1951,12 +2126,13 @@
     return order.length + 1;
   }
 
-  // Six answer cards from S3_OPTIONS: value '0' is chip A ... '5' is F.
+  // Six answer cards from S3_OPTIONS, chips A-F in the listed order (value '0' is A ... '5' is F
+  // everywhere except the v0.48.50 sun answers, listed in their own A-F order).
   function tapCards(field, value) {
-    return S3_OPTIONS[field].filter(function (o) { return o.v !== ''; }).map(function (o) {
+    return S3_OPTIONS[field].filter(function (o) { return o.v !== ''; }).map(function (o, i) {
       var sel = String(value) === o.v;
       return '<button type="button" class="hdlv2-s1-opt' + (sel ? ' selected' : '') + '" data-val="' + o.v + '" role="radio" aria-checked="' + sel + '">'
-        + '<span class="hdlv2-s1-chip" aria-hidden="true">' + String.fromCharCode(65 + Number(o.v)) + '</span>'
+        + '<span class="hdlv2-s1-chip" aria-hidden="true">' + String.fromCharCode(65 + i) + '</span>'
         + '<span class="hdlv2-s1-opt-text">' + esc(o.l) + '</span></button>';
     }).join('');
   }
@@ -1998,10 +2174,12 @@
     var s1d = (data && data.stage1_data) || {};
     var d = formData;
     var field = tapStep >= 1 && tapStep <= tapOrder.length ? tapOrder[tapStep - 1] : null;
+    var tm = field && CFG.question_motion && S1_IMG_BASE && TAP_MOTION[field];
     var screen;
     if (tapStep === 0) {
       screen = tapHeading('Here is what you told us')
-        + '<p class="hdlv2-s1-prompt">We filled these in from your first answers. If one is not right, tap Change.</p>'
+        + '<p class="hdlv2-s1-prompt">We filled in what we could from your first answers. Pick any row marked Unknown, and tap Change if one is not right.</p>'
+        + '<p class="hdlv2-s1-prompt">Your answers here build your draft longevity report.</p>'
         + '<div id="hdlv2-tap-rows" class="hdlv2-tap-rows">' + tapFirstRows(tapFirstValues(s1d, d)) + '</div>'
         + '<button type="button" id="hdlv2-tap-next" class="hdlv2-btn hdlv2-s1-next">Looks right, carry on</button>';
     } else if (field) {
@@ -2009,7 +2187,7 @@
       screen = tapHeading(esc(q.title))
         + (q.hint ? '<p class="hdlv2-s1-prompt">' + esc(q.hint) + '</p>' : '')
         + '<p class="hdlv2-tap-reason">' + tapReason(field, data.second_form_ties) + '</p>'
-        + (q.how ? '<p class="hdlv2-tap-how"><strong>How to do it:</strong> ' + esc(q.how) + '</p>' : '')
+        + (q.how ? (tm ? motionFigure('hdlv2-tap-motion', tm) : '') + '<p class="hdlv2-tap-how"><strong>How to do it:</strong> ' + esc(q.how) + '</p>' : '')
         + '<div class="hdlv2-s1-options" role="radiogroup" aria-labelledby="hdlv2-tap-title">' + tapCards(field, d[field]) + '</div>'
         + '<button type="button" id="hdlv2-tap-skip" class="hdlv2-tap-skip">Skip this one</button>'
         + '<p class="hdlv2-s1-kbd-hint">Press <kbd>A</kbd>–<kbd>F</kbd> to choose</p>';
@@ -2038,11 +2216,12 @@
     var back = document.getElementById('hdlv2-tap-back');
     if (back) back.addEventListener('click', function () { tapGo(data, -1); });
     var next = document.getElementById('hdlv2-tap-next');
-    if (next) next.addEventListener('click', function () { tapGo(data, 1); });
+    if (next) next.addEventListener('click', function () { if (tapStep === 0) tapFirstNext(data); else tapGo(data, 1); });
     if (tapStep === 0) bindTapRows(data);
     else if (field) bindTapQuestion(data, field);
     else {
       bindFieldListeners();
+      bindUnits(function () { renderTapStep(data, false); });
       bindTapComplete(data);
     }
     // Keyboard and screen-reader users hear where they are after each step.
@@ -2057,14 +2236,30 @@
       var open = !opt || tapOpenRow === f;
       return '<div class="hdlv2-tap-row">'
         + '<div class="hdlv2-tap-row-head">'
-        +   '<span class="hdlv2-tap-row-label" id="hdlv2-tap-label-' + f + '">' + esc(TAP_FIRST_LABELS[f]) + '</span>'
-        +   '<span class="hdlv2-tap-row-value' + (opt ? '' : ' is-empty') + '">' + esc(opt ? opt.l : 'Not answered yet') + '</span>'
+        +   '<span class="hdlv2-tap-row-label" id="hdlv2-tap-label-' + f + '">'
+        +     (CFG.question_motion ? '<svg class="hdlv2-tap-row-icon" aria-hidden="true" viewBox="0 0 256 256">' + ROW_ICONS[f] + '</svg>' : '')
+        +     esc(TAP_FIRST_LABELS[f]) + '</span>'
+        +   '<span class="hdlv2-tap-row-value' + (opt ? '' : ' is-empty') + '">' + esc(opt ? opt.l : 'Unknown — please select') + '</span>'
         +   (opt ? '<button type="button" class="hdlv2-tap-change" id="hdlv2-tap-change-' + f + '" data-row="' + f + '" aria-expanded="' + open + '" aria-controls="hdlv2-tap-opts-' + f + '">Change</button>' : '')
         + '</div>'
         + '<div class="hdlv2-s1-options" id="hdlv2-tap-opts-' + f + '" role="radiogroup" aria-labelledby="hdlv2-tap-label-' + f + '" data-row="' + f + '"' + (open ? '' : ' hidden') + '>'
         +   tapCards(f, vals[f])
         + '</div></div>';
     }).join('');
+  }
+
+  // v0.48.49 — "Looks right, carry on" waits until the six rows are answered
+  // (Matthew: "unknown, please select"). The line under the button says why,
+  // once, and focus goes to the first answer of the first row still empty.
+  function tapFirstNext(data) {
+    var vals = tapFirstValues((data && data.stage1_data) || {}, formData);
+    var empty = TAP_FIRST.filter(function (f) { return !vals[f]; });
+    if (!empty.length) { tapGo(data, 1); return; }
+    if (!document.querySelector('.hdlv2-tap-wait')) {
+      document.getElementById('hdlv2-tap-next').insertAdjacentHTML('afterend', '<p class="hdlv2-tap-wait" role="status">Please answer the rows marked Unknown.</p>');
+    }
+    var first = document.querySelector('#hdlv2-tap-opts-' + empty[0] + ' .hdlv2-s1-opt');
+    if (first) first.focus();
   }
 
   function bindTapRows(data) {
@@ -2250,10 +2445,10 @@
 
     root.innerHTML = '<div class="hdlv2-card hdlv2-ty-card">'
       + thankYouHeader(pracName, pracLogo)
-      + '<div class="hdlv2-ty-banner"><h1>Stage&nbsp;3&nbsp;complete</h1></div>'
+      + '<div class="hdlv2-ty-banner"><h1>Full&nbsp;Report&nbsp;complete</h1></div>'
       + '<div class="hdlv2-ty-body">'
       +   '<h2 class="hdlv2-ty-h1">Thanks, ' + esc(firstName) + ' — your assessment is in.</h2>'
-      +   '<p class="hdlv2-ty-lead">We’ve just sent your draft report to your email. It should arrive within a few minutes.</p>'
+      +   '<p class="hdlv2-ty-lead">From what you’ve told us we’ve built your draft longevity report. It’s on its way to your email and should arrive within a few minutes.</p>'
       +   '<p class="hdlv2-ty-subhead">What happens next</p>'
       +   '<ol class="hdlv2-ty-list">'
       +     '<li>Check your inbox for your Draft Report.</li>'
@@ -2342,6 +2537,85 @@
   // semantics. Pre-existing rows that stored 'skip' render as an empty
   // input (back-compat); the calculator already treats null/empty
   // identically to 'skip' via clamp_score().
+  // v0.48.50 (W41) — the four body measures in cm/kg or ft in/lb. formData always holds metric
+  // (the server works out BMI, WHR and WHtR in cm and kg); imperial is shown from it and typed
+  // into boxes with no data-field, which writeImperial() converts back on change. The choice
+  // follows the browser language (en-US imperial) until the client picks, then hdlv2-units.
+  var IN_CM = 2.54, LB_KG = 0.45359237, UNITS_KEY = 'hdlv2-units', unitsChosen = null;
+  function r1(x) { return Math.round(x * 10) / 10; }
+  function toMetric(v) {
+    var out = {};
+    if (v.ftIn) out.height_cm = r1(((+v.ftIn[0] || 0) * 12 + (+v.ftIn[1] || 0)) * IN_CM);
+    if (v.lb != null) out.weight_kg = r1(v.lb * LB_KG);
+    if (v.waistIn != null) out.waist_cm = r1(v.waistIn * IN_CM);
+    if (v.hipIn != null) out.hip_cm = r1(v.hipIn * IN_CM);
+    return out;
+  }
+  function toImperial(m) {
+    var out = {};
+    if (m.height_cm != null) { var t = r1(m.height_cm / IN_CM), ft = Math.floor(t / 12); out.ftIn = [ft, r1(t - ft * 12)]; }
+    if (m.weight_kg != null) out.lb = r1(m.weight_kg / LB_KG);
+    if (m.waist_cm != null) out.waistIn = r1(m.waist_cm / IN_CM);
+    if (m.hip_cm != null) out.hipIn = r1(m.hip_cm / IN_CM);
+    return out;
+  }
+  function unitsDefault(lang) { return /^en-US$/i.test(lang || '') ? 'imperial' : 'metric'; }
+  function unitsNow() {
+    if (unitsChosen) return unitsChosen;
+    try { var u = localStorage.getItem(UNITS_KEY); if (u === 'metric' || u === 'imperial') return u; } catch (e) { /* blocked storage: the default */ }
+    return unitsDefault(typeof navigator !== 'undefined' && navigator ? navigator.language : '');
+  }
+  function unitsSwitch(units) {
+    var opt = function (u, label) {
+      return '<button type="button" role="radio" class="hdlv2-units-opt' + (units === u ? ' is-on' : '') + '" data-units="' + u + '" aria-checked="' + (units === u) + '">' + label + '</button>';
+    };
+    return '<div class="hdlv2-units" role="radiogroup" aria-label="Units">' + opt('metric', 'cm · kg') + opt('imperial', 'ft in · lb') + '</div>';
+  }
+  function measureInput(name, d, opts) {
+    var cm = { height: ['Height (cm)', '170'], weight: ['Weight (kg)', '75'], waist: ['Waist (cm)', '85'], hip: ['Hip (cm)', '95'] }[name];
+    if (unitsNow() === 'metric') return fieldInputWithSkip(name, cm[0], 'number', d[name], cm[1], opts);
+    var n = parseFloat(d[name]), key = { height: 'height_cm', weight: 'weight_kg', waist: 'waist_cm', hip: 'hip_cm' }[name];
+    var imp = isFinite(n) ? toImperial((function () { var o = {}; o[key] = n; return o; })()) : {};
+    var box = function (id, value, ph, label) {
+      return '<input id="' + id + '" data-imp="' + name + '" type="number" min="0" step="any" inputmode="decimal" value="' + esc(value == null ? '' : value) + '" placeholder="' + ph + '"' + (label ? ' aria-label="' + label + '"' : '') + '>';
+    };
+    var tip = opts && opts.tooltip ? renderTooltip(opts.tooltip) : '';
+    if (name === 'height') {
+      return '<div class="hdlv2-field"><label for="hdlv2-f-height-ft">Height (ft, in)' + tip + '</label><div class="hdlv2-units-pair">'
+        + box('hdlv2-f-height-ft', imp.ftIn && imp.ftIn[0], '5', 'Height, feet') + box('hdlv2-f-height-in', imp.ftIn && imp.ftIn[1], '7', 'Height, inches') + '</div></div>';
+    }
+    var lab = { weight: ['Weight (lb)', '165', 'lb'], waist: ['Waist (in)', '33', 'waistIn'], hip: ['Hip (in)', '37', 'hipIn'] }[name];
+    return '<div class="hdlv2-field"><label for="hdlv2-f-' + name + '-imp">' + lab[0] + tip + '</label>' + box('hdlv2-f-' + name + '-imp', imp[lab[2]], lab[1]) + '</div>';
+  }
+  // An imperial box changed: its measure goes into formData in metric ('' when emptied).
+  function writeImperial(name) {
+    var num = function (id) { var el = document.getElementById(id), v = el ? String(el.value).trim() : ''; return v === '' ? null : Number(v); };
+    var v = {};
+    if (name === 'height') {
+      var ft = num('hdlv2-f-height-ft'), inch = num('hdlv2-f-height-in');
+      if (ft !== null || inch !== null) v.ftIn = [ft || 0, inch || 0];
+    } else {
+      var x = num('hdlv2-f-' + name + '-imp');
+      if (x !== null) v[{ weight: 'lb', waist: 'waistIn', hip: 'hipIn' }[name]] = x;
+    }
+    var m = toMetric(v)[{ height: 'height_cm', weight: 'weight_kg', waist: 'waist_cm', hip: 'hip_cm' }[name]];
+    formData[name] = m != null && isFinite(m) ? String(m) : '';
+  }
+  // The switch redraws the screen; the box being left has already written its value (blur).
+  function bindUnits(rerender) {
+    root.querySelectorAll('.hdlv2-units-opt').forEach(function (b) {
+      b.addEventListener('click', function () {
+        var u = b.getAttribute('data-units');
+        if (u === unitsNow()) return;
+        unitsChosen = u;
+        try { localStorage.setItem(UNITS_KEY, u); } catch (e) { /* kept for this page only */ }
+        rerender();
+        var on = root.querySelector('.hdlv2-units-opt[data-units="' + u + '"]');
+        if (on) on.focus();
+      });
+    });
+  }
+
   function fieldInputWithSkip(name, label, type, value, placeholder, opts) {
     opts = opts || {};
     var isSkipped = value === 'skip';

@@ -160,6 +160,20 @@
     return 'https://quickchart.io/chart?c=' + encodeURIComponent(JSON.stringify(cfg)) + '&w=380&h=340&bkg=white';
   }
 
+  // v0.48.50 (W9) — Matthew's short video for this band (hdlv2_stage1_band_videos), under the
+  // gauge. A YouTube link or id only; anything else, or no URL for the band, renders nothing.
+  function bandVideoHtml(band, videos) {
+    var url = videos && typeof videos[band] === 'string' ? videos[band] : '';
+    var m = /^https?:\/\/(?:www\.)?youtu\.be\/([A-Za-z0-9_-]{11})(?:[?#]|$)/.exec(url)
+      || /^https?:\/\/(?:www\.|m\.)?youtube\.com\/watch\?(?:[^#]*&)?v=([A-Za-z0-9_-]{11})(?:[&#]|$)/.exec(url)
+      || /^([A-Za-z0-9_-]{11})$/.exec(url);
+    if (!m) return '';
+    return '<div class="hdlw-band-video" style="margin:18px auto 0;max-width:640px;aspect-ratio:16/9;border-radius:12px;overflow:hidden;background:#f8f9fb;">'
+      + '<iframe src="https://www.youtube-nocookie.com/embed/' + m[1] + '" title="Matthew on your result" loading="lazy" '
+      + 'allow="accelerometer; encrypted-media; gyroscope; picture-in-picture" allowfullscreen '
+      + 'style="display:block;width:100%;height:100%;border:0;"></iframe></div>';
+  }
+
   // ---------- QUESTION DEFINITIONS ----------
 
   var QUESTIONS = {
@@ -253,6 +267,36 @@
     }
   };
 
+  // v0.48.42 — the question pictures (DESIGN.md "## Motion"), shown when
+  // hdlv2_ff_question_motion is on. Only drawn scenes are listed, so a question
+  // without one shows nothing; tests/question-motion checks this against the files.
+  var QUESTION_MOTION = {
+    q3: { file: 'q3-zone2.svg', caption: 'Brisk walking' },
+    q4: { file: 'q4-stairs.svg', caption: 'Climbing stairs' },
+    q6: { file: 'q6-sleep.svg', caption: 'A night’s sleep' },
+    q7: { file: 'q7-smoking.svg', caption: 'Smoking' },
+    q8: { file: 'q8-social.svg', caption: 'Time together' },
+    q9: { file: 'q9-diet.svg', caption: 'How you eat' }
+  };
+
+  // v0.48.43 — Q5's answers each carry a still pose (Matthew: "the animation in the choice
+  // itself"), left of the answer text, flag on only; Q5 has no picture at the top.
+  var OPTION_POSES = {
+    q5: { a: 'q5-floor-a.svg', b: 'q5-floor-b.svg', c: 'q5-floor-c.svg', d: 'q5-floor-d.svg', e: 'q5-floor-e.svg' }
+  };
+
+  // v0.48.45 — a Q5 pose gets up when its answer is hovered (mouse only, motion allowed). The file
+  // plays once from load, even hidden, and a browser keeps one copy per address, so a plain swap
+  // shows it already standing: each hover loads the moving file on a fresh address (&n=, never
+  // repeated in the page) and shows it once loaded; the still stays until then. One small fetch per hover.
+  var posePlays = 0;
+  function playPose() {
+    var row = this, cell = row.querySelector('.hdlw-opt-pose'), mv = cell && cell.querySelector('.hdlw-opt-pose-move');
+    if (!mv) return;
+    mv.onload = function () { if (row.matches(':hover')) row.classList.add('hdlw-opt-playing'); };
+    mv.src = cell.getAttribute('data-move') + '&n=' + (++posePlays);
+  }
+
   // Steps: q1, q2, q3, q4, q5, q6, q7, q8, q9, contact, result
   var STEP_COUNT = 11;
 
@@ -307,6 +351,24 @@
   // /assets/images/stage1-icons/*.png are replaced by italic citation
   // microcopy (`q.cite`) sitting under each question prompt. The PNG files
   // remain on disk for compatibility but nothing references them.
+
+  // v0.48.42 — the question pictures' rules, injected only when the flag is on,
+  // so the editorial block above stays byte-identical with it off.
+  function injectMotionStyles() {
+    if (document.getElementById('hdl-motion-style')) return;
+    var s = document.createElement('style');
+    s.id = 'hdl-motion-style';
+    s.textContent = '.hdlw-q-motion{margin:0 0 20px;padding-top:4px;display:flex;flex-direction:column;align-items:flex-start;gap:8px}'
+      + '.hdlw-q-motion img{width:96px;height:96px;border-radius:50%;background:#f8f9fb;display:block}'
+      + '.hdlw-q-motion figcaption{font-family:' + B.body + ';font-size:13px;line-height:1.3;color:' + B.muted + ';margin:0}'
+      + '.hdlw-opt.hdlw-opt-posed{grid-template-columns:26px 40px 1fr;align-items:center}'
+      + '.hdlw-opt-pose{width:40px;height:40px;border-radius:50%;background:#f8f9fb;display:block}'
+      + '.hdlw-opt-pose img{width:100%;height:100%;display:block}.hdlw-opt-pose .hdlw-opt-pose-move{display:none}'
+      + '@media (max-width:480px){.hdlw-q-motion{margin:0 0 16px}.hdlw-q-motion img{width:80px;height:80px}'
+      + '.hdlw-opt.hdlw-opt-posed{grid-template-columns:26px 36px 1fr}.hdlw-opt-pose{width:36px;height:36px}}'
+      + '@media (hover: hover) and (prefers-reduced-motion: no-preference){.hdlw-opt-playing .hdlw-opt-pose-still{display:none}.hdlw-opt-playing .hdlw-opt-pose-move{display:block}}';
+    document.head.appendChild(s);
+  }
 
   // ---------- INVITE MODE ----------
 
@@ -727,6 +789,11 @@
     // config payload (public path) and the invite verify payload (invite
     // path), so it reaches both Stage-1 entry routes.
     cfg.safetyScreen = !!((publicCfg && publicCfg.safety_screen_enabled) || (invite && invite.safety_screen_enabled));
+    // v0.48.42 — the question pictures (hdlv2_ff_question_motion), on the same two payloads.
+    cfg.questionMotion = !!((publicCfg && publicCfg.question_motion_enabled) || (invite && invite.question_motion_enabled));
+    cfg.assetVer = String((publicCfg && publicCfg.asset_ver) || (invite && invite.asset_ver) || '');
+    cfg.bandVideos = (publicCfg && publicCfg.band_videos) || (invite && invite.band_videos) || null; // v0.48.50 (W9)
+    if (cfg.questionMotion) injectMotionStyles();
 
     var id = 'hdlw-' + cfg.pracId;
     var c = cfg.color;
@@ -1040,12 +1107,22 @@
       var stepNum = String(stepIdx + 1);
       if (stepNum.length < 2) stepNum = '0' + stepNum;
       var section = 'Section ' + stepNum + ' · ' + (q.category || q.title);
+      // v0.48.42 — the question's picture. The reduced-motion source is file.svg#still on its
+      // own address (&still=1): an SVG inside <img> does not see the page's motion setting, and
+      // a browser that already holds the moving picture would reuse it for a bare #still.
+      var motionSrc = function (file) { return escHtml(IMG_BASE.replace('silhouettes/', 'motion/') + file + '?ver=' + encodeURIComponent(cfg.assetVer || '')); };
+      var m = cfg.questionMotion && IMG_BASE && QUESTION_MOTION[qKey];
+      var src = m ? motionSrc(m.file) : '';
+      var poses = cfg.questionMotion && IMG_BASE && OPTION_POSES[qKey];
 
       var html = ''
         + '<div class="hdlw-q-opener">'
         +   '<p class="hdlw-q-section">' + escHtml(section) + '</p>'
         +   '<h2 class="hdlw-q-title">' + escHtml(q.title) + '</h2>'
         +   '<div class="hdlw-q-rule"></div>'
+        +   ( m ? '<figure class="hdlw-q-motion"><picture><source srcset="' + src + '&amp;still=1#still" media="(prefers-reduced-motion: reduce)">'
+            + '<img src="' + src + '" alt="" width="96" height="96" loading="eager" decoding="async"></picture>'
+            + '<figcaption>' + escHtml(m.caption) + '</figcaption></figure>' : '' )
         +   '<p class="hdlw-q-prompt">' + escHtml(q.text) + '</p>'
         +   ( q.hint ? '<p class="hdlw-q-hint">' + escHtml(q.hint) + '</p>' : '' )
         +   ( q.cite ? '<p class="hdlw-q-cite">' + escHtml(q.cite) + '</p>' : '' )
@@ -1055,8 +1132,11 @@
         var o = q.opts[i];
         var sel = answers[qKey] === o.v ? ' hdlw-selected' : '';
         var num = (i + 1) < 10 ? '0' + (i + 1) : String(i + 1);
-        html += '<div class="hdlw-opt' + sel + '" data-val="' + escHtml(o.v) + '">'
+        var pose = poses && poses[o.v] && motionSrc(poses[o.v]);
+        html += '<div class="hdlw-opt' + sel + (pose ? ' hdlw-opt-posed' : '') + '" data-val="' + escHtml(o.v) + '">'
           +   '<span class="hdlw-opt-num">' + num + '</span>'
+          +   ( pose ? '<span class="hdlw-opt-pose" data-move="' + pose + '"><img class="hdlw-opt-pose-still" src="' + pose + '&amp;still=1#still" alt="" width="40" height="40" loading="eager" decoding="async">'
+              + '<img class="hdlw-opt-pose-move" alt="" width="40" height="40" decoding="async"></span>' : '' )
           +   '<span class="hdlw-opt-text">' + escHtml(o.t) + '</span>'
           + '</div>';
       }
@@ -1072,6 +1152,12 @@
           this.classList.add('hdlw-selected');
           advance();
         });
+      }
+      if (poses && typeof matchMedia === 'function' && matchMedia('(hover: hover) and (prefers-reduced-motion: no-preference)').matches) {
+        for (var h = 0; h < opts.length; h++) {
+          opts[h].addEventListener('mouseenter', playPose);
+          opts[h].addEventListener('mouseleave', function () { this.classList.remove('hdlw-opt-playing'); });
+        }
       }
     }
 
@@ -1628,6 +1714,7 @@
         +       '<h2>Your Health Gauge</h2>'
         +       '<p class="hdlw-r-lede">A snapshot of how fast you\u2019re ageing today, based on your quick answers.</p>'
         +       '<img class="hdlw-r-gauge-img" src="' + gaugeUrl(rate) + '" alt="Rate of ageing gauge \u2014 ' + rateDisplay + '">'
+        +       bandVideoHtml({ good: 'green', avg: 'blue', warn: 'red' }[bandClass], cfg.bandVideos)
         +     '</div>'
         +     '<div class="hdlw-r-stat">'
         +       '<p class="hdlw-r-stat-label">Rate of Ageing</p>'

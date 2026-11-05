@@ -43,6 +43,12 @@ class HDLV2_Why_Picks {
     const MAX_PICKS          = 10;
     const MAX_PEOPLE_LEN     = 300;
     const MAX_OWN_WORDS_LEN  = 600;
+    // v0.48.50 (W29) — "Who are you staying strong for?": up to six first names, each with
+    // one of the healthspan timeline's seven roles, so the timeline can draw them.
+    const MAX_PEOPLE         = 6;
+    const MAX_PERSON_LEN     = 30;
+    const PEOPLE_RELS        = array( 'spouse', 'child', 'grandchild', 'parent', 'sibling', 'friend', 'other' );
+    const PEOPLE_ERROR       = 'Please check the names: each needs a first name and who they are.';
     const OPTION             = 'hdlv2_ff_single_form';
     const FLOW               = 'single';
 
@@ -336,7 +342,53 @@ class HDLV2_Why_Picks {
         if ( ! is_string( $own ) || mb_strlen( $own ) > self::MAX_OWN_WORDS_LEN ) {
             return self::error( 'Please keep your own words to ' . self::MAX_OWN_WORDS_LEN . ' characters.' );
         }
+        // v0.48.50 — the rows, when the page sent them (an older page sends only the text).
+        if ( array_key_exists( 'key_people', $data ) ) {
+            $rows = $data['key_people'];
+            if ( ! is_array( $rows ) || count( $rows ) > self::MAX_PEOPLE ) {
+                return self::error( self::PEOPLE_ERROR );
+            }
+            foreach ( $rows as $r ) {
+                $name = is_array( $r ) && is_string( $r['name'] ?? null ) ? sanitize_text_field( $r['name'] ) : '';
+                if ( '' === $name || mb_strlen( $name ) > self::MAX_PERSON_LEN || ! in_array( $r['rel'] ?? null, self::PEOPLE_RELS, true ) ) {
+                    return self::error( self::PEOPLE_ERROR );
+                }
+            }
+        }
         return true;
+    }
+
+    /**
+     * v0.48.50 — the rows as the page sent them, made safe to keep: plain names cut at 30,
+     * blank or odd rows dropped, at most six; a role outside the seven reads '' (a draft not
+     * finished yet; submit refuses it in validate()).
+     */
+    public static function clean_people( $rows ) {
+        $out = array();
+        foreach ( is_array( $rows ) ? $rows : array() as $r ) {
+            $name = is_array( $r ) && is_string( $r['name'] ?? null ) ? mb_substr( sanitize_text_field( $r['name'] ), 0, self::MAX_PERSON_LEN ) : '';
+            if ( '' === $name ) {
+                continue;
+            }
+            $out[] = array( 'name' => $name, 'rel' => in_array( $r['rel'] ?? null, self::PEOPLE_RELS, true ) ? $r['rel'] : '' );
+            if ( count( $out ) === self::MAX_PEOPLE ) {
+                break;
+            }
+        }
+        return $out;
+    }
+
+    /** "Jenny (child), Leo (friend)": the text every older reader of key_people_text keeps using. */
+    public static function people_text( $people ) {
+        return implode( ', ', array_map( function ( $p ) {
+            return '' !== $p['rel'] ? $p['name'] . ' (' . $p['rel'] . ')' : $p['name'];
+        }, self::clean_people( $people ) ) );
+    }
+
+    /** The rows saved on a form_progress row's stage2_data, for the healthspan timeline's Loved ones. */
+    public static function people_for_timeline( $stage2_data ) {
+        $s2 = is_array( $stage2_data ) ? $stage2_data : ( json_decode( (string) $stage2_data, true ) ?: array() );
+        return self::clean_people( $s2['key_people'] ?? array() );
     }
 
     /** The first-person paragraph the existing WHY extraction reads. */
@@ -403,7 +455,11 @@ class HDLV2_Why_Picks {
         }
         $out = array();
         foreach ( array_filter( $count ) as $n => $c ) {
-            $need      = round( self::MAX_NEED * 10 * $sum[ $n ] / ( self::MAX_WEIGHT * count( $items ) ) ) / 10;
+            // v0.48.50 (W27, hdlv2_ff_need_scale_v2): 2.5 + 1.25 x (average weight - 1) over the
+            // choices that lean on it, 2 dp; the page's abilityCounts() is the twin.
+            $need      = get_option( 'hdlv2_ff_need_scale_v2', false )
+                ? round( ( 250 * $c + 125 * ( $sum[ $n ] - $c ) ) / $c ) / 100
+                : round( self::MAX_NEED * 10 * $sum[ $n ] / ( self::MAX_WEIGHT * count( $items ) ) ) / 10;
             $out[ $n ] = array( 'count' => $c, 'sum' => $sum[ $n ], 'need' => min( (float) self::MAX_NEED, $need ) );
         }
         return $out;

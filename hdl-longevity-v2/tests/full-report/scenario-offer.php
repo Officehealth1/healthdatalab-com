@@ -2,7 +2,7 @@
 /**
  * Task 2/7 — the one offer setting and the Stage 1 payload that carries it.
  * HDLV2_Offer::get() defaults + partial override, the nine payload keys as
- * strings, money as "$27", and the real rest_capture_lead + drain firing 33 keys.
+ * strings, money as "$27", and the real rest_capture_lead + drain firing 36 keys (v0.48.50: + band, band_video_url, offer_code_ends).
  *
  * Run:  php scenario-offer.php   (self-asserting, exit 0/1)
  */
@@ -24,10 +24,10 @@ $o = HDLV2_Offer::get();
 check( 'O.3 JSON string option read; bad price falls back; text cleaned', '£' === $o['currency'] && '27' === $o['full_today_price'] && 'Hi' === $o['hook'] );
 unset( $GLOBALS['options']['hdlv2_stage1_offer'] );
 
-$keys = array( 'offer_show', 'offer_title', 'offer_hook', 'offer_today', 'offer_list', 'offer_code', 'offer_url', 'offer_caption', 'offer_video_url' );
+$keys = array( 'offer_show', 'offer_title', 'offer_hook', 'offer_today', 'offer_list', 'offer_code', 'offer_url', 'offer_caption', 'offer_video_url', 'offer_code_ends' );
 $p    = HDLV2_Offer::payload_keys( true );
-check( 'O.4 payload_keys are exactly the nine', array_keys( $p ) === $keys );
-check( 'O.5 every value a string (Make type cache)', count( array_filter( $p, 'is_string' ) ) === 9 );
+check( 'O.4 payload_keys are exactly the ten (v0.48.50: + offer_code_ends)', array_keys( $p ) === $keys );
+check( 'O.5 every value a string (Make type cache)', count( array_filter( $p, 'is_string' ) ) === 10 );
 check( 'O.6 money is currency + number', '$27' === $p['offer_today'] && '$129' === $p['offer_list'] && '$29' === HDLV2_Offer::money( '29' ) );
 check( 'O.7 offer_show "1" / "0"', '1' === $p['offer_show'] && '0' === HDLV2_Offer::payload_keys( false )['offer_show'] );
 check( 'O.8 public config never carries the code', array_keys( HDLV2_Offer::public_config_fields() ) === array( 'stage1_list_price', 'currency', 'stage1_free_with_code' ) );
@@ -47,7 +47,7 @@ $make = null;
 foreach ( $GLOBALS['captured_posts'] as $c ) {
     if ( false !== strpos( $c['url'], 'hook.example.test/stage1' ) ) $make = json_decode( $c['args']['body'], true );
 }
-check( 'P.1 the webhook fired with 33 keys', is_array( $make ) && 33 === count( $make ) );
+check( 'P.1 the webhook fired with 36 keys', is_array( $make ) && 36 === count( $make ) );
 check( 'P.2 a free lead gets offer_show "1"', is_array( $make ) && '1' === ( $make['offer_show'] ?? null ) );
 $GLOBALS['options']['hdlv2_stage1_offer'] = array( 'practitioner_id' => 122 );
 $wpdb = fresh_wpdb( 'open' );
@@ -55,6 +55,6 @@ post_lead( lead_params( 'other@example.test' ) );
 drain_last_lead( $wpdb );
 $m2 = null;
 foreach ( $GLOBALS['captured_posts'] as $c ) { if ( false !== strpos( $c['url'], 'hook.example.test/stage1' ) ) $m2 = json_decode( $c['args']['body'], true ); }
-check( 'P.4 another practitioner\'s lead: still 33 keys, offer_show "0"', is_array( $m2 ) && 33 === count( $m2 ) && '0' === $m2['offer_show'] );
-check( 'P.3 the nine keys ride as strings', is_array( $make ) && 9 === count( array_filter( array_intersect_key( $make, array_flip( $keys ) ), 'is_string' ) ) );
+check( 'P.4 another practitioner\'s lead: still 36 keys, offer_show "0"', is_array( $m2 ) && 36 === count( $m2 ) && '0' === $m2['offer_show'] );
+check( 'P.3 the ten keys ride as strings', is_array( $make ) && 10 === count( array_filter( array_intersect_key( $make, array_flip( $keys ) ), 'is_string' ) ) );
 done();

@@ -3,6 +3,7 @@
  * 0.48.18 — each Stage 1 PDF carries its own one-use Full Report code, asked of
  * Altituding (full-report-code) when the drain sends the PDF. Any failure: the
  * shared code from the offer option, and the PDF still goes out.
+ * v0.48.50: the request also carries the lead's email and band (Brevo attributes on Altituding).
  *
  * Run:  php scenario-personal-code.php   (self-asserting, exit 0/1)
  */
@@ -52,11 +53,14 @@ $GLOBALS['http'][ CODE_URL ] = array( 'response' => array( 'code' => 200 ), 'bod
 list( $make, $call, $lead_id ) = run_lead( 'b@example.test' );
 check( 'C.1 offer_code is the personal code', is_array( $make ) && 'AB12-CD' === $make['offer_code'] );
 check( 'C.1 offer_url carries it as ?code= and the email for Stripe', is_array( $make ) && 'https://alt.example.test/full-report?code=AB12-CD#email=b%40example.test' === $make['offer_url'] );
-check( 'C.1 still 33 keys, all nine offer keys strings', is_array( $make ) && 33 === count( $make )
-    && 9 === count( array_filter( array_intersect_key( $make, array_flip( array_keys( HDLV2_Offer::payload_keys() ) ) ), 'is_string' ) ) );
+check( 'C.1 36 keys (v0.48.50), all ten offer keys strings', is_array( $make ) && 36 === count( $make )
+    && 10 === count( array_filter( array_intersect_key( $make, array_flip( array_keys( HDLV2_Offer::payload_keys() ) ) ), 'is_string' ) ) );
 check( 'C.2 one POST to HDLV2_FULL_CODE_URL', null !== $call );
 check( 'C.2 the key rides in X-HDL-Full-Code-Key', $stub_access === ( $call['args']['headers']['X-HDL-Full-Code-Key'] ?? null ) );
-check( 'C.2 body is { ref: lead-<id> }, never the email', array( 'ref' => 'lead-' . $lead_id ) === json_decode( $call['args']['body'] ?? '', true ) && false === strpos( $call['args']['body'], 'example.test' ) );
+// v0.48.50 — the body also carries the email and the band, so Altituding can mark the Brevo contact (T12).
+$c2 = json_decode( $call['args']['body'] ?? '', true );
+check( 'C.2 body is { ref: lead-<id>, email, band }', is_array( $c2 ) && array( 'ref', 'email', 'band' ) === array_keys( $c2 ) && 'lead-' . $lead_id === $c2['ref']
+    && 'b@example.test' === $c2['email'] && in_array( $c2['band'], array( 'green', 'blue', 'red' ), true ) );
 check( 'C.2 timeout at most 3 s and blocking', ( $call['args']['timeout'] ?? 99 ) <= 3 && false !== ( $call['args']['blocking'] ?? true ) );
 
 // The Confirm / invite path: dispatch with an invite id and no lead ref.
@@ -69,7 +73,7 @@ $m->invoke( null, array( 'practitioner_id' => 206, 'visitor_name' => 'Ivy', 'vis
     'invite_id' => 77, 'send_practitioner_notify' => false, 'send_make_pdf' => true ) );
 $inv = null;
 foreach ( $GLOBALS['captured_posts'] as $c ) { if ( CODE_URL === $c['url'] ) $inv = $c; }
-check( 'C.2 the invite path sends ref invite-<id>', $inv && array( 'ref' => 'invite-77' ) === json_decode( $inv['args']['body'], true ) );
+check( 'C.2 the invite path sends ref invite-<id>, its email and band (1.02 = blue)', $inv && array( 'ref' => 'invite-77', 'email' => 'ivy@example.test', 'band' => 'blue' ) === json_decode( $inv['args']['body'], true ) );
 $inv_make = null;
 foreach ( $GLOBALS['captured_posts'] as $c ) { if ( false !== strpos( $c['url'], 'hook.example.test/stage1' ) ) $inv_make = json_decode( $c['args']['body'], true ); }
 check( 'C.2 the invite path link carries the invite\'s email', is_array( $inv_make ) && 'https://alt.example.test/full-report?code=INV1CODE#email=ivy%40example.test' === $inv_make['offer_url'] );

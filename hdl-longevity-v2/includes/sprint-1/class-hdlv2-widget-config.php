@@ -1010,6 +1010,11 @@ class HDLV2_Widget_Config {
      *
      * @return array { country: 'US'|'' , region: 'Texas'|'' }
      */
+    /** v0.48.42 — the Stage 1 question pictures (hdlv2_ff_question_motion; absent = off). */
+    public static function question_motion_enabled() {
+        return (bool) get_option( 'hdlv2_ff_question_motion', false );
+    }
+
     public static function sanitize_visitor_location( $country_raw, $region_raw ) {
         $none = array( 'country' => '', 'region' => '' );
         if ( ! is_scalar( $country_raw ) ) {
@@ -1415,6 +1420,7 @@ class HDLV2_Widget_Config {
             );
 
             $offer_show  = ( $args['offer_show'] ?? true ) && HDLV2_Offer::applies_to( $practitioner_id );
+            $band        = HDLV2_Stage1_Commentary::band_key( $rate );
             $pdf_payload = array(
                 // v0.22.8 — Make.com Final Report scenario now gates each route
                 // by report_type (Route 1 = final, Route 2 = stage1, Route 3 =
@@ -1470,16 +1476,20 @@ class HDLV2_Widget_Config {
                 'strongest_text'         => $commentary['strongest_text'],
                 'priority_topic'         => $commentary['priority_topic'],
                 'priority_text'          => $commentary['priority_text'],
+                // v0.48.50 — the band and its video for the Stage 1 email (W10);
+                // one edge with the result page's words (HDLV2_Stage1_Commentary::band_key).
+                'band'                   => $band,
+                'band_video_url'         => HDLV2_Stage1_Commentary::band_videos( $practitioner_id )[ $band ] ?? '',
             )
-            // v0.48.15 — the Full Report offer for page 2 (nine string keys,
-            // one setting: HDLV2_Offer). offer_show "0" hides page 2 for a
-            // buyer who already paid for the Full Report.
+            // v0.48.15 — the Full Report offer for page 2 (string keys, one
+            // setting: HDLV2_Offer). offer_show "0" hides page 2 for a buyer who
+            // already paid for the Full Report. v0.48.50: + offer_code_ends.
             + HDLV2_Offer::payload_keys( $offer_show );
             // v0.48.18 — where the offer shows, this person's own one-use code
-            // (same two keys, so Make and the template are unchanged).
+            // (same keys, so Make and the template are unchanged); v0.48.50 its end date.
             if ( $offer_show ) {
                 $offer_ref   = $args['offer_ref'] ?? ( $invite_id ? 'invite-' . (int) $invite_id : '' );
-                $pdf_payload = array_merge( $pdf_payload, HDLV2_Offer::personal( $offer_ref, $visitor_email ) );
+                $pdf_payload = array_merge( $pdf_payload, HDLV2_Offer::personal( $offer_ref, $visitor_email, $band ) );
             }
 
             $stage1_webhook = defined( 'HDLV2_MAKE_STAGE1_PDF' ) ? HDLV2_MAKE_STAGE1_PDF : '';
@@ -2649,6 +2659,11 @@ class HDLV2_Widget_Config {
             // the embedded widget shows the 2-question safety screen before the
             // result. Default off = widget behaves exactly as before.
             'safety_screen_enabled'         => (bool) get_option( 'hdlv2_ff_safety_screen', false ),
+            // v0.48.42 — the question pictures, and the plugin version for their ?ver= cache key.
+            'question_motion_enabled'       => self::question_motion_enabled(),
+            'asset_ver'                     => HDLV2_VERSION,
+            // v0.48.50 — Matthew's video per band, under the gauge on the result ({} when none).
+            'band_videos'                   => (object) HDLV2_Stage1_Commentary::band_videos( (int) $row->practitioner_user_id ), // v0.48.51 the offer's practitioner only
             // v0.47.85 — paid mode: the widget shows its locked panel to a
             // visitor without a personal link. Covers embeds pasted before
             // the snippet carried data-access.
@@ -3187,6 +3202,9 @@ class HDLV2_Widget_Config {
             'theme_color'                    => $config ? $config->theme_color : '#3d8da0',
             'show_book_button_after_widget'  => $config ? ! empty( $config->show_book_button_after_widget ) : false,
             'safety_screen_enabled'          => (bool) get_option( 'hdlv2_ff_safety_screen', false ),
+            'question_motion_enabled'        => self::question_motion_enabled(), // v0.48.42
+            'asset_ver'                      => HDLV2_VERSION,
+            'band_videos'                    => (object) HDLV2_Stage1_Commentary::band_videos( (int) $invite->practitioner_id ), // v0.48.50; v0.48.51 the offer's practitioner only
             'api_url'                        => rest_url( 'hdl-v2/v1/widget/lead' ),
             'prefill_stage1'                 => $prefill,
             // v0.47.85 — 'paid_stage1' tells the widget this link buys the
