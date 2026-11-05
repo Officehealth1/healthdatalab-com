@@ -67,10 +67,12 @@ if (C.toMetric) {
 // The screen: the switch above the four fields; metric markup is today's plus the switch.
 const body = (text) => { const a = text.indexOf("        + '<h5 class=\"hdlv2-subgroup-heading\">Body shape</h5>'"); return text.slice(a, text.indexOf("        + '<h5 class=\"hdlv2-subgroup-heading\">Cardiovascular</h5>'", a)); };
 const nb = body(js);
+ok(/Body shape<\/h5>'\n        \+ unitsSwitch\(unitsNow\(\)\)\n        \+ '<div class="hdlv2-field-grid cols-2">'/.test(nb), 'the switch sits between the heading and the grid, on its own line (seen squashed inside the grid on STBY)');
 ok(nb.indexOf("+ unitsSwitch(unitsNow())") > 0 && nb.indexOf("measureInput('height', d)") > 0 && nb.indexOf("measureInput('hip', d,") > 0, 'the body block draws the switch, then the four fields through measureInput');
 ok(/function onFieldChange\(e\) \{\n    var imp = e\.target\.getAttribute\('data-imp'\);\n    if \(imp\) \{ writeImperial\(imp\);/.test(js), 'onFieldChange hands an imperial box to writeImperial');
 ok(js.indexOf("localStorage.setItem('hdlv2-units'") > 0 || js.indexOf('localStorage.setItem(UNITS_KEY') > 0, 'a switch click is remembered');
 const css = fs.readFileSync(new URL('../../assets/css/hdlv2-form.css', import.meta.url), 'utf8');
+ok(/\.hdlv2-units-opt \{[^}]*white-space: nowrap/.test(css), 'pill text stays on one line');
 const rule = (css.match(/\.hdlv2-units-opt\.is-on \{[^}]*\}/) || [''])[0];
 ok(rule !== '' && /background: #3d8da0/.test(rule) && !/border-left/.test(css.slice(css.indexOf('.hdlv2-units'))), 'the active option is a filled teal pill; no rail');
 

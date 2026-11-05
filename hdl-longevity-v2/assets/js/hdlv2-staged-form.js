@@ -1974,8 +1974,8 @@
         + '</div>'
         + prefillHint()
         + '<h5 class="hdlv2-subgroup-heading">Body shape</h5>'
-        + '<div class="hdlv2-field-grid cols-2">'
         + unitsSwitch(unitsNow())
+        + '<div class="hdlv2-field-grid cols-2">'
         + measureInput('height', d)
         + measureInput('weight', d)
         + '</div>'

@@ -2679,8 +2679,8 @@
 
 /* v0.48.50 (W41) — measurements in cm · kg or ft in · lb: two pills, the active one filled
    teal (no rail); imperial height is two boxes side by side. */
-.hdlv2-units { display: inline-flex; gap: 4px; padding: 4px; margin: 0 0 12px; background: #f8f9fb; border: 1px solid #e4e6ea; border-radius: 999px; }
-.hdlv2-units-opt { min-height: 40px; padding: 6px 16px; border: 0; border-radius: 999px; background: none; font: inherit; font-size: 15px; font-weight: 600; color: #2c3e50; cursor: pointer; }
+.hdlv2-units { display: flex; width: max-content; max-width: 100%; gap: 4px; padding: 4px; margin: 0 0 12px; background: #f8f9fb; border: 1px solid #e4e6ea; border-radius: 999px; }
+.hdlv2-units-opt { min-height: 40px; padding: 6px 16px; white-space: nowrap; border: 0; border-radius: 999px; background: none; font: inherit; font-size: 15px; font-weight: 600; color: #2c3e50; cursor: pointer; }
 .hdlv2-units-opt.is-on { background: #3d8da0; color: #fff; }
 .hdlv2-units-opt:focus-visible { outline: 2px solid #3d8da0; outline-offset: 2px; }
 .hdlv2-units-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
