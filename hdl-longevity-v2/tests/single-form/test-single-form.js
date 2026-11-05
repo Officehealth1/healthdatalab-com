@@ -68,7 +68,7 @@ ok(/aria-live="polite"/.test(page), 'the counter is announced (aria-live)');
 ok(!/\b(alert|confirm|prompt)\(/.test(page), 'no native popups on the new page');
 
 // ── v0.48.0: every statement on the page, far fewer words; v0.48.1: bars + radar ──
-const ctx2 = {};
+const ctx2 = { CFG: {} }; // v0.48.50: need-scale flag off
 try {
   vm.runInNewContext(limits + '\n' + body('abilityCounts') + '\n' + body('pickCountLine') + '\n' + body('radarData') + '\n' + body('chartLabel')
     + '\nthis.abilityCounts = abilityCounts; this.pickCountLine = pickCountLine; this.radarData = radarData; this.chartLabel = chartLabel;', ctx2);
@@ -209,7 +209,7 @@ function fakeEl() {
 }
 const fakeRoot = Object.assign(fakeEl(), { querySelectorAll: function () { return []; } });
 const pageCtx = {
-  root: fakeRoot, formData: {}, serverData: {}, saveTimer: null, PICK_MIN: 5, PICK_MAX: 10,
+  root: fakeRoot, formData: {}, serverData: {}, saveTimer: null, PICK_MIN: 5, PICK_MAX: 10, CFG: {}, // CFG: v0.48.50 need scale flag, off
   document: { getElementById: function () { return fakeEl(); } }, window: { addEventListener: function () {} },
   setRootClasses: function () {}, saveIndicator: function () { return ''; }, footer: function () { return ''; }, brandBar: function () { return ''; },
   bindFieldListeners: function () {}, submitWhyPicks: function () {}, clearSaveError: function () {}, autoSave: function () {},
@@ -439,6 +439,7 @@ function wiringHarness() {
   bars.querySelectorAll = function () { return rows; };
   const ids = { 'hdlv2-picks-count': el(), 'hdlv2-why-needs': el(), 'hdlv2-abilities': bars, 'hdlv2-why-radar': el(), 'hdlv2-picks-next': el() };
   const sb = {
+    CFG: {}, // v0.48.50: the need-scale flag, off
     H, root, formData: {}, serverData: {}, saveTimer: null, queuedSaveTimer: null, saving: false,
     document: { getElementById: (id) => ids[id] || null }, window: { addEventListener() {} },
     setTimeout: (f, ms) => { const t = { at: H.clock + ms, f }; H.timers.push(t); return t; },

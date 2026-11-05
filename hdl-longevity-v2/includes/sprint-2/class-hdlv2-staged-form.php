@@ -1301,6 +1301,8 @@ class HDLV2_Staged_Form {
             // v0.48.42 — the test pictures and row icons (hdlv2_ff_question_motion; absent = off).
             'question_motion' => (bool) get_option( 'hdlv2_ff_question_motion', false ),
             'asset_ver'       => HDLV2_VERSION,
+            // v0.48.50 (W27) — the picks chart's need from the middle out (absent = off).
+            'need_scale_v2'   => (bool) get_option( 'hdlv2_ff_need_scale_v2', false ),
         ) );
 
         return '<div id="hdlv2-assessment" class="hdlv2-assessment-root"></div>';

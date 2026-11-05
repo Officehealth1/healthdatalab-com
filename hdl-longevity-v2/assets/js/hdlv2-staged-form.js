@@ -1370,7 +1370,12 @@
     return Object.keys(abilities || {})
       .filter(function (id) { return counts[id] > 0; })
       .map(function (id) {
-        return { id: id, label: abilities[id], count: counts[id], need: Math.min(5, Math.round(50 * sums[id] / (3 * n)) / 10) };
+        // v0.48.50 (W27, hdlv2_ff_need_scale_v2): out from the middle, 2.5 + 1.25 x (average weight - 1)
+        // over the picks that need it, 2 dp; the server's tally() is the twin.
+        var need = CFG.need_scale_v2
+          ? Math.round((250 * counts[id] + 125 * (sums[id] - counts[id])) / counts[id]) / 100
+          : Math.round(50 * sums[id] / (3 * n)) / 10;
+        return { id: id, label: abilities[id], count: counts[id], need: Math.min(5, need) };
       })
       .sort(function (a, b) { return b.need - a.need; });
   }

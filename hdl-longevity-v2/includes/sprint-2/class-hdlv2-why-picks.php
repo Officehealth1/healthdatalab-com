@@ -455,7 +455,11 @@ class HDLV2_Why_Picks {
         }
         $out = array();
         foreach ( array_filter( $count ) as $n => $c ) {
-            $need      = round( self::MAX_NEED * 10 * $sum[ $n ] / ( self::MAX_WEIGHT * count( $items ) ) ) / 10;
+            // v0.48.50 (W27, hdlv2_ff_need_scale_v2): 2.5 + 1.25 x (average weight - 1) over the
+            // choices that lean on it, 2 dp; the page's abilityCounts() is the twin.
+            $need      = get_option( 'hdlv2_ff_need_scale_v2', false )
+                ? round( ( 250 * $c + 125 * ( $sum[ $n ] - $c ) ) / $c ) / 100
+                : round( self::MAX_NEED * 10 * $sum[ $n ] / ( self::MAX_WEIGHT * count( $items ) ) ) / 10;
             $out[ $n ] = array( 'count' => $c, 'sum' => $sum[ $n ], 'need' => min( (float) self::MAX_NEED, $need ) );
         }
         return $out;
