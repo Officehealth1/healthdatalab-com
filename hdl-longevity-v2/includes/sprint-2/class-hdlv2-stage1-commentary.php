@@ -111,10 +111,13 @@ class HDLV2_Stage1_Commentary {
      * blue ≤ 1.05, red above: widget/hdl-lead-magnet.js renderResult). The Stage 1
      * email and the result page's video pick by it. The gauge picture's colour
      * edges (0.9 / 1.1) are a separate thing and stay. Pinned equal to the
-     * widget by tests/stage1-email-facts.
+     * widget by tests/stage1-email-facts. No rate (0, null, ''): no band.
      */
     public static function band_key( $rate ) {
         $rate = (float) $rate;
+        if ( $rate <= 0 ) {
+            return '';
+        }
         return $rate <= 0.95 ? 'green' : ( $rate <= 1.05 ? 'blue' : 'red' );
     }
 

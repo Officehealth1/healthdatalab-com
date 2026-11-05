@@ -49,6 +49,8 @@ if ( method_exists( 'HDLV2_Stage1_Commentary', 'band_key' ) ) {
     $all = true;
     foreach ( $cases as $r => $want ) { $all = $all && $want === HDLV2_Stage1_Commentary::band_key( (float) $r ); }
     check( 'E.3 band_key on both sides of both edges equals the widget\'s comparison', $all );
+    // Review 2026-11-05: no rate (null, 0, '') is no band, never green.
+    check( 'E.4 no rate: no band', '' === HDLV2_Stage1_Commentary::band_key( null ) && '' === HDLV2_Stage1_Commentary::band_key( 0 ) && '' === HDLV2_Stage1_Commentary::band_key( '' ) );
 }
 
 echo "── F. the payload: 36 keys, constants absent (shared code) ──\n";
