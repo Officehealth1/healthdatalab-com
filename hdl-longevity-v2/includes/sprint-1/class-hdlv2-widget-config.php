@@ -1479,7 +1479,7 @@ class HDLV2_Widget_Config {
                 // v0.48.50 — the band and its video for the Stage 1 email (W10);
                 // one edge with the result page's words (HDLV2_Stage1_Commentary::band_key).
                 'band'                   => $band,
-                'band_video_url'         => HDLV2_Stage1_Commentary::band_videos()[ $band ] ?? '',
+                'band_video_url'         => HDLV2_Stage1_Commentary::band_videos( $practitioner_id )[ $band ] ?? '',
             )
             // v0.48.15 — the Full Report offer for page 2 (string keys, one
             // setting: HDLV2_Offer). offer_show "0" hides page 2 for a buyer who
@@ -2663,7 +2663,7 @@ class HDLV2_Widget_Config {
             'question_motion_enabled'       => self::question_motion_enabled(),
             'asset_ver'                     => HDLV2_VERSION,
             // v0.48.50 — Matthew's video per band, under the gauge on the result ({} when none).
-            'band_videos'                   => (object) HDLV2_Stage1_Commentary::band_videos(),
+            'band_videos'                   => (object) HDLV2_Stage1_Commentary::band_videos( (int) $row->practitioner_user_id ), // v0.48.51 the offer's practitioner only
             // v0.47.85 — paid mode: the widget shows its locked panel to a
             // visitor without a personal link. Covers embeds pasted before
             // the snippet carried data-access.
@@ -3204,7 +3204,7 @@ class HDLV2_Widget_Config {
             'safety_screen_enabled'          => (bool) get_option( 'hdlv2_ff_safety_screen', false ),
             'question_motion_enabled'        => self::question_motion_enabled(), // v0.48.42
             'asset_ver'                      => HDLV2_VERSION,
-            'band_videos'                    => (object) HDLV2_Stage1_Commentary::band_videos(), // v0.48.50
+            'band_videos'                    => (object) HDLV2_Stage1_Commentary::band_videos( (int) $invite->practitioner_id ), // v0.48.50; v0.48.51 the offer's practitioner only
             'api_url'                        => rest_url( 'hdl-v2/v1/widget/lead' ),
             'prefill_stage1'                 => $prefill,
             // v0.47.85 — 'paid_stage1' tells the widget this link buys the

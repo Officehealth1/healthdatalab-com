@@ -124,11 +124,16 @@ class HDLV2_Stage1_Commentary {
     /**
      * v0.48.50 — Matthew's short video per band, from `hdlv2_stage1_band_videos`
      * ({"green":URL,"blue":URL,"red":URL}; absent = none). Only the three bands and
-     * http(s) URLs survive.
+     * http(s) URLs survive. v0.48.51: only for the practitioner the Full Report offer
+     * applies to (HDLV2_Offer::applies_to), so no other practitioner's page loads a video.
      *
+     * @param int $practitioner_id the widget's or the lead's practitioner.
      * @return array band => URL
      */
-    public static function band_videos() {
+    public static function band_videos( $practitioner_id ) {
+        if ( ! HDLV2_Offer::applies_to( $practitioner_id ) ) {
+            return array();
+        }
         $saved = get_option( 'hdlv2_stage1_band_videos', array() );
         if ( is_string( $saved ) ) {
             $saved = json_decode( $saved, true );
