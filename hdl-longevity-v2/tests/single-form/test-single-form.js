@@ -215,11 +215,13 @@ const pageCtx = {
   bindFieldListeners: function () {}, submitWhyPicks: function () {}, clearSaveError: function () {}, autoSave: function () {},
   esc: function (s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
 };
-const PAGE_FNS = ['togglePick', 'canContinue', 'abilityCounts', 'pickCountLine', 'radarData', 'chartLabel', 'pickIcon', 'radarChart', 'abilityBars', 'renderWhyPicks', 'redrawRadar', 'reducedMotion', 'updatePicks', 'picksTextarea'];
+const PAGE_FNS = ['togglePick', 'canContinue', 'abilityCounts', 'pickCountLine', 'radarData', 'chartLabel', 'pickIcon', 'radarChart', 'abilityBars', 'renderWhyPicks', 'redrawRadar', 'reducedMotion', 'updatePicks', 'picksTextarea',
+  'peopleFromData', 'whoForRow', 'whoForHtml', 'bindWhoFor']; // v0.48.50 (W29): the who-for rows
+const WHO_VARS = (src.match(/  var WHO_ROLES = [\s\S]*?;\n/) || [''])[0] + (src.match(/  var WHO_MAX = [^\n]*\n/) || [''])[0];
 const ICON_SRC = (src.match(/  var ICONS = \{[\s\S]*?\n  \};/) || [''])[0];
 let html = '';
 try {
-  vm.runInNewContext(ICON_SRC + '\n' + (src.match(/  var TICK = [\s\S]*?;\n/) || [''])[0] + (src.match(/  var radarShown = [^\n]*\n/) || [''])[0] + PAGE_FNS.map(body).join('\n') + '\nthis.renderWhyPicks = renderWhyPicks;', pageCtx);
+  vm.runInNewContext(ICON_SRC + '\n' + (src.match(/  var TICK = [\s\S]*?;\n/) || [''])[0] + (src.match(/  var radarShown = [^\n]*\n/) || [''])[0] + WHO_VARS + PAGE_FNS.map(body).join('\n') + '\nthis.renderWhyPicks = renderWhyPicks;', pageCtx);
   // v0.48.9: the groups are uneven (6 / 8 / 7); the page draws what it is sent.
   const gN = function (gid, title, n) {
     const items = [];
@@ -251,7 +253,8 @@ ok(/<section class="hdlv2-why-needs" id="hdlv2-why-needs" hidden>/.test(html) &&
 ok(/needs\.hidden = !rows\.length;[\s\S]*redrawRadar\(\)/.test(body('updatePicks')),
   'a tap shows the section once an ability has a pick (and hides it at none), before the radar is measured and redrawn');
 ok(/class="hdlv2-why-radar"[\s\S]*class="hdlv2-why-caption"/.test(html), 'the caption sits under the radar');
-ok(html.indexOf("Who are you doing this for? First names.") !== -1 && html.indexOf('placeholder="Jenny, Leo, Mia"') !== -1, 'people label and placeholder, as written');
+// v0.48.50 (W29): the people box became name + role rows (tests/who-for has the rows themselves).
+ok(html.indexOf('<legend>Who are you staying strong for?</legend>') !== -1 && html.indexOf('placeholder="First name"') !== -1, 'people question and placeholder, as written (v0.48.50)');
 ok(html.indexOf('Anything else? (optional)') !== -1, 'own-words label, as written');
 ok(/>Next</.test(html) || />Next &#8594;</.test(html), 'Next button');
 ok(/role="img"[^>]*aria-label="Nothing picked yet\."/.test(html), 'the chart is on the page from the start, empty, with its spoken label');
@@ -446,7 +449,7 @@ function wiringHarness() {
     esc: pageCtx.esc
   };
   try {
-    vm.runInNewContext(limits + '\n' + ICON_SRC + '\n' + (src.match(/  var TICK = [\s\S]*?;\n/) || [''])[0] + (src.match(/  var radarShown = [^\n]*\n/) || [''])[0] + PAGE_FNS.map(body).join('\n') + '\n' + body('saveWhenFree')
+    vm.runInNewContext(limits + '\n' + ICON_SRC + '\n' + (src.match(/  var TICK = [\s\S]*?;\n/) || [''])[0] + (src.match(/  var radarShown = [^\n]*\n/) || [''])[0] + WHO_VARS + PAGE_FNS.map(body).join('\n') + '\n' + body('saveWhenFree')
       + '\nthis.renderWhyPicks = renderWhyPicks; this.formData = formData;', sb);
   } catch (e) { console.log('      wiring harness threw: ' + e.message); }
   H.advance = (ms) => {

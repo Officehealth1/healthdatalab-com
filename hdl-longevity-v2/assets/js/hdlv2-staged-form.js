@@ -1585,7 +1585,7 @@
       +       '<p class="hdlv2-why-caption">5 is the most a life can ask of one ability. Your answers on the next pages show where you stand today on each one.</p></div>'
       +     '</div>'
       +   '</section>'
-      +   picksTextarea('key_people_text', 'Who are you doing this for? First names.', d.key_people_text, 'Jenny, Leo, Mia', 300)
+      +   whoForHtml(peopleFromData(d))
       +   picksTextarea('own_words', 'Anything else? (optional)', d.own_words, '', 600)
       +   '<button type="button" id="hdlv2-picks-next" class="hdlv2-btn">Next &#8594;</button>'
       + '</div>' + saveIndicator(true) + footer() + '</div>';
@@ -1601,6 +1601,7 @@
       });
     });
     bindFieldListeners();
+    bindWhoFor();
     document.getElementById('hdlv2-picks-next').addEventListener('click', submitWhyPicks);
     // Same function each time, so the browser keeps one listener however often the page renders.
     window.addEventListener('resize', redrawRadar);
@@ -1697,15 +1698,110 @@
       + '<div class="hdlv2-field-foot"><span></span><div class="hdlv2-char-count" id="hdlv2-charcount-' + name + '">' + v.length + ' / ' + maxlength + '</div></div></div>';
   }
 
+  // v0.48.50 (W29) — who the client stays strong for: up to six first names, each with who
+  // they are. The roles are the healthspan timeline's (REL there), so it can draw them as
+  // Loved ones. key_people_text stays the composed text every older reader uses.
+  var WHO_ROLES = [['spouse', 'Spouse or partner'], ['child', 'Child'], ['grandchild', 'Grandchild'], ['parent', 'Parent'],
+    ['sibling', 'Brother or sister'], ['friend', 'Friend'], ['other', 'Other']];
+  var WHO_MAX = 6, WHO_MIN_ROWS = 3, WHO_NAME_MAX = 30;
+
+  // The saved rows, or the names of an older row's free text ("Jenny, Leo") with no role yet.
+  function peopleFromData(d) {
+    if (Array.isArray(d.key_people)) return d.key_people.slice(0, WHO_MAX);
+    return String(d.key_people_text || '').split(',').map(function (n) { return { name: n.trim().slice(0, WHO_NAME_MAX), rel: '' }; })
+      .filter(function (p) { return p.name; }).slice(0, WHO_MAX);
+  }
+
+  function whoForRow(i, p) {
+    var opts = '<option value=""' + (p.rel ? '' : ' selected') + '>Who are they?</option>' + WHO_ROLES.map(function (r) {
+      return '<option value="' + r[0] + '"' + (p.rel === r[0] ? ' selected' : '') + '>' + r[1] + '</option>';
+    }).join('');
+    return '<div class="hdlv2-who-row">'
+      + '<input type="text" maxlength="30" placeholder="First name" aria-label="First name, person ' + (i + 1) + '" value="' + esc(p.name || '') + '">'
+      + '<select aria-label="Who is person ' + (i + 1) + '">' + opts + '</select>'
+      + (i >= WHO_MIN_ROWS ? '<button type="button" class="hdlv2-who-remove" aria-label="Remove person ' + (i + 1) + '">Remove</button>' : '')
+      + '</div>';
+  }
+
+  function whoForHtml(people) {
+    var rows = people.slice(0, WHO_MAX);
+    while (rows.length < WHO_MIN_ROWS) rows.push({ name: '', rel: '' });
+    return '<fieldset class="hdlv2-field hdlv2-who-for" id="hdlv2-who-for">'
+      + '<legend>Who are you staying strong for?</legend>'
+      + '<p class="hdlv2-who-help">Name them. We\u2019ll remember them for your timeline.</p>'
+      + '<div class="hdlv2-who-rows">' + rows.map(function (p, i) { return whoForRow(i, p); }).join('') + '</div>'
+      + '<button type="button" class="hdlv2-who-add"' + (rows.length >= WHO_MAX ? ' hidden' : '') + '>+ Add another</button>'
+      + '</fieldset>';
+  }
+
+  function composePeople(rows) {
+    return rows.map(function (p) { return { name: String(p.name || '').trim().slice(0, WHO_NAME_MAX), rel: p.rel || '' }; })
+      .filter(function (p) { return p.name; }).slice(0, WHO_MAX);
+  }
+
+  function composePeopleText(rows) {
+    return composePeople(rows).map(function (p) { return p.rel ? p.name + ' (' + p.rel + ')' : p.name; }).join(', ');
+  }
+
+  function readWhoRows() {
+    return Array.prototype.map.call(root.querySelectorAll('#hdlv2-who-for .hdlv2-who-row'), function (r) {
+      return { name: r.querySelector('input').value, rel: r.querySelector('select').value };
+    });
+  }
+
+  // Typing or picking a role saves like a tap on a statement; add and remove redraw the rows.
+  function bindWhoFor() {
+    var box = document.getElementById('hdlv2-who-for');
+    if (!box) return;
+    function sync() {
+      var rows = readWhoRows();
+      formData.key_people = composePeople(rows);
+      formData.key_people_text = composePeopleText(rows);
+      clearSaveError();
+      if (saveTimer) clearTimeout(saveTimer);
+      saveTimer = setTimeout(function () { saveWhenFree(2); }, 1500);
+    }
+    function redraw(rows, focusAt) {
+      box.querySelector('.hdlv2-who-rows').innerHTML = rows.map(function (p, i) { return whoForRow(i, p); }).join('');
+      box.querySelector('.hdlv2-who-add').hidden = rows.length >= WHO_MAX;
+      var inputs = box.querySelectorAll('.hdlv2-who-row input');
+      if (inputs[focusAt]) inputs[focusAt].focus();
+    }
+    box.addEventListener('input', sync);
+    box.addEventListener('change', sync);
+    box.addEventListener('click', function (e) {
+      var rows = readWhoRows();
+      if (e.target.classList.contains('hdlv2-who-add') && rows.length < WHO_MAX) {
+        rows.push({ name: '', rel: '' });
+        redraw(rows, rows.length - 1);
+      } else if (e.target.classList.contains('hdlv2-who-remove')) {
+        var at = Array.prototype.indexOf.call(box.querySelectorAll('.hdlv2-who-row'), e.target.parentNode);
+        rows.splice(at, 1);
+        redraw(rows, Math.min(at, rows.length - 1));
+        sync();
+      }
+    });
+  }
+
   function submitWhyPicks() {
     if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
     if (queuedSaveTimer) { clearTimeout(queuedSaveTimer); queuedSaveTimer = null; }
     // Let an in-flight autosave finish first so it cannot land after Next.
     if (saving) { setTimeout(submitWhyPicks, 300); return; }
-    ['key_people_text', 'own_words'].forEach(function (n) {
+    ['own_words'].forEach(function (n) {
       var el = document.getElementById('hdlv2-f-' + n);
       if (el) formData[n] = el.value.trim();
     });
+    var who = readWhoRows();
+    formData.key_people = composePeople(who);
+    formData.key_people_text = composePeopleText(who);
+    // A name with no role yet: say so and go to it; the server refuses it too.
+    var noRole = who.findIndex(function (p) { return String(p.name || '').trim() && !p.rel; });
+    if (noRole !== -1) {
+      setSaveStatus('error', 'Please pick who each person is.');
+      root.querySelectorAll('#hdlv2-who-for .hdlv2-who-row select')[noRole].focus();
+      return;
+    }
     var btn = document.getElementById('hdlv2-picks-next');
     btn.disabled = true; btn.textContent = 'Saving\u2026';
     function reset(msg) { btn.disabled = false; btn.innerHTML = 'Next &#8594;'; setSaveStatus('error', msg); }
