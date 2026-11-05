@@ -371,7 +371,7 @@ $picked_lines = "=== WHAT THIS CLIENT CHOSE (picked from a list, their own prior
     . "What these choices need of each ability, out of 5 (5 = every choice leans on it fully): stamina 2.8, strength 1.7, mobility 1.7, connection 1.7, balance 1.4, mind 1.4\n"
     . "People they named: my wife Jenny\n";
 // Stage 1 answers are marked as such: they run 1 to 5, Stage 3 scores 0 to 5.
-$measured_lines = "What their choices depend on, with what was measured (out of 5, higher is better; Stage 1 answers run 1 to 5, Stage 3 answers 0 to 5):\n"
+$measured_lines = "What their choices depend on, with what was measured (out of 5, higher is better; Stage 1 answers run 1 to 5, Full Report form answers 0 to 5):\n"
     . "- Strength: needed 1.7/5 by their choices (3 of 6 picks); measured 2.5/5 from Chair stand (30 seconds) 3/5, Getting up from the floor (Stage 1) 2/5\n"
     . "- Mobility and flexibility: needed 1.7/5 by their choices (4 of 6 picks); measured 2/5 from Getting up from the floor (Stage 1) 2/5\n"
     . "- Balance: needed 1.4/5 by their choices (3 of 6 picks); measured 1/5 from Standing on one leg 1/5\n"

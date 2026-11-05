@@ -341,6 +341,8 @@
         ) +
       '</section>';
 
+    html += renderTimelineCard(data);
+
     // v0.48.12 — choices-page clients: what their choices need beside where
     // they are now (Matthew, 2026-10-09). Absent for every other client.
     html += renderAbilitiesSection(data.why_abilities);
@@ -798,6 +800,17 @@
       showBands: true,
       showProjections: true
     });
+  }
+
+  // ── Healthspan Timeline card ──
+  // v0.48.29 — present only when the server sends timeline.url (flag on, a report on file).
+  function renderTimelineCard(data) {
+    if (!data.timeline || !data.timeline.url) return '';
+    return '<section class="hdlv2-dr-section">'
+      + '<h2>Your healthspan timeline</h2>'
+      + '<p class="hdlv2-dr-section-sub">Your years ahead beside the people you love, from the numbers in this report.</p>'
+      + '<a class="hdlv2-dr-ms-btn" style="display:inline-block;text-decoration:none;" href="' + escape(data.timeline.url) + '">Open your timeline</a>'
+      + '</section>';
   }
 
   // ── Radar chart ──

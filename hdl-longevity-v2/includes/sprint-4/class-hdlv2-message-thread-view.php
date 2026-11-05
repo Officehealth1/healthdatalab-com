@@ -204,8 +204,10 @@ class HDLV2_Message_Thread_View {
      * (session mode), so hdlv2-inbox.js drives one structure in both modes.
      * Data arrives exclusively via the token/nonce-authorised AJAX calls;
      * nothing personal is baked into this HTML.
+     *
+     * @param bool $read_only v0.48.40 — the practitioner's view of the client page: no reply box.
      */
-    public static function inbox_shell() {
+    public static function inbox_shell( $read_only = false ) {
         $h  = '<div class="hdlv2-inbox" data-inbox>';
         $h .= '<div class="hdlv2-inbox-head">';
         $h .= '<h2 class="hdlv2-inbox-title">Messages';
@@ -215,6 +217,9 @@ class HDLV2_Message_Thread_View {
         $h .= '<div class="hdlv2-inbox-thread" data-inbox-thread aria-live="polite">';
         $h .= '<div class="hdlv2-inbox-loading" role="status" aria-label="Loading your messages"><span></span><span></span><span></span><span class="hdlv2-inbox-sr">Loading your messages</span></div>';
         $h .= '</div>';
+        if ( $read_only ) { // v0.48.40 — the practitioner's view of the client page: the thread, no reply box
+            return $h . '<p class="hdlv2-inbox-readonly">Reply from your Clients page</p></div>';
+        }
         $h .= '<form class="hdlv2-inbox-reply" data-inbox-reply>';
         $h .= '<label class="hdlv2-inbox-reply-label" for="hdlv2-inbox-text">Reply to your practitioner</label>';
         $h .= '<textarea id="hdlv2-inbox-text" data-inbox-text rows="3" maxlength="5000" placeholder="Write a reply&hellip;"></textarea>';

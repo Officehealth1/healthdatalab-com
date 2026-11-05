@@ -3,7 +3,7 @@
  * Plugin Name: HDL Longevity V2 — Staged Workflow
  * Plugin URI: https://healthdatalab.net
  * Description: V2 longevity workflow: staged intake, WHY profiling, practitioner consultations, weekly flight plans, and AI coaching. Runs alongside the existing Health Data Lab plugin.
- * Version: 0.48.20
+ * Version: 0.48.52
  * Author: Health Data Lab
  * Author URI: https://healthdatalab.net
  * License: Proprietary
@@ -22,8 +22,8 @@ if ( ! defined( 'ABSPATH' ) ) {
 // register_activation_hook callbacks, which fire synchronously during
 // `wp plugin activate`, can reference them. The activator needs
 // HDLV2_DB_VERSION / HDLV2_VERSION at call time to update version options.
-define( 'HDLV2_VERSION', '0.48.20' );
-define( 'HDLV2_DB_VERSION', '3.30' );
+define( 'HDLV2_VERSION', '0.48.52' );
+define( 'HDLV2_DB_VERSION', '3.33' );
 
 // Client funnel token (hdlv2_form_progress.token) lifetime. FIXED window
 // from issuance: set when the token is created and refreshed ONLY when the
@@ -95,10 +95,11 @@ add_action( 'init', function () {
         ) );
 
         if ( ! $invite ) {
-            // v0.47.85 — a used or revoked paid Stage 1 ticket is not an
-            // invitation: let the page render so the widget can say so.
+            // v0.47.85 — a used or revoked paid Stage 1 ticket (v0.48.34: or
+            // timeline link) is not an invitation: let the page render so the
+            // widget can say so.
             if ( $wpdb->get_var( $wpdb->prepare(
-                "SELECT 1 FROM {$wpdb->prefix}hdlv2_widget_invites WHERE token = %s AND source = 'paid_stage1' LIMIT 1",
+                "SELECT 1 FROM {$wpdb->prefix}hdlv2_widget_invites WHERE token = %s AND source IN ('paid_stage1','timeline_link') LIMIT 1",
                 $token
             ) ) ) {
                 return;
@@ -115,8 +116,8 @@ add_action( 'init', function () {
         }
         // v0.47.85 — a paid Stage 1 ticket opens the widget's questions and
         // nothing else: no account, no login. The widget on the page checks
-        // the ticket itself.
-        if ( isset( $invite->source ) && 'paid_stage1' === $invite->source ) {
+        // the ticket itself. v0.48.34 — so does a Healthspan Timeline link.
+        if ( isset( $invite->source ) && in_array( $invite->source, array( 'paid_stage1', 'timeline_link' ), true ) ) {
             return;
         }
         // v0.47.53 (B4) — fail CLOSED: an invite with no expiry (legacy row;
@@ -144,7 +145,8 @@ add_action( 'init', function () {
         if ( ! $email ) return;
 
         // Create or get existing user
-        $user_id = email_exists( $email );
+        $user_id       = email_exists( $email );
+        $existing_user = (bool) $user_id;
         // v0.48.15 — a Full Report ticket carries the email the buyer typed at
         // checkout, never verified. v0.48.20 — the same holds for every invite
         // (the practitioner typed the email): any source may sign in a client,
@@ -197,8 +199,12 @@ add_action( 'init', function () {
         wp_set_current_user( $user_id );
         wp_set_auth_cookie( $user_id, false );
 
-        // Link client to practitioner in V1 table for dashboard visibility
-        if ( class_exists( 'HDLV2_Compatibility' ) ) {
+        // Link client to practitioner in V1 table for dashboard visibility.
+        // v0.48.23 — a challenge link carries an email the buyer typed at
+        // checkout: it never moves an existing account under the seller's
+        // practitioner (that would show them another practitioner's client).
+        $is_challenge = isset( $invite->source ) && 'challenge' === $invite->source;
+        if ( class_exists( 'HDLV2_Compatibility' ) && ! ( $is_challenge && $existing_user ) ) {
             HDLV2_Compatibility::create_practitioner_client_link( $invite->practitioner_id, $user_id );
         }
 
@@ -227,6 +233,23 @@ add_action( 'init', function () {
              ORDER BY id DESC LIMIT 1",
             $user_id
         ) );
+
+        // v0.48.23 — a 30-day challenge link signs the buyer in for its 90
+        // days and opens the challenge on their dashboard once Stage 1 is on
+        // file (HDLV2_Challenge::open_link). Before that the widget page
+        // renders: Stage 1 first, through the public path (the challenge buys
+        // the videos, not the Full Report; see rest_capture_lead). Nothing
+        // marks the link completed, so it keeps working as the buyer's way
+        // back; a browser already signed in is handled by
+        // HDLV2_Challenge::signed_in_link().
+        if ( $is_challenge ) {
+            $landing = class_exists( 'HDLV2_Challenge' ) ? HDLV2_Challenge::open_link( $user_id, $invite ) : null;
+            if ( $landing ) {
+                wp_safe_redirect( $landing );
+                exit;
+            }
+            return;
+        }
 
         // Stage 1 already complete → redirect to /assessment/ so the client
         // resumes at Stage 2/3. This is the "returning user" path.
@@ -374,6 +397,16 @@ add_action( 'init', function () {
             hdlv2_render_staff_sign_in_card();
         }
         if ( $progress && $progress->client_user_id ) {
+            // v0.48.28 — the page renders in this same request, so the REST
+            // nonces it prints (dashboard tick, inbox) are made now. WP builds
+            // a nonce from the session token in the logged-in cookie, which
+            // the browser only sends from the next request on: without this
+            // the first call answered rest_cookie_invalid_nonce. Hand this
+            // request the cookie WP is about to send. No redirect: the URL
+            // keeps ?token=, which the assessment and check-in pages read.
+            add_action( 'set_logged_in_cookie', function ( $logged_in_cookie ) {
+                $_COOKIE[ LOGGED_IN_COOKIE ] = $logged_in_cookie;
+            } );
             wp_set_current_user( $progress->client_user_id );
             wp_set_auth_cookie( $progress->client_user_id, false );
             // v0.47.54 (B4) — deliberately NO expiry refresh here. The window
@@ -883,6 +916,11 @@ final class HDL_Longevity_V2 {
         // menu item for Consumer / Invited Client roles.
         require_once HDLV2_PLUGIN_DIR . 'includes/sprint-2c/class-hdlv2-my-report.php';
 
+        // v0.48.29 — Healthspan Timeline page (flag hdlv2_ff_healthspan_timeline, off by default)
+        require_once HDLV2_PLUGIN_DIR . 'includes/sprint-2c/class-hdlv2-healthspan-timeline.php';
+        // v0.48.34 — linked people on the timeline (flag hdlv2_ff_timeline_links, off by default)
+        require_once HDLV2_PLUGIN_DIR . 'includes/sprint-2c/class-hdlv2-timeline-links.php';
+
         // v0.20.17 — V1 trajectory chart ported to PHP/SVG for PDF embedding
         require_once HDLV2_PLUGIN_DIR . 'includes/sprint-2c/class-hdlv2-trajectory-svg.php';
         require_once HDLV2_PLUGIN_DIR . 'includes/sprint-2c/class-hdlv2-flight-notes.php';
@@ -912,6 +950,10 @@ final class HDL_Longevity_V2 {
         require_once HDLV2_PLUGIN_DIR . 'includes/sprint-4/class-hdlv2-practitioner-dashboard.php';
         // v0.32.7 — client-side dashboard (/my-dashboard/) + login_redirect + role guards
         require_once HDLV2_PLUGIN_DIR . 'includes/sprint-4/class-hdlv2-client-dashboard.php';
+        // v0.48.23 — the 30-day challenge section + POST /challenge/tick.
+        require_once HDLV2_PLUGIN_DIR . 'includes/sprint-4/class-hdlv2-challenge.php';
+        // v0.48.36 — the five product tiles on both dashboards + GET /dashboard/client/{id}/products.
+        require_once HDLV2_PLUGIN_DIR . 'includes/sprint-4/class-hdlv2-products.php';
         // v0.47.67 (Slice C) — token-mode message thread view (?msg=m1...),
         // rendered pre-UM at init priority 2; flag-gated HDLV2_MSG_LINK_ENABLED.
         // Required BEFORE nothing in particular (static calls resolve at render
@@ -1010,6 +1052,7 @@ final class HDL_Longevity_V2 {
         HDLV2_Client_Status::get_instance()->register_hooks();
         HDLV2_Practitioner_Dashboard::get_instance()->register_hooks();
         HDLV2_Client_Dashboard::get_instance()->register_hooks();
+        HDLV2_Challenge::register_hooks();
         // Slice C — pre-UM ?msg= interceptor (inert while HDLV2_MSG_LINK_ENABLED is off/undefined).
         HDLV2_Message_Thread_View::get_instance()->register_hooks();
         // Iridology add-on (IrisMapper) — REST routes for checkout/status/login.

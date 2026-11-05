@@ -63,10 +63,10 @@ function rest_url( $p = '' ) { return 'https://stby.example.test/wp-json/' . ltr
 function home_url( $p = '' ) { return 'https://stby.example.test' . $p; }
 function site_url( $p = '' ) { return 'https://stby.example.test' . $p; }
 function get_current_user_id() { return $GLOBALS['current_user_id']; }
-function email_exists( $e ) { return false; }
+function email_exists( $e ) { return $GLOBALS['email_users'][ strtolower( $e ) ] ?? false; } // v0.48.24: set per test
 function wp_insert_user( $a ) { return 901; }
 function update_user_meta() { return true; }
-function get_user_meta( $uid, $k = '', $single = false ) { return ''; }
+function get_user_meta( $uid, $k = '', $single = false ) { return $GLOBALS['usermeta'][ $uid ][ $k ] ?? ''; }
 function delete_user_meta() { return true; }
 function get_userdata( $id ) {
     $u = new stdClass();

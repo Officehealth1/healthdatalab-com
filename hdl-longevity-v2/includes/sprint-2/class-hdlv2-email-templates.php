@@ -224,7 +224,7 @@ class HDLV2_Email_Templates {
         // charts live in the draft report behind the CTA, not inlined here.
         // $data['rate']/['bio_age']/['age']/['radar_chart_url']/['trajectory_chart_url'] unused.
         $content = "
-            <h2 style='margin:0 0 8px;color:" . self::DARK . ";'>Stage 3 Form Completed</h2>
+            <h2 style='margin:0 0 8px;color:" . self::DARK . ";'>Full Report form completed</h2>
             <p style='color:" . self::MUTED . ";margin:0 0 24px;line-height:1.5;'>Draft Trajectory Plan is ready. Your client <strong>{$cname}</strong> has completed all three stages. Please review before the consultation.</p>
 
             <p style='color:#444;line-height:1.6;margin:0 0 24px;'>
@@ -252,7 +252,8 @@ class HDLV2_Email_Templates {
         $content = "
             <h2 style='font-family:Poppins,Inter,sans-serif;font-size:22px;font-weight:700;color:" . self::DARK . ";margin:0 0 14px;'>Hi " . esc_html( $first ) . ", your assessment is complete</h2>
             <p style='font-size:15px;color:#2c3e50;line-height:1.7;margin:0 0 18px;'>You've finished all three stages of your longevity assessment. Here's what's next.</p>
-            {$cta_block}";
+            {$cta_block}"
+            . self::dashboard_button();
 
         return self::base_layout( $content, $data['practitioner_id'] ?? null, 'Your Draft Report' );
     }
@@ -473,6 +474,13 @@ class HDLV2_Email_Templates {
             . '</div>';
     }
 
+    /** v0.48.36 — the one door: "Open my dashboard" after a client email's own button; '' with the flag off. */
+    private static function dashboard_button() {
+        return class_exists( 'HDLV2_Products' ) && HDLV2_Products::enabled()
+            ? self::cta_button( home_url( '/' . trim( apply_filters( 'hdlv2_client_dashboard_slug', 'my-dashboard' ), '/' ) . '/' ), 'Open my dashboard' )
+            : '';
+    }
+
     private static function cta_button( $url, $text ) {
         // v0.36.0 — editorial CTA matches .hdlw-cta (deep teal, 2px
         // radius, Inter weight 600 letter-spaced) so the email button
@@ -515,17 +523,17 @@ class HDLV2_Email_Templates {
         $url     = esc_url( $data['dashboard_url'] ?: home_url( '/' . trim( apply_filters( 'hdlv2_practitioner_dashboard_slug', 'clients' ), '/' ) . '/' ) );
 
         $content = "
-            <h2 style='margin:0 0 12px;color:" . self::DARK . ";font-family:Poppins,Inter,sans-serif;font-size:20px;font-weight:700;'>Ready to invite your client to Stage 3</h2>
-            <p style='color:" . self::MUTED . ";margin:0 0 20px;font-size:14px;line-height:1.6;'>Your client <strong>{$cname}</strong> has submitted their Stage 2 WHY. Review and release the gate to unlock Stage 3.</p>
+            <h2 style='margin:0 0 12px;color:" . self::DARK . ";font-family:Poppins,Inter,sans-serif;font-size:20px;font-weight:700;'>Ready to open the Full Report form for your client</h2>
+            <p style='color:" . self::MUTED . ";margin:0 0 20px;font-size:14px;line-height:1.6;'>Your client <strong>{$cname}</strong> has submitted their Full Report WHY. Review and release the gate to open the Full Report form.</p>
 
             <p style='font-size:13px;color:#444;line-height:1.6;margin:0 0 24px;'>
                 Clicking below opens your dashboard with this client highlighted &mdash; you can review the full WHY, add
-                a note, and release the gate with one click. The client will be emailed an invitation to Stage 3.
+                a note, and release the gate with one click. The client will be emailed the link to the Full Report form.
             </p>"
-            . self::cta_button( $url, 'Review and invite to Stage 3' )
+            . self::cta_button( $url, 'Review and open the Full Report form' )
             . "<p style='font-size:11px;color:" . self::MUTED . ";line-height:1.5;margin:18px 0 0;text-align:center;'>{$cemail}</p>";
 
-        return self::base_layout( $content, $data['practitioner_id'] ?? null, 'Stage 2 — Ready to Release' );
+        return self::base_layout( $content, $data['practitioner_id'] ?? null, 'Full Report · WHY — ready to review' );
     }
 
     // ──────────────────────────────────────────────────────────────
@@ -661,7 +669,8 @@ class HDLV2_Email_Templates {
 
         $content = "<h2 style='font-family:Poppins,Inter,sans-serif;font-size:22px;font-weight:700;color:" . self::DARK . ";margin:0 0 14px;'>{$heading}</h2>"
             . "<p style='font-size:15px;color:#2c3e50;line-height:1.7;margin:0 0 24px;'>{$body}</p>"
-            . $buttons;
+            . $buttons
+            . self::dashboard_button();
 
         $html = self::base_layout( $content, $data['practitioner_id'] ?? null, $banner );
 
@@ -1049,8 +1058,42 @@ class HDLV2_Email_Templates {
             <h2 style='margin:0 0 12px;color:" . self::DARK . ";font-family:Poppins,Inter,sans-serif;font-size:22px;font-weight:700;'>Hi " . esc_html( $first ) . ", your Trajectory Plan is ready</h2>
             <p style='color:#2c3e50;line-height:1.7;margin:0 0 20px;font-size:15px;'>Your personalised longevity report has been finalised by your practitioner. Your PDF copy will arrive in a separate email shortly &mdash; or review your full report online now:</p>"
             . self::cta_button( $url, 'View Your Trajectory Plan' )
+            . self::dashboard_button()
             . "<p style='font-size:12px;color:" . self::MUTED . ";line-height:1.5;margin:20px 0 0;text-align:center;'>Questions? Just reply to this email — your practitioner will see it.</p>";
 
         return self::base_layout( $content, $data['practitioner_id'] ?? null, 'Your Trajectory Plan' );
+    }
+
+    // ──────────────────────────────────────────────────────────────
+    //  HEALTHSPAN TIMELINE LINKS (v0.48.34) — sent once, at the invitee's yes
+    // ──────────────────────────────────────────────────────────────
+
+    /**
+     * To the client who made the link.
+     *
+     * @param array $data { label, page_url (their timeline, with their own token), seat_used (optional) }
+     */
+    public static function timeline_consent_owner( $data ) {
+        $content = "
+            <h2 style='margin:0 0 12px;color:" . self::DARK . ";font-family:Poppins,Inter,sans-serif;font-size:22px;font-weight:700;'>" . esc_html( $data['label'] . ' shared their pace of ageing with you' ) . "</h2>
+            <p style='color:#2c3e50;line-height:1.7;margin:0 0 20px;font-size:15px;'>Their lane on your timeline now uses the numbers from their own free check. Open your timeline to see your years side by side.</p>"
+            . ( empty( $data['seat_used'] ) ? '' : "<p style='color:#2c3e50;line-height:1.7;margin:0 0 20px;font-size:15px;'>" . esc_html( $data['label'] . ' now has their Full Report through your family pack.' ) . '</p>' )
+            . self::cta_button( $data['page_url'], 'Open your timeline' );
+        return self::base_layout( $content, null, 'Your healthspan timeline' );
+    }
+
+    /**
+     * To the person who said yes: what was shared, with whom, and the way out.
+     *
+     * @param array $data { owner_first, label, withdraw (url), report_url and report_kind ('unlocked'|'existing', optional) }
+     */
+    public static function timeline_consent_invitee( $data ) {
+        $content = "
+            <h2 style='margin:0 0 12px;color:" . self::DARK . ";font-family:Poppins,Inter,sans-serif;font-size:22px;font-weight:700;'>" . esc_html( sprintf( "You're on %s's timeline as %s", $data['owner_first'], $data['label'] ) ) . "</h2>
+            <p style='color:#2c3e50;line-height:1.7;margin:0 0 12px;font-size:15px;'>" . esc_html( sprintf( 'We shared three numbers with %s: your pace of ageing, age and sex. Nothing else from your answers is shared.', $data['owner_first'] ) ) . "</p>"
+            . ( empty( $data['report_url'] ) ? '' : "<p style='color:#2c3e50;line-height:1.7;margin:0 0 12px;font-size:15px;'>" . ( 'existing' === ( $data['report_kind'] ?? '' ) ? 'You already have a Full Report; open it any time.' : 'Your Full Report is unlocked. This link is yours alone: it signs you in.' ) . '</p>' . self::cta_button( $data['report_url'], 'Open my Full Report' ) ) . "
+            <p style='color:#2c3e50;line-height:1.7;margin:0 0 20px;font-size:15px;'>You can withdraw at any time. Your numbers come off their timeline straight away.</p>"
+            . self::cta_button( $data['withdraw'], 'Withdraw my numbers' );
+        return self::base_layout( $content, null, 'Your healthspan timeline' );
     }
 }

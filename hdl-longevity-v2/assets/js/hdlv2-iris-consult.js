@@ -117,7 +117,7 @@
     if (!host) return;
     var pid = parseInt(host.getAttribute('data-progress'), 10) || 0;
     var cid = parseInt(host.getAttribute('data-client'), 10) || 0;
-    if (!pid) { host.innerHTML = shell('<p class="hdlv2-irc-note">Complete Stage 3 first to capture iris photos for this client.</p>'); return; }
+    if (!pid) { host.innerHTML = shell('<p class="hdlv2-irc-note">Complete the Full Report form first to capture iris photos for this client.</p>'); return; }
     ensureStyles();
     // Read any captured analysis for this consultation (PURE local read).
     host.innerHTML = shell('<p class="hdlv2-irc-note">' + HDLV2Loading.skeleton('inline') + ' Checking iris analysis&hellip;</p>');

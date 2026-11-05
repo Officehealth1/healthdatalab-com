@@ -142,7 +142,7 @@ $GLOBALS['scn']['send_status'] = 'low_data';
 $GLOBALS['scn']['has_report']  = false;
 $r = $svc->rest_resend_link( array( 'client_id' => 55 ) );
 ok( 'GAP-1: red-flag Stage-2 → 200 continue link (assessment, not report)',
-    is_array( $r ) && ! empty( $r['success'] ) && $r['artefact'] === 'assessment' && $r['stage_label'] === 'Send Stage-2 link',
+    is_array( $r ) && ! empty( $r['success'] ) && $r['artefact'] === 'assessment' && $r['stage_label'] === 'Send Full Report link',
     is_array( $r ) ? json_encode( array( $r['artefact'] ?? null, $r['stage_label'] ?? null ) ) : gettype( $r ) );
 
 // ── (5) happy path — enabled stage rotates + sends + audits ──

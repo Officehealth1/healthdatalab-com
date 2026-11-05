@@ -750,5 +750,28 @@ $res = $form->rest_stage2_callback( req( array( '_headers' => array( 'authorizat
 check( 'W17 callback with a wrong secret: refused, nothing stored', is_wp_error( $res ) && array() === HDLV2_Report_PDF::$stored );
 unset( $GLOBALS['options']['hdlv2_ff_stage2_pdf_single'] );
 
+
+// ════════ P. Who-for rows (v0.48.50, W29) ════════
+// The page sends key_people [{name, rel}] beside key_people_text. Autosave keeps the rows as typed
+// (plain names, a role may still be blank); submit validates them and the server composes the text.
+$wp = new FakeWpdb();
+$GLOBALS['wpdb'] = $wp;
+$GLOBALS['options']['hdlv2_ff_single_form'] = '122';
+$ROWS = array( array( 'name' => 'Jenny', 'rel' => 'child' ), array( 'name' => 'Leo', 'rel' => 'friend' ) );
+$row = $wp->rows[90] = make_row( 90 );
+save( $form, $row, array( 'why_picks' => $FIVE_NEW, 'key_people' => array( array( 'name' => '<i>Jenny</i>', 'rel' => 'child' ), array( 'name' => 'Leo', 'rel' => '' ), array( 'name' => '', 'rel' => 'friend' ) ) ), false );
+check( 'P1 autosave keeps the rows as typed (plain names, a blank role kept, a blank name dropped)',
+    array( array( 'name' => 'Jenny', 'rel' => 'child' ), array( 'name' => 'Leo', 'rel' => '' ) ) === ( s2( $row )['key_people'] ?? null ) );
+$res = save( $form, $row, array( 'why_picks' => $FIVE_NEW, 'key_people' => array( array( 'name' => 'Leo', 'rel' => '' ) ), 'key_people_text' => 'Leo', 'own_words' => '' ), true );
+check( 'P2 submit with a blank role: 400 "Please check the names", nothing claimed', is_wp_error( $res ) && 0 === strpos( $res->get_error_message(), 'Please check the names' ) && empty( $row->stage2_completed_at ) );
+$res = save( $form, $row, array( 'why_picks' => $FIVE_NEW, 'key_people' => $ROWS, 'key_people_text' => 'CLIENT TEXT', 'own_words' => '' ), true );
+$d   = s2( $row );
+check( 'P3 submit: rows stored, the text composed from them by the server', ! is_wp_error( $res ) && $ROWS === ( $d['key_people'] ?? null ) && 'Jenny (child), Leo (friend)' === $d['key_people_text'] );
+check( 'P4 submit: the vision text in its old shape', HDLV2_Why_Picks::compose_vision_text( $FIVE_NEW, 'Jenny (child), Leo (friend)', '' ) === $d['vision_text'] );
+$row = $wp->rows[91] = make_row( 91 );
+$res = save( $form, $row, array( 'why_picks' => $FIVE_NEW, 'key_people_text' => 'Jenny, Leo', 'own_words' => '' ), true );
+check( 'P5 an old page sending only key_people_text still submits, as before', ! is_wp_error( $res ) && 'Jenny, Leo' === s2( $row )['key_people_text'] && ! isset( s2( $row )['key_people'] ) );
+unset( $GLOBALS['options']['hdlv2_ff_single_form'] );
+
 echo "\n" . ( $fail ? "SCENARIO: FAIL ($fail)\n" : "SCENARIO: PASS ($pass)\n" );
 exit( $fail ? 1 : 0 );

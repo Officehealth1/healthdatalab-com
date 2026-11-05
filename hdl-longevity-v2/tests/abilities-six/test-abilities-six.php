@@ -15,7 +15,8 @@
 
 error_reporting( E_ALL & ~E_DEPRECATED );
 define( 'ABSPATH', __DIR__ . '/' );
-function get_option( $k, $default = false ) { return $default; }
+$GLOBALS['options'] = array(); // v0.48.50: the need-scale flag for the A-12v2 fixture
+function get_option( $k, $default = false ) { return array_key_exists( $k, $GLOBALS['options'] ) ? $GLOBALS['options'][ $k ] : $default; }
 function wp_strip_all_tags( $s ) { return trim( strip_tags( (string) $s ) ); }
 function wp_json_encode( $x ) { return json_encode( $x ); }
 class WP_Error {
@@ -182,7 +183,16 @@ foreach ( $sets as $p ) {
     foreach ( HDLV2_Why_Picks::abilities_profile( $p ) as $a ) $need[ $a['id'] ] = $a['need'];
     $cases[] = array( 'picks' => $p, 'need' => $need );
 }
-$fixture = json_encode( array( 'groups' => $opt, 'short' => HDLV2_Why_Picks::ABILITY_SHORT, 'cases' => $cases ), JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_PRESERVE_ZERO_FRACTION ) . "\n";
+// v0.48.50 (W27) the same pick sets with hdlv2_ff_need_scale_v2 on.
+$GLOBALS['options']['hdlv2_ff_need_scale_v2'] = '1';
+$cases_v2 = array();
+foreach ( $sets as $p ) {
+    $need = array();
+    foreach ( HDLV2_Why_Picks::abilities_profile( $p ) as $a ) $need[ $a['id'] ] = $a['need'];
+    $cases_v2[] = array( 'picks' => $p, 'need' => $need );
+}
+unset( $GLOBALS['options']['hdlv2_ff_need_scale_v2'] );
+$fixture = json_encode( array( 'groups' => $opt, 'short' => HDLV2_Why_Picks::ABILITY_SHORT, 'cases' => $cases, 'cases_v2' => $cases_v2 ), JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_PRESERVE_ZERO_FRACTION ) . "\n";
 $path = __DIR__ . '/fixtures/needs.json';
 if ( in_array( '--write', $argv, true ) ) file_put_contents( $path, $fixture );
 check( 'A-12 fixtures/needs.json matches the PHP (' . count( $cases ) . ' pick sets; run --write after a table change)', is_file( $path ) && $fixture === file_get_contents( $path ) );

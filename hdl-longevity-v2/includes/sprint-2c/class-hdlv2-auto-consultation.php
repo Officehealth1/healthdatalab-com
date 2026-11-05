@@ -427,7 +427,7 @@ class HDLV2_Auto_Consultation {
 
         $user_prompt = "Client data:\n"
             . "Stage 1 (anthropometrics + screening):\n" . wp_json_encode( $s1, JSON_PRETTY_PRINT ) . "\n\n"
-            . "Stage 3 (deep assessment):\n" . wp_json_encode( $s3, JSON_PRETTY_PRINT ) . "\n\n"
+            . "Full Report form (deep assessment):\n" . wp_json_encode( $s3, JSON_PRETTY_PRINT ) . "\n\n"
             . "Distilled WHY (client's stated motivation):\n" . ( $distilled_why !== '' ? $distilled_why : '(none captured)' ) . "\n\n"
             . "Self-reported answers (6 contextual prompts):\n" . $self_reported_text;
 

@@ -654,20 +654,22 @@ if ( $has_mint ) {
 }
 
 echo "── 13. other readers of the invites table ignore paid tickets ──\n";
+// v0.48.23 — some filters also leave out challenge links: either shape excludes paid tickets.
+function paid_filters( $src ) { return substr_count( $src, "source <> 'paid_stage1'" ) + substr_count( $src, "source NOT IN ('paid_stage1','challenge')" ); }
 $GLOBALS['current_user_id'] = 206;
 $wpdb = fresh_wpdb( 'paid' );
 widget_instance()->rest_list_invites( new FakeRequest( array() ) );
 $sel = $wpdb->sql_matching( 'SELECT id, client_name' );
-check( '13.1 Sent Invites (REST) excludes paid tickets', count( $sel ) === 1 && strpos( $sel[0], "source <> 'paid_stage1'" ) !== false );
+check( '13.1 Sent Invites (REST) excludes paid tickets', count( $sel ) === 1 && 1 === paid_filters( $sel[0] ) );
 $src = file_get_contents( $ROOT . 'includes/sprint-1/class-hdlv2-widget-config.php' );
-check( '13.2 both invite lists + the delete carry the filter', substr_count( $src, "source <> 'paid_stage1'" ) >= 3 );
+check( '13.2 both invite lists + the delete carry the filter', paid_filters( $src ) >= 3 );
 foreach ( array(
     '13.3 Stage-1 safety-net completion'   => 'includes/sprint-2/class-hdlv2-staged-form.php',
     '13.4 client dashboard (2 lookups)'    => 'includes/sprint-4/class-hdlv2-client-dashboard.php',
     '13.5 client delete → revoke invites'  => 'includes/sprint-4/class-hdlv2-client-status.php',
 ) as $label => $file ) {
     $want = strpos( $label, '2 lookups' ) ? 2 : 1;
-    check( $label . ' ignores paid tickets', substr_count( file_get_contents( $ROOT . $file ), "source <> 'paid_stage1'" ) >= $want );
+    check( $label . ' ignores paid tickets', paid_filters( file_get_contents( $ROOT . $file ) ) >= $want );
 }
 
 echo "── 14. answers post: a confirmed paid ticket is counted per ticket, anything else by address ──\n";

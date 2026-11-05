@@ -79,6 +79,29 @@ list( $o ) = run_scenario( $sc, 'invite-fresh' );
 ok( '?invite= fresh → auth cookie set (invite flow intact)',
     false !== strpos( $o, 'AUTH_COOKIE_SET:7' ) );
 
+// v0.48.28 (F13) — the page a ?token= link opens renders in the SAME request
+// as the sign-in, so its REST nonce is made now. WP builds the nonce from the
+// session token in the logged-in cookie; the request must already see the
+// cookie WP is sending, or the first tick answers rest_cookie_invalid_nonce.
+list( $o ) = run_scenario( $sc, 'fresh' );
+ok( '?token= fresh → this request sees the new logged-in cookie (nonce matches the session)',
+    false !== strpos( $o, 'REQUEST_COOKIE:logged-in-cookie-42' ) );
+ok( '?token= fresh → no redirect: the URL keeps ?token= (the assessment and check-in pages read it)',
+    false === strpos( $o, 'REDIRECT:' ) && false !== strpos( $o, 'HANDLER_RETURNED' ) );
+
+list( $o ) = run_scenario( $sc, 'past-expiry' );
+ok( '?token= expired → card, no cookie for this request',
+    false !== strpos( $o, 'link has expired' ) && false === strpos( $o, 'REQUEST_COOKIE:' ) );
+
+list( $o ) = run_scenario( $sc, 'rest-token' );
+ok( '/wp-json/ with ?token= → init does not sign in, no cookie, no redirect',
+    false === strpos( $o, 'AUTH_COOKIE_SET' ) && false === strpos( $o, 'REQUEST_COOKIE:' )
+    && false === strpos( $o, 'REDIRECT:' ) && false !== strpos( $o, 'HANDLER_RETURNED' ) );
+
+list( $o ) = run_scenario( $sc, 'invite-fresh' );
+ok( '?invite= unchanged → this request keeps its own cookies (widget sends no nonce)',
+    false !== strpos( $o, 'AUTH_COOKIE_SET:7' ) && false === strpos( $o, 'REQUEST_COOKIE:' ) );
+
 list( $o ) = run_scenario( $sc, 'not-found' );
 ok( '?token= unknown → not-found card, no cookie',
     false !== strpos( $o, 'Link not found' ) && false === strpos( $o, 'AUTH_COOKIE_SET' ) );

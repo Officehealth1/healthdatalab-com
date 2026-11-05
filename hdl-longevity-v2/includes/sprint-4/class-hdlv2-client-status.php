@@ -24,7 +24,7 @@ class HDLV2_Client_Status {
         'not_started'          => 'Not Started',
         'low_data'             => 'Low Data',
         'awaiting_why_release' => 'Ready to invite',
-        'stage3_in_progress'   => 'Stage 3 In Progress',
+        'stage3_in_progress'   => 'Full Report form in progress',
         'awaiting_consult'     => 'Awaiting Consult',
         'active'               => 'Active',
         'progress_normal'      => 'Progress Normal',
@@ -92,11 +92,11 @@ class HDLV2_Client_Status {
             case self::NOT_STARTED:
                 return array( 'enabled' => true, 'stage' => 1, 'link_kind' => 'assessment', 'label' => 'Send assessment link', 'tooltip' => '' );
             case self::LOW_DATA:
-                return array( 'enabled' => true, 'stage' => 2, 'link_kind' => 'assessment', 'label' => 'Send Stage-2 link', 'tooltip' => '' );
+                return array( 'enabled' => true, 'stage' => 2, 'link_kind' => 'assessment', 'label' => 'Send Full Report link', 'tooltip' => '' );
             case self::STAGE3_IN_PROGRESS:
-                return array( 'enabled' => true, 'stage' => 3, 'link_kind' => 'assessment', 'label' => 'Send Stage-3 link', 'tooltip' => '' );
+                return array( 'enabled' => true, 'stage' => 3, 'link_kind' => 'assessment', 'label' => 'Send Full Report form link', 'tooltip' => '' );
             case self::AWAITING_WHY_RELEASE:
-                return $off( 'Waiting on you to release Stage 3 — nothing to send' );
+                return $off( 'Waiting on you to open the Full Report form — nothing to send' );
             case self::AWAITING_CONSULT:
                 return $off( 'Waiting on your consultation — nothing to send' );
             case self::ACTIVE:
@@ -239,21 +239,7 @@ class HDLV2_Client_Status {
             'methods'  => 'GET',
             'callback' => array( $this, 'rest_get_client_record' ),
             'permission_callback' => function ( $req ) {
-                $progress_id = absint( $req['progress_id'] );
-                if ( ! $progress_id ) return false;
-                global $wpdb;
-                // v0.41.17 — `AND deleted_at IS NULL`. Without this, after
-                // a re-invite the practitioner still owns the new
-                // form_progress for this client_user_id, and the IDOR
-                // check (owner-by-progress_id) would pass for the OLD
-                // archived progress_id — leaking Stage 1/2/3/Final data.
-                $owner = (int) $wpdb->get_var( $wpdb->prepare(
-                    "SELECT practitioner_user_id FROM {$wpdb->prefix}hdlv2_form_progress
-                     WHERE id = %d AND deleted_at IS NULL",
-                    $progress_id
-                ) );
-                if ( ! $owner ) return false;
-                return $owner === get_current_user_id() || current_user_can( 'manage_options' );
+                return HDLV2_Client_Status::practitioner_owns_progress( $req['progress_id'], get_current_user_id() );
             },
         ) );
 
@@ -418,12 +404,20 @@ class HDLV2_Client_Status {
             $now, $practitioner_id, $practitioner_id, $client_id
         ) );
 
+        // 7b) v0.48.34 — Healthspan Timeline links this client made (their lanes of loved ones)
+        // or consented to as someone's invitee: deleted with the record (DB6).
+        $cascade_counts['hdlv2_timeline_links'] = class_exists( 'HDLV2_Timeline_Links' )
+            ? HDLV2_Timeline_Links::forget_client( $practitioner_id, $client_id, $client_user ? $client_user->user_email : '' )
+            : 0;
+
         // 8) Revoke pending/opened widget_invites for this client. Stops a
         // stale invite email from triggering auto-login on the deleted user
         // (closes the loop with the V1-link auto-restore disable). Uses the
         // 'revoked' enum value (widget_invites.status ENUM does not include
         // 'cancelled'; 'revoked' is the canonical "intentionally invalidated"
         // state for this table).
+        // v0.48.24 — a challenge link is a sale, not a practitioner invite:
+        // it stays live when the practitioner deletes the client.
         $client_email = $client_user ? strtolower( trim( $client_user->user_email ) ) : null;
         $invites_cancelled = 0;
         if ( $client_email ) {
@@ -433,7 +427,7 @@ class HDLV2_Client_Status {
                  WHERE practitioner_id = %d
                    AND LOWER(client_email) = %s
                    AND status IN ('pending','opened')
-                   AND source <> 'paid_stage1'",
+                   AND source NOT IN ('paid_stage1','challenge')",
                 $practitioner_id, $client_email
             ) );
         }
@@ -445,6 +439,29 @@ class HDLV2_Client_Status {
             'invites_cancelled' => $invites_cancelled,
             'client_id'         => $client_id,
         ) );
+    }
+
+    /**
+     * The practitioner of this live form_progress row is $user_id, or $user_id is an administrator.
+     * One check for the client-record route and the practitioner's read-only view of a client's
+     * dashboard (v0.48.40).
+     */
+    public static function practitioner_owns_progress( $progress_id, $user_id ) {
+        $progress_id = absint( $progress_id );
+        if ( ! $progress_id ) return false;
+        global $wpdb;
+        // v0.41.17 — `AND deleted_at IS NULL`. Without this, after
+        // a re-invite the practitioner still owns the new
+        // form_progress for this client_user_id, and the IDOR
+        // check (owner-by-progress_id) would pass for the OLD
+        // archived progress_id — leaking Stage 1/2/3/Final data.
+        $owner = (int) $wpdb->get_var( $wpdb->prepare(
+            "SELECT practitioner_user_id FROM {$wpdb->prefix}hdlv2_form_progress
+             WHERE id = %d AND deleted_at IS NULL",
+            $progress_id
+        ) );
+        if ( ! $owner ) return false;
+        return $owner === (int) $user_id || user_can( (int) $user_id, 'manage_options' );
     }
 
     /**
@@ -920,7 +937,7 @@ class HDLV2_Client_Status {
 
             if ( $why && (int) $why->released === 0 ) {
                 // Client submitted Stage 2; practitioner hasn't released the WHY gate yet.
-                return self::build_result( self::AWAITING_WHY_RELEASE, array( 'Review WHY profile and release Stage 3' ) );
+                return self::build_result( self::AWAITING_WHY_RELEASE, array( 'Review WHY profile and open the Full Report form' ) );
             }
 
             if ( $why && (int) $why->released === 1 ) {
@@ -1346,7 +1363,7 @@ class HDLV2_Client_Status {
             // from the display status['status'] badge above).
             $send = self::resolve_resend_status( $client_id );
 
-            $result[] = array(
+            $entry = array(
                 'user_id'          => (int) $client_id,
                 'progress_id'      => $progress_id,
                 'why_id'           => $why ? (int) $why->id : null,
@@ -1386,7 +1403,16 @@ class HDLV2_Client_Status {
                 // with no report is offered "Resend report" (token rotation +
                 // dead link). $send is resolved once per row above.
                 'resend'           => self::resend_link_descriptor( $send['status'], $has_plan, ! empty( $send['has_report'] ) ),
+                // v0.48.35 — the family pack line on the row; null unless hdlv2_ff_timeline_pack is on.
+                'family'           => class_exists( 'HDLV2_Timeline_Links' ) ? HDLV2_Timeline_Links::dashboard_pack( $progress_id ) : null,
             );
+            // v0.48.40 — "See it as they see it": the client's dashboard, read-only. Absent with
+            // hdlv2_ff_view_as_client off, so the payload is as before.
+            $view_as = class_exists( 'HDLV2_Client_Dashboard' ) ? HDLV2_Client_Dashboard::view_as_url( $progress_id ) : '';
+            if ( '' !== $view_as ) {
+                $entry['view_as_url'] = $view_as;
+            }
+            $result[] = $entry;
         }
 
         return rest_ensure_response( $result );
@@ -1579,6 +1605,12 @@ class HDLV2_Client_Status {
             'hdlv2_monthly_summaries', 'hdlv2_jobs', 'hdlv2_audio_extractions',
             // v0.28.0 — practitioner-appended consultation addenda (DB v3.1).
             'hdlv2_consultation_addenda',
+            // v0.48.23 — the 30-day challenge's ticked days (DB v3.31).
+            'hdlv2_challenge_days',
+            // v0.48.34 — Healthspan Timeline links (DB v3.32).
+            'hdlv2_timeline_links',
+            // v0.48.35 — family packs (DB v3.33).
+            'hdlv2_timeline_packs',
         );
 
         $tables_present = 0;

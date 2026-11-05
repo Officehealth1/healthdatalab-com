@@ -329,6 +329,11 @@ class HDLV2_Client_Draft_View {
             }
         }
 
+        // v0.48.29 — the Healthspan Timeline card: this token opens the page in full mode.
+        if ( $report_row && class_exists( 'HDLV2_Healthspan_Timeline' ) && HDLV2_Healthspan_Timeline::enabled() ) {
+            $response['timeline'] = array( 'url' => HDLV2_Healthspan_Timeline::report_url( $token ) );
+        }
+
         return rest_ensure_response( $response );
     }
 

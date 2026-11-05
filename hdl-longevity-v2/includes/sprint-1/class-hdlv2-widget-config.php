@@ -467,6 +467,16 @@ class HDLV2_Widget_Config {
         $invite_id    = null;
         $invite_token = isset( $params['invite_token'] ) ? sanitize_text_field( $params['invite_token'] ) : '';
         $invite       = $invite_token ? self::get_valid_invite( $invite_token ) : null;
+        // v0.48.23 — a 30-day challenge link buys the videos, not the Full
+        // Report: its Stage 1 takes the public path below (pending lead,
+        // Stage 1 PDF with the offer page), as a visitor with no link does.
+        // Its own practitioner's paid widget still takes it (Stage 1 comes
+        // with the challenge), for the buyer's own email only (see below).
+        $challenge_invite = null;
+        if ( $invite && isset( $invite->source ) && 'challenge' === $invite->source ) {
+            $challenge_invite = (int) $invite->practitioner_id === $practitioner_id ? $invite : null;
+            $invite           = null;
+        }
 
         // v0.47.85 — paid mode (widget_config.access_mode). A paid widget
         // takes answers only with a valid invite of THIS practitioner. A paid
@@ -475,14 +485,17 @@ class HDLV2_Widget_Config {
         // never takes the fast path below, and it is claimed only once the
         // submission has passed validation (see "claim the ticket").
         $paid_mode   = isset( $config->access_mode ) && 'paid' === $config->access_mode;
-        $is_ticket   = $invite && isset( $invite->source ) && 'paid_stage1' === $invite->source;
+        // v0.48.34 — a Healthspan Timeline link takes the same path (the full nine
+        // questions, the claim, the lead tied to the ticket); its reply also carries
+        // the consent key (see the end of the public path).
+        $is_ticket   = $invite && isset( $invite->source ) && in_array( $invite->source, array( 'paid_stage1', 'timeline_link' ), true );
         $ticket_id   = null;
         // v0.48.15 — a Full Report ticket only ever opens its own practitioner's form.
         $is_full     = $invite && isset( $invite->source ) && 'full_report' === $invite->source;
         if ( $invite && ( $paid_mode || $is_ticket || $is_full ) && (int) $invite->practitioner_id !== $practitioner_id ) {
             $invite = null;
         }
-        if ( $paid_mode && ! $invite ) {
+        if ( $paid_mode && ! $invite && ! $challenge_invite ) {
             // v0.47.89 — a repeat post of a ticket whose lead is on file gets
             // the first answer back, however long after the first post.
             $saved = self::saved_ticket_reply( $invite_token, $practitioner_id );
@@ -518,6 +531,17 @@ class HDLV2_Widget_Config {
             $params['visitor_region'] ?? ''
         );
 
+        // ── Email validation — format + MX record (catches typos + dead domains). ──
+        // v0.48.24 — before the link-email checks below, so an empty or
+        // malformed email gets this answer, not "another email address".
+        if ( ! $visitor_email || ! is_email( $visitor_email ) ) {
+            return new WP_Error( 'invalid_email', 'Please enter a valid email address.', array( 'status' => 400 ) );
+        }
+        $email_check = self::validate_email_deliverable( $visitor_email );
+        if ( is_wp_error( $email_check ) ) {
+            return $email_check;
+        }
+
         // v0.48.15 — a Full Report ticket was bought for one email. The answers
         // land on that email's client record, never on one the visitor types:
         // the record is found by email, so a typed address would open someone
@@ -525,14 +549,10 @@ class HDLV2_Widget_Config {
         if ( $is_full && $invite_id && 0 !== strcasecmp( $visitor_email, (string) $invite->client_email ) ) {
             return new WP_Error( 'email_mismatch', 'This personal link belongs to another email address. Please use the email you bought the report with.', array( 'status' => 403 ) );
         }
-
-        // ── Email validation — format + MX record (catches typos + dead domains). ──
-        if ( ! $visitor_email || ! is_email( $visitor_email ) ) {
-            return new WP_Error( 'invalid_email', 'Please enter a valid email address.', array( 'status' => 400 ) );
-        }
-        $email_check = self::validate_email_deliverable( $visitor_email );
-        if ( is_wp_error( $email_check ) ) {
-            return $email_check;
+        // v0.48.23 — the challenge link is reusable, so past a paid gate it
+        // opens Stage 1 for the buyer's own email only.
+        if ( $paid_mode && $challenge_invite && 0 !== strcasecmp( $visitor_email, (string) $challenge_invite->client_email ) ) {
+            return new WP_Error( 'email_mismatch', 'This personal link belongs to another email address. Please use the email you bought the challenge with.', array( 'status' => 403 ) );
         }
 
         // Build Stage 1 answers from widget payload
@@ -579,7 +599,10 @@ class HDLV2_Widget_Config {
         // 60s window keyed on (practitioner, email[, invite]); cached payload
         // returned verbatim on repeat. Belt-and-braces: the widget JS also
         // disables the submit button on click.
-        $dedupe_key = 'hdlv2_lead_dedup_' . md5( $practitioner_id . '|' . $visitor_email . '|' . ( $invite_id ?: 'public' ) );
+        // v0.48.34 — a Healthspan Timeline link has its own slot: the same email through a second
+        // link within the minute must claim that link, not get the first one's reply.
+        $dedupe_scope = $invite_id ?: ( $ticket_id && 'timeline_link' === $invite->source ? 'tl' . $ticket_id : 'public' );
+        $dedupe_key   = 'hdlv2_lead_dedup_' . md5( $practitioner_id . '|' . $visitor_email . '|' . $dedupe_scope );
         $cached     = get_transient( $dedupe_key );
         if ( is_array( $cached ) ) {
             return rest_ensure_response( $cached );
@@ -679,6 +702,8 @@ class HDLV2_Widget_Config {
             'visitor_country' => $visitor_loc['country'],
             'visitor_region'  => $visitor_loc['region'],
             'invite_id'       => $ticket_id,
+            // v0.48.25 — the buyer's own answers through their challenge link.
+            'requeue_rejected' => $challenge_invite && 0 === strcasecmp( $visitor_email, (string) $challenge_invite->client_email ),
         ) );
 
         if ( $ticket_id && ! $lead_id ) {
@@ -769,6 +794,11 @@ class HDLV2_Widget_Config {
             'rate'    => $rate,
         );
         set_transient( $dedupe_key, $public_response, 60 );
+        // v0.48.34 — the key the consent card needs, only in this reply to the browser that
+        // sent the answers: never cached, so a repeat post with the same email gets none.
+        if ( $ticket_id && $lead_id && 'timeline_link' === $invite->source && class_exists( 'HDLV2_Timeline_Links' ) ) {
+            $public_response['link_key'] = HDLV2_Timeline_Links::consent_key( $ticket_id, $lead_id );
+        }
         return rest_ensure_response( $public_response );
     }
 
@@ -853,7 +883,8 @@ class HDLV2_Widget_Config {
             // v0.47.85 — a paid submission must reach the practitioner's
             // Pending Leads even if an earlier free one from this email was
             // rejected. A confirmed row stays confirmed (already a client).
-            if ( ! empty( $args['invite_id'] ) ) {
+            // v0.48.25 — a challenge buyer's own submission too.
+            if ( ! empty( $args['invite_id'] ) || ! empty( $args['requeue_rejected'] ) ) {
                 $wpdb->query( $wpdb->prepare(
                     "UPDATE $table SET status = 'pending', rejected_at = NULL WHERE id = %d AND status = 'rejected'",
                     $existing_id
@@ -979,6 +1010,11 @@ class HDLV2_Widget_Config {
      *
      * @return array { country: 'US'|'' , region: 'Texas'|'' }
      */
+    /** v0.48.42 — the Stage 1 question pictures (hdlv2_ff_question_motion; absent = off). */
+    public static function question_motion_enabled() {
+        return (bool) get_option( 'hdlv2_ff_question_motion', false );
+    }
+
     public static function sanitize_visitor_location( $country_raw, $region_raw ) {
         $none = array( 'country' => '', 'region' => '' );
         if ( ! is_scalar( $country_raw ) ) {
@@ -1039,6 +1075,36 @@ class HDLV2_Widget_Config {
     }
 
     /**
+     * The Stage 1 report's gauge: the dial only. The PDF prints the rate and the interpretation pill
+     * in its own type beside it (v0.30.0), so the image carries neither. v0.48.41 — public: the
+     * client dashboard's Stage 1 card and Today's preview show this same picture.
+     */
+    public static function stage1_report_gauge_url( $rate ) {
+        if ( ! $rate ) return '';
+        $clamped = max( 0.8, min( 1.4, round( (float) $rate, 2 ) ) );
+        $cfg = array(
+            'type' => 'gauge',
+            'data' => array( 'labels' => array('Slower','Average','Faster'), 'datasets' => array( array(
+                'data' => array(0.9,1.1,1.4), 'value' => $clamped, 'minValue' => 0.8, 'maxValue' => 1.4,
+                'backgroundColor' => array('rgba(67,191,85,0.95)','rgba(65,165,238,0.95)','rgba(255,111,75,0.95)'),
+                'borderWidth' => 1, 'borderColor' => 'rgba(255,255,255,0.8)', 'borderRadius' => 5,
+            ) ) ),
+            'options' => array(
+                'layout' => array( 'padding' => array('top'=>30,'bottom'=>15,'left'=>15,'right'=>15) ),
+                'plugins' => array( 'datalabels' => array('display'=>false) ),
+                'needle' => array('radiusPercentage'=>2.5,'widthPercentage'=>4,'lengthPercentage'=>68,'color'=>'#004F59','shadowColor'=>'rgba(0,79,89,0.4)','shadowBlur'=>8,'shadowOffsetY'=>4,'borderWidth'=>2,'borderColor'=>'rgba(255,255,255,1)'),
+                // v0.30.0 — disabled; premium template renders value typographically.
+                'valueLabel' => array('display'=>false),
+                'centerArea' => array('displayText'=>false,'backgroundColor'=>'transparent'),
+                'arc' => array('borderWidth'=>0,'padding'=>2,'margin'=>3,'roundedCorners'=>true),
+                // v0.30.0 — disabled; premium template renders interpretation as a pill.
+                'subtitle' => array('display'=>false),
+            ),
+        );
+        return 'https://quickchart.io/chart?c=' . rawurlencode( wp_json_encode( $cfg ) ) . '&w=380&h=340&bkg=white';
+    }
+
+    /**
      * Build the QuickChart gauge URL for a rate. Centralised so all 3 callers
      * (verification email, practitioner notify, Make.com PDF payload) match.
      */
@@ -1076,7 +1142,7 @@ class HDLV2_Widget_Config {
     /**
      * Plain-language interpretation for a rate value.
      */
-    private static function interpret_rate( $rate ) {
+    public static function interpret_rate( $rate ) {
         if ( ! $rate )              return array( 'label' => '', 'message' => '' );
         $rate_disp = number_format( (float) $rate, 2 ); // v0.47.15 2-dp parity
         if ( $rate <= 0.95 )        return array( 'label' => 'Slower than average', 'message' => 'Your pace of ageing is ' . $rate_disp . '× — you\'re ageing slower than average. Your lifestyle factors are working in your favour.' );
@@ -1315,36 +1381,8 @@ class HDLV2_Widget_Config {
 
         if ( $send_make_pdf && $rate ) {
             $practitioner_data = get_userdata( $practitioner_id );
-            // Build gauge URL for PDF.
-            //
-            // v0.30.0 — Premium template renders rate value + interpretation
-            // pill in its own typography, so the gauge image is now dial-only:
-            // valueLabel.display = false and subtitle.display = false. This
-            // strips the "0.96" and "Slower" baked into the QuickChart PNG so
-            // the PDF doesn't double-show the same number. Practitioner email
-            // gauge (separate config above, ~line 758) keeps its baked-in
-            // labels — that surface has minimal typography around it.
-            $clamped_rate = max( 0.8, min( 1.4, round( (float) $rate, 2 ) ) );
-            $s1_gauge_cfg = array(
-                'type' => 'gauge',
-                'data' => array( 'labels' => array('Slower','Average','Faster'), 'datasets' => array( array(
-                    'data' => array(0.9,1.1,1.4), 'value' => $clamped_rate, 'minValue' => 0.8, 'maxValue' => 1.4,
-                    'backgroundColor' => array('rgba(67,191,85,0.95)','rgba(65,165,238,0.95)','rgba(255,111,75,0.95)'),
-                    'borderWidth' => 1, 'borderColor' => 'rgba(255,255,255,0.8)', 'borderRadius' => 5,
-                ) ) ),
-                'options' => array(
-                    'layout' => array( 'padding' => array('top'=>30,'bottom'=>15,'left'=>15,'right'=>15) ),
-                    'plugins' => array( 'datalabels' => array('display'=>false) ),
-                    'needle' => array('radiusPercentage'=>2.5,'widthPercentage'=>4,'lengthPercentage'=>68,'color'=>'#004F59','shadowColor'=>'rgba(0,79,89,0.4)','shadowBlur'=>8,'shadowOffsetY'=>4,'borderWidth'=>2,'borderColor'=>'rgba(255,255,255,1)'),
-                    // v0.30.0 — disabled; premium template renders value typographically.
-                    'valueLabel' => array('display'=>false),
-                    'centerArea' => array('displayText'=>false,'backgroundColor'=>'transparent'),
-                    'arc' => array('borderWidth'=>0,'padding'=>2,'margin'=>3,'roundedCorners'=>true),
-                    // v0.30.0 — disabled; premium template renders interpretation as a pill.
-                    'subtitle' => array('display'=>false),
-                ),
-            );
-            $s1_gauge_url = 'https://quickchart.io/chart?c=' . rawurlencode( wp_json_encode( $s1_gauge_cfg ) ) . '&w=380&h=340&bkg=white';
+            // The Stage 1 report's dial (v0.48.41: one helper, the client dashboard shows it too).
+            $s1_gauge_url = self::stage1_report_gauge_url( $rate );
 
             // Practitioner logo — canonical helper with HDL fallback because
             // this surface (Stage 1 result page email + PDFMonkey Stage 1
@@ -1382,6 +1420,7 @@ class HDLV2_Widget_Config {
             );
 
             $offer_show  = ( $args['offer_show'] ?? true ) && HDLV2_Offer::applies_to( $practitioner_id );
+            $band        = HDLV2_Stage1_Commentary::band_key( $rate );
             $pdf_payload = array(
                 // v0.22.8 — Make.com Final Report scenario now gates each route
                 // by report_type (Route 1 = final, Route 2 = stage1, Route 3 =
@@ -1437,16 +1476,20 @@ class HDLV2_Widget_Config {
                 'strongest_text'         => $commentary['strongest_text'],
                 'priority_topic'         => $commentary['priority_topic'],
                 'priority_text'          => $commentary['priority_text'],
+                // v0.48.50 — the band and its video for the Stage 1 email (W10);
+                // one edge with the result page's words (HDLV2_Stage1_Commentary::band_key).
+                'band'                   => $band,
+                'band_video_url'         => HDLV2_Stage1_Commentary::band_videos( $practitioner_id )[ $band ] ?? '',
             )
-            // v0.48.15 — the Full Report offer for page 2 (nine string keys,
-            // one setting: HDLV2_Offer). offer_show "0" hides page 2 for a
-            // buyer who already paid for the Full Report.
+            // v0.48.15 — the Full Report offer for page 2 (string keys, one
+            // setting: HDLV2_Offer). offer_show "0" hides page 2 for a buyer who
+            // already paid for the Full Report. v0.48.50: + offer_code_ends.
             + HDLV2_Offer::payload_keys( $offer_show );
             // v0.48.18 — where the offer shows, this person's own one-use code
-            // (same two keys, so Make and the template are unchanged).
+            // (same keys, so Make and the template are unchanged); v0.48.50 its end date.
             if ( $offer_show ) {
                 $offer_ref   = $args['offer_ref'] ?? ( $invite_id ? 'invite-' . (int) $invite_id : '' );
-                $pdf_payload = array_merge( $pdf_payload, HDLV2_Offer::personal( $offer_ref ) );
+                $pdf_payload = array_merge( $pdf_payload, HDLV2_Offer::personal( $offer_ref, $visitor_email, $band ) );
             }
 
             $stage1_webhook = defined( 'HDLV2_MAKE_STAGE1_PDF' ) ? HDLV2_MAKE_STAGE1_PDF : '';
@@ -2616,12 +2659,19 @@ class HDLV2_Widget_Config {
             // the embedded widget shows the 2-question safety screen before the
             // result. Default off = widget behaves exactly as before.
             'safety_screen_enabled'         => (bool) get_option( 'hdlv2_ff_safety_screen', false ),
+            // v0.48.42 — the question pictures, and the plugin version for their ?ver= cache key.
+            'question_motion_enabled'       => self::question_motion_enabled(),
+            'asset_ver'                     => HDLV2_VERSION,
+            // v0.48.50 — Matthew's video per band, under the gauge on the result ({} when none).
+            'band_videos'                   => (object) HDLV2_Stage1_Commentary::band_videos( (int) $row->practitioner_user_id ), // v0.48.51 the offer's practitioner only
             // v0.47.85 — paid mode: the widget shows its locked panel to a
             // visitor without a personal link. Covers embeds pasted before
             // the snippet carried data-access.
             'access_mode'                   => isset( $row->access_mode ) && 'paid' === $row->access_mode ? 'paid' : 'open',
             'buy_url'                       => isset( $row->buy_url ) ? (string) $row->buy_url : '',
-        ) + ( HDLV2_Offer::applies_to( (int) $row->practitioner_user_id ) ? HDLV2_Offer::public_config_fields() : array() ) ) ); // v0.48.15 — the locked panel's price line
+        ) + ( HDLV2_Offer::applies_to( (int) $row->practitioner_user_id ) ? HDLV2_Offer::public_config_fields() : array() ) // v0.48.15 — the locked panel's price line
+          // v0.48.29 — the result screen's timeline teaser, beside the offer it sells (flag on only)
+          + ( HDLV2_Offer::applies_to( (int) $row->practitioner_user_id ) && class_exists( 'HDLV2_Healthspan_Timeline' ) ? HDLV2_Healthspan_Timeline::public_config_fields() : array() ) ) );
     }
 
     /**
@@ -3132,10 +3182,17 @@ class HDLV2_Widget_Config {
             }
         }
 
+        // v0.48.34 — a Healthspan Timeline link: its client_name is the inviter's label for the
+        // person, not their name, so it is not handed over; link_from = the inviter's first name.
+        $source = isset( $invite->source ) ? (string) $invite->source : 'practitioner';
+        $link   = 'timeline_link' === $source && class_exists( 'HDLV2_Timeline_Links' )
+            ? array( 'link_from' => HDLV2_Timeline_Links::link_from( (int) $invite->id ) )
+            : array();
+
         return rest_ensure_response( array(
             'valid'             => true,
             'practitioner_id'                => (int) $invite->practitioner_id,
-            'client_name'                    => $invite->client_name,
+            'client_name'                    => 'timeline_link' === $source ? '' : $invite->client_name,
             'client_email'                   => $invite->client_email,
             'practitioner_name'              => $config ? $config->practitioner_name : '',
             'logo_url'                       => $config ? $config->logo_url : '',
@@ -3145,12 +3202,15 @@ class HDLV2_Widget_Config {
             'theme_color'                    => $config ? $config->theme_color : '#3d8da0',
             'show_book_button_after_widget'  => $config ? ! empty( $config->show_book_button_after_widget ) : false,
             'safety_screen_enabled'          => (bool) get_option( 'hdlv2_ff_safety_screen', false ),
+            'question_motion_enabled'        => self::question_motion_enabled(), // v0.48.42
+            'asset_ver'                      => HDLV2_VERSION,
+            'band_videos'                    => (object) HDLV2_Stage1_Commentary::band_videos( (int) $invite->practitioner_id ), // v0.48.50; v0.48.51 the offer's practitioner only
             'api_url'                        => rest_url( 'hdl-v2/v1/widget/lead' ),
             'prefill_stage1'                 => $prefill,
             // v0.47.85 — 'paid_stage1' tells the widget this link buys the
             // public path (no "Continue to Stage 2").
-            'source'                         => isset( $invite->source ) ? (string) $invite->source : 'practitioner',
-        ) );
+            'source'                         => $source,
+        ) + $link );
     }
 
     /**
@@ -3174,7 +3234,7 @@ class HDLV2_Widget_Config {
         $invites = $wpdb->get_results( $wpdb->prepare(
             "SELECT id, client_name, client_email, status, token, expires_at, created_at, opened_at, completed_at
              FROM {$wpdb->prefix}hdlv2_widget_invites
-             WHERE practitioner_id = %d AND source <> 'paid_stage1'
+             WHERE practitioner_id = %d AND source NOT IN ('paid_stage1','challenge') AND source <> 'timeline_link'
              ORDER BY created_at DESC
              LIMIT 100",
             $user_id
@@ -3538,7 +3598,7 @@ class HDLV2_Widget_Config {
         $invites = $wpdb->get_results( $wpdb->prepare(
             "SELECT id, client_name, client_email, status, token, expires_at, created_at, opened_at, completed_at
              FROM {$wpdb->prefix}hdlv2_widget_invites
-             WHERE practitioner_id = %d AND source <> 'paid_stage1'
+             WHERE practitioner_id = %d AND source NOT IN ('paid_stage1','challenge') AND source <> 'timeline_link'
              ORDER BY created_at DESC
              LIMIT 100",
             $user_id
@@ -3583,10 +3643,12 @@ class HDLV2_Widget_Config {
         }
 
         global $wpdb;
+        // v0.48.24 — a challenge link is a sale, not a practitioner invite:
+        // never listed (see the Sent Invites queries), so never deleted here.
         $deleted = $wpdb->query( $wpdb->prepare(
             "DELETE FROM {$wpdb->prefix}hdlv2_widget_invites
              WHERE id = %d AND practitioner_id = %d AND status IN ('expired','revoked','completed')
-               AND source <> 'paid_stage1'",
+               AND source NOT IN ('paid_stage1','challenge') AND source <> 'timeline_link'",
             $invite_id,
             $user_id
         ) );

@@ -99,7 +99,9 @@ class HDLV2_Rate_Limit_Policy {
             return false;
         }
         return (bool) ( preg_match( '#^/hdl-v2/v1/dashboard/clients$#', $route )
-                     || preg_match( '#^/hdl-v2/v1/widget/leads/pending$#', $route ) );
+                     || preg_match( '#^/hdl-v2/v1/widget/leads/pending$#', $route )
+                     // v0.48.36 — one per opened client panel, beside that panel's own reads.
+                     || preg_match( '#^/hdl-v2/v1/dashboard/client/[0-9]+/products$#', $route ) );
     }
 
     public static function tier_config( $tier ) {
@@ -203,6 +205,15 @@ class HDLV2_Rate_Limit_Policy {
             array( 'POST', '#^/hdl-v2/v1/consultation/milestones-stage-edit$#', self::TIER_WRITE ),
             array( 'POST', '#^/hdl-v2/v1/flight-plan/[0-9]+/edit$#',            self::TIER_WRITE ),
             array( 'POST', '#^/hdl-v2/v1/checkin/submit$#',                     self::TIER_WRITE ),
+            // v0.48.23 — the 30-day challenge tick: one INSERT IGNORE, no AI.
+            array( 'POST', '#^/hdl-v2/v1/challenge/tick$#',                     self::TIER_WRITE ),
+            // v0.48.34 — Healthspan Timeline links: make / end one (the inviter's token), the
+            // invitee's yes or no and their withdraw. Cheap writes; the yes sends two emails once.
+            array( 'POST',   '#^/hdl-v2/v1/timeline/links$#',                   self::TIER_WRITE ),
+            array( 'DELETE', '#^/hdl-v2/v1/timeline/links/[0-9]+$#',            self::TIER_WRITE ),
+            array( 'POST',   '#^/hdl-v2/v1/timeline/(consent|withdraw)$#',      self::TIER_WRITE ),
+            // v0.48.35 — a practitioner grants or ends a family pack.
+            array( 'POST',   '#^/hdl-v2/v1/timeline/packs(/[0-9]+/end)?$#',     self::TIER_WRITE ),
             array( 'POST', '#^/hdl-v2/v1/audio/client-error$#',                 self::TIER_WRITE ),
             // v0.35.0 (Phase O) — practitioner rejects a widget lead. Silent
             // (no email, no Make.com call), so TIER_WRITE rather than AI_BURN.
@@ -215,8 +226,11 @@ class HDLV2_Rate_Limit_Policy {
             array( 'GET',  '#^/hdl-v2/v1/widget/leads/pending$#',               self::TIER_READ ),
             array( 'GET',  '#^/hdl-v2/v1/flight-plan/[0-9]+/(current|history|adherence|preview)$#', self::TIER_READ ),
             array( 'GET',  '#^/hdl-v2/v1/timeline/[0-9]+(/client|/export)?$#',  self::TIER_READ ),
+            array( 'GET',  '#^/hdl-v2/v1/timeline/links$#',                     self::TIER_READ ),
             array( 'GET',  '#^/hdl-v2/v1/dashboard/clients$#',                  self::TIER_READ ),
             array( 'GET',  '#^/hdl-v2/v1/dashboard/client/[0-9]+/effort-outcomes$#', self::TIER_READ ),
+            // v0.48.36 — the client's five product tiles, once per opened client panel.
+            array( 'GET',  '#^/hdl-v2/v1/dashboard/client/[0-9]+/products$#',  self::TIER_READ ),
             // v0.25.2 — practitioner consultations index (/consultation/ landing).
             array( 'GET',  '#^/hdl-v2/v1/consultations/list$#',                  self::TIER_READ ),
             array( 'GET',  '#^/hdl-v2/v1/health$#',                             self::TIER_READ ),

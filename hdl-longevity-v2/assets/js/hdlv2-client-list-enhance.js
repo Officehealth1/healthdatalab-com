@@ -93,6 +93,14 @@
 
   function init() {
     injectStyles();
+    // v0.48.37 — open panels follow the window: re-fit once the drag settles.
+    var fitTimer = null;
+    window.addEventListener('resize', function () {
+      clearTimeout(fitTimer);
+      fitTimer = setTimeout(function () {
+        document.querySelectorAll('.hdlv2-detail-panel').forEach(fitDetailPanel);
+      }, 150);
+    });
     // P3 — swap the animated icon set into the V1 server-rendered rows
     // straight away (before the roster fetch resolves), so the
     // static→animated transition never flashes. Idempotent — later passes
@@ -982,8 +990,8 @@
       // client is in the journey. "Needs attention" stays unprefixed
       // because it can fire at any stage.
       pending_leads:    { dot: '#3d8da0', label: 'Stage 1: New widget submissions',       items: [], action: 'lead_action',  cls: 'pending' },
-      release_why:      { dot: '#d97706', label: 'Stage 2: Ready to invite to Stage 3',   items: [], action: 'release',      cls: 'release' },
-      awaiting_consult: { dot: '#3b82f6', label: 'Stage 3: Ready to record consultation', items: [], action: 'open_consult', cls: 'consult' },
+      release_why:      { dot: '#d97706', label: 'Full Report · WHY: ready to open the form',   items: [], action: 'release',      cls: 'release' },
+      awaiting_consult: { dot: '#3b82f6', label: 'Full Report · form: ready to record consultation', items: [], action: 'open_consult', cls: 'consult' },
       needs_attention:  { dot: '#dc2626', label: 'Needs attention',                              items: [], action: 'view_timeline', cls: 'attn' },
     };
 
@@ -1442,14 +1450,14 @@
       : '<div class="hdlv2-pending-detail-empty">No Stage-1 answer detail was captured for this lead.</div>';
 
     return '<div class="hdlv2-pending-detail">'
-      + '<div class="hdlv2-pending-detail-note">Pre-confirmation lead — not yet an account. Confirm to provision the client and send their Stage-2 link.</div>'
+      + '<div class="hdlv2-pending-detail-note">Pre-confirmation lead — not yet an account. Confirm to provision the client and send their Full Report link.</div>'
       + contact + answers
       + '</div>';
   }
 
   function renderActionQueueButton(action, c) {
     if (action === 'release') {
-      return '<button type="button" class="hdlv2-aq-btn hdlv2-aq-btn-release" data-aq="release" data-progress-id="' + esc(c.progress_id || 0) + '" data-user-id="' + esc(c.user_id) + '">Invite to Stage 3</button>';
+      return '<button type="button" class="hdlv2-aq-btn hdlv2-aq-btn-release" data-aq="release" data-progress-id="' + esc(c.progress_id || 0) + '" data-user-id="' + esc(c.user_id) + '">Open the Full Report form</button>';
     }
     if (action === 'open_consult') {
       var url = CFG.consultation_url + '?progress_id=' + encodeURIComponent(c.progress_id || 0);
@@ -1465,8 +1473,8 @@
     // v0.22.51 — Quim 2026-04-28: spell out where the data is + what the
     // button does. Render path: buildActionMeta() → innerHTML concat at line
     // ~413, so <strong> renders. Static string only — no esc() needed.
-    if (action === 'release')       return 'Their WHY data was sent to your email. <strong>Practitioner Action:</strong> Unlock Stage 3 Form.';
-    if (action === 'open_consult')  return 'Stage 3 complete — record your consultation notes';
+    if (action === 'release')       return 'Their WHY data was sent to your email. <strong>Practitioner Action:</strong> Open the Full Report form.';
+    if (action === 'open_consult')  return 'Full Report form complete — record your consultation notes';
     if (action === 'view_timeline' && c.reasons && c.reasons.length) return esc(c.reasons[0]);
     return '';
   }
@@ -1481,12 +1489,12 @@
         // v0.20.10 — themed modal instead of browser-native confirm().
         var ask = (window.HDLV2UI && window.HDLV2UI.confirm)
           ? window.HDLV2UI.confirm({
-              title: 'Invite ' + stub.name + ' to Stage 3?',
-              body: 'This emails them the Stage 3 invitation and cannot be undone.',
+              title: 'Open the Full Report form for ' + stub.name + '?',
+              body: 'This emails them the link to the Full Report form and cannot be undone.',
               confirmLabel: 'Yes, send invite',
               cancelLabel: 'Cancel'
             })
-          : Promise.resolve(window.confirm('Invite ' + stub.name + ' to Stage 3?\n\nThis emails them the Stage 3 invitation and cannot be undone.'));
+          : Promise.resolve(window.confirm('Open the Full Report form for ' + stub.name + '?\n\nThis emails them the link to the Full Report form and cannot be undone.'));
         ask.then(function (ok) {
           if (!ok) return;
           releaseFromQueue(btn, stub);
@@ -1578,6 +1586,7 @@
         // sees it arrive.
         if (!state.matched[c.email_hash]) {
           var newRow = buildV2OnlyRow(c);
+          syncPack(newRow, c);
           newRow.dataset.status = c.status || '';
           state.tbody.insertBefore(newRow, state.tbody.firstChild);
           // Brief arrival flash so the practitioner sees it land (self-contained
@@ -1599,6 +1608,7 @@
       // P2 — keep the stage-aware resend button's label/tooltip/disabled state
       // in step with the fresh status (no-op unless the state actually moved).
       refreshResendButton(row, c);
+      syncPack(row, c);
       // Update inline pill
       var cell = row.querySelector('.status-badge-cell');
       if (!cell) return;
@@ -1795,6 +1805,11 @@
     });
   }
 
+  // v0.48.35 — the family pack line under the name; the script loads only with hdlv2_ff_timeline_pack on.
+  function syncPack(row, c) {
+    if (window.HDLV2PackRow) window.HDLV2PackRow.sync(row, c, CFG);
+  }
+
   function injectV2Badge(row, c) {
     // v0.47.84 — location subline in the V1-rendered name cell for matched
     // rows (V2-only rows get it in buildV2OnlyRow). Idempotent for
@@ -1806,6 +1821,7 @@
       locEl.textContent = '📍 ' + c.location;
       nameCell.appendChild(locEl);
     }
+    syncPack(row, c);
 
     var cell = row.querySelector('.status-badge-cell');
     if (!cell) return;
@@ -1901,7 +1917,7 @@
     var dots = deriveJourneyState(c);
     var wrap = document.createElement('span');
     wrap.className = 'hdlv2-mini-stages';
-    wrap.title = 'Stage 1 · Stage 2 · Stage 3 · Consultation · Final · Weekly Flight Plan';
+    wrap.title = 'Stage 1 · Full Report · WHY · Full Report · form · Consultation · Final · Weekly Flight Plan';
     // Hash for reconcileRows() so idle polls don't re-render the strip.
     wrap.setAttribute('data-state-hash', (c.status || '') + '|' + (c.has_final_report ? '1' : '0'));
     var html = '';
@@ -1955,9 +1971,9 @@
     var st = c && c.status;
     switch (st) {
       case 'not_started':          return 'Stage 1';
-      case 'low_data':             return 'Stage 2';
+      case 'low_data':             return 'WHY';
       case 'awaiting_why_release': return 'WHY';
-      case 'stage3_in_progress':   return 'Stage 3';
+      case 'stage3_in_progress':   return 'Form';
       case 'awaiting_consult':     return 'Consult';
       case 'active':
       case 'progress_normal':      return 'Plan';
@@ -1999,12 +2015,22 @@
     detail.className = 'hdlv2-detail-row';
     var td = document.createElement('td');
     td.colSpan = state.colSpan;
-    td.appendChild(buildDetailPanel(c));
+    var panel = buildDetailPanel(c);
+    td.appendChild(panel);
     detail.appendChild(td);
     row.parentNode.insertBefore(detail, row.nextSibling);
+    fitDetailPanel(panel);
     btn.setAttribute('aria-expanded', 'true');
     btn.classList.add('open');
     row.classList.add('hdlv2-row-active');
+  }
+
+  // v0.48.37 — the panel sits in a cell as wide as the roster table, which scrolls sideways inside
+  // its box: give it the box's width (the CSS pins it to the box's left edge) so every tile and card
+  // shows at any width while the table still scrolls under it.
+  function fitDetailPanel(panel) {
+    var box = state.table.closest('.clients-table-container') || state.table.parentNode;
+    if (box && box.clientWidth) panel.style.width = box.clientWidth + 'px';
   }
 
   // -- Flight Consultation Notes -- per-client download (Phase 4) --
@@ -2123,10 +2149,10 @@
     if (c.status === 'awaiting_why_release' && c.progress_id) {
       actionBanner = '<div class="hdlv2-action-banner" data-kind="release-why">'
         + '<div class="hdlv2-action-banner-text">'
-        + '<strong>Ready to invite this client to Stage 3</strong>'
-        + '<span>Your client submitted their WHY profile. Release the gate to email them the Stage 3 invitation.</span>'
+        + '<strong>Ready to open the Full Report form for this client</strong>'
+        + '<span>Your client submitted their WHY profile. Release the gate to email them the link to the Full Report form.</span>'
         + '</div>'
-        + '<button type="button" class="hdlv2-release-why-btn" data-progress-id="' + c.progress_id + '">Invite to Stage 3</button>'
+        + '<button type="button" class="hdlv2-release-why-btn" data-progress-id="' + c.progress_id + '">Open the Full Report form</button>'
         + '</div>';
     }
 
@@ -2162,8 +2188,8 @@
       tabHtml('progress',     'Progress',      ''),
       '<span class="hdlv2-detail-tab-sep" aria-hidden="true"></span>',
       tabHtml('stage1',       'Stage 1',       dots[0]),
-      tabHtml('stage2',       'Stage 2',       dots[1]),
-      tabHtml('stage3',       'Stage 3',       dots[2]),
+      tabHtml('stage2',       'WHY',       dots[1]),
+      tabHtml('stage3',       'Form',       dots[2]),
       '<span class="hdlv2-detail-tab-sep" aria-hidden="true"></span>',
       // B10 — Flight Notes is a journey tab BEFORE Consultation (was a head
       // button). v0.46.48 — its dot mirrors the Stage-3 gate that
@@ -2202,7 +2228,43 @@
     // on the client object, so subsequent tab clicks (Progress, Stage 1/3)
     // reuse the same in-flight or resolved promise — net zero extra requests.
     mountSnapshot(c, panel);
+    mountProducts(c, panel);
+    mountViewAs(c, panel);
     return panel;
+  }
+
+  // v0.48.40 — "See it as <first name> sees it →": the client's own dashboard, read-only. The link is
+  // built by the server (/dashboard/clients view_as_url, absent with hdlv2_ff_view_as_client off) and
+  // sits first in the panel, above the product tiles.
+  function mountViewAs(c, panel) {
+    if (!c.view_as_url) return;
+    var a = document.createElement('a');
+    a.className = 'hdlv2-view-as';
+    a.href = c.view_as_url;
+    a.textContent = 'See it as ' + (String(c.name || '').trim().split(/\s+/)[0] || 'your client') + ' sees it \u2192';
+    panel.insertBefore(a, panel.firstChild);
+  }
+
+  // v0.48.36 — the client's five product tiles at the top of the panel: the same words and states
+  // the client sees on /my-dashboard/, rendered by the server (no links in this copy). One fetch per
+  // opened panel; five skeleton tiles while it runs; on any failure the slot goes and the tabs stand alone.
+  function mountProducts(c, panel) {
+    if (!CFG.products_enabled || !c.user_id) return;
+    var slot = document.createElement('div');
+    slot.setAttribute('aria-busy', 'true');
+    slot.innerHTML = '<div class="cdp-products" aria-hidden="true">'
+      + new Array(6).join('<span class="hdlv2-skel cdp-skel-tile"></span>') + '</div>';
+    panel.insertBefore(slot, panel.firstChild);
+    fetch(CFG.api_base + '/dashboard/client/' + encodeURIComponent(c.user_id) + '/products', {
+      headers: { 'X-WP-Nonce': CFG.nonce }, credentials: 'same-origin', cache: 'no-store'
+    })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (j) {
+        if (!j || !j.products_html) { slot.remove(); return; }
+        slot.innerHTML = j.products_html;
+        slot.removeAttribute('aria-busy');
+      })
+      .catch(function () { slot.remove(); });
   }
 
   // v0.41.19 — single source of truth for tab markup. The status arg is one
@@ -2267,15 +2329,15 @@
     // 4 tiles rendered as skeletons until mountSnapshot() resolves.
     // Labels are static so they read correctly even before data arrives.
     return '<div class="hdlv2-detail-snapshot" data-snapshot-mount>'
-      + snapshotTile('rate',     'Rate of Ageing', '—', '', 'accent-amber')
-      + snapshotTile('adh',      'Adherence',      '—', '', 'accent-teal')
-      + snapshotTile('weeks',    'Weeks active',   '—', '', 'accent-blue')
-      + snapshotTile('next',     'Next milestone', '—', '', 'accent-grey')
+      + snapshotTile('rate',     'Rate of Ageing', '—', '')
+      + snapshotTile('adh',      'Adherence',      '—', '')
+      + snapshotTile('weeks',    'Weeks active',   '—', '')
+      + snapshotTile('next',     'Next milestone', '—', '')
       + '</div>';
   }
 
-  function snapshotTile(key, label, value, sub, accent) {
-    return '<div class="hdlv2-snap-tile ' + accent + '" data-snap="' + key + '">'
+  function snapshotTile(key, label, value, sub) {
+    return '<div class="hdlv2-snap-tile" data-snap="' + key + '">'
       + '<div class="hdlv2-snap-tile-label">' + esc(label) + '</div>'
       + '<div class="hdlv2-snap-tile-value">' + value + '</div>'
       + '<div class="hdlv2-snap-tile-sub">' + sub + '</div>'
@@ -2309,7 +2371,7 @@
       var rate = null, source = '';
       if (data) {
         if (data.stage3 && typeof data.stage3.rate === 'number') {
-          rate = data.stage3.rate; source = 'From Stage 3 full calc';
+          rate = data.stage3.rate; source = 'From the Full Report form';
         } else if (data.stage1 && typeof data.stage1.rate === 'number') {
           rate = data.stage1.rate; source = 'From Stage 1 quick rate';
         }
@@ -2363,7 +2425,7 @@
           wSub.textContent = 'Plan delivered · awaiting first tick';
         } else {
           wVal.textContent = 'Pre-plan';
-          wSub.textContent = c.status === 'awaiting_consult' ? 'Stage 3 complete · consult pending' : 'Plan not generated';
+          wSub.textContent = c.status === 'awaiting_consult' ? 'Form complete · consult pending' : 'Plan not generated';
         }
       }
 
@@ -2410,12 +2472,12 @@
     // v0.20.10 — themed modal instead of browser-native confirm().
     var ask = (window.HDLV2UI && window.HDLV2UI.confirm)
       ? window.HDLV2UI.confirm({
-          title: 'Invite ' + (c.name || c.email) + ' to Stage 3?',
-          body: 'This emails them the Stage 3 invitation and cannot be undone.',
+          title: 'Open the Full Report form for ' + (c.name || c.email) + '?',
+          body: 'This emails them the link to the Full Report form and cannot be undone.',
           confirmLabel: 'Yes, send invite',
           cancelLabel: 'Cancel'
         })
-      : Promise.resolve(window.confirm('Invite ' + (c.name || c.email) + ' to Stage 3?\n\nThis emails them the Stage 3 invitation and cannot be undone.'));
+      : Promise.resolve(window.confirm('Open the Full Report form for ' + (c.name || c.email) + '?\n\nThis emails them the link to the Full Report form and cannot be undone.'));
     ask.then(function (confirmed) {
       if (!confirmed) return;
       _doReleaseWhy(c, btn, panel);
@@ -2446,10 +2508,10 @@
         var banner = panel.querySelector('.hdlv2-action-banner');
         if (banner) {
           banner.classList.add('hdlv2-action-banner-done');
-          banner.innerHTML = '<div class="hdlv2-action-banner-text"><strong>WHY released</strong><span>Client has been emailed the Stage 3 invitation.</span></div>';
+          banner.innerHTML = '<div class="hdlv2-action-banner-text"><strong>WHY released</strong><span>Client has been emailed the link to the Full Report form.</span></div>';
         }
         c.status = 'stage3_in_progress';
-        c.label = 'Stage 3 In Progress';
+        c.label = 'Full Report form in progress';
         c.why_released = 1;
       })
       .catch(function () {
@@ -2616,7 +2678,7 @@
     fetchClientRecord(c).then(function (data) {
       var s2 = data && data.stage2;
       if (!s2) {
-        target.innerHTML = '<div class="hdlv2-detail-empty">Client hasn’t completed Stage 2 (WHY profile) yet.</div>';
+        target.innerHTML = '<div class="hdlv2-detail-empty">Client hasn’t completed the Full Report WHY yet.</div>';
         return;
       }
 
@@ -2662,8 +2724,8 @@
         choices = '<div class="hdlv2-why-choices">'
           + '<div class="hdlv2-score-group"><h4>What they chose</h4>' + picked + '</div>'
           + '<div class="hdlv2-score-group"><h4>Abilities their choices depend on</h4>' + abilities
-          +   '<div class="hdlv2-consult-caption">Need is out of 5: 5 means every choice leans on the ability fully. Scores are out of 5, averaged from the answers listed. They are not a test of the ability itself. Stage 1 answers run 1 to 5, Stage 3 answers 0 to 5. The projection to 90 uses published average losses for each ability, age and sex (about 5 to 34% a decade): an estimate.'
-          +     (s2.choices.stage3_done ? '' : ' Stage 3 not finished: based on Stage 1 answers only.') + '</div>'
+          +   '<div class="hdlv2-consult-caption">Need is out of 5: 5 means every choice leans on the ability fully. Scores are out of 5, averaged from the answers listed. They are not a test of the ability itself. Stage 1 answers run 1 to 5, Full Report form answers 0 to 5. The projection to 90 uses published average losses for each ability, age and sex (about 5 to 34% a decade): an estimate.'
+          +     (s2.choices.stage3_done ? '' : ' Full Report form not finished: based on Stage 1 answers only.') + '</div>'
           + '</div>'
           + '</div>';
       }
@@ -2678,7 +2740,7 @@
           +   '<div class="hdlv2-dl-doc-ico">' + docIconSVG() + '</div>'
           +   '<div class="hdlv2-dl-doc-body">'
           +     '<span class="hdlv2-dl-doc-title">WHY Profile</span>'
-          +     '<span class="hdlv2-dl-doc-meta">Stage-2 WHY &middot; practitioner copy &mdash; not sent to the client</span>'
+          +     '<span class="hdlv2-dl-doc-meta">Full Report WHY &middot; practitioner copy &mdash; not sent to the client</span>'
           +   '</div>'
           +   '<a class="hdlv2-dl-btn" href="' + esc(s2.pdf_url) + '" target="_blank" rel="noopener" download>' + flightNotesIconSVG() + '<span>Download PDF</span></a>'
           + '</div>'
@@ -2706,7 +2768,7 @@
     fetchClientRecord(c).then(function (data) {
       var s3 = data && data.stage3;
       if (!s3 || !s3.completed_at) {
-        target.innerHTML = '<div class="hdlv2-detail-empty">Client hasn’t completed Stage 3 (full health detail) yet.</div>';
+        target.innerHTML = '<div class="hdlv2-detail-empty">Client hasn’t completed the Full Report form yet.</div>';
         return;
       }
 
@@ -2899,7 +2961,7 @@
           +   '<div class="hdlv2-dl-doc-ico">' + docIconSVG() + '</div>'
           +   '<div class="hdlv2-dl-doc-body">'
           +     '<span class="hdlv2-dl-doc-title">Draft Report</span>'
-          +     '<span class="hdlv2-dl-doc-meta">Post-Stage-3 draft &middot; the same PDF emailed to the client</span>'
+          +     '<span class="hdlv2-dl-doc-meta">Draft after the Full Report form &middot; the same PDF emailed to the client</span>'
           +   '</div>'
           +   '<a class="hdlv2-dl-btn" href="' + esc(s3.pdf_url) + '" target="_blank" rel="noopener" download>' + flightNotesIconSVG() + '<span>Download PDF</span></a>'
           + '</div>'
@@ -2968,7 +3030,7 @@
   // mid-poll (btn.isConnected).
   function loadFlightNotes(c, target) {
     if (deriveJourneyState(c)[2] !== 'done') {
-      target.innerHTML = '<div class="hdlv2-detail-empty">Flight Notes are prepared once Stage 3 is complete.</div>';
+      target.innerHTML = '<div class="hdlv2-detail-empty">Flight Notes are prepared once the Full Report form is complete.</div>';
       return;
     }
     // B11.1 → v0.46.51 — same document card as the Stage-2/3/Final download
@@ -3139,7 +3201,7 @@
     var iris = irisConsultationHtml(c);
     var html;
     if (!c.progress_id) {
-      html = '<div class="hdlv2-detail-empty">No consultation record yet. The client needs to complete Stage 3 of the assessment first.</div>';
+      html = '<div class="hdlv2-detail-empty">No consultation record yet. The client needs to complete the Full Report form first.</div>';
     } else {
       var url = CFG.consultation_url + '?progress_id=' + c.progress_id;
       // v0.24.3 — the post-Final read-only fork is gone. Both states
@@ -3367,7 +3429,7 @@
       +   '<select class="hdlv2-stalled-select" data-filter="stage" aria-label="Filter by stage reached">'
       +     '<option value="any">Any stage</option>'
       +     '<option value="1">Stage 1 only</option>'
-      +     '<option value="2">Stage 2</option>'
+      +     '<option value="2">Full Report · WHY</option>'
       +   '</select></label>'
       + '<label class="hdlv2-stalled-field"><span class="hdlv2-stalled-flabel">Last reply</span>'
       +   '<select class="hdlv2-stalled-select" data-filter="quiet" aria-label="Filter by time since last reply">'
@@ -3504,9 +3566,9 @@
     }
     if (st === 'low_data') {
       return progressJourneyCard(
-        'Completed Stage 1 · Stage 2 not started',
-        'This client finished their Stage 1 quick insight — their pace-of-ageing result and 9-question answers are in the Stage 1 tab. They haven’t started Stage 2 (Your WHY) yet. Effort-vs-outcomes tracking begins once they complete Stage 3 and receive their first Weekly Flight Plan.',
-        'Stage 1 ✓ · awaiting Stage 2'
+        'Completed Stage 1 · Full Report not started',
+        'This client finished their Stage 1 quick insight — their pace-of-ageing result and 9-question answers are in the Stage 1 tab. They haven’t started the Full Report (their WHY) yet. Effort-vs-outcomes tracking begins once they complete the Full Report form and receive their first Weekly Flight Plan.',
+        'Stage 1 ✓ · awaiting the Full Report'
       );
     }
     return '';
@@ -4389,9 +4451,9 @@
     switch (c.status) {
       case 'not_started':          return '<span class="status-badge pending">Stage 1</span>';
       case 'low_data':             return '<span class="status-badge info">Stage 1 &#10003;</span>';
-      case 'awaiting_why_release': return '<span class="status-badge info">Stage 2</span>';
-      case 'stage3_in_progress':   return '<span class="status-badge info">Stage 3</span>';
-      case 'awaiting_consult':     return '<span class="status-badge info">Stage 3 &#10003;</span>';
+      case 'awaiting_why_release': return '<span class="status-badge info">WHY</span>';
+      case 'stage3_in_progress':   return '<span class="status-badge info">Form</span>';
+      case 'awaiting_consult':     return '<span class="status-badge info">Form &#10003;</span>';
       case 'active':
       case 'progress_normal':
       case 'needs_attention':
@@ -4534,7 +4596,7 @@
       // (bold leading cell + already-rotated chevron). !important beats V1 zebra.
       '.client-row.hdlv2-row-active > td { background:#f0f0f0 !important; }',
       '.client-row.hdlv2-row-active > td:first-child { box-shadow: inset 3px 0 0 #3d8da0; font-weight:600; }',
-      '.hdlv2-detail-panel { font-family: Inter, -apple-system, BlinkMacSystemFont, sans-serif; padding: 22px 28px 24px; color: #111; }',
+      '.hdlv2-detail-panel { font-family: Inter, -apple-system, BlinkMacSystemFont, sans-serif; padding: 22px 28px 24px; color: #111; position: sticky; left: 0; box-sizing: border-box; }',
       '.hdlv2-detail-head { display:flex; align-items:baseline; gap:10px; margin-bottom:14px; flex-wrap:wrap; }',
       '.hdlv2-detail-head strong { font-family: Poppins, Inter, sans-serif; font-size:15px; color:#111; }',
       '.hdlv2-detail-email { font-size:12px; color:#888; }',
@@ -4618,6 +4680,12 @@
       '.hdlv2-st-location { font-size:13px; color:#888; margin:-6px 0 12px 2px; }',
       // v0.47.84 — location subline in the roster name cell + detail-head.
       '.hdlv2-row-location { font-size:12px; color:#888; font-weight:400; margin-top:2px; }',
+      '.hdlv2-pack-line { display:flex; flex-wrap:wrap; align-items:center; gap:4px 8px; margin-top:4px; font-size:12px; font-weight:400; color:#2c3e50; }',
+      '.hdlv2-pack-line button { font:inherit; font-weight:500; padding:4px 10px; min-height:28px; border:1px solid #e4e6ea; border-radius:8px; background:#fff; color:#3d8da0; cursor:pointer; }',
+      '.hdlv2-pack-line button.is-primary { background:#3d8da0; border-color:#3d8da0; color:#fff; }',
+      '.hdlv2-pack-line button:focus-visible { outline:2px solid #3d8da0; outline-offset:2px; }',
+      '.hdlv2-pack-msg { color:#dc2626; }',
+      '@media (max-width:640px) { .hdlv2-pack-line button { min-height:40px; } }',
       '.hdlv2-detail-location { font-size:13px; color:#888; margin-left:10px; white-space:nowrap; }',
       '.hdlv2-st-stat { flex:1; min-width:120px; padding:10px 14px; background:#fff; border:1px solid #e4e6ea; border-radius:10px; text-align:center; }',
       '.hdlv2-st-stat strong { display:block; font-family: Poppins, Inter, sans-serif; font-size:18px; font-weight:700; color:#004F59; margin-bottom:2px; line-height:1.1; }',
@@ -4788,10 +4856,6 @@
       '.hdlv2-snap-tile-value .hdlv2-snap-tile-unit { font-size:13px; color:#666; font-weight:500; margin-left:2px; }',
       '.hdlv2-snap-tile-next-line { display:block; font-size:14px; line-height:1.25; color:#004F59; font-weight:600; }',
       '.hdlv2-snap-tile-sub { margin-top:4px; font-size:11px; color:#888; line-height:1.4; }',
-      '.hdlv2-snap-tile.accent-amber { border-left:3px solid #d97706; }',
-      '.hdlv2-snap-tile.accent-teal  { border-left:3px solid #3d8da0; }',
-      '.hdlv2-snap-tile.accent-blue  { border-left:3px solid #3b82f6; }',
-      '.hdlv2-snap-tile.accent-grey  { border-left:3px solid #cbd5e1; }',
 
       // ─────────────────────────────────────────────────────────────
       // v0.41.19 — Tab strip enhancements: status dot per tab, group

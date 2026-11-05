@@ -41,6 +41,11 @@ class HDLV2_Offer {
         'caption'               => 'The abilities your choices need, against where you are today',
         'video_url'             => '',
         'stage1_free_with_code' => false,
+        // v0.48.27 — the 30-day challenge videos (D10): the free 30 days on the
+        // dashboard carry this card.
+        'challenge_url'         => 'https://altituding.com/challenge',
+        'challenge_price'       => '27',
+        'challenge_hook'        => 'A video for every one of your 30 days',
         // The practitioner whose clients see this offer (Matthew: Altituding).
         // 0 = every practitioner.
         'practitioner_id'       => 122,
@@ -61,7 +66,7 @@ class HDLV2_Offer {
                 $out[ $k ] = absint( $v );
             } elseif ( is_bool( self::DEFAULTS[ $k ] ) ) {
                 $out[ $k ] = (bool) $v && 'false' !== $v && '0' !== $v;
-            } elseif ( 'url' === $k || 'video_url' === $k ) {
+            } elseif ( 'url' === $k || 'video_url' === $k || 'challenge_url' === $k ) {
                 $out[ $k ] = esc_url_raw( (string) $v );
             } elseif ( substr( $k, -6 ) === '_price' ) {
                 $out[ $k ] = preg_match( '/^\d{1,6}(\.\d{1,2})?$/', (string) $v ) ? (string) $v : self::DEFAULTS[ $k ];
@@ -85,8 +90,10 @@ class HDLV2_Offer {
     }
 
     /**
-     * The nine Stage 1 PDF payload keys. Strings only: Make caches a field's
+     * The ten Stage 1 PDF payload keys. Strings only: Make caches a field's
      * type from the first payload it sees (see the note on rate_of_ageing).
+     * offer_code_ends (v0.48.50) is '' here; personal() fills it with the
+     * person's own code's end date (YYYY-MM-DD).
      */
     public static function payload_keys( $show = true ) {
         $o = self::get();
@@ -100,6 +107,7 @@ class HDLV2_Offer {
             'offer_url'       => $o['url'],
             'offer_caption'   => $o['caption'],
             'offer_video_url' => $o['video_url'],
+            'offer_code_ends' => '',
         );
     }
 
@@ -107,23 +115,41 @@ class HDLV2_Offer {
      * v0.48.18 — this person's own one-use Full Report code, asked of Altituding
      * (netlify/functions/full-report-code.js), which has Stripe make it. Called
      * from the drain, never the visitor's request. Any failure, or the two
-     * wp-config constants absent (LIVE until go-live): the shared code and the
-     * plain URL from the option, so the PDF always goes out.
+     * wp-config constants absent: the shared code from the option, in the
+     * link too (0.48.22), so the PDF always goes out and its button opens the gate.
      *
-     * @param string $ref lead-<id> or invite-<id>; never the email.
-     * @return array { offer_code, offer_url }
+     * v0.48.50: the request also carries the lead's email and band, so Altituding
+     * can put the code and its end date on the Brevo contact for the follow-up
+     * emails (it already holds the contact from the Stage 1 sign-up); the answer's
+     * expires_at becomes offer_code_ends ('' on the shared code).
+     *
+     * @param string $ref   lead-<id> or invite-<id>.
+     * @param string $email the lead's address, pre-filled at Stripe and sent to Altituding when valid.
+     * @param string $band  green / blue / red (HDLV2_Stage1_Commentary::band_key).
+     * @return array { offer_code, offer_url, offer_code_ends }
      */
-    public static function personal( $ref ) {
+    public static function personal( $ref, $email = '', $band = '' ) {
         $o      = self::get();
-        $shared = array( 'offer_code' => $o['code'], 'offer_url' => $o['url'] );
+        $shared = array(
+            'offer_code'      => $o['code'],
+            'offer_url'       => self::with_email( add_query_arg( 'code', rawurlencode( $o['code'] ), $o['url'] ), $email ),
+            'offer_code_ends' => '',
+        );
         $url    = defined( 'HDLV2_FULL_CODE_URL' ) ? (string) HDLV2_FULL_CODE_URL : '';
         $key    = self::code_key();
         if ( '' === $url || '' === $key || ! preg_match( '/^[A-Za-z0-9_-]{1,64}$/', (string) $ref ) ) {
             return $shared;
         }
+        $ask = array( 'ref' => (string) $ref );
+        if ( is_email( $email ) ) {
+            $ask['email'] = $email;
+        }
+        if ( in_array( $band, array( 'green', 'blue', 'red' ), true ) ) {
+            $ask['band'] = $band;
+        }
         // 3 s: a drain tick sends up to 20 PDFs inside one minute.
         $res  = wp_remote_post( $url, array(
-            'body'    => wp_json_encode( array( 'ref' => (string) $ref ) ),
+            'body'    => wp_json_encode( $ask ),
             'headers' => array( 'Content-Type' => 'application/json', 'X-HDL-Full-Code-Key' => $key ),
             'timeout' => 3,
         ) );
@@ -134,7 +160,22 @@ class HDLV2_Offer {
             error_log( '[HDLV2 offer] personal code failed (HTTP ' . $http . ') — shared code used' );
             return $shared;
         }
-        return array( 'offer_code' => $code, 'offer_url' => add_query_arg( 'code', rawurlencode( $code ), $o['url'] ) );
+        // Seconds since 1970, from now to five years on; anything else (absent, ms, text) leaves the date out.
+        $ends = $body['expires_at'] ?? null;
+        $ends = is_int( $ends ) && $ends > time() && $ends < time() + 5 * 366 * 86400 ? gmdate( 'Y-m-d', $ends ) : '';
+        return array(
+            'offer_code'      => $code,
+            'offer_url'       => self::with_email( add_query_arg( 'code', rawurlencode( $code ), $o['url'] ), $email ),
+            'offer_code_ends' => $ends,
+        );
+    }
+
+    /**
+     * 0.48.22 — the Full Report page hands a good address to Stripe as prefilled_email.
+     * In the fragment (D7): a browser never sends it to a server, a log or a Referer.
+     */
+    private static function with_email( $url, $email ) {
+        return is_email( $email ) ? $url . '#email=' . rawurlencode( $email ) : $url;
     }
 
     /** The key Altituding checks; wp-config only. */

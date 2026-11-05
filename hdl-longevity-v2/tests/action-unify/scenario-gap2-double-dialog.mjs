@@ -63,7 +63,7 @@ function makeButton(uid) {
 
 const state = {
   clients: [{ user_id: 77, name: 'Sam', email: 'sam@example.com',
-    resend: { enabled: true, stage: 2, link_kind: 'assessment', label: 'Send Stage-2 link', tooltip: '' } }],
+    resend: { enabled: true, stage: 2, link_kind: 'assessment', label: 'Send Full Report link', tooltip: '' } }],
 };
 
 const windowStub = {
@@ -82,7 +82,7 @@ const CFG = { api_base: 'https://stby.example/wp-json/hdl-v2/v1', nonce: 'n' };
 
 function fetchStub() {
   env.fetchCalls++;
-  return Promise.resolve({ ok: true, json() { return Promise.resolve({ success: true, stage_label: 'Send Stage-2 link', recipient_email: 'sam@example.com' }); } });
+  return Promise.resolve({ ok: true, json() { return Promise.resolve({ success: true, stage_label: 'Send Full Report link', recipient_email: 'sam@example.com' }); } });
 }
 
 let handleResendLink;

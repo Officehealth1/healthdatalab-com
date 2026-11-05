@@ -211,7 +211,7 @@
   function renderActions(c) {
     var parts = [];
     if (c.status === 'awaiting_why_release' && c.progress_id) {
-      parts.push('<button type="button" class="hdlv2-pd-btn hdlv2-pd-btn-primary" data-release-progress="' + c.progress_id + '">Invite to Stage 3</button>');
+      parts.push('<button type="button" class="hdlv2-pd-btn hdlv2-pd-btn-primary" data-release-progress="' + c.progress_id + '">Open the Full Report form</button>');
     }
     if (c.progress_id) {
       var consultUrl = CFG.consultation_url + '?progress_id=' + encodeURIComponent(c.progress_id);
@@ -234,12 +234,12 @@
     // v0.20.10 — themed modal instead of browser-native confirm().
     var ask = (window.HDLV2UI && window.HDLV2UI.confirm)
       ? window.HDLV2UI.confirm({
-          title: 'Invite this client to Stage 3?',
-          body: 'This emails them the Stage 3 invitation and cannot be undone.',
+          title: 'Open the Full Report form for this client?',
+          body: 'This emails them the link to the Full Report form and cannot be undone.',
           confirmLabel: 'Yes, send invite',
           cancelLabel: 'Cancel'
         })
-      : Promise.resolve(window.confirm('Invite this client to Stage 3?\n\nThis emails them the Stage 3 invitation and cannot be undone.'));
+      : Promise.resolve(window.confirm('Open the Full Report form for this client?\n\nThis emails them the link to the Full Report form and cannot be undone.'));
     ask.then(function (confirmed) {
       if (!confirmed) return;
       _doReleaseWhy(btn, progressId);

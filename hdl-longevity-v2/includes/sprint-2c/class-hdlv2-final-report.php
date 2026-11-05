@@ -1029,7 +1029,7 @@ class HDLV2_Final_Report {
         // v0.23.0 — Final Report uses calculate_full (rate range 0.5-2.0).
         // Pass stage3:true so the gauge bounds match. Stage 1 callers
         // (build_gauge_url at lines 1245/1259) keep the default 0.8-1.4 bounds.
-        $final_gauge_url = HDLV2_Staged_Form::build_gauge_url( $calc_result['rate'] ?? 1.0, array( 'stage3' => true ) );
+        $final_gauge_url = self::gauge_url( $calc_result['rate'] ?? 1.0 );
         if ( class_exists( 'HDLV2_Widget_Config' ) && ! empty( $progress->token ) ) {
             $local_gauge = HDLV2_Widget_Config::prerender_gauge_png( $final_gauge_url, $progress->token, 'final' );
             if ( $local_gauge ) {
@@ -1603,6 +1603,14 @@ class HDLV2_Final_Report {
      */
     private static function get_practitioner_logo( $practitioner_id ) {
         return HDLV2_Practitioner::get_logo_url( (int) $practitioner_id );
+    }
+
+    /**
+     * The final report's gauge: the Stage 3 dial (0.5–2.0, no number, no word; the PDF prints both).
+     * v0.48.41 — public: the client dashboard's Full Report tab shows this same picture.
+     */
+    public static function gauge_url( $rate ) {
+        return HDLV2_Staged_Form::build_gauge_url( $rate, array( 'stage3' => true ) );
     }
 
     /**

@@ -1810,6 +1810,103 @@ class HDLV2_Activator {
             error_log( '[HDLV2] Phase AK (v3.30) migration: stage1_fired_at + visitor_phone verified, backfilled ' . (int) $backfilled . ' rows.' );
         }
 
+        // Phase AL (DB v3.31) — the 30-day challenge (v0.48.23): 'challenge'
+        // joins widget_invites.source (the link a buyer gets), and
+        // hdlv2_challenge_days, made by create_tables() just before, must be
+        // there. Verified before the version bumps.
+        if ( version_compare( $current_db_version, '3.31', '<' ) ) {
+            $invites_table = $p . 'hdlv2_widget_invites';
+            $has_challenge = function () use ( $wpdb, $invites_table ) {
+                return false !== strpos( (string) $wpdb->get_var( $wpdb->prepare(
+                    "SELECT COLUMN_TYPE FROM INFORMATION_SCHEMA.COLUMNS
+                     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s AND COLUMN_NAME = 'source'",
+                    $invites_table
+                ) ), "'challenge'" );
+            };
+            if ( ! $has_challenge() ) {
+                $wpdb->query( "ALTER TABLE `$invites_table` MODIFY COLUMN source ENUM('practitioner','automation','paid_stage1','full_report','challenge') NOT NULL DEFAULT 'practitioner'" );
+                if ( $wpdb->last_error || ! $has_challenge() ) {
+                    error_log( '[HDLV2] Phase AL (v3.31) FAILED: source challenge — ' . $wpdb->last_error . ' — will retry next boot.' );
+                    return false;
+                }
+            }
+            $days_table = $p . 'hdlv2_challenge_days';
+            if ( ! (int) $wpdb->get_var( $wpdb->prepare(
+                "SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES
+                 WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s",
+                $days_table
+            ) ) ) {
+                error_log( '[HDLV2] Phase AL (v3.31) FAILED: ' . $days_table . ' missing — will retry next boot.' );
+                return false;
+            }
+            error_log( '[HDLV2] Phase AL (v3.31) migration: widget_invites.source challenge + hdlv2_challenge_days verified.' );
+        }
+
+        // Phase AM (DB v3.32) — Healthspan Timeline links (v0.48.34): 'timeline_link' joins
+        // widget_invites.source (the link a client passes on), and hdlv2_timeline_links, made by
+        // create_tables() just before, must be there. Additive; verified before the version bumps.
+        if ( version_compare( $current_db_version, '3.32', '<' ) ) {
+            $invites_table = $p . 'hdlv2_widget_invites';
+            $has_link = function () use ( $wpdb, $invites_table ) {
+                return false !== strpos( (string) $wpdb->get_var( $wpdb->prepare(
+                    "SELECT COLUMN_TYPE FROM INFORMATION_SCHEMA.COLUMNS
+                     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s AND COLUMN_NAME = 'source'",
+                    $invites_table
+                ) ), "'timeline_link'" );
+            };
+            if ( ! $has_link() ) {
+                $wpdb->query( "ALTER TABLE `$invites_table` MODIFY COLUMN source ENUM('practitioner','automation','paid_stage1','full_report','challenge','timeline_link') NOT NULL DEFAULT 'practitioner'" );
+                if ( $wpdb->last_error || ! $has_link() ) {
+                    error_log( '[HDLV2] Phase AM (v3.32) FAILED: source timeline_link — ' . $wpdb->last_error . ' — will retry next boot.' );
+                    return false;
+                }
+            }
+            $links_table = $p . 'hdlv2_timeline_links';
+            if ( ! (int) $wpdb->get_var( $wpdb->prepare(
+                "SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES
+                 WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s",
+                $links_table
+            ) ) ) {
+                error_log( '[HDLV2] Phase AM (v3.32) FAILED: ' . $links_table . ' missing — will retry next boot.' );
+                return false;
+            }
+            error_log( '[HDLV2] Phase AM (v3.32) migration: widget_invites.source timeline_link + hdlv2_timeline_links verified.' );
+        }
+
+        // Phase AN (DB v3.33) — the family pack (v0.48.35): hdlv2_timeline_packs, made by
+        // create_tables() just before, must be there, and hdlv2_timeline_links gains pack_id (the
+        // seat this yes used) and seat_invite_id (the Full Report ticket). Additive; verified
+        // before the version bumps.
+        if ( version_compare( $current_db_version, '3.33', '<' ) ) {
+            $links_table = $p . 'hdlv2_timeline_links';
+            $packs_table = $p . 'hdlv2_timeline_packs';
+            if ( ! (int) $wpdb->get_var( $wpdb->prepare(
+                "SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES
+                 WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s",
+                $packs_table
+            ) ) ) {
+                error_log( '[HDLV2] Phase AN (v3.33) FAILED: ' . $packs_table . ' missing — will retry next boot.' );
+                return false;
+            }
+            $has_col = function ( $col ) use ( $wpdb, $links_table ) {
+                return (int) $wpdb->get_var( $wpdb->prepare(
+                    "SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+                     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s AND COLUMN_NAME = %s",
+                    $links_table, $col
+                ) ) > 0;
+            };
+            foreach ( array( 'pack_id', 'seat_invite_id' ) as $col ) {
+                if ( ! $has_col( $col ) ) {
+                    $wpdb->query( "ALTER TABLE `$links_table` ADD COLUMN $col BIGINT(20) UNSIGNED DEFAULT NULL" );
+                    if ( $wpdb->last_error || ! $has_col( $col ) ) {
+                        error_log( "[HDLV2] Phase AN (v3.33) FAILED: ADD $col — " . $wpdb->last_error . ' — will retry next boot.' );
+                        return false;
+                    }
+                }
+            }
+            error_log( '[HDLV2] Phase AN (v3.33) migration: hdlv2_timeline_packs + timeline_links.pack_id, seat_invite_id verified.' );
+        }
+
         return true;
     }
 
@@ -1923,7 +2020,7 @@ class HDLV2_Activator {
             opened_at DATETIME DEFAULT NULL,
             completed_at DATETIME DEFAULT NULL,
             prefill_stage1 JSON DEFAULT NULL,
-            source ENUM('practitioner','automation','paid_stage1','full_report') NOT NULL DEFAULT 'practitioner',
+            source ENUM('practitioner','automation','paid_stage1','full_report','challenge','timeline_link') NOT NULL DEFAULT 'practitioner',
             external_ref VARCHAR(128) DEFAULT NULL,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             PRIMARY KEY (id),
@@ -2424,6 +2521,77 @@ class HDLV2_Activator {
             PRIMARY KEY (id)
         ) $charset_collate;";
 
+        // v0.48.23 (DB v3.31) — the 30-day challenge: one row per day a
+        // client ticks, with their optional note. The UNIQUE key makes a
+        // double-submitted tick a no-op (INSERT IGNORE).
+        $table_challenge = $wpdb->prefix . 'hdlv2_challenge_days';
+        $sql_challenge = "CREATE TABLE $table_challenge (
+            id BIGINT(20) UNSIGNED NOT NULL AUTO_INCREMENT,
+            client_user_id BIGINT(20) UNSIGNED NOT NULL,
+            day_no TINYINT(3) UNSIGNED NOT NULL,
+            done_at DATETIME NOT NULL,
+            note VARCHAR(500) DEFAULT NULL,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (id),
+            UNIQUE KEY client_day (client_user_id, day_no),
+            KEY done_at (done_at)
+        ) $charset_collate;";
+
+        // v0.48.34 (DB v3.32) — Healthspan Timeline links: one row per person a client invited by
+        // link. One hop: the row belongs to the inviter's form_progress row. invite_id is the link's
+        // ticket (widget_invites, source 'timeline_link'); NULL only inside the transaction that
+        // makes the pair. shared_* is the invitee's consented snapshot, NULL until their yes and
+        // again after a withdraw or an end. withdraw_token_hash = sha256 of the token in the
+        // invitee's confirmation email.
+        $table_links = $wpdb->prefix . 'hdlv2_timeline_links';
+        $sql_links = "CREATE TABLE $table_links (
+            id BIGINT(20) UNSIGNED NOT NULL AUTO_INCREMENT,
+            owner_progress_id BIGINT(20) UNSIGNED NOT NULL,
+            invite_id BIGINT(20) UNSIGNED DEFAULT NULL,
+            label VARCHAR(80) NOT NULL,
+            relationship ENUM('spouse','child','grandchild','parent','sibling','friend','other') NOT NULL,
+            born_guess SMALLINT UNSIGNED DEFAULT NULL,
+            sex_guess ENUM('F','M') DEFAULT NULL,
+            status ENUM('invited','accepted','declined','withdrawn','revoked','expired') NOT NULL DEFAULT 'invited',
+            lead_id BIGINT(20) UNSIGNED DEFAULT NULL,
+            shared_rate DECIMAL(4,2) DEFAULT NULL,
+            shared_age SMALLINT UNSIGNED DEFAULT NULL,
+            shared_sex ENUM('F','M') DEFAULT NULL,
+            withdraw_token_hash CHAR(64) DEFAULT NULL,
+            consent_at DATETIME DEFAULT NULL,
+            withdrawn_at DATETIME DEFAULT NULL,
+            revoked_at DATETIME DEFAULT NULL,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT NULL,
+            pack_id BIGINT(20) UNSIGNED DEFAULT NULL,
+            seat_invite_id BIGINT(20) UNSIGNED DEFAULT NULL,
+            PRIMARY KEY (id),
+            UNIQUE KEY invite_id (invite_id),
+            KEY owner_progress_id (owner_progress_id),
+            KEY lead_id (lead_id),
+            KEY withdraw_token_hash (withdraw_token_hash)
+        ) $charset_collate;";
+
+        // v0.48.35 (DB v3.33) — the family pack: one payer's seats. A seat unlocks one invitee's own
+        // Full Report at their yes. external_ref is the purchase's reference once the buy button
+        // exists; a practitioner's grant has none.
+        $table_packs = $wpdb->prefix . 'hdlv2_timeline_packs';
+        $sql_packs = "CREATE TABLE $table_packs (
+            id BIGINT(20) UNSIGNED NOT NULL AUTO_INCREMENT,
+            owner_progress_id BIGINT(20) UNSIGNED NOT NULL,
+            seats_total TINYINT UNSIGNED NOT NULL,
+            seats_used TINYINT UNSIGNED NOT NULL DEFAULT 0,
+            status ENUM('active','ended') NOT NULL DEFAULT 'active',
+            source ENUM('practitioner','purchase') NOT NULL,
+            external_ref VARCHAR(80) DEFAULT NULL,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            ended_at DATETIME DEFAULT NULL,
+            updated_at DATETIME DEFAULT NULL,
+            PRIMARY KEY (id),
+            UNIQUE KEY external_ref (external_ref),
+            KEY owner_progress_id (owner_progress_id)
+        ) $charset_collate;";
+
         require_once ABSPATH . 'wp-admin/includes/upgrade.php';
         dbDelta( $sql_widget );
         dbDelta( $sql_leads );
@@ -2444,5 +2612,8 @@ class HDLV2_Activator {
         dbDelta( $sql_tokens );
         dbDelta( $sql_iris_results );
         dbDelta( $sql_iris_breaker );
+        dbDelta( $sql_challenge );
+        dbDelta( $sql_links );
+        dbDelta( $sql_packs );
     }
 }

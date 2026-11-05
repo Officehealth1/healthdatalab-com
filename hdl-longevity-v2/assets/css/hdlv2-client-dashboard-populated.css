@@ -46,6 +46,9 @@
 
 .hdlv2-cd-pop a { color: var(--teal); text-decoration: none; }
 .hdlv2-cd-pop a:hover { color: var(--teal-dark); }
+/* The 30 days videos button is an <a>: the two link rules above outrank its own white text. */
+.hdlv2-cd-pop .cd30-offer-btn,
+.hdlv2-cd-pop .cd30-offer-btn:hover { color: #fff; }
 .hdlv2-cd-pop button { font-family: inherit; }
 
 /* ── Tabs ────────────────────────────────────────────────────────────── */
@@ -1065,4 +1068,207 @@
   .hdlv2-cd-pop .cdp-ci-row,
   .hdlv2-cd-pop .cdp-act-row { grid-template-columns: 1fr; gap: 4px; }
   .hdlv2-cd-pop .cdp-ci-pct { text-align: left; }
+}
+
+/* ── One row (v0.48.38): the products are the tabs ──────────────────────
+ * hdlv2_ff_dashboard_one_row. Every state gets .hdlv2-cd-pop.hdlv2-cd-one-row;
+ * the waiting-state fragments keep their own sheet inside a .hdlv2-cd box.
+ * DESIGN.md tokens; the active tab is its underline (desktop) or its filled
+ * outline (phone), never a side bar.
+ */
+.hdlv2-cd-one-row .cdp-tabs-inner { gap: 4px; overflow: visible; }
+.hdlv2-cd-one-row .cdp-tab {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 64px;
+  margin: 0;
+  padding: 14px 6px 12px;
+  display: block; /* v0.48.39: the lock flows after the label; a pill sits under it */
+  text-align: left;
+  white-space: normal;
+  -webkit-tap-highlight-color: transparent; /* the outline or underline is the pressed state */
+}
+.hdlv2-cd-one-row .cdp-tab-label {
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.25;
+}
+.hdlv2-cd-one-row .cdp-tab .cdp-tab-state { display: block; width: max-content; margin-top: 6px; white-space: nowrap; }
+.hdlv2-cd-one-row .cdp-tab .cdp-tab-state.is-not-yet { display: inline-block; margin: 0 0 0 6px; vertical-align: -1px; }
+.hdlv2-cd-one-row .cdp-tab:focus-visible,
+.hdlv2-cd-one-row .cdp-btn:focus-visible,
+.hdlv2-cd-one-row .cdp-product-more a:focus-visible {
+  outline: 2px solid #3d8da0;
+  outline-offset: 2px;
+}
+
+/* A product's card: its name, pill and line, what it is, one action. */
+.hdlv2-cd-one-row .cdp-product-card {
+  max-width: 640px;
+  padding: 24px;
+  background: #fff;
+  border: 1px solid #e4e6ea;
+  border-radius: 12px;
+}
+.hdlv2-cd-one-row .cdp-product-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 6px;
+}
+.hdlv2-cd-one-row .cdp-product-title {
+  font-family: 'Poppins', 'Inter', sans-serif;
+  font-size: 22px;
+  font-weight: 600;
+  line-height: 1.3;
+  color: #2c3e50;
+  margin: 0;
+}
+.hdlv2-cd-one-row .cdp-product-note { font-size: 14px; color: #888; margin: 0 0 14px; }
+.hdlv2-cd-one-row .cdp-product-about { font-size: 16px; line-height: 1.5; color: #2c3e50; margin: 0 0 4px; }
+.hdlv2-cd-one-row .cdp-product-about + .cdp-product-about { color: #888; }
+.hdlv2-cd-one-row .cdp-product-card .cdp-btn {
+  margin-top: 16px;
+  padding: 10px 20px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+}
+.hdlv2-cd-one-row .cdp-btn-secondary { background: #fff; color: var(--teal); border-color: #e4e6ea; }
+.hdlv2-cd-one-row .cdp-btn-secondary:hover { background: #f8f9fb; color: var(--teal-dark); border-color: #e4e6ea; }
+.hdlv2-cd-one-row .cdp-product-more { font-size: 14px; margin: 14px 0 0; }
+
+/* v0.48.39 — DESIGN.md display type on this page: the waiting fragments, the 30 days and the
+ * Messages headings take their display face from this token: Poppins here (flag off keeps Source Serif). */
+.hdlv2-cd-one-row { --hdlv2-cd-serif: 'Poppins', 'Inter', sans-serif; }
+.hdlv2-cd-one-row .hdlv2-cd .cd-preview-quote { font-weight: 600; }
+
+/* No rails on this page: the week's identity line and the WHY card keep their fill and hairline. */
+.hdlv2-cd-one-row .cdp-identity { border-left: 0; border-radius: 10px; padding-left: 16px; }
+.hdlv2-cd-one-row .cdp-why-card { border: 1px solid var(--line); border-radius: 18px; }
+
+/* v0.48.39 — the Stage 1 card's actions (v0.48.41: the card itself is in the block at the end). */
+.hdlv2-cd-one-row .cdp-stage1-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 20px;
+  margin-top: 20px;
+  padding-top: 4px;
+  border-top: 1px solid #e4e6ea;
+}
+.hdlv2-cd-one-row .cdp-stage1-more { font-size: 14px; font-weight: 500; color: var(--teal); margin-top: 16px; }
+.hdlv2-cd-one-row .cdp-stage1-more:hover { color: var(--teal-dark); }
+.hdlv2-cd-one-row .cdp-stage1-more:focus-visible { outline: 2px solid #3d8da0; outline-offset: 2px; }
+
+@media (max-width: 640px) {
+  .hdlv2-cd-one-row .cdp-tabs { position: static; border-bottom: 0; }
+  .hdlv2-cd-one-row .cdp-tabs-inner {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+    padding: 16px 18px 0;
+    overflow: visible;
+  }
+  .hdlv2-cd-one-row .cdp-tab {
+    margin: 0;
+    padding: 14px 16px;
+    background: #fff;
+    border: 1px solid #e4e6ea;
+    border-radius: 12px;
+  }
+  .hdlv2-cd-one-row .cdp-tab.active { border-color: var(--teal); background: var(--teal-tint); color: var(--teal-dark); }
+  .hdlv2-cd-one-row .cdp-tabs-inner > :last-child { grid-column: 1 / -1; }
+  .hdlv2-cd-one-row .cdp-product-card { padding: 20px; }
+}
+
+/* v0.48.41 — the Stage 1 card is the Stage 1 report's "Your Results": the report's dial with
+ * Bio Age · Chrono · the gap under it, then Pace of Ageing, the rate, the pill, the report's
+ * sentence. The pace panel and Today's preview show the reports' own images too. */
+.hdlv2-cd-one-row .cdp-stage1-body {
+  display: grid;
+  grid-template-columns: minmax(0, 280px) 1fr;
+  gap: 32px;
+  align-items: center;
+  margin: 18px 0 0;
+}
+.hdlv2-cd-one-row .cdp-stage1-body p { margin: 0; padding: 0; } /* the theme pads every p */
+.hdlv2-cd-one-row .cdp-report-gauge { display: block; width: 100%; max-width: 100%; height: auto; margin: 0 auto; }
+.hdlv2-cd-one-row .cd-preview .cdp-report-gauge { width: 172px; flex-shrink: 0; margin: 0; }
+.hdlv2-cd-one-row .cdp-stage1-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 8px;
+  padding-top: 12px;
+  border-top: 1px solid #e4e6ea;
+  text-align: center;
+}
+.hdlv2-cd-one-row .cdp-stage1-stat { display: flex; flex-direction: column; gap: 2px; }
+.hdlv2-cd-one-row .cdp-stage1-stat-label,
+.hdlv2-cd-one-row .cdp-stage1-label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: #888;
+}
+.hdlv2-cd-one-row .cdp-stage1-stat-value {
+  font-family: 'Poppins', 'Inter', sans-serif;
+  font-size: 18px;
+  font-weight: 600;
+  color: #2c3e50;
+}
+.hdlv2-cd-one-row .cdp-stage1-data { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; }
+.hdlv2-cd-one-row .cdp-stage1-value {
+  font-family: 'Poppins', 'Inter', sans-serif;
+  font-size: 48px;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  color: #004F59;
+}
+.hdlv2-cd-one-row .cdp-stage1-unit { margin-left: 4px; font-size: 28px; font-weight: 500; color: #3d8da0; }
+.hdlv2-cd-one-row .cdp-chart-insight-tag-info { background: #eff6ff; color: #3b82f6; border: 1px solid #bfdbfe; }
+.hdlv2-cd-one-row .cdp-stage1-headline { max-width: 60ch; font-size: 14px; line-height: 1.6; color: #555; }
+
+@media (max-width: 640px) {
+  .hdlv2-cd-one-row .cdp-stage1-body { grid-template-columns: 1fr; gap: 20px; }
+  .hdlv2-cd-one-row .cdp-stage1-gauge { width: 100%; max-width: 280px; margin: 0 auto; }
+}
+
+/* ── View as client (v0.48.40): the practitioner reads the client's page; nothing on it writes.
+   Every rule sits under [data-view-as], which only the practitioner's view carries. ── */
+.hdlv2-cd-pop[data-view-as] .cdp-view-as {
+  box-sizing: border-box;
+  width: calc(100% - 56px);
+  max-width: 1024px;
+  margin: 24px auto 0;
+  padding: 14px 18px;
+  background: #f8f9fb;
+  border: 1px solid #e4e6ea;
+  border-radius: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 20px;
+  font-family: 'Inter', sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+  color: #2c3e50;
+}
+.hdlv2-cd-pop[data-view-as] .cdp-view-as p { margin: 0; padding: 0; }
+.hdlv2-cd-pop[data-view-as] .cdp-view-as a { color: #3d8da0; font-weight: 500; white-space: nowrap; }
+.hdlv2-cd-pop[data-view-as] .cdp-view-as a:hover { color: #004F59; text-decoration: underline; }
+.hdlv2-cd-pop[data-view-as] .cdp-view-as a:focus-visible { outline: 2px solid #3d8da0; outline-offset: 2px; border-radius: 4px; }
+.hdlv2-cd-pop[data-view-as] .cdp-view-as-note,
+.hdlv2-cd-pop[data-view-as] .hdlv2-inbox-readonly { margin: 0; padding: 0; font-size: 14px; color: #888; }
+.hdlv2-cd-pop[data-view-as] .hdlv2-inbox-readonly { margin-top: 14px; padding-top: 14px; border-top: 1px solid #e4e6ea; }
+.hdlv2-cd-pop[data-view-as] .cdp-stage1-actions .cdp-view-as-note { margin-top: 16px; }
+.hdlv2-cd-pop[data-view-as] .cdp-action-check:disabled { cursor: default; opacity: 0.6; }
+
+@media (max-width: 640px) {
+  .hdlv2-cd-pop[data-view-as] .cdp-view-as { width: calc(100% - 36px); margin-top: 16px; }
 }

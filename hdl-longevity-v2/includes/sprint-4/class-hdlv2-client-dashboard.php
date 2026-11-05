@@ -54,7 +54,13 @@ if ( ! defined( 'ABSPATH' ) ) exit;
 
 class HDLV2_Client_Dashboard {
 
+    /** v0.48.40 — a practitioner opens a client's dashboard, read-only. Absent = off. */
+    const VIEW_AS_FLAG = 'hdlv2_ff_view_as_client';
+
     private static $instance = null;
+
+    /** v0.48.40 — array( progress_id, client_user_id ) while a practitioner looks at a client's page; null otherwise. */
+    private $view_as = null;
 
     public static function get_instance() {
         if ( null === self::$instance ) self::$instance = new self();
@@ -117,6 +123,22 @@ class HDLV2_Client_Dashboard {
             array(),
             HDLV2_VERSION
         );
+        // v0.48.36 — the product tiles; also enqueued on /clients/ by the practitioner dashboard.
+        wp_register_style( 'hdlv2-products', HDLV2_PLUGIN_URL . 'assets/css/hdlv2-products.css', array(), HDLV2_VERSION );
+    }
+
+    /** v0.48.36 — hdlv2_ff_dashboard_products: the tiles, the one-door menu item and sign-in card. */
+    private function products_on() {
+        return class_exists( 'HDLV2_Products' ) && HDLV2_Products::enabled();
+    }
+
+    /** v0.48.36 — the five product tiles, above everything; '' with hdlv2_ff_dashboard_products off. */
+    private function products_strip( $user_id ) {
+        if ( ! $this->products_on() ) {
+            return '';
+        }
+        wp_enqueue_style( 'hdlv2-products' );
+        return HDLV2_Products::render_strip( HDLV2_Products::for_client( $user_id ) );
     }
 
     // ──────────────────────────────────────────────────────────────────────
@@ -193,7 +215,13 @@ class HDLV2_Client_Dashboard {
      */
     public function filter_client_nav( $items, $args ) {
         if ( is_admin() || ! is_user_logged_in() || empty( $items ) ) return $items;
-        if ( ! $this->is_v2_client( get_current_user_id() ) ) return $items;
+        if ( ! $this->is_v2_client( get_current_user_id() ) ) {
+            // v0.48.36 — one door: every signed-in client's Dashboard item opens /my-dashboard/,
+            // not only V2-stamped ones (a client on /clients/ is bounced there anyway).
+            return $this->products_on() && ! HDLV2_Compatibility::is_practitioner( get_current_user_id() )
+                ? $this->point_dashboard_item( $items )
+                : $items;
+        }
 
         foreach ( $items as $key => $item ) {
             if ( ! is_object( $item ) || empty( $item->url ) ) continue;
@@ -212,14 +240,23 @@ class HDLV2_Client_Dashboard {
                 $item->title = 'My Report';
                 continue;
             }
-            if ( $path === '/clients/' ) {
-                // Practitioner roster page (clients only land here via a
-                // redirect back to /my-dashboard/). Point straight there.
-                $item->url   = home_url( '/my-dashboard/' );
+        }
+        return array_values( $this->point_dashboard_item( $items ) );
+    }
+
+    /**
+     * The Dashboard item: the practitioner roster page (clients only land there via a redirect
+     * back to /my-dashboard/), so point straight at /my-dashboard/.
+     */
+    private function point_dashboard_item( $items ) {
+        foreach ( $items as $item ) {
+            $path = is_object( $item ) && ! empty( $item->url ) ? wp_parse_url( $item->url, PHP_URL_PATH ) : '';
+            if ( $path && trailingslashit( $path ) === '/clients/' ) {
+                $item->url   = $this->dashboard_url();
                 $item->title = 'Dashboard';
             }
         }
-        return array_values( $items );
+        return $items;
     }
 
     /**
@@ -286,6 +323,9 @@ class HDLV2_Client_Dashboard {
         $is_practitioner = HDLV2_Compatibility::is_practitioner( $user_id );
 
         $dashboard_slug = $this->dashboard_slug();
+
+        // v0.48.40 — a practitioner's valid "See it as they see it" link stays on the client's page.
+        if ( $is_practitioner && is_page( $dashboard_slug ) && $this->view_as_request() ) return;
         $clients_slug   = trim( apply_filters( 'hdlv2_clients_page_slug', 'clients' ), '/' );
 
         // Practitioner on /my-dashboard/ → /clients/.
@@ -309,6 +349,60 @@ class HDLV2_Client_Dashboard {
         return home_url( '/' . $this->dashboard_slug() . '/' );
     }
 
+    /** v0.48.40 — the view needs the one-row page: it is the only one with a read-only rendering. */
+    public static function view_as_enabled() {
+        return (bool) get_option( self::VIEW_AS_FLAG, false )
+            && class_exists( 'HDLV2_Products' ) && HDLV2_Products::enabled() && HDLV2_Products::one_row_enabled();
+    }
+
+    /**
+     * v0.48.40 — the door on the practitioner's client panel ('' when off): this page with ?as= the
+     * client's progress row and a nonce, which binds the link to the practitioner's own session.
+     */
+    public static function view_as_url( $progress_id ) {
+        $progress_id = absint( $progress_id );
+        if ( ! $progress_id || ! self::view_as_enabled() ) {
+            return '';
+        }
+        $url = add_query_arg( 'as', $progress_id, self::get_instance()->dashboard_url() );
+        return add_query_arg( '_wpnonce', wp_create_nonce( 'hdlv2_view_as_' . $progress_id ), $url );
+    }
+
+    /**
+     * v0.48.40 — the ?as=<progress_id>&_wpnonce= link, checked: the flag, the nonce, the caller owns the
+     * live row (or is an administrator), and the row is the client's newest live one (this page shows
+     * that row; an older row of the caller's must not open a client someone else now has).
+     *
+     * @return array|null array( progress_id, client_user_id ), or null: the page is the caller's own.
+     */
+    private function view_as_request() {
+        $as = $_GET['as'] ?? '';
+        if ( ! is_string( $as ) || ! ctype_digit( $as ) || ! self::view_as_enabled() ) {
+            return null;
+        }
+        $id    = (int) $as;
+        $nonce = isset( $_GET['_wpnonce'] ) && is_string( $_GET['_wpnonce'] ) ? sanitize_text_field( wp_unslash( $_GET['_wpnonce'] ) ) : '';
+        if ( ! $id || ! wp_verify_nonce( $nonce, 'hdlv2_view_as_' . $id )
+             || ! HDLV2_Client_Status::practitioner_owns_progress( $id, get_current_user_id() ) ) {
+            return null;
+        }
+        global $wpdb;
+        $client = (int) $wpdb->get_var( $wpdb->prepare(
+            "SELECT client_user_id FROM {$wpdb->prefix}hdlv2_form_progress
+             WHERE id = %d AND deleted_at IS NULL",
+            $id
+        ) );
+        $newest = $client ? (int) $wpdb->get_var( $wpdb->prepare(
+            "SELECT MAX(id) FROM {$wpdb->prefix}hdlv2_form_progress
+             WHERE client_user_id = %d AND deleted_at IS NULL",
+            $client
+        ) ) : 0;
+        if ( ! $client || $newest !== $id || $client === get_current_user_id() || ! get_userdata( $client ) ) {
+            return null;
+        }
+        return array( 'progress_id' => $id, 'client_user_id' => $client );
+    }
+
     public function render_shortcode( $atts ) {
         wp_enqueue_style( 'hdlv2-client-dashboard' );
 
@@ -317,6 +411,14 @@ class HDLV2_Client_Dashboard {
         }
 
         $user_id = get_current_user_id();
+
+        // v0.48.40 — a practitioner's "See it as they see it" link: the page renders for the client.
+        // One line per open in the server log (no table: the DB version stays).
+        $this->view_as = $this->view_as_request();
+        if ( $this->view_as ) {
+            error_log( sprintf( '[HDLV2 view_as_client] practitioner=%d progress=%d at=%s', $user_id, $this->view_as['progress_id'], gmdate( 'c' ) ) );
+            $user_id = $this->view_as['client_user_id'];
+        }
 
         // v0.36.7 — Admin bypass paired with the maybe_redirect_wrong_role
         // bypass above. Admins skip the practitioner-redirect-card so they
@@ -339,31 +441,67 @@ class HDLV2_Client_Dashboard {
 
         $state = HDLV2_Compatibility::get_client_journey_state( $user_id );
 
+        // v0.48.38 — one row of tabs, the products among them, in every journey state.
+        if ( $this->products_on() && HDLV2_Products::one_row_enabled() ) {
+            return $this->render_one_row( $user_id, $state );
+        }
+
         if ( $state === 'populated' ) {
             // Enqueue populated CSS + JS only when needed (saves a request on empty states).
-            wp_enqueue_style(
-                'hdlv2-client-dashboard-populated',
-                HDLV2_PLUGIN_URL . 'assets/css/hdlv2-client-dashboard-populated.css',
-                array(),
-                HDLV2_VERSION
-            );
-            wp_enqueue_script(
-                'hdlv2-client-dashboard',
-                HDLV2_PLUGIN_URL . 'assets/js/hdlv2-client-dashboard.js',
-                array(),
-                HDLV2_VERSION,
-                true
-            );
-            wp_localize_script( 'hdlv2-client-dashboard', 'HDLV2_CD_POP', array(
-                'restUrl'   => esc_url_raw( rest_url( 'hdl-v2/v1' ) ),
-                'nonce'     => wp_create_nonce( 'wp_rest' ),
-                'clientId'  => (int) $user_id,
-                'todayKey'  => strtolower( date_i18n( 'l' ) ),
-            ) );
+            $this->enqueue_populated_assets( $user_id );
             return $this->render_populated( $user_id );
         }
 
         return $this->render_empty_state( $user_id, $state );
+    }
+
+    /** The populated sheet and the dashboard script (the populated page, and the one row in every state). */
+    private function enqueue_populated_assets( $user_id ) {
+        wp_enqueue_style(
+            'hdlv2-client-dashboard-populated',
+            HDLV2_PLUGIN_URL . 'assets/css/hdlv2-client-dashboard-populated.css',
+            array(),
+            HDLV2_VERSION
+        );
+        $this->enqueue_dashboard_js( $user_id );
+    }
+
+    /**
+     * The dashboard script + its REST config. The populated dashboard always
+     * needs it; v0.48.23 — an empty state needs it too when the 30-day
+     * challenge renders (its tick form).
+     */
+    private function enqueue_dashboard_js( $user_id ) {
+        if ( wp_script_is( 'hdlv2-client-dashboard', 'enqueued' ) ) {
+            return;
+        }
+        wp_enqueue_script(
+            'hdlv2-client-dashboard',
+            HDLV2_PLUGIN_URL . 'assets/js/hdlv2-client-dashboard.js',
+            array(),
+            HDLV2_VERSION,
+            true
+        );
+        wp_localize_script( 'hdlv2-client-dashboard', 'HDLV2_CD_POP', array(
+            'restUrl'   => esc_url_raw( rest_url( 'hdl-v2/v1' ) ),
+            'nonce'     => wp_create_nonce( 'wp_rest' ),
+            'clientId'  => (int) $user_id,
+            'todayKey'  => strtolower( date_i18n( 'l' ) ),
+        ) );
+    }
+
+    /**
+     * v0.48.23 — the 30-day challenge section. v0.48.27 (D6) — also free for
+     * any client record; '' for a brand-new client who is not enrolled.
+     *
+     * @param bool $has_record the journey state is past 'brand-new' (HDLV2_Challenge::has_full_report()).
+     */
+    private function challenge_section( $user_id, $has_record ) {
+        $h = HDLV2_Challenge::render_section( $user_id, $has_record, null !== $this->view_as );
+        if ( '' !== $h ) {
+            $this->enqueue_dashboard_js( $user_id );
+        }
+        return $h;
     }
 
     /**
@@ -416,6 +554,15 @@ class HDLV2_Client_Dashboard {
     // ──────────────────────────────────────────────────────────────────────
 
     private function render_login_prompt() {
+        if ( $this->products_on() ) {
+            // v0.48.36 — one sentence, one button, to the site's own sign-in page (wp_login_url()
+            // is wp-login.php here: Ultimate Member does not filter it), then back to the dashboard.
+            $login = function_exists( 'um_get_core_page' ) ? (string) um_get_core_page( 'login' ) : '';
+            $url   = '' !== $login
+                ? add_query_arg( 'redirect_to', rawurlencode( $this->dashboard_url() ), $login )
+                : wp_login_url( $this->dashboard_url() );
+            return $this->card( 'Sign in to see your dashboard', '', 'Sign in', $url );
+        }
         return $this->card(
             'Sign in to see your dashboard',
             'Use the link in your invitation email or sign in below.',
@@ -444,12 +591,19 @@ class HDLV2_Client_Dashboard {
      * than rebuild the well-tested existing UI.
      */
     private function render_populated( $user_id ) {
-        $ctx = $this->load_populated_context( $user_id );
+        $ctx       = $this->load_populated_context( $user_id );
+        $challenge = $this->challenge_section( $user_id, true );
+
+        $strip     = $this->products_strip( $user_id );
 
         $h  = '<div class="hdlv2-cd-pop">';
-        $h .= $this->pop_tabs_strip();
+        $h .= '' !== $strip ? '<div class="cdp-products-wrap">' . $strip . '</div>' : '';
+        $h .= $this->pop_tabs_strip( '' !== $challenge );
         $h .= '<main class="hdlv2-cd-pop-page">';
         $h .= $this->pop_today_panel( $ctx );
+        if ( '' !== $challenge ) {
+            $h .= '<section data-tab-panel="challenge" class="cdp-panel">' . $challenge . '</section>';
+        }
         $h .= $this->pop_progress_panel( $ctx );
         $h .= $this->pop_report_panel( $ctx );
         $h .= $this->pop_messages_panel();
@@ -464,14 +618,17 @@ class HDLV2_Client_Dashboard {
      */
     private function pop_messages_panel() {
         return '<section data-tab-panel="messages" class="cdp-panel">'
-             . HDLV2_Message_Thread_View::inbox_shell()
+             . HDLV2_Message_Thread_View::inbox_shell( null !== $this->view_as )
              . '</section>';
     }
 
-    private function pop_tabs_strip() {
+    private function pop_tabs_strip( $with_challenge = false ) {
         $h  = '<nav class="cdp-tabs" role="tablist" aria-label="Dashboard sections">';
         $h .= '<div class="cdp-tabs-inner">';
         $h .= '<button type="button" class="cdp-tab active" data-tab="today" role="tab" aria-selected="true">Today</button>';
+        if ( $with_challenge ) {
+            $h .= '<button type="button" class="cdp-tab"        data-tab="challenge" role="tab" aria-selected="false">30 days</button>';
+        }
         $h .= '<button type="button" class="cdp-tab"        data-tab="progress" role="tab" aria-selected="false">Progress</button>';
         $h .= '<button type="button" class="cdp-tab"        data-tab="report"   role="tab" aria-selected="false">My Report</button>';
         // Slice C: Messages tab — the badge is filled by hdlv2-inbox.js from
@@ -525,7 +682,10 @@ class HDLV2_Client_Dashboard {
             $h .= '<div class="cdp-due">Due ' . esc_html( $checkin_due_str ) . '</div>';
         }
         $h .= '</div>';
-        $h .= '<a href="' . esc_url( $checkin_url ) . '" class="cdp-btn cdp-btn-primary cdp-btn-large">Begin &rarr;</a>';
+        // v0.48.40 — the practitioner's view: the card without its Begin.
+        $h .= $this->view_as
+            ? '<p class="cdp-view-as-note">' . $first . ' does this on Sundays</p>'
+            : '<a href="' . esc_url( $checkin_url ) . '" class="cdp-btn cdp-btn-primary cdp-btn-large">Begin &rarr;</a>';
         $h .= '</div>';
 
         // This week summary card → linked to /my-flight-plan/ for the actual day picker
@@ -645,7 +805,7 @@ class HDLV2_Client_Dashboard {
                 $done      = ! empty( $a['ticked'] );
                 $cls       = 'cdp-action' . ( $done ? ' cdp-action-done' : '' );
                 $h .= '<li class="' . $cls . '" data-tick-id="' . (int) $a['tick_id'] . '" data-day="' . $key . '" data-ticked="' . ( $done ? '1' : '0' ) . '">';
-                $h .= '<button type="button" class="cdp-action-check" aria-label="' . ( $done ? 'Mark not done' : 'Mark done' ) . '"></button>';
+                $h .= '<button type="button" class="cdp-action-check"' . ( $this->view_as ? ' disabled' : '' ) . ' aria-label="' . ( $done ? 'Mark not done' : 'Mark done' ) . '"></button>';
                 $h .= '<div class="cdp-action-body">';
                 $h .= '<div class="cdp-action-ttl">' . esc_html( $a['action_text'] ) . '</div>';
                 $h .= '</div>';
@@ -665,7 +825,7 @@ class HDLV2_Client_Dashboard {
             $h .= 'No actions for this day yet.';
         }
         $h .= '</span>';
-        $h .= '<a href="' . esc_url( $plan_url ) . '">Open the whole week &rarr;</a>';
+        $h .= $this->client_link( '<a href="' . esc_url( $plan_url ) . '">Open the whole week &rarr;</a>' );
         $h .= '</div>';
 
         $h .= '</div>';
@@ -673,9 +833,14 @@ class HDLV2_Client_Dashboard {
     }
 
     private function pop_progress_panel( $ctx ) {
+        return '<section data-tab-panel="progress" class="cdp-panel">' . $this->progress_body( $ctx ) . '</section>';
+    }
+
+    /** v0.48.38 — the Progress content; in the one row it sits under the report (Q3). */
+    private function progress_body( $ctx ) {
         $first = esc_html( $ctx['first_name'] );
 
-        $h  = '<section data-tab-panel="progress" class="cdp-panel">';
+        $h  = '';
 
         // ── Personalised greeting + lede ──
         $weeks = (int) ( $ctx['weeks_tracked'] ?? 0 );
@@ -743,7 +908,6 @@ class HDLV2_Client_Dashboard {
             $h .= '</div></details>';
         }
 
-        $h .= '</section>';
         return $h;
     }
 
@@ -785,7 +949,9 @@ class HDLV2_Client_Dashboard {
         $h .= '<span class="cdp-chart-panel-label">Pace of ageing</span>';
         $h .= '<span class="cdp-chart-panel-value">' . esc_html( number_format( (float) $rate, 2 ) ) . '&times;</span>';
         $h .= '</div>';
-        if ( $url ) {
+        if ( $this->one_row_on() ) {
+            $h .= '<div class="cdp-chart-panel-img">' . $this->report_gauge_img( $rate && class_exists( 'HDLV2_Final_Report' ) ? HDLV2_Final_Report::gauge_url( $rate ) : '', $rate ) . '</div>';
+        } elseif ( $url ) {
             $h .= '<div class="cdp-chart-panel-img"><img src="' . esc_url( $url ) . '" alt="Pace of ageing gauge — ' . esc_attr( number_format( (float) $rate, 2 ) ) . '×" loading="lazy"></div>';
         }
         $h .= '<p class="cdp-chart-panel-cap cdp-chart-insight">';
@@ -826,7 +992,7 @@ class HDLV2_Client_Dashboard {
         $h .= '<div class="cdp-chart-panel-img"><img src="' . esc_url( $url ) . '" alt="Health profile radar — ' . $plotted_count . ' metrics on a 0-5 scale" loading="lazy"></div>';
         $h .= '<p class="cdp-chart-panel-cap cdp-chart-insight">';
         $h .= '<span class="cdp-chart-insight-tag cdp-chart-insight-tag-' . esc_attr( $tag_class ) . '">' . esc_html( $tag ) . '</span>';
-        $h .= '<span>' . $insight . ' <a href="' . esc_url( $report_url ) . '">Detail in your report &rarr;</a></span>';
+        $h .= '<span>' . $insight . $this->client_link( ' <a href="' . esc_url( $report_url ) . '">Detail in your report &rarr;</a>' ) . '</span>';
         $h .= '</p>';
         $h .= '</div>';
         return $h;
@@ -1163,7 +1329,7 @@ class HDLV2_Client_Dashboard {
      * header. Same Chart.js gauge plugin, same QuickChart endpoint — just a
      * different config block.
      */
-    private function chart_url_gauge( $rate ) {
+    private function chart_url_gauge( $rate ) { // the flag-off page's gauge only (v0.48.41)
         if ( ! $rate ) return '';
         // Stage-3 rates can fall outside the Stage-1 0.8–1.4 band; widen the
         // gauge scale to 0.5–2.0 (mirrors the my-report stage3 gauge) so the
@@ -1224,6 +1390,17 @@ class HDLV2_Client_Dashboard {
         );
         return 'https://quickchart.io/chart?c=' . rawurlencode( wp_json_encode( $cfg ) ) . '&w=380&h=340&bkg=white';
     }
+
+    /** v0.48.41 — a report's gauge image on the one-row page, at the report's 380×340. */
+    private function report_gauge_img( $url, $rate ) {
+        return '' === $url ? '' : '<img class="cdp-report-gauge" src="' . esc_url( $url ) . '" width="380" height="340" loading="lazy" alt="'
+            . esc_attr( 'Pace of ageing gauge — ' . number_format( (float) $rate, 2 ) . '×' ) . '">';
+    }
+
+    /** v0.48.41 — the one-row page shows the reports' own gauges; the other pages keep chart_url_gauge(). */
+    private function one_row_on() {
+        return $this->products_on() && HDLV2_Products::one_row_enabled();
+    }
     private function chart_url_radar( $scores ) {
         if ( empty( $scores ) || ! class_exists( 'HDLV2_Final_Report' ) || ! method_exists( 'HDLV2_Final_Report', 'build_radar_chart_url' ) ) return '';
         return HDLV2_Final_Report::build_radar_chart_url( $scores );
@@ -1237,7 +1414,21 @@ class HDLV2_Client_Dashboard {
     // which lives inside the new charts card. The SVG-building math is the
     // same; only the wrapping (no separate card chrome) changed.
 
+    /**
+     * v0.48.34 — "<n> people joined through you": the loved ones who shared their numbers through
+     * this client's timeline links. '' while there are none or the links flag is off.
+     */
+    private function joined_line( $user_id, $class ) {
+        $n = class_exists( 'HDLV2_Timeline_Links' ) ? HDLV2_Timeline_Links::joined_count( $user_id ) : 0;
+        return $n ? '<p class="' . esc_attr( $class ) . '">' . esc_html( $n . ( 1 === $n ? ' person' : ' people' ) . ' joined through you' ) . '</p>' : '';
+    }
+
     private function pop_report_panel( $ctx ) {
+        return '<section data-tab-panel="report" class="cdp-panel">' . $this->report_body( $ctx ) . '</section>';
+    }
+
+    /** v0.48.38 — the My Report content; also the top of the one row's Full Report tab. */
+    private function report_body( $ctx ) {
         $report_url   = home_url( '/my-report/' );
         $issued       = $ctx['report_issued_at'] ? $this->fmt_date( $ctx['report_issued_at'] ) : '';
         $reviewer     = esc_html( $ctx['practitioner_name'] ?: 'Your practitioner' );
@@ -1248,7 +1439,7 @@ class HDLV2_Client_Dashboard {
         $status_label = $is_final ? 'Final' : 'Draft';
         $display_name = esc_html( $ctx['display_name'] ?? $ctx['first_name'] );
 
-        $h = '<section data-tab-panel="report" class="cdp-panel">';
+        $h = '';
 
         // ── Cover ──────────────────────────────────────────────────────────
         $h .= '<div class="cdp-report-cover cdp-reveal cdp-reveal-1">';
@@ -1266,11 +1457,19 @@ class HDLV2_Client_Dashboard {
         }
         $h .= '</p>';
         $h .= '<div class="cdp-cover-actions">';
-        $h .= '<a href="' . esc_url( $report_url ) . '" class="cdp-btn cdp-btn-light cdp-btn-large">Open my report &rarr;</a>';
+        $h .= $this->client_link( '<a href="' . esc_url( $report_url ) . '" class="cdp-btn cdp-btn-light cdp-btn-large">Open my report &rarr;</a>' );
         if ( $pdf_url ) {
             $h .= '<a href="' . esc_url( $pdf_url ) . '" target="_blank" rel="noopener noreferrer" class="cdp-btn cdp-btn-line cdp-btn-large">Download PDF</a>';
         }
+        // v0.48.40 — the page's client (the viewer is the practitioner in their view, where the link,
+        // which carries the client's sign-in, is left out).
+        $client_id    = $this->view_as ? $this->view_as['client_user_id'] : get_current_user_id();
+        $timeline_url = ! $this->view_as && class_exists( 'HDLV2_Healthspan_Timeline' ) ? HDLV2_Healthspan_Timeline::dashboard_url( $client_id ) : ''; // v0.48.29
+        if ( $timeline_url ) {
+            $h .= '<a href="' . esc_url( $timeline_url ) . '" class="cdp-btn cdp-btn-line cdp-btn-large">Your healthspan timeline &rarr;</a>';
+        }
         $h .= '</div>';
+        $h .= $this->joined_line( $client_id, 'cdp-report-subtitle' );
         $h .= '</div>';
 
         // ── At-a-glance meta strip — 5 stats ───────────────────────────────
@@ -1321,7 +1520,7 @@ class HDLV2_Client_Dashboard {
 
             // CTA below the priorities — drives back to /my-report/
             $h .= '<div class="cdp-recos-foot">';
-            $h .= '<a href="' . esc_url( $report_url ) . '" class="cdp-btn cdp-btn-primary">Open the full report &rarr;</a>';
+            $h .= $this->client_link( '<a href="' . esc_url( $report_url ) . '" class="cdp-btn cdp-btn-primary">Open the full report &rarr;</a>' );
             if ( $pdf_url ) {
                 $h .= '<a href="' . esc_url( $pdf_url ) . '" target="_blank" rel="noopener noreferrer" class="cdp-btn cdp-btn-line">Download PDF</a>';
             }
@@ -1330,11 +1529,10 @@ class HDLV2_Client_Dashboard {
             $h .= '</div>';
         } else {
             $h .= '<div class="cdp-card cdp-card-quiet cdp-reveal cdp-reveal-3">';
-            $h .= '<p>The full report contains your practitioner&rsquo;s recommendations and personalised plan. <a href="' . esc_url( $report_url ) . '">Open the full report &rarr;</a></p>';
+            $h .= '<p>The full report contains your practitioner&rsquo;s recommendations and personalised plan.' . $this->client_link( ' <a href="' . esc_url( $report_url ) . '">Open the full report &rarr;</a>' ) . '</p>';
             $h .= '</div>';
         }
 
-        $h .= '</section>';
         return $h;
     }
 
@@ -1366,6 +1564,7 @@ class HDLV2_Client_Dashboard {
         $stage3_completed_at = $progress ? $progress->stage3_completed_at : null;
 
         $chrono_age = null;
+        $s1 = null;
         $stage3_rate = null;
         $stage3_bio_age = null;
         $stage3_scores = array();
@@ -1642,6 +1841,7 @@ class HDLV2_Client_Dashboard {
             'weekly_completion'      => $weekly_completion,
             // Stage 3 hero numbers (drive the Progress tab charts)
             'chrono_age'             => $chrono_age,
+            'stage1_data'            => is_array( $s1 ) ? $s1 : null, // the Stage 1 card's stats and headline (v0.48.41)
             'stage3_rate'            => $stage3_rate,
             'stage3_bio_age'         => $stage3_bio_age,
             'stage3_scores'          => $stage3_scores,
@@ -1753,13 +1953,31 @@ class HDLV2_Client_Dashboard {
 
     private function render_empty_state( $user_id, $state ) {
         $ctx = $this->load_context( $user_id );
+        $challenge = $this->challenge_section( $user_id, 'brand-new' !== $state );
+        // v0.48.23 — a challenge buyer's Stage 1 is a pending lead, not a
+        // client record yet: show it as sent, not "start with the gauge".
+        // v0.48.26 — nobody emails a buyer about a next step: the hero points
+        // at the 30 days and the "waiting on your practitioner" card is left out.
+        $buyer = 'brand-new' === $state && '' !== $challenge && HDLV2_Challenge::stage1_on_file( $user_id );
+        if ( $buyer ) {
+            $state = 'stage1-done';
+        }
 
         // No custom site chrome — Divi already renders the page header / nav / footer.
         $h  = '<main class="hdlv2-cd shell" data-state="' . esc_attr( $state ) . '">';
+        $h .= $this->products_strip( $user_id );
 
-        $h .= $this->hero_for_state( $ctx, $state );
-        $h .= $this->path_for_state( $ctx, $state );
+        $h .= $this->hero_for_state( $ctx, $state, $buyer, $buyer && HDLV2_Challenge::state( $user_id )['complete'] );
+        if ( ! $buyer ) {
+            $h .= $this->path_for_state( $ctx, $state );
+        }
         $h .= $this->preview_for_state( $ctx, $state );
+        $timeline_url = class_exists( 'HDLV2_Healthspan_Timeline' ) ? HDLV2_Healthspan_Timeline::dashboard_url( $user_id ) : ''; // v0.48.29
+        if ( $timeline_url ) {
+            $h .= '<p class="cd-timeline-link"><a href="' . esc_url( $timeline_url ) . '" class="cd-btn">Your healthspan timeline &rarr;</a></p>';
+            $h .= $this->joined_line( $user_id, 'cd-timeline-link' );
+        }
+        $h .= $challenge;
         // Slice C: inbox — mid-funnel clients must see practitioner messages
         // (the betas live in these states). v0.47.82: compact launcher card +
         // bottom-right popup replaced the always-open full-width card; the
@@ -1773,11 +1991,167 @@ class HDLV2_Client_Dashboard {
         return $h;
     }
 
+    /**
+     * v0.48.38 — /my-dashboard/ as one row of tabs, one shape in every journey state: Today, the
+     * five products (HDLV2_Products), Messages. A product the client has opens what it is; one they
+     * lack opens a panel that says how to get it. The populated context is loaded in every state:
+     * a draft report is 'stage3-done', not 'populated', and its tab still shows the report.
+     */
+    private function render_one_row( $user_id, $state ) {
+        $this->enqueue_populated_assets( $user_id );
+        wp_enqueue_style( 'hdlv2-products' );
+
+        $ctx       = $this->load_populated_context( $user_id );
+        $items     = array_column( HDLV2_Products::for_client( $user_id ), null, 'key' );
+        $challenge = $this->challenge_section( $user_id, 'brand-new' !== $state );
+        $prac      = $ctx['practitioner_name'];
+        $yours     = array(); // tab => the panel of a product the client has; every other product tab is locked
+
+        // A Stage-1-only client already has a first look at the timeline (v0.48.29); it stays one click away.
+        $preview = 'yours' !== $items['timeline']['state'] && class_exists( 'HDLV2_Healthspan_Timeline' )
+            ? HDLV2_Healthspan_Timeline::dashboard_url( $user_id ) : '';
+        $more    = '' === $preview ? '' : ( $this->view_as ? $this->own_sign_in_note()
+            : '<p class="cdp-product-more"><a href="' . esc_url( $preview ) . '">See a first look from your Stage 1 &rarr;</a></p>' );
+
+        if ( 'yours' === $items['stage1']['state'] ) {
+            $yours['stage1'] = $this->product_card( $items['stage1'], $this->stage1_body( $ctx, $items['stage1'], $preview ) );
+        }
+        if ( 'yours' === $items['full_report']['state'] ) {
+            $yours['report'] = $this->report_body( $ctx ) . $this->progress_body( $ctx );
+        }
+        if ( 'yours' === $items['timeline']['state'] ) {
+            $yours['timeline'] = $this->product_card( $items['timeline'],
+                ( $this->view_as ? $this->own_sign_in_note() : '<a class="cdp-btn cdp-btn-primary" href="' . esc_url( $items['timeline']['url'] ) . '">Open your Timeline &rarr;</a>' )
+                . $this->joined_line( $user_id, 'cdp-product-about' ) );
+        }
+        if ( 'yours' === $items['flight_plan']['state'] && $ctx['flight_plan'] ) {
+            $plan_url = home_url( '/my-flight-plan/' );
+            $yours['flight_plan'] = $this->product_card( $items['flight_plan'],
+                    $this->view_as ? $this->own_sign_in_note() : '<a class="cdp-btn cdp-btn-secondary" href="' . esc_url( $plan_url ) . '">Open this week&rsquo;s plan</a>' )
+                . $this->pop_week_card( $ctx, $plan_url );
+        }
+        if ( '' !== $challenge ) {
+            $yours['challenge'] = $challenge; // free for any record: the section carries its own start
+        }
+        $h  = '<div class="hdlv2-cd-pop hdlv2-cd-one-row"' . ( $this->view_as ? ' data-view-as="1"' : '' ) . ' data-state="' . esc_attr( $state ) . '">';
+        $h .= $this->view_as ? $this->view_as_banner( $ctx ) : '';
+        $h .= HDLV2_Products::render_tabs( array_values( $items ) );
+        $h .= '<main class="hdlv2-cd-pop-page">';
+        $h .= 'populated' === $state ? $this->pop_today_panel( $ctx ) : $this->one_row_today_panel( $ctx, $state, $user_id, $challenge );
+        $h .= $this->one_row_product_panel( 'stage1', $items, $yours, $prac );
+        $h .= $this->one_row_product_panel( 'report', $items, $yours, $prac );
+        $h .= $this->one_row_product_panel( 'timeline', $items, $yours, $prac, $more );
+        $h .= $this->one_row_product_panel( 'flight_plan', $items, $yours, $prac );
+        $h .= $this->one_row_product_panel( 'challenge', $items, $yours, $prac );
+        $h .= $this->pop_messages_panel();
+        $h .= '</main></div>';
+        return $h;
+    }
+
+    /** One product tab's panel: what the client has, or the locked panel (+ $more under it). */
+    private function one_row_product_panel( $tab, array $items, array $yours, $prac, $more = '' ) {
+        $item  = $items[ 'report' === $tab ? 'full_report' : $tab ];
+        $inner = isset( $yours[ $tab ] ) ? $yours[ $tab ] : HDLV2_Products::render_locked( $item, $items['full_report'], $prac, null !== $this->view_as ) . $more;
+        return '<section data-tab-panel="' . $tab . '" class="cdp-panel">' . $inner . '</section>';
+    }
+
+    /**
+     * v0.48.41 — the Stage 1 tab's card body: the Stage 1 report's "Your Results" (PDF template), its
+     * dial with Bio Age · Chrono · the gap under it, then Pace of Ageing, the rate, the pill and the
+     * report's headline; then the actions this client has (the stored PDF, the first look at the
+     * timeline when the Timeline is not theirs).
+     */
+    private function stage1_body( $ctx, array $item, $preview ) {
+        $rate = isset( $ctx['stage1_rate'] ) ? (float) $ctx['stage1_rate'] : null;
+        $h    = '';
+        if ( $rate && class_exists( 'HDLV2_Widget_Config' ) ) {
+            $s1     = $ctx['stage1_data'] ?? null;
+            $age    = is_array( $s1 ) ? (int) ( $s1['q1_age'] ?? $s1['server_result']['q1_age'] ?? 0 ) : 0; // as chrono_age reads it
+            $bio    = HDLV2_Stage1_Commentary::biological_age( $rate, $age );
+            $interp = HDLV2_Widget_Config::interpret_rate( $rate );
+            $tag    = array( 'Slower than average' => 'good', 'Average' => 'info' )[ $interp['label'] ] ?? 'watch'; // the PDF's optimal / info / watch
+            $line   = is_array( $s1 )
+                ? HDLV2_Stage1_Commentary::build_structured( $s1, array( 'rate' => $rate ) + ( is_array( $s1['server_result'] ?? null ) ? $s1['server_result'] : array() ), (string) ( $ctx['display_name'] ?? '' ) )['headline_text'] // the printed rate, always
+                : $interp['message'];
+            $stats  = '';
+            if ( null !== $bio ) { // as the PDF's Liquid: age − bio, in years
+                $gap   = round( $age - $bio, 1 );
+                $abs   = abs( $gap );
+                $years = ( 1.0 === $abs ? ' yr' : ' yrs' );
+                $delta = $gap > 0 ? array( 'In Favour', '+' . $abs . $years ) : ( $gap < 0 ? array( 'To Address', '&minus;' . $abs . $years ) : array( 'Status', 'On Pace' ) );
+                $stats = '<div class="cdp-stage1-stats">'
+                    . '<div class="cdp-stage1-stat"><span class="cdp-stage1-stat-label">Bio Age</span><span class="cdp-stage1-stat-value">' . esc_html( number_format( $bio, 1 ) ) . '</span></div>'
+                    . '<div class="cdp-stage1-stat"><span class="cdp-stage1-stat-label">Chrono</span><span class="cdp-stage1-stat-value">' . esc_html( (string) $age ) . '</span></div>'
+                    . '<div class="cdp-stage1-stat"><span class="cdp-stage1-stat-label">' . $delta[0] . '</span><span class="cdp-stage1-stat-value">' . $delta[1] . '</span></div>'
+                    . '</div>';
+            }
+            $h .= '<div class="cdp-stage1-body">'
+                . '<div class="cdp-stage1-gauge">' . $this->report_gauge_img( HDLV2_Widget_Config::stage1_report_gauge_url( $rate ), $rate ) . $stats . '</div>'
+                . '<div class="cdp-stage1-data"><p class="cdp-stage1-label">Pace of Ageing</p>'
+                . '<p class="cdp-stage1-value">' . esc_html( number_format( $rate, 2 ) ) . '<span class="cdp-stage1-unit">&times;</span></p>'
+                . '<p><span class="cdp-chart-insight-tag cdp-chart-insight-tag-' . $tag . '">' . esc_html( $interp['label'] ) . '</span></p>'
+                . '<p class="cdp-stage1-headline">' . esc_html( $line ) . '</p>'
+                . '</div></div>';
+        }
+        $actions = ( '' !== $item['url'] ? '<a class="cdp-btn cdp-btn-secondary" href="' . esc_url( $item['url'] ) . '">Open the Stage 1 report (PDF)</a>' : '' )
+                 . ( '' === $preview ? '' : ( $this->view_as ? $this->own_sign_in_note()
+                     : '<a class="cdp-stage1-more" href="' . esc_url( $preview ) . '">See a first look at your timeline &rarr;</a>' ) );
+        return $h . ( '' !== $actions ? '<div class="cdp-stage1-actions">' . $actions . '</div>' : '' );
+    }
+
+    /** A product's name, pill and line, with its one action. */
+    private function product_card( array $item, $action ) {
+        return '<div class="cdp-product-card">' . HDLV2_Products::product_head( $item ) . $action . '</div>';
+    }
+
+    /** v0.48.40 — above the row in the practitioner's view: whose page, that nothing changes from it, the way back. */
+    private function view_as_banner( $ctx ) {
+        $clients = home_url( '/' . trim( apply_filters( 'hdlv2_clients_page_slug', 'clients' ), '/' ) . '/' );
+        return '<div class="cdp-view-as"><p>You are looking at ' . esc_html( $ctx['display_name'] ?: $ctx['first_name'] )
+             . '&rsquo;s dashboard, as they see it. Nothing can be changed from here.</p>'
+             . '<a href="' . esc_url( $clients ) . '">&larr; Back to your clients</a></div>';
+    }
+
+    /** v0.48.40 — in the practitioner's view, in place of a link that carries the client's sign-in. */
+    private function own_sign_in_note() {
+        return '<p class="cdp-view-as-note">Opens from the client&rsquo;s own sign-in</p>';
+    }
+
+    /**
+     * v0.48.40 — a link to /my-report/ or /my-flight-plan/, which show the signed-in user's own: left
+     * out of the practitioner's view (they would land on "This page is for clients" or an empty plan).
+     */
+    private function client_link( $html ) {
+        return $this->view_as ? '' : $html;
+    }
+
+    /**
+     * The one row's Today before the journey is complete: render_empty_state()'s fragments without
+     * the strip, the timeline button, the 30 days and the Messages popup (each now has its tab).
+     */
+    private function one_row_today_panel( $ctx, $state, $user_id, $challenge ) {
+        // As render_empty_state(): a challenge buyer's Stage 1 is a pending lead, shown as sent.
+        $buyer = 'brand-new' === $state && '' !== $challenge && HDLV2_Challenge::stage1_on_file( $user_id );
+        if ( $buyer ) {
+            $state = 'stage1-done';
+        }
+        $h  = '<section data-tab-panel="today" class="cdp-panel cdp-panel-active"><div class="hdlv2-cd">';
+        $h .= $this->hero_for_state( $ctx, $state, $buyer, $buyer && HDLV2_Challenge::state( $user_id )['complete'] );
+        if ( ! $buyer ) {
+            $h .= $this->path_for_state( $ctx, $state );
+        }
+        $h .= $this->preview_for_state( $ctx, $state );
+        $h .= '<h2 class="cd-section-title">How the assessment unfolds</h2>';
+        $h .= $this->steps_grid( $state );
+        $h .= $this->help_footer();
+        return $h . '</div></section>';
+    }
+
     // ──────────────────────────────────────────────────────────────────────
     //  Per-state fragments
     // ──────────────────────────────────────────────────────────────────────
 
-    private function hero_for_state( $ctx, $state ) {
+    private function hero_for_state( $ctx, $state, $challenge_buyer = false, $challenge_done = false ) {
         $first = esc_html( $ctx['first_name'] );
 
         $titles = array(
@@ -1796,6 +2170,10 @@ class HDLV2_Client_Dashboard {
 
         $title = isset( $titles[ $state ] ) ? $titles[ $state ] : $titles['brand-new'];
         $sub   = isset( $subs[ $state ] )   ? $subs[ $state ]   : $subs['brand-new'];
+        if ( $challenge_buyer ) {
+            // v0.48.27 (F12) — once all 30 are ticked there is nothing left to tick.
+            $sub = $challenge_done ? 'You did all 30 days. Your record is below.' : 'Your 30 days are below. Tick each day when it is done.';
+        }
 
         $h  = '<section class="cd-hero">';
         $h .= '<div class="cd-hero-row"><div>';
@@ -1824,7 +2202,9 @@ class HDLV2_Client_Dashboard {
             $h .= '<div class="cd-path-icon" aria-hidden="true">' . $this->icon( 'play' ) . '</div>';
             $h .= '<h3>Take the quick gauge</h3>';
             $h .= '<p>9 questions, ~3 minutes. You&rsquo;ll see your pace-of-ageing result straight after, and your practitioner will be notified.</p>';
-            if ( $invite_token !== '' ) {
+            if ( $this->view_as ) {
+                $h .= $this->own_sign_in_note(); // v0.48.40 — the invite link signs the client in
+            } elseif ( $invite_token !== '' ) {
                 $cta_url = add_query_arg( 'invite', $invite_token, home_url( '/rate-of-ageing-widget/' ) );
                 $h .= '<a href="' . esc_url( $cta_url ) . '" class="cd-btn">Start now &rarr;</a>';
             } else {
@@ -1890,7 +2270,9 @@ class HDLV2_Client_Dashboard {
         // gauge used on the Progress tab + the Stage-1 widget), replacing the old
         // decorative static arc that drew the identical shape for every rate.
         $gauge_url = $this->chart_url_gauge( $rate );
-        if ( $gauge_url ) {
+        if ( $this->one_row_on() ) {
+            $h .= $this->report_gauge_img( class_exists( 'HDLV2_Widget_Config' ) ? HDLV2_Widget_Config::stage1_report_gauge_url( $rate ) : '', $rate );
+        } elseif ( $gauge_url ) {
             $h .= '<img class="cd-gauge-real" src="' . esc_url( $gauge_url ) . '" width="380" height="340" alt="' . esc_attr( 'Pace of ageing gauge — ' . number_format( $rate, 2 ) . '×' ) . '" loading="lazy">';
         }
         $h .= '<div class="cd-preview-meta">';
@@ -2077,6 +2459,8 @@ class HDLV2_Client_Dashboard {
         // widget page's default practitioner_id. Statuses pending/opened are the
         // pre-submit, still-usable states (opened is set on magic-link login);
         // completed/expired/revoked are intentionally excluded.
+        // v0.48.24 — a challenge link is a sale, not a practitioner invite:
+        // a newer one never displaces the practitioner's own "Start now" link.
         $invite_token = '';
         $email = $user ? (string) $user->user_email : '';
         if ( $email !== '' ) {
@@ -2084,7 +2468,7 @@ class HDLV2_Client_Dashboard {
             $invite = $wpdb->get_row( $wpdb->prepare(
                 "SELECT token FROM {$wpdb->prefix}hdlv2_widget_invites
                  WHERE client_email = %s AND status IN ('pending','opened')
-                   AND source <> 'paid_stage1'
+                   AND source NOT IN ('paid_stage1','challenge')
                    AND expires_at > %s
                  ORDER BY id DESC LIMIT 1",
                 $email, $now
@@ -2140,8 +2524,8 @@ class HDLV2_Client_Dashboard {
 
     private function card( $title, $body, $cta_label, $cta_url ) {
         return '<div style="max-width:560px;margin:60px auto;padding:40px 32px;background:#fff;border:1px solid #e4e6ea;border-radius:14px;box-shadow:0 4px 24px rgba(0,0,0,0.04);text-align:center;font-family:Inter,-apple-system,sans-serif;">'
-             . '<h2 style="font-family:Source Serif Pro,Georgia,serif;font-size:24px;font-weight:600;color:#111;margin:0 0 10px;">' . esc_html( $title ) . '</h2>'
-             . '<p style="font-size:14px;color:#666;margin:0 0 24px;line-height:1.5;">' . esc_html( $body ) . '</p>'
+             . '<h2 style="font-family:Source Serif Pro,Georgia,serif;font-size:24px;font-weight:600;color:#111;margin:0 0 ' . ( '' !== $body ? '10' : '24' ) . 'px;">' . esc_html( $title ) . '</h2>'
+             . ( '' !== $body ? '<p style="font-size:14px;color:#666;margin:0 0 24px;line-height:1.5;">' . esc_html( $body ) . '</p>' : '' )
              . '<a href="' . esc_url( $cta_url ) . '" style="display:inline-block;background:#3d8da0;color:#fff;padding:11px 24px;border-radius:8px;font-size:14px;font-weight:600;text-decoration:none;font-family:Inter,sans-serif;">' . esc_html( $cta_label ) . ' &rarr;</a>'
              . '</div>';
     }

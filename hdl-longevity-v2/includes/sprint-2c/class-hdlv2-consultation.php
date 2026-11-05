@@ -650,7 +650,7 @@ class HDLV2_Consultation {
         if ( ( $value === '' || $value === null || $value === 'skip' ) && in_array( $field, $body_inputs, true ) ) {
             return new WP_Error(
                 'body_comp_blank',
-                sprintf( 'Field "%s" cannot be blank or skipped — leaving it empty would silently remove the BMI / WHR / WHtR / BP / HR score from the report. Enter a numeric value or leave the original Stage 3 measurement unchanged.', $field ),
+                sprintf( 'Field "%s" cannot be blank or skipped — leaving it empty would silently remove the BMI / WHR / WHtR / BP / HR score from the report. Enter a numeric value or leave the original Full Report form measurement unchanged.', $field ),
                 array( 'status' => 400 )
             );
         }
