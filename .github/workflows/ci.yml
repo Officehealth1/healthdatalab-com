@@ -60,8 +60,11 @@ jobs:
           "$RUNNER_TEMP/gitleaks" git --no-banner --redact --log-opts="--all" .
 
   semgrep:
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     container: semgrep/semgrep:1.164.0@sha256:207983631beecdbe7fa29196c7f4a7a5f29033933cdb76c687ce4a672e07618d
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
-      - run: semgrep scan --config p/secrets --config p/owasp-top-ten --config p/php --metrics=off --error
+        with:
+          fetch-depth: 0
+      - run: semgrep scan --config p/secrets --config p/owasp-top-ten --config p/php --metrics=off --error --baseline-commit "${{ github.event.pull_request.base.sha }}"
