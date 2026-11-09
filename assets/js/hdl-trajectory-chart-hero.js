@@ -496,8 +496,7 @@ var HDLTrajectoryChart = (function () {
     if (showProjections && optimistic.points.length > 4) {
       var greenMidIdx = Math.floor(optimistic.points.length / 2);
       var greenMid = optimistic.points[greenMidIdx];
-      var pctSlower = Math.round((1 - currentRate) * 100);
-      var greenText = 'Aging ' + pctSlower + '% slower than average';
+      var greenText = rateLabel(currentRate);
 
       var greenCx = sx(greenMid.age);
       var greenCy = sy(greenMid.health) - 25;
@@ -645,8 +644,17 @@ var HDLTrajectoryChart = (function () {
     };
   }
 
+  // v0.48.60 — the callout's words: above 1.00× is "faster", never a negative "slower".
+  function rateLabel(rate) {
+    var pct = Math.round((1 - rate) * 100);
+    return pct > 0 ? 'Aging ' + pct + '% slower than average'
+      : pct < 0 ? 'Aging ' + (-pct) + '% faster than average'
+      : 'Aging at the average pace';
+  }
+
   return {
     render: render,
+    rateLabel: rateLabel,
     interpolateHealthForRate: interpolateHealthForRate,
     generateOptimistic: generateOptimistic,
     generatePessimistic: generatePessimistic,
