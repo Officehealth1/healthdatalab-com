@@ -327,26 +327,29 @@ $GLOBALS['post'] = null;
 check( 'body class: no post → unchanged', array( 'page' ) === $W() );
 
 // v0.48.60 — the user flow (plan 2026-11-09): the buyer's window, first paint, the practitioner's brand.
-const WAIT = 'Your Full Report is being written. Your loved ones unlock the moment it lands.';
+const WAIT   = 'Your Full Report is being written. Your loved ones unlock the moment it lands.';
+const BOUGHT = 'Your Full Report is bought. Finish its questions, and your loved ones unlock when the report lands.';
 function ticket( $email, $over = array() ) { return $over + array( 'client_email' => $email, 'source' => 'full_report', 'external_ref' => 'cs_test_1', 'status' => 'pending' ); }
-$waiting = function ( $d ) {
+$waiting = function ( $d, $line = WAIT ) {
     return 'preview' === ( $d['mode'] ?? '' ) && true === ( $d['lock'] ?? null ) && true === ( $d['paid'] ?? null )
         && ! isset( $d['offer']['button'] ) && ! isset( $d['offer']['url'] ) && true === ( $d['offer']['wait'] ?? null )
-        && WAIT === ( $d['offer']['line'] ?? '' ) && WAIT === ( $d['wait_line'] ?? '' );
+        && $line === ( $d['offer']['line'] ?? '' ) && $line === ( $d['wait_line'] ?? '' );
 };
 
 // P1: a Full Report ticket for the client's email, no report row yet → the waiting line, no button (DA2 kept).
 $db = fresh();
 $db->progress[ tok( '1' ) ] = row( 41, array( 'stage3_data' => null, 'stage3_completed_at' => null, 'client_email' => 'Buyer@Example.test' ) );
 $db->tickets[] = ticket( 'buyer@example.test' );
-check( 'P1 ticket + no report → preview, lock, paid, the waiting line, no button', $waiting( $T::page_data( tok( '1' ) ) ) );
+check( 'P1 ticket, questions not done, no report → preview, lock, paid, "bought, finish its questions", no button', $waiting( $T::page_data( tok( '1' ) ), BOUGHT ) );
 $db->tickets = array( ticket( 'buyer@example.test', array( 'status' => 'revoked' ) ), ticket( 'buyer@example.test', array( 'source' => 'challenge' ) ), ticket( 'buyer@example.test', array( 'external_ref' => null ) ) );
 check( 'P1 a revoked ticket, a challenge ticket or one with no payment ref → not paid, the offer as today', false === $T::page_data( tok( '1' ) )['paid'] && isset( $T::page_data( tok( '1' ) )['offer']['button'] ) );
 
 // P2: Stage 3 submitted, no report row yet → the same.
 $db = fresh();
 $db->progress[ tok( '2' ) ] = row( 42, array( 'stage3_data' => null ) );
-check( 'P2 Stage 3 submitted + no report → the waiting line, no button', $waiting( $T::page_data( tok( '2' ) ) ) );
+check( 'P2 Stage 3 submitted + no report → "being written", no button', $waiting( $T::page_data( tok( '2' ) ) ) );
+$db->tickets[] = ticket( 'kim42@example.test' );
+check( 'P2b a ticket and Stage 3 submitted → "being written" (the questions are done)', $waiting( $T::page_data( tok( '2' ) ) ) );
 
 // P3: no ticket, no Stage 3 → the offer as today: the code in the url for a known client, none for a fragment visitor.
 $db = fresh();
@@ -389,6 +392,7 @@ check( 'B1 token page → prac { name, logo } from the practitioner\'s widget se
 $db->configs[122]->logo_url = 'javascript:alert(1)';
 check( 'B1 a logo that is not https is dropped, the name stays', array( 'name' => "Matthew D'haemer", 'logo' => '' ) === ( $T::page_data( tok( '5' ) )['prac'] ?? null ) );
 check( 'B1 the open page (no token) → no prac key; the REST base for the page\'s own lookup', ! array_key_exists( 'prac', $T::page_data( '' ) ) && 'https://stby.test/wp-json/hdl-v2/v1/' === ( $T::page_data( '' )['rest'] ?? '' ) );
+check( 'B3 the footer line is HDLV2_Offer::PARTNER_LINE (one source with the report page and the emails)', HDLV2_Offer::PARTNER_LINE === ( $T::page_data( '' )['partner_line'] ?? '' ) && HDLV2_Offer::PARTNER_LINE === ( $T::page_data( tok( '5' ) )['partner_line'] ?? '' ) );
 
 // v0.48.34 (Task 5b, calc review 2026-10-30): the small print says once what "pace" means here.
 // The disclaimer is set by the page script (renderStatic → #ht-disc), so this reads that line.

@@ -17,6 +17,11 @@
  *   hdlv2_ht_gate           'full_report' (default); 'addon' is reserved for a later checkout
  *                           and behaves as full_report
  *
+ * v0.48.60 — the user flow: a buyer in the window between paying and the report (a Full Report
+ * ticket for their email, or Stage 3 submitted) keeps the lock (DA2) but reads a waiting line
+ * instead of the offer; the title, subtitle and a skeleton are in the HTML before the script runs;
+ * a token page names the client's practitioner (widget settings); the footer is the partner line.
+ *
  * @package HDL_Longevity_V2
  * @since   0.48.29
  */
@@ -39,6 +44,15 @@ class HDLV2_Healthspan_Timeline {
 
     /** The report page's own words for a dead link (client-draft-view). */
     const EXPIRED = 'This link has expired. Please ask your practitioner for a fresh link.';
+
+    /** v0.48.60 — printed with the title before the script runs; the same words as shellHtml() in the page script. */
+    const SUBTITLE = "In relation to the people you love. Take stock of where you are, see where today's path leads, then change the path and watch what moves.";
+
+    /** v0.48.60 — the lock line of a buyer whose report is not written yet, by where they are (planner's gate, 2026-11-09). */
+    const WAIT_LINES = array(
+        'written' => 'Your Full Report is being written. Your loved ones unlock the moment it lands.',
+        'bought'  => 'Your Full Report is bought. Finish its questions, and your loved ones unlock when the report lands.',
+    );
 
     public static function init() {
         add_shortcode( 'hdlv2_healthspan_timeline', array( __CLASS__, 'render_shortcode' ) );
@@ -119,7 +133,7 @@ class HDLV2_Healthspan_Timeline {
         }
         global $wpdb;
         $row = $wpdb->get_row( $wpdb->prepare(
-            "SELECT id, client_user_id, practitioner_user_id, client_name, stage1_data, stage2_data, stage3_data, created_at, token_expires_at
+            "SELECT id, client_user_id, practitioner_user_id, client_name, client_email, stage1_data, stage2_data, stage3_data, stage3_completed_at, created_at, token_expires_at
              FROM {$wpdb->prefix}hdlv2_form_progress
              WHERE token = %s AND deleted_at IS NULL
              LIMIT 1",
@@ -132,7 +146,11 @@ class HDLV2_Healthspan_Timeline {
             self::log_gate_once();
         }
         $report = self::report_row( (int) $row->id );
-        $data   = self::frame( $report ? 'full' : 'preview', self::you( $row, $report ), (int) $row->id, (int) $row->practitioner_user_id );
+        $data   = self::frame( $report ? 'full' : 'preview', self::you( $row, $report ), (int) $row->id, (int) $row->practitioner_user_id, self::paid( $row ) );
+        $prac   = self::practitioner( (int) $row->practitioner_user_id );
+        if ( $prac ) {
+            $data['prac'] = $prac;
+        }
         // v0.48.34 — linked people (HDLV2_Timeline_Links): the routes' address and a REST nonce, full mode only.
         $links = $report && class_exists( 'HDLV2_Timeline_Links' ) ? HDLV2_Timeline_Links::page_config( $row ) : array();
         if ( $links ) {
@@ -164,7 +182,10 @@ class HDLV2_Healthspan_Timeline {
         wp_enqueue_script( 'hdl-trajectory-chart', HDLV2_PLUGIN_URL . 'assets/js/hdl-trajectory-chart-hero.js', array(), HDLV2_VERSION, true );
         wp_enqueue_script( 'hdlv2-healthspan-timeline', HDLV2_PLUGIN_URL . 'assets/js/hdlv2-healthspan-timeline.js', array( 'hdl-trajectory-chart' ), HDLV2_VERSION, true );
         wp_add_inline_script( 'hdlv2-healthspan-timeline', 'window.HDLV2_HT = ' . wp_json_encode( $data, JSON_HEX_TAG | JSON_HEX_AMP ) . ';', 'before' );
-        return '<div id="hdlv2-ht-root" class="hdlv2-ht"></div>';
+        // v0.48.60 — the first paint: the title, the subtitle and the first two panels as blocks; boot() replaces it all.
+        return '<div id="hdlv2-ht-root" class="hdlv2-ht"><header class="ht-top"><h1 id="ht-title">' . esc_html( $data['title'] ) . '</h1>'
+            . '<p class="ht-sub">' . esc_html( self::SUBTITLE ) . '</p></header>'
+            . '<div class="ht-skeleton" role="status" aria-busy="true" aria-label="Loading your timeline"><div></div><div></div></div></div>';
     }
 
     /**
@@ -178,7 +199,7 @@ class HDLV2_Healthspan_Timeline {
         }
         global $wpdb;
         $row = $wpdb->get_row( $wpdb->prepare(
-            "SELECT id, client_user_id, practitioner_user_id, client_name, token, stage1_data, stage3_data, created_at, token_expires_at
+            "SELECT id, client_user_id, practitioner_user_id, client_name, client_email, token, stage1_data, stage3_data, stage3_completed_at, created_at, token_expires_at
              FROM {$wpdb->prefix}hdlv2_form_progress
              WHERE client_user_id = %d AND deleted_at IS NULL
              ORDER BY id DESC LIMIT 1",
@@ -188,7 +209,8 @@ class HDLV2_Healthspan_Timeline {
             return '';
         }
         $s3 = json_decode( (string) $row->stage3_data, true );
-        if ( self::report_row( (int) $row->id ) || isset( $s3['server_result']['rate'] ) ) {
+        // v0.48.60: a buyer in the window too, so the page can say their report is on its way.
+        if ( self::report_row( (int) $row->id ) || isset( $s3['server_result']['rate'] ) || '' !== self::paid( $row ) ) {
             return empty( $row->token ) ? '' : self::report_url( $row->token );
         }
         $you = self::you( $row, null );
@@ -212,6 +234,44 @@ class HDLV2_Healthspan_Timeline {
         $uid = get_current_user_id();
         return $uid && ( (int) $uid === (int) $row->client_user_id
             || ( class_exists( 'HDLV2_Compatibility' ) && HDLV2_Compatibility::practitioner_owns_client( $uid, (int) $row->client_user_id ) ) );
+    }
+
+    /**
+     * v0.48.60 — a Full Report paid for: 'written' once Stage 3 is submitted, 'bought' when a ticket
+     * matches the row's email (the products strip's query, HDLV2_Products::for_client), '' otherwise.
+     * The row's own email: the address the ticket's auto-confirm matched.
+     */
+    private static function paid( $row ) {
+        if ( ! empty( $row->stage3_completed_at ) ) {
+            return 'written';
+        }
+        $email = strtolower( trim( (string) ( $row->client_email ?? '' ) ) );
+        if ( '' === $email ) {
+            return '';
+        }
+        global $wpdb;
+        return $wpdb->get_var( $wpdb->prepare(
+            "SELECT 1 FROM {$wpdb->prefix}hdlv2_widget_invites
+             WHERE LOWER(client_email) = %s AND source = 'full_report' AND external_ref IS NOT NULL AND status <> 'revoked'
+             LIMIT 1",
+            $email
+        ) ) ? 'bought' : '';
+    }
+
+    /** v0.48.60 — the name and logo the client's result page showed (widget settings); null when neither is set. */
+    private static function practitioner( $practitioner_id ) {
+        global $wpdb;
+        $c = $wpdb->get_row( $wpdb->prepare(
+            "SELECT practitioner_name, logo_url FROM {$wpdb->prefix}hdlv2_widget_config WHERE practitioner_user_id = %d LIMIT 1",
+            $practitioner_id
+        ) );
+        if ( ! $c ) {
+            return null;
+        }
+        $name = sanitize_text_field( (string) $c->practitioner_name );
+        $logo = esc_url_raw( (string) $c->logo_url );
+        $logo = preg_match( '#^https://#i', $logo ) ? $logo : '';
+        return '' !== $name || '' !== $logo ? array( 'name' => $name, 'logo' => $logo ) : null;
     }
 
     /** The Full Report gate: the latest final, else draft, report row of a progress row. Public for the links routes (v0.48.34). */
@@ -283,17 +343,26 @@ class HDLV2_Healthspan_Timeline {
         );
     }
 
-    private static function frame( $mode, $you, $progress_id, $practitioner_id ) {
+    /** @param string $paid self::paid(): '' (not bought), 'bought' or 'written'. */
+    private static function frame( $mode, $you, $progress_id, $practitioner_id, $paid = '' ) {
         $title = sanitize_text_field( (string) get_option( 'hdlv2_ht_title', '' ) );
         $data  = array(
             'mode'         => $mode,
             'lock'         => 'preview' === $mode,
+            'paid'         => '' !== $paid,
             'you'          => $you,
             'store'        => 'full' === $mode ? 'hs-state-' . $progress_id : 'hs-state-preview',
             'title'        => '' !== $title ? $title : 'Healthspan Timeline',
             'show_science' => (bool) get_option( 'hdlv2_ht_show_science', false ),
             'offer'        => self::offer( $practitioner_id ),
+            'rest'         => esc_url_raw( rest_url( 'hdl-v2/v1/' ) ),
+            'partner_line' => HDLV2_Offer::PARTNER_LINE,
         );
+        // DA2 stands (the report is the gate): a buyer is not sold the report again while it is written.
+        if ( '' !== $paid && 'preview' === $mode ) {
+            $data['offer']     = array( 'line' => self::WAIT_LINES[ $paid ], 'wait' => true );
+            $data['wait_line'] = self::WAIT_LINES[ $paid ];
+        }
         $card = self::card();
         if ( $card ) {
             $data['card'] = $card;
@@ -312,8 +381,12 @@ class HDLV2_Healthspan_Timeline {
         if ( '' === $o['url'] || ( null !== $practitioner_id && ! HDLV2_Offer::applies_to( $practitioner_id ) ) ) {
             return array( 'line' => 'Your loved ones unlock with the full report.' );
         }
+        $today = HDLV2_Offer::money( $o['full_today_price'], $o );
         return array(
-            'line'   => 'Your loved ones unlock with the full report (today ' . HDLV2_Offer::money( $o['full_today_price'], $o ) . ').',
+            // v0.48.60: the open page has no code to give, so it says where the code is.
+            'line'   => null === $practitioner_id
+                ? 'Your loved ones unlock with the Full Report (today ' . $today . ' with the code from your email).'
+                : 'Your loved ones unlock with the full report (today ' . $today . ').',
             'button' => 'Get the full report',
             'url'    => null === $practitioner_id ? $o['url'] : add_query_arg( 'code', rawurlencode( $o['code'] ), $o['url'] ),
         );
