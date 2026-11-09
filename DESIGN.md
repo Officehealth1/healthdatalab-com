@@ -105,6 +105,8 @@ checks every file against this section.
   leg 32, arm 26. A scene scales the whole rig, never one limb.
 - Joints are nested groups: the joint's position is a `transform`
   attribute, the movement is a CSS `rotate()` on the group inside it.
+- A nod (Q8) turns the head on its own joint at the top of the torso; the
+  head keeps its gap to the torso.
 
 ### Props and ground
 - Stairs, chair, bed, plate, hand outline: stroke 2, `#3d8da0` at
