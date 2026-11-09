@@ -53,7 +53,9 @@ const rrOld = cutIn(old, '    function renderResult() {', '\n    }\n');
 const CALL = "        +       bandVideoHtml({ good: 'green', avg: 'blue', warn: 'red' }[bandClass], cfg.bandVideos)\n";
 const GAUGE = "        +       '<img class=\"hdlw-r-gauge-img\" src=\"' + gaugeUrl(rate) + '\" alt=\"Rate of ageing gauge \\u2014 ' + rateDisplay + '\">'\n";
 ok(rrOld !== '' && rrOld.indexOf(GAUGE) > 0, 'found the gauge picture line in b462b02\'s renderResult');
-ok(rrNew === rrOld.replace(GAUGE, GAUGE + CALL), 'renderResult is b462b02\'s text with only the call added after the gauge picture');
+// v0.48.60: the timeline teaser's href also carries &p= (tests/healthspan-timeline/test-widget-teaser.mjs); that one line is allowed too.
+const PLINE = "          + (/^\\d+$/.test(String(cfg.pracId)) ? '&p=' + cfg.pracId : '') // v0.48.60: the timeline's brand row\n";
+ok(rrNew.indexOf(PLINE) > 0 && rrNew.replace(PLINE, '') === rrOld.replace(GAUGE, GAUGE + CALL), 'renderResult is b462b02\'s text with only the call added after the gauge picture (and the 0.48.60 &p= line)');
 ok(rrNew.indexOf(CALL) > 0 && rrNew.indexOf(CALL) < rrNew.indexOf("escapeHtml(awakenP1)"), 'the video sits before the three paragraphs in source order');
 
 // Outside renderResult: only the function and the cfg line were added.
