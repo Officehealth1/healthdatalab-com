@@ -231,14 +231,15 @@ if (has('lockHtml') && has('waitHtml')) {
   ok(/data-ht-icon="lock"/.test(b) && /<a class="ht-btn" href="https:\/\/altituding\.com\/full-report"/.test(b), 'P5 the offer lock is unchanged: the lock glyph and the button');
   ok(M.waitHtml(WAIT) === '<p class="ht-wait" role="status">' + WAIT + '</p>' && M.waitHtml('') === '' && M.waitHtml('<b>') === '<p class="ht-wait" role="status">&lt;b&gt;</p>', 'P5 the You panel\'s waiting line: one status paragraph, escaped; nothing when empty');
 }
-ok(has('sampleNoteHtml') && has('defaultPeople') && has('cleanPerson'), 'G1 sampleNoteHtml, defaultPeople, cleanPerson exposed');
-if (has('sampleNoteHtml') && has('defaultPeople') && has('cleanPerson')) {
+ok(has('sampleNote') && has('defaultPeople') && has('cleanPerson'), 'G1 sampleNote, defaultPeople, cleanPerson exposed');
+if (has('sampleNote') && has('defaultPeople') && has('cleanPerson')) {
   const SAMPLE = 'Sample people. Edit them or add your own on the Loved ones tab.';
   const ppl = M.defaultPeople({ born: 1974, sex: 'F' });
   ok(ppl.length === 3 && ppl.every(p => p.sample === true), 'G2 the three default people carry sample: true');
   ok(M.cleanPerson(ppl[0]).sample === true && M.cleanPerson({ born: 1980, rate: 'same', sample: 'yes' }).sample === undefined && M.cleanPerson({ born: 1980, rate: 'same' }).sample === undefined, 'G2 cleanPerson keeps a true sample mark only (a kept list stays marked)');
-  ok(M.sampleNoteHtml(ppl).indexOf(SAMPLE) !== -1, 'G1 every person a sample → the note');
-  ok(M.sampleNoteHtml([ppl[0], ppl[1], { name: 'Ana', born: 1999, rate: 'same' }]) === '' && M.sampleNoteHtml([]) === '', 'G1 one edited or added → no note; nobody → no note');
+  ok(M.sampleNote(ppl, 'full').indexOf(SAMPLE) !== -1, 'G1 full mode, every person a sample → the note');
+  ok(M.sampleNote(ppl, 'preview').indexOf('Sample people. Your own unlock with the Full Report.') !== -1 && M.sampleNote(ppl, 'preview').indexOf('Edit them') === -1, 'G1 preview (the tab is locked) → "Your own unlock with the Full Report."');
+  ok(M.sampleNote([ppl[0], ppl[1], { name: 'Ana', born: 1999, rate: 'same' }], 'full') === '' && M.sampleNote([], 'full') === '', 'G1 one edited or added → no note; nobody → no note');
   ok(/id="ht-sample"/.test(M.shellHtml({ mode: 'full' })), 'G1 the shell has the note\'s place under the lanes');
   M.reset({ mode: 'full', you: { name: 'Kim', born: 1974, sex: 'F', rate0: 1 }, key_people: [{ name: 'Ana', rel: 'child' }] });
   ok(M.state().people.every(p => !p.sample), 'G2 people named on the Full Report form are not samples');
@@ -250,10 +251,12 @@ if (has('brandRowHtml')) {
   ok(!/<img/.test(M.brandRowHtml({ name: 'Ana', logo: 'javascript:alert(1)' })) && /Ana/.test(M.brandRowHtml({ name: 'Ana', logo: '' })), 'B2 no https logo → the name alone');
   ok(M.brandRowHtml({ name: '', logo: 'https://stby.test/logo.png' }) === '' && M.brandRowHtml(null) === '', 'B2 no name → nothing');
 }
-const shell = M.shellHtml({ mode: 'preview' });
+const PARTNER = 'Powered by HealthDataLab · a partnership focused on longevity';
+const shell = M.shellHtml({ mode: 'preview', partner_line: PARTNER });
 ok(/<div id="ht-brand"><\/div>/.test(shell) && shell.indexOf('id="ht-brand"') < shell.indexOf('id="ht-tabs"'), 'B2 the brand row\'s place sits under the title, above the tabs');
 const foot = (shell.match(/<p class="ht-foot">.*<\/p>$/) || [''])[0];
-ok(/^<p class="ht-foot">Powered by HealthDataLab · <a href="https:\/\/healthdatalab\.com\/terms">Terms<\/a> · <a href="https:\/\/healthdatalab\.com\/privacy">Privacy<\/a><\/p>$/.test(foot), 'B3 the shell ends with "Powered by HealthDataLab · Terms · Privacy"');
+ok(foot === '<p class="ht-foot">' + PARTNER + ' · <a href="https://healthdatalab.com/terms">Terms</a> · <a href="https://healthdatalab.com/privacy">Privacy</a></p>', 'B3 the shell ends with the partnership line (cfg.partner_line), then Terms · Privacy');
+ok(/<p class="ht-foot"><a href="https:\/\/healthdatalab\.com\/terms">Terms<\/a> · /.test(M.shellHtml({ mode: 'preview' })) && /&lt;b&gt;/.test(M.shellHtml({ mode: 'preview', partner_line: '<b>' })), 'B3 no partner line → the two links alone; the line is escaped');
 ok(/:has\(#hdlv2-ht-root\) \.et-l--footer\{display:none\}/.test(CSS), 'B3 the theme footer is hidden on this page only');
 ok(has('fragmentPrac') && M.fragmentPrac('#a=52&s=M&r=1.14&n=Quim&p=122') === '122' && M.fragmentPrac('#p=12a') === '' && M.fragmentPrac('#a=52') === '' && M.fragmentPrac('#p=' + '9'.repeat(12)) === '', 'B2 &p= read from the fragment: digits only, up to ten');
 
