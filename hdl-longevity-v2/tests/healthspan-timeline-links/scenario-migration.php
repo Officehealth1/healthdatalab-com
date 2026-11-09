@@ -112,7 +112,7 @@ $missing = array_filter( $cols, function ( $c ) use ( $ddl ) { return false === 
 ok( 'M.8 CREATE TABLE timeline_links: every column and key (missing: ' . implode( ' | ', $missing ) . ')', $ddl && ! $missing );
 ok( 'M.9 dbDelta runs it', false !== strpos( $src, 'dbDelta( $sql_links );' ) );
 $loader = file_get_contents( dirname( __DIR__, 2 ) . '/hdl-longevity-v2.php' );
-ok( 'M.10 loader: header + constant 0.48.54, DB 3.33, the class loaded', false !== strpos( $loader, ' * Version: 0.48.54' ) && false !== strpos( $loader, "define( 'HDLV2_VERSION', '0.48.54' );" )
+ok( 'M.10 loader: header + constant 0.48.55, DB 3.33, the class loaded', false !== strpos( $loader, ' * Version: 0.48.55' ) && false !== strpos( $loader, "define( 'HDLV2_VERSION', '0.48.55' );" )
     && false !== strpos( $loader, "define( 'HDLV2_DB_VERSION', '3.33' );" ) && false !== strpos( $loader, 'class-hdlv2-timeline-links.php' ) );
 
 echo "\nPASS=$pass FAIL=$fail\n";

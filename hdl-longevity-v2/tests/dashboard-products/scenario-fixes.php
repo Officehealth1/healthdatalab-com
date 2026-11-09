@@ -73,8 +73,8 @@ check( 'A6.2 for_client(): LOWER(client_email) = %s with strtolower( $email )',
 check( 'A6.3 no exact client_email = %s left in either', false === strpos( $tl, ' client_email = %s' ) && false === strpos( $pr, ' client_email = %s' ) );
 
 echo "A7 version\n";
-check( 'A7.1 plugin header 0.48.54', 1 === preg_match( '/\* Version:\s+0\.48\.54\b/', $main ) );
-check( 'A7.2 HDLV2_VERSION 0.48.54', false !== strpos( $main, "define( 'HDLV2_VERSION', '0.48.54' )" ) );
+check( 'A7.1 plugin header 0.48.55', 1 === preg_match( '/\* Version:\s+0\.48\.55\b/', $main ) );
+check( 'A7.2 HDLV2_VERSION 0.48.55', false !== strpos( $main, "define( 'HDLV2_VERSION', '0.48.55' )" ) );
 check( 'A7.3 HDLV2_DB_VERSION stays 3.33', false !== strpos( $main, "define( 'HDLV2_DB_VERSION', '3.33' )" ) );
 
 echo "\nPASS=$PASS FAIL=$FAIL\n";
