@@ -100,7 +100,7 @@ ok( 'L.7 fresh installs: invites ENUM carries challenge', false !== strpos( $src
 ok( 'L.8 CREATE TABLE challenge_days: UNIQUE (client_user_id, day_no), note VARCHAR(500), dbDelta run', 1 === preg_match( '/CREATE TABLE \$table_challenge \(.*UNIQUE KEY client_day \(client_user_id, day_no\)/s', $src )
     && false !== strpos( $src, 'note VARCHAR(500) DEFAULT NULL' ) && false !== strpos( $src, 'dbDelta( $sql_challenge );' ) );
 $loader = file_get_contents( dirname( __DIR__, 2 ) . '/hdl-longevity-v2.php' );
-ok( 'L.9 loader: header + constant 0.48.55, DB 3.33', false !== strpos( $loader, ' * Version: 0.48.55' ) && false !== strpos( $loader, "define( 'HDLV2_VERSION', '0.48.55' );" ) && false !== strpos( $loader, "define( 'HDLV2_DB_VERSION', '3.33' );" ) );
+ok( 'L.9 loader: header + constant 0.48.56, DB 3.33', false !== strpos( $loader, ' * Version: 0.48.56' ) && false !== strpos( $loader, "define( 'HDLV2_VERSION', '0.48.56' );" ) && false !== strpos( $loader, "define( 'HDLV2_DB_VERSION', '3.33' );" ) );
 $health = file_get_contents( dirname( __DIR__, 2 ) . '/includes/sprint-4/class-hdlv2-client-status.php' );
 ok( 'L.10 /health expects the new table (17)', false !== strpos( $health, "'hdlv2_challenge_days'" ) );
 
