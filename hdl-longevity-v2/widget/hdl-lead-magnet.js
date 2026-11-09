@@ -1489,6 +1489,7 @@
       var timelineHref = cfg.timelineUrl && age >= 18 && age <= 100
         ? cfg.timelineUrl + '#a=' + age + '&s=' + (r.sex === 'male' ? 'M' : 'F') + '&r=' + rate.toFixed(2)
           + '&n=' + encodeURIComponent(firstName === 'there' ? '' : firstName)
+          + (/^\d+$/.test(String(cfg.pracId)) ? '&p=' + cfg.pracId : '') // v0.48.60: the timeline's brand row
         : '';
       var timelineStrip = ['#3fae4a', '#3fae4a', '#3fae4a', '#3fae4a', '#3fae4a', '#e0b128', '#e0b128', '#e5761f', '#e5761f', '#c93437', '#c93437', '#b4bcb9']
         .map(function (c, i) { return '<rect x="' + (i * 20) + '" y="0" width="18" height="40" rx="3" fill="' + c + '"/>'; }).join('');
