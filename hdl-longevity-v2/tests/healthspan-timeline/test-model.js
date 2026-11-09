@@ -198,5 +198,64 @@ ok(w.length === 3 && Math.abs(w.reduce((a, b) => a + b, 0) - 100) < 0.1, '15a th
 ok(depBar.indexOf('--ht-orange') < depBar.indexOf('--ht-red') && depBar.indexOf('--ht-red') < depBar.indexOf('--ht-grey') && /class="ht-sbar ht-depbar"/.test(depBar), '15b orange, red, grey in order, on the page\'s .ht-sbar');
 ok(M.depBarHtml({ orange: 0, red: 0, grey: 0 }) === '', '15c nothing dependent → no bar (the panel says "none on this path")');
 
+// v0.48.60 — the user flow (plan 2026-11-09): tap, honest words, the waiting line, sample people, brand, footer.
+const has = (name) => typeof M[name] === 'function';
+ok(!/hover the timeline/.test(SRC) && /Tap or hover a year to move it/.test(SRC), 'M1 the page script says "Tap or hover a year to move it", never "hover the timeline"');
+ok(/cv\.addEventListener\('pointerdown'/.test(SRC) && /pointerType !== 'mouse'/.test(SRC), 'M2 a tap (pointerdown, not a mouse) moves the moment panel; the mouse keeps mousemove');
+const tap = (SRC.match(/cv\.addEventListener\('pointerdown'[^\n]*/) || [''])[0];
+ok(tap !== '' && !/preventDefault/.test(tap) && !/touch-action:\s*none/.test(CSS), 'M2 nothing blocks the lane strip\'s own finger scroll (no preventDefault on the tap, no touch-action:none)');
+S = person(50, 'F', 1.0);
+const now = M.momentHtml(S.you, M.NOW_F, 'year', true), hov = M.momentHtml(S.you, M.NOW_F + 3, 'year', false);
+ok(/Where you are right now · Tap or hover a year to move it/.test(now) && /This moment · Tap or hover a year to move it/.test(hov), 'M3 the moment eyebrow, both states');
+ok(has('factsHtml'), 'N1 factsHtml exposed');
+if (has('factsHtml')) {
+  M.reset({ mode: 'preview', you: { name: 'Kim', born: M.NOW_Y - 50, sex: 'F', rate0: 1.1 } });
+  const f = M.factsHtml(M.state().you, 'preview');
+  ok(/lifestyle · with the Full Report/.test(f) && !/n\/a/.test(f), 'N1 preview, no lifestyle score → "lifestyle · with the Full Report", no "n/a"');
+  M.reset({ mode: 'full', you: { name: 'Kim', born: M.NOW_Y - 50, sex: 'F', rate0: 1.1, life_scores: [4, 4, 3] } });
+  ok(/lifestyle <b>3\.7\/5<\/b>/.test(M.factsHtml(M.state().you, 'full')), 'N1 a real score still reads 3.7/5');
+  M.reset({ mode: 'full', you: { name: 'Kim', born: M.NOW_Y - 50, sex: 'F', rate0: 1.1 } });
+  ok(!/n\/a/.test(M.factsHtml(M.state().you, 'full')), 'N1 full mode with no score → no "n/a" either');
+}
+M.reset({ mode: 'preview', you: { name: 'Kim', born: M.NOW_Y - 50, sex: 'F', rate0: 1.1 } });
+const mo = M.momentHtml(M.state().you, M.NOW_F, 'year', true), gainCard = mo.split('<div class="ht-mcard">')[4] || '';
+ok(/<small>—<\/small>/.test(gainCard) && /Your lifestyle score comes with the full report\./.test(gainCard) && !/n\/a/.test(mo), 'N2 the gain card with no score shows "—" and keeps its line; no "n/a" in the moment panel');
+const gone = M.momentHtml(M.state().you, M.NOW_F + 90, 'year', false);
+ok(/beyond expected lifespan/.test(gone) && !/n\/a/.test(gone), 'N2 beyond the lifespan: the cards read "—", never "n/a"');
+ok(has('lockHtml') && has('waitHtml'), 'P5 lockHtml and waitHtml exposed');
+if (has('lockHtml') && has('waitHtml')) {
+  const WAIT = 'Your Full Report is being written. Your loved ones unlock the moment it lands.';
+  const w = M.lockHtml({ line: WAIT, wait: true });
+  ok(w.indexOf(WAIT) !== -1 && !/<a/.test(w) && /data-ht-icon="hourglass"/.test(w) && !/data-ht-icon="lock"/.test(w), 'P5 the waiting lock: the sentence with the hourglass, no link');
+  const b = M.lockHtml({ line: 'Your loved ones unlock with the full report (today $27).', button: 'Get the full report', url: 'https://altituding.com/full-report' });
+  ok(/data-ht-icon="lock"/.test(b) && /<a class="ht-btn" href="https:\/\/altituding\.com\/full-report"/.test(b), 'P5 the offer lock is unchanged: the lock glyph and the button');
+  ok(M.waitHtml(WAIT) === '<p class="ht-wait" role="status">' + WAIT + '</p>' && M.waitHtml('') === '' && M.waitHtml('<b>') === '<p class="ht-wait" role="status">&lt;b&gt;</p>', 'P5 the You panel\'s waiting line: one status paragraph, escaped; nothing when empty');
+}
+ok(has('sampleNoteHtml') && has('defaultPeople') && has('cleanPerson'), 'G1 sampleNoteHtml, defaultPeople, cleanPerson exposed');
+if (has('sampleNoteHtml') && has('defaultPeople') && has('cleanPerson')) {
+  const SAMPLE = 'Sample people. Edit them or add your own on the Loved ones tab.';
+  const ppl = M.defaultPeople({ born: 1974, sex: 'F' });
+  ok(ppl.length === 3 && ppl.every(p => p.sample === true), 'G2 the three default people carry sample: true');
+  ok(M.cleanPerson(ppl[0]).sample === true && M.cleanPerson({ born: 1980, rate: 'same', sample: 'yes' }).sample === undefined && M.cleanPerson({ born: 1980, rate: 'same' }).sample === undefined, 'G2 cleanPerson keeps a true sample mark only (a kept list stays marked)');
+  ok(M.sampleNoteHtml(ppl).indexOf(SAMPLE) !== -1, 'G1 every person a sample → the note');
+  ok(M.sampleNoteHtml([ppl[0], ppl[1], { name: 'Ana', born: 1999, rate: 'same' }]) === '' && M.sampleNoteHtml([]) === '', 'G1 one edited or added → no note; nobody → no note');
+  ok(/id="ht-sample"/.test(M.shellHtml({ mode: 'full' })), 'G1 the shell has the note\'s place under the lanes');
+  M.reset({ mode: 'full', you: { name: 'Kim', born: 1974, sex: 'F', rate0: 1 }, key_people: [{ name: 'Ana', rel: 'child' }] });
+  ok(M.state().people.every(p => !p.sample), 'G2 people named on the Full Report form are not samples');
+}
+ok(has('brandRowHtml'), 'B2 brandRowHtml exposed');
+if (has('brandRowHtml')) {
+  const br = M.brandRowHtml({ name: "Matthew D'haemer", logo: 'https://stby.test/logo.png' });
+  ok(/<img [^>]*src="https:\/\/stby\.test\/logo\.png"[^>]*alt=""/.test(br) && br.replace(/<[^>]+>/g, '').indexOf('Your practitioner · Matthew D&#39;haemer') !== -1, 'B2 the logo (decorative) and "Your practitioner · <name>", escaped');
+  ok(!/<img/.test(M.brandRowHtml({ name: 'Ana', logo: 'javascript:alert(1)' })) && /Ana/.test(M.brandRowHtml({ name: 'Ana', logo: '' })), 'B2 no https logo → the name alone');
+  ok(M.brandRowHtml({ name: '', logo: 'https://stby.test/logo.png' }) === '' && M.brandRowHtml(null) === '', 'B2 no name → nothing');
+}
+const shell = M.shellHtml({ mode: 'preview' });
+ok(/<div id="ht-brand"><\/div>/.test(shell) && shell.indexOf('id="ht-brand"') < shell.indexOf('id="ht-tabs"'), 'B2 the brand row\'s place sits under the title, above the tabs');
+const foot = (shell.match(/<p class="ht-foot">.*<\/p>$/) || [''])[0];
+ok(/^<p class="ht-foot">Powered by HealthDataLab · <a href="https:\/\/healthdatalab\.com\/terms">Terms<\/a> · <a href="https:\/\/healthdatalab\.com\/privacy">Privacy<\/a><\/p>$/.test(foot), 'B3 the shell ends with "Powered by HealthDataLab · Terms · Privacy"');
+ok(/:has\(#hdlv2-ht-root\) \.et-l--footer\{display:none\}/.test(CSS), 'B3 the theme footer is hidden on this page only');
+ok(has('fragmentPrac') && M.fragmentPrac('#a=52&s=M&r=1.14&n=Quim&p=122') === '122' && M.fragmentPrac('#p=12a') === '' && M.fragmentPrac('#a=52') === '' && M.fragmentPrac('#p=' + '9'.repeat(12)) === '', 'B2 &p= read from the fragment: digits only, up to ten');
+
 console.log('\nSCENARIO: ' + (FAIL ? 'FAIL' : 'PASS') + ' (' + PASS + '/' + (PASS + FAIL) + ')');
 process.exit(FAIL ? 1 : 0);
