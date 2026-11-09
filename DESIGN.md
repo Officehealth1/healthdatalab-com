@@ -118,6 +118,9 @@ checks every file against this section.
   across it.
 - The two pinching fingers (skin pinch) are the person's own: stroke 6
   `#004F59`, round caps, the figure's ink. The hand under them is a prop.
+- What sinks under a surface (the pinch's ridge flattening back into the
+  hand) is hidden by a patch filled `#f8f9fb`, the disc's colour, drawn
+  after it and before the surface. A `clipPath` would need `url()`.
 - Ground line: `#e4e6ea`, stroke 2.
 - Timer arc (balance, chair stands, skin pinch): a stroke-2 `#3d8da0` arc
   that fills clockwise over the timed part with `steps(24)`.
