@@ -105,8 +105,9 @@ checks every file against this section.
   leg 32, arm 26. A scene scales the whole rig, never one limb.
 - Joints are nested groups: the joint's position is a `transform`
   attribute, the movement is a CSS `rotate()` on the group inside it.
-- A nod (Q8) turns the head on its own joint at the top of the torso; the
-  head keeps its gap to the torso.
+- A nod (Q8), and a head bowed or thrown back (the Q4 answers), turns the
+  head on its own joint at the top of the torso; the head keeps its gap to
+  the torso.
 
 ### Props and ground
 - Stairs, chair, bed, plate, hand outline: stroke 2, `#3d8da0` at
@@ -167,15 +168,17 @@ checks every file against this section.
 
 ### Size
 - Shown as a 96 px circle, or 80 px under 480 px wide, on `#f8f9fb`.
-- Answer poses (Q5 only): one picture on each answer, between the number and
-  the text, 40 px (36 px under 480 px). No caption: the answer text says it.
-  One scale and one ground line across the set, so the row reads in order.
-- With a mouse, hovering an answer plays its pose once: the figure gets up to
-  standing its own way in 1.2 s or 1.6 s and rests there (one iteration,
-  `forwards`, no loop). Leaving the answer shows the pose again at once.
+- Answer poses (Q4 and Q5): one picture on each answer, between the number
+  and the text, 40 px (36 px under 480 px). No caption: the answer text says
+  it. One scale and one ground line across the set (Q4: one staircase at one
+  place), so the row reads in order.
+- With a mouse, hovering an answer plays its pose once, in 1.2 s or 1.6 s,
+  and rests on its last stop (one iteration, `forwards`, no loop): a Q5
+  figure gets up to standing its own way, a Q4 figure climbs one step or
+  stride its own way. Leaving the answer shows the pose again at once.
   Touch and reduced motion see the pose only.
 - For a pose, the static rules draw the first keyframe (the pose on the
-  button), not the final one: standing is the same on all five.
+  button), not the final one: on Q5 standing is the same on all five.
 - A browser runs a one-shot SVG animation from load, even while hidden, and
   keeps one copy per address. So each hover loads the moving file on a fresh
   address (`&n=`) and shows it once loaded. One small fetch per hover.

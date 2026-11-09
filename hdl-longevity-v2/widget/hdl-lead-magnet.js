@@ -281,7 +281,9 @@
 
   // v0.48.43 — Q5's answers each carry a still pose (Matthew: "the animation in the choice
   // itself"), left of the answer text, flag on only; Q5 has no picture at the top.
+  // v0.48.56 — Q4's five stair answers too (stopped on the rail … running up); Q4 keeps its top picture.
   var OPTION_POSES = {
+    q4: { a: 'q4-stairs-a.svg', b: 'q4-stairs-b.svg', c: 'q4-stairs-c.svg', d: 'q4-stairs-d.svg', e: 'q4-stairs-e.svg' },
     q5: { a: 'q5-floor-a.svg', b: 'q5-floor-b.svg', c: 'q5-floor-c.svg', d: 'q5-floor-d.svg', e: 'q5-floor-e.svg' }
   };
 
