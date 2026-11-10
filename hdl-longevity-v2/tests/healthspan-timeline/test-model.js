@@ -198,5 +198,102 @@ ok(w.length === 3 && Math.abs(w.reduce((a, b) => a + b, 0) - 100) < 0.1, '15a th
 ok(depBar.indexOf('--ht-orange') < depBar.indexOf('--ht-red') && depBar.indexOf('--ht-red') < depBar.indexOf('--ht-grey') && /class="ht-sbar ht-depbar"/.test(depBar), '15b orange, red, grey in order, on the page\'s .ht-sbar');
 ok(M.depBarHtml({ orange: 0, red: 0, grey: 0 }) === '', '15c nothing dependent → no bar (the panel says "none on this path")');
 
-console.log('\nSCENARIO: ' + (FAIL ? 'FAIL' : 'PASS') + ' (' + PASS + '/' + (PASS + FAIL) + ')');
-process.exit(FAIL ? 1 : 0);
+// v0.48.60 — the user flow (plan 2026-11-09): tap, honest words, the waiting line, sample people, brand, footer.
+const has = (name) => typeof M[name] === 'function';
+ok(!/hover the timeline/.test(SRC) && /Tap or hover a year to move it/.test(SRC), 'M1 the page script says "Tap or hover a year to move it", never "hover the timeline"');
+ok(/cv\.addEventListener\('pointerdown'/.test(SRC) && /pointerType !== 'mouse'/.test(SRC), 'M2 a tap (pointerdown, not a mouse) moves the moment panel; the mouse keeps mousemove');
+const tap = (SRC.match(/cv\.addEventListener\('pointerdown'[^\n]*/) || [''])[0];
+ok(tap !== '' && !/preventDefault/.test(tap) && !/touch-action:\s*none/.test(CSS), 'M2 nothing blocks the lane strip\'s own finger scroll (no preventDefault on the tap, no touch-action:none)');
+S = person(50, 'F', 1.0);
+const now = M.momentHtml(S.you, M.NOW_F, 'year', true), hov = M.momentHtml(S.you, M.NOW_F + 3, 'year', false);
+ok(/Where you are right now · Tap or hover a year to move it/.test(now) && /This moment · Tap or hover a year to move it/.test(hov), 'M3 the moment eyebrow, both states');
+ok(has('factsHtml'), 'N1 factsHtml exposed');
+if (has('factsHtml')) {
+  M.reset({ mode: 'preview', you: { name: 'Kim', born: M.NOW_Y - 50, sex: 'F', rate0: 1.1 } });
+  const f = M.factsHtml(M.state().you, 'preview');
+  ok(/lifestyle · with the Full Report/.test(f) && !/n\/a/.test(f), 'N1 preview, no lifestyle score → "lifestyle · with the Full Report", no "n/a"');
+  M.reset({ mode: 'full', you: { name: 'Kim', born: M.NOW_Y - 50, sex: 'F', rate0: 1.1, life_scores: [4, 4, 3] } });
+  ok(/lifestyle <b>3\.7\/5<\/b>/.test(M.factsHtml(M.state().you, 'full')), 'N1 a real score still reads 3.7/5');
+  M.reset({ mode: 'full', you: { name: 'Kim', born: M.NOW_Y - 50, sex: 'F', rate0: 1.1 } });
+  ok(!/n\/a/.test(M.factsHtml(M.state().you, 'full')), 'N1 full mode with no score → no "n/a" either');
+}
+M.reset({ mode: 'preview', you: { name: 'Kim', born: M.NOW_Y - 50, sex: 'F', rate0: 1.1 } });
+const mo = M.momentHtml(M.state().you, M.NOW_F, 'year', true), gainCard = mo.split('<div class="ht-mcard">')[4] || '';
+ok(/<small>–<\/small>/.test(gainCard) && !/—/.test(mo) && /Your lifestyle score comes with the full report\./.test(gainCard) && !/n\/a/.test(mo), 'N2 the gain card with no score shows the page\'s one dash "–" and keeps its line; no "—", no "n/a" in the moment panel');
+const gone = M.momentHtml(M.state().you, M.NOW_F + 90, 'year', false);
+ok(/beyond expected lifespan/.test(gone) && !/n\/a/.test(gone), 'N2 beyond the lifespan: the cards read "–", never "n/a"');
+ok(has('lockHtml') && has('waitHtml'), 'P5 lockHtml and waitHtml exposed');
+if (has('lockHtml') && has('waitHtml')) {
+  const WAIT = 'Your Full Report is being written. Your loved ones unlock the moment it lands.';
+  const w = M.lockHtml({ line: WAIT, wait: true });
+  ok(w.indexOf(WAIT) !== -1 && !/<a/.test(w) && /data-ht-icon="hourglass"/.test(w) && !/data-ht-icon="lock"/.test(w), 'P5 the waiting lock: the sentence with the hourglass, no link');
+  const b = M.lockHtml({ line: 'Your loved ones unlock with the full report (today $27).', button: 'Get the full report', url: 'https://altituding.com/full-report' });
+  ok(/data-ht-icon="lock"/.test(b) && /<a class="ht-btn" href="https:\/\/altituding\.com\/full-report"/.test(b), 'P5 the offer lock is unchanged: the lock glyph and the button');
+  ok(M.waitHtml(WAIT) === '<p class="ht-wait" role="status">' + WAIT + '</p>' && M.waitHtml('') === '' && M.waitHtml('<b>') === '<p class="ht-wait" role="status">&lt;b&gt;</p>', 'P5 the You panel\'s waiting line: one status paragraph, escaped; nothing when empty');
+}
+ok(has('sampleNote') && has('defaultPeople') && has('cleanPerson'), 'G1 sampleNote, defaultPeople, cleanPerson exposed');
+if (has('sampleNote') && has('defaultPeople') && has('cleanPerson')) {
+  const SAMPLE = 'Sample people. Edit them or add your own on the Loved ones tab.';
+  const ppl = M.defaultPeople({ born: 1974, sex: 'F' });
+  ok(ppl.length === 3 && ppl.every(p => p.sample === true), 'G2 the three default people carry sample: true');
+  ok(M.cleanPerson(ppl[0]).sample === true && M.cleanPerson({ born: 1980, rate: 'same', sample: 'yes' }).sample === undefined && M.cleanPerson({ born: 1980, rate: 'same' }).sample === undefined, 'G2 cleanPerson keeps a true sample mark only (a kept list stays marked)');
+  ok(M.sampleNote(ppl, 'full').indexOf(SAMPLE) !== -1, 'G1 full mode, every person a sample → the note');
+  ok(M.sampleNote(ppl, 'preview').indexOf('Sample people. Your own unlock with the Full Report.') !== -1 && M.sampleNote(ppl, 'preview').indexOf('Edit them') === -1, 'G1 preview (the tab is locked) → "Your own unlock with the Full Report."');
+  ok(M.sampleNote([ppl[0], ppl[1], { name: 'Ana', born: 1999, rate: 'same' }], 'full') === '' && M.sampleNote([], 'full') === '', 'G1 one edited or added → no note; nobody → no note');
+  ok(/id="ht-sample"/.test(M.shellHtml({ mode: 'full' })), 'G1 the shell has the note\'s place under the lanes');
+  M.reset({ mode: 'full', you: { name: 'Kim', born: 1974, sex: 'F', rate0: 1 }, key_people: [{ name: 'Ana', rel: 'child' }] });
+  ok(M.state().people.every(p => !p.sample), 'G2 people named on the Full Report form are not samples');
+}
+ok(has('brandRowHtml'), 'B2 brandRowHtml exposed');
+if (has('brandRowHtml')) {
+  const br = M.brandRowHtml({ name: "Matthew D'haemer", logo: 'https://stby.test/logo.png' });
+  ok(/<img [^>]*src="https:\/\/stby\.test\/logo\.png"[^>]*alt=""/.test(br) && br.replace(/<[^>]+>/g, '').indexOf('Your practitioner · Matthew D&#39;haemer') !== -1, 'B2 the logo (decorative) and "Your practitioner · <name>", escaped');
+  ok(!/<img/.test(M.brandRowHtml({ name: 'Ana', logo: 'javascript:alert(1)' })) && /Ana/.test(M.brandRowHtml({ name: 'Ana', logo: '' })), 'B2 no https logo → the name alone');
+  ok(M.brandRowHtml({ name: '', logo: 'https://stby.test/logo.png' }) === '' && M.brandRowHtml(null) === '', 'B2 no name → nothing');
+}
+const PARTNER = 'Powered by HealthDataLab · a partnership focused on longevity';
+const shell = M.shellHtml({ mode: 'preview', partner_line: PARTNER });
+ok(/<div id="ht-brand"><\/div>/.test(shell) && shell.indexOf('id="ht-brand"') < shell.indexOf('id="ht-tabs"'), 'B2 the brand row\'s place sits under the title, above the tabs');
+const foot = (shell.match(/<p class="ht-foot">.*<\/p>$/) || [''])[0];
+ok(foot === '<p class="ht-foot">' + PARTNER + ' · <a href="https://healthdatalab.com/terms">Terms</a> · <a href="https://healthdatalab.com/privacy">Privacy</a></p>', 'B3 the shell ends with the partnership line (cfg.partner_line), then Terms · Privacy');
+ok(/<p class="ht-foot"><a href="https:\/\/healthdatalab\.com\/terms">Terms<\/a> · /.test(M.shellHtml({ mode: 'preview' })) && /&lt;b&gt;/.test(M.shellHtml({ mode: 'preview', partner_line: '<b>' })), 'B3 no partner line → the two links alone; the line is escaped');
+ok(/\.hdlv2-ht \.ht-foot a\{color:var\(--ht-muted\);text-decoration:underline\}/.test(CSS), 'T9 the footer links are underlined: same grey as the line around them, so colour alone does not mark them (WCAG 1.4.1)');
+ok(/\.hdlv2-ht \.ht-brand-wait\{display:flow-root;min-height:51px\}/.test(CSS) && /if \(\(cfg\.prac && cfg\.prac\.name\) \|\| pracId\) brand\.className = 'ht-brand-wait';/.test(SRC), 'A2 an expected brand row holds its height (12 px margin + two 13 px lines, the name wrapping beside the logo on a phone) before it lands: no layout shift (CLS 0.113 on STBY at 390)');
+ok(/:has\(#hdlv2-ht-root\) \.et-l--footer\{display:none\}/.test(CSS), 'B3 the theme footer is hidden on this page only');
+ok(has('fragmentPrac') && M.fragmentPrac('#a=52&s=M&r=1.14&n=Quim&p=122') === '122' && M.fragmentPrac('#p=12a') === '' && M.fragmentPrac('#a=52') === '' && M.fragmentPrac('#p=' + '9'.repeat(12)) === '', 'B2 &p= read from the fragment: digits only, up to ten');
+
+ok(/renderTraj[\s\S]*querySelectorAll\('\[data-hdl="green-callout"\],\[data-hdl="red-callout"\]'\)[\s\S]*setAttribute\('opacity', '1'\)[\s\S]*\/\* ---------- loved ones/.test(SRC), 'T9 renderTraj reveals the engine\'s two callouts on this page (the engine draws them at opacity 0)');
+// v0.48.60 — the open page's brand lookup: on time → the row; late, refused, failed or config:null → nothing.
+async function brandLookup() {
+  if (!has('loadBrand')) { ok(false, 'B4 loadBrand exposed'); return; }
+  const tick = () => new Promise((r) => setImmediate(r));
+  async function run(answer, fireTimerFirst) {
+    const calls = [], timers = [], el = { innerHTML: '' };
+    let settle;
+    ctx.setTimeout = (fn, ms) => { timers.push({ fn, ms, live: true }); return timers.length; };
+    ctx.clearTimeout = (id) => { if (timers[id - 1]) timers[id - 1].live = false; };
+    ctx.fetch = (url, opts) => { calls.push([url, opts]); return new Promise((res, rej) => { settle = () => (answer === 'reject' ? rej(new Error('net')) : res(answer)); }); };
+    M.loadBrand('https://stby.test/wp-json/hdl-v2/v1/', '122', el);
+    if (fireTimerFirst) timers.forEach((t) => t.live && t.fn());
+    settle();
+    for (let i = 0; i < 5; i++) await tick();
+    return { el, calls, timers };
+  }
+  const json = (body, okFlag = true) => ({ ok: okFlag, json: () => Promise.resolve(body) });
+  const good = json({ config: { practitioner_name: 'Matthew', logo_url: 'https://stby.test/l.png' } });
+  let r = await run(good, false);
+  ok(/Your practitioner · <b>Matthew<\/b>/.test(r.el.innerHTML) && r.calls.length === 1 && r.calls[0][0] === 'https://stby.test/wp-json/hdl-v2/v1/widget/public-config?practitioner_id=122' && r.calls[0][1].credentials === 'omit' && r.timers[0].ms === 1500 && !r.timers[0].live, 'B4 an answer inside 1.5 s fills the brand row (no cookies sent; the timer is cleared)');
+  r = await run(good, true);
+  ok(r.el.innerHTML === '', 'B4 an answer after 1.5 s is ignored');
+  r = await run(json({ config: null }), false);
+  ok(r.el.innerHTML === '', 'B4 config:null (unknown practitioner) → no row');
+  r = await run(json({ config: { practitioner_name: 'X' } }, false), false);
+  ok(r.el.innerHTML === '', 'B4 a refused answer (not ok) → no row');
+  r = await run('reject', false);
+  ok(r.el.innerHTML === '' && !r.timers[0].live, 'B4 a failed fetch → no row, no throw, timer cleared');
+}
+
+brandLookup().then(() => {
+  console.log('\nSCENARIO: ' + (FAIL ? 'FAIL' : 'PASS') + ' (' + PASS + '/' + (PASS + FAIL) + ')');
+  process.exit(FAIL ? 1 : 0);
+});

@@ -1,4 +1,4 @@
-/* HDL V2 — Healthspan Timeline (v0.48.29, v0.48.30, v0.48.33). The Cowork v3 page's styles,
+/* HDL V2 — Healthspan Timeline (v0.48.29, v0.48.30, v0.48.33, v0.48.60). The Cowork v3 page's styles,
    scoped to .hdlv2-ht, on the brand tokens (CLAUDE.md, DESIGN.md), light only. The five
    stage colours are data colours and stay as Matthew drew them. */
 
@@ -214,6 +214,24 @@ body.hdlv2-wide-page .entry-content .et_pb_section{padding-left:0;padding-right:
 .hdlv2-ht .ht-pack:empty{display:none}
 .hdlv2-ht .ht-btn.ht-group-btn{min-height:40px}
 .hdlv2-ht .ht-btn.ht-group-btn[aria-pressed="true"],.hdlv2-ht .ht-btn.ht-group-btn[aria-pressed="true"]:hover{background:var(--ht-accent);color:#fff;box-shadow:none}
+
+/* v0.48.60 — the user flow. The first paint: the server prints the title, the subtitle and two blocks for the
+   first two panels (the script replaces them). The practitioner's brand row, the buyer's waiting line, the
+   sample-people note under the lanes, the page's own footer; the theme footer is hidden on this page only. */
+.hdlv2-ht .ht-skeleton{margin-top:var(--ht-gap)}
+.hdlv2-ht .ht-skeleton div{height:120px;border-radius:12px;background:var(--ht-panel2)}
+.hdlv2-ht .ht-skeleton div+div{height:240px;margin-top:var(--ht-gap)}
+.hdlv2-ht .ht-brand-wait{display:flow-root;min-height:51px}
+.hdlv2-ht .ht-brand{display:flex;align-items:center;gap:8px;margin-top:12px;font-size:13px;color:var(--ht-muted)}
+.hdlv2-ht .ht-brand img{display:block;height:28px;width:auto;max-width:140px;object-fit:contain}
+.hdlv2-ht .ht-brand b{color:var(--ht-fg);font-weight:600}
+.hdlv2-ht .ht-wait{margin-top:12px;font-size:14px;font-weight:600;color:var(--ht-accent2)}
+.hdlv2-ht .ht-sample{margin:0;padding:0 16px 12px}
+.hdlv2-ht .ht-sample:empty{display:none}
+.hdlv2-ht .ht-foot{margin-top:16px;padding-top:12px;border-top:1px solid var(--ht-line);font-size:12px;color:var(--ht-muted)}
+.hdlv2-ht .ht-foot a{color:var(--ht-muted);text-decoration:underline}
+.hdlv2-ht .ht-foot a:hover{color:var(--ht-accent2)}
+body.hdlv2-wide-page:has(#hdlv2-ht-root) #main-footer,body.hdlv2-wide-page:has(#hdlv2-ht-root) .et-l--footer{display:none}
 
 @media (max-width:1024px){
   .hdlv2-ht h1{font-size:26px}

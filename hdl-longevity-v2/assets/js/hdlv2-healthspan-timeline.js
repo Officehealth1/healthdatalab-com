@@ -1,7 +1,9 @@
 /**
  * HDL V2 — Healthspan Timeline (v0.48.29; layout v0.48.30; Phosphor duotone icons v0.48.32;
  * a glyph on every heading, sliders drawn by the page v0.48.33; linked people v0.48.34;
- * family pack, grouped lanes, the shared number on the lane v0.48.35).
+ * family pack, grouped lanes, the shared number on the lane v0.48.35; the user flow v0.48.60:
+ * tap on a phone, the buyer's waiting line, sample people marked, the practitioner's brand row,
+ * the partner line as the footer).
  *
  * Matthew's Cowork v3 page (evidence copy of 2026-10-13), ported into the
  * plugin. The model functions keep the prototype's names so the Cowork page
@@ -62,9 +64,9 @@
   var S;
   function defaultPeople(you) {
     return [
-      { id: 'p1', name: 'Spouse', rel: 'spouse', born: you.born + 5, sex: you.sex === 'F' ? 'M' : 'F', rate: 'same' },
-      { id: 'p2', name: 'Child', rel: 'child', born: you.born + 25, sex: 'F', rate: 'same' },
-      { id: 'p3', name: 'Grandchild', rel: 'grandchild', born: you.born + 50, sex: 'M', rate: 'same' }
+      { id: 'p1', name: 'Spouse', rel: 'spouse', born: you.born + 5, sex: you.sex === 'F' ? 'M' : 'F', rate: 'same', sample: true },
+      { id: 'p2', name: 'Child', rel: 'child', born: you.born + 25, sex: 'F', rate: 'same', sample: true },
+      { id: 'p3', name: 'Grandchild', rel: 'grandchild', born: you.born + 50, sex: 'M', rate: 'same', sample: true }
     ];
   }
   function fresh(cfg) {
@@ -76,7 +78,7 @@
     you.rate = you.rate0;
     var mode = cfg && cfg.mode === 'full' ? 'full' : 'preview';
     var named = mode === 'full' ? namedPeople(cfg.key_people, you) : [];
-    return { mode: mode, tab: 'you', you: you, people: named.length ? named : defaultPeople(you), zoom: 0, fs: 0 };
+    return { mode: mode, tab: 'you', you: you, people: named.length ? named : defaultPeople(you), zoom: 0, fs: 0, wait: (cfg && cfg.wait_line) || '' };
   }
   // v0.48.50 (W29) — the people named on the Full Report form ("Who are you staying strong for?").
   // A birth year from the role (as the sample people) so the lane draws; the client edits it here.
@@ -135,18 +137,24 @@
     return v.length ? Math.round(10 * v.reduce(function (a, b) { return a + b; }, 0) / v.length) / 10 : null;
   }
   function bornFromAge(age, iso) { return (iso ? +String(iso).slice(0, 4) : NOW_Y) - age; }
-  // #a=<age>&s=<F|M>&r=<rate>&n=<first name>; anything out of range → null (the page opens on its defaults).
-  function readFragment(hash) {
+  function fragmentPairs(hash) {
     var q = {};
     String(hash || '').replace(/^#/, '').split('&').forEach(function (kv) {
       var i = kv.indexOf('='); if (i < 1) return;
       try { q[kv.slice(0, i)] = decodeURIComponent(kv.slice(i + 1)); } catch (e) { /* malformed escape: ignore the pair */ }
     });
+    return q;
+  }
+  // #a=<age>&s=<F|M>&r=<rate>&n=<first name>; anything out of range → null (the page opens on its defaults).
+  function readFragment(hash) {
+    var q = fragmentPairs(hash);
     var a = +q.a, r = +q.r;
     if (!(a >= 18 && a <= 100 && Math.floor(a) === a) || (q.s !== 'F' && q.s !== 'M') || !(r >= 0.6 && r <= 1.6)) return null;
     r = Math.round(r * 100) / 100;
     return { name: String(q.n || '').trim().slice(0, 40) || 'You', born: bornFromAge(a), sex: q.s, rate0: r, bio: Math.round(r * a * 10) / 10 };
   }
+  // v0.48.60 — &p=<practitioner id> from the widget's teaser, for the brand row; digits only.
+  function fragmentPrac(hash) { var p = fragmentPairs(hash).p; return /^\d{1,10}$/.test(p || '') ? p : ''; }
   function paceLabel(r, src) {
     return src === 'report'
       ? 'Your pace of ageing from your report: ' + (+r).toFixed(2) + '× (1.00× = ageing with the calendar)'
@@ -210,7 +218,8 @@
   /* ---------- the page shell (DA5: no Settings tab, two zoom bands, science only when switched on) ---------- */
   function shellHtml(cfg) {
     var sci = !!cfg.show_science;
-    return '<header class="ht-top"><h1 id="ht-title"></h1><p class="ht-sub">In relation to the people you love. Take stock of where you are, see where today\'s path leads, then change the path and watch what moves.</p></header>'
+    // The subtitle is also printed by HDLV2_Healthspan_Timeline::SUBTITLE for the first paint (tests/healthspan-timeline S1 keeps them one wording).
+    return '<header class="ht-top"><h1 id="ht-title"></h1><p class="ht-sub">In relation to the people you love. Take stock of where you are, see where today\'s path leads, then change the path and watch what moves.</p><div id="ht-brand"></div></header>'
       + '<div class="ht-tabs" role="tablist" id="ht-tabs" aria-label="Inputs">'
       + '<button type="button" role="tab" id="ht-tab-btn-you" aria-controls="ht-tab-you" data-t="you">' + iconHtml('user') + 'You</button>'
       + '<button type="button" role="tab" id="ht-tab-btn-people" aria-controls="ht-tab-people" data-t="people">' + iconHtml('users') + 'Loved ones</button></div>'
@@ -232,7 +241,7 @@
       + '<div class="ht-band"><div class="ht-bandbar"><div><span class="ht-eyebrow">' + iconHtml('path') + 'Timeline</span> <span id="ht-unit" class="ht-unit"></span></div>'
       + '<div class="ht-zoom"><span>Years</span><input id="ht-zoom" type="range" min="0" max="100" value="0" aria-label="Zoom from years to months"><span>Months</span></div></div>'
       + '<div class="ht-tl"><div class="ht-scroller" id="ht-scroller"><canvas id="ht-cv" role="img"></canvas></div><div class="ht-lockband" id="ht-lockband" hidden></div></div>'
-      + '<div class="ht-legend" id="ht-legend"></div></div>'
+      + '<div class="ht-legend" id="ht-legend"></div><p class="ht-note ht-sample" id="ht-sample"></p></div>'
       + '<div class="ht-panel ht-moment" id="ht-moment"></div>'
       + '<section class="ht-sec"><div class="ht-ahead">'
       + '<div class="ht-panel"><h2>' + iconHtml('hourglass') + 'Your years ahead</h2><p class="ht-lead">What is left, stage by stage, on the new path. The thin bar underneath is today\'s path, so the difference is visible.</p><div id="ht-stacks"></div></div>'
@@ -248,7 +257,8 @@
       + '</div></section>'
       + '<section class="ht-sec"><h2>' + iconHtml('hand-heart') + 'Time with the people you love</h2><p class="ht-lead">Each dot is one full week of real time together, coloured by your stage at the time. Green, yellow and orange all count; in orange the hours are fewer and more of them are care. Closer relationships hold up; more distant ones thin out as you decline. Every relationship is different.</p>'
       + '<div class="ht-lockwrap"><div class="ht-lo" id="ht-loved"></div><div class="ht-lockmsg" id="ht-loved-lock" hidden></div></div></section>'
-      + '<p class="ht-disc" id="ht-disc"></p>';
+      + '<p class="ht-disc" id="ht-disc"></p>'
+      + '<p class="ht-foot">' + (cfg.partner_line ? esc(cfg.partner_line) + ' · ' : '') + '<a href="https://healthdatalab.com/terms">Terms</a> · <a href="https://healthdatalab.com/privacy">Privacy</a></p>';
   }
 
   /* ---------- timeline (fixed axis) ---------- */
@@ -292,6 +302,7 @@
     band.hidden = !preview || rows.length < 2;
     if (!band.hidden) { band.style.top = (rows[1].y - gap / 2) + 'px'; band.style.height = (height - rows[1].y + gap / 2) + 'px'; }
     var cur = yearsByStage(S.you, rateOf(S.you), rate0Of(S.you), fsFrac()), st0 = stageOfBio(S.you, bioNow(S.you), rateOf(S.you));
+    $('#ht-sample').textContent = sampleNote(S.people, S.mode);
     cv.setAttribute('aria-label', 'Timeline for ' + S.you.name + ': today in the ' + (STAGES[st0 - 1] || { name: 'last' }).name + ' stage; the new path gives ' + cur[0].toFixed(0) + ' green years.');
   }
   // Under the lane's name. A shared lane says its numbers and where they came from; a link that ended falls back to the client's guess and says so.
@@ -302,6 +313,12 @@
     return a < 0 ? 'born ' + p.born : a + ' · ' + rateOf(p).toFixed(2) + '×';
   }
   function laneText(p, family) { return p.name + ' · ' + laneSub(p, family, false); }
+  // v0.48.60 — the default people are examples, not measurements: one line under the lanes while every one is still a sample.
+  function sampleNote(list, mode) {
+    return list.length && list.every(function (p) { return p.sample === true; })
+      ? (mode === 'preview' ? 'Sample people. Your own unlock with the Full Report.' : 'Sample people. Edit them or add your own on the Loved ones tab.')
+      : '';
+  }
   // The one place the relationships map to the three headings.
   var GROUPS = [{ title: 'Family', rels: ['spouse', 'child', 'grandchild', 'parent', 'sibling'] }, { title: 'Friends', rels: ['friend'] }, { title: 'Other', rels: ['other'] }];
   function groupLanes(ps) { return GROUPS.map(function (g) { return { title: g.title, people: ps.filter(function (p) { return g.rels.indexOf(p.rel) !== -1; }) }; }); }
@@ -335,11 +352,11 @@
     var cap = ok ? capability(p, b, r) : 0, mm = ok ? multimorb(b) : 0, diff = ok ? difficulty(age, r) : 0, gain = ok && life != null ? gainPotential(life) : null;
     var dateStr = isNow ? 'today' : unit === 'year' ? String(Math.floor(t)) : new Date(Math.floor(t), Math.floor((t % 1) * 12)).toLocaleString('en-GB', { month: 'short', year: 'numeric' });
     var pill = b === null ? '<span class="ht-pill" style="--c:var(--ht-muted)">not yet born</span>' : gone ? '<span class="ht-pill" style="--c:var(--ht-muted)">beyond expected lifespan</span>' : '<span class="ht-pill" style="--c:' + STAGES[st - 1].c + '">' + STAGES[st - 1].name + ' · ' + STAGES[st - 1].label + '</span>';
-    var na = '<small>n/a</small>';
+    var na = '<small>–</small>';
     var lifeWords = p !== S.you ? 'Set from their own report\'s lifestyle score.'
       : life == null ? 'Your lifestyle score comes with the full report.'
       : 'From a lifestyle score of ' + life + '/5' + (S.you.lifeSource === 'stage1' ? ' (your free check)' : '') + ': ' + (gain > 60 ? 'the fast part of the curve, early changes pay off quickly.' : gain > 30 ? 'solid headroom left.' : 'already near the top; gains come slower now.');
-    return '<div class="ht-eyebrow">' + iconHtml('compass') + (isNow ? 'Where you are right now' : 'This moment') + ' · hover the timeline to move it</div>'
+    return '<div class="ht-eyebrow">' + iconHtml('compass') + (isNow ? 'Where you are right now' : 'This moment') + ' · Tap or hover a year to move it</div>'
       + '<div class="ht-who"><b class="ht-name">' + esc(p.name) + '</b><span>' + dateStr + '</span><span>age <b>' + ageLabel(age, unit) + '</b></span><span>biological age <b>' + (ok ? b.toFixed(1) : '–') + '</b></span>' + pill + '</div>'
       + '<div class="ht-cards">'
       + '<div class="ht-mcard"><div class="ht-eyebrow">Capability &amp; independence</div><div class="ht-v">' + iconHtml('person-arms-spread', ok ? STAGES[st - 1].hex : '#888') + (ok ? Math.round(cap) + '<small>/100</small>' : na) + '</div><div class="ht-bar"><i style="--c:' + (ok ? STAGES[st - 1].c : 'var(--ht-muted)') + ';--w:' + cap + '%"></i></div><div class="ht-s">' + (ok ? STAGES[st - 1].desc : b === null ? 'Not born yet at this point.' : 'Past the expected end of life on this path.') + '</div></div>'
@@ -386,6 +403,8 @@
     if (key !== trajKey || !el.querySelector('svg')) {
       E.render(el, { chronoAge: age, agingRate: r0, showBands: true, showProjections: true });
       trajKey = key;
+      // v0.48.60 — the engine draws its two callouts at opacity 0 for the landing page's fade; nothing fades them in here.
+      el.querySelectorAll('[data-hdl="green-callout"],[data-hdl="red-callout"]').forEach(function (g) { g.setAttribute('opacity', '1'); });
       var svg = el.querySelector('svg');
       if (svg) { var p = document.createElementNS('http://www.w3.org/2000/svg', 'path'); p.setAttribute('data-ht', 'new-path'); p.setAttribute('fill', 'none'); p.setAttribute('stroke', '#3d8da0'); p.setAttribute('stroke-width', '3'); svg.appendChild(p); }
       var lg = el.querySelector('[data-hdl="legend"]');
@@ -414,10 +433,26 @@
   }
 
   /* ---------- the lock line, the card ---------- */
+  // offer.wait (v0.48.60): a buyer whose report is not written yet; the line, no button.
   function lockHtml(offer) {
     offer = offer || {};
-    return '<p>' + iconHtml('lock') + esc(offer.line || 'Your loved ones unlock with the full report.') + '</p>'
+    return '<p>' + iconHtml(offer.wait ? 'hourglass' : 'lock') + esc(offer.line || 'Your loved ones unlock with the full report.') + '</p>'
       + (offer.button && /^https:\/\//i.test(offer.url || '') ? '<a class="ht-btn" href="' + esc(offer.url) + '" target="_blank" rel="noopener noreferrer">' + esc(offer.button) + '</a>' : '');
+  }
+  function waitHtml(line) { return line ? '<p class="ht-wait" role="status">' + esc(line) + '</p>' : ''; }
+  // v0.48.60 — the practitioner the client came from, as their result page showed them.
+  function brandRowHtml(prac) {
+    if (!prac || !prac.name) return '';
+    var logo = /^https:\/\//i.test(prac.logo || '') ? '<img src="' + esc(prac.logo) + '" alt="" height="28" decoding="async">' : '';
+    return '<p class="ht-brand">' + logo + '<span>Your practitioner · <b>' + esc(prac.name) + '</b></span></p>';
+  }
+  // The open page (fragment) asks the widget's own public config, once, fail-silent; after 1.5 s the answer is ignored.
+  function loadBrand(rest, id, el) {
+    if (typeof fetch !== 'function') return;
+    var late = false, t = setTimeout(function () { late = true; }, 1500);
+    fetch(rest + 'widget/public-config?practitioner_id=' + id, { credentials: 'omit', headers: { 'Accept': 'application/json' } })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (j) { clearTimeout(t); var c = j && j.config; if (!late && c) el.innerHTML = brandRowHtml({ name: c.practitioner_name, logo: c.logo_url }); }, function () { clearTimeout(t); });
   }
   function renderStatic(cfg) {
     $('#ht-title').textContent = cfg.title || 'Healthspan Timeline';
@@ -440,9 +475,14 @@
   var relOpts = function (sel) { return REL.map(function (r) { return '<option value="' + r + '"' + (r === sel ? ' selected' : '') + '>' + r[0].toUpperCase() + r.slice(1) + '</option>'; }).join(''); };
   var paceOpts = function (sel) { return '<option value="same"' + (sel === 'same' ? ' selected' : '') + '>Same as you</option>' + K.PROFILES.map(function (p) { return '<option value="' + p.r + '"' + (sel !== 'same' && Math.abs(+sel - p.r) < 0.005 ? ' selected' : '') + '>' + p.n + ' ' + p.r.toFixed(2) + '×</option>'; }).join(''); };
   var highlightPace = false;
+  // v0.48.60: no score → "with the Full Report" in preview, nothing in full mode; never "n/a".
+  function factsHtml(Y, mode) {
+    var age = NOW_Y - Y.born;
+    return '<span>age <b>' + age + '</b></span><span>biological age <b>' + (Y.bio !== '' ? (+Y.bio).toFixed(1) : age) + '</b></span>'
+      + (Y.life != null ? '<span>lifestyle <b>' + Y.life + '/5</b></span>' : mode === 'preview' ? '<span>lifestyle · with the Full Report</span>' : '');
+  }
   function renderYou() {
-    var Y = S.you, age = NOW_Y - Y.born, el = $('#ht-you');
-    var facts = '<span>age <b>' + age + '</b></span><span>biological age <b>' + (Y.bio !== '' ? (+Y.bio).toFixed(1) : age) + '</b></span><span>lifestyle <b>' + (Y.life != null ? Y.life + '/5' : 'n/a') + '</b></span>';
+    var Y = S.you, el = $('#ht-you'), facts = factsHtml(Y, S.mode);
     if (S.mode === 'full') {
       el.innerHTML = '<div class="ht-facts"><b class="ht-name"></b><span>' + (Y.sex === 'M' ? 'Male' : 'Female') + '</span>' + facts + '</div><p class="ht-pace">' + esc(paceLabel(Y.rate0, 'report')) + '</p>';
       el.querySelector('.ht-name').textContent = Y.name;
@@ -451,7 +491,7 @@
     el.innerHTML = '<div class="ht-row ht-you-row"><label>Name<input id="ht-y-name" maxlength="40"></label><label>Born<input id="ht-y-born" type="number" min="1920" max="' + (NOW_Y - 18) + '"></label>'
       + '<label>Sex<select id="ht-y-sex"><option value="F">Female</option><option value="M">Male</option></select></label>'
       + '<label class="ht-pace-in' + (highlightPace ? ' ht-hl' : '') + '">' + esc(paceLabel(Y.rate0, 'check')) + '<input id="ht-y-rate0" type="number" step="0.01" min="0.6" max="1.6"></label></div>'
-      + '<div class="ht-facts">' + facts + '</div>';
+      + '<div class="ht-facts">' + facts + '</div>' + waitHtml(S.wait);
     $('#ht-y-name').value = Y.name; $('#ht-y-born').value = Y.born; $('#ht-y-sex').value = Y.sex; $('#ht-y-rate0').value = (+Y.rate0).toFixed(2);
     $('#ht-y-name').onchange = function (e) { S.you.name = e.target.value.trim().slice(0, 40) || 'You'; save(); renderAll(); };
     $('#ht-y-born').onchange = function (e) { var v = parseInt(e.target.value, 10); if (v >= 1920 && v <= NOW_Y - 18) { S.you.born = v; S.you.bio = derivedBio(); save(); renderAll(); } };
@@ -484,9 +524,10 @@
       var c = d.children, n = c[0], r = c[1], b = c[2], sx = c[3], rt = c[4], x = c[5];
       n.value = p.name; b.value = p.born;
       if (preview) { [n, r, b, sx, rt, x].forEach(function (i) { i.disabled = true; }); pe.appendChild(d); return; }
-      n.onchange = function () { p.name = n.value.trim().slice(0, 40) || p.name; save(); renderAll(); }; r.onchange = function () { p.rel = REL.indexOf(r.value) !== -1 ? r.value : p.rel; save(); renderAll(); };
-      b.onchange = function () { var v = parseInt(b.value, 10); if (v > 1850 && v < 2200) { p.born = v; save(); renderAll(); } }; sx.onchange = function () { p.sex = sx.value === 'M' ? 'M' : 'F'; save(); renderAll(); };
-      rt.onchange = function () { p.rate = rt.value; save(); renderAll(); }; x.onclick = function () { S.people = S.people.filter(function (q) { return q !== p; }); save(); renderAll(); }; pe.appendChild(d);
+      // an edit makes the person the client's own: the sample mark goes (v0.48.60)
+      n.onchange = function () { delete p.sample; p.name = n.value.trim().slice(0, 40) || p.name; save(); renderAll(); }; r.onchange = function () { delete p.sample; p.rel = REL.indexOf(r.value) !== -1 ? r.value : p.rel; save(); renderAll(); };
+      b.onchange = function () { var v = parseInt(b.value, 10); if (v > 1850 && v < 2200) { delete p.sample; p.born = v; save(); renderAll(); } }; sx.onchange = function () { delete p.sample; p.sex = sx.value === 'M' ? 'M' : 'F'; save(); renderAll(); };
+      rt.onchange = function () { delete p.sample; p.rate = rt.value; save(); renderAll(); }; x.onclick = function () { S.people = S.people.filter(function (q) { return q !== p; }); save(); renderAll(); }; pe.appendChild(d);
       if (S.links) {
         var inv = document.createElement('div'); inv.className = 'ht-link-line';
         inv.innerHTML = '<button type="button" class="ht-btn ht-btn-line">' + esc(inviteLabel(p.name, S.pack)) + '</button>';
@@ -592,7 +633,9 @@
     if (!p || typeof p !== 'object') return null;
     var born = parseInt(p.born, 10), rate = p.rate === 'same' ? 'same' : +p.rate;
     if (!(born > 1850 && born < 2200) || (rate !== 'same' && !(rate >= 0.6 && rate <= 1.6))) return null;
-    return { id: String(p.id || 'p' + born).slice(0, 20), name: String(p.name || '').slice(0, 40) || 'Someone', rel: REL.indexOf(p.rel) !== -1 ? p.rel : 'other', born: born, sex: p.sex === 'M' ? 'M' : 'F', rate: rate };
+    var out = { id: String(p.id || 'p' + born).slice(0, 20), name: String(p.name || '').slice(0, 40) || 'Someone', rel: REL.indexOf(p.rel) !== -1 ? p.rel : 'other', born: born, sex: p.sex === 'M' ? 'M' : 'F', rate: rate };
+    if (p.sample === true) out.sample = true;
+    return out;
   }
   function restore() {
     var s; try { s = JSON.parse(root.localStorage.getItem(STORE)); } catch (e) { s = null; }
@@ -634,6 +677,11 @@
     rootEl.innerHTML = shellHtml(cfg);
     cv = $('#ht-cv'); ctx = cv.getContext('2d');
     renderStatic(cfg);
+    var brand = $('#ht-brand'), pracId = cfg.mode !== 'full' && cfg.rest ? fragmentPrac(root.location.hash) : '';
+    // v0.48.60 — the row's height is held before it lands and before its logo loads (the name wraps on a phone): no layout shift.
+    if ((cfg.prac && cfg.prac.name) || pracId) brand.className = 'ht-brand-wait';
+    if (cfg.prac) brand.innerHTML = brandRowHtml(cfg.prac);
+    else if (pracId) loadBrand(String(cfg.rest), pracId, brand);
     restore();
     if (S.mode === 'full' && cfg.links && /^https:\/\//.test(cfg.links.url || '')) {
       try { OWNER = new URLSearchParams(root.location.search).get('t') || ''; } catch (e) { OWNER = ''; }
@@ -650,6 +698,7 @@
     }
 
     cv.addEventListener('mousemove', onMove);
+    cv.addEventListener('pointerdown', function (e) { if (e.pointerType !== 'mouse') onMove(e); }); // a tap on a phone; the strip keeps its own finger scroll
     cv.addEventListener('mouseleave', function () { hover = null; drawTimeline(); renderMoment(S.you, NOW_F, 'year', true); });
     $('#ht-tabs').onclick = function (e) { var b = e.target.closest('button'); if (!b) return; S.tab = b.dataset.t; save(); renderInputs(); };
     $('#ht-rate').oninput = function (e) { paintRange(e.target); S.you.rate = +e.target.value; $('#ht-rate-out').value = S.you.rate.toFixed(2) + '×'; rootEl.querySelectorAll('.ht-prof').forEach(function (b) { b.setAttribute('aria-pressed', Math.abs(+b.dataset.r - S.you.rate) < 0.005); }); renderLive(); };
@@ -678,7 +727,9 @@
     visibleZoomBands: visibleZoomBands, ageLabel: ageLabel, shellHtml: shellHtml, iconHtml: iconHtml, depBarHtml: depBarHtml, presetHtml: presetHtml,
     HT_ICONS: HT_ICONS, momentHtml: momentHtml, paintRange: paintRange,
     linkedPerson: linkedPerson, chipLabel: chipLabel, linkedRowHtml: linkedRowHtml, inviteBoxHtml: inviteBoxHtml,
-    groupLanes: groupLanes, laneText: laneText, packLine: packLine, inviteLabel: inviteLabel, groupSwitchHtml: groupSwitchHtml
+    groupLanes: groupLanes, laneText: laneText, packLine: packLine, inviteLabel: inviteLabel, groupSwitchHtml: groupSwitchHtml,
+    factsHtml: factsHtml, waitHtml: waitHtml, lockHtml: lockHtml, sampleNote: sampleNote, defaultPeople: defaultPeople, cleanPerson: cleanPerson,
+    brandRowHtml: brandRowHtml, fragmentPrac: fragmentPrac, loadBrand: loadBrand
   };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
 })(window);

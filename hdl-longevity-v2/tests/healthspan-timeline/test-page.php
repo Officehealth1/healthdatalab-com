@@ -33,6 +33,7 @@ function esc_url( $x ) { return htmlspecialchars( (string) $x, ENT_QUOTES, 'UTF-
 function esc_url_raw( $x ) { return (string) $x; }
 function add_query_arg( $key, $value, $url ) { return $url . ( false === strpos( $url, '?' ) ? '?' : '&' ) . $key . '=' . $value; }
 function home_url( $p = '' ) { return 'https://stby.test' . $p; }
+function rest_url( $p = '' ) { return 'https://stby.test/wp-json/' . $p; }
 function wp_unslash( $x ) { return $x; }
 function is_page( $slug = '' ) { return ( $GLOBALS['page_slug'] ?? '' ) === $slug; }
 function get_post() { return $GLOBALS['post'] ?? null; }
@@ -49,6 +50,8 @@ class FakeWpdb {
     public $prefix = 'wp_';
     public $progress = array(); // token => (object) row (deleted_at may be set)
     public $reports  = array(); // form_progress_id => list of (object) rows
+    public $tickets  = array(); // v0.48.60: widget_invites rows (client_email, source, external_ref, status)
+    public $configs  = array(); // v0.48.60: practitioner_user_id => (object) widget_config row
     public $queries  = array();
     private $args = array();
     public function prepare( $sql, ...$args ) {
@@ -71,10 +74,25 @@ class FakeWpdb {
             }
             return null;
         }
+        if ( false !== strpos( $sql, 'FROM wp_hdlv2_widget_config' ) && false !== strpos( $sql, 'practitioner_user_id =' ) ) {
+            return $this->configs[ (int) $this->args[0] ] ?? null;
+        }
         if ( false !== strpos( $sql, 'FROM wp_hdlv2_reports' ) ) {
             $rows = $this->reports[ (int) $this->args[0] ] ?? array();
             usort( $rows, function ( $a, $b ) { return ( 'final' === $b->report_type ) <=> ( 'final' === $a->report_type ) ?: $b->id <=> $a->id; } );
             return $rows[0] ?? null;
+        }
+        return null;
+    }
+    /** A bought Full Report: the products strip's ticket query. Every clause must be in the SQL, or nothing matches. */
+    public function get_var( $sql ) {
+        $this->queries[] = $sql;
+        if ( false === strpos( $sql, 'FROM wp_hdlv2_widget_invites' ) ) return null;
+        foreach ( array( 'LOWER(client_email) =', "source = 'full_report'", 'external_ref IS NOT NULL', "status <> 'revoked'" ) as $clause ) {
+            if ( false === strpos( $sql, $clause ) ) return null;
+        }
+        foreach ( $this->tickets as $t ) {
+            if ( strtolower( $t['client_email'] ) === $this->args[0] && 'full_report' === $t['source'] && null !== $t['external_ref'] && 'revoked' !== $t['status'] ) return '1';
         }
         return null;
     }
@@ -122,7 +140,7 @@ function row( $id, $over = array() ) {
     $scores = array_fill_keys( L12, 4 ) + array( 'bmiScore' => 1, 'balance' => 1 ); // non-lifestyle keys never count
     return (object) ( $over + array(
         'id' => $id, 'client_user_id' => 500 + $id, 'practitioner_user_id' => 122,
-        'client_name' => 'Kim Lane', 'created_at' => '2026-10-12 08:00:00',
+        'client_name' => 'Kim Lane', 'client_email' => 'kim' . $id . '@example.test', 'token' => tok( (string) ( $id % 10 ) ), 'created_at' => '2026-10-12 08:00:00',
         'token_expires_at' => future(), 'deleted_at' => null,
         'stage1_data' => json_encode( array( 'q1_age' => 52, 'q1_sex' => 'female', 'server_result' => array( 'rate' => 1.1, 'raw' => array( 'q2_body' => 3, 'q3_zone2' => 2, 'q4_vo2' => 4, 'q5_sts' => 3, 'q6_sleep' => 2, 'q7_smoking' => 5, 'q8_social' => 4, 'q9_diet' => 3 ) ) ) ),
         'stage3_data' => json_encode( array( 'server_result' => array( 'rate' => 0.94, 'bio_age' => 48.9, 'scores' => $scores ) ) ),
@@ -225,9 +243,9 @@ check( '(j) title option overrides', 'Your Life Map' === $T::page_data( '' )['ti
 // (k) the lock line and the button come from HDLV2_Offer.
 $db = fresh();
 $o = $T::page_data( '' )['offer'];
-check( '(k) line carries the offer\'s price', 'Your loved ones unlock with the full report (today $27).' === $o['line'] );
+check( '(k) L1 a fragment visitor\'s line carries the price and says where the code is', 'Your loved ones unlock with the Full Report (today $27 with the code from your email).' === $o['line'] );
 check( '(k) button + offer url; anonymous → the code word never printed', 'Get the full report' === $o['button'] && 'https://altituding.com/full-report' === $o['url'] );
-$db->progress[ tok( '9' ) ] = row( 9, array( 'stage3_data' => null ) );
+$db->progress[ tok( '9' ) ] = row( 9, array( 'stage3_data' => null, 'stage3_completed_at' => null ) );
 $o = $T::page_data( tok( '9' ) )['offer'];
 check( '(k) a known client (token) → the url carries the code, as the dashboard offer card', 'https://altituding.com/full-report?code=YOURCODE' === $o['url'] );
 $GLOBALS['options']['hdlv2_stage1_offer'] = array( 'url' => '' );
@@ -307,6 +325,74 @@ $GLOBALS['post']      = (object) array( 'post_content' => 'no shortcode here' );
 check( 'body class: the page without the shortcode → unchanged', array( 'page' ) === $W() );
 $GLOBALS['post'] = null;
 check( 'body class: no post → unchanged', array( 'page' ) === $W() );
+
+// v0.48.60 — the user flow (plan 2026-11-09): the buyer's window, first paint, the practitioner's brand.
+const WAIT   = 'Your Full Report is being written. Your loved ones unlock the moment it lands.';
+const BOUGHT = 'Your Full Report is bought. Finish its questions, and your loved ones unlock when the report lands.';
+function ticket( $email, $over = array() ) { return $over + array( 'client_email' => $email, 'source' => 'full_report', 'external_ref' => 'cs_test_1', 'status' => 'pending' ); }
+$waiting = function ( $d, $line = WAIT ) {
+    return 'preview' === ( $d['mode'] ?? '' ) && true === ( $d['lock'] ?? null ) && true === ( $d['paid'] ?? null )
+        && ! isset( $d['offer']['button'] ) && ! isset( $d['offer']['url'] ) && true === ( $d['offer']['wait'] ?? null )
+        && $line === ( $d['offer']['line'] ?? '' ) && $line === ( $d['wait_line'] ?? '' );
+};
+
+// P1: a Full Report ticket for the client's email, no report row yet → the waiting line, no button (DA2 kept).
+$db = fresh();
+$db->progress[ tok( '1' ) ] = row( 41, array( 'stage3_data' => null, 'stage3_completed_at' => null, 'client_email' => 'Buyer@Example.test' ) );
+$db->tickets[] = ticket( 'buyer@example.test' );
+check( 'P1 ticket, questions not done, no report → preview, lock, paid, "bought, finish its questions", no button', $waiting( $T::page_data( tok( '1' ) ), BOUGHT ) );
+$db->tickets = array( ticket( 'buyer@example.test', array( 'status' => 'revoked' ) ), ticket( 'buyer@example.test', array( 'source' => 'challenge' ) ), ticket( 'buyer@example.test', array( 'external_ref' => null ) ) );
+check( 'P1 a revoked ticket, a challenge ticket or one with no payment ref → not paid, the offer as today', false === $T::page_data( tok( '1' ) )['paid'] && isset( $T::page_data( tok( '1' ) )['offer']['button'] ) );
+
+// P2: Stage 3 submitted, no report row yet → the same.
+$db = fresh();
+$db->progress[ tok( '2' ) ] = row( 42, array( 'stage3_data' => null ) );
+check( 'P2 Stage 3 submitted + no report → "being written", no button', $waiting( $T::page_data( tok( '2' ) ) ) );
+$db->tickets[] = ticket( 'kim42@example.test' );
+check( 'P2b a ticket and Stage 3 submitted → "being written" (the questions are done)', $waiting( $T::page_data( tok( '2' ) ) ) );
+
+// P3: no ticket, no Stage 3 → the offer as today: the code in the url for a known client, none for a fragment visitor.
+$db = fresh();
+$db->progress[ tok( '3' ) ] = row( 43, array( 'stage3_data' => null, 'stage3_completed_at' => null ) );
+$d = $T::page_data( tok( '3' ) );
+check( 'P3 a known client, nothing bought → paid false, the code in the button\'s url', false === $d['paid'] && 'Get the full report' === $d['offer']['button'] && 'https://altituding.com/full-report?code=YOURCODE' === $d['offer']['url'] && ! isset( $d['wait_line'] ) );
+$d = $T::page_data( '' );
+check( 'P3 a fragment visitor → paid false, the offer url without a code', false === $d['paid'] && 'https://altituding.com/full-report' === $d['offer']['url'] && ! isset( $d['wait_line'] ) );
+$d = $T::page_data( tok( '3' ) );
+check( 'P3 a known client keeps today\'s line', 'Your loved ones unlock with the full report (today $27).' === $d['offer']['line'] );
+$db->reports[43] = array( (object) array( 'id' => 53, 'report_type' => 'final', 'report_content' => '{}' ) );
+$db->tickets[]   = ticket( 'kim43@example.test' );
+check( 'P3 full mode with a report → paid true, no waiting line (the loved ones are open)', 'full' === $T::page_data( tok( '3' ) )['mode'] && true === $T::page_data( tok( '3' ) )['paid'] && ! isset( $T::page_data( tok( '3' ) )['wait_line'] ) );
+
+// P4: the dashboard link of a buyer in the window opens the token page, not the fragment preview.
+$db = fresh();
+$db->progress['s1'] = row( 44, array( 'client_user_id' => 744, 'stage3_data' => null, 'stage3_completed_at' => null, 'token' => tok( 'b' ), 'client_email' => 'buyer44@example.test' ) );
+check( 'P4 dashboard: nothing bought → still the fragment preview', 0 === strpos( $T::dashboard_url( 744 ), 'https://stby.test/healthspan-timeline/#a=' ) );
+$db->tickets[] = ticket( 'BUYER44@example.test' );
+check( 'P4 dashboard: a ticket for the email → the token URL', 'https://stby.test/healthspan-timeline/?t=' . tok( 'b' ) === $T::dashboard_url( 744 ) );
+
+// S1, S2: the title, the subtitle and a skeleton are in the HTML before any script runs.
+$db = fresh();
+$GLOBALS['options']['hdlv2_ht_title'] = 'Your <Life> Map';
+$html = $T::render_shortcode();
+$jsrc = (string) file_get_contents( dirname( __DIR__, 2 ) . '/assets/js/hdlv2-healthspan-timeline.js' );
+$sub  = preg_match( '#<p class="ht-sub">([^<]+)</p>#', $html, $m ) ? $m[1] : '';
+check( 'S1 the root carries <h1 id="ht-title"> with the title option, escaped', false !== strpos( $html, '<div id="hdlv2-ht-root" class="hdlv2-ht"><header class="ht-top"><h1 id="ht-title">Your Map</h1>' ) );
+check( 'S1 and <p class="ht-sub"> with the page script\'s own subtitle (one wording, two copies)', '' !== $sub && false !== strpos( $jsrc, str_replace( '&#039;', "\\'", $sub ) ) );
+check( 'S2 a skeleton of the first two panels, busy', 1 === preg_match( '#<div class="ht-skeleton" role="status" aria-busy="true" aria-label="Loading your timeline"><div></div><div></div></div></div>$#', $html ) );
+check( 'S2 the expired message carries no skeleton', ( function () use ( $T ) { $_GET['t'] = tok( 'z' ); $h = $T::render_shortcode(); $_GET = array(); return false === strpos( $h, 'ht-skeleton' ); } )() );
+
+// B1: a token page names the client's practitioner from their widget settings; nothing without a row; never on the open page.
+$db = fresh();
+$db->progress[ tok( '5' ) ] = row( 45 );
+check( 'B1 no widget_config row → no prac key', ! array_key_exists( 'prac', $T::page_data( tok( '5' ) ) ) );
+$db->configs[122] = (object) array( 'practitioner_user_id' => 122, 'practitioner_name' => "Matthew D'haemer", 'logo_url' => 'https://stby.test/logo.png' );
+$d = $T::page_data( tok( '5' ) );
+check( 'B1 token page → prac { name, logo } from the practitioner\'s widget settings', array( 'name' => "Matthew D'haemer", 'logo' => 'https://stby.test/logo.png' ) === ( $d['prac'] ?? null ) );
+$db->configs[122]->logo_url = 'javascript:alert(1)';
+check( 'B1 a logo that is not https is dropped, the name stays', array( 'name' => "Matthew D'haemer", 'logo' => '' ) === ( $T::page_data( tok( '5' ) )['prac'] ?? null ) );
+check( 'B1 the open page (no token) → no prac key; the REST base for the page\'s own lookup', ! array_key_exists( 'prac', $T::page_data( '' ) ) && 'https://stby.test/wp-json/hdl-v2/v1/' === ( $T::page_data( '' )['rest'] ?? '' ) );
+check( 'B3 the footer line is HDLV2_Offer::PARTNER_LINE (one source with the report page and the emails)', HDLV2_Offer::PARTNER_LINE === ( $T::page_data( '' )['partner_line'] ?? '' ) && HDLV2_Offer::PARTNER_LINE === ( $T::page_data( tok( '5' ) )['partner_line'] ?? '' ) );
 
 // v0.48.34 (Task 5b, calc review 2026-10-30): the small print says once what "pace" means here.
 // The disclaimer is set by the page script (renderStatic → #ht-disc), so this reads that line.
