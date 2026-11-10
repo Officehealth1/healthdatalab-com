@@ -61,8 +61,12 @@ ok(rrNew.indexOf(CALL) > 0 && rrNew.indexOf(CALL) < rrNew.indexOf("escapeHtml(aw
 // Outside renderResult: only the function and the cfg line were added.
 const cfgLine = "    cfg.bandVideos = (publicCfg && publicCfg.band_videos) || (invite && invite.band_videos) || null; // v0.48.50 (W9)\n";
 ok(js.indexOf(cfgLine) > 0, 'cfg.bandVideos read from the public config or the invite payload');
-const fnBlock = js.slice(js.indexOf('  // v0.48.50 (W9)'), js.indexOf(fnSrc) + fnSrc.length + 1);
-ok(js.replace(rrNew, rrOld).replace(cfgLine, '').replace(fnBlock, '') === old, 'nothing else in the widget changed since b462b02');
+// Checked on the commit that made W9 (426fadd), so later widget work (v0.48.56, the Q4 answer poses) does not trip it.
+const w9 = execFileSync('git', ['show', '426fadd:' + REL], { cwd: fileURLToPath(new URL('.', import.meta.url)), encoding: 'utf8', maxBuffer: 8 << 20 });
+const fnW9 = cutIn(w9, '  function bandVideoHtml(', '\n  }\n');
+const fnBlock = w9.slice(w9.indexOf('  // v0.48.50 (W9)'), w9.indexOf(fnW9) + fnW9.length + 1);
+ok(fnW9 === fnSrc && w9.replace(cutIn(w9, '    function renderResult() {', '\n    }\n'), rrOld).replace(cfgLine, '').replace(fnBlock, '') === old,
+  'W9 (426fadd) changed nothing else in the widget since b462b02, and its function is the one shipped now');
 
 console.log(`\nPASS=${PASS} FAIL=${FAIL}`);
 process.exit(FAIL ? 1 : 0);

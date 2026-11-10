@@ -281,8 +281,13 @@
 
   // v0.48.43 — Q5's answers each carry a still pose (Matthew: "the animation in the choice
   // itself"), left of the answer text, flag on only; Q5 has no picture at the top.
+  // v0.48.56 — Q4's five stair answers too (stopped on the rail … running up); Q4 keeps its top picture.
+  // v0.48.57 — Q9's five plates (boxes … a ring of vegetables) are things, not actions: still: true draws
+  // one plain picture with no hover pair; Q9 keeps its top picture.
   var OPTION_POSES = {
-    q5: { a: 'q5-floor-a.svg', b: 'q5-floor-b.svg', c: 'q5-floor-c.svg', d: 'q5-floor-d.svg', e: 'q5-floor-e.svg' }
+    q4: { a: 'q4-stairs-a.svg', b: 'q4-stairs-b.svg', c: 'q4-stairs-c.svg', d: 'q4-stairs-d.svg', e: 'q4-stairs-e.svg' },
+    q5: { a: 'q5-floor-a.svg', b: 'q5-floor-b.svg', c: 'q5-floor-c.svg', d: 'q5-floor-d.svg', e: 'q5-floor-e.svg' },
+    q9: { still: true, a: 'q9-plate-a.svg', b: 'q9-plate-b.svg', c: 'q9-plate-c.svg', d: 'q9-plate-d.svg', e: 'q9-plate-e.svg' }
   };
 
   // v0.48.45 — a Q5 pose gets up when its answer is hovered (mouse only, motion allowed). The file
@@ -1135,7 +1140,8 @@
         var pose = poses && poses[o.v] && motionSrc(poses[o.v]);
         html += '<div class="hdlw-opt' + sel + (pose ? ' hdlw-opt-posed' : '') + '" data-val="' + escHtml(o.v) + '">'
           +   '<span class="hdlw-opt-num">' + num + '</span>'
-          +   ( pose ? '<span class="hdlw-opt-pose" data-move="' + pose + '"><img class="hdlw-opt-pose-still" src="' + pose + '&amp;still=1#still" alt="" width="40" height="40" loading="eager" decoding="async">'
+          +   ( pose && poses.still ? '<span class="hdlw-opt-pose"><img src="' + pose + '" alt="" width="40" height="40" loading="eager" decoding="async"></span>'
+            : pose ? '<span class="hdlw-opt-pose" data-move="' + pose + '"><img class="hdlw-opt-pose-still" src="' + pose + '&amp;still=1#still" alt="" width="40" height="40" loading="eager" decoding="async">'
               + '<img class="hdlw-opt-pose-move" alt="" width="40" height="40" decoding="async"></span>' : '' )
           +   '<span class="hdlw-opt-text">' + escHtml(o.t) + '</span>'
           + '</div>';
@@ -1153,7 +1159,7 @@
           advance();
         });
       }
-      if (poses && typeof matchMedia === 'function' && matchMedia('(hover: hover) and (prefers-reduced-motion: no-preference)').matches) {
+      if (poses && !poses.still && typeof matchMedia === 'function' && matchMedia('(hover: hover) and (prefers-reduced-motion: no-preference)').matches) {
         for (var h = 0; h < opts.length; h++) {
           opts[h].addEventListener('mouseenter', playPose);
           opts[h].addEventListener('mouseleave', function () { this.classList.remove('hdlw-opt-playing'); });

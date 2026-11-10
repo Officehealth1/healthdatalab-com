@@ -1,6 +1,7 @@
 <?php
 /**
- * Question motion (v0.48.42; Q5 poses v0.48.43; Q5 poses rise on hover v0.48.45): every scene in
+ * Question motion (v0.48.42; Q5 poses v0.48.43; Q5 poses rise on hover v0.48.45; Round 3 v0.48.53: Q4
+ * stair poses that climb on hover, Q9 still plates): every scene in
  * assets/images/motion/ obeys DESIGN.md "## Motion".
  * One palette, two stroke weights, round caps, one easing, a 400 ms grid, 4-8 s scenes,
  * reduced motion, no words, no outside references, at most 8 KB. Plain PHP, no stubs.
@@ -10,10 +11,16 @@ $pass = 0; $fail = 0;
 function ok( $c, $l ) { global $pass, $fail; $c ? $pass++ : $fail++; echo ( $c ? '  PASS  ' : '  FAIL  ' ) . $l . "\n"; }
 
 $dir      = dirname( __DIR__, 2 ) . '/assets/images/motion/';
-$poses    = array( 'q5-floor-a.svg', 'q5-floor-b.svg', 'q5-floor-c.svg', 'q5-floor-d.svg', 'q5-floor-e.svg' ); // T6d option B on Q5's answers; T6l: each rises once on hover
-$static   = array( 'g-waist-hip.svg' );
-$expected = array( 'q3-zone2.svg', 'q4-stairs.svg', 'q5-floor-a.svg', 'q5-floor-b.svg', 'q5-floor-c.svg', 'q5-floor-d.svg', 'q5-floor-e.svg', 'q6-sleep.svg', 'q7-smoking.svg', 'q8-social.svg',
-	'q9-diet.svg', 't-balance.svg', 't-chair-stands.svg', 't-skin-pinch.svg', 'g-waist-hip.svg' );
+// Answer poses play once on hover: Q5 (T6d option B, T6l) and Q4's stair states (Round 3e).
+$poses    = array( 'q4-stairs-a.svg', 'q4-stairs-b.svg', 'q4-stairs-c.svg', 'q4-stairs-d.svg', 'q4-stairs-e.svg',
+	'q5-floor-a.svg', 'q5-floor-b.svg', 'q5-floor-c.svg', 'q5-floor-d.svg', 'q5-floor-e.svg' );
+// Q9's answer plates are still (Round 3f): things, not actions.
+$plates   = array( 'q9-plate-a.svg', 'q9-plate-b.svg', 'q9-plate-c.svg', 'q9-plate-d.svg', 'q9-plate-e.svg' );
+$static   = array_merge( array( 'g-waist-hip.svg' ), $plates );
+$expected = array_merge( array( 'q3-zone2.svg', 'q4-stairs.svg', 'q5-floor-a.svg', 'q5-floor-b.svg', 'q5-floor-c.svg', 'q5-floor-d.svg', 'q5-floor-e.svg', 'q6-sleep.svg', 'q7-smoking.svg', 'q8-social.svg',
+	'q9-diet.svg', 't-balance.svg', 't-chair-stands.svg', 't-skin-pinch.svg', 'g-waist-hip.svg',
+	'q4-stairs-a.svg', 'q4-stairs-b.svg', 'q4-stairs-c.svg', 'q4-stairs-d.svg', 'q4-stairs-e.svg' ), $plates );
+$answers  = array_merge( $poses, $plates ); // every picture that sits on an answer, not at the top
 $palette  = array( '#004f59', '#3d8da0', '#e4e6ea', '#f8f9fb', '#ffffff' );
 $ease     = 'cubic-bezier(.4,0,.2,1)';
 
@@ -127,12 +134,18 @@ $files = function ( $src, $map ) {
 };
 $w = $files( file_get_contents( $root . '/widget/hdl-lead-magnet.js' ), 'QUESTION_MOTION' );
 $f = $files( file_get_contents( $root . '/assets/js/hdlv2-staged-form.js' ), 'TAP_MOTION' );
-$wq = array_values( array_filter( $have, function ( $x ) use ( $poses ) { return 0 === strpos( $x, 'q' ) && ! in_array( $x, $poses, true ); } ) ); sort( $wq );
-$wp = array_values( array_intersect( $have, $poses ) ); sort( $wp );
-$p  = $files( file_get_contents( $root . '/widget/hdl-lead-magnet.js' ), 'OPTION_POSES' );
+$wq = array_values( array_filter( $have, function ( $x ) use ( $answers ) { return 0 === strpos( $x, 'q' ) && ! in_array( $x, $answers, true ); } ) ); sort( $wq );
+$wp = array_values( array_intersect( $have, $answers ) ); sort( $wp );
+$wsrc = file_get_contents( $root . '/widget/hdl-lead-magnet.js' );
+$p  = $files( $wsrc, 'OPTION_POSES' );
 $ft = array_values( array_filter( $have, function ( $x ) { return 0 !== strpos( $x, 'q' ); } ) ); sort( $ft );
-ok( null !== $w && $w === $wq, 'the widget map (QUESTION_MOTION) lists exactly the drawn q- scenes: ' . implode( ', ', (array) $w ) );
-ok( null !== $p && $p === $wp, 'the widget answer-pose map (OPTION_POSES) lists exactly the drawn Q5 poses: ' . implode( ', ', (array) $p ) );
+ok( null !== $w && $w === $wq, 'the widget map (QUESTION_MOTION) lists exactly the drawn q- top scenes: ' . implode( ', ', (array) $w ) );
+ok( null !== $p && $p === $wp, 'the widget answer map (OPTION_POSES) lists exactly the drawn Q4 poses, Q5 poses and Q9 plates: ' . implode( ', ', (array) $p ) );
+// Round 3f: the plates are still, so the widget draws one plain picture and no hover pair for Q9 only.
+preg_match( '/var OPTION_POSES = \{(.*?)\n  \};/s', $wsrc, $om );
+preg_match_all( '/\b(q\d):\s*\{([^}]*)\}/', $om[1] ?? '', $rowsm, PREG_SET_ORDER );
+$stillq = array(); foreach ( $rowsm as $r ) if ( preg_match( '/\bstill:\s*true\b/', $r[2] ) ) $stillq[] = $r[1];
+ok( array( 'q9' ) === $stillq, 'OPTION_POSES marks Q9 alone as still (still: true): ' . ( implode( ', ', $stillq ) ?: 'none' ) );
 ok( null !== $f && $f === $ft, 'the form map (TAP_MOTION) lists exactly the drawn t- and g- scenes: ' . implode( ', ', (array) $f ) );
 echo "PASS=$pass FAIL=$fail\n";
 exit( $fail ? 1 : 0 );
