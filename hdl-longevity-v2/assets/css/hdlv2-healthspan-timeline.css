@@ -221,6 +221,7 @@ body.hdlv2-wide-page .entry-content .et_pb_section{padding-left:0;padding-right:
 .hdlv2-ht .ht-skeleton{margin-top:var(--ht-gap)}
 .hdlv2-ht .ht-skeleton div{height:120px;border-radius:12px;background:var(--ht-panel2)}
 .hdlv2-ht .ht-skeleton div+div{height:240px;margin-top:var(--ht-gap)}
+.hdlv2-ht .ht-brand-wait{display:flow-root;min-height:51px}
 .hdlv2-ht .ht-brand{display:flex;align-items:center;gap:8px;margin-top:12px;font-size:13px;color:var(--ht-muted)}
 .hdlv2-ht .ht-brand img{display:block;height:28px;width:auto;max-width:140px;object-fit:contain}
 .hdlv2-ht .ht-brand b{color:var(--ht-fg);font-weight:600}

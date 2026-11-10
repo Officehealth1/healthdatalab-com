@@ -677,8 +677,11 @@
     rootEl.innerHTML = shellHtml(cfg);
     cv = $('#ht-cv'); ctx = cv.getContext('2d');
     renderStatic(cfg);
-    if (cfg.prac) $('#ht-brand').innerHTML = brandRowHtml(cfg.prac);
-    else if (cfg.mode !== 'full' && cfg.rest && fragmentPrac(root.location.hash)) loadBrand(String(cfg.rest), fragmentPrac(root.location.hash), $('#ht-brand'));
+    var brand = $('#ht-brand'), pracId = cfg.mode !== 'full' && cfg.rest ? fragmentPrac(root.location.hash) : '';
+    // v0.48.60 — the row's height is held before it lands and before its logo loads (the name wraps on a phone): no layout shift.
+    if ((cfg.prac && cfg.prac.name) || pracId) brand.className = 'ht-brand-wait';
+    if (cfg.prac) brand.innerHTML = brandRowHtml(cfg.prac);
+    else if (pracId) loadBrand(String(cfg.rest), pracId, brand);
     restore();
     if (S.mode === 'full' && cfg.links && /^https:\/\//.test(cfg.links.url || '')) {
       try { OWNER = new URLSearchParams(root.location.search).get('t') || ''; } catch (e) { OWNER = ''; }

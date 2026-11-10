@@ -258,6 +258,7 @@ const foot = (shell.match(/<p class="ht-foot">.*<\/p>$/) || [''])[0];
 ok(foot === '<p class="ht-foot">' + PARTNER + ' · <a href="https://healthdatalab.com/terms">Terms</a> · <a href="https://healthdatalab.com/privacy">Privacy</a></p>', 'B3 the shell ends with the partnership line (cfg.partner_line), then Terms · Privacy');
 ok(/<p class="ht-foot"><a href="https:\/\/healthdatalab\.com\/terms">Terms<\/a> · /.test(M.shellHtml({ mode: 'preview' })) && /&lt;b&gt;/.test(M.shellHtml({ mode: 'preview', partner_line: '<b>' })), 'B3 no partner line → the two links alone; the line is escaped');
 ok(/\.hdlv2-ht \.ht-foot a\{color:var\(--ht-muted\);text-decoration:underline\}/.test(CSS), 'T9 the footer links are underlined: same grey as the line around them, so colour alone does not mark them (WCAG 1.4.1)');
+ok(/\.hdlv2-ht \.ht-brand-wait\{display:flow-root;min-height:51px\}/.test(CSS) && /if \(\(cfg\.prac && cfg\.prac\.name\) \|\| pracId\) brand\.className = 'ht-brand-wait';/.test(SRC), 'A2 an expected brand row holds its height (12 px margin + two 13 px lines, the name wrapping beside the logo on a phone) before it lands: no layout shift (CLS 0.113 on STBY at 390)');
 ok(/:has\(#hdlv2-ht-root\) \.et-l--footer\{display:none\}/.test(CSS), 'B3 the theme footer is hidden on this page only');
 ok(has('fragmentPrac') && M.fragmentPrac('#a=52&s=M&r=1.14&n=Quim&p=122') === '122' && M.fragmentPrac('#p=12a') === '' && M.fragmentPrac('#a=52') === '' && M.fragmentPrac('#p=' + '9'.repeat(12)) === '', 'B2 &p= read from the fragment: digits only, up to ten');
 
