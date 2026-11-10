@@ -371,6 +371,15 @@ tryOk('V7 model 2: the add form\'s sex select starts on "Not set"; people named 
   M.reset({ mode: 'full', model: 2, you: { name: 'Kim', born: 1974, sex: 'F', rate0: 1 }, key_people: [{ name: 'Tom', rel: 'spouse' }] });
   return /<select id="ht-a-sex" aria-label="Sex"><option value="" selected>Not set<\/option><option value="F">F<\/option><option value="M">M<\/option><\/select>/.test(M.shellHtml({ mode: 'full' })) && M.state().people[0].sex === '';
 });
+tryOk('V7 model 2: an invite link with no sex guess draws on the mean (sex ""); model 1 draws it as "F"; a guess "M" stays "M" in both', () => {
+  const l = (g) => ({ id: 7, label: 'Tom', relationship: 'spouse', born_guess: 1970, sex_guess: g, status: 'invited' }), you = { born: 1974 };
+  you2(50, 'F', 1, ''); const two = [M.linkedPerson(l(null), you).sex, M.linkedPerson(l('M'), you).sex];
+  M.reset({ mode: 'full', you: { name: 'Kim', born: 1974, sex: 'F', rate0: 1 } }); const one = [M.linkedPerson(l(null), you).sex, M.linkedPerson(l('M'), you).sex];
+  return JSON.stringify(two) === '["","M"]' && JSON.stringify(one) === '["F","M"]';
+});
+tryOk('V2b model 2: a grandchild due in 10 years, average pace: the lane ends at the at-birth ex for the sex within 0.1 (gate point 3)', () => {
+  you2(40, 'F', 1, ''); return SEXES.every(s => Math.abs(M.boundsFor({ born: M.NOW_Y + 10, sex: s, rate: 1, rel: 'grandchild' }, 1)[4] - (s === 'M' ? K.EX_M : K.EX_F)[0]) < 0.1);
+});
 tryOk('V7 model 1: cleanPerson still returns "F" for no sex; no "Not set", no note; the add form and the named people as 0.48.60', () => {
   M.reset({ mode: 'full', you: { name: 'Kim', born: 1974, sex: 'F', rate0: 1 }, key_people: [{ name: 'Tom', rel: 'spouse' }] });
   const row = M.lovedRowHtml({ name: 'Tom', rel: 'spouse', born: 1970, sex: 'M', rate: 'same' });

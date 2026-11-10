@@ -3,7 +3,8 @@
  * a glyph on every heading, sliders drawn by the page v0.48.33; linked people v0.48.34;
  * family pack, grouped lanes, the shared number on the lane v0.48.35; the user flow v0.48.60:
  * tap on a phone, the buyer's waiting line, sample people marked, the practitioner's brand row,
- * the partner line as the footer).
+ * the partner line as the footer; model 2 v0.48.61: years by age and sex from the ONS tables, care years
+ * by sex, behind the option hdlv2_ht_model).
  *
  * Matthew's Cowork v3 page (evidence copy of 2026-10-13), ported into the
  * plugin. The model functions keep the prototype's names so the Cowork page
@@ -44,6 +45,15 @@
     // the three between: placeholder, Matthew to sign.
     STAGE_BOUNDS_F: [61.9, 72.3, 78.6, 81.8, 82.8],
     STAGE_BOUNDS_M: [61.5, 70.2, 75.4, 77.8, 78.8],
+    // v0.48.61 model 2 (option hdlv2_ht_model = '2'); the two rows above stay for model 1.
+    // years left by single age 0–100: ONS, National Life Tables, United Kingdom, period expectation of life 2022–2024 (published 10 Dec 2025; read 2026-11-10)
+    EX_M: [79.12, 78.49, 77.51, 76.52, 75.53, 74.54, 73.54, 72.55, 71.56, 70.56, 69.57, 68.57, 67.58, 66.58, 65.59, 64.6, 63.61, 62.63, 61.65, 60.67, 59.7, 58.73, 57.76, 56.79, 55.82, 54.85, 53.88, 52.91, 51.95, 50.98, 50.02, 49.06, 48.1, 47.14, 46.18, 45.23, 44.28, 43.33, 42.39, 41.45, 40.51, 39.58, 38.65, 37.72, 36.8, 35.88, 34.96, 34.05, 33.15, 32.25, 31.36, 30.47, 29.59, 28.72, 27.85, 26.98, 26.12, 25.27, 24.43, 23.59, 22.76, 21.93, 21.12, 20.31, 19.51, 18.73, 17.95, 17.18, 16.43, 15.7, 14.97, 14.26, 13.56, 12.88, 12.2, 11.53, 10.88, 10.24, 9.62, 9.02, 8.44, 7.88, 7.35, 6.85, 6.37, 5.9, 5.46, 5.05, 4.66, 4.3, 3.96, 3.66, 3.37, 3.11, 2.87, 2.66, 2.46, 2.27, 2.12, 1.95, 1.79],
+    EX_F: [83.02, 82.32, 81.34, 80.35, 79.36, 78.36, 77.37, 76.37, 75.38, 74.38, 73.39, 72.39, 71.4, 70.4, 69.41, 68.42, 67.42, 66.43, 65.44, 64.46, 63.47, 62.48, 61.5, 60.51, 59.52, 58.54, 57.55, 56.57, 55.58, 54.6, 53.62, 52.64, 51.66, 50.68, 49.71, 48.73, 47.76, 46.79, 45.83, 44.86, 43.9, 42.94, 41.99, 41.04, 40.09, 39.14, 38.19, 37.25, 36.32, 35.39, 34.46, 33.54, 32.62, 31.71, 30.8, 29.89, 28.99, 28.1, 27.21, 26.33, 25.45, 24.57, 23.7, 22.85, 22, 21.16, 20.32, 19.5, 18.69, 17.89, 17.09, 16.31, 15.53, 14.76, 14.01, 13.27, 12.54, 11.83, 11.14, 10.46, 9.81, 9.18, 8.57, 7.99, 7.43, 6.9, 6.39, 5.9, 5.45, 5.02, 4.61, 4.25, 3.92, 3.63, 3.35, 3.1, 2.86, 2.65, 2.45, 2.28, 2.11],
+    // healthy years left, [age band from, years]: ONS, Healthy life expectancy, UK, England, 2022 to 2024 (released 19 Feb 2026; read 2026-11-10)
+    HLE_M: [[0, 60.9], [1, 60.3], [5, 56.6], [10, 52], [15, 47.5], [20, 43.1], [25, 38.8], [30, 34.6], [35, 30.5], [40, 26.6], [45, 22.8], [50, 19.3], [55, 15.9], [60, 12.9], [65, 10.1], [70, 7.6], [75, 5.5], [80, 3.7], [85, 2.3], [90, 1.4]],
+    HLE_F: [[0, 61.3], [1, 60.6], [5, 57], [10, 52.5], [15, 48], [20, 43.8], [25, 39.6], [30, 35.5], [35, 31.5], [40, 27.6], [45, 23.9], [50, 20.4], [55, 17.1], [60, 14], [65, 11.1], [70, 8.5], [75, 6.1], [80, 4.1], [85, 2.6], [90, 1.5]],
+    // years needing help from 65 at low / medium / high dependency: Kingston, Comas-Herrera, Jagger, Lancet Public Health 2018, Table 4 (PACSim, England, 2015; read 2026-11-10)
+    CARE: { M: { low: 5.0, medium: 1.2, high: 1.4 }, F: { low: 7.2, medium: 1.3, high: 2.0 } },
     // share living with 2+ conditions by age (Barnett et al., 2012, UK)
     MM: [[20, 5], [30, 10], [40, 16], [50, 25], [60, 40], [70, 60], [80, 78], [90, 85], [100, 90]]
   };
@@ -61,7 +71,7 @@
   var REL = ['spouse', 'child', 'grandchild', 'parent', 'sibling', 'friend', 'other'];
   var CLOSE = { spouse: 'close', child: 'close', parent: 'close', grandchild: 'distant', sibling: 'distant', friend: 'distant', other: 'distant' };
 
-  var S;
+  var S, MODEL = 1; // MODEL: 2 = years by age and sex (HDLV2_HT.model, option hdlv2_ht_model; v0.48.61), else 0.48.60's model
   function defaultPeople(you) {
     return [
       { id: 'p1', name: 'Spouse', rel: 'spouse', born: you.born + 5, sex: you.sex === 'F' ? 'M' : 'F', rate: 'same', sample: true },
@@ -110,10 +120,47 @@
   var bioAt = function (p, t) { return bioAtRate(p, t, rateOf(p), rate0Of(p), fsFrac()); };
   // stage boundaries for a person on pace r: green boundary fixed, later ones compressed/stretched by r^compK
   function stagesFor(p, r) { var T = p.sex === 'M' ? K.STAGE_BOUNDS_M : K.STAGE_BOUNDS_F; var f = Math.pow(Math.max(0.5, Math.min(1.6, r)), K.compK); return T.map(function (v, i) { return i === 0 ? v : T[0] + (v - T[0]) * f; }); }
-  function stageOfBio(p, b, r) { var T = stagesFor(p, r); if (b >= T[4]) return 6; for (var i = 0; i < 4; i++) if (b < T[i]) return i + 1; return 5; }
+  // v0.48.61 model 2 (plan 2026-11-10): the years from today by the person's age and sex. Sex '' (not set) = the mean of both.
+  var bothSexes = function (sex) { return sex !== 'M' && sex !== 'F'; };
+  // ONS years left at age B, linear between whole ages
+  function ex(sex, B) {
+    if (bothSexes(sex)) return (ex('M', B) + ex('F', B)) / 2;
+    var t = sex === 'M' ? K.EX_M : K.EX_F, b = Math.max(0, Math.min(100, B)), i = Math.floor(b), j = Math.min(100, i + 1);
+    return t[i] + (t[j] - t[i]) * (b - i);
+  }
+  // ONS healthy years left at age B: linear between the bands, flat past the last, never above ex
+  function hle(sex, B) {
+    if (bothSexes(sex)) return (hle('M', B) + hle('F', B)) / 2;
+    var P = sex === 'M' ? K.HLE_M : K.HLE_F, b = Math.max(0, B), v = P[P.length - 1][1];
+    for (var i = 1; i < P.length; i++) if (b <= P[i][0]) { v = P[i - 1][1] + (P[i][1] - P[i - 1][1]) * (b - P[i - 1][0]) / (P[i][0] - P[i - 1][0]); break; }
+    return Math.min(v, ex(sex, B));
+  }
+  // years in green, yellow, orange, red, grey at pace 1.00: care years from the end (Kingston 2018), green from the healthy years, yellow the rest
+  function split(sex, B) {
+    var L = ex(sex, B), c = bothSexes(sex) ? { low: (K.CARE.M.low + K.CARE.F.low) / 2, medium: (K.CARE.M.medium + K.CARE.F.medium) / 2, high: (K.CARE.M.high + K.CARE.F.high) / 2 } : K.CARE[sex];
+    var grey = Math.min(c.high, L), red = Math.min(c.medium, L - grey), orange = Math.min(c.low, L - grey - red), rest = L - grey - red - orange, green = Math.min(hle(sex, B), rest);
+    return [green, rest - green, orange, red, grey];
+  }
+  // the bounds from today's biological age (0 for someone not born yet); a pace stretches the decline by r^(1 + (compK − 1) × green share).
+  // Kept by (sex, age, pace): the lanes ask once a month for 140 years (measured: 50 ms → 11 ms a slider step for 30 people).
+  // ponytail: the cache is emptied past 500 entries; read-only arrays, no caller changes them.
+  var bounds2 = {}, bounds2N = 0;
+  function stagesFor2(p, r) {
+    var B = Math.max(0, bioNow(p)), key = p.sex + '|' + B + '|' + r;
+    if (bounds2[key]) return bounds2[key];
+    var q = split(p.sex, B), L = q[0] + q[1] + q[2] + q[3] + q[4];
+    var f = Math.pow(Math.max(0.5, Math.min(1.6, r)), 1 + (K.compK - 1) * q[0] / L), T = [], acc = B;
+    for (var i = 0; i < 5; i++) { acc += q[i]; T.push(acc); }
+    if (++bounds2N > 500) { bounds2 = {}; bounds2N = 1; }
+    return (bounds2[key] = T.map(function (v, i) { return i === 0 ? v : T[0] + (v - T[0]) * f; }));
+  }
+  // every stage reads its bounds here
+  function boundsFor(p, r) { return MODEL === 2 ? stagesFor2(p, r) : stagesFor(p, r); }
+  function stageOfBio(p, b, r) { var T = boundsFor(p, r); if (b >= T[4]) return 6; for (var i = 0; i < 4; i++) if (b < T[i]) return i + 1; return 5; }
   var stageAt = function (p, t) { return t < p.born ? 0 : stageOfBio(p, bioAt(p, t), rateOf(p)); };
   var stageAtRate = function (p, t, r, r0, fs) { return t < p.born ? 0 : stageOfBio(p, bioAtRate(p, t, r, r0, fs), r); };
-  function capability(p, b, r) { var T = stagesFor(p, r); var pts = [[30, 100], [T[0], 70], [T[1], 50], [T[2], 30], [T[3], 15], [T[4], 5]]; if (b <= 30) return 100; for (var i = 1; i < pts.length; i++) { if (b <= pts[i][0]) { var a0 = pts[i - 1][0], v0 = pts[i - 1][1], a1 = pts[i][0], v1 = pts[i][1]; return v0 + (v1 - v0) * (b - a0) / (a1 - a0); } } return 5; }
+  // a stage of no length puts two points on one age: the later (lower) value wins (v0.48.61)
+  function capability(p, b, r) { var T = boundsFor(p, r); var pts = [[30, 100], [T[0], 70], [T[1], 50], [T[2], 30], [T[3], 15], [T[4], 5]]; if (b <= 30) return 100; for (var i = 1; i < pts.length; i++) { if (b <= pts[i][0]) { while (i + 1 < pts.length && pts[i + 1][0] <= b) i++; if (b >= pts[i][0]) return pts[i][1]; var a0 = pts[i - 1][0], v0 = pts[i - 1][1], a1 = pts[i][0], v1 = pts[i][1]; return v0 + (v1 - v0) * (b - a0) / (a1 - a0); } } return 5; }
   function multimorb(b) { var MM = K.MM; if (b <= 20) return 3; for (var i = 1; i < MM.length; i++) if (b <= MM[i][0]) { var a0 = MM[i - 1][0], v0 = MM[i - 1][1], a1 = MM[i][0], v1 = MM[i][1]; return v0 + (v1 - v0) * (b - a0) / (a1 - a0); } return 92; }
   function difficulty(age, rate) { var d = 1 + Math.max(0, age - 30) / 8; d += Math.max(0, rate - 1) * 4; return Math.max(1, Math.min(10, d)); }
   function gainPotential(life) { var h = (5 - Math.min(5, Math.max(1, life))) / 4; return Math.round(100 * (1 - Math.exp(-2.2 * h)) / (1 - Math.exp(-2.2))); }
@@ -234,7 +281,7 @@
       + '<div class="ht-tab" id="ht-tab-people" role="tabpanel" aria-labelledby="ht-tab-btn-people" hidden>'
       + '<div class="ht-row ht-head" aria-hidden="true"><span>Name</span><span>Relationship</span><span>Born</span><span>Sex</span><span>Pace of ageing</span><span></span></div>'
       + '<div id="ht-people"></div><div id="ht-linked"></div><p class="ht-note ht-links-msg" id="ht-links-msg" role="status" aria-live="polite"></p>'
-      + '<form class="ht-row" id="ht-add"><input id="ht-a-name" placeholder="Name" aria-label="Name" maxlength="40" required><select id="ht-a-rel" aria-label="Relationship"></select><input id="ht-a-born" type="number" placeholder="Year" aria-label="Year born" required><select id="ht-a-sex" aria-label="Sex"><option value="F">F</option><option value="M">M</option></select><select id="ht-a-rate" aria-label="Pace of ageing"></select><button class="ht-btn" type="submit">Add</button></form>'
+      + '<form class="ht-row" id="ht-add"><input id="ht-a-name" placeholder="Name" aria-label="Name" maxlength="40" required><select id="ht-a-rel" aria-label="Relationship"></select><input id="ht-a-born" type="number" placeholder="Year" aria-label="Year born" required><select id="ht-a-sex" aria-label="Sex">' + sexOpts('') + '</select><select id="ht-a-rate" aria-label="Pace of ageing"></select><button class="ht-btn" type="submit">Add</button></form>'
       + '<div class="ht-lock" id="ht-people-lock" hidden></div>'
       + '<p class="ht-note">"Same as you" assumes your habits shape the household. Time together uses population averages for each relationship.</p>'
       + '</div>'
@@ -468,12 +515,25 @@
       el.hidden = false;
     }
     $('#ht-legend').innerHTML = STAGES.map(function (s) { return '<span><i style="--c:' + s.c + '"></i>' + s.name + ' · ' + s.label + '</span>'; }).join('') + '<span><i style="--c:var(--ht-line)"></i>Faded = already lived</span><span><i style="--c:var(--ht-muted);height:5px"></i>Thin bar under each lane = today\'s path, for comparison</span>';
-    $('#ht-disc').textContent = 'Estimates, not predictions. Stage boundaries use UK life and healthy-life expectancy (Office for National Statistics, 2021–23); the health-conditions curve uses published UK multimorbidity data (Barnett et al., 2012); time-together figures use US time-use survey averages because no UK equivalent exists; the shift response, decline compression and future-science slider are assumptions, not measurements. Your own biological age and pace come from your HealthDataLab report. Your report measures pace against people your own age; this page reads it as years of ageing per calendar year, so the two are close but not the same measure. Everyone else\'s are assumptions you can edit, unless they shared their own. Not medical advice. Its job is to make the years ahead visible so you act on them now.';
+    // model 2 swaps the first sentence's sources (discSources); test-page.php reads this literal
+    $('#ht-disc').textContent = 'Estimates, not predictions. Stage boundaries use UK life and healthy-life expectancy (Office for National Statistics, 2021–23); the health-conditions curve uses published UK multimorbidity data (Barnett et al., 2012); time-together figures use US time-use survey averages because no UK equivalent exists; the shift response, decline compression and future-science slider are assumptions, not measurements. Your own biological age and pace come from your HealthDataLab report. Your report measures pace against people your own age; this page reads it as years of ageing per calendar year, so the two are close but not the same measure. Everyone else\'s are assumptions you can edit, unless they shared their own. Not medical advice. Its job is to make the years ahead visible so you act on them now.'.replace(DISC_SOURCES_1, discSources());
+  }
+  var DISC_SOURCES_1 = 'Stage boundaries use UK life and healthy-life expectancy (Office for National Statistics, 2021–23); the';
+  function discSources() {
+    return MODEL !== 2 ? DISC_SOURCES_1 : 'Years left use the Office for National Statistics\' National Life Tables, United Kingdom, 2022–2024, and healthy years its healthy life expectancy for England, 2022 to 2024, both by age and sex. '
+      + 'The years needing help follow the care study of Kingston and colleagues (England, 2015). '
+      + 'The ONS figures are period figures: they assume today\'s death rates carry on and allow nothing for future improvement. The';
   }
 
   /* ---------- inputs ---------- */
   var relOpts = function (sel) { return REL.map(function (r) { return '<option value="' + r + '"' + (r === sel ? ' selected' : '') + '>' + r[0].toUpperCase() + r.slice(1) + '</option>'; }).join(''); };
   var paceOpts = function (sel) { return '<option value="same"' + (sel === 'same' ? ' selected' : '') + '>Same as you</option>' + K.PROFILES.map(function (p) { return '<option value="' + p.r + '"' + (sel !== 'same' && Math.abs(+sel - p.r) < 0.005 ? ' selected' : '') + '>' + p.n + ' ' + p.r.toFixed(2) + '×</option>'; }).join(''); };
+  var sexOpts = function (sel) { return (MODEL === 2 ? '<option value=""' + (sel === '' ? ' selected' : '') + '>Not set</option>' : '') + '<option value="F"' + (sel === 'F' ? ' selected' : '') + '>F</option><option value="M"' + (sel === 'M' ? ' selected' : '') + '>M</option>'; };
+  // one loved one's row on the Loved ones tab; with no sex (model 2) a line says what the lane uses
+  function lovedRowHtml(p) {
+    return '<input aria-label="Name" maxlength="40"><select aria-label="Relationship">' + relOpts(p.rel) + '</select><input type="number" aria-label="Year born"><select aria-label="Sex">' + sexOpts(p.sex) + '</select><select aria-label="Pace of ageing">' + paceOpts(p.rate) + '</select><button class="ht-x" type="button" aria-label="Remove ' + esc(p.name) + '">×</button>'
+      + (p.sex === '' ? '<p class="ht-note ht-sex-note">sex not set: an average of men and women is used</p>' : '');
+  }
   var highlightPace = false;
   // v0.48.60: no score → "with the Full Report" in preview, nothing in full mode; never "n/a".
   function factsHtml(Y, mode) {
@@ -520,13 +580,13 @@
     var pe = $('#ht-people'); pe.innerHTML = '';
     S.people.forEach(function (p) {
       var d = document.createElement('div'); d.className = 'ht-row' + (preview ? ' ht-locked' : '');
-      d.innerHTML = '<input aria-label="Name" maxlength="40"><select aria-label="Relationship">' + relOpts(p.rel) + '</select><input type="number" aria-label="Year born"><select aria-label="Sex"><option value="F"' + (p.sex === 'F' ? ' selected' : '') + '>F</option><option value="M"' + (p.sex === 'M' ? ' selected' : '') + '>M</option></select><select aria-label="Pace of ageing">' + paceOpts(p.rate) + '</select><button class="ht-x" type="button" aria-label="Remove ' + esc(p.name) + '">×</button>';
+      d.innerHTML = lovedRowHtml(p);
       var c = d.children, n = c[0], r = c[1], b = c[2], sx = c[3], rt = c[4], x = c[5];
       n.value = p.name; b.value = p.born;
       if (preview) { [n, r, b, sx, rt, x].forEach(function (i) { i.disabled = true; }); pe.appendChild(d); return; }
       // an edit makes the person the client's own: the sample mark goes (v0.48.60)
       n.onchange = function () { delete p.sample; p.name = n.value.trim().slice(0, 40) || p.name; save(); renderAll(); }; r.onchange = function () { delete p.sample; p.rel = REL.indexOf(r.value) !== -1 ? r.value : p.rel; save(); renderAll(); };
-      b.onchange = function () { var v = parseInt(b.value, 10); if (v > 1850 && v < 2200) { delete p.sample; p.born = v; save(); renderAll(); } }; sx.onchange = function () { delete p.sample; p.sex = sx.value === 'M' ? 'M' : 'F'; save(); renderAll(); };
+      b.onchange = function () { var v = parseInt(b.value, 10); if (v > 1850 && v < 2200) { delete p.sample; p.born = v; save(); renderAll(); } }; sx.onchange = function () { delete p.sample; p.sex = cleanSex(sx.value); save(); renderAll(); };
       rt.onchange = function () { delete p.sample; p.rate = rt.value; save(); renderAll(); }; x.onclick = function () { S.people = S.people.filter(function (q) { return q !== p; }); save(); renderAll(); }; pe.appendChild(d);
       if (S.links) {
         var inv = document.createElement('div'); inv.className = 'ht-link-line';
@@ -551,7 +611,7 @@
     return {
       id: 'L' + l.id, name: l.label, rel: REL.indexOf(l.relationship) !== -1 ? l.relationship : 'other',
       born: sh ? NOW_Y - sh.age : (l.born_guess > 1850 && l.born_guess < 2200 ? l.born_guess : you.born),
-      sex: (sh && sh.sex) || (l.sex_guess === 'M' ? 'M' : 'F'), rate: sh ? +sh.rate : 'same', fromReport: !!sh,
+      sex: (sh && sh.sex) || cleanSex(l.sex_guess || ''), rate: sh ? +sh.rate : 'same', fromReport: !!sh,
       guessed: ['withdrawn', 'revoked', 'expired', 'declined'].indexOf(l.status) !== -1
     };
   }
@@ -629,11 +689,13 @@
 
   /* ---------- storage (DA3: this browser only, one key per client) ---------- */
   var STORE = 'hs-state-preview', fixedYou = false;
+  // a loved one's sex: 'M', 'F', or '' (not set) in model 2 only
+  function cleanSex(v) { return v === 'M' ? 'M' : MODEL === 2 && v === '' ? '' : 'F'; }
   function cleanPerson(p) {
     if (!p || typeof p !== 'object') return null;
     var born = parseInt(p.born, 10), rate = p.rate === 'same' ? 'same' : +p.rate;
     if (!(born > 1850 && born < 2200) || (rate !== 'same' && !(rate >= 0.6 && rate <= 1.6))) return null;
-    var out = { id: String(p.id || 'p' + born).slice(0, 20), name: String(p.name || '').slice(0, 40) || 'Someone', rel: REL.indexOf(p.rel) !== -1 ? p.rel : 'other', born: born, sex: p.sex === 'M' ? 'M' : 'F', rate: rate };
+    var out = { id: String(p.id || 'p' + born).slice(0, 20), name: String(p.name || '').slice(0, 40) || 'Someone', rel: REL.indexOf(p.rel) !== -1 ? p.rel : 'other', born: born, sex: cleanSex(p.sex), rate: rate };
     if (p.sample === true) out.sample = true;
     return out;
   }
@@ -660,7 +722,7 @@
   }
 
   /* ---------- boot ---------- */
-  function reset(cfg) { S = fresh(cfg || {}); hover = null; return S; }
+  function reset(cfg) { MODEL = cfg && cfg.model === 2 ? 2 : 1; S = fresh(cfg || {}); hover = null; return S; }
   function boot() {
     rootEl = document.getElementById('hdlv2-ht-root');
     if (!rootEl) return;
@@ -729,7 +791,8 @@
     linkedPerson: linkedPerson, chipLabel: chipLabel, linkedRowHtml: linkedRowHtml, inviteBoxHtml: inviteBoxHtml,
     groupLanes: groupLanes, laneText: laneText, packLine: packLine, inviteLabel: inviteLabel, groupSwitchHtml: groupSwitchHtml,
     factsHtml: factsHtml, waitHtml: waitHtml, lockHtml: lockHtml, sampleNote: sampleNote, defaultPeople: defaultPeople, cleanPerson: cleanPerson,
-    brandRowHtml: brandRowHtml, fragmentPrac: fragmentPrac, loadBrand: loadBrand
+    brandRowHtml: brandRowHtml, fragmentPrac: fragmentPrac, loadBrand: loadBrand,
+    ex: ex, hle: hle, split: split, boundsFor: boundsFor, stageOfBio: stageOfBio, capability: capability, lovedRowHtml: lovedRowHtml, discSources: discSources
   };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
 })(window);

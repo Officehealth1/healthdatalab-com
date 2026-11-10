@@ -16,6 +16,8 @@
  *   hdlv2_ht_show_science   1 = the future-science slider and its panel (DA5)
  *   hdlv2_ht_gate           'full_report' (default); 'addon' is reserved for a later checkout
  *                           and behaves as full_report
+ *   hdlv2_ht_model          '2' = years by age and sex from the ONS tables (v0.48.61); anything else
+ *                           = the 0.48.60 model
  *
  * v0.48.60 — the user flow: a buyer in the window between paying and the report (a Full Report
  * ticket for their email, or Stage 3 submitted) keeps the lock (DA2) but reads a waiting line
@@ -357,6 +359,8 @@ class HDLV2_Healthspan_Timeline {
             'offer'        => self::offer( $practitioner_id ),
             'rest'         => esc_url_raw( rest_url( 'hdl-v2/v1/' ) ),
             'partner_line' => HDLV2_Offer::PARTNER_LINE,
+            // v0.48.61 — which timeline model draws the lanes; 2 only on Matthew's written yes (plan 2026-11-10).
+            'model'        => '2' === (string) get_option( 'hdlv2_ht_model' ) ? 2 : 1,
         );
         // DA2 stands (the report is the gate): a buyer is not sold the report again while it is written.
         if ( '' !== $paid && 'preview' === $mode ) {
