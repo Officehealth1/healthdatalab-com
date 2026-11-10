@@ -88,8 +88,8 @@ ok(M.state().people.map((p) => p.name).join() === 'Spouse,Child,Grandchild', 'no
 M.reset({ mode: 'preview', you, key_people: [{ name: 'Jenny', rel: 'child' }] });
 ok(M.state().people.map((p) => p.name).join() === 'Spouse,Child,Grandchild', 'preview: the sample people as before');
 // restore(): a list already kept in this browser wins over the seed.
-const restore = cut(tl, '  function restore() {', '\n  }\n'), clean = cut(tl, '  function cleanPerson(', '\n  }\n');
-const R = { S: { mode: 'full', people: [{ name: 'Jenny' }], you: {} }, STORE: 'k', $: () => null,
+const restore = cut(tl, '  function restore() {', '\n  }\n'), clean = cut(tl, '  function cleanSex(', '}\n') + cut(tl, '  function cleanPerson(', '\n  }\n'); // v0.48.61: cleanPerson reads cleanSex
+const R = { S: { mode: 'full', people: [{ name: 'Jenny' }], you: {} }, STORE: 'k', $: () => null, MODEL: 1,
   root: { localStorage: { getItem: () => JSON.stringify({ people: [{ id: 'p9', name: 'Kept', rel: 'friend', born: 1980, sex: 'M', rate: 'same' }] }) } }, REL: ['spouse', 'child', 'grandchild', 'parent', 'sibling', 'friend', 'other'] };
 vm.runInNewContext(clean + restore + '\nrestore();', R);
 ok(R.S.people.length === 1 && R.S.people[0].name === 'Kept', 'a stored list wins over the seed');
