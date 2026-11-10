@@ -400,4 +400,17 @@ $js   = (string) file_get_contents( dirname( __DIR__, 2 ) . '/assets/js/hdlv2-he
 $disc = preg_match( "/\\\$\\('#ht-disc'\\)\\.textContent = '((?:[^'\\\\]|\\\\.)*)'/", $js, $m ) ? stripslashes( $m[1] ) : '';
 check( 'disclaimer: the pace sentence follows "Your own biological age and pace come from your HealthDataLab report"', false !== strpos( $disc, 'come from your HealthDataLab report. Your report measures pace against people your own age; this page reads it as years of ageing per calendar year, so the two are close but not the same measure.' ) );
 
+// v0.48.61 (plan 2026-11-10, model 2): the page config says which timeline model draws the lanes; 2 only on the word.
+$db = fresh();
+$db->progress[ tok( '6' ) ] = row( 46 );
+$model = function ( $v ) use ( $T ) {
+    if ( null === $v ) { unset( $GLOBALS['options']['hdlv2_ht_model'] ); } else { $GLOBALS['options']['hdlv2_ht_model'] = $v; }
+    return array( $T::page_data( '' )['model'] ?? null, $T::page_data( tok( '6' ) )['model'] ?? null );
+};
+check( 'M1 option unset → model 1 (open page and token page)', array( 1, 1 ) === $model( null ) );
+check( 'M1 option "1" → model 1', array( 1, 1 ) === $model( '1' ) );
+check( 'M1 anything else ("two", 3, "2 ", "") → model 1', array( 1, 1 ) === $model( 'two' ) && array( 1, 1 ) === $model( 3 ) && array( 1, 1 ) === $model( '2 ' ) && array( 1, 1 ) === $model( '' ) );
+check( 'M1 option "2" (or the integer 2) → model 2', array( 2, 2 ) === $model( '2' ) && array( 2, 2 ) === $model( 2 ) );
+$model( null );
+
 done();

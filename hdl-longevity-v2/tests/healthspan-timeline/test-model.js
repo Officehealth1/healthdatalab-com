@@ -263,6 +263,153 @@ ok(/:has\(#hdlv2-ht-root\) \.et-l--footer\{display:none\}/.test(CSS), 'B3 the th
 ok(has('fragmentPrac') && M.fragmentPrac('#a=52&s=M&r=1.14&n=Quim&p=122') === '122' && M.fragmentPrac('#p=12a') === '' && M.fragmentPrac('#a=52') === '' && M.fragmentPrac('#p=' + '9'.repeat(12)) === '', 'B2 &p= read from the fragment: digits only, up to ten');
 
 ok(/renderTraj[\s\S]*querySelectorAll\('\[data-hdl="green-callout"\],\[data-hdl="red-callout"\]'\)[\s\S]*setAttribute\('opacity', '1'\)[\s\S]*\/\* ---------- loved ones/.test(SRC), 'T9 renderTraj reveals the engine\'s two callouts on this page (the engine draws them at opacity 0)');
+
+// v0.48.61 — model 2 (plan 2026-11-10, timeline accuracy by age and sex v2): years left from the ONS life table for
+// the person's age and sex, care years by sex (Kingston 2018), green from ONS healthy life expectancy (England), the
+// pace rule softened by the green share. Off unless the page config carries model: 2 (option hdlv2_ht_model = '2').
+const tryOk = (label, fn) => { let v = false; try { v = !!fn(); } catch (e) { label += ' [threw: ' + e.message + ']'; } ok(v, label); };
+const you2 = (age, sex, rate, bio, model) => { M.reset({ mode: 'full', model: model === undefined ? 2 : model, you: { name: 'Kim', born: M.NOW_Y - age, sex: sex, bio: bio, rate0: rate } }); return M.state(); };
+const loved = (age, sex, rate) => ({ id: 'q', name: 'Q', rel: 'parent', born: M.NOW_Y - age, sex: sex, rate: rate });
+const SEXES = ['M', 'F'], CARE_LIT = { M: [5.0, 1.2, 1.4], F: [7.2, 1.3, 2.0] };
+const paces = (step) => { const out = []; for (let i = 0; 0.6 + i * step <= 1.6 + 1e-9; i++) out.push(Math.round((0.6 + i * step) * 100) / 100); return out; };
+const ages = []; for (let a = 18; a <= 100; a++) ages.push(a);
+const B_loved = (p) => M.NOW_F - p.born;
+
+// D — the data are the tables read on 2026-11-10 (T0): ONS life tables UK 2022–2024, ONS healthy life expectancy England 2022 to 2024.
+tryOk('D1 EX_M / EX_F: 101 values each; at birth 79.12 / 83.02, at 65 18.73 / 21.16, at 100 1.79 / 2.11', () =>
+  K.EX_M.length === 101 && K.EX_F.length === 101 && K.EX_M[0] === 79.12 && K.EX_F[0] === 83.02 && K.EX_M[65] === 18.73 && K.EX_F[65] === 21.16 && K.EX_M[100] === 1.79 && K.EX_F[100] === 2.11);
+tryOk('D2 HLE_M / HLE_F: 20 bands from birth to 90+; at birth 60.9 / 61.3, at 65 10.1 / 11.1, 90+ 1.4 / 1.5', () =>
+  K.HLE_M.length === 20 && K.HLE_F.length === 20 && JSON.stringify(K.HLE_M[0]) === '[0,60.9]' && JSON.stringify(K.HLE_F[0]) === '[0,61.3]'
+  && JSON.stringify(K.HLE_M[14]) === '[65,10.1]' && JSON.stringify(K.HLE_F[14]) === '[65,11.1]' && JSON.stringify(K.HLE_M[19]) === '[90,1.4]' && JSON.stringify(K.HLE_F[19]) === '[90,1.5]');
+tryOk('D3 CARE: men 5.0 / 1.2 / 1.4, women 7.2 / 1.3 / 2.0 (low / medium / high dependency, Kingston 2018 Table 4)', () =>
+  JSON.stringify(K.CARE) === JSON.stringify({ M: { low: 5.0, medium: 1.2, high: 1.4 }, F: { low: 7.2, medium: 1.3, high: 2.0 } }));
+
+// V1 — every average person's lane is the ONS ex for their age and sex.
+tryOk('V1 every whole age 18–100, both sexes, pace 1.00, bio = age: the five stage years sum to the ONS ex within 0.1', () => ages.every(a => SEXES.every(s => {
+  const S2 = you2(a, s, 1, a), y = M.yearsByStage(S2.you, 1, 1, 0);
+  return Math.abs(sum(y) - (s === 'M' ? K.EX_M : K.EX_F)[a]) < 0.1;
+})));
+
+// V2 — nobody alive is past their lifespan today.
+tryOk('V2 no person 18–100 is at stage 6 today at any pace 0.60–1.60 (0.05), both sexes, on both paths (bio = age; bio = pace × age)', () => {
+  you2(50, 'F', 1, '');
+  return SEXES.every(s => ages.every(a => paces(0.05).every(r => {
+    const p = loved(a, s, r); if (M.stageOfBio(p, B_loved(p), r) === 6) return false;
+    const S2 = M.state(); S2.you.sex = s; S2.you.born = M.NOW_Y - a; S2.you.bio = r * a; S2.you.rate0 = S2.you.rate = r;
+    return M.stageOfBio(S2.you, r * a, r) !== 6;
+  })));
+});
+tryOk('V2 the moment panel never says "beyond expected lifespan" today (man 90, woman 85, both at 100, average pace)', () =>
+  [['M', 90], ['F', 85], ['M', 100], ['F', 100]].every(([s, a]) => { const S2 = you2(a, s, 1, ''); return !/beyond expected lifespan/.test(M.momentHtml(S2.you, M.NOW_F, 'year', true)); }));
+
+// V3 — a faster pace never gives more years (the inversion of F6 gone), on both paths.
+tryOk('V3 total and green years never rise when the pace rises: ages 18–100, both sexes, pace 0.60–1.60 in 0.01, both paths (from the bounds)', () => {
+  const S2 = you2(50, 'F', 1, ''), P = paces(0.01);
+  return SEXES.every(s => ages.every(a => {
+    let pl = null, py = null;
+    return P.every(r => {
+      const p = loved(a, s, r), Bl = B_loved(p), Tl = M.boundsFor(p, r);
+      S2.you.sex = s; S2.you.bio = r * a; const Ty = M.boundsFor(S2.you, r);
+      const cl = [(Tl[4] - Bl) / r, (Tl[0] - Bl) / r], cy = [(Ty[4] - r * a) / r, (Ty[0] - r * a) / r];
+      const good = (prev, cur) => !prev || (cur[0] <= prev[0] + 1e-6 && cur[1] <= prev[1] + 1e-6);
+      const res = good(pl, cl) && good(py, cy); pl = cl; py = cy; return res;
+    });
+  }));
+});
+tryOk('V3 the page\'s own counts agree: yearsByStage totals and green never rise with the pace (loved ones 30, 60, 75, 82, 90; 0.05 steps)', () => {
+  you2(50, 'F', 1, '');
+  return SEXES.every(s => [30, 60, 75, 82, 90].every(a => {
+    let prev = null;
+    return paces(0.05).every(r => { const y = M.yearsByStage(loved(a, s, r), r, r, 0), cur = [sum(y), y[0]]; const g = !prev || (cur[0] <= prev[0] + 1e-6 && cur[1] <= prev[1] + 1e-6); prev = cur; return g; });
+  }));
+});
+tryOk('V3 the F6 examples: mother 82 and father 75 lose no years for a healthier pace (0.85 ≥ 1.00 ≥ 1.25)', () => {
+  you2(50, 'F', 1, '');
+  return [['F', 82], ['M', 75], ['M', 60]].every(([s, a]) => { const t = [0.85, 1, 1.25].map(r => sum(M.yearsByStage(loved(a, s, r), r, r, 0))); return t[0] >= t[1] - 1e-6 && t[1] >= t[2] - 1e-6 && t[2] > 0; });
+});
+
+// V4 — the years needing help are the care study's, by sex.
+tryOk('V4 a 50-year-old at 1.00: orange, red, grey = the care table (men 5.0 / 1.2 / 1.4, women 7.2 / 1.3 / 2.0) within 0.1', () => SEXES.every(s => {
+  const y = M.yearsByStage(you2(50, s, 1, 50).you, 1, 1, 0); return CARE_LIT[s].every((v, i) => Math.abs(y[i + 2] - v) < 0.1);
+}));
+tryOk('V4 a man of 90 at 1.00: grey 1.4, red 1.2, orange the rest (ex − 2.6), green and yellow 0', () => {
+  const q = M.split('M', 90), y = M.yearsByStage(you2(90, 'M', 1, 90).you, 1, 1, 0), o = K.EX_M[90] - 2.6;
+  return near(q[4], 1.4) && near(q[3], 1.2) && near(q[2], o) && q[0] === 0 && q[1] === 0 && Math.abs(y[4] - 1.4) < 0.1 && Math.abs(y[3] - 1.2) < 0.1 && Math.abs(y[2] - o) < 0.1 && y[0] === 0 && y[1] === 0;
+});
+tryOk('V4 a woman of 100 at 1.00: grey = min(2.0, ex), the rest red', () => {
+  const q = M.split('F', 100), L = K.EX_F[100]; return near(q[4], Math.min(2.0, L)) && near(q[3], L - Math.min(2.0, L)) && q[0] === 0 && q[1] === 0 && q[2] === 0;
+});
+
+// V5, V6 — green from the healthy-life table, yellow what is left.
+tryOk('V5 hle by band: man 65 → 10.1, woman 65 → 11.1, man 40 → 26.6, woman 75 → 6.1; man 67.5 → 8.85 (linear); man 95 → 1.4 (flat past 90)', () =>
+  near(M.hle('M', 65), 10.1) && near(M.hle('F', 65), 11.1) && near(M.hle('M', 40), 26.6) && near(M.hle('F', 75), 6.1) && near(M.hle('M', 67.5), 8.85) && near(M.hle('M', 95), 1.4));
+tryOk('V5 green = min(healthy years, years left after the care years) at 40, 65 and 75, both sexes; the page\'s count agrees within 0.1', () => SEXES.every(s => [40, 65, 75].every(a => {
+  const q = M.split(s, a), c = CARE_LIT[s], want = Math.min(M.hle(s, a), M.ex(s, a) - c[0] - c[1] - c[2]);
+  return near(q[0], want) && Math.abs(M.yearsByStage(you2(a, s, 1, a).you, 1, 1, 0)[0] - want) < 0.1;
+})));
+tryOk('V6 yellow = what is left, never negative; the five parts sum to ex (ages 0–100 in halves, M, F and not set)', () => {
+  for (let b = 0; b <= 100; b += 0.5) for (const s of ['M', 'F', '']) { const q = M.split(s, b); if (q.some(v => v < 0) || !near(sum(q), M.ex(s, b), 1e-9)) return false; }
+  return true;
+});
+
+// V7 — sex not set: the mean of the two tables and a visible line (model 2); model 1 unchanged.
+tryOk('V7 model 2: cleanPerson keeps sex "" ; ex and hle for "" are the mean of the two sexes', () => {
+  you2(50, 'F', 1, '');
+  return M.cleanPerson({ born: 1950, rate: 'same', sex: '' }).sex === '' && M.cleanPerson({ born: 1950, rate: 'same', sex: 'M' }).sex === 'M'
+    && near(M.ex('', 70.5), (M.ex('M', 70.5) + M.ex('F', 70.5)) / 2) && near(M.hle('', 70.5), (M.hle('M', 70.5) + M.hle('F', 70.5)) / 2);
+});
+tryOk('V7 model 2: a person with no sex gets a lane between a man\'s and a woman\'s', () => {
+  you2(50, 'F', 1, ''); const T = (s) => M.boundsFor(loved(70, s, 1), 1)[4]; return T('M') < T('') && T('') < T('F');
+});
+tryOk('V7 model 2: the loved-ones row has "Not set" first and, with no sex, says "sex not set: an average of men and women is used"', () => {
+  you2(50, 'F', 1, '');
+  const none = M.lovedRowHtml({ name: 'Tom', rel: 'spouse', born: 1970, sex: '', rate: 'same' }), man = M.lovedRowHtml({ name: 'Tom', rel: 'spouse', born: 1970, sex: 'M', rate: 'same' });
+  return /<select aria-label="Sex"><option value="" selected>Not set<\/option><option value="F">F<\/option><option value="M">M<\/option><\/select>/.test(none)
+    && none.indexOf('sex not set: an average of men and women is used') !== -1 && man.indexOf('sex not set') === -1 && /<option value="">Not set<\/option>/.test(man);
+});
+tryOk('V7 model 2: the add form\'s sex select starts on "Not set"; people named on the Full Report form keep no sex', () => {
+  M.reset({ mode: 'full', model: 2, you: { name: 'Kim', born: 1974, sex: 'F', rate0: 1 }, key_people: [{ name: 'Tom', rel: 'spouse' }] });
+  return /<select id="ht-a-sex" aria-label="Sex"><option value="" selected>Not set<\/option><option value="F">F<\/option><option value="M">M<\/option><\/select>/.test(M.shellHtml({ mode: 'full' })) && M.state().people[0].sex === '';
+});
+tryOk('V7 model 1: cleanPerson still returns "F" for no sex; no "Not set", no note; the add form and the named people as 0.48.60', () => {
+  M.reset({ mode: 'full', you: { name: 'Kim', born: 1974, sex: 'F', rate0: 1 }, key_people: [{ name: 'Tom', rel: 'spouse' }] });
+  const row = M.lovedRowHtml({ name: 'Tom', rel: 'spouse', born: 1970, sex: 'M', rate: 'same' });
+  return M.cleanPerson({ born: 1950, rate: 'same', sex: '' }).sex === 'F' && M.state().people[0].sex === 'F'
+    && row.indexOf('Not set') === -1 && row.indexOf('sex not set') === -1 && /<select aria-label="Sex"><option value="F">F<\/option><option value="M" selected>M<\/option><\/select>/.test(row)
+    && M.shellHtml({ mode: 'full' }).indexOf('<select id="ht-a-sex" aria-label="Sex"><option value="F">F</option><option value="M">M</option></select>') !== -1;
+});
+
+// V8 — capability follows the stage (F12: a zero-length stage takes the later, lower value).
+tryOk('V8 a man of 85 at 1.00: capability today at most 50 (orange), never rising along the lane', () => {
+  const S2 = you2(85, 'M', 1, ''), B = M.NOW_F - S2.you.born; if (!(M.capability(S2.you, B, 1) <= 50)) return false;
+  let prev = Infinity;
+  for (let t = M.NOW_F; t < M.NOW_F + 20; t += 1 / 12) { const b = M.bioAtRate(S2.you, t, 1, 1, 0); if (M.stageOfBio(S2.you, b, 1) === 6) break; const c = M.capability(S2.you, b, 1); if (c > prev + 1e-9) return false; prev = c; }
+  return prev < 50;
+});
+
+// V9 — the science note says where model 2's numbers come from. The note is one literal in renderStatic (test-page.php
+// reads it there); model 2 swaps its first sentence's sources for discSources().
+const DISC_04860 = 'Estimates, not predictions. Stage boundaries use UK life and healthy-life expectancy (Office for National Statistics, 2021–23); the health-conditions curve uses published UK multimorbidity data (Barnett et al., 2012); time-together figures use US time-use survey averages because no UK equivalent exists; the shift response, decline compression and future-science slider are assumptions, not measurements. Your own biological age and pace come from your HealthDataLab report. Your report measures pace against people your own age; this page reads it as years of ageing per calendar year, so the two are close but not the same measure. Everyone else\'s are assumptions you can edit, unless they shared their own. Not medical advice. Its job is to make the years ahead visible so you act on them now.';
+const DISC_LIT = (SRC.match(/\$\('#ht-disc'\)\.textContent = '((?:[^'\\]|\\.)*)'\.replace\(DISC_SOURCES_1, discSources\(\)\);/) || ['', ''])[1].replace(/\\'/g, "'");
+tryOk('V9 model 2: the science note names the ONS life tables with their years, "England" beside healthy life expectancy, Kingston, and says the figures are period figures', () => {
+  M.reset({ mode: 'full', you: { name: 'Kim', born: 1974, sex: 'F', rate0: 1 } }); const s1 = M.discSources();
+  you2(50, 'F', 1, ''); const d = DISC_LIT.replace(s1, M.discSources());
+  return DISC_LIT.indexOf(s1) !== -1 && d.indexOf('National Life Tables, United Kingdom, 2022–2024') !== -1 && /healthy life expectancy for England, 2022 to 2024/.test(d) && d.indexOf('Kingston') !== -1 && /period figures/.test(d) && d.indexOf('Stage boundaries use') === -1 && d.indexOf('come from your HealthDataLab report.') !== -1;
+});
+
+// V10 — model 1 (and no model) is 0.48.60.
+tryOk('V10 stagesFor returns the arrays it returned at e9598a6 (woman 0.85, man 1.14, man 1.25)', () =>
+  JSON.stringify(M.stagesFor({ sex: 'F' }, 0.85)) === '[61.9,70.05007730024691,74.98714335712725,77.49485944951091,78.27852072838081]'
+  && JSON.stringify(M.stagesFor({ sex: 'M' }, 1.14)) === '[61.5,72.08952621036465,78.41889819816882,81.34014680792458,82.55733372865615]'
+  && JSON.stringify(M.stagesFor({ sex: 'M' }, 1.25)) === '[61.5,73.65861962765511,80.92584055452943,84.2799425207791,85.67748500671647]');
+tryOk('V10 model 1, no model, "2" as a string and 3 all read the 0.48.60 bounds; the years are the same as with no model', () => {
+  M.reset({ mode: 'full', you: { name: 'Kim', born: M.NOW_Y - 52, sex: 'M', bio: '', rate0: 1.14 } });
+  const base = JSON.stringify(M.yearsByStage(M.state().you, 1.14, 1.14, 0));
+  return [1, '2', 3].every(m => {
+    const S2 = you2(52, 'M', 1.14, '', m); return JSON.stringify(M.boundsFor(S2.you, 1.14)) === JSON.stringify(M.stagesFor(S2.you, 1.14)) && JSON.stringify(M.yearsByStage(S2.you, 1.14, 1.14, 0)) === base;
+  });
+});
+tryOk('V10 model 1: the science note is the 0.48.60 text, word for word (the literal, and its sources swap is a no-op)', () => { M.reset({ mode: 'full', you: { name: 'Kim', born: 1974, sex: 'F', rate0: 1 } }); return DISC_LIT === DISC_04860 && DISC_LIT.replace(M.discSources(), M.discSources()) === DISC_04860 && DISC_LIT.indexOf(M.discSources()) !== -1; });
 // v0.48.60 — the open page's brand lookup: on time → the row; late, refused, failed or config:null → nothing.
 async function brandLookup() {
   if (!has('loadBrand')) { ok(false, 'B4 loadBrand exposed'); return; }
