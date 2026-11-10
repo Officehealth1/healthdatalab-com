@@ -352,7 +352,7 @@
     var cap = ok ? capability(p, b, r) : 0, mm = ok ? multimorb(b) : 0, diff = ok ? difficulty(age, r) : 0, gain = ok && life != null ? gainPotential(life) : null;
     var dateStr = isNow ? 'today' : unit === 'year' ? String(Math.floor(t)) : new Date(Math.floor(t), Math.floor((t % 1) * 12)).toLocaleString('en-GB', { month: 'short', year: 'numeric' });
     var pill = b === null ? '<span class="ht-pill" style="--c:var(--ht-muted)">not yet born</span>' : gone ? '<span class="ht-pill" style="--c:var(--ht-muted)">beyond expected lifespan</span>' : '<span class="ht-pill" style="--c:' + STAGES[st - 1].c + '">' + STAGES[st - 1].name + ' · ' + STAGES[st - 1].label + '</span>';
-    var na = '<small>—</small>';
+    var na = '<small>–</small>';
     var lifeWords = p !== S.you ? 'Set from their own report\'s lifestyle score.'
       : life == null ? 'Your lifestyle score comes with the full report.'
       : 'From a lifestyle score of ' + life + '/5' + (S.you.lifeSource === 'stage1' ? ' (your free check)' : '') + ': ' + (gain > 60 ? 'the fast part of the curve, early changes pay off quickly.' : gain > 30 ? 'solid headroom left.' : 'already near the top; gains come slower now.');
@@ -403,6 +403,8 @@
     if (key !== trajKey || !el.querySelector('svg')) {
       E.render(el, { chronoAge: age, agingRate: r0, showBands: true, showProjections: true });
       trajKey = key;
+      // v0.48.60 — the engine draws its two callouts at opacity 0 for the landing page's fade; nothing fades them in here.
+      el.querySelectorAll('[data-hdl="green-callout"],[data-hdl="red-callout"]').forEach(function (g) { g.setAttribute('opacity', '1'); });
       var svg = el.querySelector('svg');
       if (svg) { var p = document.createElementNS('http://www.w3.org/2000/svg', 'path'); p.setAttribute('data-ht', 'new-path'); p.setAttribute('fill', 'none'); p.setAttribute('stroke', '#3d8da0'); p.setAttribute('stroke-width', '3'); svg.appendChild(p); }
       var lg = el.querySelector('[data-hdl="legend"]');

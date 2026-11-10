@@ -219,9 +219,9 @@ if (has('factsHtml')) {
 }
 M.reset({ mode: 'preview', you: { name: 'Kim', born: M.NOW_Y - 50, sex: 'F', rate0: 1.1 } });
 const mo = M.momentHtml(M.state().you, M.NOW_F, 'year', true), gainCard = mo.split('<div class="ht-mcard">')[4] || '';
-ok(/<small>—<\/small>/.test(gainCard) && /Your lifestyle score comes with the full report\./.test(gainCard) && !/n\/a/.test(mo), 'N2 the gain card with no score shows "—" and keeps its line; no "n/a" in the moment panel');
+ok(/<small>–<\/small>/.test(gainCard) && !/—/.test(mo) && /Your lifestyle score comes with the full report\./.test(gainCard) && !/n\/a/.test(mo), 'N2 the gain card with no score shows the page\'s one dash "–" and keeps its line; no "—", no "n/a" in the moment panel');
 const gone = M.momentHtml(M.state().you, M.NOW_F + 90, 'year', false);
-ok(/beyond expected lifespan/.test(gone) && !/n\/a/.test(gone), 'N2 beyond the lifespan: the cards read "—", never "n/a"');
+ok(/beyond expected lifespan/.test(gone) && !/n\/a/.test(gone), 'N2 beyond the lifespan: the cards read "–", never "n/a"');
 ok(has('lockHtml') && has('waitHtml'), 'P5 lockHtml and waitHtml exposed');
 if (has('lockHtml') && has('waitHtml')) {
   const WAIT = 'Your Full Report is being written. Your loved ones unlock the moment it lands.';
@@ -260,5 +260,6 @@ ok(/<p class="ht-foot"><a href="https:\/\/healthdatalab\.com\/terms">Terms<\/a> 
 ok(/:has\(#hdlv2-ht-root\) \.et-l--footer\{display:none\}/.test(CSS), 'B3 the theme footer is hidden on this page only');
 ok(has('fragmentPrac') && M.fragmentPrac('#a=52&s=M&r=1.14&n=Quim&p=122') === '122' && M.fragmentPrac('#p=12a') === '' && M.fragmentPrac('#a=52') === '' && M.fragmentPrac('#p=' + '9'.repeat(12)) === '', 'B2 &p= read from the fragment: digits only, up to ten');
 
+ok(/renderTraj[\s\S]*querySelectorAll\('\[data-hdl="green-callout"\],\[data-hdl="red-callout"\]'\)[\s\S]*setAttribute\('opacity', '1'\)[\s\S]*\/\* ---------- loved ones/.test(SRC), 'T9 renderTraj reveals the engine\'s two callouts on this page (the engine draws them at opacity 0)');
 console.log('\nSCENARIO: ' + (FAIL ? 'FAIL' : 'PASS') + ' (' + PASS + '/' + (PASS + FAIL) + ')');
 process.exit(FAIL ? 1 : 0);
