@@ -447,12 +447,12 @@
     return '<p class="ht-brand">' + logo + '<span>Your practitioner · <b>' + esc(prac.name) + '</b></span></p>';
   }
   // The open page (fragment) asks the widget's own public config, once, fail-silent; after 1.5 s the answer is ignored.
-  function loadBrand(rest, id) {
+  function loadBrand(rest, id, el) {
     if (typeof fetch !== 'function') return;
     var late = false, t = setTimeout(function () { late = true; }, 1500);
     fetch(rest + 'widget/public-config?practitioner_id=' + id, { credentials: 'omit', headers: { 'Accept': 'application/json' } })
       .then(function (r) { return r.ok ? r.json() : null; })
-      .then(function (j) { clearTimeout(t); var c = j && j.config; if (!late && c) $('#ht-brand').innerHTML = brandRowHtml({ name: c.practitioner_name, logo: c.logo_url }); }, function () { clearTimeout(t); });
+      .then(function (j) { clearTimeout(t); var c = j && j.config; if (!late && c) el.innerHTML = brandRowHtml({ name: c.practitioner_name, logo: c.logo_url }); }, function () { clearTimeout(t); });
   }
   function renderStatic(cfg) {
     $('#ht-title').textContent = cfg.title || 'Healthspan Timeline';
@@ -678,7 +678,7 @@
     cv = $('#ht-cv'); ctx = cv.getContext('2d');
     renderStatic(cfg);
     if (cfg.prac) $('#ht-brand').innerHTML = brandRowHtml(cfg.prac);
-    else if (cfg.mode !== 'full' && cfg.rest && fragmentPrac(root.location.hash)) loadBrand(String(cfg.rest), fragmentPrac(root.location.hash));
+    else if (cfg.mode !== 'full' && cfg.rest && fragmentPrac(root.location.hash)) loadBrand(String(cfg.rest), fragmentPrac(root.location.hash), $('#ht-brand'));
     restore();
     if (S.mode === 'full' && cfg.links && /^https:\/\//.test(cfg.links.url || '')) {
       try { OWNER = new URLSearchParams(root.location.search).get('t') || ''; } catch (e) { OWNER = ''; }
@@ -726,7 +726,7 @@
     linkedPerson: linkedPerson, chipLabel: chipLabel, linkedRowHtml: linkedRowHtml, inviteBoxHtml: inviteBoxHtml,
     groupLanes: groupLanes, laneText: laneText, packLine: packLine, inviteLabel: inviteLabel, groupSwitchHtml: groupSwitchHtml,
     factsHtml: factsHtml, waitHtml: waitHtml, lockHtml: lockHtml, sampleNote: sampleNote, defaultPeople: defaultPeople, cleanPerson: cleanPerson,
-    brandRowHtml: brandRowHtml, fragmentPrac: fragmentPrac
+    brandRowHtml: brandRowHtml, fragmentPrac: fragmentPrac, loadBrand: loadBrand
   };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
 })(window);

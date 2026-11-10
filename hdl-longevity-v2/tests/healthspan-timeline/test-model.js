@@ -262,5 +262,37 @@ ok(/:has\(#hdlv2-ht-root\) \.et-l--footer\{display:none\}/.test(CSS), 'B3 the th
 ok(has('fragmentPrac') && M.fragmentPrac('#a=52&s=M&r=1.14&n=Quim&p=122') === '122' && M.fragmentPrac('#p=12a') === '' && M.fragmentPrac('#a=52') === '' && M.fragmentPrac('#p=' + '9'.repeat(12)) === '', 'B2 &p= read from the fragment: digits only, up to ten');
 
 ok(/renderTraj[\s\S]*querySelectorAll\('\[data-hdl="green-callout"\],\[data-hdl="red-callout"\]'\)[\s\S]*setAttribute\('opacity', '1'\)[\s\S]*\/\* ---------- loved ones/.test(SRC), 'T9 renderTraj reveals the engine\'s two callouts on this page (the engine draws them at opacity 0)');
-console.log('\nSCENARIO: ' + (FAIL ? 'FAIL' : 'PASS') + ' (' + PASS + '/' + (PASS + FAIL) + ')');
-process.exit(FAIL ? 1 : 0);
+// v0.48.60 — the open page's brand lookup: on time → the row; late, refused, failed or config:null → nothing.
+async function brandLookup() {
+  if (!has('loadBrand')) { ok(false, 'B4 loadBrand exposed'); return; }
+  const tick = () => new Promise((r) => setImmediate(r));
+  async function run(answer, fireTimerFirst) {
+    const calls = [], timers = [], el = { innerHTML: '' };
+    let settle;
+    ctx.setTimeout = (fn, ms) => { timers.push({ fn, ms, live: true }); return timers.length; };
+    ctx.clearTimeout = (id) => { if (timers[id - 1]) timers[id - 1].live = false; };
+    ctx.fetch = (url, opts) => { calls.push([url, opts]); return new Promise((res, rej) => { settle = () => (answer === 'reject' ? rej(new Error('net')) : res(answer)); }); };
+    M.loadBrand('https://stby.test/wp-json/hdl-v2/v1/', '122', el);
+    if (fireTimerFirst) timers.forEach((t) => t.live && t.fn());
+    settle();
+    for (let i = 0; i < 5; i++) await tick();
+    return { el, calls, timers };
+  }
+  const json = (body, okFlag = true) => ({ ok: okFlag, json: () => Promise.resolve(body) });
+  const good = json({ config: { practitioner_name: 'Matthew', logo_url: 'https://stby.test/l.png' } });
+  let r = await run(good, false);
+  ok(/Your practitioner · <b>Matthew<\/b>/.test(r.el.innerHTML) && r.calls.length === 1 && r.calls[0][0] === 'https://stby.test/wp-json/hdl-v2/v1/widget/public-config?practitioner_id=122' && r.calls[0][1].credentials === 'omit' && r.timers[0].ms === 1500 && !r.timers[0].live, 'B4 an answer inside 1.5 s fills the brand row (no cookies sent; the timer is cleared)');
+  r = await run(good, true);
+  ok(r.el.innerHTML === '', 'B4 an answer after 1.5 s is ignored');
+  r = await run(json({ config: null }), false);
+  ok(r.el.innerHTML === '', 'B4 config:null (unknown practitioner) → no row');
+  r = await run(json({ config: { practitioner_name: 'X' } }, false), false);
+  ok(r.el.innerHTML === '', 'B4 a refused answer (not ok) → no row');
+  r = await run('reject', false);
+  ok(r.el.innerHTML === '' && !r.timers[0].live, 'B4 a failed fetch → no row, no throw, timer cleared');
+}
+
+brandLookup().then(() => {
+  console.log('\nSCENARIO: ' + (FAIL ? 'FAIL' : 'PASS') + ' (' + PASS + '/' + (PASS + FAIL) + ')');
+  process.exit(FAIL ? 1 : 0);
+});
