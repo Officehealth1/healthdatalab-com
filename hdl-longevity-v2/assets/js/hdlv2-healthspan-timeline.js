@@ -733,6 +733,7 @@
       if (fr) { cfg = Object.assign({}, cfg, { you: fr }); hasYou = true; }
     }
     reset(cfg);
+    rootEl.classList.toggle('ht-m2', MODEL === 2); // v0.48.61: model 2's sex select holds "Not set" (CSS .ht-m2 .ht-row)
     if (!hasYou) { S.you.bio = derivedBio(); }
     fixedYou = hasYou; highlightPace = !hasYou;
     STORE = S.mode === 'full' && cfg.store ? String(cfg.store) : 'hs-state-preview';

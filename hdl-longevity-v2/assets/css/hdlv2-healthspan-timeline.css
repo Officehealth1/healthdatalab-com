@@ -55,6 +55,7 @@ body.hdlv2-wide-page .entry-content .et_pb_section{padding-left:0;padding-right:
 .hdlv2-ht .ht-tab{background:var(--ht-panel);border:1px solid var(--ht-line);border-radius:12px;padding:var(--ht-pad);margin-top:8px}
 .hdlv2-ht .ht-tab[hidden]{display:none}
 .hdlv2-ht .ht-row{display:grid;grid-template-columns:1.3fr 1fr 90px 80px 150px 72px;gap:8px;align-items:center}
+.ht-m2 .ht-row{grid-template-columns:1.3fr 1fr 90px 112px 150px 72px}
 .hdlv2-ht .ht-row.ht-head{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--ht-muted);padding-bottom:4px}
 .hdlv2-ht .ht-row+.ht-row{margin-top:8px}
 .hdlv2-ht .ht-row[hidden]{display:none}
