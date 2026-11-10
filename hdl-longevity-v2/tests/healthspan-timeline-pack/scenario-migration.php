@@ -65,7 +65,7 @@ preg_match( '/CREATE TABLE \$table_links \((.*?)\) \$charset_collate/s', $src, $
 ok( 'M.7 fresh installs: the links table carries both columns', false !== strpos( $l[1] ?? '', 'pack_id BIGINT(20) UNSIGNED DEFAULT NULL' ) && false !== strpos( $l[1] ?? '', 'seat_invite_id BIGINT(20) UNSIGNED DEFAULT NULL' ) );
 ok( 'M.8 dbDelta runs it', false !== strpos( $src, 'dbDelta( $sql_packs );' ) );
 $loader = file_get_contents( dirname( __DIR__, 2 ) . '/hdl-longevity-v2.php' );
-ok( 'M.9 loader: 0.48.60 / 3.33', false !== strpos( $loader, ' * Version: 0.48.60' ) && false !== strpos( $loader, "define( 'HDLV2_VERSION', '0.48.60' );" ) && false !== strpos( $loader, "define( 'HDLV2_DB_VERSION', '3.33' );" ) );
+ok( 'M.9 loader: 0.48.61 / 3.33', false !== strpos( $loader, ' * Version: 0.48.61' ) && false !== strpos( $loader, "define( 'HDLV2_VERSION', '0.48.61' );" ) && false !== strpos( $loader, "define( 'HDLV2_DB_VERSION', '3.33' );" ) );
 $status = file_get_contents( dirname( __DIR__, 2 ) . '/includes/sprint-4/class-hdlv2-client-status.php' );
 ok( 'M.10 /health expects the new table', false !== strpos( $status, "'hdlv2_timeline_packs'," ) );
 echo "\nPASS=$pass FAIL=$fail\n";
