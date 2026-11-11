@@ -1,9 +1,12 @@
 <?php
 /**
- * HDL V2 — a request to delete one's data (v0.48.63, switch hdlv2_ff_data_erasure, off by default).
+ * HDL V2 — a request to delete one's data (v0.48.63; on My account → Privacy since v0.48.64;
+ * switch hdlv2_ff_data_erasure, off by default).
  *
  * WordPress's own request flow, worded for HealthDataLab:
- *   1 a signed-in client asks from /my-dashboard/ (POST /privacy/erase-request, their own address only);
+ *   1 a signed-in client asks from My account → Privacy (POST /privacy/erase-request, their own
+ *     address only); the membership plugin's own download and erase blocks on that tab are taken
+ *     off while the switch is on;
  *   2 WordPress emails a link that works for one day (wp-login.php?action=confirmaction);
  *   3 the person confirms: WordPress's admin notice goes to our alert addresses instead, with the
  *     date one month on and the outside copies to remove by hand;
@@ -19,17 +22,20 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 class HDLV2_Privacy_Requests {
 
-    const ACTION = 'remove_personal_data';
-    const SENT   = 'Check your inbox. The link in the email confirms it is you. It works for one day.';
-    const HTML   = 'Content-Type: text/html; charset=UTF-8';
-    const NUDGE  = '_hdlv2_erase_reminded';
+    const ACTION  = 'remove_personal_data';
+    const SENT    = 'Check your inbox. The link in the email confirms it is you. It works for one day.';
+    const WAITING = 'We have your confirmed request. We will email you when your data is deleted.';
+    const HTML    = 'Content-Type: text/html; charset=UTF-8';
+    const NUDGE   = '_hdlv2_erase_reminded';
 
     public static function init() {
         if ( ! HDLV2_Privacy_Eraser::enabled() ) {
             return;
         }
         add_action( 'rest_api_init', array( __CLASS__, 'register_routes' ) );
-        add_filter( 'do_shortcode_tag', array( __CLASS__, 'dashboard_control' ), 10, 2 );
+        add_action( 'init', array( __CLASS__, 'drop_um_requests' ) );
+        add_action( 'wp_enqueue_scripts', array( __CLASS__, 'assets' ) );
+        add_action( 'um_after_account_privacy', array( __CLASS__, 'account_control' ) );
         // WordPress's emails and page for an erase request, in our words.
         add_filter( 'user_request_action_email_subject', array( __CLASS__, 'confirm_subject' ), 10, 3 );
         add_filter( 'user_request_action_email_content', array( __CLASS__, 'confirm_content' ), 10, 2 );
@@ -61,7 +67,7 @@ class HDLV2_Privacy_Requests {
         return $uid > 0 && ! user_can( $uid, 'manage_options' ) && ! HDLV2_Compatibility::is_practitioner( $uid );
     }
 
-    /** For the signed-in user's own address only; the body is never read. Same sentence for a new or a waiting request. */
+    /** For the signed-in user's own address only; the body is never read. A confirmed request already waiting is said so, and nothing is sent. */
     public static function rest_request() {
         $email = (string) wp_get_current_user()->user_email;
         $id    = wp_create_user_request( $email, self::ACTION );
@@ -69,7 +75,7 @@ class HDLV2_Privacy_Requests {
             // A request already waits: a pending one gets a fresh link; a confirmed one is with us.
             $id = self::open_request( $email, 'request-pending' );
             if ( ! $id ) {
-                return rest_ensure_response( array( 'message' => self::SENT ) );
+                return rest_ensure_response( array( 'message' => self::WAITING ) );
             }
         }
         if ( is_wp_error( $id ) || is_wp_error( wp_send_user_request( $id ) ) ) {
@@ -90,38 +96,53 @@ class HDLV2_Privacy_Requests {
         return $ids ? (int) $ids[0] : 0;
     }
 
-    /** "Your data" at the foot of /my-dashboard/, after whatever state the dashboard rendered. */
-    public static function dashboard_control( $output, $tag ) {
-        if ( 'hdlv2_my_dashboard' !== $tag || ! self::can_request() ) {
-            return $output;
+    /**
+     * Ultimate Member draws "Download your data" and "Erase of your data" on the same tab (one function)
+     * and answers their AJAX request. Both off while ours is on; with the switch off this never runs.
+     */
+    public static function drop_um_requests() {
+        remove_action( 'um_after_account_privacy', 'um_after_account_privacy' );
+        remove_action( 'wp_ajax_um_request_user_data', 'um_request_user_data' );
+    }
+
+    /** Script and styles on the membership plugin's account page only; styles in the head. */
+    public static function assets() {
+        if ( ! function_exists( 'um_is_core_page' ) || ! um_is_core_page( 'account' ) || ! self::can_request() ) {
+            return;
         }
+        wp_register_style( 'hdlv2-privacy-erase', false, array(), HDLV2_VERSION );
+        wp_enqueue_style( 'hdlv2-privacy-erase' );
+        wp_add_inline_style( 'hdlv2-privacy-erase', self::CSS );
         wp_enqueue_script( 'hdlv2-privacy-erase', HDLV2_PLUGIN_URL . 'assets/js/hdlv2-privacy-erase.js', array(), HDLV2_VERSION, true );
         wp_localize_script( 'hdlv2-privacy-erase', 'HDLV2_ERASE', array(
             'url'   => rest_url( 'hdl-v2/v1/privacy/erase-request' ),
             'nonce' => wp_create_nonce( 'wp_rest' ),
         ) );
-        wp_add_inline_style( 'hdlv2-client-dashboard', self::CSS );
-        return $output
-            . '<section class="hdlv2-your-data" aria-labelledby="hdlv2-your-data-title">'
+    }
+
+    /** "Your data" on My account → Privacy, after the tab's fields. The tab sits in the plugin's form: buttons are type="button". */
+    public static function account_control() {
+        if ( ! self::can_request() ) {
+            return;
+        }
+        echo '<section class="hdlv2-your-data" aria-labelledby="hdlv2-your-data-title">'
             . '<h2 class="hdlv2-your-data-title" id="hdlv2-your-data-title">Your data</h2>'
             . '<div class="hdlv2-your-data-line" data-hdlv2-erase><button type="button" class="hdlv2-your-data-link" data-erase="ask">Delete my data</button></div>'
             . '</section>';
     }
 
-    // DESIGN.md tokens: hairline, teal action, navy text, 40px targets, no rail.
-    const CSS = '.hdlv2-your-data{max-width:1024px;margin:48px auto 32px;padding:16px 0 0;border-top:1px solid #e4e6ea;font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#2c3e50}'
-        . '.hdlv2-your-data-title{margin:0 0 4px;font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;font-size:14px;font-weight:600;line-height:1.4;color:#2c3e50}'
-        . '.hdlv2-your-data-line{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;font-size:14px;line-height:1.5}'
-        . '.hdlv2-your-data-line button{min-height:40px;border-radius:8px;font:500 14px/1.2 Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;cursor:pointer}'
+    // Sits like the tab's own fields (its font, 15px, the label's weight); DESIGN.md colours, 40px targets, no rail.
+    const CSS = '.hdlv2-your-data{padding:15px 0 0;font-family:inherit;color:#2c3e50}'
+        . '.hdlv2-your-data .hdlv2-your-data-title{margin:0 0 8px;padding:0;font-family:inherit;font-size:15px;font-weight:600;line-height:22px;color:#2c3e50}'
+        . '.hdlv2-your-data-line{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;font-size:15px;line-height:1.5}'
+        . '.hdlv2-your-data-line button{min-height:40px;border-radius:8px;font-family:inherit;font-size:15px;font-weight:500;line-height:1.2;cursor:pointer}'
         . '.hdlv2-your-data-line .hdlv2-your-data-link{padding:10px 0;border:0;background:none;color:#3d8da0;text-decoration:underline}'
         . '.hdlv2-your-data-line [data-erase=send]{padding:10px 20px;border:0;background:#3d8da0;color:#fff}'
         . '.hdlv2-your-data-line [data-erase=send]:hover{background:#004F59}'
         . '.hdlv2-your-data-line [data-erase=keep]{padding:10px 20px;border:1px solid #e4e6ea;background:#fff;color:#3d8da0}'
         . '.hdlv2-your-data-line button:focus-visible{outline:2px solid #3d8da0;outline-offset:2px}'
         . '.hdlv2-your-data-line button[disabled]{opacity:.6;cursor:default}'
-        . '.hdlv2-your-data-note{flex-basis:100%}.hdlv2-your-data-error{flex-basis:100%;color:#dc2626}'
-        . '@media (max-width:1072px){.hdlv2-your-data{margin:48px 24px 32px}}'
-        . '@media (max-width:640px){.hdlv2-your-data{margin:40px 16px 24px}.hdlv2-your-data-line [data-erase=send],.hdlv2-your-data-line [data-erase=keep]{flex:1 1 100%}}';
+        . '.hdlv2-your-data-note{flex-basis:100%}.hdlv2-your-data-error{flex-basis:100%;color:#dc2626}';
 
     // ── 2–5. WordPress's emails and page, for an erase request only ──
 

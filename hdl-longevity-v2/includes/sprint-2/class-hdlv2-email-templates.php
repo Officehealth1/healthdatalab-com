@@ -1120,7 +1120,7 @@ class HDLV2_Email_Templates {
         $content = "
             <h2 style='margin:0 0 12px;color:" . self::DARK . ";font-family:Poppins,Inter,sans-serif;font-size:22px;font-weight:700;'>Your data has been deleted</h2>
             <p $p>" . $done . " If you worked with a practitioner, we have told them.</p>
-            <p $p>We kept only your payment records, which the law requires us to keep, and a short record that you asked and when we finished. Copies in our backups are not used and are overwritten as the backups are replaced.</p>
+            <p $p>We kept only your payment records, where the law requires us to keep them, and a short record that you asked and when we finished. Copies may remain in our backups. We do not use them, and if a backup is ever restored we delete your data from it again.</p>
             <p $p>If you have a question, email office@healthdatalab.com.</p>";
         return self::base_layout( $content, null, 'Your data has been deleted' );
     }

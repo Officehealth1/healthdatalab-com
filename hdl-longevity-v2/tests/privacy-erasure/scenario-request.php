@@ -1,7 +1,7 @@
 <?php
 /**
- * The request flow around the eraser (E7 off, E8 route, E11 warning, E12 practitioner notice,
- * WordPress's two emails reworded, the 21-day reminder).
+ * The request flow around the eraser (E7 off, S1 the control on My account → Privacy only, E8 route,
+ * E11 warning, E12 practitioner notice, WordPress's two emails reworded, the 21-day reminder).
  *   php tests/privacy-erasure/scenario-request.php
  */
 require __DIR__ . '/stubs.php';
@@ -12,6 +12,7 @@ require $PLUGIN . '/includes/privacy/class-hdlv2-privacy-requests.php';
 $db = new SqliteWpdb();
 $GLOBALS['wpdb'] = $db;
 hdl_erase_schema( $db );
+$GLOBALS['users'][1]  = (object) array( 'ID' => 1, 'user_email' => 'boss@example.test', 'roles' => array( 'administrator' ) );
 $GLOBALS['users'][5]  = (object) array( 'ID' => 5, 'user_email' => 'prac@example.test', 'roles' => array( 'um_practitioner' ) );
 $GLOBALS['users'][6]  = (object) array( 'ID' => 6, 'user_email' => 'prac2@example.test', 'roles' => array( 'um_practitioner' ) );
 $GLOBALS['users'][10] = (object) array( 'ID' => 10, 'user_email' => 'alice@example.test', 'roles' => array( 'um_client' ) );
@@ -20,26 +21,48 @@ $GLOBALS['options']['hdlv2_stage1_alert_to'] = 'one@example.test, two@example.te
 $route = 'hdl-v2/v1/privacy/erase-request';
 $dash  = '<div class="dashboard">…</div>';
 
-echo "── E7. switch off: nothing registered ──\n";
+// The membership plugin's own Privacy-tab blocks and their request handler, as Ultimate Member adds them.
+function um_after_account_privacy( $args ) { echo '<div class="um-field um-field-export_data">Download your data</div><div class="um-field">Erase of your data</div>'; }
+function um_request_user_data() {}
+function um_is_core_page( $page ) { return 'account' === $page && ! empty( $GLOBALS['on_account'] ); }
+add_action( 'um_after_account_privacy', 'um_after_account_privacy' );
+add_action( 'wp_ajax_um_request_user_data', 'um_request_user_data' );
+$um_only = $GLOBALS['filters'];
+
+/** The Privacy tab's hook as Ultimate Member runs it, captured. */
+function privacy_tab() { ob_start(); do_action_all( 'um_after_account_privacy', array() ); return ob_get_clean(); }
+/** wp_enqueue_scripts for the current page and user; returns what was queued. */
+function queued() { $GLOBALS['scripts'] = array(); do_action_all( 'wp_enqueue_scripts' ); return $GLOBALS['scripts']; }
+
+echo "── E7. switch off: nothing registered, nothing taken away ──\n";
 HDLV2_Privacy_Requests::init();
 do_action_all( 'rest_api_init' );
+do_action_all( 'init' );
 $GLOBALS['current_user'] = 10;
+$GLOBALS['on_account']   = true;
 ok( 'E7.3 off: no route', ! isset( $GLOBALS['routes'][ $route ] ) );
-ok( 'E7.4 off: no control on the dashboard, no hook of any kind', $dash === apply_filters( 'do_shortcode_tag', $dash, 'hdlv2_my_dashboard', array(), array() ) && ! $GLOBALS['filters'] );
+ok( 'E7.4 off: no hook of ours, the membership plugin\'s own blocks and handler stay', $um_only === $GLOBALS['filters'] && false !== strpos( privacy_tab(), 'Erase of your data' ) && ! queued() );
 
 $GLOBALS['options'][ HDLV2_Privacy_Eraser::FLAG ] = '1';
 HDLV2_Privacy_Requests::init();
 do_action_all( 'rest_api_init' );
+do_action_all( 'init' );
 
-echo "── S3. the dashboard control ──\n";
-$out = apply_filters( 'do_shortcode_tag', $dash, 'hdlv2_my_dashboard', array(), array() );
-ok( 'S3.1 a client sees "Your data" and "Delete my data" after the dashboard', 0 === strpos( $out, $dash ) && false !== strpos( $out, 'Your data' ) && false !== strpos( $out, 'data-erase="ask"' ) && false !== strpos( $out, 'Delete my data' ) );
-ok( 'S3.2 the script gets the route and a REST nonce, nothing else', array( 'url' => 'https://stby.test/wp-json/hdl-v2/v1/privacy/erase-request', 'nonce' => 'nonce-wp_rest' ) === ( $GLOBALS['scripts']['hdlv2-privacy-erase:HDLV2_ERASE'] ?? null ) );
-ok( 'S3.3 other shortcodes untouched', 'x' === apply_filters( 'do_shortcode_tag', 'x', 'hdlv2_client_status', array(), array() ) );
-$GLOBALS['current_user'] = 5;
-ok( 'S3.4 a practitioner (or one viewing as a client) sees no control', $dash === apply_filters( 'do_shortcode_tag', $dash, 'hdlv2_my_dashboard', array(), array() ) );
-$GLOBALS['current_user'] = 0;
-ok( 'S3.5 signed out: no control', $dash === apply_filters( 'do_shortcode_tag', $dash, 'hdlv2_my_dashboard', array(), array() ) );
+echo "── S1. the control: My account → Privacy, and nowhere else ──\n";
+$tab = privacy_tab();
+ok( 'S1.1 a client\'s Privacy tab: "Your data" and "Delete my data", type=button inside the plugin\'s form', false !== strpos( $tab, 'class="hdlv2-your-data"' ) && false !== strpos( $tab, '>Your data<' ) && false !== strpos( $tab, 'type="button" class="hdlv2-your-data-link" data-erase="ask">Delete my data<' ) );
+ok( 'S1.2 the membership plugin\'s own two blocks are gone, and its request handler', false === strpos( $tab, 'Download your data' ) && false === strpos( $tab, 'Erase of your data' ) && ! has_action( 'um_after_account_privacy', 'um_after_account_privacy' ) && ! has_action( 'wp_ajax_um_request_user_data', 'um_request_user_data' ) );
+ok( 'S1.3 the dashboard and every other shortcode are untouched (no shortcode hook at all)', $dash === apply_filters( 'do_shortcode_tag', $dash, 'hdlv2_my_dashboard', array(), array() ) && empty( $GLOBALS['filters']['do_shortcode_tag'] ) );
+$q = queued();
+ok( 'S1.4 on the account page: the script with the route and a REST nonce, nothing else', true === ( $q['hdlv2-privacy-erase'] ?? null ) && array( 'url' => 'https://stby.test/wp-json/hdl-v2/v1/privacy/erase-request', 'nonce' => 'nonce-wp_rest' ) === ( $q['hdlv2-privacy-erase:HDLV2_ERASE'] ?? null ) );
+ok( 'S1.5 the styles go in the head on their own handle (no file), sized for the tab', false === ( $q['hdlv2-privacy-erase:style'] ?? null ) && true === ( $q['hdlv2-privacy-erase:style-on'] ?? null ) && false !== strpos( $q['hdlv2-privacy-erase:css'] ?? '', '.hdlv2-your-data' ) && false === strpos( $q['hdlv2-privacy-erase:css'], '1024px' ) );
+$GLOBALS['on_account'] = false;
+ok( 'S1.6 on any other page: nothing queued', ! queued() );
+$GLOBALS['on_account'] = true;
+foreach ( array( 5 => 'a practitioner', 1 => 'an administrator', 0 => 'signed out' ) as $uid => $who ) {
+    $GLOBALS['current_user'] = $uid;
+    ok( "S1.7 $who: no control on the tab, nothing queued", '' === privacy_tab() && ! queued() );
+}
 
 echo "── E8. the route ──\n";
 $r = $GLOBALS['routes'][ $route ] ?? array();
@@ -57,7 +80,7 @@ $a2 = call_user_func( $r['callback'], $req );
 ok( 'E8.7 a repeat: no second request, a fresh link for the waiting one, the same sentence', 1 === count( $GLOBALS['requests'] ) && array( 100, 100 ) === $GLOBALS['sent_links'] && $a1 === $a2 && HDLV2_Privacy_Requests::SENT === $a1['message'] );
 $GLOBALS['requests'][100]->status = 'request-confirmed';
 $a3 = call_user_func( $r['callback'], $req );
-ok( 'E8.8 already confirmed: nothing sent, the same sentence', 2 === count( $GLOBALS['sent_links'] ) && $a1 === $a3 );
+ok( 'E8.8 already confirmed: nothing sent, and told the truth (no inbox promised)', 2 === count( $GLOBALS['sent_links'] ) && array( 'message' => 'We have your confirmed request. We will email you when your data is deleted.' ) === $a3 && false === stripos( $a3['message'], 'inbox' ) );
 $GLOBALS['users'][11] = (object) array( 'ID' => 11, 'user_email' => 'fay@example.test', 'roles' => array( 'um_client' ) );
 $GLOBALS['current_user'] = 11;
 $GLOBALS['send_fail'] = true;

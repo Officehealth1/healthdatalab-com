@@ -122,6 +122,19 @@ $GLOBALS['users'][30]       = (object) array( 'ID' => 30, 'user_email' => 'erin@
 $b = seed_person( $db, 20, 'bob@example.test', 'bob' );
 $db->insert( 'wp_hdlv2_form_progress', array( 'client_user_id' => 0, 'practitioner_user_id' => PRAC_A, 'client_email' => '', 'token' => 'nobody', 'stage1_data' => '{}' ) );
 $db->insert( 'wp_hdlv2_widget_leads', array( 'practitioner_user_id' => PRAC_A, 'visitor_email' => '', 'stage1_data' => '{}' ) );
+// W1: rows with a blank address or a blank V1 hash, which a blank or invalid address would match.
+$db->insert( 'wp_hdlv2_widget_invites', array( 'practitioner_id' => PRAC_A, 'token' => 'blank-inv', 'client_email' => '', 'source' => 'practitioner' ) );
+$db->insert( 'wp_hdlv2_automation_tokens', array( 'token' => 'blank-auto', 'client_email' => '' ) );
+$db->insert( 'wp_hdlv2_pending_leads', array( 'practitioner_id' => PRAC_A, 'visitor_email' => '', 'verify_token' => 'blank-pend' ) );
+$db->insert( 'wp_health_tracker_submissions', array( 'user_hash' => '', 'email_hash' => '', 'answers' => '{}' ) );
+$db->insert( 'wp_health_tracker_sessions', array( 'user_hash' => '', 'email_hash' => '' ) );
+$db->insert( 'wp_health_tracker_verification_codes', array( 'email_hash' => '', 'code' => '000000' ) );
+$db->insert( 'wp_health_tracker_practitioner_clients', array( 'practitioner_user_id' => 7, 'client_email_hash' => '' ) );
+$db->insert( 'wp_hdl_messages', array( 'practitioner_id' => 7, 'client_email_hash' => '', 'client_email' => '', 'body' => 'blank' ) );
+$db->insert( 'wp_hdl_messaging_prefs', array( 'client_email_hash' => '', 'practitioner_id' => 7 ) );
+$db->insert( 'wp_hdl_invites', array( 'email' => '' ) );
+$db->insert( 'wp_hdl_lab_audit_log', array( 'email' => '', 'action' => 'view' ) );
+$db->insert( 'wp_post_smtp_logs', array( 'original_to' => '', 'to_header' => '', 'original_message' => 'blank' ) );
 // A recording of Bob's whose reference happens to equal Alice's consultation id, outside a consultation: Bob's.
 $before_b = hdl_erase_dump( $db, $tables );
 
@@ -139,6 +152,15 @@ $GLOBALS['options'][ HDLV2_Privacy_Eraser::FLAG ] = '1';
 HDLV2_Privacy_Eraser::init();
 $erasers = apply_filters( 'wp_privacy_personal_data_erasers', array() );
 ok( 'E7.2 on: registered with a callable callback', isset( $erasers['hdl-longevity-v2'] ) && is_callable( $erasers['hdl-longevity-v2']['callback'] ) && '' !== $erasers['hdl-longevity-v2']['eraser_friendly_name'] );
+
+echo "── W1. an address that is not valid deletes nothing, on every page ──\n";
+$snap_w1 = hdl_erase_dump( $db, $tables );
+$w1      = array();
+foreach ( array( '', 'not-an-address', ' ' ) as $bad ) {
+    for ( $page = 1; $page <= 4; $page++ ) { $w1[] = HDLV2_Privacy_Eraser::erase( $bad, $page ); }
+}
+ok( 'W1.1 "", "not-an-address" and " " on pages 1-4: not one row deleted or changed', $snap_w1 == hdl_erase_dump( $db, $tables ) );
+ok( 'W1.2 each answer: done, nothing removed, nothing kept, no message', 12 === count( array_filter( $w1, function ( $r ) { return is_array( $r ) && $r['done'] && ! $r['items_removed'] && ! $r['items_retained'] && ! $r['messages']; } ) ) );
 
 echo "── E1. find one person ──\n";
 $k = HDLV2_Privacy_Eraser::find( '  ALICE@example.test ' );

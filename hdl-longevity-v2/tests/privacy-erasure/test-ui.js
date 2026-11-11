@@ -1,5 +1,5 @@
 /**
- * "Delete my data" on the dashboard (v0.48.63): the two steps, the request, the answers.
+ * "Delete my data" on My account → Privacy (v0.48.64): the two steps, the request, the answers.
  * Runs assets/js/hdlv2-privacy-erase.js whole in a vm with a small fake page.
  *   node tests/privacy-erasure/test-ui.js
  */
@@ -55,8 +55,12 @@ function page() {
   const c = p.calls[0] || { opts: {} };
   ok('U4 one POST to the route with the REST nonce and no body (the server uses her own address)', p.calls.length === 1 && c.url === p.win.HDLV2_ERASE.url && c.opts.method === 'POST' && c.opts.credentials === 'same-origin' && c.opts.headers['X-WP-Nonce'] === 'n0nce' && c.opts.body === undefined);
   ok('U5 while it goes: both buttons disabled, "Sending…", no spinner', (p.slot.innerHTML.match(/disabled/g) || []).length === 2 && p.slot.innerHTML.includes('Sending…') && !/spinner|loader/i.test(p.slot.innerHTML));
-  await p.answer(200, { message: 'x' });
-  ok('U6 sent: the inbox sentence, announced', p.slot.innerHTML.includes('role="status"') && p.slot.innerHTML.includes('Check your inbox. The link in the email confirms it is you. It works for one day.'));
+  await p.answer(200, { message: 'We have your <b>confirmed</b> request.' });
+  ok('U6 sent: the server\'s sentence, escaped, announced', p.slot.innerHTML.includes('role="status"') && p.slot.innerHTML.includes('We have your &lt;b&gt;confirmed&lt;/b&gt; request.') && !p.slot.innerHTML.includes('Check your inbox'));
+  p = page();
+  p.click('ask'); p.click('send');
+  await p.answer(200, {});
+  ok('U6b sent with no sentence from the server: the inbox sentence', p.slot.innerHTML.includes('role="status"') && p.slot.innerHTML.includes('Check your inbox. The link in the email confirms it is you. It works for one day.'));
 
   p = page();
   p.click('ask'); p.click('send');
