@@ -109,7 +109,7 @@ class HDLV2_Privacy_Requests {
     }
 
     // DESIGN.md tokens: hairline, teal action, navy text, 40px targets, no rail.
-    const CSS = '.hdlv2-your-data{max-width:1100px;margin:48px auto 32px;padding:16px 24px 0;border-top:1px solid #e4e6ea;font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#2c3e50}'
+    const CSS = '.hdlv2-your-data{max-width:1024px;margin:48px auto 32px;padding:16px 0 0;border-top:1px solid #e4e6ea;font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#2c3e50}'
         . '.hdlv2-your-data-title{margin:0 0 4px;font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;font-size:14px;font-weight:600;line-height:1.4;color:#2c3e50}'
         . '.hdlv2-your-data-line{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;font-size:14px;line-height:1.5}'
         . '.hdlv2-your-data-line button{min-height:40px;border-radius:8px;font:500 14px/1.2 Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;cursor:pointer}'
@@ -120,7 +120,8 @@ class HDLV2_Privacy_Requests {
         . '.hdlv2-your-data-line button:focus-visible{outline:2px solid #3d8da0;outline-offset:2px}'
         . '.hdlv2-your-data-line button[disabled]{opacity:.6;cursor:default}'
         . '.hdlv2-your-data-note{flex-basis:100%}.hdlv2-your-data-error{flex-basis:100%;color:#dc2626}'
-        . '@media (max-width:640px){.hdlv2-your-data{padding:16px 24px 0}.hdlv2-your-data-line [data-erase=send],.hdlv2-your-data-line [data-erase=keep]{flex:1 1 100%}}';
+        . '@media (max-width:1072px){.hdlv2-your-data{margin:48px 24px 32px}}'
+        . '@media (max-width:640px){.hdlv2-your-data{margin:40px 16px 24px}.hdlv2-your-data-line [data-erase=send],.hdlv2-your-data-line [data-erase=keep]{flex:1 1 100%}}';
 
     // ── 2–5. WordPress's emails and page, for an erase request only ──
 
