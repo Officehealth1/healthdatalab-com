@@ -25,7 +25,10 @@ $GLOBALS['deleted_users'] = array();
 $GLOBALS['mails']      = array();
 
 function get_option( $k, $d = false ) { return $GLOBALS['options'][ $k ] ?? $d; }
-function add_filter( $tag, $cb, $prio = 10, $args = 1 ) { $GLOBALS['filters'][ $tag ][] = $cb; return true; }
+function add_filter( $tag, $cb, $prio = 10, $args = 1 ) { $GLOBALS['filters'][ $tag ][] = $cb; $GLOBALS['prio'][ $tag ][ hdl_cb_key( $cb ) ] = $prio; return true; }
+/** The priority a callback was added at (WordPress runs a hook's callbacks in that order). */
+function hdl_prio( $tag, $cb ) { return $GLOBALS['prio'][ $tag ][ hdl_cb_key( $cb ) ] ?? null; }
+function hdl_cb_key( $cb ) { return is_array( $cb ) ? ( is_object( $cb[0] ) ? get_class( $cb[0] ) : $cb[0] ) . '::' . $cb[1] : ( is_string( $cb ) ? $cb : spl_object_hash( $cb ) ); }
 function add_action( $tag, $cb, $prio = 10, $args = 1 ) { return add_filter( $tag, $cb, $prio, $args ); }
 function remove_action( $tag, $cb ) {
     $GLOBALS['filters'][ $tag ] = array_values( array_filter( $GLOBALS['filters'][ $tag ] ?? array(), function ( $x ) use ( $cb ) { return $x !== $cb; } ) );
@@ -111,6 +114,30 @@ function get_posts( $a ) {
     }
     return $out;
 }
+// ── the confirm link's landing (v0.48.65): wp-login.php's redirect, core's key check, the page and loop ──
+class HdlRedirect extends Exception {}
+$GLOBALS['validate_calls'] = array();
+$GLOBALS['request_keys']   = array(); // id => the key in the emailed link
+function home_url( $p = '' ) { return 'https://stby.test' . $p; }
+function add_query_arg( $k, $v, $url ) { return $url . ( false === strpos( $url, '?' ) ? '?' : '&' ) . rawurlencode( $k ) . '=' . rawurlencode( $v ); }
+/** Records where to and stops, as exit does after a real redirect. */
+function wp_safe_redirect( $loc, $status = 302 ) { $GLOBALS['redirect'] = array( $loc, $status ); throw new HdlRedirect( $loc ); }
+function absint( $v ) { return abs( (int) $v ); }
+function wp_unslash( $v ) { return is_string( $v ) ? stripslashes( $v ) : $v; }
+function sanitize_text_field( $v ) { return is_array( $v ) || is_object( $v ) ? '' : trim( strip_tags( (string) $v ) ); }
+/** Core's order of checks (user.php): the request, its status, the key. Every call is counted. */
+function wp_validate_user_request_key( $id, $key ) {
+    $GLOBALS['validate_calls'][] = (int) $id;
+    $r = wp_get_user_request( $id );
+    if ( ! $r ) return new WP_Error( 'invalid_request', 'Invalid personal data request.' );
+    if ( ! in_array( $r->status, array( 'request-pending', 'request-failed' ), true ) ) return new WP_Error( 'expired_request', 'This personal data request has expired.' );
+    if ( '' === (string) $key || ( $GLOBALS['request_keys'][ (int) $id ] ?? null ) !== $key ) return new WP_Error( 'invalid_key', 'The confirmation key is invalid for this personal data request.' );
+    return true;
+}
+function is_page( $slug = '' ) { return '' !== ( $GLOBALS['page_slug'] ?? '' ) && ( '' === $slug || $GLOBALS['page_slug'] === $slug ); }
+function in_the_loop() { return ! empty( $GLOBALS['in_loop'] ); }
+function is_main_query() { return ! empty( $GLOBALS['main_query'] ); }
+
 class HDLV2_Env { public static function gate( $c ) { return empty( $GLOBALS['gated'] ); } }
 class HDLV2_Email_Templates {
     public static function privacy_confirm( $url ) { return "<html>confirm [$url]</html>"; }
