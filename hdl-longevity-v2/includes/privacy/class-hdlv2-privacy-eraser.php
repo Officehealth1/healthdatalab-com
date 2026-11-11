@@ -154,6 +154,10 @@ class HDLV2_Privacy_Eraser {
     public static function erase( $email, $page = 1 ) {
         $page = max( 1, (int) $page );
         $k    = self::find( $email );
+        // A blank or invalid address has blank keys, which would match every blank row: nothing to do.
+        if ( ! is_email( $k['email'] ) ) {
+            return self::answer( false, false, array(), true );
+        }
         if ( $k['refused'] ) {
             return new WP_Error( 'hdlv2_erase_refused', self::REFUSED );
         }

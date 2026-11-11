@@ -1,8 +1,8 @@
 /**
- * HDL V2 — "Delete my data" at the foot of /my-dashboard/ (v0.48.63, hdlv2_ff_data_erasure).
+ * HDL V2 — "Delete my data" on My account → Privacy (v0.48.64, hdlv2_ff_data_erasure).
  * Two steps on the same line, no browser dialog: the ask, then POST /privacy/erase-request.
  * The server makes the request for the signed-in person's own address and WordPress emails
- * them the link that confirms it is them.
+ * them the link that confirms it is them; the line shows the server's sentence when it sends one.
  */
 (function (root) {
   'use strict';
@@ -11,21 +11,21 @@
   var SENT = 'Check your inbox. The link in the email confirms it is you. It works for one day.';
   var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (ch) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]; }); };
 
-  /** state: '' (the link), 'ask', 'busy', 'sent'; err: a line under the two buttons. */
-  function html(state, err) {
-    if (state === 'sent') return '<span class="hdlv2-your-data-note" role="status">' + SENT + '</span>';
+  /** state: '' (the link), 'ask', 'busy', 'sent'; msg: the server's sentence once sent, else a line under the two buttons. */
+  function html(state, msg) {
+    if (state === 'sent') return '<span class="hdlv2-your-data-note" role="status">' + esc(msg || SENT) + '</span>';
     if (state === 'ask' || state === 'busy') {
       var off = state === 'busy' ? ' disabled' : '';
       return '<span class="hdlv2-your-data-note">' + ASK + '</span>' +
         '<button type="button" data-erase="send"' + off + '>' + (state === 'busy' ? 'Sending…' : 'Send me the confirmation email') + '</button>' +
         '<button type="button" data-erase="keep"' + off + '>Keep my data</button>' +
-        (err ? '<span class="hdlv2-your-data-error" role="alert">' + esc(err) + '</span>' : '');
+        (msg ? '<span class="hdlv2-your-data-error" role="alert">' + esc(msg) + '</span>' : '');
     }
     return '<button type="button" class="hdlv2-your-data-link" data-erase="ask">Delete my data</button>';
   }
 
-  function show(slot, state, err, focus) {
-    slot.innerHTML = html(state, err);
+  function show(slot, state, msg, focus) {
+    slot.innerHTML = html(state, msg);
     var f = focus && slot.querySelector('[data-erase="' + focus + '"]');
     if (f) f.focus();
   }
@@ -43,7 +43,7 @@
     root.fetch(cfg.url, { method: 'POST', credentials: 'same-origin', headers: { 'X-WP-Nonce': cfg.nonce || '' } })
       .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, body: j || {} }; }, function () { return { ok: false, body: {} }; }); })
       .then(function (res) {
-        if (res.ok) show(slot, 'sent');
+        if (res.ok) show(slot, 'sent', res.body.message);
         else show(slot, 'ask', res.body.message || 'That did not work. Please try again in a minute.', 'send');
       })
       .catch(function () { show(slot, 'ask', 'No answer from the server. Please try again.', 'send'); });

@@ -27,6 +27,11 @@ $GLOBALS['mails']      = array();
 function get_option( $k, $d = false ) { return $GLOBALS['options'][ $k ] ?? $d; }
 function add_filter( $tag, $cb, $prio = 10, $args = 1 ) { $GLOBALS['filters'][ $tag ][] = $cb; return true; }
 function add_action( $tag, $cb, $prio = 10, $args = 1 ) { return add_filter( $tag, $cb, $prio, $args ); }
+function remove_action( $tag, $cb ) {
+    $GLOBALS['filters'][ $tag ] = array_values( array_filter( $GLOBALS['filters'][ $tag ] ?? array(), function ( $x ) use ( $cb ) { return $x !== $cb; } ) );
+    return true;
+}
+function has_action( $tag, $cb ) { return in_array( $cb, $GLOBALS['filters'][ $tag ] ?? array(), true ); }
 function apply_filters( $tag, $v, ...$rest ) {
     foreach ( $GLOBALS['filters'][ $tag ] ?? array() as $cb ) { $v = call_user_func( $cb, $v, ...$rest ); }
     return $v;
@@ -71,6 +76,8 @@ function wp_create_nonce( $a ) { return 'nonce-' . $a; }
 function wp_enqueue_script( $h ) { $GLOBALS['scripts'][ $h ] = true; }
 function wp_localize_script( $h, $o, $d ) { $GLOBALS['scripts'][ $h . ':' . $o ] = $d; }
 function wp_add_inline_style( $h, $css ) { $GLOBALS['scripts'][ $h . ':css' ] = $css; }
+function wp_register_style( $h, $src, $deps = array(), $ver = false ) { $GLOBALS['scripts'][ $h . ':style' ] = $src; }
+function wp_enqueue_style( $h ) { $GLOBALS['scripts'][ $h . ':style-on' ] = true; }
 function esc_html( $x ) { return htmlspecialchars( (string) $x, ENT_QUOTES, 'UTF-8' ); }
 function esc_attr( $x ) { return htmlspecialchars( (string) $x, ENT_QUOTES, 'UTF-8' ); }
 function get_post_meta( $id, $k, $single = false ) { return $GLOBALS['post_meta'][ $id ][ $k ] ?? ''; }
