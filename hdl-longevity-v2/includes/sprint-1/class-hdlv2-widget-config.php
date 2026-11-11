@@ -3114,7 +3114,12 @@ class HDLV2_Widget_Config {
         }
 
         if ( $invite->status === 'completed' ) {
-            return rest_ensure_response( array( 'valid' => false, 'reason' => 'completed' ) );
+            // v0.48.62 — a used Healthspan Timeline link, still in date: the inviter's first name, so the
+            // browser that sent the answers (and kept the consent key) can still give its yes or no.
+            $from = 'timeline_link' === ( $invite->source ?? '' ) && strtotime( $invite->expires_at . ' UTC' ) >= time() && class_exists( 'HDLV2_Timeline_Links' )
+                ? array( 'link_from' => HDLV2_Timeline_Links::link_from( (int) $invite->id ) )
+                : array();
+            return rest_ensure_response( array( 'valid' => false, 'reason' => 'completed' ) + $from );
         }
 
         if ( strtotime( $invite->expires_at . ' UTC' ) < time() ) {

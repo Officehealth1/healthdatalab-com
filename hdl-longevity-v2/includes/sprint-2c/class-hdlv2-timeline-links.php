@@ -107,7 +107,7 @@ class HDLV2_Timeline_Links {
         if ( is_wp_error( $owner ) ) {
             return $owner;
         }
-        $out = array( 'links' => self::links_of( (int) $owner->id ) );
+        $out = array( 'links' => self::links_of( (int) $owner->id, self::link_page( (int) $owner->practitioner_user_id ) ) );
         if ( self::pack_enabled() ) {
             $out['pack'] = self::pack_of( (int) $owner->id );
         }
@@ -627,12 +627,14 @@ class HDLV2_Timeline_Links {
         return array( $ticket, $link, $lead );
     }
 
-    private static function links_of( $owner_id ) {
+    /** @param string $page the practitioner's ticket page, '' when unset: an open link's url is built on it. */
+    private static function links_of( $owner_id, $page = '' ) {
         global $wpdb;
         $p    = $wpdb->prefix;
         $seat = self::pack_enabled() ? ', l.pack_id, l.seat_invite_id' : ''; // absent until Phase AN
         $rows = $wpdb->get_results( $wpdb->prepare(
-            "SELECT l.id, l.label, l.relationship, l.born_guess, l.sex_guess, l.status, l.shared_rate, l.shared_age, l.shared_sex{$seat}, i.expires_at
+            "SELECT l.id, l.label, l.relationship, l.born_guess, l.sex_guess, l.status, l.shared_rate, l.shared_age, l.shared_sex{$seat}, i.expires_at,
+                    i.token AS ticket_token, i.status AS ticket_status
              FROM {$p}hdlv2_timeline_links l LEFT JOIN {$p}hdlv2_widget_invites i ON i.id = l.invite_id
              WHERE l.owner_progress_id = %d ORDER BY l.id",
             (int) $owner_id
@@ -644,13 +646,18 @@ class HDLV2_Timeline_Links {
                 $wpdb->update( $p . 'hdlv2_timeline_links', array( 'status' => 'expired', 'updated_at' => gmdate( 'Y-m-d H:i:s' ) ), array( 'id' => (int) $r->id, 'status' => 'invited' ) );
                 $r->status = 'expired';
             }
-            $out[] = self::shape( $r );
+            $out[] = self::shape( $r, $page );
         }
         return $out;
     }
 
-    /** What the inviter's page gets for one link: never a token, an email or a lead. */
-    private static function shape( $r ) {
+    /**
+     * What the inviter's page gets for one link: never an email or a lead. A token only inside `url`, and only
+     * while the link can still be used: the link is invited and its ticket pending or opened, in date, with a
+     * report page to build on (v0.48.62, so the client can copy it again). Never for an accepted, declined,
+     * withdrawn, revoked or expired link, nor once the person has used the ticket.
+     */
+    private static function shape( $r, $page = '' ) {
         // The chip is the seat the payer gave. A report the person already held is not theirs to see: three numbers is what was agreed.
         $seat = self::pack_enabled() ? array( 'full_report' => 'accepted' === $r->status && ! empty( $r->pack_id ) && ! empty( $r->seat_invite_id ) ) : array();
         return array(
@@ -663,7 +670,12 @@ class HDLV2_Timeline_Links {
             'shared'       => 'accepted' === $r->status && null !== $r->shared_rate
                 ? array( 'rate' => (float) $r->shared_rate, 'age' => (int) $r->shared_age, 'sex' => $r->shared_sex ? (string) $r->shared_sex : null )
                 : null,
-        ) + $seat;
+        ) + $seat + ( self::open_link( $r ) && '' !== $page ? array( 'url' => add_query_arg( 'invite', $r->ticket_token, $page ) ) : array() );
+    }
+
+    private static function open_link( $r ) {
+        return 'invited' === $r->status && ! empty( $r->ticket_token ) && in_array( $r->ticket_status ?? '', array( 'pending', 'opened' ), true )
+            && ! empty( $r->expires_at ) && strtotime( $r->expires_at . ' UTC' ) >= time();
     }
 
     /** A withdraw or an end: the shared values and the withdraw token go with it. */

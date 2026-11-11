@@ -99,10 +99,10 @@ $list = body_of( $r )['links'] ?? array();
 check( 'L4.1 two links, in order, each with label, relationship, status', 2 === count( $list ) && 'Spouse' === $list[0]['label'] && 'parent' === $list[1]['relationship'] );
 check( 'L4.2 the accepted one carries the three values', 'accepted' === $list[0]['status'] && array( 'rate' => 0.96, 'age' => 40, 'sex' => 'F' ) == $list[0]['shared'] );
 check( 'L4.3 the invited one carries none', 'invited' === $list[1]['status'] && null === $list[1]['shared'] );
-$json = json_encode( $list );
+$json = json_encode( array( $list[0], array_diff_key( $list[1], array( 'url' => 1 ) ) ) );
 $leak = false;
 foreach ( $w->invites as $t ) { if ( false !== strpos( $json, $t->token ) ) $leak = true; }
-check( 'L4.4 no token anywhere in the list, no email, no lead id', ! $leak && false === strpos( $json, '@' ) && false === strpos( $json, 'lead' ) );
+check( 'L4.4 no token in the list outside an open link\'s url, no email, no lead id', ! $leak && ! isset( $list[0]['url'] ) && false === strpos( $json, '@' ) && false === strpos( $json, 'lead' ) );
 check( 'L4.5 another client\'s token lists only theirs (none)', array() === ( body_of( HDLV2_Timeline_Links::rest_list( owner_req( array(), OTHER_T ) ) )['links'] ?? null ) );
 $w->invites[ (int) $w->links[ $b2['id'] ]->invite_id ]->expires_at = gmdate( 'Y-m-d H:i:s', time() - 60 );
 $list = body_of( HDLV2_Timeline_Links::rest_list( owner_req() ) )['links'];
@@ -160,5 +160,35 @@ consent( $tok, $key, 'yes' );
 check( 'L7.6 one accepted → 1', 1 === HDLV2_Timeline_Links::joined_count( 701 ) );
 unset( $GLOBALS['options']['hdlv2_ff_timeline_links'] );
 check( 'L7.7 flag off → 0', 0 === HDLV2_Timeline_Links::joined_count( 701 ) );
+
+echo "── L8. an open link can be shown again (v0.48.62) ──\n";
+$w = world();
+$a = body_of( create_link() );
+$row = function ( $id, $token = OWNER_T ) {
+    foreach ( body_of( HDLV2_Timeline_Links::rest_list( owner_req( array(), $token ) ) )['links'] ?? array() as $l ) { if ( $l['id'] === $id ) return $l; }
+    return null;
+};
+$tk = $w->invites[ (int) $w->links[ $a['id'] ]->invite_id ];
+check( 'L8.1 invited, ticket pending → the list carries the same url the POST gave', $a['url'] === ( $row( $a['id'] )['url'] ?? null ) );
+$tk->status = 'opened';
+check( 'L8.2 ticket opened → still carries it', $a['url'] === ( $row( $a['id'] )['url'] ?? null ) );
+$tk->status = 'completed';
+check( 'L8.3 ticket used (the person did the check, has not answered) → no url', ! array_key_exists( 'url', $row( $a['id'] ) ) );
+foreach ( array( 'accepted', 'declined', 'withdrawn', 'revoked', 'expired' ) as $st ) {
+    $tk->status = 'pending';
+    $w->links[ $a['id'] ]->status = $st;
+    check( "L8.4 link $st → no url", ! array_key_exists( 'url', $row( $a['id'] ) ) );
+}
+$w->links[ $a['id'] ]->status = 'invited';
+$tk->status = 'revoked';
+check( 'L8.5 ticket revoked → no url', ! array_key_exists( 'url', $row( $a['id'] ) ) );
+$tk->status = 'pending';
+$tk->expires_at = gmdate( 'Y-m-d H:i:s', time() - 60 );
+check( 'L8.6 ticket past its date → no url (and the link reads expired)', ! array_key_exists( 'url', $row( $a['id'] ) ) && 'expired' === $row( $a['id'] )['status'] );
+$w = world();
+$a = body_of( create_link() );
+check( 'L8.7 another client\'s token does not list it, url or not', null === $row( $a['id'], OTHER_T ) );
+$w->config[122] = '';
+check( 'L8.8 the practitioner\'s report page unset → no url (nothing to build it from)', ! array_key_exists( 'url', $row( $a['id'] ) ) );
 
 done();

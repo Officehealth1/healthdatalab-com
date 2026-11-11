@@ -1092,8 +1092,8 @@ class HDLV2_Email_Templates {
             <h2 style='margin:0 0 12px;color:" . self::DARK . ";font-family:Poppins,Inter,sans-serif;font-size:22px;font-weight:700;'>" . esc_html( sprintf( "You're on %s's timeline as %s", $data['owner_first'], $data['label'] ) ) . "</h2>
             <p style='color:#2c3e50;line-height:1.7;margin:0 0 12px;font-size:15px;'>" . esc_html( sprintf( 'We shared three numbers with %s: your pace of ageing, age and sex. Nothing else from your answers is shared.', $data['owner_first'] ) ) . "</p>"
             . ( empty( $data['report_url'] ) ? '' : "<p style='color:#2c3e50;line-height:1.7;margin:0 0 12px;font-size:15px;'>" . ( 'existing' === ( $data['report_kind'] ?? '' ) ? 'You already have a Full Report; open it any time.' : 'Your Full Report is unlocked. This link is yours alone: it signs you in.' ) . '</p>' . self::cta_button( $data['report_url'], 'Open my Full Report' ) ) . "
-            <p style='color:#2c3e50;line-height:1.7;margin:0 0 20px;font-size:15px;'>You can withdraw at any time. Your numbers come off their timeline straight away.</p>"
-            . self::cta_button( $data['withdraw'], 'Withdraw my numbers' );
+            <p style='color:#2c3e50;line-height:1.7;margin:0 0 20px;font-size:15px;'>You can withdraw at any time. Your numbers come off their timeline straight away.<br>
+                <a href='" . esc_url( $data['withdraw'] ) . "' style='display:inline-block;padding:10px 0;color:" . self::DARK_TEAL . ";text-decoration:underline;font-size:15px;font-weight:600;'>Withdraw my numbers</a></p>";
         return self::base_layout( $content, null, 'Your healthspan timeline' );
     }
 }

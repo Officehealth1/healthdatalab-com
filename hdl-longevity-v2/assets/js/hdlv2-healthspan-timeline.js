@@ -590,7 +590,7 @@
       rt.onchange = function () { delete p.sample; p.rate = rt.value; save(); renderAll(); }; x.onclick = function () { S.people = S.people.filter(function (q) { return q !== p; }); save(); renderAll(); }; pe.appendChild(d);
       if (S.links) {
         var inv = document.createElement('div'); inv.className = 'ht-link-line';
-        inv.innerHTML = '<button type="button" class="ht-btn ht-btn-line">' + esc(inviteLabel(p.name, S.pack)) + '</button>';
+        inv.innerHTML = inviteLineHtml(p.name, S.pack, S.inviteErr && S.inviteErr.p === p ? S.inviteErr.msg : '');
         inv.firstChild.onclick = function () { invite(p, inv.firstChild); }; d.appendChild(inv);
       }
     });
@@ -618,13 +618,18 @@
   var seatsLeft = function (pack) { return pack && pack.status === 'active' ? pack.seats_total - pack.seats_used : 0; };
   function packLine(pack) { return !pack ? '' : pack.status === 'active' ? 'Family pack · ' + pack.seats_total + ' seats · ' + seatsLeft(pack) + ' left' : 'Family pack ended'; }
   function inviteLabel(name, pack) { return 'Invite ' + name + ' by link' + (seatsLeft(pack) > 0 ? ' (uses a seat)' : ''); }
+  // v0.48.62 — a failed invite is said right under the button that was tapped (the list's own line is off screen on a phone)
+  function inviteLineHtml(name, pack, msg) {
+    return '<button type="button" class="ht-btn ht-btn-line">' + esc(inviteLabel(name, pack)) + '</button>' + (msg ? '<p class="ht-note" role="status">' + esc(msg) + '</p>' : '');
+  }
   var capWord = function (w) { return w ? w[0].toUpperCase() + w.slice(1) : ''; };
   // Read-only: the chip, the three values when shared, and "End link" with its inline confirm while the link is open.
   function linkedRowHtml(l) {
     var sh = l.status === 'accepted' && l.shared ? l.shared : null, open = l.status === 'invited' || l.status === 'accepted';
     var act = !open ? '' : l.confirming
       ? '<span class="ht-note">End this link?</span><button type="button" class="ht-btn" data-act="end-yes" data-id="' + l.id + '">Confirm</button><button type="button" class="ht-btn ht-btn-line" data-act="end-no" data-id="' + l.id + '">Keep</button>'
-      : '<button type="button" class="ht-btn ht-btn-line" data-act="end" data-id="' + l.id + '">End link</button>';
+      : (l.status === 'invited' && l.url ? '<button type="button" class="ht-btn ht-btn-line" data-act="show" data-id="' + l.id + '">Copy link</button>' : '')
+        + '<button type="button" class="ht-btn ht-btn-line" data-act="end" data-id="' + l.id + '">End link</button>';
     return '<div class="ht-row ht-linked"><span class="ht-cell">' + esc(l.label) + '</span><span class="ht-cell">' + capWord(esc(l.relationship)) + '</span>'
       + '<span class="ht-cell">' + (sh ? 'age ' + sh.age : esc(l.born_guess || '–')) + '</span><span class="ht-cell">' + esc((sh ? sh.sex : l.sex_guess) || '–') + '</span>'
       + '<span class="ht-cell">' + (sh ? (+sh.rate).toFixed(2) + '× <small class="ht-mark">from their report</small>' : 'Same as you') + '</span>'
@@ -634,7 +639,27 @@
     return '<div class="ht-invite"><label class="ht-eyebrow" for="ht-invite-url">Send this link yourself, by any message</label>'
       + '<div class="ht-invite-row"><input id="ht-invite-url" readonly value="' + esc(url) + '"><button type="button" class="ht-btn" data-act="copy">Copy</button>'
       + (canShare ? '<button type="button" class="ht-btn ht-btn-line" data-act="share">Share</button>' : '') + '</div>'
+      + '<p class="ht-note ht-copy-msg" role="status" aria-live="polite"></p>'
       + '<p class="ht-note">Nothing is sent by us. They do the free check through it, then choose whether to share three numbers with you.</p></div>';
+  }
+  // one box at a time, under its own row (its ids stay unique)
+  function linkedListHtml(links, box, canShare) {
+    return links.map(function (l) { return linkedRowHtml(l) + (box && box.id === l.id ? inviteBoxHtml(box.url, canShare) : ''); }).join('');
+  }
+  // v0.48.62 — the box comes to the client (on a phone it is drawn far below the tapped row), focus on Copy
+  function revealBox(box) {
+    if (!box) return;
+    var still = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+    box.scrollIntoView({ block: 'center', behavior: still ? 'auto' : 'smooth' });
+    var c = box.querySelector('[data-act="copy"]'); if (c) c.focus({ preventScroll: true });
+  }
+  function copyLink(inp, btn, note) {
+    inp.select();
+    var copied = function () { btn.textContent = 'Copied'; note.textContent = ''; };
+    var refused = function () { note.textContent = 'Copy did not work here. Press and hold the link to copy it.'; }; // the text stays selected
+    if (typeof navigator !== 'undefined' && navigator.clipboard) { navigator.clipboard.writeText(inp.value).then(copied, refused); return; }
+    var done = false; try { done = document.execCommand('copy'); } catch (e) { done = false; }
+    if (done) copied(); else refused();
   }
   var LINKS = null, OWNER = '', FAMILY = false;
   function linksApi(method, path, body) {
@@ -646,7 +671,7 @@
   function renderLinked() {
     var el = $('#ht-linked'); if (!el) return;
     el.innerHTML = !LINKS ? '' : !S.links ? '<div class="ht-skel" aria-hidden="true"></div>'
-      : S.links.map(function (l) { return linkedRowHtml(l) + (S.inviteBox && S.inviteBox.id === l.id ? inviteBoxHtml(S.inviteBox.url, typeof navigator !== 'undefined' && !!navigator.share) : ''); }).join('');
+      : linkedListHtml(S.links, S.inviteBox, typeof navigator !== 'undefined' && !!navigator.share);
     $('#ht-links-msg').textContent = S.linkMsg || '';
     if (FAMILY) $('#ht-pack').textContent = packLine(S.pack);
   }
@@ -657,22 +682,24 @@
     }, offline);
   }
   function invite(p, btn) {
-    btn.disabled = true; btn.textContent = 'Making the link…';
+    btn.disabled = true; btn.textContent = 'Making the link…'; S.inviteErr = null;
+    var fail = function (msg) { S.inviteErr = { p: p, msg: msg }; renderAll(); };
     linksApi('POST', '', { label: p.name, relationship: p.rel, born_guess: p.born, sex_guess: p.sex }).then(function (res) {
       if (res.status === 201 && res.body.link) {
         S.people = S.people.filter(function (q) { return q !== p; }); save();
+        res.body.link.url = res.body.url; // so its row can show it again
         S.links.push(res.body.link); S.inviteBox = { id: res.body.id, url: res.body.url }; S.linkMsg = '';
-      } else { S.linkMsg = res.body.message || 'The link could not be made. Please try again.'; }
-      renderAll();
-    }, offline);
+        renderAll(); revealBox($('#ht-linked .ht-invite'));
+      } else fail(res.body.message || 'The link could not be made. Please try again.');
+    }, function () { fail('We could not reach the server. Please try again.'); });
   }
   function onLinkAction(e) {
     var b = e.target.closest('[data-act]'); if (!b) return;
     var act = b.dataset.act, l = (S.links || []).filter(function (x) { return String(x.id) === b.dataset.id; })[0];
     if (act === 'copy') {
-      var inp = $('#ht-invite-url'); inp.select();
-      var copied = function () { b.textContent = 'Copied'; };
-      if (navigator.clipboard) navigator.clipboard.writeText(inp.value).then(copied, function () { /* the text stays selected for a manual copy */ }); else if (document.execCommand('copy')) copied();
+      copyLink($('#ht-invite-url'), b, $('#ht-linked .ht-copy-msg'));
+    } else if (l && act === 'show') {
+      S.inviteBox = { id: l.id, url: l.url }; renderLinked(); revealBox($('#ht-linked .ht-invite'));
     } else if (act === 'share') {
       navigator.share({ title: 'See our healthspans side by side', url: $('#ht-invite-url').value }).catch(function () { /* closed the share sheet */ });
     } else if (l && (act === 'end' || act === 'end-no')) {
@@ -790,6 +817,7 @@
     visibleZoomBands: visibleZoomBands, ageLabel: ageLabel, shellHtml: shellHtml, iconHtml: iconHtml, depBarHtml: depBarHtml, presetHtml: presetHtml,
     HT_ICONS: HT_ICONS, momentHtml: momentHtml, paintRange: paintRange,
     linkedPerson: linkedPerson, chipLabel: chipLabel, linkedRowHtml: linkedRowHtml, inviteBoxHtml: inviteBoxHtml,
+    revealBox: revealBox, copyLink: copyLink, inviteLineHtml: inviteLineHtml, linkedListHtml: linkedListHtml,
     groupLanes: groupLanes, laneText: laneText, packLine: packLine, inviteLabel: inviteLabel, groupSwitchHtml: groupSwitchHtml,
     factsHtml: factsHtml, waitHtml: waitHtml, lockHtml: lockHtml, sampleNote: sampleNote, defaultPeople: defaultPeople, cleanPerson: cleanPerson,
     brandRowHtml: brandRowHtml, fragmentPrac: fragmentPrac, loadBrand: loadBrand,

@@ -174,7 +174,10 @@ class TlWpdb {
         foreach ( $this->links as $l ) {
             if ( (int) $l->owner_progress_id !== (int) $this->a( 0 ) ) continue;
             $r = clone $l;
-            $r->expires_at = isset( $this->invites[ (int) $l->invite_id ] ) ? $this->invites[ (int) $l->invite_id ]->expires_at : null;
+            $i = $this->invites[ (int) $l->invite_id ] ?? null;
+            $r->expires_at    = $i ? $i->expires_at : null;
+            $r->ticket_token  = $i ? $i->token : null;
+            $r->ticket_status = $i ? $i->status : null;
             $out[] = $r;
         }
         return $out;

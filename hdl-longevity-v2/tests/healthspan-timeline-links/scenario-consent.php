@@ -57,6 +57,13 @@ check( 'C3.6 the invitee\'s mail: on Quim\'s timeline as Spouse, the three numbe
     && ! empty( $m[1] ) && hash( 'sha256', $m[1] ) === $l->withdraw_token_hash );
 check( 'C3.7 the invitee\'s mail carries no inviter email and no answers', false === strpos( $inv_mail, 'team+owner@irislab.com' ) && false === strpos( $inv_mail, '0.96' ) );
 check( 'C3.8 both mails carry the legal footer', false !== strpos( $owner_mail, 'NOT MEDICAL ADVICE' ) && false !== strpos( $inv_mail, 'NOT MEDICAL ADVICE' ) );
+// v0.48.62 — one filled button at most: the withdraw is a plain link under its sentence.
+$buttons = function ( $html ) { return substr_count( $html, "border-radius:2px;background:" . HDLV2_Email_Templates::DARK_TEAL . ";'>" ); };
+check( 'C3.11 the invitee\'s mail with no report: no filled button, the withdraw address once, as an underlined link',
+    0 === $buttons( $inv_mail ) && 1 === substr_count( $inv_mail, '?withdraw=' . $m[1] ) && 1 === preg_match( "#<a href='[^']*\\?withdraw=[a-f0-9]{64}' style='[^']*text-decoration:underline[^']*'>Withdraw my numbers</a>#", $inv_mail ) );
+$with_report = HDLV2_Email_Templates::timeline_consent_invitee( array( 'owner_first' => 'Quim', 'label' => 'Spouse', 'withdraw' => PAGE . '?withdraw=' . $m[1], 'report_url' => 'https://stby.test/r?x=1', 'report_kind' => 'unlocked' ) );
+check( 'C3.12 with a Full Report: exactly one filled button (Open my Full Report), the withdraw address once',
+    1 === $buttons( $with_report ) && false !== strpos( $with_report, 'Open my Full Report' ) && 1 === substr_count( $with_report, '?withdraw=' . $m[1] ) );
 $hash = $l->withdraw_token_hash;
 $r2 = consent( $tok, $key, 'yes' );
 check( 'C3.9 yes twice → the same answer, one state, no second email, the hash kept', 200 === status_of( $r2 ) && 'accepted' === body_of( $r2 )['status'] && 2 === count( $GLOBALS['mails'] ) && $hash === $l->withdraw_token_hash );
@@ -73,6 +80,18 @@ check( 'C4.1 no → declined, nothing shared, no lead tied, no mail to anyone', 
 check( 'C4.2 no twice → the same answer', 'declined' === body_of( consent( $tok, $key, 'no' ) )['status'] );
 check( 'C4.3 yes after no → 404, still declined, no mail', gone( consent( $tok, $key, 'yes' ) ) && 'declined' === $l->status && ! $GLOBALS['mails'] );
 check( 'C4.4 the inviter sees "declined" on reload', 'declined' === body_of( HDLV2_Timeline_Links::rest_list( owner_req() ) )['links'][0]['status'] );
+
+echo "── C4b. the yes given later, from the same browser (v0.48.62 resume) ──\n";
+$w = world();
+$a = body_of( create_link() );
+list( $tok, $key ) = invitee_did_check( $a['id'] );
+$w->invites[ (int) $w->links[ $a['id'] ]->invite_id ]->expires_at = gmdate( 'Y-m-d H:i:s', time() + DAY_IN_SECONDS );
+check( 'C4b.1 the ticket long since "completed", one day left, the stored key → the yes still works', 'accepted' === ( body_of( consent( $tok, $key, 'yes' ) )['status'] ?? '' ) );
+$w = world();
+$a = body_of( create_link() );
+list( $tok, $key ) = invitee_did_check( $a['id'] );
+$w->invites[ (int) $w->links[ $a['id'] ]->invite_id ]->expires_at = gmdate( 'Y-m-d H:i:s', time() - 60 );
+check( 'C4b.2 after the link\'s 90 days → 404, nothing shared', gone( consent( $tok, $key, 'yes' ) ) && 'invited' === $w->links[ $a['id'] ]->status && ! $GLOBALS['mails'] );
 
 echo "── C5. an ended link ──\n";
 $w = world();

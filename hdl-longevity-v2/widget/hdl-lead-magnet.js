@@ -1902,48 +1902,18 @@
       }
       // v0.48.34 — the yes or no. The key came back with this browser's own answers, so
       // only the person who did the check can say yes. Nothing is shared under 18.
+      // v0.48.62 — the key is kept in this browser, so closing the page before answering is not a dead end.
       function showLinkCard(key) {
         var box = document.getElementById(id + '-link');
         if (!box) return;
         box.hidden = false;
         if (age < 18) { box.innerHTML = '<p>This link is for adults. Your report is yours; nothing is shared.</p>'; return; }
-        if (!key) { box.innerHTML = '<p>Nothing was shared. To share with ' + escapeHtml(linkFrom) + ', open the link again.</p>'; return; }
-        box.innerHTML = '<h2>' + escapeHtml(linkFrom) + ' invited you</h2>'
-          + '<p>Share your pace of ageing, age and sex with ' + escapeHtml(linkFrom) + '? They will see only these three numbers on their timeline. You can withdraw at any time.</p>'
-          + '<div class="hdlw-r-buttons"><button type="button" class="hdlw-r-btn-primary" data-d="yes">Yes, share</button>'
-          + '<button type="button" class="hdlw-r-btn-secondary" data-d="no">No, just my report</button></div>'
-          + '<p class="hdlw-r-status" role="status" aria-live="polite"></p>';
-        var btns = box.querySelectorAll('button'), note = box.querySelector('.hdlw-r-status');
-        for (var bi = 0; bi < btns.length; bi++) btns[bi].addEventListener('click', function () {
-          var d = this.getAttribute('data-d');
-          for (var bj = 0; bj < btns.length; bj++) btns[bj].disabled = true;
-          note.textContent = 'Saving your answer\u2026';
-          fetch(cfg.apiUrl.replace(/\/widget\/lead\/?$/, '/timeline/consent'), {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ invite_token: inviteToken, link_key: key, decision: d })
-          })
-            .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, body: j || {} }; }); })
-            .then(function (res) {
-              if (res.ok && res.body.status === 'accepted') {
-                // v0.48.35 — a family pack seat: the sign-in link is only ever in their inbox, never here.
-                var fr = res.body.full_report ? res.body.full_report.state : '';
-                if (fr === 'sent') { var wb = document.querySelector('#' + id + '-thanks .hdlw-r-thanks-body'); if (wb) wb.textContent = 'Your practitioner has been sent your data.'; }
-                box.innerHTML = '<p>You\u2019re now on ' + escapeHtml(res.body.link_from || linkFrom) + '\u2019s timeline as ' + escapeHtml(res.body.label || '') + '. '
-                  + (fr === 'sent' ? 'Your Full Report is unlocked. We emailed your link to ' + escapeHtml(answers._email || 'you') + '. '
-                    : fr === 'unsent' ? 'Your Full Report is unlocked, but the email did not go. Your practitioner can resend it. '
-                    : fr === 'failed' ? 'Your Full Report could not be unlocked just now; your numbers are shared. ' : '')
-                  + 'Withdraw any time from the email we just sent.</p>';
-              } else if (res.ok && res.body.status === 'declined') {
-                box.innerHTML = '<p>Not shared. Your report is yours.</p>';
-              } else {
-                box.innerHTML = '<p>' + escapeHtml(res.body.message || 'This link is no longer valid.') + ' Nothing was shared.</p>';
-              }
-            })
-            .catch(function () {
-              note.textContent = 'We could not save your answer. Nothing was shared. Please try again.';
-              for (var bk = 0; bk < btns.length; bk++) btns[bk].disabled = false;
-            });
-        });
+        if (!key) { box.innerHTML = '<p>Nothing was shared. To share with ' + escapeHtml(linkFrom) + ', ask them for a new link.</p>'; return; }
+        linkKeyStore(inviteToken).set(key);
+        consentCard(box, { api: cfg.apiUrl, token: inviteToken, key: key, from: linkFrom, email: answers._email, onSent: function () {
+          // v0.48.35 — a family pack seat: the sign-in link is only ever in their inbox, never here.
+          var wb = document.querySelector('#' + id + '-thanks .hdlw-r-thanks-body'); if (wb) wb.textContent = 'Your practitioner has been sent your data.';
+        } });
       }
       function failed(body, status) {
         var n = notSaved(body, !!inviteToken, status);
@@ -2130,27 +2100,123 @@
       });
   }
 
-  // v0.48.34 — ?withdraw=<token> from a Healthspan Timeline confirmation email: post it and say
-  // what happened; no questions on this visit.
+  // v0.48.34 — ?withdraw=<token> from a Healthspan Timeline confirmation email; no questions on this visit.
+  // v0.48.62 — it asks first and posts only on the tap: a mail scanner that opens the link withdraws nothing.
   function showWithdraw(el, token) {
     loadFonts();
     injectEditorialStyles();
-    var card = function (title, msg) {
+    injectLinkStyles();
+    var card = function (title, msg, button) {
       el.innerHTML = '<div class="hdlw-shell"><div class="hdlw-error-card hdlw-locked"><p class="hdlw-error-eyebrow">Healthspan timeline</p>'
-        + '<h3 class="hdlw-error-title">' + escHtml(title) + '</h3><p class="hdlw-error-msg" role="status">' + escHtml(msg) + '</p></div></div>';
+        + '<h3 class="hdlw-error-title">' + escHtml(title) + '</h3><p class="hdlw-error-msg" role="status">' + escHtml(msg) + '</p>'
+        + (button ? '<button type="button" class="hdlw-buy">' + escHtml(button) + '</button>' : '') + '</div></div>';
     };
     var api = el.getAttribute('data-api') || '';
     var url = api.replace(/\/widget\/lead\/?$/, '/timeline/withdraw');
     var none = function () { card('Nothing to withdraw', 'This link has been used already, or the link has ended. Your numbers are not shared through it.'); };
     if (!/^[a-f0-9]{64}$/.test(token) || url === api) { none(); return; }
-    card('Withdrawing your numbers', 'One moment\u2026');
-    fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ withdraw_token: token }) })
-      .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, body: j || {} }; }); })
-      .then(function (res) {
-        if (res.ok && res.body.status === 'withdrawn') card('Withdrawn', 'Done. ' + (res.body.link_from || 'They') + ' no longer sees your numbers.');
-        else none();
+    card('Withdraw your numbers?', 'This takes your pace, age and sex off their timeline.', 'Withdraw my numbers');
+    var btn = el.querySelector('button');
+    btn.addEventListener('click', function () {
+      btn.disabled = true;
+      btn.textContent = 'Withdrawing\u2026';
+      fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ withdraw_token: token }) })
+        .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, body: j || {} }; }); })
+        .then(function (res) {
+          if (res.ok && res.body.status === 'withdrawn') card('Withdrawn', 'Done. ' + (res.body.link_from || 'They') + ' no longer sees your numbers.');
+          else none();
+        })
+        .catch(function () { card('We could not reach the server', 'Nothing has changed yet. Please open the link from your email again.'); });
+    });
+  }
+
+  // v0.48.62 — the timeline cards' buttons (the withdraw ask; the yes or no on a return visit), beside the
+  // editorial block rather than in it: an outline second button, so the two answers do not look the same.
+  function injectLinkStyles() {
+    if (document.getElementById('hdlw-link-styles')) return;
+    var s = document.createElement('style');
+    s.id = 'hdlw-link-styles';
+    s.textContent = '.hdlw-buy{cursor:pointer;}.hdlw-buy:disabled{opacity:0.6;cursor:default;}'
+      + '.hdlw-link-buttons{display:flex;flex-wrap:wrap;justify-content:center;gap:0 12px;}'
+      + '.hdlw-buy.hdlw-buy-line,.hdlw-buy.hdlw-buy-line:hover{background:transparent;color:#004F59;}';
+    document.head.appendChild(s);
+  }
+
+  // v0.48.62 — the timeline consent key, kept in this browser under a name made from the link, so a person who
+  // closes the page before answering can still say yes or no from the same browser. Private mode keeps nothing.
+  function linkKeyStore(token) {
+    var name = 'hdlw-tl-' + token;
+    return {
+      get: function () { try { var k = window.localStorage.getItem(name) || ''; return /^[a-f0-9]{64}$/.test(k) ? k : ''; } catch (e) { return ''; } },
+      set: function (k) { try { window.localStorage.setItem(name, k); } catch (e) { /* private mode: today's behaviour */ } },
+      drop: function () { try { window.localStorage.removeItem(name); } catch (e) { /* private mode */ } }
+    };
+  }
+
+  // v0.48.34 — the yes or no to sharing three numbers. v0.48.62 — one card for the result page and for a
+  // return visit (o.shell: drawn on its own, in the link-card frame). The kept key goes after a yes, a no or a 404.
+  function consentCard(box, o) {
+    var from = escHtml(o.from);
+    var text = 'Share your pace of ageing, age and sex with ' + from + '? They will see only these three numbers on their timeline. You can withdraw at any time.';
+    var say = function (html) {
+      box.innerHTML = o.shell
+        ? '<div class="hdlw-shell"><div class="hdlw-error-card hdlw-locked"><p class="hdlw-error-eyebrow">Healthspan timeline</p><p class="hdlw-error-msg" role="status">' + html + '</p></div></div>'
+        : '<p>' + html + '</p>';
+    };
+    box.innerHTML = o.shell
+      ? '<div class="hdlw-shell"><div class="hdlw-error-card hdlw-locked" role="region" aria-label="Share with ' + from + '"><p class="hdlw-error-eyebrow">Healthspan timeline</p>'
+        + '<h3 class="hdlw-error-title">' + from + ' invited you</h3><p class="hdlw-error-msg">' + text + '</p>'
+        + '<div class="hdlw-link-buttons"><button type="button" class="hdlw-buy" data-d="yes">Yes, share</button>'
+        + '<button type="button" class="hdlw-buy hdlw-buy-line" data-d="no">No, just my report</button></div>'
+        + '<p class="hdlw-error-msg hdlw-r-status" role="status" aria-live="polite"></p></div></div>'
+      : '<h2>' + from + ' invited you</h2><p>' + text + '</p>'
+        + '<div class="hdlw-r-buttons"><button type="button" class="hdlw-r-btn-primary" data-d="yes">Yes, share</button>'
+        + '<button type="button" class="hdlw-r-btn-secondary" data-d="no">No, just my report</button></div>'
+        + '<p class="hdlw-r-status" role="status" aria-live="polite"></p>';
+    var btns = box.querySelectorAll('button'), note = box.querySelector('.hdlw-r-status'), store = linkKeyStore(o.token);
+    for (var bi = 0; bi < btns.length; bi++) btns[bi].addEventListener('click', function () {
+      var d = this.getAttribute('data-d');
+      for (var bj = 0; bj < btns.length; bj++) btns[bj].disabled = true;
+      note.textContent = 'Saving your answer\u2026';
+      fetch(o.api.replace(/\/widget\/lead\/?$/, '/timeline/consent'), {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ invite_token: o.token, link_key: o.key, decision: d })
       })
-      .catch(function () { card('We could not reach the server', 'Nothing has changed yet. Please open the link from your email again.'); });
+        .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, status: r.status, body: j || {} }; }); })
+        .then(function (res) {
+          if (res.ok || res.status === 404) store.drop();
+          if (res.ok && res.body.status === 'accepted') {
+            var fr = res.body.full_report ? res.body.full_report.state : '';
+            if (fr === 'sent' && o.onSent) o.onSent();
+            say('You\u2019re now on ' + escHtml(res.body.link_from || o.from) + '\u2019s timeline as ' + escHtml(res.body.label || '') + '. '
+              + (fr === 'sent' ? 'Your Full Report is unlocked. We emailed your link to ' + escHtml(o.email || 'you') + '. '
+                : fr === 'unsent' ? 'Your Full Report is unlocked, but the email did not go. Your practitioner can resend it. '
+                : fr === 'failed' ? 'Your Full Report could not be unlocked just now; your numbers are shared. ' : '')
+              + 'Withdraw any time from the email we just sent.');
+          } else if (res.ok && res.body.status === 'declined') {
+            say('Not shared. Your report is yours.');
+          } else {
+            say(escHtml(res.body.message || 'This link is no longer valid.') + ' Nothing was shared.');
+          }
+        })
+        .catch(function () {
+          note.textContent = 'We could not save your answer. Nothing was shared. Please try again.';
+          for (var bk = 0; bk < btns.length; bk++) btns[bk].disabled = false;
+        });
+    });
+  }
+
+  // v0.48.62 — a used timeline link opened again: the browser that kept the key gets its yes or no;
+  // any other browser is told to ask for a new link, not sent back to a link that no longer opens.
+  function linkResume(el, token, from) {
+    loadFonts();
+    injectEditorialStyles();
+    injectLinkStyles();
+    from = String(from || 'Someone').slice(0, 40);
+    var key = linkKeyStore(token).get();
+    if (key) { consentCard(el, { api: el.getAttribute('data-api') || '', token: token, key: key, from: from, shell: true }); return; }
+    el.innerHTML = '<div class="hdlw-shell"><div class="hdlw-error-card hdlw-locked"><p class="hdlw-error-eyebrow">Healthspan timeline</p>'
+      + '<h3 class="hdlw-error-title">This link has already been used</h3><p class="hdlw-error-msg">To share with ' + escHtml(from) + ', ask them for a new link.</p></div></div>';
   }
 
   function init() {
@@ -2188,6 +2254,7 @@
               var screen = accessScreen(true, data, false, null);
               if (screen === 'questions') { data._token = token; buildWidget(el, data); }
               else if (screen === 'retry') { showLinkRetry(el); }
+              else if (data.reason === 'completed' && typeof data.link_from === 'string') { linkResume(el, token, data.link_from); }
               else { inviteFailed(el, data.reason || 'invalid'); }
             })
             .catch(function () { showLinkRetry(el); });

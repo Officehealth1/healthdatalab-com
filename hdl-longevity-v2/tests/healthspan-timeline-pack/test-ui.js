@@ -81,7 +81,8 @@ ok(/Your Full Report is unlocked\. We emailed your link to /.test(w), 'the card 
 ok(/Your Full Report could not be unlocked just now; your numbers are shared\./.test(w), 'the failure line');
 ok(/Your Full Report is unlocked, but the email did not go\. Your practitioner can resend it\./.test(w), 'the email failed: the card says so');
 ok(!/open_url/.test(w), 'the widget never reads a sign-in link from the response');
-ok(/fr === 'sent'\) \{ var wb = document\.querySelector\('#' \+ id \+ '-thanks \.hdlw-r-thanks-body'\); if \(wb\) wb\.textContent = 'Your practitioner has been sent your data\.'; \}/.test(w), 'a seat cuts the "you will receive another email" half of the wall: it is no longer true, and no empty card is left');
+// v0.48.62 — the card moved to consentCard(); the result page hands it the wall change as onSent
+ok(/if \(fr === 'sent' && o\.onSent\) o\.onSent\(\);/.test(w) && /onSent: function \(\) \{[\s\S]{0,160}var wb = document\.querySelector\('#' \+ id \+ '-thanks \.hdlw-r-thanks-body'\); if \(wb\) wb\.textContent = 'Your practitioner has been sent your data\.';/.test(w), 'a seat cuts the "you will receive another email" half of the wall: it is no longer true, and no empty card is left');
 
 // No accent rails in the new CSS
 const css = fs.readFileSync(path.join(__dirname, '..', '..', 'assets/css/hdlv2-healthspan-timeline.css'), 'utf8');
