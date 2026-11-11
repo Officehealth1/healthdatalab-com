@@ -224,7 +224,7 @@ async function widgetCases() {
   ok(/This link is no longer valid\. Nothing was shared\./.test(w.host.innerHTML) && !(NAME in w.store), 'a 404 (ended, out of date): the server\'s words and the key is gone');
   w = run('?invite=' + T, { [NAME]: K }, [used, { path: '/timeline/consent', status: 403, body: { message: 'This link is for adults. Your report is yours; nothing is shared.' } }]);
   await flush(); w.host.querySelectorAll('button')[0].click(); await flush();
-  ok(/This link is for adults\./.test(w.host.innerHTML), 'under 18 (the server refuses): the server\'s message through the error branch');
+  ok(/This link is for adults\./.test(w.host.innerHTML) && !(NAME in w.store), 'under 18 (the server refuses): the server\'s message through the error branch, and the key is gone (every final answer drops it)');
 
   w = run('?invite=' + T, {}, [used]);
   await flush();

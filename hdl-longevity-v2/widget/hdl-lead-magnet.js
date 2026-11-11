@@ -2154,7 +2154,7 @@
   }
 
   // v0.48.34 — the yes or no to sharing three numbers. v0.48.62 — one card for the result page and for a
-  // return visit (o.shell: drawn on its own, in the link-card frame). The kept key goes after a yes, a no or a 404.
+  // return visit (o.shell: drawn on its own, in the link-card frame). The kept key goes after a yes, a no, a 404 or a 403.
   function consentCard(box, o) {
     var from = escHtml(o.from);
     var text = 'Share your pace of ageing, age and sex with ' + from + '? They will see only these three numbers on their timeline. You can withdraw at any time.';
@@ -2184,7 +2184,7 @@
       })
         .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, status: r.status, body: j || {} }; }); })
         .then(function (res) {
-          if (res.ok || res.status === 404) store.drop();
+          if (res.ok || res.status === 404 || res.status === 403) store.drop(); // every final answer; a network failure keeps it for a retry
           if (res.ok && res.body.status === 'accepted') {
             var fr = res.body.full_report ? res.body.full_report.state : '';
             if (fr === 'sent' && o.onSent) o.onSent();
