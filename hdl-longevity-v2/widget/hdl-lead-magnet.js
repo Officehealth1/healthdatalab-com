@@ -1910,7 +1910,8 @@
         if (age < 18) { box.innerHTML = '<p>This link is for adults. Your report is yours; nothing is shared.</p>'; return; }
         if (!key) { box.innerHTML = '<p>Nothing was shared. To share with ' + escapeHtml(linkFrom) + ', ask them for a new link.</p>'; return; }
         linkKeyStore(inviteToken).set(key);
-        consentCard(box, { api: cfg.apiUrl, token: inviteToken, key: key, from: linkFrom, email: answers._email, onSent: function () {
+        var note = linkNotice(el.querySelector('.hdlw-r-gauge-card'), box, linkFrom);
+        consentCard(box, { api: cfg.apiUrl, token: inviteToken, key: key, from: linkFrom, email: answers._email, note: note, onSent: function () {
           // v0.48.35 — a family pack seat: the sign-in link is only ever in their inbox, never here.
           var wb = document.querySelector('#' + id + '-thanks .hdlw-r-thanks-body'); if (wb) wb.textContent = 'Your practitioner has been sent your data.';
         } });
@@ -2153,12 +2154,34 @@
     };
   }
 
+  // v0.48.62 — the yes or no sits under the result, about 2,000 px down a phone: a line above the gauge says it
+  // is waiting, and its button takes the person there. The page never moves by itself; focus goes to the card's
+  // heading, not to "Yes", so the button does not lean toward a yes.
+  function linkNotice(gauge, card, from) {
+    if (!gauge || !gauge.parentNode) return null;
+    var note = document.createElement('div');
+    note.className = 'hdlw-r-card';
+    note.setAttribute('role', 'status');
+    note.innerHTML = '<p>' + escHtml(from) + ' invited you. Your yes or no is under your result.</p>'
+      + '<button type="button" class="hdlw-r-btn-secondary">Go to the question</button>';
+    gauge.parentNode.insertBefore(note, gauge);
+    note.querySelector('button').addEventListener('click', function () {
+      var still = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      card.scrollIntoView({ block: 'center', behavior: still ? 'auto' : 'smooth' });
+      var h = card.querySelector('h2');
+      if (h) { h.setAttribute('tabindex', '-1'); h.focus({ preventScroll: true }); }
+    });
+    return note;
+  }
+
   // v0.48.34 — the yes or no to sharing three numbers. v0.48.62 — one card for the result page and for a
-  // return visit (o.shell: drawn on its own, in the link-card frame). The kept key goes after a yes, a no, a 404 or a 403.
+  // return visit (o.shell: drawn on its own, in the link-card frame). The kept key goes after a yes, a no, a 404 or a 403;
+  // the line at the top of the result (o.note) goes with any final answer.
   function consentCard(box, o) {
     var from = escHtml(o.from);
     var text = 'Share your pace of ageing, age and sex with ' + from + '? They will see only these three numbers on their timeline. You can withdraw at any time.';
     var say = function (html) {
+      if (o.note && o.note.parentNode) o.note.parentNode.removeChild(o.note);
       box.innerHTML = o.shell
         ? '<div class="hdlw-shell"><div class="hdlw-error-card hdlw-locked"><p class="hdlw-error-eyebrow">Healthspan timeline</p><p class="hdlw-error-msg" role="status">' + html + '</p></div></div>'
         : '<p>' + html + '</p>';
@@ -2255,7 +2278,8 @@
               if (screen === 'questions') { data._token = token; buildWidget(el, data); }
               else if (screen === 'retry') { showLinkRetry(el); }
               else if (data.reason === 'completed' && typeof data.link_from === 'string') { linkResume(el, token, data.link_from); }
-              else { inviteFailed(el, data.reason || 'invalid'); }
+              // v0.48.62 — any final "not valid" (out of date, used past its date, ended by its maker): a kept key can never be used again.
+              else { linkKeyStore(token).drop(); inviteFailed(el, data.reason || 'invalid'); }
             })
             .catch(function () { showLinkRetry(el); });
         })(widgets[i], inviteToken);

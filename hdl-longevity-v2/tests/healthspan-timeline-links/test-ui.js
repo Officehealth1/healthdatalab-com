@@ -242,4 +242,62 @@ async function widgetCases() {
   ok(card.indexOf('age < 18') !== -1 && card.indexOf('linkKeyStore(inviteToken).set(key)') > card.indexOf('age < 18') && card.indexOf('linkKeyStore(inviteToken).set(key)') > card.indexOf('if (!key)'),
     'the result page stores the key only after the under-18 and no-key returns');
   ok(wsrc.indexOf('open the link again') === -1 && card.indexOf('ask them for a new link') !== -1, '"open the link again" (a dead end) is now "ask them for a new link"');
+
+  // a link that has ended (out of date, used without a name, or ended by its maker) leaves no key behind (gate G2)
+  for (const [why, body] of [['out of date', { valid: false, reason: 'expired' }], ['used, no name (past its date)', { valid: false, reason: 'completed' }], ['ended by its maker', { valid: false, reason: 'invalid' }]]) {
+    w = run('?invite=' + T, { [NAME]: K }, [{ path: '/widget/verify-invite', status: 200, body }]);
+    await flush();
+    ok(!(NAME in w.store), 'a kept key and a link ' + why + ': the key is gone');
+  }
+  w = run('?invite=' + T, { [NAME]: K }, [{ path: '/widget/verify-invite', status: 429, body: { code: 'rate_limited' } }]);
+  await flush();
+  ok(NAME in w.store, 'a busy server (429) is not an answer: the key stays for the next try');
+
+  // the line at the top of the result (gate G1): the REAL linkNotice and consentCard, cut from the widget
+  const cut = (name) => { const a = wsrc.indexOf('  function ' + name + '('); return a < 0 ? '' : wsrc.slice(a, wsrc.indexOf('\n  }\n', a) + 4); };
+  ok(cut('linkNotice') !== '', 'the widget has linkNotice()');
+  if (cut('linkNotice')) {
+    const calls = [], inserted = [];
+    const heading = { attrs: {}, setAttribute(k, v) { this.attrs[k] = v; }, focus(o) { calls.push(['focus', o, this.attrs.tabindex]); } };
+    const cardEl = { scrollIntoView(o) { calls.push(['scroll', o]); }, querySelector: (s) => (s === 'h2' ? heading : null) };
+    const gauge = { parentNode: { insertBefore(n, ref) { inserted.push([n, ref]); } } };
+    const nctx = { document: { createElement: el }, window: {}, console };
+    nctx.window.matchMedia = () => ({ matches: false });
+    const N = vm.runInNewContext(cut('escHtml') + cut('linkNotice') + '\nlinkNotice;', nctx);
+    const note = N(gauge, cardEl, 'Quim <b>');
+    ok(inserted.length === 1 && inserted[0][0] === note && inserted[0][1] === gauge, 'the line goes in directly above the gauge card');
+    ok(note.attrs.role === 'status' && /^hdlw-r-card$/.test(note.className || note.attrs.class) && !/border-left|::before/.test(cut('linkNotice')),
+      'a status card in the result page\'s own card style, no bar down a side');
+    ok(note.innerHTML.indexOf('Quim &lt;b&gt; invited you. Your yes or no is under your result.') !== -1 && note.innerHTML.indexOf('<b>') === -1,
+      'it names the inviter (escaped) and says where the yes or no is');
+    const nb = note.querySelectorAll('button');
+    ok(nb.length === 1 && nb[0].textContent === 'Go to the question' && nb[0].attrs.class === 'hdlw-r-btn-secondary', 'one outline button, "Go to the question"');
+    ok(calls.length === 0, 'drawing the line moves nothing');
+    nb[0].click();
+    ok(calls.length === 2 && calls[0][0] === 'scroll' && calls[0][1].block === 'center' && calls[0][1].behavior === 'smooth'
+      && calls[1][0] === 'focus' && calls[1][1].preventScroll === true && calls[1][2] === '-1', 'the button: the card to the middle of the screen, focus on its heading (not on "Yes"), no second jump');
+    calls.length = 0; nctx.window.matchMedia = () => ({ matches: true });
+    nb[0].click();
+    ok(calls[0][1].behavior === 'auto', 'prefers-reduced-motion: no smooth scroll');
+    ok(N({ parentNode: null }, cardEl, 'Quim') === null && N(null, cardEl, 'Quim') === null, 'no gauge card on the page: no line, no error');
+
+    // the line goes once the card shows a final answer, and stays on a network failure (the person can try again)
+    const C = vm.runInNewContext(cut('escHtml') + cut('linkKeyStore') + cut('consentCard') + '\nconsentCard;',
+      { document: { createElement: el }, window: { localStorage: { getItem: () => null, setItem() {}, removeItem() {} } }, JSON, console,
+        fetch: () => nctx.reply() });
+    for (const [what, reply, gone] of [['a yes', { status: 200, body: { status: 'accepted', label: 'Spouse' } }, true], ['a no', { status: 200, body: { status: 'declined' } }, true],
+      ['a refusal', { status: 403, body: { message: 'This link is for adults.' } }, true], ['no network', null, false]]) {
+      let removed = null;
+      const line = { parentNode: { removeChild(n) { removed = n; } } };
+      nctx.reply = () => (reply ? Promise.resolve({ ok: reply.status < 400, status: reply.status, json: () => Promise.resolve(reply.body) }) : Promise.reject(new Error('offline')));
+      const box = el('div');
+      C(box, { api: API, token: T, key: K, from: 'Quim', email: 'x@example.com', note: line });
+      box.querySelectorAll('button')[0].click();
+      await flush();
+      ok(gone ? removed === line : removed === null, (gone ? what + ': the line at the top is gone' : what + ': the line stays'));
+    }
+  }
+  ok(card.indexOf('linkNotice(') > card.indexOf('age < 18') && card.indexOf('linkNotice(') > card.indexOf('if (!key)'),
+    'the result page draws the line only for an adult with a key (after the under-18 and no-key returns)');
+  ok(/note: note/.test(card) || /note: linkNotice\(/.test(card), 'the result page hands the line to the card, so a final answer removes it');
 }
