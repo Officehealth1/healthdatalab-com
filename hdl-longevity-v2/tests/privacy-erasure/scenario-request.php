@@ -1,7 +1,8 @@
 <?php
 /**
  * The request flow around the eraser (E7 off, S1 the control on My account → Privacy only, E8 route,
- * E11 warning, E12 practitioner notice, WordPress's two emails reworded, the 21-day reminder).
+ * L the confirm link lands on the Privacy Policy page, E11 warning, E12 practitioner notice,
+ * WordPress's two emails reworded, the 21-day reminder).
  *   php tests/privacy-erasure/scenario-request.php
  */
 require __DIR__ . '/stubs.php';
@@ -42,6 +43,7 @@ $GLOBALS['current_user'] = 10;
 $GLOBALS['on_account']   = true;
 ok( 'E7.3 off: no route', ! isset( $GLOBALS['routes'][ $route ] ) );
 ok( 'E7.4 off: no hook of ours, the membership plugin\'s own blocks and handler stay', $um_only === $GLOBALS['filters'] && false !== strpos( privacy_tab(), 'Erase of your data' ) && ! queued() );
+ok( 'E7.5 off: the confirm link and the Privacy Policy page are WordPress\'s own (no login_init, confirmed or the_content hook)', empty( $GLOBALS['filters']['login_init'] ) && empty( $GLOBALS['filters']['user_request_action_confirmed'] ) && empty( $GLOBALS['filters']['the_content'] ) );
 
 $GLOBALS['options'][ HDLV2_Privacy_Eraser::FLAG ] = '1';
 HDLV2_Privacy_Requests::init();
@@ -90,6 +92,85 @@ ok( 'E8.9 the email fails: an error to try again, no address in it', is_wp_error
 $policy = file_get_contents( $PLUGIN . '/includes/security/class-hdlv2-rate-limit-policy.php' );
 ok( 'E8.10 mapped in the rate-limit policy at the strictest tier', 1 === preg_match( "~array\( 'POST', '#\^/hdl-v2/v1/privacy/erase-request\\$#',\s+self::TIER_AI_BURN \)~", $policy ) );
 
+echo "── L. the confirm link lands on the Privacy Policy page, never on a WordPress page ──\n";
+$C       = array( 'HDLV2_Privacy_Requests', 'after_confirm' );
+$LOGIN   = array( 'HDLV2_Privacy_Requests', 'check_confirm_link' );
+$NOTE    = array( 'HDLV2_Privacy_Requests', 'landing_note' );
+$landed  = 'https://stby.test/privacy-policy/?hdlv2_erase=';
+// WordPress's own two callbacks (default-filters.php:453-454), as core adds them.
+function _wp_privacy_account_request_confirmed( $id ) { $r = wp_get_user_request( $id ); if ( $r && in_array( $r->status, array( 'request-pending', 'request-failed' ), true ) ) { $r->status = 'request-confirmed'; } }
+function _wp_privacy_send_request_confirmation_notification( $id ) { $GLOBALS['mails'][] = array( 'to' => 'alert', 'subject' => 'confirmed #' . $id, 'body' => '', 'headers' => array() ); }
+add_action( 'user_request_action_confirmed', '_wp_privacy_account_request_confirmed' );
+add_action( 'user_request_action_confirmed', '_wp_privacy_send_request_confirmation_notification', 12 );
+$GLOBALS['requests'][200] = (object) array( 'ID' => 200, 'email' => 'lee@example.test', 'action_name' => 'remove_personal_data', 'status' => 'request-pending', 'user_id' => 0 );
+$GLOBALS['requests'][201] = (object) array( 'ID' => 201, 'email' => 'lee@example.test', 'action_name' => 'export_personal_data', 'status' => 'request-pending', 'user_id' => 0 );
+$GLOBALS['request_keys'] = array( 200 => 'right-key', 201 => 'right-key' );
+
+/** wp-login.php as far as login_init, with core's $action; returns where it was sent, or '' when WordPress carries on. */
+function open_link( $get, $action = 'confirmaction' ) {
+    $_GET = $get; $GLOBALS['action'] = $action; $GLOBALS['redirect'] = null; $GLOBALS['validate_calls'] = array();
+    try { do_action_all( 'login_init' ); } catch ( HdlRedirect $e ) {}
+    return $GLOBALS['redirect'] ? $GLOBALS['redirect'][0] : '';
+}
+/** user_request_action_confirmed in priority order, as WordPress runs it; returns where it was sent. */
+function confirmed_hook( $id ) {
+    $cbs = $GLOBALS['filters']['user_request_action_confirmed'];
+    $order = array_keys( $cbs );
+    usort( $order, function ( $a, $b ) use ( $cbs ) { return ( hdl_prio( 'user_request_action_confirmed', $cbs[ $a ] ) <=> hdl_prio( 'user_request_action_confirmed', $cbs[ $b ] ) ) ?: $a <=> $b; } );
+    $GLOBALS['redirect'] = null; $GLOBALS['at_redirect'] = null;
+    try { foreach ( $order as $i ) { call_user_func( $cbs[ $i ], $id ); } } catch ( HdlRedirect $e ) {
+        $GLOBALS['at_redirect'] = array( wp_get_user_request( $id )->status, count( $GLOBALS['mails'] ) );
+    }
+    return $GLOBALS['redirect'] ? $GLOBALS['redirect'][0] : '';
+}
+/** The Privacy Policy page's content through our filter, on the main query in the loop. */
+function landing( $state, $content = '<div class="hdl-legal"><h1>Privacy Policy</h1></div>', $page = 'privacy-policy', $loop = true ) {
+    $_GET = null === $state ? array() : array( 'hdlv2_erase' => $state );
+    $GLOBALS['page_slug'] = $page; $GLOBALS['in_loop'] = $loop; $GLOBALS['main_query'] = $loop;
+    return apply_filters( 'the_content', $content );
+}
+
+$GLOBALS['mails'] = array();
+$where = confirmed_hook( 200 );
+ok( 'L.1 on user_request_action_confirmed at priority 20, after WordPress\'s 10 and 12; an erase request lands on …=confirmed (302)', 20 === hdl_prio( 'user_request_action_confirmed', $C ) && $landed . 'confirmed' === $where && 302 === ( $GLOBALS['redirect'][1] ?? 0 ) );
+ok( 'L.2 by then WordPress has marked it confirmed and sent the alert', array( 'request-confirmed', 1 ) === $GLOBALS['at_redirect'] && 'confirmed #200' === $GLOBALS['mails'][0]['subject'] );
+$conf = landing( 'confirmed' );
+$sent = 'Thank you, it is confirmed. We will delete your data within one month and email you when it is done.';
+ok( 'L.3 the confirmed note: S1\'s sentence, first thing in the page\'s text column, role=status', 0 === strpos( $conf, '<div class="hdl-legal"><p class="hdlv2-erase-note" role="status"' ) && $sent === strip_tags( substr( $conf, strlen( '<div class="hdl-legal">' ), strpos( $conf, '</p>' ) - strlen( '<div class="hdl-legal">' ) ) ) && false !== strpos( $conf, '<h1>Privacy Policy</h1>' ) );
+ok( 'L.3b its colours are DESIGN.md\'s success fill and border with navy text, and no rail', false !== strpos( $conf, 'background:#ecfdf5' ) && false !== strpos( $conf, 'border:1px solid #a7f3d0' ) && false !== strpos( $conf, 'color:#2c3e50' ) && false === strpos( $conf, 'border-left' ) );
+ok( 'L.3c WordPress\'s own confirmed page is no longer reworded (that page is not shown for an erase request)', empty( $GLOBALS['filters']['user_request_action_confirmed_message'] ) && ! method_exists( 'HDLV2_Privacy_Requests', 'confirmed_message' ) );
+
+$GLOBALS['requests'][200]->status = 'request-pending';
+ok( 'L.4 login_init on a pending erase request with a wrong key → …=expired, nothing changed', 10 === hdl_prio( 'login_init', $LOGIN ) && $landed . 'expired' === open_link( array( 'action' => 'confirmaction', 'request_id' => '200', 'confirm_key' => 'wrong' ) ) && 'request-pending' === $GLOBALS['requests'][200]->status );
+ok( 'L.4b the right key: WordPress carries on (it confirms, then L.1 lands)', '' === open_link( array( 'action' => 'confirmaction', 'request_id' => '200', 'confirm_key' => 'right-key' ) ) && 'request-pending' === $GLOBALS['requests'][200]->status );
+$l5 = array();
+foreach ( array( 'request-confirmed', 'request-completed' ) as $st ) {
+    $GLOBALS['requests'][200]->status = $st;
+    $l5[] = open_link( array( 'action' => 'confirmaction', 'request_id' => '200', 'confirm_key' => 'right-key' ) ) . '|' . $GLOBALS['requests'][200]->status;
+}
+ok( 'L.5 a request no longer pending (confirmed, completed), even with its own key → …=expired, status kept', array( $landed . 'expired|request-confirmed', $landed . 'expired|request-completed' ) === $l5 );
+$GLOBALS['requests'][200]->status = 'request-pending';
+$l6 = array();
+foreach ( array( '0', '999', 'abc' ) as $rid ) {
+    $l6[] = open_link( array( 'action' => 'confirmaction', 'request_id' => $rid, 'confirm_key' => 'x' ) ) . '|' . count( $GLOBALS['validate_calls'] );
+}
+ok( 'L.6 request_id 0, unknown or not a number → …=expired, and core\'s key check is never called (it warns on a missing request)', array_fill( 0, 3, $landed . 'expired|0' ) === $l6 );
+ok( 'L.7 a part missing (no request_id, no confirm_key, an empty key, an array) → …=expired', $landed . 'expired' === open_link( array( 'action' => 'confirmaction', 'confirm_key' => 'right-key' ) ) && $landed . 'expired' === open_link( array( 'action' => 'confirmaction', 'request_id' => '200' ) ) && $landed . 'expired' === open_link( array( 'action' => 'confirmaction', 'request_id' => '200', 'confirm_key' => '' ) ) && $landed . 'expired' === open_link( array( 'action' => 'confirmaction', 'request_id' => '200', 'confirm_key' => array( 'right-key' ) ) ) && 'request-pending' === $GLOBALS['requests'][200]->status );
+ok( 'L.8 an export request: WordPress\'s own flow on both hooks (no redirect)', '' === open_link( array( 'action' => 'confirmaction', 'request_id' => '201', 'confirm_key' => 'wrong' ) ) && '' === confirmed_hook( 201 ) );
+ok( 'L.8b any other wp-login.php action (core\'s $action, e.g. resetpass from ?key=) is left alone, nothing checked', '' === open_link( array( 'action' => 'confirmaction', 'request_id' => '0', 'key' => 'k' ), 'resetpass' ) && '' === open_link( array(), 'login' ) && ! $GLOBALS['validate_calls'] );
+$exp = landing( 'expired' );
+ok( 'L.8c the expired note: S2\'s sentence, DESIGN.md\'s info fill and border, navy text, no rail', 'This link has been used or has expired. If you confirmed already, we will email you when your data is deleted. If not, sign in and choose Delete my data on My account, Privacy, or email office@healthdatalab.com.' === strip_tags( substr( $exp, strpos( $exp, '<p class="hdlv2-erase-note"' ), strpos( $exp, '</p>' ) - strpos( $exp, '<p class="hdlv2-erase-note"' ) ) ) && false !== strpos( $exp, 'background:#eff6ff' ) && false !== strpos( $exp, 'border:1px solid #bfdbfe' ) && false !== strpos( $exp, 'color:#2c3e50' ) && false === strpos( $exp, 'border-left' ) );
+$page = '<div class="hdl-legal"><h1>Privacy Policy</h1></div>';
+$bad  = array( 'anything-else', '<script>alert(1)</script>', 'CONFIRMED', array( 'confirmed' ), '' );
+ok( 'L.9 any other value (or none, or an array) → the page unchanged, no input echoed', array_fill( 0, 6, $page ) === array_merge( array_map( function ( $v ) { return landing( $v ); }, $bad ), array( landing( null ) ) ) );
+ok( 'L.9b only on the Privacy Policy page\'s own content in the main loop (not another page, a header or a widget)', $page === landing( 'confirmed', $page, 'about' ) && $page === landing( 'confirmed', $page, 'privacy-policy', false ) && $page === landing( 'confirmed', $page, '' ) );
+$plain = landing( 'confirmed', '<p>Edited page</p>' );
+ok( 'L.9c the page without its .hdl-legal column: the note still shows, at the top', 0 === strpos( $plain, '<p class="hdlv2-erase-note"' ) && '<p>Edited page</p>' === substr( $plain, -strlen( '<p>Edited page</p>' ) ) && 1 === substr_count( $plain, 'hdlv2-erase-note' ) );
+ok( 'L.9d the_content hook after Divi has drawn the page (do_shortcode is 11)', 20 === hdl_prio( 'the_content', $NOTE ) );
+$_GET = array(); $GLOBALS['page_slug'] = ''; $GLOBALS['in_loop'] = false; $GLOBALS['main_query'] = false;
+unset( $GLOBALS['requests'][200], $GLOBALS['requests'][201] );
+$GLOBALS['mails'] = array();
+
 echo "── WordPress's two emails to the person, ours only ──\n";
 $erase  = (object) array( 'ID' => 100, 'email' => 'alice@example.test', 'action_name' => 'remove_personal_data', 'status' => 'request-pending', 'user_id' => 10 );
 $export = (object) array( 'ID' => 101, 'email' => 'alice@example.test', 'action_name' => 'export_personal_data', 'status' => 'request-pending', 'user_id' => 10 );
@@ -99,7 +180,6 @@ $xd = array( 'request' => $export, 'confirm_url' => 'u' );
 ok( 'M.2 an export request keeps WordPress\'s own words', 'x' === apply_filters( 'user_request_action_email_subject', 'x', 'HDL', $xd ) && 'x' === apply_filters( 'user_request_action_email_content', 'x', $xd ) && '' === apply_filters( 'user_request_action_email_headers', '', 's', 'c', 101, $xd ) );
 $GLOBALS['requests'][100] = $erase;
 $GLOBALS['requests'][101] = $export;
-ok( 'M.3 the confirmed page, in plain words', false !== strpos( apply_filters( 'user_request_action_confirmed_message', 'core', 100 ), 'within one month' ) && 'core' === apply_filters( 'user_request_action_confirmed_message', 'core', 101 ) );
 $dd = array( 'request' => $erase );
 $gone = (object) array( 'ID' => 104, 'email' => 'gone@example.test', 'action_name' => 'remove_personal_data', 'status' => 'request-completed', 'user_id' => 99 );
 // Alice (user 10) still exists here, so her done email is the "account kept" one; user 99 is gone.

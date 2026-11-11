@@ -1,7 +1,7 @@
 <?php
 /**
- * HDL V2 — a request to delete one's data (v0.48.63; on My account → Privacy since v0.48.64;
- * switch hdlv2_ff_data_erasure, off by default).
+ * HDL V2 — a request to delete one's data (v0.48.63; on My account → Privacy since v0.48.64; the
+ * confirm link lands on the Privacy Policy page since v0.48.65; switch hdlv2_ff_data_erasure, off by default).
  *
  * WordPress's own request flow, worded for HealthDataLab:
  *   1 a signed-in client asks from My account → Privacy (POST /privacy/erase-request, their own
@@ -9,7 +9,8 @@
  *     off while the switch is on;
  *   2 WordPress emails a link that works for one day (wp-login.php?action=confirmaction);
  *   3 the person confirms: WordPress's admin notice goes to our alert addresses instead, with the
- *     date one month on and the outside copies to remove by hand;
+ *     date one month on and the outside copies to remove by hand; the person lands on our Privacy
+ *     Policy page with a note (v0.48.65), as does anyone opening a used, expired or broken link;
  *   4 an administrator presses Erase on Tools → Erase Personal Data (HDLV2_Privacy_Eraser does it);
  *   5 WordPress emails the person that it is done; each of their practitioners is told here.
  * People without an account email us; an administrator adds the request on the same Tools screen,
@@ -36,11 +37,13 @@ class HDLV2_Privacy_Requests {
         add_action( 'init', array( __CLASS__, 'drop_um_requests' ) );
         add_action( 'wp_enqueue_scripts', array( __CLASS__, 'assets' ) );
         add_action( 'um_after_account_privacy', array( __CLASS__, 'account_control' ) );
-        // WordPress's emails and page for an erase request, in our words.
+        // WordPress's emails for an erase request, in our words; its confirm link lands on our page.
         add_filter( 'user_request_action_email_subject', array( __CLASS__, 'confirm_subject' ), 10, 3 );
         add_filter( 'user_request_action_email_content', array( __CLASS__, 'confirm_content' ), 10, 2 );
         add_filter( 'user_request_action_email_headers', array( __CLASS__, 'html_headers' ), 10, 5 );
-        add_filter( 'user_request_action_confirmed_message', array( __CLASS__, 'confirmed_message' ), 10, 2 );
+        add_action( 'login_init', array( __CLASS__, 'check_confirm_link' ) );
+        add_action( 'user_request_action_confirmed', array( __CLASS__, 'after_confirm' ), 20 ); // after core's 10 (confirmed) and 12 (alert)
+        add_filter( 'the_content', array( __CLASS__, 'landing_note' ), 20 ); // after Divi has drawn the page (do_shortcode, 11)
         add_filter( 'user_erasure_fulfillment_email_subject', array( __CLASS__, 'done_subject' ), 10, 3 );
         add_filter( 'user_erasure_fulfillment_email_content', array( __CLASS__, 'done_content' ), 10, 2 );
         add_filter( 'user_erasure_fulfillment_email_headers', array( __CLASS__, 'html_headers' ), 10, 5 );
@@ -163,12 +166,6 @@ class HDLV2_Privacy_Requests {
         return self::is_erase( $data['request'] ?? null ) ? self::HTML : $headers;
     }
 
-    public static function confirmed_message( $message, $request_id ) {
-        return self::is_erase( wp_get_user_request( $request_id ) )
-            ? '<p class="success">Thank you, it is confirmed. We will delete your data within one month and email you when it is done.</p>'
-            : $message;
-    }
-
     public static function done_subject( $subject, $sitename, $data ) {
         return self::is_erase( $data['request'] ?? null ) ? 'Your HealthDataLab data has been deleted' : $subject;
     }
@@ -204,6 +201,64 @@ class HDLV2_Privacy_Requests {
             . "- The practitioner is emailed when the erase finishes and deletes their own copies.\n"
             . "- Stripe: payment records are kept. Do not delete them.\n"
             . "- Anthropic and Deepgram: per their terms they keep nothing we can delete by request (not checked).\n";
+    }
+
+    // ── 3. the confirm link lands on the Privacy Policy page, never on a WordPress page ──
+
+    /** The two notes the landing page can show, by the only two values of ?hdlv2_erase= (text, fill, border). */
+    const NOTES = array(
+        'confirmed' => array( 'Thank you, it is confirmed. We will delete your data within one month and email you when it is done.', '#ecfdf5', '#a7f3d0' ),
+        'expired'   => array( 'This link has been used or has expired. If you confirmed already, we will email you when your data is deleted. If not, sign in and choose Delete my data on <a href="/my-account/privacy/">My account, Privacy</a>, or email <a href="mailto:office@healthdatalab.com">office@healthdatalab.com</a>.', '#eff6ff', '#bfdbfe' ),
+    );
+
+    /**
+     * wp-login.php, before its action switch: a confirm link WordPress would refuse with its own error page
+     * (a part missing, no such request, used, expired, a wrong key) lands on ours instead. A good link for an
+     * erase request goes on to WordPress, which confirms it; after_confirm() then lands. Any other request
+     * type keeps WordPress's flow. Core's key check is only called for a request that exists (it warns otherwise).
+     */
+    public static function check_confirm_link() {
+        if ( 'confirmaction' !== ( $GLOBALS['action'] ?? '' ) ) { // core's own $action, as its switch will read it
+            return;
+        }
+        $id      = absint( $_GET['request_id'] ?? 0 );
+        $key     = sanitize_text_field( wp_unslash( $_GET['confirm_key'] ?? '' ) );
+        $request = $id ? wp_get_user_request( $id ) : false;
+        if ( $request && ! self::is_erase( $request ) ) {
+            return;
+        }
+        if ( ! $request || '' === $key || is_wp_error( wp_validate_user_request_key( $id, $key ) ) ) {
+            self::land( 'expired' );
+        }
+    }
+
+    /** WordPress has marked the request confirmed (10) and sent our alert (12). */
+    public static function after_confirm( $request_id ) {
+        if ( self::is_erase( wp_get_user_request( $request_id ) ) ) {
+            self::land( 'confirmed' );
+        }
+    }
+
+    /** 302 to the Privacy Policy page. If a plugin blocks the redirect, WordPress's own page shows instead of a blank one. */
+    private static function land( $state ) {
+        if ( wp_safe_redirect( add_query_arg( 'hdlv2_erase', $state, home_url( '/privacy-policy/' ) ) ) ) {
+            exit;
+        }
+    }
+
+    const COLUMN = '<div class="hdl-legal">'; // page 673's text column; without it the note goes at the top
+
+    /** The note as the first thing in the page's text column, for the two fixed values only. */
+    public static function landing_note( $content ) {
+        $state = isset( $_GET['hdlv2_erase'] ) && is_string( $_GET['hdlv2_erase'] ) ? $_GET['hdlv2_erase'] : '';
+        if ( ! isset( self::NOTES[ $state ] ) || ! is_page( 'privacy-policy' ) || ! in_the_loop() || ! is_main_query() ) {
+            return $content;
+        }
+        list( $text, $fill, $border ) = self::NOTES[ $state ];
+        // DESIGN.md status fill and border; navy text (the palette's status text colours are too light for a sentence). No rail.
+        $note = '<p class="hdlv2-erase-note" role="status" style="margin:0 0 24px;padding:12px 16px;border:1px solid ' . $border . ';border-radius:8px;background:' . $fill . ';color:#2c3e50">' . $text . '</p>';
+        $at   = strpos( $content, self::COLUMN );
+        return false === $at ? $note . $content : substr_replace( $content, $note, $at + strlen( self::COLUMN ), 0 );
     }
 
     /** One calendar month on; with no such day in the next month, its last day (ICO). */
