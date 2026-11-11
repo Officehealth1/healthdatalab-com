@@ -107,7 +107,7 @@ function get_posts( $a ) {
 class HDLV2_Env { public static function gate( $c ) { return empty( $GLOBALS['gated'] ); } }
 class HDLV2_Email_Templates {
     public static function privacy_confirm( $url ) { return "<html>confirm [$url]</html>"; }
-    public static function privacy_done() { return '<html>done</html>'; }
+    public static function privacy_done( $account_kept = false ) { return $account_kept ? '<html>done kept</html>' : '<html>done</html>'; }
     public static function privacy_practitioner( $email ) { return "<html>practitioner [$email]</html>"; }
 }
 
@@ -154,8 +154,10 @@ class SqliteWpdb {
         }
         return 'START TRANSACTION' === trim( $sql ) ? 'BEGIN' : $sql;
     }
+    public $log = array();
     public function query( $sql ) {
         $sql = $this->translate( $sql );
+        $this->log[] = $sql;
         if ( $this->fail_on && preg_match( '/^\s*(DELETE|UPDATE)\b/i', $sql ) && false !== strpos( $sql, $this->fail_on ) ) {
             $this->last_error = 'forced failure';
             return false;

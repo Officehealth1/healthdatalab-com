@@ -78,7 +78,9 @@ $GLOBALS['requests'][100] = $erase;
 $GLOBALS['requests'][101] = $export;
 ok( 'M.3 the confirmed page, in plain words', false !== strpos( apply_filters( 'user_request_action_confirmed_message', 'core', 100 ), 'within one month' ) && 'core' === apply_filters( 'user_request_action_confirmed_message', 'core', 101 ) );
 $dd = array( 'request' => $erase );
-ok( 'M.4 done: our subject, our HTML, HTML header', false !== strpos( apply_filters( 'user_erasure_fulfillment_email_subject', 'x', 'HDL', $dd ), 'deleted' ) && '<html>done</html>' === apply_filters( 'user_erasure_fulfillment_email_content', 'x', $dd ) && false !== stripos( apply_filters( 'user_erasure_fulfillment_email_headers', '', 's', 'c', 100, $dd ), 'text/html' ) );
+$gone = (object) array( 'ID' => 104, 'email' => 'gone@example.test', 'action_name' => 'remove_personal_data', 'status' => 'request-completed', 'user_id' => 99 );
+// Alice (user 10) still exists here, so her done email is the "account kept" one; user 99 is gone.
+ok( 'M.4 done: our subject, our HTML, HTML header', false !== strpos( apply_filters( 'user_erasure_fulfillment_email_subject', 'x', 'HDL', $dd ), 'deleted' ) && '<html>done kept</html>' === apply_filters( 'user_erasure_fulfillment_email_content', 'x', $dd ) && '<html>done</html>' === apply_filters( 'user_erasure_fulfillment_email_content', 'x', array( 'request' => $gone ) ) && false !== stripos( apply_filters( 'user_erasure_fulfillment_email_headers', '', 's', 'c', 100, $dd ), 'text/html' ) );
 
 echo "── E11. the warning when the person confirms ──\n";
 $cd = array( 'request' => $erase, 'user_email' => 'alice@example.test', 'manage_url' => 'https://stby.test/wp-admin/erase-personal-data.php' );
@@ -99,11 +101,14 @@ echo "── E12. the practitioner notice and the log line when the erase finish
 $db->insert( 'wp_hdlv2_form_progress', array( 'client_user_id' => 10, 'practitioner_user_id' => 5, 'client_email' => 'alice@example.test', 'token' => 't1' ) );
 $db->insert( 'wp_hdlv2_widget_leads', array( 'practitioner_user_id' => 6, 'visitor_email' => 'alice@example.test' ) );
 $GLOBALS['mails'] = array();
+// W1: page 3 fails after page 2 committed; the Tools screen's Retry starts again at page 1.
+HDLV2_Privacy_Eraser::erase( 'alice@example.test', 1 );
+HDLV2_Privacy_Eraser::erase( 'alice@example.test', 2 );
 hdl_erase_all( 'alice@example.test' );
 $erase->status = 'request-completed';
 do_action_all( 'wp_privacy_personal_data_erased', 100 );
 $to_pracs = array_column( $GLOBALS['mails'], 'to' );
-ok( 'E12.1 each practitioner gets one notice', array( 'prac@example.test', 'prac2@example.test' ) === $to_pracs );
+ok( 'E12.1 each practitioner gets one notice, after a retry from page 1 too', array( 'prac@example.test', 'prac2@example.test' ) === $to_pracs );
 ok( 'E12.2 it gives the address and nothing else of theirs', '<html>practitioner [alice@example.test]</html>' === $GLOBALS['mails'][0]['body'] && in_array( 'Content-Type: text/html; charset=UTF-8', (array) $GLOBALS['mails'][0]['headers'], true ) );
 $log = (string) @file_get_contents( $GLOBALS['log_file'] );
 ok( 'E12.3 one log line: the request number and counts, no address', 1 === preg_match( '/\[HDLV2 erase\] request 100 done: \{.*"hdlv2_form_progress":1/', $log ) && ! preg_match( '/@/', $log ) );

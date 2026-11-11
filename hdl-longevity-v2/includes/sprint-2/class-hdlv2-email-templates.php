@@ -1112,11 +1112,14 @@ class HDLV2_Email_Templates {
     }
 
     /** The "it is done" email, sent by WordPress when the administrator's erase finishes. */
-    public static function privacy_done() {
+    public static function privacy_done( $account_kept = false ) {
         $p       = "style='color:#2c3e50;line-height:1.7;margin:0 0 12px;font-size:15px;'";
+        $done    = $account_kept
+            ? 'We have deleted your answers, your reports and your recordings. Your sign-in account is still open because it has more than a client\'s access; we will contact you about it.'
+            : 'We have deleted your account, your answers, your reports and your recordings.';
         $content = "
             <h2 style='margin:0 0 12px;color:" . self::DARK . ";font-family:Poppins,Inter,sans-serif;font-size:22px;font-weight:700;'>Your data has been deleted</h2>
-            <p $p>We have deleted your account, your answers, your reports and your recordings. We have told your practitioner.</p>
+            <p $p>" . $done . " If you worked with a practitioner, we have told them.</p>
             <p $p>We kept only your payment records, which the law requires us to keep, and a short record that you asked and when we finished. Copies in our backups are not used and are overwritten as the backups are replaced.</p>
             <p $p>If you have a question, email office@healthdatalab.com.</p>";
         return self::base_layout( $content, null, 'Your data has been deleted' );

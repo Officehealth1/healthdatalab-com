@@ -155,7 +155,8 @@ echo "── E5. a practitioner's or administrator's address ──\n";
 $snap = hdl_erase_dump( $db, $tables );
 foreach ( array( 'prac@example.test' => 'practitioner', 'BOSS@example.test' => 'administrator' ) as $addr => $who ) {
     $r = hdl_erase_all( $addr );
-    ok( "E5 $who: refused at once, retained, the hand-handling message", 1 === count( $r ) && $r[0]['done'] && ! $r[0]['items_removed'] && $r[0]['items_retained'] && false !== strpos( implode( ' ', $r[0]['messages'] ), 'handled by hand' ) );
+    // An error, not done: WordPress would otherwise complete the request and email "your data has been deleted".
+    ok( "E5 $who: refused at once as an error, the hand-handling message, the request left open", 1 === count( $r ) && is_wp_error( $r[0] ) && false !== strpos( $r[0]->get_error_message(), 'handled by hand' ) );
 }
 ok( 'E5.3 nothing touched, no account deleted', $snap == hdl_erase_dump( $db, $tables ) && ! $GLOBALS['deleted_users'] );
 
@@ -165,6 +166,15 @@ $r = HDLV2_Privacy_Eraser::erase( 'alice@example.test', 2 );
 $db->fail_on = '';
 ok( 'R.1 answered as an error the Tools screen shows', is_wp_error( $r ) && false === strpos( $r->get_error_message(), '@' ) );
 ok( 'R.2 every V2 row of the page is back', $snap == hdl_erase_dump( $db, $tables ) );
+
+echo "── page 3 rollback: the MyISAM stores are deleted only after the commit ──\n";
+$db->fail_on = 'wp_post_smtp_logs';
+$r = HDLV2_Privacy_Eraser::erase( 'alice@example.test', 3 );
+$db->fail_on = '';
+ok( 'R.3 a failed step on page 3 is an error and her credits and usage rows are still there', is_wp_error( $r ) && 1 === (int) $db->get_var( 'SELECT COUNT(*) FROM wp_hdl_user_credits WHERE user_id = 10' ) && 1 === (int) $db->get_var( 'SELECT COUNT(*) FROM wp_hdl_usage_logs WHERE user_id = 10' ) && $snap == hdl_erase_dump( $db, $tables ) );
+
+// MyISAM ignores ROLLBACK (hdl_user_credits, hdl_usage_logs, hdl_credit_purchases on STBY): their deletes come after the COMMIT.
+ok( 'R.4 page 3: the credits and usage deletes run after the COMMIT', hdl_erase_cleanup_probe( $db ) );
 
 echo "── E2/E3/E9/E10. erase Alice ──\n";
 // E3: one path points outside the private folder; one is absolute and outside. Both stay.
@@ -201,6 +211,23 @@ $answers = hdl_erase_all( 'carol@example.test' );
 ok( 'N.1 Carol\'s rows and files are gone', ! rows_left( $db, $tables, $c ) && ! array_filter( files_of( $c, 'carol' ), 'file_exists' ) && removed_any( $answers ) );
 ok( 'N.2 Bob still untouched', still_there( $before_b, hdl_erase_dump( $db, $tables ) ) );
 
+echo "── W3. an address on a record of another live account; an account already deleted ──\n";
+// Gina's record carries Henry's old address; Henry asks. Gina's record is not his to erase.
+$GLOBALS['users'][50] = (object) array( 'ID' => 50, 'user_email' => 'gina@example.test', 'roles' => array( 'um_client' ) );
+$gina = $db->insert( 'wp_hdlv2_form_progress', array( 'client_user_id' => 50, 'practitioner_user_id' => PRAC_A, 'client_email' => 'henry@example.test', 'token' => 'gina', 'stage1_data' => '{}' ) );
+$db->insert( 'wp_hdlv2_reports', array( 'client_user_id' => 50, 'form_progress_id' => $gina, 'report_type' => 'final' ) );
+// Ivan's account was deleted on the Users screen first (user 77 is gone); his records still carry his address.
+$ivan = $db->insert( 'wp_hdlv2_form_progress', array( 'client_user_id' => 77, 'practitioner_user_id' => PRAC_A, 'client_email' => 'ivan@example.test', 'token' => 'ivan', 'stage1_data' => '{}' ) );
+$db->insert( 'wp_hdlv2_flight_plans', array( 'client_id' => 77, 'practitioner_id' => PRAC_A, 'plan' => '{}' ) );
+$db->insert( 'wp_hdlv2_checkins', array( 'client_id' => 77, 'practitioner_id' => PRAC_A, 'notes' => 'x' ) );
+$db->insert( 'wp_hdlv2_challenge_days', array( 'client_user_id' => 77, 'day_no' => 2 ) );
+$db->insert( 'wp_hdlv2_jobs', array( 'job_type' => 'generate_flight_plan_auto', 'reference_id' => 77, 'payload' => '{}' ) );
+$answers = hdl_erase_all( 'henry@example.test' );
+ok( 'W3.1 another live account\'s record and its report stay, reported as kept', 1 === (int) $db->get_var( "SELECT COUNT(*) FROM wp_hdlv2_form_progress WHERE id = $gina" ) && 1 === (int) $db->get_var( "SELECT COUNT(*) FROM wp_hdlv2_reports WHERE form_progress_id = $gina" ) && retained_any( $answers ) && preg_grep( '/another account/', messages_of( $answers ) ) );
+hdl_erase_all( 'ivan@example.test' );
+ok( 'W3.2 a deleted account\'s rows go by the user id on its records', ! $db->get_var( "SELECT COUNT(*) FROM wp_hdlv2_form_progress WHERE id = $ivan" ) && ! $db->get_var( 'SELECT COUNT(*) FROM wp_hdlv2_flight_plans WHERE client_id = 77' ) && ! $db->get_var( 'SELECT COUNT(*) FROM wp_hdlv2_checkins WHERE client_id = 77' ) && ! $db->get_var( 'SELECT COUNT(*) FROM wp_hdlv2_challenge_days WHERE client_user_id = 77' ) && ! $db->get_var( "SELECT COUNT(*) FROM wp_hdlv2_jobs WHERE reference_id = 77" ) );
+ok( 'W3.3 Bob still untouched', still_there( $before_b, hdl_erase_dump( $db, $tables ) ) );
+
 echo "── an account with another role ──\n";
 $db->insert( 'wp_hdlv2_form_progress', array( 'client_user_id' => 30, 'practitioner_user_id' => PRAC_A, 'client_email' => 'erin@example.test', 'token' => 'erin', 'stage1_data' => '{}' ) );
 $answers = hdl_erase_all( 'erin@example.test' );
@@ -208,6 +235,16 @@ ok( 'O.1 her data goes, the account stays and is reported as kept', ! $db->get_v
 
 @unlink( $outside );
 done_report();
+
+/** Page 3 for a copy of Alice's V1 rows: the MyISAM deletes come after the COMMIT, the InnoDB ones before. */
+function hdl_erase_cleanup_probe( $db ) {
+    $db->insert( 'wp_hdl_user_credits', array( 'user_id' => 10, 'credits' => 1 ) );
+    $db->log = array();
+    HDLV2_Privacy_Eraser::erase( 'alice@example.test', 3 );
+    $at = function ( $needle ) use ( $db ) { foreach ( $db->log as $i => $q ) { if ( false !== strpos( $q, $needle ) ) return $i; } return -1; };
+    $commit = $at( 'COMMIT' );
+    return $commit > 0 && $at( 'DELETE FROM wp_hdl_user_credits' ) > $commit && $at( 'DELETE FROM wp_hdl_usage_logs' ) > $commit && $at( 'DELETE FROM wp_health_tracker_submissions' ) < $commit;
+}
 
 /** Every row of $before is still in $after, byte for byte. */
 function still_there( $before, $after ) {

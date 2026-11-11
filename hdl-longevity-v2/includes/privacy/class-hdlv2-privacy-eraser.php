@@ -13,8 +13,10 @@
  *   3 V1 rows and the mail log, one transaction;
  *   4 the sign-in account, client roles only.
  * Each page finds the keys again, so a second run removes nothing. A practitioner's or an
- * administrator's address is refused whole. Kept and reported: V1 payment rows
- * (hdl_credit_purchases). Messages carry counts per store, never a name or an address.
+ * administrator's address is refused whole, as an error, so WordPress neither completes the
+ * request nor emails "deleted". A record carrying the address but owned by another live account
+ * is left and reported. Kept and reported: V1 payment rows (hdl_credit_purchases). Messages
+ * carry counts per store, never a name or an address.
  *
  * Not tied to a person, so left to the 90-day audio sweep: a recording the practitioner made
  * outside a consultation's notes (an addendum), whose job holds only the practitioner's stamp.
@@ -66,15 +68,17 @@ class HDLV2_Privacy_Eraser {
     /**
      * The keys to one person's data.
      *
-     * @return array email, user, refused, progress[], tokens[], leads[], consults[], reports[], plans[],
-     *               practitioners[], email_hash, user_hash.
+     * @return array email, user (the live account), users[] (it, plus accounts already deleted that
+     *               their records name), refused, foreign (records of another live account),
+     *               progress[], tokens[], leads[], consults[], reports[], plans[], practitioners[],
+     *               email_hash, user_hash.
      */
     public static function find( $email ) {
         global $wpdb;
         $p     = $wpdb->prefix;
         $email = strtolower( trim( (string) $email ) );
         $k     = array(
-            'email' => $email, 'user' => 0, 'refused' => false, 'progress' => array(), 'tokens' => array(), 'leads' => array(),
+            'email' => $email, 'user' => 0, 'users' => array(), 'refused' => false, 'foreign' => 0, 'progress' => array(), 'tokens' => array(), 'leads' => array(),
             'consults' => array(), 'reports' => array(), 'plans' => array(), 'practitioners' => array(), 'email_hash' => '', 'user_hash' => '',
         );
         // An empty address would match every blank row: nothing is found for it.
@@ -89,14 +93,25 @@ class HDLV2_Privacy_Eraser {
                 return $k;
             }
         }
-        $uid  = $k['user'];
-        $pracs = array();
+        $uid        = $k['user'];
+        $k['users'] = $uid ? array( $uid ) : array();
+        $pracs      = array();
 
         $rows = $wpdb->get_results( $wpdb->prepare(
-            "SELECT id, practitioner_user_id, token FROM {$p}hdlv2_form_progress WHERE ( %d > 0 AND client_user_id = %d ) OR LOWER(TRIM(client_email)) = %s ORDER BY id",
+            "SELECT id, practitioner_user_id, token, client_user_id FROM {$p}hdlv2_form_progress WHERE ( %d > 0 AND client_user_id = %d ) OR LOWER(TRIM(client_email)) = %s ORDER BY id",
             $uid, $uid, $email
         ) );
         foreach ( $rows as $r ) {
+            $owner = (int) $r->client_user_id;
+            if ( $owner && $owner !== $uid ) {
+                // The address on another live account's record (an old address now theirs): not this person's to erase.
+                if ( get_userdata( $owner ) ) {
+                    $k['foreign']++;
+                    continue;
+                }
+                // An account deleted before the request: the rows keyed by its id are this person's.
+                $k['users'][] = $owner;
+            }
             $k['progress'][] = (int) $r->id;
             $k['tokens'][]   = (string) $r->token;
             $pracs[]         = (int) $r->practitioner_user_id;
@@ -114,8 +129,9 @@ class HDLV2_Privacy_Eraser {
             $k['consults'] = array_map( 'intval', $wpdb->get_col( "SELECT id FROM {$p}hdlv2_consultation_notes WHERE form_progress_id IN ($in)" ) );
             $k['reports']  = array_map( 'intval', $wpdb->get_col( "SELECT id FROM {$p}hdlv2_reports WHERE form_progress_id IN ($in)" ) );
         }
-        if ( $uid ) {
-            $k['plans'] = array_map( 'intval', $wpdb->get_col( $wpdb->prepare( "SELECT id FROM {$p}hdlv2_flight_plans WHERE client_id = %d", $uid ) ) );
+        $k['users'] = array_values( array_unique( $k['users'] ) );
+        if ( $k['users'] ) {
+            $k['plans'] = array_map( 'intval', $wpdb->get_col( "SELECT id FROM {$p}hdlv2_flight_plans WHERE client_id IN (" . self::in( $k['users'] ) . ')' ) );
         }
         // V1's two hashes (class-health-tracker.php generate_user_hash, and the plain email hash).
         $k['email_hash'] = hash( 'sha256', $email );
@@ -127,8 +143,9 @@ class HDLV2_Privacy_Eraser {
                 $k['email_hash']
             ) ) ) );
         }
-        $k['practitioners'] = array_values( array_unique( array_filter( $pracs, function ( $id ) use ( $uid ) {
-            return $id > 0 && $id !== $uid;
+        $users              = $k['users'];
+        $k['practitioners'] = array_values( array_unique( array_filter( $pracs, function ( $id ) use ( $users ) {
+            return $id > 0 && ! in_array( $id, $users, true );
         } ) ) );
         return $k;
     }
@@ -138,12 +155,12 @@ class HDLV2_Privacy_Eraser {
         $page = max( 1, (int) $page );
         $k    = self::find( $email );
         if ( $k['refused'] ) {
-            return self::answer( false, true, array( self::REFUSED ), true );
+            return new WP_Error( 'hdlv2_erase_refused', self::REFUSED );
         }
-        if ( 1 === $page ) {
-            self::remember( $k['email'], $k['practitioners'], true );
-        } elseif ( $page <= self::PAGES ) {
-            self::remember( $k['email'], $k['practitioners'], false );
+        // Merged, never reset: the Tools screen's Retry starts again at page 1, after page 2 may have
+        // removed the rows that name the practitioners. take_state() clears it when WordPress finishes.
+        if ( $page <= self::PAGES ) {
+            self::remember( $k['email'], $k['practitioners'] );
         }
         $done = $page >= self::PAGES;
         switch ( $page ) {
@@ -152,11 +169,14 @@ class HDLV2_Privacy_Eraser {
                 break;
             case 2:
                 $counts = self::in_transaction( function () use ( $k ) { return self::page_v2( $k ); } );
-                $kept   = array();
+                $kept   = $k['foreign'] ? array( sprintf( '%d record(s) carry this address but belong to another account; left for a person to check.', $k['foreign'] ) ) : array();
                 break;
             case 3:
                 $counts = self::in_transaction( function () use ( $k ) { return self::page_v1( $k ); } );
-                $kept   = is_wp_error( $counts ) ? array() : self::kept_payments( $k );
+                if ( ! is_wp_error( $counts ) ) {
+                    $counts = array_merge( $counts, self::page_v1_myisam( $k ) );
+                }
+                $kept = is_wp_error( $counts ) ? array() : self::kept_payments( $k );
                 break;
             case 4:
                 list( $counts, $kept ) = self::page_account( $k );
@@ -233,7 +253,7 @@ class HDLV2_Privacy_Eraser {
         global $wpdb;
         $p    = $wpdb->prefix;
         $c    = array();
-        $uid  = $k['user'];
+        $uids = $k['users'] ? self::in( $k['users'] ) : '';
         $pids = $k['progress'] ? self::in( $k['progress'] ) : '';
         $lids = $k['leads'] ? self::in( $k['leads'] ) : '';
 
@@ -274,10 +294,10 @@ class HDLV2_Privacy_Eraser {
                 }
             }
         }
-        if ( $uid ) {
+        if ( $uids ) {
             foreach ( array( 'hdlv2_flight_plan_ticks' => 'client_id', 'hdlv2_flight_plans' => 'client_id', 'hdlv2_checkins' => 'client_id', 'hdlv2_timeline' => 'client_id', 'hdlv2_monthly_summaries' => 'client_id', 'hdlv2_challenge_days' => 'client_user_id' ) as $t => $col ) {
                 if ( self::has( $t ) ) {
-                    $c[ $t ] = self::run( $wpdb->prepare( "DELETE FROM {$p}$t WHERE $col = %d", $uid ) );
+                    $c[ $t ] = self::run( "DELETE FROM {$p}$t WHERE $col IN ($uids)" );
                 }
             }
         }
@@ -302,7 +322,6 @@ class HDLV2_Privacy_Eraser {
         $eh  = $k['email_hash'];
         $uh  = $k['user_hash'];
         $e   = $k['email'];
-        $uid = $k['user'];
         $by_hash = $uh ? $wpdb->prepare( '( user_hash = %s OR email_hash = %s )', $uh, $eh ) : $wpdb->prepare( 'email_hash = %s', $eh );
         $stores  = array(
             'health_tracker_submissions'          => $by_hash,
@@ -314,8 +333,6 @@ class HDLV2_Privacy_Eraser {
             'hdl_messaging_prefs'                 => $wpdb->prepare( 'client_email_hash = %s', $eh ),
             'hdl_invites'                         => $wpdb->prepare( 'LOWER(TRIM(email)) = %s', $e ),
             'hdl_lab_audit_log'                   => $wpdb->prepare( 'LOWER(TRIM(email)) = %s', $e ),
-            'hdl_user_credits'                    => $uid ? $wpdb->prepare( 'user_id = %d', $uid ) : '',
-            'hdl_usage_logs'                      => $uid ? $wpdb->prepare( 'user_id = %d', $uid ) : '',
             // Post SMTP's log holds whole emails, sign-in links included.
             'post_smtp_logs'                      => $wpdb->prepare( '( LOWER(TRIM(original_to)) = %s OR LOWER(TRIM(to_header)) = %s )', $e, $e ),
         );
@@ -328,13 +345,30 @@ class HDLV2_Privacy_Eraser {
         return $c;
     }
 
+    /**
+     * V1's credit and usage tables are MyISAM on STBY (ROLLBACK does nothing there), so they go only
+     * after the transaction above has committed: a failed page leaves them as they were.
+     */
+    private static function page_v1_myisam( $k ) {
+        global $wpdb;
+        $c = array();
+        if ( $k['users'] ) {
+            foreach ( array( 'hdl_user_credits', 'hdl_usage_logs' ) as $t ) {
+                if ( self::has( $t ) ) {
+                    $c[ $t ] = (int) $wpdb->query( "DELETE FROM {$wpdb->prefix}$t WHERE user_id IN (" . self::in( $k['users'] ) . ')' );
+                }
+            }
+        }
+        return $c;
+    }
+
     /** @return string[] the kept-payment message, or none. */
     private static function kept_payments( $k ) {
         global $wpdb;
-        if ( ! $k['user'] || ! self::has( 'hdl_credit_purchases' ) ) {
+        if ( ! $k['users'] || ! self::has( 'hdl_credit_purchases' ) ) {
             return array();
         }
-        $n = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$wpdb->prefix}hdl_credit_purchases WHERE user_id = %d", $k['user'] ) );
+        $n = (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$wpdb->prefix}hdl_credit_purchases WHERE user_id IN (" . self::in( $k['users'] ) . ')' );
         return $n ? array( sprintf( 'Kept: %d payment record(s) (hdl_credit_purchases), which the law requires us to keep.', $n ) ) : array();
     }
 
@@ -365,7 +399,7 @@ class HDLV2_Privacy_Eraser {
     private static function jobs_of( $k ) {
         global $wpdb;
         $t   = $wpdb->prefix . 'hdlv2_jobs';
-        $ids = array( 'progress' => $k['progress'], 'consults' => $k['consults'], 'reports' => $k['reports'], 'plans' => $k['plans'], 'user' => $k['user'] ? array( $k['user'] ) : array() );
+        $ids = array( 'progress' => $k['progress'], 'consults' => $k['consults'], 'reports' => $k['reports'], 'plans' => $k['plans'], 'user' => $k['users'] );
         $out = array();
         foreach ( self::JOB_REFS as $type => $key ) {
             if ( $ids[ $key ] ) {
@@ -377,7 +411,7 @@ class HDLV2_Privacy_Eraser {
         $hashes = array_map( function ( $tok ) { return hash_hmac( 'sha256', $tok, wp_salt( 'auth' ) ); }, $k['tokens'] );
         foreach ( $wpdb->get_results( "SELECT id, reference_id, payload FROM $t WHERE job_type = 'transcribe_audio'" ) as $r ) {
             $pl   = (array) json_decode( (string) $r->payload, true );
-            $mine = ( $k['user'] && (int) ( $pl['_owner_user'] ?? 0 ) === $k['user'] )
+            $mine = ( ! empty( $pl['_owner_user'] ) && in_array( (int) $pl['_owner_user'], $k['users'], true ) )
                 || ( ! empty( $pl['_owner_token_hash'] ) && in_array( $pl['_owner_token_hash'], $hashes, true ) )
                 || ( 'consultation_notes' === ( $pl['context_type'] ?? '' ) && in_array( (int) $r->reference_id, $k['consults'], true ) );
             if ( $mine ) {
@@ -407,14 +441,14 @@ class HDLV2_Privacy_Eraser {
         return unlink( $real ) ? 'removed' : 'refused';
     }
 
-    /** "form_progress_id IN (…) OR client_user_id = n", or '' when the person has neither. */
+    /** "form_progress_id IN (…) OR client_user_id IN (…)", or '' when the person has neither. */
     private static function by_record_or_user( $k ) {
         $or = array();
         if ( $k['progress'] ) {
             $or[] = 'form_progress_id IN (' . self::in( $k['progress'] ) . ')';
         }
-        if ( $k['user'] ) {
-            $or[] = 'client_user_id = ' . (int) $k['user'];
+        if ( $k['users'] ) {
+            $or[] = 'client_user_id IN (' . self::in( $k['users'] ) . ')';
         }
         return implode( ' OR ', $or );
     }
@@ -467,8 +501,8 @@ class HDLV2_Privacy_Eraser {
     }
 
     /** The practitioners are read before page 2 removes the rows that name them. */
-    private static function remember( $email, $practitioners, $fresh ) {
-        $s = $fresh ? array() : (array) get_transient( self::state_key( $email ) );
+    private static function remember( $email, $practitioners ) {
+        $s = (array) get_transient( self::state_key( $email ) );
         $s['practitioners'] = array_values( array_unique( array_merge( $s['practitioners'] ?? array(), $practitioners ) ) );
         $s['counts']        = $s['counts'] ?? array();
         set_transient( self::state_key( $email ), $s, DAY_IN_SECONDS );

@@ -152,8 +152,10 @@ class HDLV2_Privacy_Requests {
         return self::is_erase( $data['request'] ?? null ) ? 'Your HealthDataLab data has been deleted' : $subject;
     }
 
+    /** The eraser keeps an account with a role other than client: the email then says so, not "deleted". */
     public static function done_content( $content, $data ) {
-        return self::is_erase( $data['request'] ?? null ) ? HDLV2_Email_Templates::privacy_done() : $content;
+        $r = $data['request'] ?? null;
+        return self::is_erase( $r ) ? HDLV2_Email_Templates::privacy_done( ! empty( $r->user_id ) && (bool) get_userdata( $r->user_id ) ) : $content;
     }
 
     /** The confirm notice goes to the addresses the Stage 1 alert uses (HDLV2_Stage1_Drain::recipients). */
