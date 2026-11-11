@@ -55,7 +55,11 @@ const GAUGE = "        +       '<img class=\"hdlw-r-gauge-img\" src=\"' + gaugeU
 ok(rrOld !== '' && rrOld.indexOf(GAUGE) > 0, 'found the gauge picture line in b462b02\'s renderResult');
 // v0.48.60: the timeline teaser's href also carries &p= (tests/healthspan-timeline/test-widget-teaser.mjs); that one line is allowed too.
 const PLINE = "          + (/^\\d+$/.test(String(cfg.pracId)) ? '&p=' + cfg.pracId : '') // v0.48.60: the timeline's brand row\n";
-ok(rrNew.indexOf(PLINE) > 0 && rrNew.replace(PLINE, '') === rrOld.replace(GAUGE, GAUGE + CALL), 'renderResult is b462b02\'s text with only the call added after the gauge picture (and the 0.48.60 &p= line)');
+// v0.48.62: the timeline yes-or-no card (showLinkCard) keeps the consent key and hands the card to consentCard()
+// (tests/healthspan-timeline-links/test-ui.js); that one block is set aside, everything else stays b462b02's.
+const LINKCARD = (t) => cutIn(t, '      // v0.48.34 — the yes or no. The key came back', '      function failed(body, status) {');
+ok(LINKCARD(rrNew) !== '' && LINKCARD(rrOld) !== '', 'found the showLinkCard block in both');
+ok(rrNew.indexOf(PLINE) > 0 && rrNew.replace(PLINE, '').replace(LINKCARD(rrNew), LINKCARD(rrOld)) === rrOld.replace(GAUGE, GAUGE + CALL), 'renderResult is b462b02\'s text with only the call added after the gauge picture (and the 0.48.60 &p= line, the 0.48.62 link card)');
 ok(rrNew.indexOf(CALL) > 0 && rrNew.indexOf(CALL) < rrNew.indexOf("escapeHtml(awakenP1)"), 'the video sits before the three paragraphs in source order');
 
 // Outside renderResult: only the function and the cfg line were added.

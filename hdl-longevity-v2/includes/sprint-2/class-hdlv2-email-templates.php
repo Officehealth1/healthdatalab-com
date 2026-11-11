@@ -1092,8 +1092,46 @@ class HDLV2_Email_Templates {
             <h2 style='margin:0 0 12px;color:" . self::DARK . ";font-family:Poppins,Inter,sans-serif;font-size:22px;font-weight:700;'>" . esc_html( sprintf( "You're on %s's timeline as %s", $data['owner_first'], $data['label'] ) ) . "</h2>
             <p style='color:#2c3e50;line-height:1.7;margin:0 0 12px;font-size:15px;'>" . esc_html( sprintf( 'We shared three numbers with %s: your pace of ageing, age and sex. Nothing else from your answers is shared.', $data['owner_first'] ) ) . "</p>"
             . ( empty( $data['report_url'] ) ? '' : "<p style='color:#2c3e50;line-height:1.7;margin:0 0 12px;font-size:15px;'>" . ( 'existing' === ( $data['report_kind'] ?? '' ) ? 'You already have a Full Report; open it any time.' : 'Your Full Report is unlocked. This link is yours alone: it signs you in.' ) . '</p>' . self::cta_button( $data['report_url'], 'Open my Full Report' ) ) . "
-            <p style='color:#2c3e50;line-height:1.7;margin:0 0 20px;font-size:15px;'>You can withdraw at any time. Your numbers come off their timeline straight away.</p>"
-            . self::cta_button( $data['withdraw'], 'Withdraw my numbers' );
+            <p style='color:#2c3e50;line-height:1.7;margin:0 0 20px;font-size:15px;'>You can withdraw at any time. Your numbers come off their timeline straight away.<br>
+                <a href='" . esc_url( $data['withdraw'] ) . "' style='display:inline-block;padding:10px 0;color:" . self::DARK_TEAL . ";text-decoration:underline;font-size:15px;font-weight:600;'>Withdraw my numbers</a></p>";
         return self::base_layout( $content, null, 'Your healthspan timeline' );
+    }
+
+    // ── v0.48.63 — a request to delete one's data (WordPress's own request flow) ──
+
+    /** The "confirm it is you" email. $confirm_url is WordPress's own link, valid one day. */
+    public static function privacy_confirm( $confirm_url ) {
+        $p       = "style='color:#2c3e50;line-height:1.7;margin:0 0 12px;font-size:15px;'";
+        $content = "
+            <h2 style='margin:0 0 12px;color:" . self::DARK . ";font-family:Poppins,Inter,sans-serif;font-size:22px;font-weight:700;'>Confirm you want your data deleted</h2>
+            <p $p>We received a request to delete everything HealthDataLab holds about you: your account, your answers, your reports and your recordings.</p>
+            <p $p>Press the button to confirm it is you. The link works for one day.</p>"
+            . self::cta_button( $confirm_url, 'Confirm deletion' ) . "
+            <p $p>If you did not ask for this, ignore this email. Nothing will be deleted.</p>";
+        return self::base_layout( $content, null, 'Delete your data', 'Confirm it is you. The link works for one day.' );
+    }
+
+    /** The "it is done" email, sent by WordPress when the administrator's erase finishes. */
+    public static function privacy_done( $account_kept = false ) {
+        $p       = "style='color:#2c3e50;line-height:1.7;margin:0 0 12px;font-size:15px;'";
+        $done    = $account_kept
+            ? 'We have deleted your answers, your reports and your recordings. Your sign-in account is still open because it has more than a client\'s access; we will contact you about it.'
+            : 'We have deleted your account, your answers, your reports and your recordings.';
+        $content = "
+            <h2 style='margin:0 0 12px;color:" . self::DARK . ";font-family:Poppins,Inter,sans-serif;font-size:22px;font-weight:700;'>Your data has been deleted</h2>
+            <p $p>" . $done . " If you worked with a practitioner, we have told them.</p>
+            <p $p>We kept only your payment records, which the law requires us to keep, and a short record that you asked and when we finished. Copies in our backups are not used and are overwritten as the backups are replaced.</p>
+            <p $p>If you have a question, email office@healthdatalab.com.</p>";
+        return self::base_layout( $content, null, 'Your data has been deleted' );
+    }
+
+    /** To each of the person's practitioners when the erase finishes: the address and nothing else. */
+    public static function privacy_practitioner( $client_email ) {
+        $p       = "style='color:#2c3e50;line-height:1.7;margin:0 0 12px;font-size:15px;'";
+        $content = "
+            <h2 style='margin:0 0 12px;color:" . self::DARK . ";font-family:Poppins,Inter,sans-serif;font-size:22px;font-weight:700;'>A client's data has been deleted</h2>
+            <p $p>" . esc_html( sprintf( 'At their request, we have deleted the data of %s from HealthDataLab. They no longer appear on your dashboard.', $client_email ) ) . "</p>
+            <p $p>Please delete any copy you hold yourself: notes, downloaded reports and emails.</p>";
+        return self::base_layout( $content, null, 'A client\'s data has been deleted' );
     }
 }

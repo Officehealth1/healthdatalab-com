@@ -206,7 +206,13 @@ body.hdlv2-wide-page .entry-content .et_pb_section{padding-left:0;padding-right:
 .hdlv2-ht .ht-invite{margin-top:12px;padding:16px;border:1px solid var(--ht-line);border-radius:10px;background:#fafbfc}
 .hdlv2-ht .ht-invite-row{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
 .hdlv2-ht .ht-invite-row input{flex:1 1 240px;min-width:0;font:inherit;font-size:13px;padding:9px 10px;border:1px solid var(--ht-line);border-radius:8px;background:#fff;color:var(--ht-fg)}
-.hdlv2-ht .ht-links-msg:empty{display:none}
+.hdlv2-ht .ht-links-msg:empty,.hdlv2-ht .ht-copy-msg:empty{display:none}
+/* v0.48.62 — on a phone: the invite button wraps instead of running off the panel; every button in the people
+   tab is as tall as its inputs (40 px), outline and filled alike; the remove "×" is a 40 px target. */
+.hdlv2-ht .ht-link-line .ht-btn{white-space:normal;max-width:100%;text-align:left}
+.hdlv2-ht #ht-people .ht-btn,.hdlv2-ht #ht-linked .ht-btn,.hdlv2-ht #ht-add .ht-btn{display:inline-flex;align-items:center;justify-content:center;min-height:40px;box-sizing:border-box}
+.hdlv2-ht .ht-link-line .ht-btn{justify-content:flex-start}
+.hdlv2-ht .ht-x{min-width:40px}
 .hdlv2-ht .ht-skel{height:44px;margin-top:12px;border-radius:8px;background:linear-gradient(90deg,#f1f3f5 25%,#f8f9fb 50%,#f1f3f5 75%);background-size:200% 100%;animation:ht-skel 1.4s ease-in-out infinite}
 @keyframes ht-skel{from{background-position:200% 0}to{background-position:-200% 0}}
 @media (prefers-reduced-motion:reduce){.hdlv2-ht .ht-skel{animation:none}}

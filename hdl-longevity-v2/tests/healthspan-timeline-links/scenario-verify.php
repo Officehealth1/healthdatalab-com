@@ -62,6 +62,23 @@ $w->invite = invite_row( array( 'source' => 'challenge' ) );
 $r = widget_instance()->rest_verify_invite( new FakeRequest( array( 'token' => TOKEN ) ) );
 check( 'T2.5 a challenge ticket answers as before', ! array_key_exists( 'link_from', $r ) && 'challenge' === $r['source'] );
 
+// v0.48.62 — a used timeline link names who sent it, so the same browser can answer later.
+$w = setup();
+$w->invite = invite_row( array( 'source' => 'timeline_link', 'client_email' => '', 'client_name' => 'Spouse', 'status' => 'completed' ) );
+$r = widget_instance()->rest_verify_invite( new FakeRequest( array( 'token' => TOKEN ) ) );
+check( 'T2.6 a used timeline link, in date → not valid, completed, with link_from and nothing else added', is_array( $r )
+    && array( 'valid' => false, 'reason' => 'completed', 'link_from' => 'Quim' ) === $r );
+$w = setup();
+$w->invite = invite_row( array( 'source' => 'timeline_link', 'client_email' => '', 'client_name' => 'Spouse', 'status' => 'completed', 'expires_at' => gmdate( 'Y-m-d H:i:s', time() - 60 ) ) );
+$r = widget_instance()->rest_verify_invite( new FakeRequest( array( 'token' => TOKEN ) ) );
+check( 'T2.7 a used timeline link past its date → completed, no link_from', array( 'valid' => false, 'reason' => 'completed' ) === $r );
+foreach ( array( 'paid_stage1', 'challenge', 'practitioner', 'full_report' ) as $src ) {
+    $w = setup();
+    $w->invite = invite_row( array( 'source' => $src, 'status' => 'completed' ) );
+    $r = widget_instance()->rest_verify_invite( new FakeRequest( array( 'token' => TOKEN ) ) );
+    check( "T2.8 a used $src ticket → completed, no link_from", array( 'valid' => false, 'reason' => 'completed' ) === $r );
+}
+
 echo "── T3. the lead POST with a timeline_link ticket ──\n";
 $w = setup();
 $w->invite = invite_row( array( 'id' => 88, 'source' => 'timeline_link', 'client_email' => '', 'client_name' => 'Spouse' ) );
