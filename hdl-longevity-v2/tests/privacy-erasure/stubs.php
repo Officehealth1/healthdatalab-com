@@ -54,9 +54,67 @@ function wp_delete_user( $id ) {
 }
 function wp_mail( $to, $subject, $body, $headers = array() ) { $GLOBALS['mails'][] = compact( 'to', 'subject', 'body', 'headers' ); return true; }
 
+// ── the request flow: WordPress's user_request posts, the REST and script registries ──
+$GLOBALS['requests']   = array(); // id => object( ID, email, action_name, status, user_id )
+$GLOBALS['sent_links'] = array();
+$GLOBALS['routes']     = array();
+$GLOBALS['scripts']    = array();
+$GLOBALS['post_meta']  = array();
+$GLOBALS['current_user'] = 0;
+function get_current_user_id() { return $GLOBALS['current_user']; }
+function wp_get_current_user() { return get_userdata( $GLOBALS['current_user'] ) ?: (object) array( 'ID' => 0, 'user_email' => '' ); }
+function register_rest_route( $ns, $route, $args ) { $GLOBALS['routes'][ $ns . $route ] = $args; }
+function rest_ensure_response( $x ) { return $x; }
+function rest_url( $p = '' ) { return 'https://stby.test/wp-json/' . ltrim( $p, '/' ); }
+function admin_url( $p = '' ) { return 'https://stby.test/wp-admin/' . $p; }
+function wp_create_nonce( $a ) { return 'nonce-' . $a; }
+function wp_enqueue_script( $h ) { $GLOBALS['scripts'][ $h ] = true; }
+function wp_localize_script( $h, $o, $d ) { $GLOBALS['scripts'][ $h . ':' . $o ] = $d; }
+function wp_add_inline_style( $h, $css ) { $GLOBALS['scripts'][ $h . ':css' ] = $css; }
+function esc_html( $x ) { return htmlspecialchars( (string) $x, ENT_QUOTES, 'UTF-8' ); }
+function esc_attr( $x ) { return htmlspecialchars( (string) $x, ENT_QUOTES, 'UTF-8' ); }
+function get_post_meta( $id, $k, $single = false ) { return $GLOBALS['post_meta'][ $id ][ $k ] ?? ''; }
+function update_post_meta( $id, $k, $v ) { $GLOBALS['post_meta'][ $id ][ $k ] = $v; return true; }
+function wp_get_user_request( $id ) { return $GLOBALS['requests'][ (int) $id ] ?? false; }
+function wp_create_user_request( $email, $action = '', $data = array(), $status = 'pending' ) {
+    if ( ! is_email( $email ) ) return new WP_Error( 'invalid_email', 'Invalid email address.' );
+    foreach ( $GLOBALS['requests'] as $r ) {
+        if ( $r->email === $email && $r->action_name === $action && in_array( $r->status, array( 'request-pending', 'request-confirmed' ), true ) ) return new WP_Error( 'duplicate_request', 'dup' );
+    }
+    $id = 100 + count( $GLOBALS['requests'] );
+    $u  = get_user_by( 'email', $email );
+    $GLOBALS['requests'][ $id ] = (object) array( 'ID' => $id, 'email' => $email, 'action_name' => $action, 'status' => 'request-' . $status, 'user_id' => $u ? $u->ID : 0 );
+    return $id;
+}
+function wp_send_user_request( $id ) { $GLOBALS['sent_links'][] = (int) $id; return empty( $GLOBALS['send_fail'] ) ? true : new WP_Error( 'privacy_email_error', 'x' ); }
+/** WP_Query's user_request lookup as core runs it: post_name__in, title, post_status, meta_query (timestamp <, NOT EXISTS). */
+function get_posts( $a ) {
+    $out = array();
+    foreach ( $GLOBALS['requests'] as $r ) {
+        if ( isset( $a['post_name__in'] ) && ! in_array( $r->action_name, $a['post_name__in'], true ) ) continue;
+        if ( isset( $a['title'] ) && $r->email !== $a['title'] ) continue;
+        if ( isset( $a['post_status'] ) && ! in_array( $r->status, (array) $a['post_status'], true ) ) continue;
+        foreach ( $a['meta_query'] ?? array() as $m ) {
+            if ( ! is_array( $m ) ) continue;
+            $v = get_post_meta( $r->ID, $m['key'], true );
+            if ( 'NOT EXISTS' === $m['compare'] && '' !== $v ) continue 2;
+            if ( '<' === $m['compare'] && ! ( '' !== $v && (int) $v < (int) $m['value'] ) ) continue 2;
+        }
+        $out[] = $r->ID;
+    }
+    return $out;
+}
+class HDLV2_Env { public static function gate( $c ) { return empty( $GLOBALS['gated'] ); } }
+class HDLV2_Email_Templates {
+    public static function privacy_confirm( $url ) { return "<html>confirm [$url]</html>"; }
+    public static function privacy_done() { return '<html>done</html>'; }
+    public static function privacy_practitioner( $email ) { return "<html>practitioner [$email]</html>"; }
+}
+
 class WP_Error {
-    public $code; public $message;
-    public function __construct( $code = '', $message = '' ) { $this->code = $code; $this->message = $message; }
+    public $code; public $message; public $data;
+    public function __construct( $code = '', $message = '', $data = null ) { $this->code = $code; $this->message = $message; $this->data = $data; }
+    public function get_error_code() { return $this->code; }
     public function get_error_message() { return $this->message; }
 }
 function is_wp_error( $x ) { return $x instanceof WP_Error; }

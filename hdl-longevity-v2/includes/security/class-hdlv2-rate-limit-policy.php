@@ -153,6 +153,9 @@ class HDLV2_Rate_Limit_Policy {
             // tier (10/hour) prevents accidental floods if a practitioner
             // bulk-confirms a spammed inbox.
             array( 'POST', '#^/hdl-v2/v1/widget/leads/confirm$#',               self::TIER_AI_BURN ),
+            // v0.48.63 — a client asks for their data to be deleted: WordPress emails a confirmation
+            // link each time, so the strictest per-user tier (8 an hour) caps the mail.
+            array( 'POST', '#^/hdl-v2/v1/privacy/erase-request$#',              self::TIER_AI_BURN ),
             // v0.48.15 — bulk Confirm, up to 20 leads a call. WRITE (60 calls
             // an hour → 1,200 leads); ownership of every id is checked first.
             // ponytail: raise the chunk or the tier when Matthew's queue outgrows it.

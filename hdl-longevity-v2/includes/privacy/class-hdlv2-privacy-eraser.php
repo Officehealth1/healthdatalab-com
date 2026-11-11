@@ -474,6 +474,19 @@ class HDLV2_Privacy_Eraser {
         set_transient( self::state_key( $email ), $s, DAY_IN_SECONDS );
     }
 
+    /**
+     * When WordPress says the whole erase is finished: the practitioners to tell and the counts,
+     * handed over once (a second Erase starts a fresh, empty state).
+     *
+     * @return array practitioners[], counts{}
+     */
+    public static function take_state( $email ) {
+        $key = self::state_key( strtolower( trim( (string) $email ) ) );
+        $s   = get_transient( $key );
+        delete_transient( $key );
+        return is_array( $s ) ? $s + array( 'practitioners' => array(), 'counts' => array() ) : array( 'practitioners' => array(), 'counts' => array() );
+    }
+
     private static function add_counts( $email, $counts ) {
         $s = (array) get_transient( self::state_key( $email ) );
         foreach ( $counts as $store => $n ) {

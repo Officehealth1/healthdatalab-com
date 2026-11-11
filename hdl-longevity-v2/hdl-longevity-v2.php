@@ -966,6 +966,7 @@ final class HDL_Longevity_V2 {
         // v0.48.63 — one person's data erased through WordPress's own Tools → Erase Personal Data
         // (flag hdlv2_ff_data_erasure, off by default).
         require_once HDLV2_PLUGIN_DIR . 'includes/privacy/class-hdlv2-privacy-eraser.php';
+        require_once HDLV2_PLUGIN_DIR . 'includes/privacy/class-hdlv2-privacy-requests.php';
 
         // W13 (v0.41.34) — Automation Tier admin page (top-level menu)
         require_once HDLV2_PLUGIN_DIR . 'includes/class-hdlv2-admin-automation-tier.php';
