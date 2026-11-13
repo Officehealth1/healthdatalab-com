@@ -3,7 +3,7 @@
  * Plugin Name: HDL Longevity V2 — Staged Workflow
  * Plugin URI: https://healthdatalab.net
  * Description: V2 longevity workflow: staged intake, WHY profiling, practitioner consultations, weekly flight plans, and AI coaching. Runs alongside the existing Health Data Lab plugin.
- * Version: 0.48.65
+ * Version: 0.48.67
  * Author: Health Data Lab
  * Author URI: https://healthdatalab.net
  * License: Proprietary
@@ -22,7 +22,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 // register_activation_hook callbacks, which fire synchronously during
 // `wp plugin activate`, can reference them. The activator needs
 // HDLV2_DB_VERSION / HDLV2_VERSION at call time to update version options.
-define( 'HDLV2_VERSION', '0.48.65' );
+define( 'HDLV2_VERSION', '0.48.67' );
 define( 'HDLV2_DB_VERSION', '3.33' );
 
 // Client funnel token (hdlv2_form_progress.token) lifetime. FIXED window
@@ -884,6 +884,7 @@ final class HDL_Longevity_V2 {
         require_once HDLV2_PLUGIN_DIR . 'includes/sprint-1/class-hdlv2-widget-config.php';
         require_once HDLV2_PLUGIN_DIR . 'includes/sprint-1/class-hdlv2-widget-renderer.php';
         require_once HDLV2_PLUGIN_DIR . 'includes/sprint-1/class-hdlv2-safety-screen.php';
+        require_once HDLV2_PLUGIN_DIR . 'includes/sprint-1/class-hdlv2-safety-content.php'; // v0.48.66 — the notice's words and numbers
         // v0.48.16 — Stage 1 under load: PDF drain + busy gate + alert, Brevo holding list replay.
         require_once HDLV2_PLUGIN_DIR . 'includes/sprint-1/class-hdlv2-stage1-drain.php';
         require_once HDLV2_PLUGIN_DIR . 'includes/sprint-1/class-hdlv2-stage1-waiting.php';

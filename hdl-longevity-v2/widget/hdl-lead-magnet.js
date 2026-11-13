@@ -174,6 +174,101 @@
       + 'style="display:block;width:100%;height:100%;border:0;"></iframe></div>';
   }
 
+  // ---------- SAFETY NOTICE BY COUNTRY (v0.48.66) ----------
+  // cfg.safetyNotice = HDLV2_Safety_Content::public_payload(), present only when
+  // hdlv2_ff_safety_notice_v2 is on. The words, the rows and the numbers all come
+  // from the server; the phone number follows the country, never the language.
+
+  // The notices' language: the browser's, when the server has it; English otherwise.
+  function sfxLang(sn) {
+    var l = String((typeof navigator !== 'undefined' && navigator.language) || 'en').slice(0, 2).toLowerCase();
+    return sn.notices[l] ? l : 'en';
+  }
+
+  function sfxRowFor(sn, cc) {
+    for (var i = 0; i < sn.countries.length; i++) {
+      if (sn.countries[i].code === cc) return sn.countries[i];
+    }
+    return sn.generic;
+  }
+
+  // Text escaped, then the tokens: numbers as visible digits behind a tel: link.
+  function sfxFill(text, row) {
+    function tel(n) { return '<a href="tel:' + String(n).replace(/\D/g, '') + '"><b>' + escHtml(n) + '</b></a>'; }
+    var crisis = escHtml(row.crisis);
+    if (row.crisis_number) crisis = crisis.replace(escHtml(row.crisis_number), function () { return tel(row.crisis_number); });
+    return escHtml(text)
+      .replace(/\{EMERGENCY\}/g, function () { return row.emergency ? tel(row.emergency) : '<b>' + escHtml(row.emergency_text) + '</b>'; })
+      .replace(/\{DOCTOR\}/g, function () { return escHtml(row.doctor); })
+      .replace(/\{CRISIS\}/g, function () { return '<b>' + crisis + '</b>'; });
+  }
+
+  // Which notices the ticks call for, read from each row's tier (set server-side
+  // from the row's own urgency / is_crisis): c = support, a = act now, b = this week.
+  function sfxTiers(sn, picked) {
+    var seen = { a: false, b: false, c: false };
+    var groups = ['symptoms', 'mh'];
+    for (var g = 0; g < groups.length; g++) {
+      var keys = (picked && picked[groups[g]]) || [], rows = sn.rows[groups[g]] || [];
+      for (var r = 0; r < rows.length; r++) {
+        if (keys.indexOf(rows[r].k) > -1 && seen.hasOwnProperty(rows[r].tier)) seen[rows[r].tier] = true;
+      }
+    }
+    return seen;
+  }
+
+  // One notice screen: title, the sheet's lines, one country menu, one button.
+  // btn overrides the button words (notice C keeps today's "Continue" / "See my results →").
+  function sfxNoticeHtml(sn, lang, kind, cc, also, id, btn) {
+    var T = sn.notices[lang] || sn.notices.en, N = T[kind], row = sfxRowFor(sn, cc), body = '', opts = '';
+    for (var i = 0; i < N.body.length; i++) body += '<p class="hdlw-callout-body">' + sfxFill(N.body[i], row) + '</p>';
+    if (kind === 'a' && also) body += '<p class="hdlw-callout-body">' + escHtml(T.also) + '</p>';
+    // v0.48.67 sheet 10.7: under the new lines the UK keeps only NHS 111 and Shout (999 and Samaritans are in them).
+    // ponytail: these two lines repeat renderCrisisScreen's; drop that copy when the old screen goes.
+    if (kind === 'c' && row.code === 'GB') {
+      body += '<p class="hdlw-callout-body">'
+        + '<b>NHS 111</b> — then choose the mental-health option.<br>'
+        + '<b>Shout</b> — text <b>85258</b>.'
+        + '</p>';
+    }
+    for (var j = 0; j < sn.countries.length; j++) {
+      var c = sn.countries[j];
+      opts += '<option value="' + escHtml(c.code) + '"' + (c.code === row.code ? ' selected' : '') + '>' + escHtml(c.name) + '</option>';
+    }
+    opts += '<option value=""' + (row.code ? '' : ' selected') + '>' + escHtml(sn.generic.name) + '</option>';
+    return '<div lang="' + escHtml(lang) + '" translate="no">'
+      + '<div class="hdlw-q-opener"><h2 class="hdlw-q-title">' + escHtml(N.title) + '</h2><div class="hdlw-q-rule"></div></div>'
+      + '<div class="hdlw-sfx-country"><label for="' + id + '-sfx-country">' + escHtml(T.country) + '</label>'
+      +   '<select id="' + id + '-sfx-country">' + opts + '</select></div>'
+      + '<div class="hdlw-callout hdlw-sfx-notice">' + body + '</div>'
+      + '<div class="hdlw-fields" style="padding-top:0;"><button id="' + id + '-sfx-go" type="button" class="hdlw-cta">' + escHtml(btn || N.button) + '</button></div>'
+      + '</div>';
+  }
+
+  // The callout with a plain border all round (no rail), and the country menu.
+  function injectNoticeStyles() {
+    if (document.getElementById('hdlw-notice-styles')) return;
+    var s = document.createElement('style');
+    s.id = 'hdlw-notice-styles';
+    s.textContent = '.hdlw-sfx-notice{border-left:1px solid ' + B.border + ';border-radius:3px;}'
+      + '.hdlw-sfx-notice .hdlw-callout-body{margin:0 0 10px;}'
+      + '.hdlw-sfx-notice .hdlw-callout-body:last-child{margin-bottom:0;}'
+      + '.hdlw-sfx-notice a{color:inherit;text-decoration:underline;}'
+      + '.hdlw-r .hdlw-sfx-notice{margin:0 0 16px;}'
+      + '.hdlw-sfx-country{margin:0 28px 10px;display:flex;align-items:center;gap:8px;font-family:' + B.body + ';font-size:12.5px;color:' + B.text + ';}'
+      + '.hdlw-sfx-country select{font:inherit;padding:6px 8px;border:1px solid ' + B.border + ';border-radius:3px;background:#fff;color:' + B.text + ';}'
+      + '.hdlw-sfx-country select:focus-visible{outline:2px solid var(--hdl-accent,#3d8da0);outline-offset:2px;}';
+    document.head.appendChild(s);
+  }
+
+  // The notice's action again, above the result (A and B only): A's own repeat line (both actions, v0.48.67), else the first line.
+  function sfxReminderHtml(sn, lang, kind, cc) {
+    if (kind !== 'a' && kind !== 'b') return '';
+    var T = sn.notices[lang] || sn.notices.en;
+    return '<div class="hdlw-callout hdlw-sfx-notice" lang="' + escHtml(lang) + '" translate="no"><p class="hdlw-callout-body">'
+      + '<b>' + escHtml(T.reminder) + '</b> ' + sfxFill(T[kind].repeat || T[kind].body[0], sfxRowFor(sn, cc)) + '</p></div>';
+  }
+
   // ---------- QUESTION DEFINITIONS ----------
 
   var QUESTIONS = {
@@ -798,6 +893,7 @@
     cfg.questionMotion = !!((publicCfg && publicCfg.question_motion_enabled) || (invite && invite.question_motion_enabled));
     cfg.assetVer = String((publicCfg && publicCfg.asset_ver) || (invite && invite.asset_ver) || '');
     cfg.bandVideos = (publicCfg && publicCfg.band_videos) || (invite && invite.band_videos) || null; // v0.48.50 (W9)
+    cfg.safetyNotice = (publicCfg && publicCfg.safety_notice) || (invite && invite.safety_notice) || null; // v0.48.66
     if (cfg.questionMotion) injectMotionStyles();
 
     var id = 'hdlw-' + cfg.pracId;
@@ -1245,7 +1341,7 @@
         // Off = identical to before. On = collect the 2 safety answers + fire
         // any crisis/hard interrupt, then goTo(10).
         if (cfg.safetyScreen && !answers._safetyDone) {
-          renderSafetyScreen();
+          (cfg.safetyNotice ? renderSafetyScreenV2 : renderSafetyScreen)();
         } else {
           goTo(10);
         }
@@ -1438,6 +1534,99 @@
         + '</div>';
       var go2 = document.getElementById(id + '-sfx-go2');
       if (go2) go2.addEventListener('click', function () { goTo(10); });
+    }
+
+    // --- v0.48.66 Safety notice by country (cfg.safetyNotice, hdlv2_ff_safety_notice_v2) ---
+    //
+    // The same check with the server's rows and the "automatic" line above it,
+    // then one of three fixed notices chosen by each row's tier, in the numbers
+    // of the visitor's country (a menu changes it). The press rides in the lead
+    // POST as safety_ack. Switch off = the functions above, untouched.
+    var sfxCountry = '';
+
+    function renderSafetyScreenV2() {
+      var sn = cfg.safetyNotice, lang = sfxLang(sn), T = sn.notices[lang];
+      injectNoticeStyles();
+      sfxCountry = (visitorGeo && visitorGeo.country) || '';
+      var np = document.getElementById(id + '-nav-prev'); if (np) np.style.display = 'none';
+      var nx = document.getElementById(id + '-nav-next'); if (nx) nx.style.display = 'none';
+      if (stepEl) stepEl.innerHTML = '<b>Safety</b>';
+      var sfxShell = contentEl.closest('.hdlw-shell');
+      if (sfxShell) {
+        if (sfxShell.parentElement) sfxShell.parentElement.style.maxWidth = 'none';
+        sfxShell.style.maxWidth = '880px';
+      }
+      var esc = function (r) { return { k: escHtml(r.k), t: escHtml(r.t) }; };
+      var symHtml = '', mhHtml = '';
+      for (var a = 0; a < sn.rows.symptoms.length; a++) symHtml += sfxRow('symptoms', esc(sn.rows.symptoms[a]));
+      for (var b = 0; b < sn.rows.mh.length; b++) mhHtml += sfxRow('mh', esc(sn.rows.mh[b]));
+
+      contentEl.innerHTML = ''
+        + '<div class="hdlw-sfx-sec">'
+        +   '<div class="hdlw-q-opener">'
+        +     '<p class="hdlw-q-section">One last check · before your result</p>'
+        +     '<h2 class="hdlw-q-title">A quick safety check</h2>'
+        +     '<div class="hdlw-q-rule"></div>'
+        +     '<p class="hdlw-q-prompt">This isn’t a medical assessment — but part of our job is to notice anything that deserves a doctor’s eye before we build your plan. Tick anything you’ve noticed in the last 6–12 months, even once or twice.</p>'
+        +   '</div>'
+        +   '<div class="hdlw-callout hdlw-sfx-notice" lang="' + escHtml(lang) + '" translate="no"><p class="hdlw-callout-body">' + sfxFill(T.check, sfxRowFor(sn, sfxCountry)) + '</p></div>'
+        +   '<div class="hdlw-sfx-grid">' + symHtml + sfxNoneRow('symptoms', 'None of these') + '</div>'
+        + '</div>'
+        + '<div class="hdlw-sfx-sec">'
+        +   '<div class="hdlw-q-opener">'
+        +     '<p class="hdlw-q-section">Optional &amp; confidential</p>'
+        +     '<h2 class="hdlw-q-title">How you’ve been feeling</h2>'
+        +     '<div class="hdlw-q-rule"></div>'
+        +     '<p class="hdlw-q-prompt">And how have you been feeling in yourself lately? Skip anything you’d rather not answer.</p>'
+        +   '</div>'
+        +   '<div class="hdlw-sfx-grid">' + mhHtml + sfxNoneRow('mh', 'None of these · I’d rather not say') + '</div>'
+        + '</div>'
+        + '<div class="hdlw-fields" style="padding-top:0;">'
+        +   '<button id="' + id + '-sfx-continue" type="button" class="hdlw-cta">See my results →</button>'
+        + '</div>';
+
+      sfxBindToggles();
+      var cont = document.getElementById(id + '-sfx-continue');
+      if (cont) cont.addEventListener('click', sfxContinueV2);
+    }
+
+    function sfxContinueV2() {
+      var sfxShell = contentEl.closest('.hdlw-shell');
+      if (sfxShell) {
+        sfxShell.style.maxWidth = '';
+        if (sfxShell.parentElement) sfxShell.parentElement.style.maxWidth = '';
+      }
+      var picked = sfxCollect();
+      answers._safety = (picked.symptoms || picked.mh) ? picked : null;
+      answers._safetyDone = true;
+      var t = sfxTiers(cfg.safetyNotice, picked);
+      var next = t.a ? 'a' : (t.b ? 'b' : '');
+      if (t.c) { renderNoticeV2('c', next, t.a && t.b); return; }
+      if (next) { renderNoticeV2(next, '', t.a && t.b); return; }
+      goTo(10);
+    }
+
+    // kind = the notice on screen; next = the notice after C (or ''); also = A's extra line.
+    function renderNoticeV2(kind, next, also) {
+      var sn = cfg.safetyNotice, lang = sfxLang(sn);
+      var btn = kind === 'c' ? (next ? 'Continue' : 'See my results →') : '';
+      contentEl.innerHTML = sfxNoticeHtml(sn, lang, kind, sfxCountry, also, id, btn);
+      if (contentEl.scrollIntoView) contentEl.scrollIntoView({ block: 'start' });
+      var sel = document.getElementById(id + '-sfx-country');
+      if (sel) sel.addEventListener('change', function () {
+        sfxCountry = sel.value;
+        renderNoticeV2(kind, next, also);
+        var again = document.getElementById(id + '-sfx-country');
+        if (again) again.focus();
+      });
+      var go = document.getElementById(id + '-sfx-go');
+      if (go) go.addEventListener('click', function () {
+        if (kind === 'c' && next) { renderNoticeV2(next, '', also); return; }
+        answers._safetyAck = { notice: kind, version: sn.version, country: sfxCountry };
+        goTo(10);
+        var res = contentEl.querySelector('.hdlw-r');
+        if (res) res.insertAdjacentHTML('afterbegin', sfxReminderHtml(sn, lang, kind, sfxCountry));
+      });
     }
 
     // --- Results ---
@@ -1863,6 +2052,7 @@
       // v0.43.0 - front-door safety answers (present only when the flag is on
       // and something was ticked). Server sanitises against a key allowlist.
       if (answers._safety) payload.safety = answers._safety;
+      if (answers._safetyAck) payload.safety_ack = answers._safetyAck; // v0.48.66
       if (inviteToken) payload.invite_token = inviteToken;
       // v0.47.83 — coarse location (country + state) if the init-time geo
       // lookup resolved. Optional by design: absent when blocked/slow, and
