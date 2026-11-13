@@ -590,8 +590,9 @@ class HDLV2_Widget_Config {
             if ( ! empty( $clean_safety ) ) {
                 $stage1_data['_safety'] = $clean_safety;
                 // v0.48.66 — the "I have read this" press (notice, version, country; the
-                // server stamps the time). Junk is dropped; the lead is never refused for it.
-                $ack = class_exists( 'HDLV2_Safety_Content' ) && HDLV2_Safety_Content::enabled() ? HDLV2_Safety_Content::sanitize_ack( $params['safety_ack'] ?? null ) : null;
+                // server stamps the time). Junk, or a press for a notice these ticks never
+                // show (v0.48.67), is dropped; the lead is never refused for it.
+                $ack = class_exists( 'HDLV2_Safety_Content' ) && HDLV2_Safety_Content::enabled() ? HDLV2_Safety_Content::sanitize_ack( $params['safety_ack'] ?? null, $clean_safety ) : null;
                 if ( $ack ) {
                     $stage1_data['_safety_ack'] = $ack;
                 }

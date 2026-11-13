@@ -223,11 +223,10 @@
     var T = sn.notices[lang] || sn.notices.en, N = T[kind], row = sfxRowFor(sn, cc), body = '', opts = '';
     for (var i = 0; i < N.body.length; i++) body += '<p class="hdlw-callout-body">' + sfxFill(N.body[i], row) + '</p>';
     if (kind === 'a' && also) body += '<p class="hdlw-callout-body">' + escHtml(T.also) + '</p>';
-    // ponytail: the four UK lines repeat renderCrisisScreen's; drop that copy when the old screen goes.
+    // v0.48.67 sheet 10.7: under the new lines the UK keeps only NHS 111 and Shout (999 and Samaritans are in them).
+    // ponytail: these two lines repeat renderCrisisScreen's; drop that copy when the old screen goes.
     if (kind === 'c' && row.code === 'GB') {
       body += '<p class="hdlw-callout-body">'
-        + 'If you feel unsafe right now: call <b>999</b> or go to A&amp;E.<br>'
-        + '<b>Samaritans</b> — call <b>116 123</b>, any time.<br>'
         + '<b>NHS 111</b> — then choose the mental-health option.<br>'
         + '<b>Shout</b> — text <b>85258</b>.'
         + '</p>';
@@ -262,12 +261,12 @@
     document.head.appendChild(s);
   }
 
-  // The notice's first line again, above the result (A and B only).
+  // The notice's action again, above the result (A and B only): A's own repeat line (both actions, v0.48.67), else the first line.
   function sfxReminderHtml(sn, lang, kind, cc) {
     if (kind !== 'a' && kind !== 'b') return '';
     var T = sn.notices[lang] || sn.notices.en;
     return '<div class="hdlw-callout hdlw-sfx-notice" lang="' + escHtml(lang) + '" translate="no"><p class="hdlw-callout-body">'
-      + '<b>' + escHtml(T.reminder) + '</b> ' + sfxFill(T[kind].body[0], sfxRowFor(sn, cc)) + '</p></div>';
+      + '<b>' + escHtml(T.reminder) + '</b> ' + sfxFill(T[kind].repeat || T[kind].body[0], sfxRowFor(sn, cc)) + '</p></div>';
   }
 
   // ---------- QUESTION DEFINITIONS ----------

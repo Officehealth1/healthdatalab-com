@@ -25,7 +25,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 class HDLV2_Safety_Content {
 
-	const VERSION = '2026-11-13.1';
+	const VERSION = '2026-11-13.2';
 
 	/** The notices, keyed by language. English only until the owner names others. */
 	const NOTICES = array(
@@ -41,6 +41,7 @@ class HDLV2_Safety_Content {
 					'This check is automatic. It is not a diagnosis. Please do not wait to hear from us.',
 				),
 				'button' => 'I have read this. Show my result',
+				'repeat' => "if this is happening now, or happened in the last 24 hours, call {EMERGENCY} now. If it has passed, ask for an urgent doctor's appointment today.",
 			),
 			'b'        => array(
 				'title'  => 'One thing before your result',
@@ -131,6 +132,7 @@ class HDLV2_Safety_Content {
 			'doctor'        => 'NHS 111 or your GP',
 			'gp'            => 'GP',
 			'advice'        => 'NHS 111',
+			'appointment'   => 'a GP appointment',
 			'crisis'        => 'Samaritans, call 116 123, free, any time',
 			'crisis_number' => '116 123',
 			'sources'       => array( 'https://www.nhs.uk/conditions/stroke/symptoms/', 'https://www.samaritans.org/how-we-can-help/contact-samaritan/' ),
@@ -155,6 +157,7 @@ class HDLV2_Safety_Content {
 		'doctor'         => 'a doctor',
 		'gp'             => 'doctor',
 		'advice'         => 'a doctor',
+		'appointment'    => "a doctor's appointment",
 		'crisis'         => 'a crisis line in your country',
 		'crisis_number'  => '',
 	);
@@ -178,14 +181,14 @@ class HDLV2_Safety_Content {
 		return array( 'code' => $cc ) + self::COUNTRIES[ $cc ] + self::GENERIC;
 	}
 
-	/** Plain-text token swap. {GP} and {ADVICE} serve the existing email sentences. */
+	/** Plain-text token swap. {ADVICE} and {APPOINTMENT} serve the existing email sentences. */
 	public static function tokens( $text, $row ) {
 		return strtr( (string) $text, array(
-			'{EMERGENCY}' => '' !== $row['emergency'] ? $row['emergency'] : $row['emergency_text'],
-			'{DOCTOR}'    => $row['doctor'],
-			'{CRISIS}'    => $row['crisis'],
-			'{GP}'        => $row['gp'],
-			'{ADVICE}'    => $row['advice'],
+			'{EMERGENCY}'   => '' !== $row['emergency'] ? $row['emergency'] : $row['emergency_text'],
+			'{DOCTOR}'      => $row['doctor'],
+			'{CRISIS}'      => $row['crisis'],
+			'{ADVICE}'      => $row['advice'],
+			'{APPOINTMENT}' => $row['appointment'],
 		) );
 	}
 
@@ -237,16 +240,24 @@ class HDLV2_Safety_Content {
 		return array( 'crisis' => isset( $seen['c'] ), 'notice' => $a ? 'a' : ( $b ? 'b' : '' ), 'also' => $a && $b );
 	}
 
+	/** The notice whose button ends the run (C shows first, then A or B): what a press can be for. '' = none. */
+	public static function last_notice( $shown ) {
+		return '' !== $shown['notice'] ? $shown['notice'] : ( $shown['crisis'] ? 'c' : '' );
+	}
+
 	/**
 	 * The "I have read this" press from the widget: { notice, version, country },
-	 * stamped with the server's time. Anything else returns null (the lead is
-	 * still accepted, the press is just not kept).
+	 * stamped with the server's time. Kept only when its notice is the one the
+	 * same lead's (sanitised) ticks put last on screen. Anything else returns
+	 * null (the lead is still accepted, the press is just not kept).
 	 */
-	public static function sanitize_ack( $raw ) {
+	public static function sanitize_ack( $raw, $safety ) {
+		$last = self::last_notice( self::notice_for( $safety ) );
 		if ( ! is_array( $raw )
-			|| ! in_array( $raw['notice'] ?? '', array( 'a', 'b', 'c' ), true )
+			|| '' === $last
+			|| ( $raw['notice'] ?? '' ) !== $last
 			|| ! is_string( $raw['version'] ?? null )
-			|| ! preg_match( '/^\d{4}-\d{2}-\d{2}\.\d{1,3}$/', $raw['version'] ) ) {
+			|| ! preg_match( '/^\d{4}-\d{2}-\d{2}\.\d{1,3}\z/', $raw['version'] ) ) {
 			return null;
 		}
 		return array(

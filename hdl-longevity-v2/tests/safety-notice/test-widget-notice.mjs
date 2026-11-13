@@ -80,7 +80,9 @@ ok(h.indexOf('This check is automatic. Please do not wait to hear from us.') > 0
 h = Cn('US', 'Continue');
 ok(h.indexOf('tel:911') > 0 && h.indexOf('tel:988') > 0 && h.indexOf('Samaritans') < 0, 'C US: 911 and 988, no British line');
 h = Cn('GB', 'Continue');
-ok(h.indexOf('tel:116123') > 0 && h.indexOf('85258') > 0 && h.indexOf('NHS 111') > 0, 'C GB: Samaritans as a tel link and today\'s four lines kept (Shout, NHS 111)');
+const vis = h.replace(/<[^>]+>/g, '');
+ok(h.indexOf('tel:116123') > 0 && (vis.match(/999/g) || []).length === 1 && (vis.match(/Samaritans/g) || []).length === 1 && vis.indexOf('NHS 111') > vis.indexOf('If you are in danger right now') && vis.indexOf('85258') > 0,
+  'C GB (sheet 10.7): 999 and Samaritans once each, then only NHS 111 and Shout under the new lines');
 ok(A('PH', false).indexOf('<script') < 0 && call(`sfxFill('{DOCTOR}', { doctor: '<img src=x>', crisis: '', emergency: '' })`).indexOf('<img') < 0, 'country text is escaped');
 
 // ── T-tier in the widget: tiers come from the payload rows only ──
@@ -93,7 +95,8 @@ ok(t3.c && t3.b && !t3.a, 'sfxTiers: crisis + a THIS_WEEK row → c and b');
 
 // ── T-repeat ──
 const ra = call(`sfxReminderHtml(sn, 'en', 'a', 'PH')`), rb = call(`sfxReminderHtml(sn, 'en', 'b', 'GB')`);
-ok(ra.indexOf('Reminder:') > 0 && ra.indexOf('call <a href="tel:911"><b>911</b></a> now. Do not drive yourself.') > 0, 'reminder after A: "Reminder:" + A\'s action line with 911');
+ok(ra.indexOf('<b>Reminder:</b> if this is happening now, or happened in the last 24 hours, call <a href="tel:911"><b>911</b></a> now. If it has passed, ask for an urgent doctor\'s appointment today.') > 0,
+  'reminder after A (sheet 10.5): both actions, the "now" one with 911 and the "passed" one');
 ok(rb.indexOf('Reminder:') > 0 && rb.indexOf('Please book a doctor\'s appointment this week.') > 0, 'reminder after B: B\'s action line');
 ok(call(`sfxReminderHtml(sn, 'en', 'c', 'GB')`) === '' && call(`sfxReminderHtml(sn, 'en', '', 'GB')`) === '', 'no reminder after C or for an unticked run');
 const notice = cutIn(js, '    function renderNoticeV2(', '\n    }\n');

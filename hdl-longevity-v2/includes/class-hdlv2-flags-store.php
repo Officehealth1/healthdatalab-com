@@ -11,6 +11,8 @@
  *   - otherwise                                → wp_mail() fallback. Keeps STBY
  *     (which has no Make.com) working and is the resilience path on LIVE if the
  *     webhook is unset/down.
+ *   - v0.48.67: a safety notice context (hdlv2_ff_safety_notice_v2 on) always
+ *     goes by wp_mail, the only path that carries the notice the visitor saw.
  *
  * Either way it stamps messaged_at on the merged flags so a later re-scan never
  * re-messages the same flag.
@@ -85,11 +87,14 @@ class HDLV2_Flags_Store {
 		// Build the practitioner flag rows once — reused by Make payload + wp_mail.
 		$prac_flags_html = self::practitioner_flags_html( $to_message );
 
-		$webhook = defined( 'HDLV2_MAKE_REDFLAG' ) ? HDLV2_MAKE_REDFLAG : '';
+		// v0.48.67 — with the new notice on, the email must say what the screen said, and only
+		// the wp_mail path carries it. Switch off (no notice): the transport is chosen as before.
+		$notice  = $opts['notice'] ?? null;
+		$webhook = ! $notice && defined( 'HDLV2_MAKE_REDFLAG' ) ? HDLV2_MAKE_REDFLAG : '';
 		if ( $webhook ) {
 			$sent_ok = self::fire_make( $webhook, $progress, $prac_email, $dashboard_url, $crisis, $findings, $prac_flags_html, $to_message );
 		} else {
-			$sent_ok = self::fire_wp_mail( $progress, $prac_email, $dashboard_url, $crisis, $finding_flags, $prac_flags_html, $opts['notice'] ?? null );
+			$sent_ok = self::fire_wp_mail( $progress, $prac_email, $dashboard_url, $crisis, $finding_flags, $prac_flags_html, $notice );
 		}
 
 		// v0.46.21 (QA F3) — only stamp messaged_at when the send actually

@@ -38,9 +38,11 @@ class HDLV2_Safety_Screen {
 	 * deeper intake. client_facing_wording NEVER names a disease (detect, don't
 	 * diagnose) and always states the exact channel to use.
 	 *
-	 * v0.48.66 — the channel is a token ({EMERGENCY}, {DOCTOR}, {GP}, {ADVICE})
-	 * filled from the visitor's country row in HDLV2_Safety_Content; the United
-	 * Kingdom row gives back the original sentences byte for byte.
+	 * v0.48.66 — the channel is a token ({EMERGENCY}, {DOCTOR}, {ADVICE},
+	 * {APPOINTMENT}) filled from the visitor's country row in HDLV2_Safety_Content;
+	 * the United Kingdom row gives back the original sentences byte for byte,
+	 * except breathless and fainting, which read as the owner's sheet 10.2 in
+	 * every country (v0.48.67, DRAFT until he signs it).
 	 */
 	const SYMPTOM_FLAGS = array(
 		// ── Heart & circulation ──
@@ -57,7 +59,7 @@ class HDLV2_Safety_Screen {
 			'category'  => 'HARD',
 			'urgency'   => 'THIS_WEEK',
 			'concern'   => 'New or unusual breathlessness warrants assessment',
-			'client'    => 'You mentioned unusual breathlessness. This is worth discussing with your {GP} or {ADVICE} soon. If it comes on suddenly or severely, call {EMERGENCY}.',
+			'client'    => 'You mentioned unusual breathlessness. Please contact {DOCTOR} soon. If it comes on suddenly or severely, call {EMERGENCY}.',
 			'prac'      => 'Reports unusual breathlessness (rest / lying flat / minimal exertion). Consider cardiac / respiratory review.',
 		),
 		'fainting' => array(
@@ -65,7 +67,7 @@ class HDLV2_Safety_Screen {
 			'category'  => 'HARD',
 			'urgency'   => 'THIS_WEEK',
 			'concern'   => 'Fainting episodes need a medical look',
-			'client'    => 'You mentioned fainting or near-blackouts. Please discuss this with your {GP} or {ADVICE} soon, and avoid driving until you have been seen if it happens without warning.',
+			'client'    => 'You mentioned fainting or near-blackouts. Please contact {DOCTOR} soon, and avoid driving until you have been seen if it happens without warning.',
 			'prac'      => 'Reports syncope / near-syncope. Consider cardiac (arrhythmia / structural) review before exercise.',
 		),
 		// ── Brain & nerves (stroke pattern) ──
@@ -107,7 +109,7 @@ class HDLV2_Safety_Screen {
 			'category'  => 'HARD',
 			'urgency'   => 'THIS_WEEK',
 			'concern'   => 'Unexplained weight loss warrants a GP review',
-			'client'    => 'You mentioned losing weight without trying. It is worth booking a {GP} appointment this week to look into it.',
+			'client'    => 'You mentioned losing weight without trying. It is worth booking {APPOINTMENT} this week to look into it.',
 			'prac'      => 'Reports unintended weight loss. NICE NG12 — GP review this week.',
 		),
 		'new_lump' => array(
@@ -115,7 +117,7 @@ class HDLV2_Safety_Screen {
 			'category'  => 'HARD',
 			'urgency'   => 'THIS_WEEK',
 			'concern'   => 'A new lump should be examined',
-			'client'    => 'You mentioned a new lump. Please book a {GP} appointment this week so it can be examined.',
+			'client'    => 'You mentioned a new lump. Please book {APPOINTMENT} this week so it can be examined.',
 			'prac'      => 'Reports a new lump. NICE NG12 — GP examination this week.',
 		),
 		'bleeding' => array(
@@ -123,7 +125,7 @@ class HDLV2_Safety_Screen {
 			'category'  => 'HARD',
 			'urgency'   => 'THIS_WEEK',
 			'concern'   => 'Unexplained bleeding warrants a GP review',
-			'client'    => 'You mentioned noticing blood (in your stool, urine, or when coughing). Please book a {GP} appointment this week to have it checked.',
+			'client'    => 'You mentioned noticing blood (in your stool, urine, or when coughing). Please book {APPOINTMENT} this week to have it checked.',
 			'prac'      => 'Reports blood in stool / urine / haemoptysis. NICE NG12 — GP review this week.',
 		),
 		'swallowing' => array(
@@ -131,7 +133,7 @@ class HDLV2_Safety_Screen {
 			'category'  => 'HARD',
 			'urgency'   => 'THIS_WEEK',
 			'concern'   => 'Persistent swallowing difficulty warrants review',
-			'client'    => 'You mentioned difficulty or pain when swallowing. If it has lasted more than a couple of weeks, please book a {GP} appointment this week.',
+			'client'    => 'You mentioned difficulty or pain when swallowing. If it has lasted more than a couple of weeks, please book {APPOINTMENT} this week.',
 			'prac'      => 'Reports dysphagia/odynophagia. NICE NG12 — GP review this week.',
 		),
 		'persistent_cough' => array(
@@ -139,7 +141,7 @@ class HDLV2_Safety_Screen {
 			'category'  => 'HARD',
 			'urgency'   => 'THIS_WEEK',
 			'concern'   => 'A persistent cough warrants a GP review',
-			'client'    => 'You mentioned a cough that has lasted more than three weeks. Please book a {GP} appointment this week to look into it.',
+			'client'    => 'You mentioned a cough that has lasted more than three weeks. Please book {APPOINTMENT} this week to look into it.',
 			'prac'      => 'Reports cough > 3 weeks. NICE NG12 (esp. if smoker/ex-smoker) — GP review this week.',
 		),
 		'changing_mole' => array(
@@ -147,7 +149,7 @@ class HDLV2_Safety_Screen {
 			'category'  => 'HARD',
 			'urgency'   => 'THIS_WEEK',
 			'concern'   => 'A changing skin lesion should be examined',
-			'client'    => 'You mentioned a mole or skin patch that is changing. Please book a {GP} appointment this week so it can be examined.',
+			'client'    => 'You mentioned a mole or skin patch that is changing. Please book {APPOINTMENT} this week so it can be examined.',
 			'prac'      => 'Reports changing/bleeding skin lesion. NICE NG12 — GP examination this week.',
 		),
 		'abnormal_bleeding' => array(
@@ -155,7 +157,7 @@ class HDLV2_Safety_Screen {
 			'category'  => 'HARD',
 			'urgency'   => 'THIS_WEEK',
 			'concern'   => 'Abnormal bleeding warrants a GP review',
-			'client'    => 'You mentioned bleeding that is unusual for you. Please book a {GP} appointment this week to have it looked into.',
+			'client'    => 'You mentioned bleeding that is unusual for you. Please book {APPOINTMENT} this week to have it looked into.',
 			'prac'      => 'Reports postmenopausal / abnormal vaginal bleeding. NICE NG12 — GP review this week.',
 		),
 	);
@@ -202,6 +204,18 @@ class HDLV2_Safety_Screen {
 			'prac'      => 'Disclosed thoughts that life may not be worth living. Crisis resources emailed. Follow up sensitively.',
 			'is_crisis' => true,
 		),
+	);
+
+	/**
+	 * v0.48.67 — the United Kingdom's words for the tokens above, used only when
+	 * HDLV2_Safety_Content is not loaded (a part-finished deploy), so a flag and
+	 * its email are never lost. Must equal the content class's GB row (tested).
+	 */
+	const UK_WORDS = array(
+		'{EMERGENCY}'   => '999',
+		'{DOCTOR}'      => 'NHS 111 or your GP',
+		'{ADVICE}'      => 'NHS 111',
+		'{APPOINTMENT}' => 'a GP appointment',
 	);
 
 	/** Symptom keys that are valid input (allowlist for sanitisation). */
@@ -257,7 +271,7 @@ class HDLV2_Safety_Screen {
 	 */
 	public static function map_flags( $safety, $row = null ) {
 		$flags = array();
-		$row   = $row ?: HDLV2_Safety_Content::resolve( 'GB' );
+		$row   = $row ?: ( class_exists( 'HDLV2_Safety_Content' ) ? HDLV2_Safety_Content::resolve( 'GB' ) : null );
 
 		$symptoms = isset( $safety['symptoms'] ) && is_array( $safety['symptoms'] ) ? $safety['symptoms'] : array();
 		foreach ( $symptoms as $key ) {
@@ -289,7 +303,7 @@ class HDLV2_Safety_Screen {
 			'trigger'               => 'Safety screen — ticked: ' . $def['label'],
 			'concern'               => $def['concern'],
 			'urgency'               => $def['urgency'],
-			'client_facing_wording' => HDLV2_Safety_Content::tokens( $def['client'], $row ),
+			'client_facing_wording' => $row ? HDLV2_Safety_Content::tokens( $def['client'], $row ) : strtr( $def['client'], self::UK_WORDS ),
 			'practitioner_note'     => $def['prac'],
 			'is_crisis'             => (bool) $is_crisis,
 			'source'                => 'safety_screen',

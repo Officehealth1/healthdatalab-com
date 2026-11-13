@@ -22,15 +22,16 @@ load_sources();
 foreach ( array( 'includes/sprint-1/class-hdlv2-safety-content.php', 'includes/sprint-1/class-hdlv2-safety-screen.php', 'includes/class-hdlv2-flags-store.php' ) as $f ) {
     if ( file_exists( $ROOT . $f ) ) require_once $ROOT . $f;
 }
-/** The file as it was at BASE, loaded with its class renamed to <Class>_Old. */
-function load_old( $path, $class ) {
-    $src = shell_exec( 'git -C ' . escapeshellarg( __DIR__ ) . ' show ' . BASE . ':hdl-longevity-v2/' . $path . ' 2>/dev/null' );
-    $tmp = sys_get_temp_dir() . '/hdlv2-old-' . md5( $path ) . '.php';
-    file_put_contents( $tmp, preg_replace( '/\bclass ' . $class . '\b/', 'class ' . $class . '_Old', (string) $src, 1 ) );
+/** The file as it was at $rev (BASE by default), loaded with its class renamed to <Class><suffix>. */
+function load_old( $path, $class, $rev = BASE, $suffix = '_Old' ) {
+    $src = shell_exec( 'git -C ' . escapeshellarg( __DIR__ ) . ' show ' . $rev . ':hdl-longevity-v2/' . $path . ' 2>/dev/null' );
+    $tmp = sys_get_temp_dir() . '/hdlv2-old-' . md5( $rev . $path ) . '.php';
+    file_put_contents( $tmp, preg_replace( '/\bclass ' . $class . '\b/', 'class ' . $class . $suffix, (string) $src, 1 ) );
     require_once $tmp;
 }
 load_old( 'includes/sprint-1/class-hdlv2-safety-screen.php', 'HDLV2_Safety_Screen' );
 load_old( 'includes/sprint-2/class-hdlv2-email-templates.php', 'HDLV2_Email_Templates' );
+load_old( 'includes/sprint-2/class-hdlv2-email-templates.php', 'HDLV2_Email_Templates', '5fe95b9', '_0486' ); // 0.48.66, for the gate fixes' UK snapshot
 
 $HAS = class_exists( 'HDLV2_Safety_Content' );
 check( 'S0 HDLV2_Safety_Content exists', $HAS );
@@ -87,17 +88,28 @@ check( 'T6 low mood only → no notice (as today)', false === $n['crisis'] && ''
 check( 'T7 notice_for takes the ticks and nothing else', 1 === ( new ReflectionMethod( $C, 'notice_for' ) )->getNumberOfParameters() );
 check( 'T8 notice_for(junk) → nothing', array( 'crisis' => false, 'notice' => '', 'also' => false ) === $C::notice_for( 'junk' ) );
 
-echo "── T-gb-same: a UK reader's sentences do not change ──\n";
-$same = true; $sig = true;
+echo "── T-gb-same: a UK reader's sentences do not change (except the two of sheet 10.2) ──\n";
+$same = true; $sig = true; $two = true;
+// Sheet 10.2 (0.48.67): these two read the same in every country, so the UK sentence changes too.
+$S102 = array(
+    'sym_breathless' => 'You mentioned unusual breathlessness. Please contact NHS 111 or your GP soon. If it comes on suddenly or severely, call 999.',
+    'sym_fainting'   => 'You mentioned fainting or near-blackouts. Please contact NHS 111 or your GP soon, and avoid driving until you have been seen if it happens without warning.',
+);
 $safety_all = array( 'symptoms' => array_keys( HDLV2_Safety_Screen::SYMPTOM_FLAGS ), 'mh' => array_keys( HDLV2_Safety_Screen::MH_FLAGS ) );
 $old = HDLV2_Safety_Screen_Old::map_flags( $safety_all );
 foreach ( array( HDLV2_Safety_Screen::map_flags( $safety_all ), HDLV2_Safety_Screen::map_flags( $safety_all, $C::resolve( 'GB' ) ) ) as $new ) {
     foreach ( $old as $i => $f ) {
-        $same = $same && $f['client_facing_wording'] === $new[ $i ]['client_facing_wording'] && $f['label'] === $new[ $i ]['label'];
+        if ( isset( $S102[ $f['id'] ] ) ) {
+            $two = $two && $S102[ $f['id'] ] === $new[ $i ]['client_facing_wording'];
+        } else {
+            $same = $same && $f['client_facing_wording'] === $new[ $i ]['client_facing_wording'];
+        }
+        $same = $same && $f['label'] === $new[ $i ]['label'];
         $sig  = $sig && $f['signature'] === $new[ $i ]['signature'];
     }
 }
-check( 'G1 all eighteen sentences + labels byte-identical to 0.48.65 (default and GB row)', $same && count( $old ) === 18 );
+check( 'G1 the other sixteen sentences + all labels byte-identical to 0.48.65 (default and GB row)', $same && count( $old ) === 18 );
+check( 'G1b UK: breathless and fainting read as sheet 10.2 (the only two UK sentences that change)', $two );
 check( 'G2 signatures unchanged (dedup across the deploy holds)', $sig );
 $ph = HDLV2_Safety_Screen::map_flags( array( 'symptoms' => array( 'stroke_speech' ) ), $C::resolve( 'PH' ) );
 check( 'G3 PH row: the stroke sentence carries 911 and a doctor or clinic', false !== strpos( $ph[0]['client_facing_wording'], 'call 911' ) && false !== strpos( $ph[0]['client_facing_wording'], 'a doctor or clinic' ) && false === strpos( $ph[0]['client_facing_wording'], '999' ) );
@@ -179,7 +191,10 @@ flags_on();
 $GLOBALS['mails'] = array();
 HDLV2_Email_Templates::client_safety_alert( array( 'client_email' => 'k@example.test', 'client_name' => 'Kim', 'practitioner_id' => 206, 'crisis' => true, 'findings' => array(), 'notice' => $C::email_context( array( '_safety' => array( 'mh' => array( 'self_harm' ) ) ), 'GB' ) ) );
 $h = $GLOBALS['mails'][0][2];
-check( 'E6 GB crisis keeps today\'s five lines (NHS 111, Samaritans, Shout, Papyrus, 999)', false !== strpos( $h, '111.nhs.uk' ) && false !== strpos( $h, 'samaritans.org' ) && false !== strpos( $h, '85258' ) && false !== strpos( $h, '0800 068 4141' ) && false !== strpos( $h, 'tel:999' ) );
+$v = strip_tags( $h );
+check( 'E6 GB crisis (sheet 10.7): 999 and Samaritans once each, then NHS 111, Shout and Papyrus', 1 === substr_count( $v, '999' ) && 1 === substr_count( $h, 'tel:999' ) && 1 === substr_count( $v, 'Samaritans' ) && false === strpos( $h, 'samaritans.org' )
+    && false !== strpos( $h, '111.nhs.uk' ) && false !== strpos( $h, '85258' ) && false !== strpos( $h, '0800 068 4141' )
+    && strpos( $v, 'If you are in danger right now' ) < strpos( $v, 'NHS 111' ) );
 $GLOBALS['mails'] = array();
 HDLV2_Email_Templates::client_safety_alert( array( 'client_email' => 'k@example.test', 'client_name' => 'Kim', 'practitioner_id' => 206, 'crisis' => true, 'findings' => array(), 'notice' => $C::email_context( array( '_safety' => array( 'mh' => array( 'self_harm' ) ) ), 'US' ) ) );
 $h = $GLOBALS['mails'][0][2];
@@ -203,13 +218,14 @@ check( 'E12 alert without an ack: C then B, country not known, not pressed', fal
 
 echo "── T-ack: kept with the lead, junk dropped ──\n";
 $GLOBALS['options'] = array();
-$a = $C::sanitize_ack( array( 'notice' => 'b', 'version' => $C::VERSION, 'country' => 'ph', 'at' => '1999-01-01 00:00:00', 'extra' => 'x' ) );
+$B_TICKS = array( 'symptoms' => array( 'new_lump' ) ); $A_TICKS = array( 'symptoms' => array( 'stroke_speech' ) );
+$a = $C::sanitize_ack( array( 'notice' => 'b', 'version' => $C::VERSION, 'country' => 'ph', 'at' => '1999-01-01 00:00:00', 'extra' => 'x' ), $B_TICKS );
 check( 'K1 clean ack keeps notice, version, country; server sets at', is_array( $a ) && 'b' === $a['notice'] && $C::VERSION === $a['version'] && 'PH' === $a['country'] && '1999-01-01 00:00:00' !== $a['at'] && preg_match( '/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/', $a['at'] ) );
 check( 'K2 only four keys', is_array( $a ) && array( 'notice', 'version', 'country', 'at' ) === array_keys( $a ) );
-check( 'K3 unknown country → empty, ack kept', '' === $C::sanitize_ack( array( 'notice' => 'a', 'version' => $C::VERSION, 'country' => '<b>' ) )['country'] );
-check( 'K4 bad notice → dropped', null === $C::sanitize_ack( array( 'notice' => 'z', 'version' => $C::VERSION ) ) );
-check( 'K5 bad version → dropped', null === $C::sanitize_ack( array( 'notice' => 'a', 'version' => '<script>' ) ) );
-check( 'K6 not an array → dropped', null === $C::sanitize_ack( 'a' ) && null === $C::sanitize_ack( null ) );
+check( 'K3 unknown country → empty, ack kept', '' === $C::sanitize_ack( array( 'notice' => 'a', 'version' => $C::VERSION, 'country' => '<b>' ), $A_TICKS )['country'] );
+check( 'K4 bad notice → dropped', null === $C::sanitize_ack( array( 'notice' => 'z', 'version' => $C::VERSION ), $A_TICKS ) );
+check( 'K5 bad version → dropped', null === $C::sanitize_ack( array( 'notice' => 'a', 'version' => '<script>' ), $A_TICKS ) );
+check( 'K6 not an array → dropped', null === $C::sanitize_ack( 'a', $A_TICKS ) && null === $C::sanitize_ack( null, $A_TICKS ) );
 
 fresh_wpdb(); flags_on();
 $p = lead_params( 'ack@example.test' );
@@ -268,9 +284,150 @@ check( 'L1 notices(en) is the English set', $C::NOTICES['en'] === $C::notices( '
 check( 'L2 an absent language returns English', $C::NOTICES['en'] === $C::notices( 'fr' ) && $C::NOTICES['en'] === $C::notices( '' ) );
 check( 'L3 the payload is keyed by language', isset( $pp['notices']['en']['a']['title'] ) );
 
+echo "── Gate fixes (0.48.67) ──\n";
+$v = $C::VERSION;
+
+// R2 — the press never reaches an AI prompt.
+if ( ! defined( 'ARRAY_A' ) ) define( 'ARRAY_A', 'ARRAY_A' );
+if ( ! class_exists( 'HDLV2_AI_Service' ) ) {
+    class HDLV2_AI_Service { // records what the scan is handed, then stops the run
+        public static $seen = array();
+        public static function scan_for_flags( $stage1 ) { self::$seen[] = $stage1; return new WP_Error( 'test_stop', 'stop' ); }
+    }
+}
+class FpRowWpdb extends FakeWpdb {
+    public $fp = null;
+    public function get_row( $sql, $output = null ) {
+        if ( false !== strpos( $sql, 'hdlv2_why_profiles' ) ) return null;
+        return false !== strpos( $sql, 'hdlv2_form_progress' ) ? $this->fp : parent::get_row( $sql );
+    }
+}
+require_once $ROOT . 'includes/sprint-2/class-hdlv2-redflag-jobs.php';
+$wpdb = new FpRowWpdb();
+$wpdb->fp = (object) array( 'id' => 9, 'client_user_id' => 1, 'practitioner_user_id' => 206, 'client_email' => 'k@example.test', 'client_name' => 'Kim',
+    'stage1_data' => json_encode( array( 'q1_age' => 44, '_safety' => array( 'symptoms' => array( 'stroke_speech' ) ), '_safety_ack' => array( 'notice' => 'a', 'version' => $v, 'country' => 'GB', 'at' => '2026-11-13 03:29:00' ) ) ),
+    'stage3_data' => '{}', 'flags' => '[]' );
+HDLV2_Redflag_Jobs::run_now( 9 );
+$in = HDLV2_AI_Service::$seen[0] ?? null;
+check( 'R2a AI scan input: no _safety_ack, no _safety (as before), the rest kept', is_array( $in ) && ! array_key_exists( '_safety_ack', $in ) && ! array_key_exists( '_safety', $in ) && 44 === ( $in['q1_age'] ?? null ) );
+$ac   = file_get_contents( $ROOT . 'includes/sprint-2c/class-hdlv2-auto-consultation.php' );
+$at   = strpos( $ac, 'private function generate_ai_inputs(' );
+$body = false !== $at ? substr( $ac, $at, strpos( $ac, '$user_prompt = ', $at ) - $at ) : '';
+$dec  = strpos( $body, '$s1 = ' );
+$un   = strpos( $body, "unset( \$s1['_safety_ack'] );" );
+check( 'R2b auto-consultation (source read): _safety_ack is unset from $s1 after it is decoded and before the prompt; _safety is left as it was', false !== $dec && false !== $un && $un > $dec && false === strpos( $body, "\$s1['_safety']" ) );
+
+// R3 — a missing content class (a part-finished deploy) never drops a flag or its email.
+$fb = json_decode( (string) shell_exec( escapeshellarg( PHP_BINARY ) . ' ' . escapeshellarg( __DIR__ . '/dump-flags-without-content.php' ) . ' 2>&1' ), true );
+$gb = HDLV2_Safety_Screen::map_flags( $safety_all, $C::resolve( 'GB' ) );
+$fb_same = is_array( $fb ) && false === $fb['content_loaded'] && 18 === count( $fb['flags'] );
+foreach ( $gb as $i => $f ) {
+    $fb_same = $fb_same && ( $fb['flags'][ $i ]['client_facing_wording'] ?? null ) === $f['client_facing_wording'] && ( $fb['flags'][ $i ]['signature'] ?? null ) === $f['signature'];
+}
+check( 'R3 content class absent: all eighteen rows map, each sentence equals the UK rendering, signatures unchanged', $fb_same );
+
+// R4 — the press is kept only when it matches the notice the ticks show.
+$CB = array( 'mh' => array( 'self_harm' ), 'symptoms' => array( 'new_lump' ) );
+$AB = array( 'symptoms' => array( 'stroke_speech', 'new_lump' ) );
+$CO = array( 'mh' => array( 'self_harm' ) );
+check( 'R4a a press for a lead with no ticks → not kept', null === $C::sanitize_ack( array( 'notice' => 'a', 'version' => $v ), array() ) );
+check( 'R4b "a" claimed with only B ticks → not kept', null === $C::sanitize_ack( array( 'notice' => 'a', 'version' => $v ), $B_TICKS ) );
+check( 'R4c "c" claimed without a crisis tick → not kept', null === $C::sanitize_ack( array( 'notice' => 'c', 'version' => $v ), $A_TICKS ) );
+check( 'R4d version "2026-11-13.1\n" (trailing newline) → rejected', null === $C::sanitize_ack( array( 'notice' => 'a', 'version' => "2026-11-13.1\n" ), $A_TICKS ) );
+check( 'R4e crisis + B: the widget\'s last button is on B, so "b" is kept and "c" is not', is_array( $C::sanitize_ack( array( 'notice' => 'b', 'version' => $v ), $CB ) ) && null === $C::sanitize_ack( array( 'notice' => 'c', 'version' => $v ), $CB ) );
+check( 'R4f crisis only: "c" kept; A + B: "a" kept, "b" not', is_array( $C::sanitize_ack( array( 'notice' => 'c', 'version' => $v ), $CO ) ) && is_array( $C::sanitize_ack( array( 'notice' => 'a', 'version' => $v ), $AB ) ) && null === $C::sanitize_ack( array( 'notice' => 'b', 'version' => $v ), $AB ) );
+fresh_wpdb(); flags_on();
+$p = lead_params( 'forged@example.test' );
+$p['safety'] = $B_TICKS;
+$p['safety_ack'] = array( 'notice' => 'a', 'version' => $v, 'country' => 'GB' );
+$r = post_lead( $p );
+$lead = $wpdb->inserts_into( 'hdlv2_widget_leads' );
+$s1 = json_decode( (string) ( end( $lead )['data']['stage1_data'] ?? '' ), true );
+check( 'R4g lead POST: "a" claimed with B ticks → lead accepted, no _safety_ack stored', is_array( $r ) && ! empty( $r['success'] ) && ! empty( $s1['_safety'] ) && ! array_key_exists( '_safety_ack', (array) $s1 ) );
+flags_on();
+$ctx = $C::email_context( array( '_safety' => array( 'mh' => array( 'low_mood' ) ), '_safety_ack' => array( 'notice' => 'a', 'version' => $v, 'country' => 'GB', 'at' => '2026-11-13 03:29:00' ) ), 'GB' );
+$GLOBALS['mails'] = array();
+HDLV2_Email_Templates::practitioner_redflag_alert( $pd + array( 'notice' => $ctx ) );
+$h = $GLOBALS['mails'][0][2];
+check( 'R4h alert: "No notice on screen" never sits beside a press line', false !== strpos( $h, 'No notice on screen' ) && false === strpos( $h, 'I have read this' ) && false === strpos( $h, 'Went on to the result' ) );
+
+// R5 — the reminder for notice A carries both actions (sheet 10.5; the widget test renders it).
+check( 'R5 notice A\'s reminder line is sheet 10.5, word for word', "if this is happening now, or happened in the last 24 hours, call {EMERGENCY} now. If it has passed, ask for an urgent doctor's appointment today." === ( $C::NOTICES['en']['a']['repeat'] ?? '' ) );
+
+// R6 — sheet 10.2 and 10.3 outside the UK.
+$by_id = function ( $cc ) use ( $C, $safety_all ) { $o = array(); foreach ( HDLV2_Safety_Screen::map_flags( $safety_all, $C::resolve( $cc ) ) as $f ) { $o[ $f['id'] ] = $f['client_facing_wording']; } return $o; };
+foreach ( array( 'PH' => 'PH', 'US' => 'US', '' => 'unknown' ) as $cc => $name ) {
+    $bad = false;
+    foreach ( $by_id( $cc ) as $w ) { $bad = $bad || false !== strpos( $w, 'or a doctor' ) || false !== strpos( $w, 'doctor appointment' ); }
+    check( "R6a $name: no \"or a doctor\" and no \"doctor appointment\" in any sentence", ! $bad );
+}
+$ph = $by_id( 'PH' ); $uk = $by_id( 'GB' );
+check( 'R6b PH: breathless and fainting read as sheet 10.2', 'You mentioned unusual breathlessness. Please contact a doctor or clinic soon. If it comes on suddenly or severely, call 911.' === $ph['sym_breathless']
+    && 'You mentioned fainting or near-blackouts. Please contact a doctor or clinic soon, and avoid driving until you have been seen if it happens without warning.' === $ph['sym_fainting'] );
+$seven = true;
+foreach ( array( 'weight_loss', 'new_lump', 'bleeding', 'swallowing', 'persistent_cough', 'changing_mole', 'abnormal_bleeding' ) as $k ) {
+    $seven = $seven && false !== strpos( $ph[ 'sym_' . $k ], "a doctor's appointment" ) && false !== strpos( $uk[ 'sym_' . $k ], 'a GP appointment' );
+}
+check( 'R6c the seven (sheet 10.3): "a doctor\'s appointment" outside the UK, "a GP appointment" in the UK', $seven );
+
+// R7 — outside the UK the email says "doctor" where it said "GP" (sheet 10.4); the UK email does not change.
+$mk = function ( $cc, $safety ) use ( $C ) {
+    flags_on();
+    $ctx = $C::email_context( array( '_safety' => $safety ), $cc );
+    $findings = array_values( array_filter( HDLV2_Safety_Screen::map_flags( $safety, $ctx['row'] ), function ( $f ) { return empty( $f['is_crisis'] ); } ) );
+    return array( 'client_email' => 'k@example.test', 'client_name' => 'Kim Test', 'practitioner_id' => 206, 'crisis' => ! empty( $safety['mh'] ) && in_array( 'self_harm', $safety['mh'], true ), 'findings' => $findings, 'notice' => $ctx );
+};
+$EVERY = array( 'symptoms' => array( 'stroke_speech', 'new_lump', 'breathless', 'weight_loss' ), 'mh' => array( 'low_mood', 'anxiety' ) );
+foreach ( array( 'PH' => 'PH', '' => 'unknown' ) as $cc => $name ) {
+    foreach ( array( '' => $EVERY, ' crisis' => array( 'mh' => array( 'low_mood', 'anxiety', 'self_harm' ) ) + $EVERY ) as $tag => $safety ) {
+        $GLOBALS['mails'] = array();
+        HDLV2_Email_Templates::client_safety_alert( $mk( $cc, $safety ) );
+        $vis = strip_tags( $GLOBALS['mails'][0][2] ?? 'GP' );
+        check( "R7a $name$tag: no \"GP\" anywhere in the email (chips, heading, mood cards, reasons)", ! preg_match( '/\bGP\b/', $vis ) && false !== strpos( $vis, 'doctor' ) );
+    }
+}
+$d = $mk( 'GB', array( 'symptoms' => array( 'stroke_speech', 'new_lump', 'weight_loss' ), 'mh' => array( 'low_mood', 'anxiety' ) ) );
+$GLOBALS['mails'] = array(); HDLV2_Email_Templates_0486::client_safety_alert( $d ); $o = $GLOBALS['mails'];
+$GLOBALS['mails'] = array(); HDLV2_Email_Templates::client_safety_alert( $d );      $n2 = $GLOBALS['mails'];
+check( 'R7b UK email byte-identical to 0.48.66 (chips, cards and mood lines keep "GP")', $o && $o === $n2 && false !== strpos( $o[0][2], 'Worth a GP visit this week' ) );
+$GLOBALS['mails'] = array();
+HDLV2_Email_Templates::client_safety_alert( $mk( 'GB', array( 'mh' => array( 'self_harm' ), 'symptoms' => array( 'new_lump' ) ) ) );
+check( 'R7c UK crisis keeps the heading "Also worth a word with your GP"', false !== strpos( $GLOBALS['mails'][0][2], 'Also worth a word with your GP' ) );
+
+// R8 — the alert line after notice C (sheet 10.6).
+flags_on();
+$at_ = '2026-11-13 03:29:00';
+$GLOBALS['mails'] = array();
+HDLV2_Email_Templates::practitioner_redflag_alert( $pd + array( 'notice' => $C::email_context( array( '_safety' => $CO, '_safety_ack' => array( 'notice' => 'c', 'version' => $v, 'country' => 'GB', 'at' => $at_ ) ), 'GB' ) ) );
+$h = $GLOBALS['mails'][0][2];
+check( 'R8a alert after notice C: "Went on to the result after the support notice: Yes", no "I have read this"', false !== strpos( $h, 'Went on to the result after the support notice:</strong> Yes' ) && false === strpos( $h, 'I have read this' ) );
+$GLOBALS['mails'] = array();
+HDLV2_Email_Templates::practitioner_redflag_alert( $pd + array( 'notice' => $C::email_context( array( '_safety' => $CB, '_safety_ack' => array( 'notice' => 'b', 'version' => $v, 'country' => 'GB', 'at' => $at_ ) ), 'GB' ) ) );
+$h = $GLOBALS['mails'][0][2];
+check( 'R8b alert after C then B: the press is on B ("I have read this: Yes"), no support-notice line', false !== strpos( $h, 'I have read this&rdquo;:</strong> Yes' ) && false === strpos( $h, 'Went on to the result' ) );
+$GLOBALS['mails'] = array();
+HDLV2_Email_Templates::practitioner_redflag_alert( $pd + array( 'notice' => $C::email_context( array( '_safety' => $CO ), 'GB' ) ) );
+check( 'R8c alert after notice C without a press: "Went on to the result after the support notice: No"', false !== strpos( $GLOBALS['mails'][0][2], 'Went on to the result after the support notice:</strong> No' ) );
+
 echo "── Size ──\n";
 $bytes = strlen( json_encode( $pp ) );
 echo "  (public payload: $bytes bytes)\n";
 check( 'Z1 the added config is under 6 KB', $bytes < 6144 );
+
+echo "── R1: with the notice on, the email always follows the screen (runs last: it defines the Make hook) ──\n";
+define( 'HDLV2_MAKE_REDFLAG', 'https://hook.example.test/redflag' );
+$redflag_posts = function () { return array_values( array_filter( $GLOBALS['captured_posts'], function ( $cp ) { return false !== strpos( $cp['url'], 'hook.example.test/redflag' ); } ) ); };
+fresh_wpdb(); flags_on();
+$p = lead_params( 'r1on@example.test' );
+$p['safety'] = array( 'symptoms' => array( 'stroke_speech' ) );
+$p['visitor_country'] = 'PH';
+post_lead( $p );
+$cm = mails_to( 'r1on@example.test' );
+check( 'R1a switch on + Make hook defined: the client email goes by wp_mail with the PH notice, Make is not called', 1 === count( $cm ) && false !== strpos( $cm[0][2], 'tel:911' ) && 0 === count( $redflag_posts() ) );
+fresh_wpdb(); $GLOBALS['options'] = array( 'hdlv2_ff_safety_screen' => 1 );
+$p = lead_params( 'r1off@example.test' );
+$p['safety'] = array( 'symptoms' => array( 'stroke_speech' ) );
+post_lead( $p );
+check( 'R1b switch off + Make hook defined: Make is called as today, no wp_mail to the client', 1 === count( $redflag_posts() ) && 0 === count( mails_to( 'r1off@example.test' ) ) );
 
 done();
