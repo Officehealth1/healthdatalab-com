@@ -35,6 +35,8 @@ class HDLV2_Flags_Store {
 	 *                           client_user_id, practitioner_user_id.
 	 * @param array  $to_message newly-added, non-CONTEXT flag objects to message.
 	 * @param array  $merged     full merged flag list (by ref) — messaged_at stamped here.
+	 * @param array  $opts       dest (practitioner CTA target); notice (v0.48.66,
+	 *                           HDLV2_Safety_Content::email_context(), wp_mail path only).
 	 */
 	public static function notify( $progress, $to_message, &$merged, $opts = array() ) {
 		if ( empty( $to_message ) || empty( $progress->client_email ) ) {
@@ -87,7 +89,7 @@ class HDLV2_Flags_Store {
 		if ( $webhook ) {
 			$sent_ok = self::fire_make( $webhook, $progress, $prac_email, $dashboard_url, $crisis, $findings, $prac_flags_html, $to_message );
 		} else {
-			$sent_ok = self::fire_wp_mail( $progress, $prac_email, $dashboard_url, $crisis, $finding_flags, $prac_flags_html );
+			$sent_ok = self::fire_wp_mail( $progress, $prac_email, $dashboard_url, $crisis, $finding_flags, $prac_flags_html, $opts['notice'] ?? null );
 		}
 
 		// v0.46.21 (QA F3) — only stamp messaged_at when the send actually
@@ -181,7 +183,7 @@ class HDLV2_Flags_Store {
 	 * @param array $finding_flags Full non-crisis flag objects (label, concern,
 	 *                             urgency, client_facing_wording) for the cards.
 	 */
-	private static function fire_wp_mail( $progress, $prac_email, $dashboard_url, $crisis, $finding_flags, $prac_flags_html ) {
+	private static function fire_wp_mail( $progress, $prac_email, $dashboard_url, $crisis, $finding_flags, $prac_flags_html, $notice = null ) {
 		if ( ! class_exists( 'HDLV2_Email_Templates' ) ) {
 			return false; // v0.46.21 (QA F3) — could not send → not a success
 		}
@@ -199,6 +201,7 @@ class HDLV2_Flags_Store {
 				'practitioner_id' => $prac_id,
 				'crisis'          => ! empty( $crisis ),
 				'findings'        => $finding_flags,
+				'notice'          => $notice,
 			) );
 			if ( false === $sent ) { $ok = false; }
 		}
@@ -210,6 +213,7 @@ class HDLV2_Flags_Store {
 				'client_name'        => $progress->client_name,
 				'dashboard_url'      => $dashboard_url,
 				'flags_html'         => $prac_flags_html,
+				'notice'             => $notice,
 			) );
 			if ( false === $sent ) { $ok = false; }
 		}

@@ -770,22 +770,40 @@ class HDLV2_Email_Templates {
         // Nothing to say → send nothing (notify() already guards; belt-and-braces).
         if ( ! $crisis && empty( $findings ) ) { return; }
         $first = esc_html( self::derive_first_name( $data['client_name'] ?? '', $email ) );
+        // v0.48.66 — HDLV2_Safety_Content::email_context() when hdlv2_ff_safety_notice_v2 is on:
+        // the notice the visitor saw, in their country's numbers. Null = the email as before.
+        $notice = ( isset( $data['notice'] ) && is_array( $data['notice'] ) ) ? $data['notice'] : null;
+        $words  = $notice ? HDLV2_Safety_Content::notices( 'en' ) : null;
+        $paras  = function ( $lines, $style ) use ( $notice ) {
+            $out = '';
+            foreach ( $lines as $line ) {
+                $out .= "<p style='{$style}'>" . HDLV2_Safety_Content::tokens_html( $line, $notice['row'] ) . '</p>';
+            }
+            return $out;
+        };
 
         $content = '';
 
         if ( $crisis ) {
-            $content .= "<h2 style='font-family:Poppins,Inter,sans-serif;font-size:21px;font-weight:700;color:" . self::DARK . ";margin:0 0 14px;line-height:1.3;'>Hi {$first}, thank you for being honest</h2>"
-                . "<p style='font-size:15px;line-height:1.7;color:#2c3e50;margin:0 0 22px;'>Thank you for completing your assessment &mdash; your results are on their way. A couple of things you shared are worth acting on, starting with the most important.</p>"
-                . "<table role='presentation' cellpadding='0' cellspacing='0' border='0' width='100%' style='margin:0 0 26px;'><tr><td style='background:#f1f6f7;border:1px solid #cfe0e3;border-left:4px solid " . self::DARK_TEAL . ";border-radius:0 10px 10px 0;padding:18px 20px;'>"
-                . "<div style='font-size:12px;text-transform:uppercase;letter-spacing:0.06em;color:" . self::DARK_TEAL . ";font-weight:700;margin-bottom:8px;'>If you're struggling right now</div>"
-                . "<p style='font-size:14px;line-height:1.7;color:#2c3e50;margin:0 0 12px;'>What you shared about how you've been feeling matters, and it's not something to face on your own. These lines are free, confidential, and open right now:</p>"
+            $uk_lines = "<p style='font-size:14px;line-height:1.7;color:#2c3e50;margin:0 0 12px;'>What you shared about how you've been feeling matters, and it's not something to face on your own. These lines are free, confidential, and open right now:</p>"
                 . "<ul style='font-size:14px;line-height:1.9;color:#2c3e50;margin:0;padding-left:20px;'>"
                 . "<li>If you feel unsafe right now: call <a href='tel:999' style='color:" . self::TEAL . ";'><strong>999</strong></a> or go to A&amp;E.</li>"
                 . "<li><a href='https://111.nhs.uk' style='color:" . self::TEAL . ";'><strong>NHS 111</strong></a> &mdash; select the mental health option, 24/7.</li>"
                 . "<li><a href='https://www.samaritans.org' style='color:" . self::TEAL . ";'><strong>Samaritans</strong></a> &mdash; call <a href='tel:116123' style='color:" . self::TEAL . ";'><strong>116 123</strong></a>, any time.</li>"
                 . "<li><a href='https://giveusashout.org' style='color:" . self::TEAL . ";'><strong>Shout</strong></a> &mdash; text <strong>SHOUT</strong> to <strong>85258</strong> if you'd rather text than talk.</li>"
                 . "<li><a href='https://www.papyrus-uk.org/papyrus-hopeline247/' style='color:" . self::TEAL . ";'><strong>Papyrus HOPELINE247</strong></a> (for people under 35) &mdash; call <a href='tel:08000684141' style='color:" . self::TEAL . ";'><strong>0800 068 4141</strong></a> or text <strong>88247</strong>.</li>"
-                . "</ul></td></tr></table>";
+                . "</ul>";
+            // The support notice (C) in the visitor's numbers; the UK keeps today's lines under it.
+            if ( $notice ) {
+                $uk_lines = $paras( $words['c']['body'], 'font-size:14px;line-height:1.7;color:#2c3e50;margin:0 0 12px;' )
+                    . ( 'GB' === $notice['row']['code'] ? $uk_lines : '' );
+            }
+            $content .= "<h2 style='font-family:Poppins,Inter,sans-serif;font-size:21px;font-weight:700;color:" . self::DARK . ";margin:0 0 14px;line-height:1.3;'>Hi {$first}, thank you for being honest</h2>"
+                . "<p style='font-size:15px;line-height:1.7;color:#2c3e50;margin:0 0 22px;'>Thank you for completing your assessment &mdash; your results are on their way. A couple of things you shared are worth acting on, starting with the most important.</p>"
+                . "<table role='presentation' cellpadding='0' cellspacing='0' border='0' width='100%' style='margin:0 0 26px;'><tr><td style='background:#f1f6f7;border:1px solid #cfe0e3;border-left:4px solid " . self::DARK_TEAL . ";border-radius:0 10px 10px 0;padding:18px 20px;'>"
+                . "<div style='font-size:12px;text-transform:uppercase;letter-spacing:0.06em;color:" . self::DARK_TEAL . ";font-weight:700;margin-bottom:8px;'>If you're struggling right now</div>"
+                . $uk_lines
+                . "</td></tr></table>";
             if ( ! empty( $findings ) ) {
                 $content .= "<h3 style='font-family:Poppins,Inter,sans-serif;font-size:16px;font-weight:700;color:" . self::DARK . ";margin:0 0 14px;'>Also worth a word with your GP</h3>";
             }
@@ -794,12 +812,29 @@ class HDLV2_Email_Templates {
                 . "<p style='font-size:15px;line-height:1.7;color:#2c3e50;margin:0 0 24px;'>Thank you for completing your assessment &mdash; your results are on their way. A few of your answers stood out as worth a proper look. Here's what we noticed, and why:</p>";
         }
 
+        // The act-now (A) or this-week (B) notice, as on the screen, above the cards.
+        $kind = $notice ? $notice['shown']['notice'] : '';
+        if ( '' !== $kind ) {
+            $lines = $words[ $kind ]['body'];
+            if ( 'a' === $kind && $notice['shown']['also'] ) {
+                $lines[] = $words['also'];
+            }
+            $content .= "<table role='presentation' cellpadding='0' cellspacing='0' border='0' width='100%' style='margin:0 0 20px;'><tr><td style='background:" . self::SOFT_FILL . ";border:1px solid " . self::BORDER . ";border-radius:10px;padding:18px 20px 6px;'>"
+                . $paras( $lines, 'font-size:14px;line-height:1.7;color:#2c3e50;margin:0 0 12px;' )
+                . '</td></tr></table>';
+        }
+
         foreach ( $findings as $f ) {
             $content .= self::safety_finding_card( $f );
         }
 
         $closing_margin = empty( $findings ) ? '0' : '4px 0 0';
         $content .= "<p style='font-size:13px;line-height:1.7;color:#666;margin:{$closing_margin};'>This isn't a diagnosis and it isn't medical advice &mdash; we're simply flagging what we noticed so you can mention it to a professional. HealthDataLab is not a medical or crisis service.</p>";
+        if ( $notice ) {
+            foreach ( $words['email_end'] as $line ) {
+                $content .= "<p style='font-size:13px;line-height:1.7;color:#666;margin:10px 0 0;'>" . esc_html( $line ) . '</p>';
+            }
+        }
 
         $banner  = $crisis ? "You don't have to face this alone" : 'A note about your assessment';
         $subject = $crisis ? 'Support is available — HealthDataLab' : 'A note about your HealthDataLab assessment';
@@ -874,10 +909,33 @@ class HDLV2_Email_Templates {
         $rows   = $data['flags_html'] ?? '';
         $url    = $data['dashboard_url'] ?? '#';
 
+        // v0.48.66 — with the new notice on: what the person was shown, whose numbers, whether they pressed.
+        $seen   = '';
+        $notice = ( isset( $data['notice'] ) && is_array( $data['notice'] ) ) ? $data['notice'] : null;
+        if ( $notice ) {
+            $names = array( 'a' => 'Notice A, "Act now"', 'b' => 'Notice B, "This week"', 'c' => 'Notice C, "Support"' );
+            $shown = array();
+            if ( $notice['shown']['crisis'] ) {
+                $shown[] = $names['c'];
+            }
+            if ( '' !== $notice['shown']['notice'] ) {
+                $shown[] = $names[ $notice['shown']['notice'] ];
+            }
+            $ack     = $notice['ack'];
+            $pressed = $ack ? 'Yes, ' . gmdate( 'j M Y, H:i', strtotime( $ack['at'] . ' UTC' ) ) . ' UTC' : 'No';
+            $line    = "<p style='margin:0 0 4px;font-size:13px;color:#2c3e50;line-height:1.6;'><strong>%s</strong> %s</p>";
+            $seen    = "<div style='margin:0 0 18px;'>"
+                . sprintf( $line, 'What they were shown:', esc_html( $shown ? implode( ', then ', $shown ) : 'No notice on screen' ) )
+                . sprintf( $line, 'Numbers shown for:', esc_html( $notice['row']['name'] ) )
+                . sprintf( $line, 'Pressed &ldquo;I have read this&rdquo;:', esc_html( $pressed ) )
+                . '</div>';
+        }
+
         $content = "<div style='background:#fef2f2;border:1px solid #fecaca;border-left:3px solid #dc2626;border-radius:0 6px 6px 0;padding:14px 16px;margin:0 0 18px;'>"
             . "<p style='margin:0;font-family:Poppins,Inter,sans-serif;font-size:15px;font-weight:700;color:#dc2626;'>{$client} flagged something on the safety check</p>"
             . "<p style='margin:6px 0 0;font-size:13px;color:#7f1d1d;line-height:1.6;'>Self-reported tick-box answers from the Stage 1 safety check &mdash; <strong>not a diagnosis</strong>.</p>"
             . "</div>"
+            . $seen
             . "<table role='presentation' cellpadding='0' cellspacing='0' border='0' width='100%' style='margin:0 0 22px;'>{$rows}</table>"
             . self::cta_button( $url, "Open {$first}'s record" );
 

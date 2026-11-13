@@ -59,7 +59,9 @@ const PLINE = "          + (/^\\d+$/.test(String(cfg.pracId)) ? '&p=' + cfg.prac
 // (tests/healthspan-timeline-links/test-ui.js); that one block is set aside, everything else stays b462b02's.
 const LINKCARD = (t) => cutIn(t, '      // v0.48.34 — the yes or no. The key came back', '      function failed(body, status) {');
 ok(LINKCARD(rrNew) !== '' && LINKCARD(rrOld) !== '', 'found the showLinkCard block in both');
-ok(rrNew.indexOf(PLINE) > 0 && rrNew.replace(PLINE, '').replace(LINKCARD(rrNew), LINKCARD(rrOld)) === rrOld.replace(GAUGE, GAUGE + CALL), 'renderResult is b462b02\'s text with only the call added after the gauge picture (and the 0.48.60 &p= line, the 0.48.62 link card)');
+// v0.48.66: the safety notice's press rides in the lead POST (tests/safety-notice/test-widget-notice.mjs); that one line is allowed too.
+const ACKLINE = '      if (answers._safetyAck) payload.safety_ack = answers._safetyAck; // v0.48.66\n';
+ok(rrNew.indexOf(PLINE) > 0 && rrNew.replace(PLINE, '').replace(ACKLINE, '').replace(LINKCARD(rrNew), LINKCARD(rrOld)) === rrOld.replace(GAUGE, GAUGE + CALL), 'renderResult is b462b02\'s text with only the call added after the gauge picture (and the 0.48.60 &p= line, the 0.48.62 link card, the 0.48.66 safety_ack line)');
 ok(rrNew.indexOf(CALL) > 0 && rrNew.indexOf(CALL) < rrNew.indexOf("escapeHtml(awakenP1)"), 'the video sits before the three paragraphs in source order');
 
 // Outside renderResult: only the function and the cfg line were added.

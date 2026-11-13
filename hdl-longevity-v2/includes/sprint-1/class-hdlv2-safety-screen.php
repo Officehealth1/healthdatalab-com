@@ -37,6 +37,10 @@ class HDLV2_Safety_Screen {
 	 * "could-this-be-serious-soon" items; softer amber signals belong in the
 	 * deeper intake. client_facing_wording NEVER names a disease (detect, don't
 	 * diagnose) and always states the exact channel to use.
+	 *
+	 * v0.48.66 — the channel is a token ({EMERGENCY}, {DOCTOR}, {GP}, {ADVICE})
+	 * filled from the visitor's country row in HDLV2_Safety_Content; the United
+	 * Kingdom row gives back the original sentences byte for byte.
 	 */
 	const SYMPTOM_FLAGS = array(
 		// ── Heart & circulation ──
@@ -45,7 +49,7 @@ class HDLV2_Safety_Screen {
 			'category'  => 'HARD',
 			'urgency'   => 'THIS_WEEK',
 			'concern'   => 'Chest pain on exertion needs a cardiac check',
-			'client'    => 'You mentioned chest pain or pressure when you exert yourself. Please have this looked at by a doctor before starting any new exercise — contact NHS 111 or your GP in the next day or two. If it is ever severe, lasts more than 15 minutes, or comes with sweating, nausea, or pain spreading to your arm or jaw, call 999.',
+			'client'    => 'You mentioned chest pain or pressure when you exert yourself. Please have this looked at by a doctor before starting any new exercise — contact {DOCTOR} in the next day or two. If it is ever severe, lasts more than 15 minutes, or comes with sweating, nausea, or pain spreading to your arm or jaw, call {EMERGENCY}.',
 			'prac'      => 'Reports exertional chest pain/pressure. Exclude a cardiac cause before any exercise clearance.',
 		),
 		'breathless' => array(
@@ -53,7 +57,7 @@ class HDLV2_Safety_Screen {
 			'category'  => 'HARD',
 			'urgency'   => 'THIS_WEEK',
 			'concern'   => 'New or unusual breathlessness warrants assessment',
-			'client'    => 'You mentioned unusual breathlessness. This is worth discussing with your GP or NHS 111 soon. If it comes on suddenly or severely, call 999.',
+			'client'    => 'You mentioned unusual breathlessness. This is worth discussing with your {GP} or {ADVICE} soon. If it comes on suddenly or severely, call {EMERGENCY}.',
 			'prac'      => 'Reports unusual breathlessness (rest / lying flat / minimal exertion). Consider cardiac / respiratory review.',
 		),
 		'fainting' => array(
@@ -61,7 +65,7 @@ class HDLV2_Safety_Screen {
 			'category'  => 'HARD',
 			'urgency'   => 'THIS_WEEK',
 			'concern'   => 'Fainting episodes need a medical look',
-			'client'    => 'You mentioned fainting or near-blackouts. Please discuss this with your GP or NHS 111 soon, and avoid driving until you have been seen if it happens without warning.',
+			'client'    => 'You mentioned fainting or near-blackouts. Please discuss this with your {GP} or {ADVICE} soon, and avoid driving until you have been seen if it happens without warning.',
 			'prac'      => 'Reports syncope / near-syncope. Consider cardiac (arrhythmia / structural) review before exercise.',
 		),
 		// ── Brain & nerves (stroke pattern) ──
@@ -70,7 +74,7 @@ class HDLV2_Safety_Screen {
 			'category'  => 'HARD',
 			'urgency'   => 'TODAY',
 			'concern'   => 'Sudden one-sided weakness can be time-critical',
-			'client'    => 'You mentioned sudden weakness or numbness, especially on one side. Symptoms like this can be time-critical. If they are happening now or are new, call 999. Otherwise contact NHS 111 or your GP today.',
+			'client'    => 'You mentioned sudden weakness or numbness, especially on one side. Symptoms like this can be time-critical. If they are happening now or are new, call {EMERGENCY}. Otherwise contact {DOCTOR} today.',
 			'prac'      => 'Reports sudden focal weakness/numbness. Stroke/TIA pattern — urgent assessment.',
 		),
 		'stroke_speech' => array(
@@ -78,7 +82,7 @@ class HDLV2_Safety_Screen {
 			'category'  => 'HARD',
 			'urgency'   => 'TODAY',
 			'concern'   => 'Sudden speech difficulty can be time-critical',
-			'client'    => 'You mentioned sudden difficulty speaking or finding words. This can be time-critical. If it is happening now or is new, call 999. Otherwise contact NHS 111 or your GP today.',
+			'client'    => 'You mentioned sudden difficulty speaking or finding words. This can be time-critical. If it is happening now or is new, call {EMERGENCY}. Otherwise contact {DOCTOR} today.',
 			'prac'      => 'Reports sudden speech disturbance. Stroke/TIA pattern — urgent assessment.',
 		),
 		'stroke_vision' => array(
@@ -86,7 +90,7 @@ class HDLV2_Safety_Screen {
 			'category'  => 'HARD',
 			'urgency'   => 'TODAY',
 			'concern'   => 'Sudden vision change can be time-critical',
-			'client'    => 'You mentioned a sudden change in your vision. This can be time-critical. If it is happening now or is new, call 999. Otherwise contact NHS 111 or your GP today.',
+			'client'    => 'You mentioned a sudden change in your vision. This can be time-critical. If it is happening now or is new, call {EMERGENCY}. Otherwise contact {DOCTOR} today.',
 			'prac'      => 'Reports sudden visual loss / diplopia. Stroke/TIA or ocular emergency — urgent assessment.',
 		),
 		'worst_headache' => array(
@@ -94,7 +98,7 @@ class HDLV2_Safety_Screen {
 			'category'  => 'HARD',
 			'urgency'   => 'TODAY',
 			'concern'   => 'A sudden severe headache needs urgent assessment',
-			'client'    => 'You mentioned a sudden, very severe headache. If it came on like a thunderclap or is the worst you have ever had, call 999. Otherwise contact NHS 111 today.',
+			'client'    => 'You mentioned a sudden, very severe headache. If it came on like a thunderclap or is the worst you have ever had, call {EMERGENCY}. Otherwise contact {ADVICE} today.',
 			'prac'      => 'Reports sudden severe / thunderclap headache. Exclude subarachnoid haemorrhage — urgent.',
 		),
 		// ── Possible cancer signals (NICE NG12) ──
@@ -103,7 +107,7 @@ class HDLV2_Safety_Screen {
 			'category'  => 'HARD',
 			'urgency'   => 'THIS_WEEK',
 			'concern'   => 'Unexplained weight loss warrants a GP review',
-			'client'    => 'You mentioned losing weight without trying. It is worth booking a GP appointment this week to look into it.',
+			'client'    => 'You mentioned losing weight without trying. It is worth booking a {GP} appointment this week to look into it.',
 			'prac'      => 'Reports unintended weight loss. NICE NG12 — GP review this week.',
 		),
 		'new_lump' => array(
@@ -111,7 +115,7 @@ class HDLV2_Safety_Screen {
 			'category'  => 'HARD',
 			'urgency'   => 'THIS_WEEK',
 			'concern'   => 'A new lump should be examined',
-			'client'    => 'You mentioned a new lump. Please book a GP appointment this week so it can be examined.',
+			'client'    => 'You mentioned a new lump. Please book a {GP} appointment this week so it can be examined.',
 			'prac'      => 'Reports a new lump. NICE NG12 — GP examination this week.',
 		),
 		'bleeding' => array(
@@ -119,7 +123,7 @@ class HDLV2_Safety_Screen {
 			'category'  => 'HARD',
 			'urgency'   => 'THIS_WEEK',
 			'concern'   => 'Unexplained bleeding warrants a GP review',
-			'client'    => 'You mentioned noticing blood (in your stool, urine, or when coughing). Please book a GP appointment this week to have it checked.',
+			'client'    => 'You mentioned noticing blood (in your stool, urine, or when coughing). Please book a {GP} appointment this week to have it checked.',
 			'prac'      => 'Reports blood in stool / urine / haemoptysis. NICE NG12 — GP review this week.',
 		),
 		'swallowing' => array(
@@ -127,7 +131,7 @@ class HDLV2_Safety_Screen {
 			'category'  => 'HARD',
 			'urgency'   => 'THIS_WEEK',
 			'concern'   => 'Persistent swallowing difficulty warrants review',
-			'client'    => 'You mentioned difficulty or pain when swallowing. If it has lasted more than a couple of weeks, please book a GP appointment this week.',
+			'client'    => 'You mentioned difficulty or pain when swallowing. If it has lasted more than a couple of weeks, please book a {GP} appointment this week.',
 			'prac'      => 'Reports dysphagia/odynophagia. NICE NG12 — GP review this week.',
 		),
 		'persistent_cough' => array(
@@ -135,7 +139,7 @@ class HDLV2_Safety_Screen {
 			'category'  => 'HARD',
 			'urgency'   => 'THIS_WEEK',
 			'concern'   => 'A persistent cough warrants a GP review',
-			'client'    => 'You mentioned a cough that has lasted more than three weeks. Please book a GP appointment this week to look into it.',
+			'client'    => 'You mentioned a cough that has lasted more than three weeks. Please book a {GP} appointment this week to look into it.',
 			'prac'      => 'Reports cough > 3 weeks. NICE NG12 (esp. if smoker/ex-smoker) — GP review this week.',
 		),
 		'changing_mole' => array(
@@ -143,7 +147,7 @@ class HDLV2_Safety_Screen {
 			'category'  => 'HARD',
 			'urgency'   => 'THIS_WEEK',
 			'concern'   => 'A changing skin lesion should be examined',
-			'client'    => 'You mentioned a mole or skin patch that is changing. Please book a GP appointment this week so it can be examined.',
+			'client'    => 'You mentioned a mole or skin patch that is changing. Please book a {GP} appointment this week so it can be examined.',
 			'prac'      => 'Reports changing/bleeding skin lesion. NICE NG12 — GP examination this week.',
 		),
 		'abnormal_bleeding' => array(
@@ -151,7 +155,7 @@ class HDLV2_Safety_Screen {
 			'category'  => 'HARD',
 			'urgency'   => 'THIS_WEEK',
 			'concern'   => 'Abnormal bleeding warrants a GP review',
-			'client'    => 'You mentioned bleeding that is unusual for you. Please book a GP appointment this week to have it looked into.',
+			'client'    => 'You mentioned bleeding that is unusual for you. Please book a {GP} appointment this week to have it looked into.',
 			'prac'      => 'Reports postmenopausal / abnormal vaginal bleeding. NICE NG12 — GP review this week.',
 		),
 	);
@@ -247,11 +251,13 @@ class HDLV2_Safety_Screen {
 	/**
 	 * Map clean safety answers to flag objects (same shape as the AI scan).
 	 *
-	 * @param array $safety [ 'symptoms' => [keys], 'mh' => [keys] ]
+	 * @param array      $safety [ 'symptoms' => [keys], 'mh' => [keys] ]
+	 * @param array|null $row    country row (HDLV2_Safety_Content::resolve); null = United Kingdom, as before
 	 * @return array list of flag objects (may be empty)
 	 */
-	public static function map_flags( $safety ) {
+	public static function map_flags( $safety, $row = null ) {
 		$flags = array();
+		$row   = $row ?: HDLV2_Safety_Content::resolve( 'GB' );
 
 		$symptoms = isset( $safety['symptoms'] ) && is_array( $safety['symptoms'] ) ? $safety['symptoms'] : array();
 		foreach ( $symptoms as $key ) {
@@ -259,7 +265,7 @@ class HDLV2_Safety_Screen {
 				continue;
 			}
 			$def = self::SYMPTOM_FLAGS[ $key ];
-			$flags[] = self::build_flag( 'sym_' . $key, $def, false );
+			$flags[] = self::build_flag( 'sym_' . $key, $def, false, $row );
 		}
 
 		$mh = isset( $safety['mh'] ) && is_array( $safety['mh'] ) ? $safety['mh'] : array();
@@ -268,14 +274,14 @@ class HDLV2_Safety_Screen {
 				continue;
 			}
 			$def = self::MH_FLAGS[ $key ];
-			$flags[] = self::build_flag( 'mh_' . $key, $def, ! empty( $def['is_crisis'] ) );
+			$flags[] = self::build_flag( 'mh_' . $key, $def, ! empty( $def['is_crisis'] ), $row );
 		}
 
 		return $flags;
 	}
 
 	/** Assemble a single flag object with a stable signature. */
-	private static function build_flag( $id, $def, $is_crisis ) {
+	private static function build_flag( $id, $def, $is_crisis, $row ) {
 		$flag = array(
 			'id'                    => $id,
 			'label'                 => $def['label'],
@@ -283,7 +289,7 @@ class HDLV2_Safety_Screen {
 			'trigger'               => 'Safety screen — ticked: ' . $def['label'],
 			'concern'               => $def['concern'],
 			'urgency'               => $def['urgency'],
-			'client_facing_wording' => $def['client'],
+			'client_facing_wording' => HDLV2_Safety_Content::tokens( $def['client'], $row ),
 			'practitioner_note'     => $def['prac'],
 			'is_crisis'             => (bool) $is_crisis,
 			'source'                => 'safety_screen',
@@ -308,18 +314,19 @@ class HDLV2_Safety_Screen {
 	 * messaged_at) → write flag columns → email the client for new
 	 * client-relevant flags. Deterministic sibling of HDLV2_Redflag_Jobs::run_now.
 	 *
-	 * @param int   $form_progress_id
-	 * @param array $safety clean answers (already sanitised)
+	 * @param int        $form_progress_id
+	 * @param array      $safety clean answers (already sanitised)
+	 * @param array|null $notice v0.48.66 HDLV2_Safety_Content::email_context(); null = as before
 	 * @return array|WP_Error summary on success
 	 */
-	public static function process( $form_progress_id, $safety ) {
+	public static function process( $form_progress_id, $safety, $notice = null ) {
 		global $wpdb;
 		$form_progress_id = (int) $form_progress_id;
 		if ( ! $form_progress_id ) {
 			return new WP_Error( 'bad_id', 'Missing form_progress id.' );
 		}
 
-		$new_flags = self::map_flags( $safety );
+		$new_flags = self::map_flags( $safety, $notice['row'] ?? null );
 		if ( empty( $new_flags ) ) {
 			return array( 'flags_total' => 0, 'messaged' => 0 ); // nothing ticked that flags
 		}
@@ -361,7 +368,7 @@ class HDLV2_Safety_Screen {
 		if ( ! empty( $to_message ) && ! empty( $row->client_email ) ) {
 			// v0.44.0 — single notification path (Make-or-wp_mail) shared with the AI scan.
 			if ( class_exists( 'HDLV2_Flags_Store' ) ) {
-				HDLV2_Flags_Store::notify( $row, $to_message, $merged );
+				HDLV2_Flags_Store::notify( $row, $to_message, $merged, $notice ? array( 'notice' => $notice ) : array() );
 			}
 		}
 
@@ -390,12 +397,13 @@ class HDLV2_Safety_Screen {
 	 * form_progress.flags from that carrier so the existing process() call
 	 * dedups and never re-sends.
 	 *
-	 * @param array $args   { client_email, client_name, practitioner_user_id }
+	 * @param array $args   { client_email, client_name, practitioner_user_id, notice (v0.48.66, optional) }
 	 * @param array $safety clean answers (already sanitised): [ 'symptoms'=>[], 'mh'=>[] ]
 	 * @return array stamped flag objects (messaged_at set), or [] if nothing flagged.
 	 */
 	public static function process_lead( $args, $safety ) {
-		$new_flags = self::map_flags( $safety );
+		$notice    = $args['notice'] ?? null;
+		$new_flags = self::map_flags( $safety, $notice['row'] ?? null );
 		if ( empty( $new_flags ) ) {
 			return array();
 		}
@@ -429,7 +437,7 @@ class HDLV2_Safety_Screen {
 			$progress,
 			$to_message,
 			$merged,
-			array( 'dest' => 'pending_leads' )
+			array( 'dest' => 'pending_leads', 'notice' => $notice )
 		);
 
 		return $merged; // messaged_at now stamped on the messaged flags

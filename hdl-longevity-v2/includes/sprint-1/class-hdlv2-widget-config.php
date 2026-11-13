@@ -589,6 +589,12 @@ class HDLV2_Widget_Config {
             $clean_safety = HDLV2_Safety_Screen::sanitize_input( $params['safety'] );
             if ( ! empty( $clean_safety ) ) {
                 $stage1_data['_safety'] = $clean_safety;
+                // v0.48.66 — the "I have read this" press (notice, version, country; the
+                // server stamps the time). Junk is dropped; the lead is never refused for it.
+                $ack = class_exists( 'HDLV2_Safety_Content' ) && HDLV2_Safety_Content::enabled() ? HDLV2_Safety_Content::sanitize_ack( $params['safety_ack'] ?? null ) : null;
+                if ( $ack ) {
+                    $stage1_data['_safety_ack'] = $ack;
+                }
             }
         }
 
@@ -743,6 +749,7 @@ class HDLV2_Widget_Config {
                     'client_email'         => $visitor_email,
                     'client_name'          => $visitor_name,
                     'practitioner_user_id' => $practitioner_id,
+                    'notice'               => class_exists( 'HDLV2_Safety_Content' ) ? HDLV2_Safety_Content::email_context( $stage1_data, $visitor_loc['country'] ) : null, // v0.48.66
                 ), $stage1_data['_safety'] );
 
                 if ( ! empty( $stamped ) ) {
@@ -1225,7 +1232,7 @@ class HDLV2_Widget_Config {
         // Build a sanitized copy for the two outbound sinks; the working
         // $stage1_data is left intact for the internal server_result read below.
         $stage1_data_outbound = $stage1_data;
-        unset( $stage1_data_outbound['_safety'], $stage1_data_outbound['_safety_flags'], $stage1_data_outbound['server_result'] );
+        unset( $stage1_data_outbound['_safety'], $stage1_data_outbound['_safety_flags'], $stage1_data_outbound['_safety_ack'], $stage1_data_outbound['server_result'] );
 
         // Optional config webhook
         if ( $config && ! empty( $config->webhook_url )
@@ -1902,7 +1909,7 @@ class HDLV2_Widget_Config {
              && class_exists( 'HDLV2_Safety_Screen' )
              && ! empty( $stage1_data['_safety'] ) ) {
             try {
-                HDLV2_Safety_Screen::process( $fp_id, $stage1_data['_safety'] );
+                HDLV2_Safety_Screen::process( $fp_id, $stage1_data['_safety'], class_exists( 'HDLV2_Safety_Content' ) ? HDLV2_Safety_Content::email_context( $stage1_data, $visitor_country ) : null ); // v0.48.66
             } catch ( \Throwable $e ) {
                 error_log( '[HDLV2 safety-screen] process failed for fp=' . $fp_id . ': ' . $e->getMessage() );
             }
@@ -2669,7 +2676,8 @@ class HDLV2_Widget_Config {
             // the snippet carried data-access.
             'access_mode'                   => isset( $row->access_mode ) && 'paid' === $row->access_mode ? 'paid' : 'open',
             'buy_url'                       => isset( $row->buy_url ) ? (string) $row->buy_url : '',
-        ) + ( HDLV2_Offer::applies_to( (int) $row->practitioner_user_id ) ? HDLV2_Offer::public_config_fields() : array() ) // v0.48.15 — the locked panel's price line
+        ) + ( class_exists( 'HDLV2_Safety_Content' ) && HDLV2_Safety_Content::enabled() ? array( 'safety_notice' => HDLV2_Safety_Content::public_payload() ) : array() ) // v0.48.66 — the notice's words and numbers
+          + ( HDLV2_Offer::applies_to( (int) $row->practitioner_user_id ) ? HDLV2_Offer::public_config_fields() : array() ) // v0.48.15 — the locked panel's price line
           // v0.48.29 — the result screen's timeline teaser, beside the offer it sells (flag on only)
           + ( HDLV2_Offer::applies_to( (int) $row->practitioner_user_id ) && class_exists( 'HDLV2_Healthspan_Timeline' ) ? HDLV2_Healthspan_Timeline::public_config_fields() : array() ) ) );
     }
@@ -3215,7 +3223,7 @@ class HDLV2_Widget_Config {
             // v0.47.85 — 'paid_stage1' tells the widget this link buys the
             // public path (no "Continue to Stage 2").
             'source'                         => $source,
-        ) + $link );
+        ) + ( class_exists( 'HDLV2_Safety_Content' ) && HDLV2_Safety_Content::enabled() ? array( 'safety_notice' => HDLV2_Safety_Content::public_payload() ) : array() ) + $link ); // v0.48.66
     }
 
     /**
