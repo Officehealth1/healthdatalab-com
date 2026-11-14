@@ -17,6 +17,7 @@
  * Remove /tmp/frl when the run is done.
  */
 umask( 077 );
+if ( is_link( '/tmp/frl' ) || ( file_exists( '/tmp/frl' ) && fileowner( '/tmp/frl' ) !== posix_geteuid() ) ) { echo "REFUSED: /tmp/frl is a link or not ours\n"; return; }
 wp_mkdir_p( '/tmp/frl' );
 chmod( '/tmp/frl', 0700 );
 $pdfmonkey_key = function () {
@@ -36,13 +37,15 @@ if ( 200 !== $c || 0 !== strpos( $t['document_template']['identifier'] ?? '', 'P
 
 if ( 'cleanup' === $mode ) {
     $ids = array();
-    for ( $page = 1; $page <= 5; $page++ ) {
+    for ( $page = 1; $page <= 100; $page++ ) {
         list( , $l ) = $call( 'GET', "document_cards?q[document_template_id]=$tid&page=$page" );
         foreach ( $l['document_cards'] ?? array() as $d ) $ids[] = $d['id'];
         if ( empty( $l['meta']['next_page'] ) ) break;
     }
-    foreach ( $ids as $id ) { list( $c ) = $call( 'DELETE', "documents/$id" ); printf( "delete %s %d\n", substr( $id, 0, 8 ), $c ); }
-    printf( "deleted %d\n", count( $ids ) );
+    $gone = 0;
+    foreach ( $ids as $id ) { list( $c ) = $call( 'DELETE', "documents/$id" ); $gone += 204 === $c; printf( "delete %s %d\n", substr( $id, 0, 8 ), $c ); }
+    list( , $left ) = $call( 'GET', "document_cards?q[document_template_id]=$tid" );
+    printf( "deleted %d of %d, %d left\n", $gone, count( $ids ), count( $left['document_cards'] ?? array() ) );
     return;
 }
 
@@ -91,6 +94,8 @@ for ( $i = 0; $i < 60; $i++ ) {
 }
 printf( "document %s status %s\n", substr( $id, 0, 8 ), $status );
 if ( 'success' !== $status ) { echo 'cause: ' . ( $card['document_card']['failure_cause'] ?? '?' ) . "\n"; return; }
-$pdf = wp_remote_retrieve_body( wp_remote_get( $card['document_card']['download_url'], array( 'timeout' => 60 ) ) );
+$r   = wp_remote_get( $card['document_card']['download_url'], array( 'timeout' => 60 ) );
+$pdf = wp_remote_retrieve_body( $r );
+if ( 200 !== wp_remote_retrieve_response_code( $r ) || 0 !== strpos( $pdf, '%PDF' ) ) { echo "download failed\n"; return; }
 file_put_contents( '/tmp/frl/' . $out, $pdf );
 printf( "saved %s bytes %d\n", $out, strlen( $pdf ) );
