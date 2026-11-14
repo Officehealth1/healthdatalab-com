@@ -267,10 +267,12 @@ edit('page 11', """  </div>
     <span class="page__footer-num">08 / {{ pg_total }}</span>""")
 
 
-# --- page 14: the practitioner card moves to page 15 (worst-case render) ----
+# --- page 14: the practitioner card moves to page 11 (worst-case render) ----
 # Four milestones of 22 words in each of the four columns push the card below
-# page 14. On page 15 it takes the place of the signature lines, which said the
-# same name and "Your longevity practitioner" (the card's own default role).
+# page 14. It closes the Analysis section on page 11, the one page of the report
+# body with room for it in the worst case. The Summary page keeps its two
+# signature lines exactly as production prints them (gate row R6): the first
+# build wrote the card over them.
 CARD = """    <div class="practitioner-card">
       {% if practitioner_photo_url != blank %}
         <img src="{{practitioner_photo_url}}" alt="{{practitioner_name}}" class="practitioner-card__photo" style="object-fit: cover;">
@@ -288,11 +290,13 @@ CARD = """    <div class="practitioner-card">
     </div>
 """
 edit('page 14', '\n' + CARD, '')
-edit('page 14', """    <div style="margin-top: 14mm; text-align: center; padding-top: 6mm; border-top: 1px solid var(--grey-200);">
-      <p style="font-family: var(--display); font-style: italic; font-size: 12pt; color: var(--brand-teal-dark); margin: 0 0 2mm;">{{practitioner_name}}</p>
-      <p style="font-family: var(--body); font-size: 9pt; color: var(--grey-500); margin: 0;">Your longevity practitioner &middot; {{report_date}}</p>
-    </div>
-""", CARD)
+edit('page 14', """  </div>
+  <div class="page__footer">
+    <span class="page__footer-brand">HealthDataLab.com</span>
+    <span class="page__footer-num">11 / {{ pg_total }}</span>""", '\n' + CARD + """  </div>
+  <div class="page__footer">
+    <span class="page__footer-brand">HealthDataLab.com</span>
+    <span class="page__footer-num">11 / {{ pg_total }}</span>""")
 
 
 def build(body):
