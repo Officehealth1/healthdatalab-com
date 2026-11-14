@@ -94,11 +94,22 @@ class HDLV2_Trajectory_SVG {
         while ( ob_get_level() ) ob_end_clean();
         nocache_headers();
         header( 'Content-Type: image/svg+xml; charset=utf-8' );
-        header( 'Cache-Control: public, max-age=31536000, immutable' );
+        header( 'Cache-Control: ' . self::cache_control( isset( $_GET['v'] ) ? $_GET['v'] : null ) );
         header( 'X-Robots-Tag: noindex' );
         header( 'Content-Length: ' . strlen( $svg ) );
         echo $svg;
         exit;
+    }
+
+    /**
+     * Cache header for one request. Only the address url_for() writes (v equal to
+     * this drawing) may be kept for a year: with no v, or an older one, a year-long
+     * header would pin today's drawing to an address that never changes.
+     */
+    public static function cache_control( $v ) {
+        return is_scalar( $v ) && (string) self::DRAWING_VERSION === (string) $v
+            ? 'public, max-age=31536000, immutable'
+            : 'public, max-age=300';
     }
 
     /**
