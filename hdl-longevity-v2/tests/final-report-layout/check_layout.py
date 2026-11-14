@@ -15,7 +15,8 @@ is not passed with --known. A known failure is printed as KNOWN on every run.
      text cites the page titled "Actionable recommendations"
   7  on "Your assessment inputs", "/5" always has a digit directly before it
 
-Checks 1 and 5 need the payload. Needs pdftotext (poppler).
+Checks 1 and 5 need the payload; check 5 reports page 0 when not even the
+field's opening words are in the PDF. Needs pdftotext (poppler).
 """
 import html
 import json
@@ -37,6 +38,7 @@ OVERLAP_PT = 1.5
 # Check 4 keeps the raw top: the chart's own text (Open Sans, not Type 3) has
 # brackets 1.4 pt above its reported box, and its legend clash is real.
 TOP_PAD, BOTTOM_PAD = 0.10, 0.15
+BAND_MM = 15
 NS = '{http://www.w3.org/1999/xhtml}'
 
 # Payload text fields the template prints, with how it prints them.
@@ -93,7 +95,9 @@ def read_pages(pdf):
                     x0, y0, x1, y1 = (float(word.get(k)) for k in ('xMin', 'yMin', 'xMax', 'yMax'))
                     pad_top, pad_bottom = (y1 - y0) * TOP_PAD, (y1 - y0) * BOTTOM_PAD
                     cy = (y0 + y1) / 2
-                    band = 'head' if cy < box[1] - 3 * MM else 'foot' if cy > box[3] + 3 * MM else 'body'
+                    # Header and footer sit within 15 mm of the page edge; a cut line of the
+                    # largest type cannot have its centre that far past the content box.
+                    band = 'head' if cy < BAND_MM * MM else 'foot' if cy > h - BAND_MM * MM else 'body'
                     lw.append({'t': word.text or '', 'band': band, 'block': block_no,
                                'letters': (x0, y0 + pad_top, x1, y1 - pad_bottom),
                                'overlap': (x0, y0, x1, y1 - pad_bottom)})
