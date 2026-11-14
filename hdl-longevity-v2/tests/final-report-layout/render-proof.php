@@ -10,12 +10,34 @@
  *   wp eval-file - doc <proof-id> <document-id> <out.pdf>
  *       re-renders that PDFMonkey document's own payload; it never leaves the server
  *   wp eval-file - cleanup <proof-id>
- *       deletes every document made from the proof copy
+ *       deletes the documents made from the proof copy: a card of any other template
+ *       is skipped, and nothing is deleted when more than 15 are listed
+ *   php render-proof.php selftest
+ *       checks that rule on made-up cards; needs no WordPress and no key
  *
  * Any template whose name does not start with "PROOF — " is refused. A re-rendered
  * client PDF is personal data: /tmp/frl is kept 0700 and every file in it 0600.
  * Remove /tmp/frl when the run is done.
  */
+// What cleanup may delete. The account is the one LIVE prints from, so the server's
+// filter is not trusted alone: only cards that name the proof template, and nothing
+// at all when the list is longer than a proof run can make.
+$cleanup_targets = function ( array $cards, $tid ) {
+    if ( count( $cards ) > 15 ) return null;
+    $ids = array();
+    foreach ( $cards as $d ) if ( ( $d['document_template_id'] ?? '' ) === $tid ) $ids[] = $d['id'];
+    return $ids;
+};
+if ( 'selftest' === ( $args[0] ?? ( $argv[1] ?? '' ) ) ) {
+    $proof = 'aaaaaaaa-0000-0000-0000-000000000000';
+    $card  = function ( $id, $tid ) { return array( 'id' => $id, 'document_template_id' => $tid ); };
+    $mixed = array( $card( 'p1', $proof ), $card( 'x1', 'bbbbbbbb-0000-0000-0000-000000000000' ), array( 'id' => 'x2' ), $card( 'p2', $proof ) );
+    $ok    = array( 'p1', 'p2' ) === $cleanup_targets( $mixed, $proof )
+        && null === $cleanup_targets( array_fill( 0, 16, $card( 'p', $proof ) ), $proof )
+        && 15 === count( $cleanup_targets( array_fill( 0, 15, $card( 'p', $proof ) ), $proof ) );
+    echo $ok ? "cleanup selftest: ok (other templates skipped; 16 listed deletes nothing)\n" : "cleanup selftest: FAILED\n";
+    return;
+}
 umask( 077 );
 if ( is_link( '/tmp/frl' ) || ( file_exists( '/tmp/frl' ) && fileowner( '/tmp/frl' ) !== posix_geteuid() ) ) { echo "REFUSED: /tmp/frl is a link or not ours\n"; return; }
 wp_mkdir_p( '/tmp/frl' );
@@ -36,12 +58,15 @@ list( $c, $t ) = $call( 'GET', "document_templates/$tid" );
 if ( 200 !== $c || 0 !== strpos( $t['document_template']['identifier'] ?? '', 'PROOF — ' ) ) { echo "REFUSED: not a PROOF template\n"; return; }
 
 if ( 'cleanup' === $mode ) {
-    $ids = array();
-    for ( $page = 1; $page <= 100; $page++ ) {
+    $cards = array();
+    for ( $page = 1; $page <= 100 && count( $cards ) <= 15; $page++ ) {
         list( , $l ) = $call( 'GET', "document_cards?q[document_template_id]=$tid&page=$page" );
-        foreach ( $l['document_cards'] ?? array() as $d ) $ids[] = $d['id'];
+        $cards = array_merge( $cards, $l['document_cards'] ?? array() );
         if ( empty( $l['meta']['next_page'] ) ) break;
     }
+    $ids = $cleanup_targets( $cards, $tid );
+    if ( null === $ids ) { printf( "REFUSED: %d or more documents listed, more than 15: nothing deleted\n", count( $cards ) ); return; }
+    if ( count( $ids ) < count( $cards ) ) printf( "skipped %d card(s) of another template\n", count( $cards ) - count( $ids ) );
     $gone = 0;
     foreach ( $ids as $id ) { list( $c ) = $call( 'DELETE', "documents/$id" ); $gone += 204 === $c; printf( "delete %s %d\n", substr( $id, 0, 8 ), $c ); }
     list( , $left ) = $call( 'GET', "document_cards?q[document_template_id]=$tid" );
