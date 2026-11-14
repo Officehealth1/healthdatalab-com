@@ -7,9 +7,10 @@
 
 Every line must read "fails as it should": the check exits with the code named here
 and its output names the expected check. "base" carries no fault and must pass, so a
-fixture's failure comes from its one fault and nothing else. The last line checks
-payload-worst.json: every text field the check knows ends in a marker word of its
-own, so no other field's text can stand in for it. No real person is in any page; build from
+fixture's failure comes from its one fault and nothing else. The last two lines check
+the payloads: every text field the check knows ends in a marker word of its own in
+payload-worst.json, so no other field's text can stand in for it, and
+payload-worst-plus.json is that payload with every AI text field 1.3 times as long. No real person is in any page; build from
 a neutral folder (/tmp/frl-fixtures) so the PDFs carry no home path.
 """
 import importlib.util
@@ -173,6 +174,30 @@ def without_marker(check):
     return bare
 
 
+# The fields the AI writes to a word limit (class-hdlv2-ai-service.php); the rest of the
+# worst payload is held by the forms and the catalogue.
+AI_FIELDS = (['intro_pull_quote', 'awaken_content', 'lift_content', 'thrive_content', 'distilled_why', 'client_key_findings',
+              'results_narrative', 'ai_body_composition_analysis', 'ai_longevity_influences_explanation',
+              'ai_results_summary', 'summary_pull_quote', 'summary_nb', 'ms_6mo', 'ms_2yr', 'ms_5yr', 'ms_10yr']
+             + ['ai_objectives_' + a for a in ('how', 'who', 'where', 'when')] + ['rec_%d_text' % n for n in range(1, 6)])
+
+
+def plus_not_longer():
+    """Fields where payload-worst-plus.json is not payload-worst.json with each paragraph of an AI field 1.3 times as long."""
+    def load(name):
+        return json.load(open(os.path.join(HERE, name), encoding='utf-8'))
+
+    def counts(value):
+        return [len(part.split()) for part in re.split(r'<[^>]+>|\n', str(value)) if part.split()]
+    worst, plus = load('payload-worst.json'), load('payload-worst-plus.json')
+    off = [k for k in worst if k not in AI_FIELDS and plus.get(k) != worst[k]]
+    for key in AI_FIELDS:
+        a, b = counts(worst[key]), counts(plus.get(key, ''))
+        if len(a) != len(b) or any(m < 1.3 * n for n, m in zip(a, b)):
+            off.append(key)
+    return off
+
+
 def run(check):
     bad = 0
     for name, (pdf, payload, known, want_exit, want_text) in CASES.items():
@@ -189,7 +214,10 @@ def run(check):
     bare = without_marker(check)
     print('%-26s %s' % ('payload-worst markers', 'every field has its own' if not bare
                         else 'WRONG, no marker of its own: ' + ', '.join(bare)))
-    return 1 if bad or bare else 0
+    off = plus_not_longer()
+    print('%-26s %s' % ('payload-worst-plus', 'every AI field is 1.3 times the worst payload' if not off
+                        else 'WRONG: ' + ', '.join(off)))
+    return 1 if bad or bare or off else 0
 
 
 if __name__ == '__main__':
