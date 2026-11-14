@@ -44,7 +44,12 @@ class HDLV2_Trajectory_SVG {
     const CH = 440;
     const MARGIN_TOP    = 30;
     const MARGIN_RIGHT  = 30;
-    const MARGIN_BOTTOM = 50;
+    // v0.48.69 — 66 (was 50): the age numbers, the axis title and the legend each
+    // get their own band under the plot; at 50 the title sat in the legend row.
+    const MARGIN_BOTTOM = 66;
+    // Bumped whenever the drawing changes: url_for() carries it, so the year-long
+    // cache never serves an old drawing at the new address.
+    const DRAWING_VERSION = 2;
     const MARGIN_LEFT   = 55;
 
     /**
@@ -89,11 +94,22 @@ class HDLV2_Trajectory_SVG {
         while ( ob_get_level() ) ob_end_clean();
         nocache_headers();
         header( 'Content-Type: image/svg+xml; charset=utf-8' );
-        header( 'Cache-Control: public, max-age=31536000, immutable' );
+        header( 'Cache-Control: ' . self::cache_control( isset( $_GET['v'] ) ? $_GET['v'] : null ) );
         header( 'X-Robots-Tag: noindex' );
         header( 'Content-Length: ' . strlen( $svg ) );
         echo $svg;
         exit;
+    }
+
+    /**
+     * Cache header for one request. Only the address url_for() writes (v equal to
+     * this drawing) may be kept for a year: with no v, or an older one, a year-long
+     * header would pin today's drawing to an address that never changes.
+     */
+    public static function cache_control( $v ) {
+        return is_scalar( $v ) && (string) self::DRAWING_VERSION === (string) $v
+            ? 'public, max-age=31536000, immutable'
+            : 'public, max-age=300';
     }
 
     /**
@@ -104,7 +120,7 @@ class HDLV2_Trajectory_SVG {
         $chrono = max( 1, (int) $chrono );
         $rate   = max( 0.1, round( (float) $rate, 2 ) );
         return add_query_arg(
-            array( 'hdlv2_trajectory_svg' => '1', 'chrono' => $chrono, 'rate' => $rate ),
+            array( 'hdlv2_trajectory_svg' => '1', 'chrono' => $chrono, 'rate' => $rate, 'v' => self::DRAWING_VERSION ),
             home_url( '/' )
         );
     }
@@ -352,7 +368,7 @@ class HDLV2_Trajectory_SVG {
         }
 
         // Axis labels
-        $out .= '<text x="' . ( $cw / 2 ) . '" y="' . ( $ch - 5 ) . '" text-anchor="middle" font-size="12.5" fill="#64748b" font-weight="500">Age (years)</text>';
+        $out .= '<text x="' . ( $cw / 2 ) . '" y="' . ( $ch - $mb + 32 ) . '" text-anchor="middle" font-size="12.5" fill="#64748b" font-weight="500">Age (years)</text>';
         $out .= '<text x="12" y="' . ( $ch / 2 ) . '" text-anchor="middle" font-size="12.5" fill="#64748b" font-weight="500" transform="rotate(-90, 12, ' . ( $ch / 2 ) . ')">Strength &amp; Wellbeing (%)</text>';
 
         // ── ZONES (Independence at risk + Critical) ────────────────
@@ -488,7 +504,7 @@ class HDLV2_Trajectory_SVG {
         $out .= '</g>';
 
         // ── LEGEND (below chart, inside SVG so PDF embed picks it up) ─
-        $legend_y = $ch - 20;
+        $legend_y = $ch - 16;
         $legend_items = array(
             array( 'color' => '#1565c0', 'label' => 'Your Trajectory',    'dash' => false, 'width' => 2.5 ),
             array( 'color' => '#95a5a6', 'label' => 'Population Avg',     'dash' => false, 'width' => 1.5 ),
