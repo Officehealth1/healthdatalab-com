@@ -187,6 +187,19 @@ for f in ['sit_stand', 'breath', 'balance'] + LIFESTYLE:
     edit('2d', pill, '{%% if score_%s != blank %%}%s{%% else %%}%s{%% endif %%}' % (f, pill, NOT_PROVIDED))
 
 
+# --- 2e: the large quote mark inside the quote's own space (D5) -----------
+# At top -8mm the mark reached the block above (the three cards on page 3, the
+# subtitle and text on pages 12 and 15). It now sits in the quote's left margin,
+# beside its first line.
+edit('2e', """.pull-quote::before {
+  content: '\\201C'; position: absolute;
+  top: -8mm; left: -2mm;""", """/* 2026-11-14 layout: the mark sits in the quote's own left margin, beside its
+   first line; at top -8mm it reached the block above. */
+.pull-quote::before {
+  content: '\\201C'; position: absolute;
+  top: -1mm; left: -8.5mm;""")
+
+
 def build(body):
     for defect, old, new, count in EDITS:
         found = body.count(old)
