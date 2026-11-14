@@ -61,8 +61,10 @@ NS = '{http://www.w3.org/1999/xhtml}'
 #   lines:   one list item per line; every line is checked (milestones).
 #   picks:   " | " printed as "; " (the choices).
 #   chips:   " · " separates chips; every chip is checked (metabolic panel).
+#   twice:   printed on the cover and again in the sign-off line that closes the
+#            Summary page; one of the two is not enough (gate row R6).
 RENDERED = {
-    'client_display_name': '', 'report_date': '', 'report_number': '',
+    'client_display_name': '', 'report_date': 'twice', 'report_number': '',
     'intro_pull_quote': '', 'awaken_content': 'first_p', 'client_key_findings': '',
     'family_history': '', 'medications': '', 'existing_conditions': '',
     'results_narrative': '', 'metabolic_driver': '', 'metabolic_chips': 'chips',
@@ -255,10 +257,14 @@ def check(pdf, payload, known, no_payload_ok=False):
             if value in ('', None) or (key == 'metabolic_chips' and not fields.get('metabolic_score')):
                 continue  # the chips are printed only inside the metabolic panel, which needs a score
             for tail in rendered_tail(value, how):
-                if norm(tail) not in whole:
+                found = whole.count(norm(tail))
+                if not found:
                     head = norm(' '.join(re.sub(r'<[^>]+>', ' ', str(value)).split()[:6]))
                     where = next((i for i, t in enumerate(raw, start=1) if head and head in t), 0)
                     fail(where, 5, 'the end of %s ("...%s") is not in the PDF' % (key, tail[-40:]))
+                elif how == 'twice' and found < 2:
+                    fail(title_page(pages, 'Summary & conclusion') or 0, 5,
+                         'the end of %s ("...%s") is in the PDF once, expected on the cover and in the sign-off' % (key, tail[-40:]))
 
     # 6 contents rows and "Page N" references
     rows = contents_rows(pages[1]) if total > 1 else []
