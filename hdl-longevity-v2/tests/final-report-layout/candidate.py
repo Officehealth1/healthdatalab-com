@@ -37,6 +37,52 @@ for n in range(13, 19):
     edit('2a', '<span class="toc-page">%d</span>' % n, '<span class="toc-page">{{ %d | plus: pg_shift }}</span>' % n)
 edit('2a', 'Page 13', 'Page {{ 13 | plus: pg_shift }}', 9)
 
+# --- 2b: anchor 01 back to the WHY sentence; the choices on their own page (D1, D7)
+CHOICES_OLD = ('{% if why_picks != blank %}<br><br><strong>What {{ cover_name | split: " " | first }} chose:</strong> '
+               '{% if why_picks_people != blank %}<strong>People I love:</strong> {{ why_picks_people | replace: " | ", "; " }}. {% endif %}'
+               '{% if why_picks_freedom != blank %}<strong>My freedom:</strong> {{ why_picks_freedom | replace: " | ", "; " }}. {% endif %}'
+               '{% if why_picks_things != blank %}<strong>Things I love:</strong> {{ why_picks_things | replace: " | ", "; " }}. {% endif %}'
+               '{% if why_picks_people == blank and why_picks_freedom == blank and why_picks_things == blank %}{{ why_picks | replace: " | ", "; " }}. {% endif %}'
+               '{% if why_abilities != blank %}<br><strong>Abilities these depend on most:</strong> {{ why_abilities | replace: " | ", "; " }}{% endif %}'
+               '{% if why_focus_areas != blank %}<br><strong>Focus areas:</strong> {{ why_focus_areas }}{% endif %}'
+               '{% if why_people != blank %}<br><strong>For:</strong> {{ why_people }}{% endif %}'
+               '{% if why_chart_url != blank %}<img src="{{ why_chart_url }}" alt="What the choices need against where they are now, out of 5" '
+               'style="display:block;width:55mm;height:auto;margin:8px auto 0">{% endif %}{% endif %}')
+edit('2b', CHOICES_OLD, '')
+edit('2b', """<span class="toc-title">Objectives &middot; The five anchors</span><span class="toc-page">12</span></li>
+""", """<span class="toc-title">Objectives &middot; The five anchors</span><span class="toc-page">12</span></li>
+      {% if why_picks != blank %}<li class="toc-row toc-row--sub"><span class="toc-title">What {{ cover_name | split: " " | first }} chose</span><span class="toc-page">13</span></li>{% endif %}
+""")
+edit('2b', """<!-- ============================================================
+     PAGE 13 · ACTIONABLE RECOMMENDATIONS""", """<!-- ============================================================
+     PAGE 13 · WHAT THE CLIENT CHOSE (only when why_picks is set; was inside
+     anchor 01 on page 12, which it pushed past the page with ten choices)
+     ============================================================ -->
+{% if why_picks != blank %}
+<section class="page">
+  <div class="page__header">
+    <span><strong>HealthDataLab</strong></span>
+    <span>05 &middot; Objectives</span>
+    <span>13 / {{ pg_total }}</span>
+  </div>
+  <div class="page__content">
+    <div class="h2" style="margin-top: 0;">What {{ cover_name | split: " " | first }} chose</div>
+    <p class="body-text">{% if why_picks_people != blank %}<strong>People I love:</strong> {{ why_picks_people | replace: " | ", "; " }}. {% endif %}{% if why_picks_freedom != blank %}<strong>My freedom:</strong> {{ why_picks_freedom | replace: " | ", "; " }}. {% endif %}{% if why_picks_things != blank %}<strong>Things I love:</strong> {{ why_picks_things | replace: " | ", "; " }}. {% endif %}{% if why_picks_people == blank and why_picks_freedom == blank and why_picks_things == blank %}{{ why_picks | replace: " | ", "; " }}. {% endif %}</p>
+    {% if why_abilities != blank %}<p class="body-text"><strong>Abilities these depend on most:</strong> {{ why_abilities | replace: " | ", "; " }}</p>{% endif %}
+    {% if why_focus_areas != blank or why_people != blank %}<p class="body-text">{% if why_focus_areas != blank %}<strong>Focus areas:</strong> {{ why_focus_areas }}{% endif %}{% if why_focus_areas != blank and why_people != blank %}<br>{% endif %}{% if why_people != blank %}<strong>For:</strong> {{ why_people }}{% endif %}</p>{% endif %}
+    {% if why_chart_url != blank %}<img src="{{ why_chart_url }}" alt="What the choices need against where they are now, out of 5" style="display:block;width:100mm;height:auto;margin:6mm auto 0">{% endif %}
+  </div>
+  <div class="page__footer">
+    <span class="page__footer-brand">HealthDataLab.com</span>
+    <span class="page__footer-num">13 / {{ pg_total }}</span>
+  </div>
+</section>
+{% endif %}
+
+
+<!-- ============================================================
+     PAGE 13 · ACTIONABLE RECOMMENDATIONS""")
+
 
 def build(body):
     for defect, old, new, count in EDITS:
