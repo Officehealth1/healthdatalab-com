@@ -112,6 +112,80 @@ edit('2c', """.aging-rate-hero {
   margin: 2mm 0 4mm;
 }""")
 
+# --- 2d: an input the client left empty reads as missing (D3) -------------
+# Every Stage 3 field may be skipped (hdlv2-staged-form.js completeStage3: "All
+# fields are optional"; the calculator then sends ''). The template turned '' into
+# 0: "/5 URGENT" on the inputs page, "Physical activity /5" under Areas to lift,
+# and averages pulled down (Cardio 2.0 from one 4/5 and a missing BP).
+def domain(name, fields, named=True):
+    """Liquid: NAME_avg over the given inputs that are present, NAME_n, NAME_used."""
+    out = ['{%- assign NAME_sum = 0 -%}{%- assign NAME_n = 0 -%}' + ('{%- assign NAME_used = "" -%}' if named else '')]
+    for key, var, short in fields:
+        line = ('{%- if KEY != blank -%}{%- assign NAME_sum = NAME_sum | plus: VAR -%}{%- assign NAME_n = NAME_n | plus: 1 -%}'
+                + ('{%- assign NAME_used = NAME_used | append: ", SHORT" -%}' if named else '') + '{%- endif -%}')
+        out.append(line.replace('KEY', key).replace('VAR', var).replace('SHORT', short))
+    out.append('{%- if NAME_n > 0 -%}{%- assign NAME_avg = NAME_sum | times: 10 | divided_by: NAME_n | divided_by: 10.0 -%}{%- endif -%}')
+    if named:
+        out.append('{%- assign NAME_used = NAME_used | remove_first: ", " -%}')
+    return '\n'.join(out).replace('NAME', name) + '\n'
+
+
+LIFESTYLE = ['activity', 'sleep_dur', 'sleep_qual', 'stress', 'social', 'diet', 'alcohol', 'smoking',
+             'cognitive', 'supplements', 'sunlight', 'hydration']
+edit('2d', """{%- comment -%} Domain averages — *10 then ÷N then ÷10.0 to get one-decimal float {%- endcomment -%}
+{%- assign cardio_sum = s_hr | plus: s_bp -%}
+{%- assign cardio_avg = cardio_sum | times: 10 | divided_by: 2 | divided_by: 10.0 -%}
+
+{%- assign body_comp_sum = s_bmi | plus: s_whr | plus: s_whtr -%}
+{%- assign body_comp_avg = body_comp_sum | times: 10 | divided_by: 3 | divided_by: 10.0 -%}
+
+{%- assign physical_sum = s_sit_stand | plus: s_breath | plus: s_balance -%}
+{%- assign physical_avg = physical_sum | times: 10 | divided_by: 3 | divided_by: 10.0 -%}
+
+{%- assign lifestyle_sum = s_activity | plus: s_sleep_dur | plus: s_sleep_qual | plus: s_stress | plus: s_social | plus: s_diet | plus: s_alcohol | plus: s_smoking | plus: s_cognitive | plus: s_supplements | plus: s_sunlight | plus: s_hydration -%}
+{%- assign lifestyle_avg = lifestyle_sum | times: 10 | divided_by: 12 | divided_by: 10.0 -%}
+""", """{%- comment -%} Domain averages — *10 then ÷N then ÷10.0 to get one-decimal float.
+   2026-11-14 layout: N counts only the inputs the client gave (any Stage 3 field may be
+   left empty); a domain with none has no average and prints the dash. {%- endcomment -%}
+""" + domain('cardio', [('score_hr', 's_hr', 'HR'), ('score_bp', 's_bp', 'BP')])
+    + domain('body_comp', [('score_bmi', 's_bmi', 'BMI'), ('score_whr', 's_whr', 'WHR'), ('score_whtr', 's_whtr', 'WHtR')])
+    + domain('physical', [('score_sit_stand', 's_sit_stand', 'Sit-Stand'), ('score_breath', 's_breath', 'Breath'),
+                          ('score_balance', 's_balance', 'Balance')])
+    + domain('lifestyle', [('score_' + f, 's_' + f, '') for f in LIFESTYLE], named=False)
+    + '{%- assign n_inputs = cardio_n | plus: body_comp_n | plus: physical_n | plus: lifestyle_n -%}\n')
+edit('2d', '<div class="kpi-card__value">{{lifestyle_avg}}<span', '<div class="kpi-card__value">{{lifestyle_avg | default: "&mdash;"}}<span')
+for name, words in (('cardio', 'HR, BP'), ('body_comp', 'BMI, WHR, WHtR'), ('physical', 'Sit-Stand, Breath, Balance')):
+    edit('2d', '<div class="domain-card__sub">avg of %s</div>' % words,
+         '<div class="domain-card__sub">{%% if %s_n > 0 %%}avg of {{ %s_used }}{%% else %%}Not provided{%% endif %%}</div>' % (name, name))
+edit('2d', '<div class="domain-card__sub">avg of 12 lifestyle inputs</div>',
+     '<div class="domain-card__sub">{% if lifestyle_n > 0 %}avg of {{ lifestyle_n }} lifestyle inputs{% else %}Not provided{% endif %}</div>')
+for spaced in ('s_activity   <= 4', 's_sleep_qual <= 4', 's_sleep_dur  <= 4', 's_stress     <= 4', 's_diet       <= 4',
+               's_sit_stand  <= 4'):
+    var = spaced.split()[0]
+    edit('2d', spaced, 'score_%s != blank and %s <= 4' % (var[2:], var), 2)
+edit('2d', '8 sections, 20 metrics,', '8 sections, {{ n_inputs }} metrics,')
+edit('2d', 'computed from 20 inputs across', 'computed from {{ n_inputs }} inputs across')
+edit('2d', 'Each axis is one of the 20 inputs you provided.', 'Each axis is one of the {{ n_inputs }} inputs you provided.')
+edit('2d', 'full 20-spoke radar below', 'full {{ n_inputs }}-spoke radar below')
+
+NOT_PROVIDED = '<span class="pill pill--neutral stat-cell__pill">Not provided</span>'
+for metric in ('bmi', 'whr', 'whtr'):
+    edit('2d', '<div class="stat-cell__value">{{%s}}</div><span class="pill pill--{{%s_class}} stat-cell__pill">{{score_%s}}/5 {{%s_label | upcase}}</span>'
+         % (metric, metric, metric, metric),
+         '<div class="stat-cell__value">{{%s | default: "&mdash;"}}</div>{%% if score_%s != blank %%}<span class="pill pill--{{%s_class}} stat-cell__pill">{{score_%s}}/5 {{%s_label | upcase}}</span>{%% else %%}%s{%% endif %%}'
+         % (metric, metric, metric, metric, metric, NOT_PROVIDED))
+for score, raw in (('hr', '{% if resting_hr_bpm != blank %}{{resting_hr_bpm}}<span class="stat-cell__unit">bpm</span>'),
+                   ('bp', '{% if bp_systolic != blank %}{{bp_systolic}}<span class="stat-cell__unit">/{{bp_diastolic}}</span>')):
+    edit('2d', '%s{%% else %%}{{score_%s}}/5{%% endif %%}</div><span class="pill pill--{{%s_class}} stat-cell__pill">{{score_%s}}/5 {{%s_label}}</span>'
+         % (raw, score, score, score, score),
+         '%s{%% elsif score_%s != blank %%}{{score_%s}}/5{%% else %%}&mdash;{%% endif %%}</div>{%% if score_%s != blank %%}<span class="pill pill--{{%s_class}} stat-cell__pill">{{score_%s}}/5 {{%s_label}}</span>{%% else %%}%s{%% endif %%}'
+         % (raw, score, score, score, score, score, score, NOT_PROVIDED))
+for f in ['sit_stand', 'breath', 'balance'] + LIFESTYLE:
+    edit('2d', '{%% if label_%s != blank %%}{{label_%s}}{%% else %%}{{score_%s}}/5{%% endif %%}</div>' % (f, f, f),
+         '{%% if label_%s != blank %%}{{label_%s}}{%% elsif score_%s != blank %%}{{score_%s}}/5{%% else %%}&mdash;{%% endif %%}</div>' % (f, f, f, f))
+    pill = '<span class="pill pill--{{%s_class}} stat-cell__pill">{%% if label_%s != blank %%}{{score_%s}}/5 {%% endif %%}{{%s_label}}</span>' % (f, f, f, f)
+    edit('2d', pill, '{%% if score_%s != blank %%}%s{%% else %%}%s{%% endif %%}' % (f, pill, NOT_PROVIDED))
+
 
 def build(body):
     for defect, old, new, count in EDITS:
