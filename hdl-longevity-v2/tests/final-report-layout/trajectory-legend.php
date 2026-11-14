@@ -67,5 +67,16 @@ foreach ( array( array( 35, 0.85 ), array( 50, 1.0 ), array( 72, 1.3 ) ) as $pai
 $url = HDLV2_Trajectory_SVG::url_for( 50, 1.0 );
 check( 'url_for carries a drawing version', 1 === preg_match( '/[?&]v=\d+/', $url ) );
 
+// Only the address url_for() writes may be kept for a year; any other request for the
+// picture would pin today's drawing to that address (gate row R10).
+parse_str( (string) parse_url( $url, PHP_URL_QUERY ), $query );
+$year  = 'public, max-age=31536000, immutable';
+$short = 'public, max-age=300';
+check( 'the address from url_for is kept for a year', $year === HDLV2_Trajectory_SVG::cache_control( $query['v'] ) );
+check( 'an address with no v is kept five minutes', $short === HDLV2_Trajectory_SVG::cache_control( null ) );
+foreach ( array( '1', '0', '', '2x', '02', array( '2' ) ) as $wrong ) {
+    check( 'a wrong v (' . json_encode( $wrong ) . ') is kept five minutes', $short === HDLV2_Trajectory_SVG::cache_control( $wrong ) );
+}
+
 echo "\n$pass passed, $fail failed\n";
 exit( $fail ? 1 : 0 );
