@@ -39,6 +39,9 @@ OVERLAP_PT = 1.5
 # brackets 1.4 pt above its reported box, and its legend clash is real.
 TOP_PAD, BOTTOM_PAD = 0.10, 0.15
 BAND_MM = 15
+MIN_ROWS = 15
+# Words of one contents row share a baseline; rows are 27 pt apart or more.
+ROW_PT = 4.0
 NS = '{http://www.w3.org/1999/xhtml}'
 
 # Payload text fields the template prints, with how it prints them.
@@ -144,6 +147,30 @@ def rendered_tail(value, how):
     return tails
 
 
+def contents_rows(toc):
+    """(title, cited page) of each contents row. pdftotext reads a row's number, its
+    title and its page as three separate lines, so a row is put together here: the
+    words on one baseline that end in a two-digit number at the right edge of the
+    content box."""
+    def mid(w):
+        return (w['letters'][1] + w['letters'][3]) / 2
+    rows, row = [], []
+    for w in sorted((w for w in toc['words'] if w['band'] == 'body'), key=mid):
+        if row and mid(w) - mid(row[0]) > ROW_PT:
+            rows.append(row)
+            row = []
+        row.append(w)
+    out = []
+    for row in rows + [row]:
+        row.sort(key=lambda w: w['letters'][0])
+        if len(row) > 1 and re.fullmatch(r'\d{2}', row[-1]['t']) and abs(row[-1]['letters'][2] - toc['box'][2]) <= 3:
+            title = [w['t'] for w in row[:-1]]
+            if re.fullmatch(r'\d{2}|—', title[0]):
+                title = title[1:]
+            out.append((' '.join(title), int(row[-1]['t'])))
+    return out
+
+
 def check(pdf, payload, known):
     pages = read_pages(pdf)
     total = len(pages)
@@ -209,18 +236,17 @@ def check(pdf, payload, known):
                     fail(where, 5, 'the end of %s ("...%s") is not in the PDF' % (key, tail[-40:]))
 
     # 6 contents rows and "Page N" references
-    toc = pages[1] if total > 1 else None
-    if toc:
-        for line in band_lines(toc, 'body'):
-            m = re.match(r'^(?:\d{2}|—)?\s*(.+?)\s+(\d{2})$', line)
-            if not m:
-                continue
-            title, cited = m.group(1), int(m.group(2))
-            name = title.split(' · ')[0]
-            words = [x for x in re.findall(r'[A-Za-z]+', name) if len(x) >= 4 or x.lower() == 'age']
-            if not 1 <= cited <= total:
-                fail(2, 6, 'contents row "%s" cites page %d of %d' % (title, cited, total))
-                continue
+    rows = contents_rows(pages[1]) if total > 1 else []
+    if len(rows) < MIN_ROWS:
+        fail(2, 6, 'the contents page reads %d row(s), expected at least %d' % (len(rows), MIN_ROWS))
+    for title, cited in rows:
+        name = title.split(' · ')[0]
+        words = [x for x in re.findall(r'[A-Za-z]+', name) if len(x) >= 4 or x.lower() == 'age']
+        if not words:
+            fail(2, 6, 'contents row citing page %d has no title to look for ("%s")' % (cited, title))
+        elif not 1 <= cited <= total:
+            fail(2, 6, 'contents row "%s" cites page %d of %d' % (title, cited, total))
+        else:
             text = norm(body_text(pages[cited - 1]))
             missing = [x for x in words if norm(x) not in text]
             if missing:
