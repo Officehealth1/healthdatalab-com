@@ -246,6 +246,26 @@ edit('2g', """designed to bend this curve.</p>
 """ + HEALTH_BG)
 
 
+# --- page 11: "Overall lifestyle score" moves to page 8 (worst-case render) ----
+# Three analysis blocks at their word limits (130 + 130 + 150) cut the last one
+# at the foot of page 11. The lifestyle block reads the client's pattern, so it
+# joins "The pattern" on page 8, which had about 125 mm free.
+LIFT = """    <div class="h3">Overall lifestyle score</div>
+    {% if lift_clean != blank %}
+    <div class="body-text">{{lift_clean}}</div>
+    {% endif %}
+"""
+edit('page 11', LIFT + '\n    <div class="h3" style="margin-top: 10mm;">BMI &amp; Waist-Hip Ratio</div>',
+     '    <div class="h3">BMI &amp; Waist-Hip Ratio</div>')
+edit('page 11', """  </div>
+  <div class="page__footer">
+    <span class="page__footer-brand">HealthDataLab.com</span>
+    <span class="page__footer-num">08 / {{ pg_total }}</span>""", LIFT + """  </div>
+  <div class="page__footer">
+    <span class="page__footer-brand">HealthDataLab.com</span>
+    <span class="page__footer-num">08 / {{ pg_total }}</span>""")
+
+
 def build(body):
     for defect, old, new, count in EDITS:
         found = body.count(old)
