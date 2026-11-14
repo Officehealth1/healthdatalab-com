@@ -6,10 +6,11 @@
  *   wp eval-file - create        copies the production Final template (read only) into a
  *                                new template "PROOF — Final — layout — 2026-11-14"
  *   wp eval-file - put <id>      writes /tmp/frl/candidate.html (+ candidate.css when present)
- *                                to that template, body and stylesheet in one call
+ *                                to that template: body and stylesheet, each with its draft,
+ *                                in one call, so the editor holds no older draft to publish
  *
  * Any template whose name does not start with "PROOF — " is refused for writing.
- * Every write is read back and compared.
+ * Every write is read back and compared; a refused write prints the API's errors.
  */
 $pdfmonkey_key = function () {
     return defined( 'HDLV2_PDFMONKEY_API_KEY' ) ? (string) HDLV2_PDFMONKEY_API_KEY : '';
@@ -64,11 +65,13 @@ if ( 'put' === $mode ) {
     $body = (string) file_get_contents( '/tmp/frl/candidate.html' );
     $css  = is_readable( '/tmp/frl/candidate.css' ) ? (string) file_get_contents( '/tmp/frl/candidate.css' ) : (string) ( $t['scss_style'] ?? '' );
     if ( '' === $body ) { echo "no candidate\n"; return; }
-    list( $c ) = $call( 'PUT', "$base/$id", array( 'document_template' => array( 'body' => $body, 'scss_style' => $css ) ) );
+    list( $c, $put ) = $call( 'PUT', "$base/$id", array( 'document_template' => array( 'body' => $body, 'body_draft' => $body, 'scss_style' => $css, 'scss_style_draft' => $css ) ) );
     list( , $back ) = $call( 'GET', "$base/$id" );
-    $b = $back['document_template'] ?? array();
-    printf( "put %d body=%s css=%s sha=%s\n", $c, ( $b['body'] ?? '' ) === $body ? 'equal' : 'DIFF',
-        ( $b['scss_style'] ?? '' ) === $css ? 'equal' : 'DIFF', substr( hash( 'sha256', $body ), 0, 12 ) );
+    $b    = $back['document_template'] ?? array();
+    $same = function ( $field, $want ) use ( $b ) { return array_key_exists( $field, $b ) && (string) $b[ $field ] === $want ? 'equal' : 'DIFF'; };
+    printf( "put %d body=%s body_draft=%s css=%s css_draft=%s sha=%s\n", $c, $same( 'body', $body ), $same( 'body_draft', $body ),
+        $same( 'scss_style', $css ), $same( 'scss_style_draft', $css ), substr( hash( 'sha256', $body ), 0, 12 ) );
+    if ( $c < 200 || $c > 299 ) echo 'answer: ' . wp_json_encode( $put['errors'] ?? null ) . "\n";
     return;
 }
 
