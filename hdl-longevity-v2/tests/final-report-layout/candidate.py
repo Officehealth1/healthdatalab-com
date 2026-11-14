@@ -211,6 +211,41 @@ edit('2f', '<div class="kpi-card__value kpi-card__value--{{age_shift_value_class
      '<div class="kpi-card__value kpi-card__value--{{age_shift_value_class}}">{{age_shift_num}}<span class="kpi-card__value-unit">yrs</span></div>')
 
 
+# --- 2g: the health background leaves page 3 for page 10, unchanged (D8) ---
+# Three answers at their form limits (600 + 400 + 600 characters) need about
+# 100 mm; page 3 has about 35 mm left under the Key findings.
+HEALTH_BG = r"""    {% comment %}
+      v0.38.1 — Stage 3 Section 6 "Health Background".
+      Three optional long-form text fields the client typed at Stage 3.
+      Block hides entirely if all 3 are empty; each row independently
+      guarded so empty fields don't show. Reuses .callout vocabulary.
+    {% endcomment %}
+    {% if family_history != blank or medications != blank or existing_conditions != blank %}
+    <div class="callout">
+      <span class="callout__label">Client&rsquo;s health background &middot; shared in your Full Report form</span>
+      <div class="callout__body">
+        {% if family_history != blank %}
+          <p><strong>Family history:</strong> {{ family_history | newline_to_br | replace: '\n', '<br>' }}</p>
+        {% endif %}
+        {% if medications != blank %}
+          <p><strong>Current medications:</strong> {{ medications | newline_to_br | replace: '\n', '<br>' }}</p>
+        {% endif %}
+        {% if existing_conditions != blank %}
+          <p><strong>Existing conditions:</strong> {{ existing_conditions | newline_to_br | replace: '\n', '<br>' }}</p>
+        {% endif %}
+      </div>
+    </div>
+    {% endif %}
+"""
+edit('2g', HEALTH_BG, '')
+edit('2g', """designed to bend this curve.</p>
+    {% endif %}
+""", """designed to bend this curve.</p>
+    {% endif %}
+
+""" + HEALTH_BG)
+
+
 def build(body):
     for defect, old, new, count in EDITS:
         found = body.count(old)
