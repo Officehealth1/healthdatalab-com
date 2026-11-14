@@ -8,7 +8,9 @@
  *       payload file in /tmp/frl/; the chart and flight-plan addresses are filled here
  *       from the site this runs on, so the payload files hold none of ours
  *   wp eval-file - doc <proof-id> <document-id> <out.pdf>
- *       re-renders that PDFMonkey document's own payload; it never leaves the server
+ *       re-renders that PDFMonkey document's own payload and saves it beside the PDF
+ *       as <out>.json, so check 5 can run; the payload travels only with its PDF
+ *       (/tmp/frl, then the git-ignored _local/ folder), never into the repository
  *   wp eval-file - cleanup <proof-id>
  *       deletes the documents made from the proof copy: a card of any other template
  *       is skipped, and nothing is deleted when more than 15 are listed
@@ -102,6 +104,7 @@ if ( 'payload' === $mode ) {
     $p = $d['document']['payload'] ?? null;
     if ( is_string( $p ) ) $p = json_decode( $p, true );
     if ( 200 !== $c || ! is_array( $p ) ) { echo "document read $c: not available\n"; return; }
+    file_put_contents( '/tmp/frl/' . basename( $out, '.pdf' ) . '.json', wp_json_encode( $p ) );
 } else {
     echo "usage: payload|doc|cleanup <proof-id> ...\n";
     return;
