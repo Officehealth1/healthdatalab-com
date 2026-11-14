@@ -1,0 +1,3 @@
+__pycache__/
+# The red fixtures are made-up pages (red_fixtures.py); the repository ignores every other PDF.
+!fixtures/red/*.pdf

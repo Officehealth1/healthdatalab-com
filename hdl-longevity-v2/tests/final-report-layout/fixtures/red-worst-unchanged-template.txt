@@ -1,0 +1,41 @@
+FAIL page 19: check 1: the PDF has 19 pages, expected 20
+FAIL page 11: check 3: word "strength" at x 51.0-92.2 y 764.2-777.6 is outside the content box (x 51.0-544.9 y 62.4-771.1)
+FAIL page 11: check 3: word "a" at x 95.1-101.0 y 764.2-777.6 is outside the content box (x 51.0-544.9 y 62.4-771.1)
+FAIL page 11: check 3: word "managing" at x 104.0-152.8 y 764.2-777.6 is outside the content box (x 51.0-544.9 y 62.4-771.1)
+FAIL page 11: check 3: word "months" at x 155.8-192.6 y 764.2-777.6 is outside the content box (x 51.0-544.9 y 62.4-771.1)
+FAIL page 11: check 3: word "balanced" at x 195.6-241.2 y 764.2-777.6 is outside the content box (x 51.0-544.9 y 62.4-771.1)
+FAIL page 11: check 3: word "a" at x 244.2-250.1 y 764.2-777.6 is outside the content box (x 51.0-544.9 y 62.4-771.1)
+FAIL page 11: check 3: word "protect" at x 253.0-288.4 y 764.2-777.6 is outside the content box (x 51.0-544.9 y 62.4-771.1)
+FAIL page 11: check 3: word "improves" at x 291.4-336.8 y 764.2-777.6 is outside the content box (x 51.0-544.9 y 62.4-771.1)
+FAIL page 11: check 3: word "more" at x 339.7-365.1 y 764.2-777.6 is outside the content box (x 51.0-544.9 y 62.4-771.1)
+FAIL page 11: check 3: word "life" at x 368.1-382.9 y 764.2-777.6 is outside the content box (x 51.0-544.9 y 62.4-771.1)
+FAIL page 11: check 3: word "the" at x 385.8-401.6 y 764.2-777.6 is outside the content box (x 51.0-544.9 y 62.4-771.1)
+FAIL page 11: check 3: word "your" at x 404.5-426.7 y 764.2-777.6 is outside the content box (x 51.0-544.9 y 62.4-771.1)
+FAIL page 11: check 3: word "later" at x 429.6-451.5 y 764.2-777.6 is outside the content box (x 51.0-544.9 y 62.4-771.1)
+FAIL page 11: check 3: word "ageing" at x 454.4-488.1 y 764.2-777.6 is outside the content box (x 51.0-544.9 y 62.4-771.1)
+FAIL page 11: check 3: word "small" at x 491.0-516.7 y 764.2-777.6 is outside the content box (x 51.0-544.9 y 62.4-771.1)
+FAIL page 12: check 3: word "02" at x 51.0-60.6 y 767.6-777.0 is outside the content box (x 51.0-544.9 y 62.4-771.1)
+FAIL page 12: check 3: word "HOW" at x 66.3-91.5 y 767.3-777.0 is outside the content box (x 51.0-544.9 y 62.4-771.1)
+FAIL page 12: check 3: word "Ageing" at x 156.5-184.8 y 764.1-775.0 is outside the content box (x 51.0-544.9 y 62.4-771.1)
+FAIL page 12: check 3: word "small" at x 187.2-208.0 y 764.1-775.0 is outside the content box (x 51.0-544.9 y 62.4-771.1)
+FAIL page 12: check 3: word "schedules" at x 210.4-251.4 y 764.1-775.0 is outside the content box (x 51.0-544.9 y 62.4-771.1)
+FAIL page 12: check 3: word "movement" at x 253.8-295.9 y 764.1-775.0 is outside the content box (x 51.0-544.9 y 62.4-771.1)
+FAIL page 12: check 3: word "energy" at x 298.3-326.3 y 764.1-775.0 is outside the content box (x 51.0-544.9 y 62.4-771.1)
+FAIL page 12: check 3: word "and" at x 328.7-343.7 y 764.1-775.0 is outside the content box (x 51.0-544.9 y 62.4-771.1)
+FAIL page 12: check 3: word "consistent" at x 346.0-387.5 y 764.1-775.0 is outside the content box (x 51.0-544.9 y 62.4-771.1)
+FAIL page 12: check 3: word "compound" at x 389.9-432.8 y 764.1-775.0 is outside the content box (x 51.0-544.9 y 62.4-771.1)
+FAIL page 12: check 3: word "diet" at x 435.2-450.2 y 764.1-775.0 is outside the content box (x 51.0-544.9 y 62.4-771.1)
+FAIL page 12: check 3: word "demanding" at x 452.6-497.5 y 764.1-775.0 is outside the content box (x 51.0-544.9 y 62.4-771.1)
+FAIL page 12: check 3: word "more" at x 499.9-520.4 y 764.1-775.0 is outside the content box (x 51.0-544.9 y 62.4-771.1)
+FAIL page 14: check 3: word "Featherstone" at x 134.0-214.9 y 767.2-778.9 is outside the content box (x 51.0-544.9 y 62.4-771.1)
+FAIL page 9: check 4: words "With" and "(years)" overlap by 2.0 x 1.7 pt
+FAIL page 3: check 5: the end of medications ("...fidence managing with now intens zqmeds.") is not in the PDF
+FAIL page 0: check 5: the end of existing_conditions ("...and and better confidence pr zqcond.") is not in the PDF
+FAIL page 11: check 5: the end of ai_longevity_influences_explanation ("...pressure the mood and and zqlong.") is not in the PDF
+FAIL page 12: check 5: the end of ai_objectives_how ("...people blood over energy matter zqhow.") is not in the PDF
+FAIL page 0: check 5: the end of ai_objectives_who ("... people brighter because strength zqwho.") is not in the PDF
+FAIL page 0: check 5: the end of ai_objectives_where ("...eople with mobility your energy zqwhere.") is not in the PDF
+FAIL page 0: check 5: the end of ai_objectives_when ("...ning the training keeps recovery zqwhen.") is not in the PDF
+FAIL page 0: check 5: the end of practitioner_email ("...ioner.longest@longevity-practice.example") is not in the PDF
+FAIL page 16: check 7: "/5" with no score before it, 2 time(s)
+red-worst.pdf: 19 pages, 40 failure(s), 0 known
