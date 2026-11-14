@@ -200,6 +200,17 @@ edit('2e', """.pull-quote::before {
   top: -1mm; left: -8.5mm;""")
 
 
+# --- 2f: the age shift on one line: the number at figure size, "yrs" as the unit (D6)
+for sign in ('−', '+'):
+    edit('2f', "{%%- capture age_shift_display -%%}%s{{ age_shift_abs }} yrs{%%- endcapture -%%}" % sign,
+         "{%%- capture age_shift_display -%%}%s{{ age_shift_abs }} yrs{%%- endcapture -%%}\n"
+         "  {%%- capture age_shift_num -%%}%s{{ age_shift_abs }}{%%- endcapture -%%}" % (sign, sign))
+edit('2f', '{%- assign age_shift_display = "0 yrs" -%}',
+     '{%- assign age_shift_display = "0 yrs" -%}\n  {%- assign age_shift_num = "0" -%}')
+edit('2f', '<div class="kpi-card__value kpi-card__value--{{age_shift_value_class}}">{{age_shift_display}}</div>',
+     '<div class="kpi-card__value kpi-card__value--{{age_shift_value_class}}">{{age_shift_num}}<span class="kpi-card__value-unit">yrs</span></div>')
+
+
 def build(body):
     for defect, old, new, count in EDITS:
         found = body.count(old)
