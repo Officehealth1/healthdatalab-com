@@ -54,14 +54,18 @@ MIN_PAGES, MIN_ROWS = 19, 15
 ROW_PT = 4.0
 NS = '{http://www.w3.org/1999/xhtml}'
 
-# Payload text fields the template prints, with how it prints them.
+# Every payload text field the template prints, with how it prints it. Numbers,
+# scores and picture addresses are not text fields. red_fixtures.py checks that
+# each field here carries its own marker word in payload-worst.json.
 #   first_p: only the first paragraph is printed (page 3 awaken).
 #   lines:   one list item per line; every line is checked (milestones).
 #   picks:   " | " printed as "; " (the choices).
+#   chips:   " · " separates chips; every chip is checked (metabolic panel).
 RENDERED = {
+    'client_display_name': '', 'report_date': '', 'report_number': '',
     'intro_pull_quote': '', 'awaken_content': 'first_p', 'client_key_findings': '',
     'family_history': '', 'medications': '', 'existing_conditions': '',
-    'results_narrative': '', 'metabolic_driver': '',
+    'results_narrative': '', 'metabolic_driver': '', 'metabolic_chips': 'chips',
     'thrive_content': '', 'lift_content': '', 'ai_body_composition_analysis': '',
     'ai_longevity_influences_explanation': '',
     'distilled_why': '', 'ai_objectives_how': '', 'ai_objectives_who': '',
@@ -72,9 +76,11 @@ RENDERED = {
     'rec_1_lifts': '', 'rec_2_lifts': '', 'rec_3_lifts': '', 'rec_4_lifts': '', 'rec_5_lifts': '',
     'rec_1_category': '', 'rec_2_category': '', 'rec_3_category': '', 'rec_4_category': '',
     'rec_5_category': '',
+    'rec_1_freq': '', 'rec_2_freq': '', 'rec_3_freq': '', 'rec_4_freq': '', 'rec_5_freq': '',
     'ms_6mo': 'lines', 'ms_2yr': 'lines', 'ms_5yr': 'lines', 'ms_10yr': 'lines',
     'ai_results_summary': '', 'summary_pull_quote': '', 'summary_nb': '',
-    'practitioner_name': '', 'practitioner_email': '',
+    'practitioner_name': '', 'practitioner_email': '', 'practitioner_role': '',
+    'practitioner_link': '', 'practitioner_initials': '',
     'label_sit_stand': '', 'label_breath': '', 'label_balance': '', 'label_smoking': '',
     'label_alcohol': '', 'label_diet': '', 'label_activity': '', 'label_sleep_dur': '',
     'label_sleep_qual': '', 'label_stress': '', 'label_social': '', 'label_cognitive': '',
@@ -148,7 +154,7 @@ def rendered_tail(value, how):
         text = text.split('</p>')[0]
     if how == 'picks':
         text = text.replace(' | ', '; ')
-    parts = [l for l in text.split('\n') if l.strip()] if how == 'lines' else [text]
+    parts = text.split('\n') if how == 'lines' else text.split(' · ') if how == 'chips' else [text]
     tails = []
     for part in parts:
         words = re.sub(r'<[^>]+>', ' ', part).split()
@@ -241,10 +247,13 @@ def check(pdf, payload, known, no_payload_ok=False):
         raw = [norm(t) for t in subprocess.run(['pdftotext', '-raw', pdf, '-'], capture_output=True, check=True)
                .stdout.decode('utf-8').split('\f')]
         whole = ''.join(raw)
+        fields = dict(payload)
+        if not fields.get('client_display_name'):  # the template's own fallback for the cover name
+            fields['client_display_name'] = str(fields.get('client_name', '')).capitalize()
         for key, how in RENDERED.items():
-            value = payload.get(key, '')
-            if value in ('', None):
-                continue
+            value = fields.get(key, '')
+            if value in ('', None) or (key == 'metabolic_chips' and not fields.get('metabolic_score')):
+                continue  # the chips are printed only inside the metabolic panel, which needs a score
             for tail in rendered_tail(value, how):
                 if norm(tail) not in whole:
                     head = norm(' '.join(re.sub(r'<[^>]+>', ' ', str(value)).split()[:6]))
