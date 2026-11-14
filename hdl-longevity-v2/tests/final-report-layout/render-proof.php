@@ -12,8 +12,13 @@
  *   wp eval-file - cleanup <proof-id>
  *       deletes every document made from the proof copy
  *
- * Any template whose name does not start with "PROOF — " is refused.
+ * Any template whose name does not start with "PROOF — " is refused. A re-rendered
+ * client PDF is personal data: /tmp/frl is kept 0700 and every file in it 0600.
+ * Remove /tmp/frl when the run is done.
  */
+umask( 077 );
+wp_mkdir_p( '/tmp/frl' );
+chmod( '/tmp/frl', 0700 );
 $pdfmonkey_key = function () {
     return defined( 'HDLV2_PDFMONKEY_API_KEY' ) ? (string) HDLV2_PDFMONKEY_API_KEY : '';
 };
