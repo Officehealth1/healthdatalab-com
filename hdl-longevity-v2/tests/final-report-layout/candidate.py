@@ -83,6 +83,35 @@ edit('2b', """<!-- ============================================================
 <!-- ============================================================
      PAGE 13 · ACTIONABLE RECOMMENDATIONS""")
 
+# --- 2c: the gauge's band words in a row under the picture, not over it (D2) --
+edit('2c', """.gauge-overlay {
+  position: absolute;
+  left: 4mm;
+  right: 4mm;
+  bottom: 11mm;
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  font-family: var(--body);
+  pointer-events: none;
+}""", """/* 2026-11-14 layout: a row under the picture. Placed over it, the words sat on
+   the green and red arc ends and under the needle hub. */
+.gauge-bands {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  margin: 1mm 4mm 0;
+  font-family: var(--body);
+}""")
+edit('2c', 'gauge-overlay', 'gauge-bands', 22)
+edit('2c', '<div class="gauge-bands" aria-hidden="true">', '<div class="gauge-bands">')
+# The row is about 6 mm tall; the gauge picture carries its own white top margin.
+edit('2c', """.aging-rate-hero {
+  text-align: center;
+  margin: 6mm 0 4mm;
+}""", """.aging-rate-hero {
+  text-align: center;
+  margin: 2mm 0 4mm;
+}""")
+
 
 def build(body):
     for defect, old, new, count in EDITS:
