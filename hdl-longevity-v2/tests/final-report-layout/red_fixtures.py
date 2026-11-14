@@ -39,6 +39,7 @@ CASES = {
     'known-matches-nothing':     ('base', 'base', ['4:3'], 1, 'STALE'),
     'known-covers-one-only':     ('two-strays', 'base', ['3:3'], 1, 'FAIL page 3: check 3'),
     'field-not-printed':         ('base', 'field-not-printed', [], 1, 'check 5: the end of practitioner_role'),
+    'sign-off-cut':              ('sign-off-cut', 'sign-off-cut', [], 1, 'check 5: the end of report_date'),
 }
 
 CSS = """<style>
@@ -74,6 +75,7 @@ WHY = 'Made-up closing words for the layout check that end in zqbase.'
 PAYLOADS = {
     'base': {'why_picks': '', 'distilled_why': WHY},
     'field-not-printed': {'why_picks': '', 'distilled_why': WHY, 'practitioner_role': 'Made-up role of the practitioner zqrole'},
+    'sign-off-cut': {'why_picks': '', 'distilled_why': WHY, 'report_date': '14 November 2026'},
 }
 
 
@@ -82,10 +84,10 @@ def page(n, total, body, stray=''):
             '<div class="page__footer">%02d / %02d</div></section>') % (n, total, body, stray, n, total)
 
 
-def document(name, rows=ROWS, titles=TITLES, extra3='', stray3='', page_ref=True):
+def document(name, rows=ROWS, titles=TITLES, extra3='', stray3='', page_ref=True, cover=''):
     """The 19 made-up pages; extra3 and stray3 put a fault on page 3."""
     out = ['<!doctype html><meta charset="utf-8"><title>red fixture %s</title>' % name, CSS,
-           '<section class="page"><div class="page__content"><h2>Cover</h2></div></section>']
+           '<section class="page"><div class="page__content"><h2>Cover</h2>%s</div></section>' % cover]
     toc = ''.join('<div class="toc-row"><span class="toc-num">%s</span><span class="toc-title">%s</span><span>%02d</span></div>'
                   % (num, title.replace('&', '&amp;'), cited) for num, title, cited in rows)
     out.append(page(2, 19, '<h2>Contents</h2>' + toc))
@@ -133,6 +135,8 @@ def pages():
         'recommendations-retitled': document('recommendations-retitled', rows=rec_rows, titles=rec_titles, page_ref=False),
         # two words between the content box and the footer
         'two-strays': document('two-strays', stray3=stray % (30, 'strayone') + stray % (100, 'straytwo')),
+        # the date is on the cover but the sign-off line under the Summary, which prints it again, is gone
+        'sign-off-cut': document('sign-off-cut', cover='<p>14 November 2026</p>'),
     }
 
 
