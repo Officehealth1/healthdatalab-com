@@ -154,6 +154,7 @@ edit('2d', """{%- comment -%} Domain averages — *10 then ÷N then ÷10.0 to ge
     + domain('lifestyle', [('score_' + f, 's_' + f, '') for f in LIFESTYLE], named=False)
     + '{%- assign n_inputs = cardio_n | plus: body_comp_n | plus: physical_n | plus: lifestyle_n -%}\n')
 edit('2d', '<div class="kpi-card__value">{{lifestyle_avg}}<span', '<div class="kpi-card__value">{{lifestyle_avg | default: "&mdash;"}}<span')
+edit('2d', 'lifestyle score of <strong>{{lifestyle_avg}}/5</strong>', 'lifestyle score of <strong>{{lifestyle_avg | default: "&mdash;"}}/5</strong>')
 for name, words in (('cardio', 'HR, BP'), ('body_comp', 'BMI, WHR, WHtR'), ('physical', 'Sit-Stand, Breath, Balance')):
     edit('2d', '<div class="domain-card__sub">avg of %s</div>' % words,
          '<div class="domain-card__sub">{%% if %s_n > 0 %%}avg of {{ %s_used }}{%% else %%}Not provided{%% endif %%}</div>' % (name, name))
