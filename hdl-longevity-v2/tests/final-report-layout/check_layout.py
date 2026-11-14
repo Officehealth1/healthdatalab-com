@@ -1,23 +1,33 @@
 #!/usr/bin/env python3
 """Layout check for the Final report PDF (plan 2026-11-14).
 
-    python3 -I check_layout.py <pdf> [payload.json] [--known "<page>:<check>"]...
+    python3 -I check_layout.py <pdf> [payload.json] [--known "<page>:<check>"]... [--no-payload-ok]
 
-Prints "page N: check C: ..." for every failure and exits 1 when any failure
-is not passed with --known. A known failure is printed as KNOWN on every run.
+Prints "page N: check C: ..." for every failure. Exit codes: 0 green; 1 a failure
+or a stale --known; 2 usage; 3 nothing failed but no payload was given, so check 5
+did not run (pass --no-payload-ok when that is meant, as for a PDF whose payload is
+not to hand).
 
-  1  page count: 20 when the payload has choices (why_picks), 19 when not
+  1  page count: 20 when the payload has choices (why_picks), 19 when not;
+     with no payload, 19 or 20
   2  the header and the footer of page n (n >= 2) read "n / total"
   3  every word outside the header and footer lies inside the content box (1 pt)
   4  no two words on a page overlap by more than 1.5 pt in both directions
   5  the last six words of every rendered payload text field are in the PDF
-  6  each contents row cites the page holding its title; every "Page N" in the
-     text cites the page titled "Actionable recommendations"
-  7  on "Your assessment inputs", "/5" always has a digit directly before it
+  6  the contents page has at least 15 rows and each cites the page holding its
+     title; every "Page N" in the text cites the page titled "Actionable
+     recommendations", which must exist
+  7  the page "Your assessment inputs" exists and on it "/5" always has a digit
+     directly before it
 
-Checks 1 and 5 need the payload; check 5 reports page 0 when not even the
-field's opening words are in the PDF. Needs pdftotext (poppler).
+--known "<page>:<check>" covers ONE failure of that check on that page and prints it
+as KNOWN on every run; a second failure there still fails (pass the pair again to
+cover it). A pair that matches no failure prints STALE and fails: take it out.
+
+Check 5 reports page 0 when not even the field's opening words are in the PDF; a
+page that is not found is reported as page 0 too. Needs pdftotext (poppler).
 """
+import collections
 import html
 import json
 import re
@@ -39,7 +49,7 @@ OVERLAP_PT = 1.5
 # brackets 1.4 pt above its reported box, and its legend clash is real.
 TOP_PAD, BOTTOM_PAD = 0.10, 0.15
 BAND_MM = 15
-MIN_ROWS = 15
+MIN_PAGES, MIN_ROWS = 19, 15
 # Words of one contents row share a baseline; rows are 27 pt apart or more.
 ROW_PT = 4.0
 NS = '{http://www.w3.org/1999/xhtml}'
@@ -171,7 +181,7 @@ def contents_rows(toc):
     return out
 
 
-def check(pdf, payload, known):
+def check(pdf, payload, known, no_payload_ok=False):
     pages = read_pages(pdf)
     total = len(pages)
     fails = []
@@ -184,6 +194,8 @@ def check(pdf, payload, known):
         want = 20 if str(payload.get('why_picks', '')).strip() else 19
         if total != want:
             fail(total, 1, 'the PDF has %d pages, expected %d' % (total, want))
+    elif not MIN_PAGES <= total <= MIN_PAGES + 1:
+        fail(total, 1, 'the PDF has %d page(s), expected %d or %d' % (total, MIN_PAGES, MIN_PAGES + 1))
 
     # 2 header and footer numbers
     for n, p in enumerate(pages[1:], start=2):
@@ -256,6 +268,8 @@ def check(pdf, payload, known):
             if missing:
                 fail(2, 6, 'contents row "%s" cites page %d, which does not hold %s' % (title, cited, ', '.join(missing)))
     recs = title_page(pages, 'Actionable recommendations')
+    if recs is None:
+        fail(0, 6, 'no page is titled "Actionable recommendations"')
     for n, p in enumerate(pages, start=1):
         for m in re.finditer(r'\bPage (\d{1,2})\b', body_text(p)):
             if recs is None or int(m.group(1)) != recs:
@@ -263,33 +277,48 @@ def check(pdf, payload, known):
 
     # 7 a bare "/5" on the inputs page
     inputs = title_page(pages, 'Your assessment inputs')
-    if inputs:
+    if inputs is None:
+        fail(0, 7, 'no page is titled "Your assessment inputs"')
+    else:
         hits = re.findall(r'(?<![0-9])/5', body_text(pages[inputs - 1]))
         if hits:
             fail(inputs, 7, '"/5" with no score before it, %d time(s)' % len(hits))
 
+    # Each --known pair covers one failure; what is left over matched nothing.
+    left = collections.Counter(known)
     open_fails = 0
     for page, num, msg in fails:
-        tag = 'KNOWN' if '%d:%d' % (page, num) in known else 'FAIL'
+        pair = '%d:%d' % (page, num)
+        tag = 'KNOWN' if left[pair] > 0 else 'FAIL'
+        left[pair] -= tag == 'KNOWN'
         open_fails += tag == 'FAIL'
         print('%s page %d: check %d: %s' % (tag, page, num, msg))
-    print('%s: %d pages, %d failure(s), %d known' % (pdf.rsplit('/', 1)[-1], total, open_fails, len(fails) - open_fails))
-    return 1 if open_fails else 0
+    stale = sorted(pair for pair, n in left.items() if n > 0)
+    for pair in stale:
+        print('STALE --known "%s" matches no failure: take it out' % pair)
+    print('%s: %d pages, %d failure(s), %d known, %d stale%s' % (
+        pdf.rsplit('/', 1)[-1], total, open_fails, len(fails) - open_fails, len(stale),
+        '' if payload is not None else '; check 5 not run (no payload)'))
+    if open_fails or stale:
+        return 1
+    return 3 if payload is None and not no_payload_ok else 0
 
 
 def main(argv):
-    args, known = [], set()
+    args, known, no_payload_ok = [], [], False
     it = iter(argv)
     for a in it:
         if a == '--known':
-            known.add(next(it))
+            known.append(next(it, ''))
+        elif a == '--no-payload-ok':
+            no_payload_ok = True
         else:
             args.append(a)
-    if not args:
+    if not 1 <= len(args) <= 2 or any(not re.fullmatch(r'\d+:\d', k) for k in known):
         print(__doc__)
         return 2
     payload = json.load(open(args[1], encoding='utf-8')) if len(args) > 1 else None
-    return check(args[0], payload, known)
+    return check(args[0], payload, known, no_payload_ok)
 
 
 if __name__ == '__main__':
