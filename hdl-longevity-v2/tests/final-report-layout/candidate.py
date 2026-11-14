@@ -266,6 +266,34 @@ edit('page 11', """  </div>
     <span class="page__footer-num">08 / {{ pg_total }}</span>""")
 
 
+# --- page 14: the practitioner card moves to page 15 (worst-case render) ----
+# Four milestones of 22 words in each of the four columns push the card below
+# page 14. On page 15 it takes the place of the signature lines, which said the
+# same name and "Your longevity practitioner" (the card's own default role).
+CARD = """    <div class="practitioner-card">
+      {% if practitioner_photo_url != blank %}
+        <img src="{{practitioner_photo_url}}" alt="{{practitioner_name}}" class="practitioner-card__photo" style="object-fit: cover;">
+      {% else %}
+        <div class="practitioner-card__photo">{{practitioner_initials | default: "&mdash;"}}</div>
+      {% endif %}
+      <div>
+        <p class="practitioner-card__name">{{practitioner_name}}</p>
+        <p class="practitioner-card__role">{{practitioner_role | default: "Your longevity practitioner"}}</p>
+      </div>
+      <div class="practitioner-card__contact">
+        {% if practitioner_link != blank %}{{practitioner_link}}<br>{% endif %}
+        {% if practitioner_email != blank %}{{practitioner_email}}{% endif %}
+      </div>
+    </div>
+"""
+edit('page 14', '\n' + CARD, '')
+edit('page 14', """    <div style="margin-top: 14mm; text-align: center; padding-top: 6mm; border-top: 1px solid var(--grey-200);">
+      <p style="font-family: var(--display); font-style: italic; font-size: 12pt; color: var(--brand-teal-dark); margin: 0 0 2mm;">{{practitioner_name}}</p>
+      <p style="font-family: var(--body); font-size: 9pt; color: var(--grey-500); margin: 0;">Your longevity practitioner &middot; {{report_date}}</p>
+    </div>
+""", CARD)
+
+
 def build(body):
     for defect, old, new, count in EDITS:
         found = body.count(old)
