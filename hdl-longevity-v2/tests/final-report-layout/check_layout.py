@@ -205,15 +205,19 @@ def check(pdf, payload, known):
                     fail(n, 3, 'word "%s" at x %.1f-%.1f y %.1f-%.1f is outside the content box (x %.1f-%.1f y %.1f-%.1f)'
                          % (w['t'][:24], b[0], b[2], b[1], b[3], x0, x1, y0, y1))
 
-    # 4 overlapping words. Words of one pdftotext block are one paragraph laid out by
-    # the browser, so they are not compared with each other.
+    # 4 overlapping words: every pair on the page. Words of one pdftotext block are
+    # lines of one paragraph in the web fonts, whose padded boxes overlap a little at
+    # the template's tightest line heights (3.2 pt on a 39 pt title box), so inside a
+    # block the letters are measured; across blocks the raw top stays (see TOP_PAD).
+    # Ceiling: chart text that pdftotext puts in one block is measured by letter
+    # boxes it does not have, so a clash there under about 3.5 pt can pass. Reading
+    # each word's font (pdftohtml -xml with pdffonts) would close it.
     for n, p in enumerate(pages[1:], start=2):
         ws = p['words']
         for i, a in enumerate(ws):
             for c in ws[i + 1:]:
-                if a['block'] == c['block']:
-                    continue
-                A, C = a['overlap'], c['overlap']
+                box = 'letters' if a['block'] == c['block'] else 'overlap'
+                A, C = a[box], c[box]
                 ox = min(A[2], C[2]) - max(A[0], C[0])
                 oy = min(A[3], C[3]) - max(A[1], C[1])
                 if ox > OVERLAP_PT and oy > OVERLAP_PT and not (allowed(4, a['t']) or allowed(4, c['t'])):
