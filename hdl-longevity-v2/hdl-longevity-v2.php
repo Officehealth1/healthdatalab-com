@@ -3,7 +3,7 @@
  * Plugin Name: HDL Longevity V2 — Staged Workflow
  * Plugin URI: https://healthdatalab.net
  * Description: V2 longevity workflow: staged intake, WHY profiling, practitioner consultations, weekly flight plans, and AI coaching. Runs alongside the existing Health Data Lab plugin.
- * Version: 0.48.70
+ * Version: 0.48.71
  * Author: Health Data Lab
  * Author URI: https://healthdatalab.net
  * License: Proprietary
@@ -22,7 +22,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 // register_activation_hook callbacks, which fire synchronously during
 // `wp plugin activate`, can reference them. The activator needs
 // HDLV2_DB_VERSION / HDLV2_VERSION at call time to update version options.
-define( 'HDLV2_VERSION', '0.48.70' );
+define( 'HDLV2_VERSION', '0.48.71' );
 define( 'HDLV2_DB_VERSION', '3.33' );
 
 // Client funnel token (hdlv2_form_progress.token) lifetime. FIXED window
@@ -56,7 +56,7 @@ define( 'HDLV2_PLUGIN_FILE', __FILE__ );
  */
 add_action( 'init', function () {
     if ( is_admin() ) return;
-    if ( is_user_logged_in() && ! hdlv2_full_report_link_takes_over() ) return;
+    if ( is_user_logged_in() && ! hdlv2_own_full_report_link_or_card() ) return;
 
     // v0.41.3 — Skip REST API requests. The handlers below call
     // hdlv2_render_link_card() which sets status_header(410) and echoes an
@@ -89,9 +89,13 @@ add_action( 'init', function () {
         $token = sanitize_text_field( $_GET['invite'] );
         if ( ! preg_match( '/^[a-f0-9]{64}$/', $token ) ) return;
 
+        // v0.48.71 — a used Full Report ticket keeps signing its owner in until
+        // expires_at, as the buyer's e-mail says ("Your link works until …");
+        // the expiry check below still applies. Its status is not written back.
         global $wpdb;
         $invite = $wpdb->get_row( $wpdb->prepare(
-            "SELECT * FROM {$wpdb->prefix}hdlv2_widget_invites WHERE token = %s AND status IN ('pending','opened') LIMIT 1",
+            "SELECT * FROM {$wpdb->prefix}hdlv2_widget_invites
+             WHERE token = %s AND ( status IN ('pending','opened') OR ( status = 'completed' AND source = 'full_report' ) ) LIMIT 1",
             $token
         ) );
 
@@ -104,20 +108,6 @@ add_action( 'init', function () {
                 $token
             ) ) ) {
                 return;
-            }
-            // v0.48.70 — a Full Report ticket is used once Stage 1 goes in through
-            // it (complete_invite). The buyer who clicks the e-mailed link again is
-            // told where the report is and how to get in; nobody is signed in.
-            if ( $wpdb->get_var( $wpdb->prepare(
-                "SELECT 1 FROM {$wpdb->prefix}hdlv2_widget_invites WHERE token = %s AND source = 'full_report' AND status = 'completed' LIMIT 1",
-                $token
-            ) ) ) {
-                hdlv2_render_link_card(
-                    'This link has already been used',
-                    'Your Full Report is in your account. Sign in with the e-mail you paid with.',
-                    'Sign in',
-                    wp_login_url()
-                );
             }
             // v0.40.15 — surfaced from silent return. Invite row missing
             // (deleted, never existed, or token forged). Friendly card with
@@ -703,17 +693,22 @@ function hdlv2_is_staff_account( $user_id ) {
 }
 
 /**
- * v0.48.70 — a live Full Report link opened in a browser that is already signed
- * in (walk case C4, Matthew 2026-11-16: "this is not going to be linked to the
- * right one"). The ?invite= login returns at once for a signed-in browser, so the
- * buyer stayed in the account the browser held and saw the Stage 1 questions.
- * Here a client session that is not the ticket's own account ends, so the login
- * signs the ticket's account in, as it does in a signed-out browser. Staff
- * sessions, every other link, and used or out-of-date tickets are untouched.
+ * v0.48.71 — a Full Report link opened in a browser that is already signed in
+ * (Matthew 2026-11-16: "this is not going to be linked to the right one"). The
+ * ?invite= login returns at once for a signed-in browser, so without this the
+ * buyer stayed in whatever account the browser held.
+ *
+ * - The ticket's own account is signed in: true, the login runs and opens the form.
+ * - Any other account, client or practitioner: a card whose one button is
+ *   WordPress's own sign-out (it carries the log-out nonce) back to this link on
+ *   our host. Opening a link never ends a session (login CSRF: a link someone
+ *   else sends must not move this browser into their account). Exits.
+ * - No Full Report ticket in date for this token, a REST call or a bad token:
+ *   false, the signed-in browser is left alone.
  *
  * @return bool true when the ?invite= login should run for this request.
  */
-function hdlv2_full_report_link_takes_over() {
+function hdlv2_own_full_report_link_or_card() {
     if ( empty( $_GET['invite'] )
          || ( isset( $_SERVER['REQUEST_URI'] ) && false !== strpos( $_SERVER['REQUEST_URI'], '/wp-json/' ) ) ) {
         return false;
@@ -722,25 +717,28 @@ function hdlv2_full_report_link_takes_over() {
     if ( ! preg_match( '/^[a-f0-9]{64}$/', $token ) ) {
         return false;
     }
-    $user = wp_get_current_user();
-    if ( hdlv2_is_staff_account( $user->ID ) ) {
-        return false;
-    }
     global $wpdb;
     $email = $wpdb->get_var( $wpdb->prepare(
         "SELECT client_email FROM {$wpdb->prefix}hdlv2_widget_invites
-         WHERE token = %s AND source = 'full_report' AND status IN ('pending','opened') AND expires_at > UTC_TIMESTAMP() LIMIT 1",
+         WHERE token = %s AND source = 'full_report' AND status IN ('pending','opened','completed') AND expires_at > UTC_TIMESTAMP() LIMIT 1",
         $token
     ) );
     if ( null === $email ) {
         return false;
     }
-    if ( 0 !== strcasecmp( (string) $user->user_email, (string) $email ) ) {
-        wp_destroy_current_session();
-        wp_clear_auth_cookie();
-        wp_set_current_user( 0 );
+    if ( 0 === strcasecmp( (string) wp_get_current_user()->user_email, (string) $email ) ) {
+        return true;
     }
-    return true;
+    // Rebuilt from the path and the checked token only, on our own host.
+    $path = (string) wp_parse_url( isset( $_SERVER['REQUEST_URI'] ) ? wp_unslash( $_SERVER['REQUEST_URI'] ) : '', PHP_URL_PATH );
+    $link = home_url( '/' . ltrim( $path, '/' ) ) . '?invite=' . $token;
+    // DRAFT COPY for the owner (plan 2026-11-17 gate fixes, G2): the three strings below.
+    hdlv2_render_link_card(
+        'You are signed in to another account',
+        'This link belongs to a different account. Sign out to open it.',
+        'Sign out and open the link',
+        wp_logout_url( $link )
+    );
 }
 
 /** v0.48.20 — the card shown instead of signing a staff account in. Exits. */
