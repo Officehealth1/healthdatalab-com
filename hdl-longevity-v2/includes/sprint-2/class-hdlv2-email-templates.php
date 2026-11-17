@@ -1018,9 +1018,10 @@ class HDLV2_Email_Templates {
     //  physicalActivity…). Raw keys in a practitioner-facing email look
     //  unfinished. This map is the single source of truth for the human
     //  label we show in emails; unknown keys de-camelise as a safety net.
+    //  v0.48.79 — public: the report page's "Not provided" line reads it too.
     // ──────────────────────────────────────────────────────────────
 
-    private static function score_key_to_label( $key ) {
+    public static function score_key_to_label( $key ) {
         static $map = array(
             // v0.23.1 — overallHealthScore removed (Matthew 2026-04-28).
             'bmiScore'           => 'BMI',

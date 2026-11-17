@@ -30,6 +30,60 @@ class HDLV2_Final_Report {
     const MAKE_WEBHOOK_OPTION = 'hdlv2_make_webhook_final_report';
     const MAKE_WEBHOOK_DEFAULT = '';
 
+    // The twenty inputs the radar draws, in its order, with their short chart labels.
+    // v0.48.79 — lifted out of build_radar_chart_url() so inputs_not_provided() names the same twenty.
+    const RADAR_INPUTS = array(
+        'physicalActivity'    => 'Activity',
+        'sitToStand'          => 'Sit-Stand',
+        'breathHold'          => 'Breath',
+        'balance'             => 'Balance',
+        'sleepDuration'       => 'Sleep Dur.',
+        'sleepQuality'        => 'Sleep Qual.',
+        'stressLevels'        => 'Stress',
+        'socialConnections'   => 'Social',
+        'dietQuality'         => 'Diet',
+        'alcoholConsumption'  => 'Alcohol',
+        'smokingStatus'       => 'Smoking',
+        'cognitiveActivity'   => 'Cognitive',
+        'sunlightExposure'    => 'Sunlight',
+        'supplementIntake'    => 'Supplements',
+        'dailyHydration'      => 'Hydration',
+        // v0.32.0 — skinElasticity dropped from radar (Matthew second-pass 2026-05-05).
+        'bmiScore'            => 'BMI',
+        'whrScore'            => 'WHR',
+        'whtrScore'           => 'WHtR',
+        'bloodPressureScore'  => 'BP',
+        'heartRateScore'      => 'HR',
+        // v0.23.1 — overallHealthScore removed (Matthew 2026-04-28).
+    );
+
+    // v0.48.79 (M39) — the stage3_data measurements a client may leave empty.
+    const RAW_MEASUREMENTS = array( 'bpSystolic', 'bpDiastolic', 'restingHeartRate', 'height', 'weight', 'waist', 'hip' );
+
+    /**
+     * v0.48.79 (M39) — one raw measurement: its number when numeric and above 0, else null. A box left
+     * empty, spaces, '0', 'skip', text or a negative number is "not provided", never a reading of 0.
+     */
+    public static function raw_measurement( $value ) {
+        $n = is_numeric( $value ) ? (float) $value : 0.0;
+        return ( $n > 0 && is_finite( $n ) ) ? $n : null;
+    }
+
+    /**
+     * v0.48.79 (M39) — the labels of the radar's inputs that have no score, in the radar's order, for
+     * the report page's "Not provided" line. A score of 0 is a score. Labels from the one map.
+     */
+    public static function inputs_not_provided( $scores ) {
+        if ( ! is_array( $scores ) ) return array();
+        $missing = array();
+        foreach ( array_keys( self::RADAR_INPUTS ) as $key ) {
+            if ( ! isset( $scores[ $key ] ) || ! is_numeric( $scores[ $key ] ) ) {
+                $missing[] = HDLV2_Email_Templates::score_key_to_label( $key );
+            }
+        }
+        return $missing;
+    }
+
     /**
      * Generate the final report. Called from HDLV2_Consultation::rest_finalise().
      *
@@ -976,6 +1030,13 @@ class HDLV2_Final_Report {
         // Report can be generated. Cast to int/float so PDFMonkey's IML
         // `replace` chain doesn't interpret quoted strings as JSON tokens.
         $s3_raw = $progress->stage3_data ? ( json_decode( $progress->stage3_data, true ) ?: array() ) : array();
+        // v0.48.79 (M39; hdlv2_ff_empty_values) — a box left empty is sent as null, never as 0 (the
+        // template prints any value that is not blank). The calculator already leaves it out.
+        if ( get_option( 'hdlv2_ff_empty_values', false ) ) {
+            foreach ( self::RAW_MEASUREMENTS as $k ) {
+                $s3_raw[ $k ] = self::raw_measurement( $s3_raw[ $k ] ?? null );
+            }
+        }
         $bp_sys     = isset( $s3_raw['bpSystolic'] )       ? (int) $s3_raw['bpSystolic']        : null;
         $bp_dia     = isset( $s3_raw['bpDiastolic'] )      ? (int) $s3_raw['bpDiastolic']       : null;
         $hr_bpm     = isset( $s3_raw['restingHeartRate'] ) ? (int) $s3_raw['restingHeartRate']  : null;
@@ -1705,34 +1766,9 @@ class HDLV2_Final_Report {
     public static function build_radar_chart_url( $scores ) {
         if ( ! is_array( $scores ) || empty( $scores ) ) return '';
 
-        $ordered = array(
-            'physicalActivity'    => 'Activity',
-            'sitToStand'          => 'Sit-Stand',
-            'breathHold'          => 'Breath',
-            'balance'             => 'Balance',
-            'sleepDuration'       => 'Sleep Dur.',
-            'sleepQuality'        => 'Sleep Qual.',
-            'stressLevels'        => 'Stress',
-            'socialConnections'   => 'Social',
-            'dietQuality'         => 'Diet',
-            'alcoholConsumption'  => 'Alcohol',
-            'smokingStatus'       => 'Smoking',
-            'cognitiveActivity'   => 'Cognitive',
-            'sunlightExposure'    => 'Sunlight',
-            'supplementIntake'    => 'Supplements',
-            'dailyHydration'      => 'Hydration',
-            // v0.32.0 — skinElasticity dropped from radar (Matthew second-pass 2026-05-05).
-            'bmiScore'            => 'BMI',
-            'whrScore'            => 'WHR',
-            'whtrScore'           => 'WHtR',
-            'bloodPressureScore'  => 'BP',
-            'heartRateScore'      => 'HR',
-            // v0.23.1 — overallHealthScore removed (Matthew 2026-04-28).
-        );
-
         $labels = array();
         $values = array();
-        foreach ( $ordered as $key => $label ) {
+        foreach ( self::RADAR_INPUTS as $key => $label ) {
             if ( isset( $scores[ $key ] ) && is_numeric( $scores[ $key ] ) ) {
                 $labels[] = $label;
                 $values[] = round( (float) $scores[ $key ], 1 );
