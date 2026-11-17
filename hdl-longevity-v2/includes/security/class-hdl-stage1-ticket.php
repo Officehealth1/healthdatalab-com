@@ -44,6 +44,9 @@ class HDL_Stage1_Ticket {
     const DEFAULT_DAYS = 90;
     const MAX_DAYS     = 365;
 
+    /** v0.48.81 (plan 2h) — straight-in asks per caller per hour. The caller is the selling site, so this caps the feature. */
+    const OPEN_RATE_LIMIT = 120;
+
     public static function register_hooks() {
         add_action( 'rest_api_init', array( __CLASS__, 'register_routes' ) );
     }
@@ -56,6 +59,97 @@ class HDL_Stage1_Ticket {
             // answers 503 whatever the caller sends.
             'permission_callback' => '__return_true',
         ) );
+        register_rest_route( 'hdl/v1', '/full-report-open', array(
+            'methods'             => 'POST',
+            'callback'            => array( __CLASS__, 'handle_open' ),
+            'permission_callback' => '__return_true',
+        ) );
+    }
+
+    /**
+     * v0.48.81 (plan 2h) — POST /wp-json/hdl/v1/full-report-open, behind hdlv2_ff_straight_to_form.
+     * The selling site asks, once, after a buyer paid in the browser tab that holds the inbox pass
+     * from their own Stage 1 results e-mail (HDLV2_Offer::inbox_pass). A yes lets that site send the
+     * tab to the ticket's own ?invite= link, the link the purchase e-mail carries; nothing else here
+     * signs anyone in. Yes only when every check holds, in this order: key, switch, limit, a Full
+     * Report ticket for external_ref, no staff account, the pass for the ticket's own e-mail and
+     * practitioner, no account or one made by this purchase (20 minutes), and the one UPDATE below.
+     *
+     * Body: { external_ref, own }. Answer: { open: true } or { open: false } (a refused caller is
+     * never told why; the log line carries a short code). 401/503 as the ticket route.
+     */
+    public static function handle_open( $request ) {
+        $expected = defined( 'HDL_STAGE1_TICKET_KEY' ) ? (string) HDL_STAGE1_TICKET_KEY : '';
+        if ( '' === $expected ) {
+            return self::refuse( 503, 'not_configured', 'Stage 1 tickets are not enabled on this server.' );
+        }
+        $provided = (string) $request->get_header( 'X-HDL-Stage1-Ticket-Key' );
+        if ( '' === $provided || ! hash_equals( $expected, $provided ) ) {
+            return self::refuse( 401, 'unauthorized', 'Unauthorized.' );
+        }
+        if ( ! get_option( 'hdlv2_ff_straight_to_form', false ) ) {
+            return self::open_no( 'flag_off' );
+        }
+        $rl = HDLV2_Rate_Limiter::consume( HDLV2_Rate_Limiter::bucket_key( array( 'full-report-open', HDLV2_Rate_Limit_Middleware::get_ip() ) ), self::OPEN_RATE_LIMIT, HOUR_IN_SECONDS );
+        if ( ! $rl['allowed'] ) {
+            error_log( '[HDL full-report-open] no limit' );
+            $resp = new WP_REST_Response( array( 'code' => 'rate_limited', 'message' => 'Too many requests.', 'data' => array( 'status' => 429 ) ), 429 );
+            $resp->header( 'Retry-After', (string) (int) $rl['retry_after'] );
+            return $resp;
+        }
+
+        $external_ref = $request->get_param( 'external_ref' );
+        $own          = $request->get_param( 'own' );
+        if ( ! is_string( $external_ref ) || ! preg_match( '/^[A-Za-z0-9_.:\-]{1,128}$/', $external_ref )
+             || ! is_string( $own ) || ! preg_match( '/^\d{10}\.[a-f0-9]{64}$/', $own ) ) {
+            return self::open_no( 'shape' );
+        }
+
+        global $wpdb;
+        $table  = $wpdb->prefix . 'hdlv2_widget_invites';
+        $ticket = $wpdb->get_row( $wpdb->prepare(
+            "SELECT id, practitioner_id, client_email, source FROM $table WHERE external_ref = %s LIMIT 1",
+            $external_ref
+        ) );
+        if ( ! $ticket || 'full_report' !== $ticket->source ) {
+            return self::open_no( 'no_ticket' );
+        }
+        $email   = strtolower( trim( (string) $ticket->client_email ) );
+        $user_id = (int) email_exists( $email );
+        if ( $user_id && hdlv2_is_staff_account( $user_id ) ) {
+            return self::open_no( 'staff' );
+        }
+        if ( ! HDLV2_Offer::inbox_pass_ok( $own, $email, (int) $ticket->practitioner_id ) ) {
+            return self::open_no( 'pass' );
+        }
+        // Never into an account that held anything before this purchase: only none yet, or the one
+        // the purchase's own confirm made (user_registered is stored in UTC).
+        if ( $user_id && ! $wpdb->get_var( $wpdb->prepare(
+            "SELECT 1 FROM {$wpdb->users} WHERE ID = %d AND user_registered >= UTC_TIMESTAMP() - INTERVAL 20 MINUTE",
+            $user_id
+        ) ) ) {
+            return self::open_no( 'account' );
+        }
+        // The first-time lock and the 15 minutes in one statement: only one request can move a
+        // pending ticket, and a ticket the e-mailed link already opened is no longer pending.
+        // created_at is the database's own clock (DEFAULT CURRENT_TIMESTAMP), so NOW(); the end
+        // date is stored in UTC.
+        $claimed = $wpdb->query( $wpdb->prepare(
+            "UPDATE $table SET status = 'opened', opened_at = %s WHERE id = %d AND source = 'full_report' AND status = 'pending' AND created_at >= NOW() - INTERVAL 15 MINUTE AND expires_at > UTC_TIMESTAMP()",
+            current_time( 'mysql' ),
+            (int) $ticket->id
+        ) );
+        if ( 1 !== (int) $claimed ) {
+            return self::open_no( 'claim' );
+        }
+        error_log( '[HDL full-report-open] yes invite=' . (int) $ticket->id );
+        return rest_ensure_response( array( 'open' => true ) );
+    }
+
+    /** A straight-in refusal: one log line with the code, the same answer for every reason. */
+    private static function open_no( $code ) {
+        error_log( '[HDL full-report-open] no ' . $code );
+        return rest_ensure_response( array( 'open' => false ) );
     }
 
     public static function handle( $request ) {
