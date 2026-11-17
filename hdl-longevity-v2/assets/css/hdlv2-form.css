@@ -2663,7 +2663,8 @@
 }
 
 /* v0.48.42 — the test pictures, the waist and hip guide and the screen-1 row icons
-   (hdlv2_ff_question_motion; DESIGN.md "## Motion"). Nothing here matches with the flag off. */
+   (hdlv2_ff_question_motion; DESIGN.md "## Motion"). Nothing here matches with the flag off.
+   v0.48.78 — .hdlv2-who-pic shares the disc; it shows under hdlv2_ff_form_clarity instead. */
 .hdlv2-who-pic,
 .hdlv2-tap-motion,
 .hdlv2-body-guide { margin: 0 0 16px; display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }

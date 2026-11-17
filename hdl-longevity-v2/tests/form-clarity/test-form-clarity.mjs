@@ -116,12 +116,12 @@ const TAP_SRC = [cut('  var S3_OPTIONS = {', '\n  };\n'), cut('  var TEST_HOW = 
   fn('renderTapStep'), fn('wizardSectionContent'),
   cut('  var IN_CM = ', ';\n'), fn('r1'), fn('toImperial'), fn('unitsDefault'), fn('unitsNow'), fn('unitsSwitch'), fn('measureInput')].join('\n');
 const VALS = { physicalActivity: '', sleepDuration: '4', sleepQuality: '', smokingStatus: '5', socialConnections: '3', dietQuality: '2' };
-function tap(mode, call) {
+function tap(mode, call, vals = VALS) {
   const ctx = {
     CFG: CFGS[mode], window: { hdlv2_form: CFGS[mode] }, document: { getElementById: () => null, getElementsByTagName: () => [] }, esc,
     setRootClasses() {}, tapLeave() {}, bindTapRows() {}, bindTapQuestion() {}, bindFieldListeners() {}, bindTapComplete() {}, bindUnits() {},
     brandBar: () => '[brand]', saveIndicator: () => '[save]', footer: () => '[footer]', serverData: {}, ABILITY_SENTENCES: {},
-    tapCards: (f, v) => `[cards:${f}:${v}]`, tapFirstValues: () => VALS, tapSection: (id) => ({ id }),
+    tapCards: (f, v) => `[cards:${f}:${v}]`, tapFirstValues: () => vals, tapSection: (id) => ({ id }),
     fieldReadonly: (l, v, u) => `[ro:${l}:${v}:${u}]`, prefillHint: () => '[hint]', fieldInputWithSkip: (n) => `[in:${n}]`,
     fieldSelect: (n) => `[sel:${n}]`, fieldTextarea: (n) => `[ta:${n}]`, s1Prefill: () => '',
     root: { innerHTML: '' }, formData: {}, tapOpenRow: null, tapStep: 0, tapOrder: [],
@@ -129,7 +129,7 @@ function tap(mode, call) {
   vm.runInNewContext(TAP_SRC + '\ntapOrder = TAP_ORDER;\n' + call, ctx);
   return ctx.OUT;
 }
-const step = (mode, n) => tap(mode, `wizardSectionContent = function (sec) { return '[section:' + sec.id + ']'; }; tapStep = ${n}; renderTapStep({ stage1_data: {}, second_form_ties: {} }, false); this.OUT = root.innerHTML;`);
+const step = (mode, n, vals) => tap(mode, `wizardSectionContent = function (sec) { return '[section:' + sec.id + ']'; }; tapStep = ${n}; renderTapStep({ stage1_data: {}, second_form_ties: {} }, false); this.OUT = root.innerHTML;`, vals);
 const rows = (mode) => tap(mode, 'this.OUT = tapFirstRows(' + J(VALS) + ');');
 const s0 = step('on', 0), r0 = rows('on');
 const row = (h, f) => h.split('<div class="hdlv2-tap-row">').find((r) => r.indexOf('id="hdlv2-tap-label-' + f + '"') !== -1) || '';
@@ -138,6 +138,12 @@ for (const f of ['physicalActivity', 'sleepQuality']) {
   ok(row(r0, f).indexOf('<span class="hdlv2-tap-row-value is-empty">' + NEW.empty + '</span>') !== -1, `C3.2.${f} the empty row reads "${NEW.empty}" in the grey italic class`);
   ok(/ role="radiogroup"[^>]*data-row="\w+">/.test(row(r0, f)) && row(r0, f).indexOf('hdlv2-tap-change') === -1, `C3.3.${f} its answers open, no Change`);
 }
+// Review fix: back from step 2 every row is answered, so the line keeps only what is still true.
+const ALL = Object.assign({}, VALS, { physicalActivity: '2', sleepQuality: '3' });
+ok(step('on', 0, ALL).indexOf('<p class="hdlv2-s1-prompt">We filled in what we could from your first answers. If an answer is not right, tap Change.</p>') !== -1,
+  'C3.9 every row answered (back from step 2): the line drops "Some rows have no answer yet"');
+const line0 = (h) => (h.match(/<p class="hdlv2-s1-prompt">[^<]*<\/p>/) || [''])[0];
+ok(line0(step('absent', 0, ALL)) === line0(step('absent', 0)) && line0(step('absent', 0)).indexOf(OLD.prompt) !== -1, 'C3.10 switch absent: the line above the rows is today\'s, answered or not');
 ok(row(r0, 'sleepDuration').indexOf('is-empty') === -1 && row(r0, 'sleepDuration').indexOf('hdlv2-tap-change') !== -1, 'C3.4 an answered row is unchanged: its answer and Change');
 function press(mode, saved, clicks) {
   const t = { goes: [], inserted: [], focused: null };

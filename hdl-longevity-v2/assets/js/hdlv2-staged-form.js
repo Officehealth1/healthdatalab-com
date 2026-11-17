@@ -2189,13 +2189,17 @@
     var tm = field && CFG.question_motion && S1_IMG_BASE && TAP_MOTION[field];
     var screen;
     if (tapStep === 0) {
+      var first = tapFirstValues(s1d, d);
       screen = tapHeading('Here is what you told us')
-        // v0.48.78 (M37; hdlv2_ff_form_clarity) — say what a row with no answer wants, without "Unknown".
+        // v0.48.78 (M37; hdlv2_ff_form_clarity) — say what a row with no answer wants, without "Unknown";
+        // back from step 2 every row is answered, so the middle sentence is left out.
         + '<p class="hdlv2-s1-prompt">' + (CFG.form_clarity
-          ? 'We filled in what we could from your first answers. Some rows have no answer yet: choose one for each. If an answer is not right, tap Change.'
+          ? 'We filled in what we could from your first answers. '
+            + (TAP_FIRST.some(function (f) { return !first[f]; }) ? 'Some rows have no answer yet: choose one for each. ' : '')
+            + 'If an answer is not right, tap Change.'
           : 'We filled in what we could from your first answers. Pick any row marked Unknown, and tap Change if one is not right.') + '</p>'
         + '<p class="hdlv2-s1-prompt">Your answers here build your draft longevity report.</p>'
-        + '<div id="hdlv2-tap-rows" class="hdlv2-tap-rows">' + tapFirstRows(tapFirstValues(s1d, d)) + '</div>'
+        + '<div id="hdlv2-tap-rows" class="hdlv2-tap-rows">' + tapFirstRows(first) + '</div>'
         + '<button type="button" id="hdlv2-tap-next" class="hdlv2-btn hdlv2-s1-next">Looks right, carry on</button>';
     } else if (field) {
       var q = TAP_TITLES[field];
