@@ -16,10 +16,12 @@ $poses    = array( 'q4-stairs-a.svg', 'q4-stairs-b.svg', 'q4-stairs-c.svg', 'q4-
 	'q5-floor-a.svg', 'q5-floor-b.svg', 'q5-floor-c.svg', 'q5-floor-d.svg', 'q5-floor-e.svg' );
 // Q9's answer plates are still (Round 3f): things, not actions.
 $plates   = array( 'q9-plate-a.svg', 'q9-plate-b.svg', 'q9-plate-c.svg', 'q9-plate-d.svg', 'q9-plate-e.svg' );
-$static   = array_merge( array( 'g-waist-hip.svg' ), $plates );
+// v0.48.78 (M36): the two still people pictures beside "Who are you staying strong for?".
+$people   = array( 'p-sitting-out.svg', 'p-joining-in.svg' );
+$static   = array_merge( array( 'g-waist-hip.svg' ), $plates, $people );
 $expected = array_merge( array( 'q3-zone2.svg', 'q4-stairs.svg', 'q5-floor-a.svg', 'q5-floor-b.svg', 'q5-floor-c.svg', 'q5-floor-d.svg', 'q5-floor-e.svg', 'q6-sleep.svg', 'q7-smoking.svg', 'q8-social.svg',
 	'q9-diet.svg', 't-balance.svg', 't-chair-stands.svg', 't-skin-pinch.svg', 'g-waist-hip.svg',
-	'q4-stairs-a.svg', 'q4-stairs-b.svg', 'q4-stairs-c.svg', 'q4-stairs-d.svg', 'q4-stairs-e.svg' ), $plates );
+	'q4-stairs-a.svg', 'q4-stairs-b.svg', 'q4-stairs-c.svg', 'q4-stairs-d.svg', 'q4-stairs-e.svg' ), $plates, $people );
 $answers  = array_merge( $poses, $plates ); // every picture that sits on an answer, not at the top
 $palette  = array( '#004f59', '#3d8da0', '#e4e6ea', '#f8f9fb', '#ffffff' );
 $ease     = 'cubic-bezier(.4,0,.2,1)';
