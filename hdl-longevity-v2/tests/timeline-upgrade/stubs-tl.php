@@ -156,6 +156,7 @@ function tl_fresh( $switch = true, $db = '3.34' ) {
     $w->config->practitioner_user_id = 122;
     $wpdb = $w;
     $GLOBALS['options'] = array( 'hdlv2_db_version' => $db, 'hdlv2_ff_healthspan_timeline' => '1' );
+    $GLOBALS['current_user_id'] = 0; // the client's own link, no session
     if ( $switch ) {
         $GLOBALS['options']['hdlv2_ff_timeline_upgrade'] = '1';
     }
@@ -169,7 +170,7 @@ function tl_fresh( $switch = true, $db = '3.34' ) {
 function tl_load() {
     load_sources();
     $ROOT = __DIR__ . '/../../';
-    foreach ( array( 'includes/sprint-2/class-hdlv2-stage1-commentary.php', 'includes/sprint-2c/class-hdlv2-healthspan-timeline.php', 'includes/sprint-2c/class-hdlv2-timeline-upgrade.php' ) as $f ) {
+    foreach ( array( 'includes/sprint-2/class-hdlv2-stage1-commentary.php', 'includes/sprint-2c/class-hdlv2-healthspan-timeline.php', 'includes/sprint-2c/class-hdlv2-timeline-upgrade.php', 'includes/sprint-2c/class-hdlv2-timeline-links.php' ) as $f ) {
         if ( file_exists( $ROOT . $f ) ) require_once $ROOT . $f;
     }
 }
