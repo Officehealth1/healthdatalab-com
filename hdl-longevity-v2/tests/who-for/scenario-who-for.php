@@ -70,7 +70,7 @@ check( 'T2 people_for_timeline: an old row or nothing gives []', array() === $P:
 // Source: the timeline page carries it in full mode only.
 $tl = file_get_contents( __DIR__ . '/../../includes/sprint-2c/class-hdlv2-healthspan-timeline.php' );
 check( 'T3 the timeline reads stage2_data and sends key_people in full mode', false !== strpos( $tl, 'stage1_data, stage2_data, stage3_data' )
-    && 1 === preg_match( "/if \\( \\\$report && class_exists\\( 'HDLV2_Why_Picks' \\) \\) \\{\\s*\\\$people = HDLV2_Why_Picks::people_for_timeline\\( \\\$row->stage2_data \\);/", $tl ) );
+    && 1 === preg_match( "/if \\( \\\$full && class_exists\\( 'HDLV2_Why_Picks' \\) \\) \\{\\s*\\\$people = HDLV2_Why_Picks::people_for_timeline\\( \\\$row->stage2_data \\);/", $tl ) );
 
 echo "\n" . ( $fail ? "SCENARIO: FAIL ($fail)\n" : "SCENARIO: PASS ($pass)\n" );
 exit( $fail ? 1 : 0 );

@@ -79,7 +79,7 @@ $row = ticket_rows( $w )[0]['data'] ?? array();
 check( 'T2.1 200, no not_paid_mode', is_array( $r ) && ! empty( $r['token'] ) );
 check( 'T2.2 row source full_report', 'full_report' === ( $row['source'] ?? '' ) && 'cs_test_fr1' === ( $row['external_ref'] ?? '' ) );
 check( 'T2.3 expires in 90 days', abs( strtotime( $row['expires_at'] . ' UTC' ) - ( time() + 90 * DAY_IN_SECONDS ) ) < 60 );
-check( 'T2.4 answer carries the contract fields', is_array( $r ) && array_keys( $r ) === array( 'token', 'expires_at', 'idempotent', 'open_url', 'stage1_found', 'auto_confirmed' ) );
+check( 'T2.4 answer carries the contract fields (v0.48.82: timeline_granted last)', is_array( $r ) && array_keys( $r ) === array( 'token', 'expires_at', 'idempotent', 'open_url', 'stage1_found', 'auto_confirmed', 'timeline_granted' ) );
 check( 'T2.5 open_url opens the widget page with the ticket', is_array( $r ) && 'https://stby.example.test/rate-of-ageing-widget/?invite=' . $r['token'] === $r['open_url'] );
 check( 'T2.6 no lead → stage1_found false, auto_confirmed false, nothing else written', false === $r['stage1_found'] && false === $r['auto_confirmed'] && 0 === signups( $w ) && ! lead_updates( $w ) );
 check( 'T2.7 no email, no webhook', ! $GLOBALS['mails'] && ! $GLOBALS['captured_posts'] );

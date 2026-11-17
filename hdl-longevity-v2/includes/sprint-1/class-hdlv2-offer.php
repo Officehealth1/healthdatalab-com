@@ -49,6 +49,15 @@ class HDLV2_Offer {
         // The practitioner whose clients see this offer (Matthew: Altituding).
         // 0 = every practitioner.
         'practitioner_id'       => 122,
+        // v0.48.82 (plan 3) — the Healthspan Timeline as an upgrade (HDLV2_Timeline_Upgrade): $10 at
+        // checkout or for timeline_offer_days after the form, then $27 on its own. The links are
+        // Stripe payment links; empty = that offer is not shown.
+        'timeline_upgrade_price' => '10',
+        'timeline_alone_price'   => '27',
+        'timeline_upgrade_url'   => '',
+        'timeline_alone_url'     => '',
+        'timeline_video_url'     => '',
+        'timeline_offer_days'    => 7,
     );
 
     /** The defaults with the saved option laid over them, cleaned. Unknown keys are dropped. */
@@ -66,7 +75,7 @@ class HDLV2_Offer {
                 $out[ $k ] = absint( $v );
             } elseif ( is_bool( self::DEFAULTS[ $k ] ) ) {
                 $out[ $k ] = (bool) $v && 'false' !== $v && '0' !== $v;
-            } elseif ( 'url' === $k || 'video_url' === $k || 'challenge_url' === $k ) {
+            } elseif ( in_array( $k, array( 'url', 'video_url', 'challenge_url', 'timeline_upgrade_url', 'timeline_alone_url', 'timeline_video_url' ), true ) ) {
                 $out[ $k ] = esc_url_raw( (string) $v );
             } elseif ( substr( $k, -6 ) === '_price' ) {
                 $out[ $k ] = preg_match( '/^\d{1,6}(\.\d{1,2})?$/', (string) $v ) ? (string) $v : self::DEFAULTS[ $k ];

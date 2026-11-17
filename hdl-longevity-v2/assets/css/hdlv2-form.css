@@ -2623,6 +2623,33 @@
   border-left: 3px solid #e4e6ea;
   border-radius: 0 8px 8px 0;
 }
+/* v0.48.82 (plan 3) — the Timeline upgrade under the thank-you: the note box's soft fill, the card's own type. */
+.hdlv2-ty-timeline {
+  margin: 0 32px 28px;
+  padding: 22px 24px;
+  background: #f8f9fb;
+  border-radius: 12px;
+  color: #2c3e50;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+.hdlv2-ty-timeline-video {
+  aspect-ratio: 16 / 9;
+  margin: 0 0 18px;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #e4e6ea;
+}
+.hdlv2-ty-timeline-video iframe { display: block; width: 100%; height: 100%; border: 0; }
+.hdlv2-ty-timeline-line { font-size: 15px; line-height: 1.7; margin: 0 0 10px; }
+.hdlv2-ty-timeline-btn { display: inline-block; margin: 8px 0 12px; background: #3d8da0; color: #ffffff; text-decoration: none; }
+.hdlv2-ty-timeline-btn:focus-visible { outline: 2px solid #004F59; outline-offset: 2px; }
+.hdlv2-ty-timeline-small { font-size: 13px; line-height: 1.6; color: #666666; margin: 0; }
+@media (max-width: 480px) {
+  .hdlv2-ty-timeline { margin: 0 16px 22px; padding: 18px; }
+  .hdlv2-ty-timeline-btn { display: block; text-align: center; }
+}
+/* end timeline upgrade */
+
 .hdlv2-ty-link {
   color: #3d8da0;
   text-decoration: none;

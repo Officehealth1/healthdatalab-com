@@ -231,7 +231,7 @@ $GLOBALS['options']['hdlv2_stage1_offer'] = array( 'challenge_price' => 'free', 
 $o = HDLV2_Offer::get();
 $offer_src = file_get_contents( dirname( __DIR__, 2 ) . '/includes/sprint-1/class-hdlv2-offer.php' );
 check( 'R11.6 a bad price falls back to the default; a missing hook is the default; challenge_url is cleaned as a url', '27' === $o['challenge_price'] && 'A video for every one of your 30 days' === $o['challenge_hook']
-    && 1 === preg_match( "/'url' === \\\$k \\|\\| 'video_url' === \\\$k \\|\\| 'challenge_url' === \\\$k/", $offer_src ) );
+    && 1 === preg_match( "/in_array\\( \\\$k, array\\( 'url', 'video_url', 'challenge_url',/", $offer_src ) ); // v0.48.82: the address keys in one list
 
 echo "── R11b. no videos yet: the card stays, greyed, \"Coming soon\" (v0.48.52, Quim 2026-11-05) ──\n";
 $w = fresh();
