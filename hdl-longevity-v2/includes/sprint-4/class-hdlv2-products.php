@@ -150,7 +150,7 @@ class HDLV2_Products {
         } elseif ( $prac_id && HDLV2_Offer::applies_to( $prac_id ) ) {
             $o    = HDLV2_Offer::get();
             $full = self::item( 'full_report', 'Full Report', 'not-yet', 'Today ' . HDLV2_Offer::money( $o['full_today_price'], $o ),
-                add_query_arg( 'code', rawurlencode( $o['code'] ), $o['url'] ), HDLV2_Offer::money( $o['full_today_price'], $o ) );
+                $o['url'], HDLV2_Offer::money( $o['full_today_price'], $o ) );
         } else {
             $full = self::item( 'full_report', 'Full Report', 'not-yet', $ask );
         }

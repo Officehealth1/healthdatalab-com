@@ -385,14 +385,11 @@ class HDLV2_Healthspan_Timeline {
         if ( '' === $o['url'] || ( null !== $practitioner_id && ! HDLV2_Offer::applies_to( $practitioner_id ) ) ) {
             return array( 'line' => 'Your loved ones unlock with the full report.' );
         }
-        $today = HDLV2_Offer::money( $o['full_today_price'], $o );
+        // v0.48.73 — one price for everyone (no code), so the open page and a known client see the same line.
         return array(
-            // v0.48.60: the open page has no code to give, so it says where the code is.
-            'line'   => null === $practitioner_id
-                ? 'Your loved ones unlock with the Full Report (today ' . $today . ' with the code from your email).'
-                : 'Your loved ones unlock with the full report (today ' . $today . ').',
+            'line'   => 'Your loved ones unlock with the full report (today ' . HDLV2_Offer::money( $o['full_today_price'], $o ) . ').',
             'button' => 'Get the full report',
-            'url'    => null === $practitioner_id ? $o['url'] : add_query_arg( 'code', rawurlencode( $o['code'] ), $o['url'] ),
+            'url'    => $o['url'],
         );
     }
 

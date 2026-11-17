@@ -130,7 +130,7 @@ check( 'R1 Kim (stage1-done): one row, seven panels in order, Today open', $pm[1
     && false !== strpos( $k, '<section data-tab-panel="today" class="cdp-panel cdp-panel-active"><div class="hdlv2-cd">' ) );
 check( 'R2 Kim: no tile strip, no second tab row, no launcher popup', false === strpos( $k, 'class="cdp-products"' ) && 1 === substr_count( $k, 'role="tablist" aria-label="Dashboard sections"' ) && false === strpos( $k, 'data-inbox-open' ) );
 check( 'R3 Kim: the Full Report tab sells at the offer price, Flight Plan asks, the gauge sits under Stage 1',
-    1 === preg_match( '#data-tab-panel="report"[^>]*>.*?href="https://altituding.com/full-report\?code=YOURCODE">Get the Full Report · Today \$27</a>#su', $k )
+    1 === preg_match( '#data-tab-panel="report"[^>]*>.*?href="https://altituding.com/full-report">Get the Full Report · Today \$27</a>#su', $k )
     && 1 === preg_match( '#data-tab-panel="flight_plan"[^>]*>.*?data-open-tab="messages">Ask Matthew D&\#039;haemer</button>#s', $k )
     && 1 === preg_match( '#data-tab-panel="stage1"[^>]*>.*?<img class="cdp-report-gauge"#s', $k ) ); // v0.48.41: the Stage 1 report's image
 check( 'R4 Kim: Today keeps the hero, the waiting card and "How the assessment unfolds"', false !== strpos( $k, 'cd-hero-title' ) && false !== strpos( $k, 'waiting on your practitioner' ) && false !== strpos( $k, 'How the assessment unfolds' ) );

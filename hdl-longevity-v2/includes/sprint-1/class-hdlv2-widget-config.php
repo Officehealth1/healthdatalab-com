@@ -947,7 +947,6 @@ class HDLV2_Widget_Config {
             'form_token'               => ! empty( $row->stage1_cache_token ) ? (string) $row->stage1_cache_token : bin2hex( hash( 'sha256', $practitioner_id . '|' . $email, true ) ),
             'config'                   => $config,
             'invite_id'                => null,
-            'offer_ref'                => 'lead-' . (int) $row->id,
             // v0.41.24 — Make.com Module 40 sends the practitioner's "New Lead" email.
             'send_practitioner_notify' => false,
             'send_make_pdf'            => true,
@@ -1218,7 +1217,6 @@ class HDLV2_Widget_Config {
         $stage1_data     = $args['stage1_data'];
         $form_token      = $args['form_token'];
         $config          = $args['config'];
-        $invite_id       = $args['invite_id'] ?? null;
         $send_notify     = ! empty( $args['send_practitioner_notify'] );
         $send_make_pdf   = ! empty( $args['send_make_pdf'] );
 
@@ -1493,11 +1491,9 @@ class HDLV2_Widget_Config {
             // setting: HDLV2_Offer). offer_show "0" hides page 2 for a buyer who
             // already paid for the Full Report. v0.48.50: + offer_code_ends.
             + HDLV2_Offer::payload_keys( $offer_show );
-            // v0.48.18 — where the offer shows, this person's own one-use code
-            // (same keys, so Make and the template are unchanged); v0.48.50 its end date.
+            // Where the offer shows, the link carries the lead's address (v0.48.73: no code).
             if ( $offer_show ) {
-                $offer_ref   = $args['offer_ref'] ?? ( $invite_id ? 'invite-' . (int) $invite_id : '' );
-                $pdf_payload = array_merge( $pdf_payload, HDLV2_Offer::personal( $offer_ref, $visitor_email, $band ) );
+                $pdf_payload = array_merge( $pdf_payload, HDLV2_Offer::personal( $visitor_email ) );
             }
 
             $stage1_webhook = defined( 'HDLV2_MAKE_STAGE1_PDF' ) ? HDLV2_MAKE_STAGE1_PDF : '';
