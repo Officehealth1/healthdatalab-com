@@ -1492,9 +1492,10 @@ class HDLV2_Widget_Config {
             // already paid for the Full Report. v0.48.50: + offer_code_ends.
             + HDLV2_Offer::payload_keys( $offer_show );
             // Where the offer shows, the link carries the lead's address (v0.48.73: no code)
-            // and opens the buying page for the lead's band (v0.48.77).
+            // and opens the buying page for the lead's band (v0.48.77); v0.48.81 (plan 2h): + the
+            // inbox pass, behind hdlv2_ff_straight_to_form.
             if ( $offer_show ) {
-                $pdf_payload = array_merge( $pdf_payload, HDLV2_Offer::personal( $visitor_email, $band ) );
+                $pdf_payload = array_merge( $pdf_payload, HDLV2_Offer::personal( $visitor_email, $band, $practitioner_id ) );
             }
 
             $stage1_webhook = defined( 'HDLV2_MAKE_STAGE1_PDF' ) ? HDLV2_MAKE_STAGE1_PDF : '';

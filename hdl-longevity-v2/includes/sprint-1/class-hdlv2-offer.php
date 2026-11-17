@@ -28,6 +28,9 @@ class HDLV2_Offer {
 
     const OPTION = 'hdlv2_stage1_offer';
 
+    /** v0.48.81 (plan 2h) — how long the inbox pass in a results e-mail works (planner's guess; Quim confirms before live). */
+    const INBOX_PASS_DAYS = 3;
+
     /** One source for the partnership line on every page a buyer reaches. */
     const PARTNER_LINE = 'Powered by HealthDataLab · a partnership focused on longevity';
 
@@ -118,16 +121,50 @@ class HDLV2_Offer {
      *
      * v0.48.77: the link opens the buying page for the lead's band (band_url).
      *
-     * @param string $email the lead's address; left out of the link when not valid.
-     * @param string $band  HDLV2_Stage1_Commentary::band_key() of the lead's rate ('' = none).
+     * v0.48.81 (plan 2h): with hdlv2_ff_straight_to_form on, the fragment also carries
+     * &own=<inbox pass>. The e-mail and the PDF are the only places it goes (this one key,
+     * offer_url); the result page's button never gets one. Switch off: today's link.
+     *
+     * @param string $email           the lead's address; left out of the link when not valid.
+     * @param string $band            HDLV2_Stage1_Commentary::band_key() of the lead's rate ('' = none).
+     * @param int    $practitioner_id the lead's practitioner; no pass without one.
      * @return array { offer_code, offer_url, offer_code_ends }
      */
-    public static function personal( $email = '', $band = '' ) {
+    public static function personal( $email = '', $band = '', $practitioner_id = 0 ) {
+        $url = self::with_email( self::band_url( $band ), $email );
+        if ( get_option( 'hdlv2_ff_straight_to_form', false ) && is_email( $email ) && absint( $practitioner_id ) ) {
+            $url .= '&own=' . self::inbox_pass( $email, $practitioner_id );
+        }
         return array(
             'offer_code'      => '',
-            'offer_url'       => self::with_email( self::band_url( $band ), $email ),
+            'offer_url'       => $url,
             'offer_code_ends' => '',
         );
+    }
+
+    /**
+     * v0.48.81 (plan 2h) — the inbox pass: "<unix time>.<64 hex>", signed with the site's auth salt
+     * (the pattern of HDLV2_Timeline_Links::consent_key). Nothing is stored; a changed salt ends
+     * every pass. It proves the browser opened what we sent to that inbox, nothing more:
+     * HDL_Stage1_Ticket::handle_open() accepts it only with a fresh payment for the same e-mail.
+     */
+    public static function inbox_pass( $email, $practitioner_id, $time = null ) {
+        $time = null === $time ? time() : (int) $time;
+        $msg  = 'hdlv2-inbox-pass|' . absint( $practitioner_id ) . '|' . strtolower( trim( (string) $email ) ) . '|' . $time;
+        return $time . '.' . hash_hmac( 'sha256', $msg, wp_salt( 'auth' ) );
+    }
+
+    /** True for a pass made for this e-mail and practitioner, under INBOX_PASS_DAYS old, not from the future. */
+    public static function inbox_pass_ok( $pass, $email, $practitioner_id, $now = null ) {
+        if ( ! is_string( $pass ) || ! preg_match( '/^(\d{10})\.[a-f0-9]{64}$/', $pass, $m ) ) {
+            return false;
+        }
+        $now  = null === $now ? time() : (int) $now;
+        $made = (int) $m[1];
+        if ( $made > $now + MINUTE_IN_SECONDS || $made < $now - self::INBOX_PASS_DAYS * DAY_IN_SECONDS ) {
+            return false;
+        }
+        return hash_equals( self::inbox_pass( $email, $practitioner_id, $made ), $pass );
     }
 
     /**
