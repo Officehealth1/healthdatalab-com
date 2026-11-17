@@ -221,5 +221,8 @@ t('9.4 no browser pop-up anywhere in the widget', () => !/\b(confirm|alert|promp
 t('9.5 the buttons are real buttons with a visible focus ring', () =>
   count('<button type="button" class="hdlw-resume-') === 3 && /\.hdlw-resume button:focus-visible\{outline:2px solid/.test(styles.join('\n')));
 
+t('9.6 the text buttons use the text colour, not the practitioner\u2019s own colour (a pale one would not read on the light fill)', () =>
+  /\.hdlw-resume button\{[^}]*;color:' \+ B\.dark \+ ';/.test(styles.join('\n')) && !/\.hdlw-resume button\{[^}]*hdl-accent/.test(styles.join('\n')));
+
 console.log('\n' + PASS + ' passed, ' + FAIL + ' failed');
 process.exit(FAIL ? 1 : 0);

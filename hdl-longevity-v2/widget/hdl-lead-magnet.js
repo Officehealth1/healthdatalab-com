@@ -465,7 +465,7 @@
     s.id = 'hdl-resume-style';
     s.textContent = '.hdlw-resume{margin:16px 28px 0;background:' + B.bg + ';border:1px solid ' + B.border + ';border-radius:' + B.radius + ';padding:12px 16px;font-family:' + B.body + ';font-size:13px;line-height:1.55;color:' + B.text + ';}'
       + '.hdlw-resume p{margin:0 0 4px;}'
-      + '.hdlw-resume button{background:none;border:0;padding:6px 0;margin:0 18px 0 0;font:inherit;font-weight:600;color:var(--hdl-accent-deep,#004F59);text-decoration:underline;cursor:pointer;}'
+      + '.hdlw-resume button{background:none;border:0;padding:6px 0;margin:0 18px 0 0;font:inherit;font-weight:600;color:' + B.dark + ';text-decoration:underline;cursor:pointer;}'
       + '.hdlw-resume button:focus-visible{outline:2px solid var(--hdl-accent,#3d8da0);outline-offset:2px;}';
     document.head.appendChild(s);
   }
