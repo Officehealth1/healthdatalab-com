@@ -44,6 +44,20 @@ export const EDITS = [
                   : '<h2 class="hdlw-r-thanks-headline">Thank you.</h2>'
                   + '<p class="hdlw-r-thanks-body">Your practitioner has been sent your data. Once they have looked at your data, you will receive another email.</p>' )
 `],
+  // v0.48.80 (plan 2f) — a finish wipes the answers kept in the browser and tells the host page: one line at the
+  // top of saved() and of held(). Nothing else in renderResult moved.
+  [String.raw`
+      function saved(data) {
+        var sent`, String.raw`
+      function saved(data) {
+        finished();
+        var sent`],
+  [String.raw`
+      function held() {
+        var sent`, String.raw`
+      function held() {
+        finished();
+        var sent`],
 ];
 
 /** The base renderResult with the 2c edits applied, or null when a piece is missing. */
