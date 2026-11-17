@@ -116,11 +116,6 @@ class HDLV2_Healthspan_Timeline {
         return add_query_arg( 't', $token, self::page_url() );
     }
 
-    /** Beside the offer fields in /widget/public-config: the widget's teaser shows only when this is present. */
-    public static function public_config_fields() {
-        return self::enabled() ? array( 'timeline_url' => self::page_url() ) : array();
-    }
-
     /**
      * What the page prints. '' token → preview with no numbers; an unknown, deleted or
      * expired token (without the client's or the owning practitioner's cookie) → array().

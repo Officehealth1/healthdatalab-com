@@ -266,9 +266,8 @@ check( 'science shown when hdlv2_ht_show_science = 1', true === $T::page_data( '
 $db = fresh();
 $GLOBALS['options'] = array();
 check( 'flag off → shortcode prints nothing', '' === $T::render_shortcode() );
-check( 'flag off → no widget public-config field', array() === $T::public_config_fields() );
+check( 'no widget public-config field (v0.48.77: the result-page teaser is gone)', ! method_exists( $T, 'public_config_fields' ) );
 $GLOBALS['options']['hdlv2_ff_healthspan_timeline'] = '1';
-check( 'flag on → widget public-config carries timeline_url', array( 'timeline_url' => 'https://stby.test/healthspan-timeline/' ) === $T::public_config_fields() );
 $html = $T::render_shortcode();
 check( 'flag on, no token → mount + window.HDLV2_HT printed', false !== strpos( $html, 'id="hdlv2-ht-root"' ) && 1 === count( $GLOBALS['inline'] ) && 0 === strpos( $GLOBALS['inline'][0], 'window.HDLV2_HT = {' ) );
 $GLOBALS['inline'] = array();

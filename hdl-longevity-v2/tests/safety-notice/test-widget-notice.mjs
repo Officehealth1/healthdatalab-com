@@ -9,6 +9,7 @@
 import fs from 'node:fs';
 import vm from 'node:vm';
 import { execFileSync } from 'node:child_process';
+import { undo2c } from '../result-offer/render-result-2c.mjs'; // v0.48.77: the 2c edits are checked there
 import { fileURLToPath } from 'node:url';
 
 let PASS = 0, FAIL = 0;
@@ -35,7 +36,7 @@ ok(rcOld.indexOf(CALL_OLD) > 0 && rcNew === rcOld.replace(CALL_OLD, CALL_NEW), '
 const cfgLine = '    cfg.safetyNotice = (publicCfg && publicCfg.safety_notice) || (invite && invite.safety_notice) || null; // v0.48.66\n';
 ok(js.indexOf(cfgLine) > 0, 'cfg.safetyNotice read from the public config or the invite payload');
 const ACK_LINE = '      if (answers._safetyAck) payload.safety_ack = answers._safetyAck; // v0.48.66\n';
-const rrOld = cutIn(old, '    function renderResult() {', '\n    }\n'), rrNew = cutIn(js, '    function renderResult() {', '\n    }\n');
+const rrOld = cutIn(old, '    function renderResult() {', '\n    }\n'), rrNew = undo2c(cutIn(js, '    function renderResult() {', '\n    }\n')); // v0.48.77 (2c) taken out
 const SAFETY_LINE = '      if (answers._safety) payload.safety = answers._safety;\n';
 ok(rrNew === rrOld.replace(SAFETY_LINE, SAFETY_LINE + ACK_LINE), 'renderResult changed by the one safety_ack line only, after payload.safety');
 

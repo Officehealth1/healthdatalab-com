@@ -116,15 +116,51 @@ class HDLV2_Offer {
      * (flat $27, Matthew 2026-11-16), so nothing is asked of Altituding; the link
      * carries the lead's address in its fragment so the page locks it at Stripe.
      *
+     * v0.48.77: the link opens the buying page for the lead's band (band_url).
+     *
      * @param string $email the lead's address; left out of the link when not valid.
+     * @param string $band  HDLV2_Stage1_Commentary::band_key() of the lead's rate ('' = none).
      * @return array { offer_code, offer_url, offer_code_ends }
      */
-    public static function personal( $email = '' ) {
+    public static function personal( $email = '', $band = '' ) {
         return array(
             'offer_code'      => '',
-            'offer_url'       => self::with_email( self::get()['url'], $email ),
+            'offer_url'       => self::with_email( self::band_url( $band ), $email ),
             'offer_code_ends' => '',
         );
+    }
+
+    /**
+     * v0.48.77 (plan 2c) — the buying page for a band: the offer url plus -slower, -average or
+     * -faster; an unknown or empty band gets the url unchanged.
+     */
+    public static function band_url( $band ) {
+        // ponytail: the buying page must answer at <url>-<band word>; a different offer url needs
+        // the same three rewrites on its own site (Altituding's netlify.toml has them for /full-report).
+        $words = array( 'green' => 'slower', 'blue' => 'average', 'red' => 'faster' );
+        $url   = self::get()['url'];
+        return isset( $words[ $band ] ) && '' !== $url ? rtrim( $url, '/' ) . '-' . $words[ $band ] : $url;
+    }
+
+    /**
+     * v0.48.77 (plan 2c) — the Stage 1 result page's offer, behind hdlv2_ff_result_offer, for the
+     * offer's practitioner only: the price, the three band pages and the offer film for a band
+     * with no video. The widget adds the visitor's own e-mail; nothing personal is sent here.
+     */
+    public static function result_offer_fields( $practitioner_id ) {
+        if ( ! get_option( 'hdlv2_ff_result_offer', false ) || ! self::applies_to( $practitioner_id ) ) {
+            return array();
+        }
+        $o = self::get();
+        return array( 'result_offer' => array(
+            'today'     => self::money( $o['full_today_price'], $o ),
+            'band_urls' => array(
+                'green' => self::band_url( 'green' ),
+                'blue'  => self::band_url( 'blue' ),
+                'red'   => self::band_url( 'red' ),
+            ),
+            'video_url' => $o['video_url'],
+        ) );
     }
 
     /**
