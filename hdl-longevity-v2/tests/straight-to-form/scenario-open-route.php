@@ -28,9 +28,19 @@ class OpenWpdb extends FakeWpdb {
     public $registered_ago = array(); // user id → seconds since user_registered
     public function get_var( $sql ) {
         $this->queries[] = $sql;
-        if ( preg_match( '/FROM wp_users WHERE ID = (\d+) AND user_registered >= UTC_TIMESTAMP\(\) - INTERVAL 20 MINUTE/', $sql, $m ) ) {
+        if ( false !== strpos( $sql, 'FROM wp_users u' ) && preg_match( '/u\.ID = (\d+)/', $sql, $m ) && preg_match( '/t\.id = (\d+)/', $sql, $t ) ) {
             $ago = $this->registered_ago[ (int) $m[1] ] ?? null;
-            return null !== $ago && $ago <= 20 * 60 ? '1' : null;
+            $row = null;
+            foreach ( $this->tickets as $x ) { if ( (int) $x->id === (int) $t[1] ) $row = $x; }
+            if ( null === $ago || ! $row ) return null;
+            $holds = true;
+            // Made by this purchase: no older than the ticket (5 s for the same-second insert)…
+            if ( false !== strpos( $sql, 'TIMESTAMPDIFF(SECOND, u.user_registered, UTC_TIMESTAMP()) <= TIMESTAMPDIFF(SECOND, t.created_at, NOW()) + 5' ) ) $holds = $holds && $ago <= $row->made_ago + 5;
+            else $holds = false; // a query without the ticket clause must not pass
+            // …and never more than 20 minutes old.
+            if ( false !== strpos( $sql, 'u.user_registered >= UTC_TIMESTAMP() - INTERVAL 20 MINUTE' ) ) $holds = $holds && $ago <= 20 * 60;
+            else $holds = false;
+            return $holds ? '1' : null;
         }
         return null;
     }
@@ -140,8 +150,12 @@ echo "── OR7 / OR8. the account ──\n";
 $w = setup();
 check( 'OR7.1 no account yet: yes', $YES === ask() );
 check( 'OR7.2 the ticket is now opened', 'opened' === status_after( $w ) );
-$w = setup( array(), array( 'id' => 52, 'ago' => 5 * 60 ) );
-check( 'OR8.1 an account made 5 minutes ago (by this purchase): yes', $YES === ask() );
+$w = setup( array( 'made_ago' => 6 * 60 ), array( 'id' => 52, 'ago' => 5 * 60 ) );
+check( 'OR8.1 an account made 5 minutes ago, after the 6-minute-old ticket (by this purchase): yes', $YES === ask() );
+$w = setup( array( 'made_ago' => 60 ), array( 'id' => 55, 'ago' => 60 ) );
+check( 'OR8.1b made in the same second as the ticket (the purchase\'s own confirm): yes', $YES === ask() );
+$w = setup( array( 'made_ago' => 60 ), array( 'id' => 56, 'ago' => 10 * 60 ) );
+check( 'OR8.1c made 10 minutes ago by something else, before this 1-minute-old ticket (a practitioner\'s Confirm): no', $NO === ask() && 'pending' === status_after( $w ) );
 $w = setup( array(), array( 'id' => 53, 'ago' => 25 * 60 ) );
 check( 'OR8.2 an account made 25 minutes ago: no, ticket pending', $NO === ask() && 'pending' === status_after( $w ) );
 $w = setup( array(), array( 'id' => 54, 'ago' => 400 * DAY_IN_SECONDS ) );

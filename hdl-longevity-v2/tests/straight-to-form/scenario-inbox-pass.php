@@ -34,7 +34,7 @@ $GLOBALS['options']['hdlv2_ff_straight_to_form'] = '1';
 $url = HDLV2_Offer::personal( 'ivy+x@example.test', 'red', 122 )['offer_url'];
 $own = preg_match( '/&own=([^&]*)$/', $url, $m ) ? $m[1] : '';
 check( 'IP2.1 the link is today\'s plus &own=<10 digits>.<64 hex>', 0 === strpos( $url, $TODAY . '&own=' ) && preg_match( $SHAPE, $own ) );
-check( 'IP2.2 the pass time is now', abs( (int) $own - time() ) < 5 );
+check( 'IP2.2 the pass time is now', abs( (int) explode( '.', $own )[0] - time() ) < 5 );
 check( 'IP2.3 no pass without a good e-mail', 'https://altituding.com/full-report-faster' === HDLV2_Offer::personal( 'not an email', 'red', 122 )['offer_url'] );
 check( 'IP2.4 no pass without a practitioner', $TODAY === HDLV2_Offer::personal( 'ivy+x@example.test', 'red', 0 )['offer_url']
     && $TODAY === HDLV2_Offer::personal( 'ivy+x@example.test', 'red' )['offer_url'] );

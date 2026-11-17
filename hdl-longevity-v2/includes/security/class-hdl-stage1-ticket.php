@@ -123,10 +123,13 @@ class HDL_Stage1_Ticket {
             return self::open_no( 'pass' );
         }
         // Never into an account that held anything before this purchase: only none yet, or the one
-        // the purchase's own confirm made (user_registered is stored in UTC).
+        // the purchase's own confirm made, so no older than the ticket (5 s for the same-second
+        // insert) and never over 20 minutes. Ages, not times: user_registered is UTC, created_at
+        // the database's own clock.
         if ( $user_id && ! $wpdb->get_var( $wpdb->prepare(
-            "SELECT 1 FROM {$wpdb->users} WHERE ID = %d AND user_registered >= UTC_TIMESTAMP() - INTERVAL 20 MINUTE",
-            $user_id
+            "SELECT 1 FROM {$wpdb->users} u, $table t WHERE u.ID = %d AND t.id = %d AND TIMESTAMPDIFF(SECOND, u.user_registered, UTC_TIMESTAMP()) <= TIMESTAMPDIFF(SECOND, t.created_at, NOW()) + 5 AND u.user_registered >= UTC_TIMESTAMP() - INTERVAL 20 MINUTE",
+            $user_id,
+            (int) $ticket->id
         ) ) ) {
             return self::open_no( 'account' );
         }
