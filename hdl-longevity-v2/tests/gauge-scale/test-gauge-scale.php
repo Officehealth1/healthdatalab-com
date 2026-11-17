@@ -69,9 +69,27 @@ foreach ( array( array( 0.5, 0.8 ), array( 2.0, 1.4 ), array( 1.004, 1.0 ), arra
 }
 ok( 'P1 no rate, no picture, flag on or off', '' === gauge( 0, '1' ) && '' === gauge( 0, null ) );
 
-// The saved picture's cache version moved (the code's own rule on any gauge change).
+// P6 (closing rows, 2026-11-17): the saved picture's name. Flag absent, every saved gauge keeps its 33a3001 name
+// (cache "v5"), so a merge re-makes none of them; flag on, the address differs, so its fingerprint gives a new file.
+$GLOBALS['up'] = sys_get_temp_dir() . '/hdlv2-gauge-test-' . getmypid();
+function wp_upload_dir() { return array( 'basedir' => $GLOBALS['up'], 'baseurl' => 'https://stby.test/up' ); }
+function wp_mkdir_p( $d ) { return is_dir( $d ) || mkdir( $d, 0700, true ); }
+function wp_remote_get( $u, $a = array() ) { return array( 'body' => str_repeat( 'p', 2000 ) ); }
+function wp_remote_retrieve_response_code( $r ) { return 200; }
+function wp_remote_retrieve_body( $r ) { return $r['body']; }
+$tok   = str_repeat( 'ab', 16 );
+$saved = function ( $flag ) use ( $tok ) {
+    $url = gauge( 1.11, $flag );
+    return array( $url, (string) HDLV2_Widget_Config::prerender_gauge_png( $url, $tok, 'stage1' ) );
+};
+list( $u_off, $n_off ) = $saved( null );
+list( $u_on, $n_on )   = $saved( '1' );
+ok( 'P6 flag absent: the saved name is 33a3001\'s (cache v5, same fingerprint)', 'https://stby.test/up/hdlv2-gauges/' . $tok . '-stage1-v5-' . substr( hash( 'sha256', $u_off ), 0, 12 ) . '.png' === $n_off );
+ok( 'P6 flag on: a new saved file (its own fingerprint)', '' !== $n_on && $n_on !== $n_off && false !== strpos( $n_on, substr( hash( 'sha256', $u_on ), 0, 12 ) ) );
+array_map( 'unlink', glob( $GLOBALS['up'] . '/hdlv2-gauges/*' ) ?: array() );
+@rmdir( $GLOBALS['up'] . '/hdlv2-gauges' );
+@rmdir( $GLOBALS['up'] );
 $src = file_get_contents( dirname( __DIR__, 2 ) . '/includes/sprint-1/class-hdlv2-widget-config.php' );
-ok( 'cache version v6 in prerender_gauge_png()', 1 === preg_match( "/\\\$cache_version = 'v6';/", $src ) );
 $read = "get_option( 'hdlv2_ff_gauge_scale'";
 ok( 'the flag is read once, inside stage1_report_gauge_url(); build_gauge_url() (the practitioner\'s notice) never reads it',
     1 === substr_count( $src, $read ) && strpos( $src, 'function stage1_report_gauge_url' ) < strpos( $src, $read ) && strpos( $src, $read ) < strpos( $src, 'function build_gauge_url' ) );

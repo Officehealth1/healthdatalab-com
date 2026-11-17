@@ -1590,7 +1590,7 @@ class HDLV2_Widget_Config {
         // PNGs (every existing client kept seeing the duplicate value
         // text baked into the pixels). See class-hdlv2-staged-form.php
         // build_gauge_url for the current settings.
-        $cache_version = 'v6';   // bump on any gauge_url config change (v0.48.75: the scale on the Stage 1 curve; v0.47.4: rate-sensitive key — was keyed only on practitioner|email, served stale needle on rate change; v0.32.0 HDL status palette)
+        $cache_version = 'v5';   // bump only if the picture can change while its address stays the same: the address fingerprint below already gives any changed gauge setting its own file (v0.48.76: v0.48.75's v6 taken back, so a merge re-makes no saved picture; v0.47.4: rate-sensitive key — was keyed only on practitioner|email, served stale needle on rate change; v0.32.0 HDL status palette)
         // Fingerprint the actual gauge URL (encodes rate + colours) so a changed rate
         // for the same practitioner|email re-renders instead of serving a stale needle.
         $url_fp   = substr( hash( 'sha256', (string) $remote_url ), 0, 12 );
