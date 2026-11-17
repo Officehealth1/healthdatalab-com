@@ -58,9 +58,13 @@ if ( $has ) {
     check( 'L5 a key missing from the scores counts as not provided', array( 'Blood pressure' ) === $L( $gone ) );
     check( 'L6 keys outside the twenty are ignored (skin, overall, made-up)', array() === $L( array_merge( $SCORES, array( 'skinElasticity' => null, 'overallHealthScore' => null, 'nope' => null ) ) ) );
     check( "L7 a score that is not a number ('', 'skip') is not provided", array( 'Physical activity', 'Balance' ) === $L( array_merge( $SCORES, array( 'physicalActivity' => '', 'balance' => 'skip' ) ) ) );
-    $all = $L( array() );
-    check( 'L8 nothing scored: all twenty labels, from the one label map', 20 === count( $all ) && 'Physical activity' === $all[0] && 'Heart rate' === $all[19]
-        && $all === array_map( array( 'HDLV2_Email_Templates', 'score_key_to_label' ), array_keys( HDLV2_Final_Report::RADAR_INPUTS ) ) );
+    // Review fix: a draft whose stored scores are missing (older rows lost server_result) has no chart at
+    // all; naming all twenty would tell a client who answered everything that they gave nothing.
+    check( 'L8 no scores at all (an older row): an empty list, the page reads as today', array() === $L( array() ) );
+    $one = array( 'heartRateScore' => 4 );
+    $all = $L( $one );
+    check( 'L8b one score only: the other nineteen, from the one label map', 19 === count( $all ) && 'Physical activity' === $all[0] && 'Blood pressure' === $all[18]
+        && $all === array_map( array( 'HDLV2_Email_Templates', 'score_key_to_label' ), array_slice( array_keys( HDLV2_Final_Report::RADAR_INPUTS ), 0, 19 ) ) );
     check( 'L9 not an array: an empty list (nothing to name)', array() === $L( null ) );
 }
 
@@ -97,6 +101,12 @@ $on = $draft();
 check( 'D2 switch on: calc.not_provided is [ "Blood pressure" ]', is_array( $on ) && array( 'Blood pressure' ) === ( $on['calc']['not_provided'] ?? null ) );
 $c_on = $on['calc'] ?? array(); unset( $c_on['not_provided'] );
 check( 'D3 switch on: every other part of calc is the same', is_array( $off ) && $off['calc'] === $c_on );
+// Review fix: the same page for an older row whose stage3 lost server_result (calc falls back to report content).
+$s3 = json_decode( $wpdb->progress->stage3_data, true ); unset( $s3['server_result'] );
+$keep = $wpdb->progress->stage3_data; $wpdb->progress->stage3_data = json_encode( $s3 );
+$old = $draft();
+check( 'D4 switch on, a row with no stored scores: not_provided is empty, so the page reads as today', is_array( $old ) && array() === ( $old['calc']['not_provided'] ?? null ) );
+$wpdb->progress->stage3_data = $keep;
 unset( $GLOBALS['options']['hdlv2_ff_empty_values'] );
 echo "\n" . ( $fail ? "SCENARIO: FAIL ($fail)\n" : "SCENARIO: PASS ($pass)\n" );
 exit( $fail ? 1 : 0 );

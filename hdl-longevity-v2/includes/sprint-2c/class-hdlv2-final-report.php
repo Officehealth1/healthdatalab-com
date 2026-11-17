@@ -72,9 +72,10 @@ class HDLV2_Final_Report {
     /**
      * v0.48.79 (M39) — the labels of the radar's inputs that have no score, in the radar's order, for
      * the report page's "Not provided" line. A score of 0 is a score. Labels from the one map.
+     * No scores at all (an older row that lost server_result) draws no chart, so nothing is named.
      */
     public static function inputs_not_provided( $scores ) {
-        if ( ! is_array( $scores ) ) return array();
+        if ( ! is_array( $scores ) || empty( $scores ) ) return array();
         $missing = array();
         foreach ( array_keys( self::RADAR_INPUTS ) as $key ) {
             if ( ! isset( $scores[ $key ] ) || ! is_numeric( $scores[ $key ] ) ) {
