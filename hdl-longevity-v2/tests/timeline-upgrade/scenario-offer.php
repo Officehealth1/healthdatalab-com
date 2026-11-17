@@ -103,7 +103,7 @@ check( 'O8.1 a buyer without the Timeline: timeline_offer with price, worth, dat
 check( 'O8.2 no sign-in address and no e-mail other than the one locked in the Stripe link', false === strpos( json_encode( $c ), '?t=' ) && 1 === substr_count( json_encode( $c ), '%40' ) );
 check( 'O8.3 an owner → timeline_owned true', array( 'timeline_owned' => true ) === $U::card_fields( buyer_row( tl_fresh(), '2026-11-17 15:30:00', 'cs_test_paid' ), $DAY1 ) );
 $w = tl_fresh();
-check( 'O8.4 no Stripe ticket (keeps the Timeline) → timeline_owned true', array( 'timeline_owned' => true ) === $U::card_fields( tl_progress( 41, 'fr1+x@example.test', '2026-11-17 15:30:00' ), $DAY1 ) );
+check( 'O8.4 no Stripe ticket (the practitioner\'s own client keeps the Timeline) → nothing (today\'s card, plan § 6.1 / W3 step 6)', array() === $U::card_fields( tl_progress( 41, 'fr1+x@example.test', '2026-11-17 15:30:00' ), $DAY1 ) );
 $w = tl_fresh( false );
 check( 'O8.5 switch absent → nothing', array() === $U::card_fields( buyer_row( $w ), $DAY1 ) );
 $w = tl_fresh();

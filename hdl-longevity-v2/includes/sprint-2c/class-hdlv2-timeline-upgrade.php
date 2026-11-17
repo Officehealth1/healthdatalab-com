@@ -151,7 +151,9 @@ class HDLV2_Timeline_Upgrade {
                 'video_url' => HDLV2_Offer::get()['timeline_video_url'],
             ) );
         }
-        return self::owned( $row ) ? array( 'timeline_owned' => true ) : array();
+        // The one line is for a buyer (a live Full Report ticket that carries a stamp); the practitioner's
+        // own client, who never had a ticket, keeps today's card (plan § 6.1).
+        return self::tickets( $row->client_email ?? '' ) && self::owned( $row ) ? array( 'timeline_owned' => true ) : array();
     }
 
     /** A Stripe payment link with the buyer's address locked; '' unless the link is https. */
