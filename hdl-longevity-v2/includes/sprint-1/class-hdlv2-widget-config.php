@@ -1086,6 +1086,7 @@ class HDLV2_Widget_Config {
      * The Stage 1 report's gauge: the dial only. The PDF prints the rate and the interpretation pill
      * in its own type beside it (v0.30.0), so the image carries neither. v0.48.41 — public: the
      * client dashboard's Stage 1 card and Today's preview show this same picture.
+     * v0.48.75 — flag hdlv2_ff_gauge_scale: the scale 0.8 · 0.9 · 1.1 · 1.4 printed on the curve.
      */
     public static function stage1_report_gauge_url( $rate ) {
         if ( ! $rate ) return '';
@@ -1109,6 +1110,28 @@ class HDLV2_Widget_Config {
                 'subtitle' => array('display'=>false),
             ),
         );
+        if ( get_option( 'hdlv2_ff_gauge_scale', false ) ) {
+            // A part of no width at each scale value: datalabels prints the part's value exactly
+            // where the colour changes. The coloured parts, their borders and the needle draw as
+            // before (pixel-equal with the labels off, 2026-11-17).
+            $ds    = &$cfg['data']['datasets'][0];
+            $clear = 'rgba(0,0,0,0)';
+            list( $green, $blue, $red ) = $ds['backgroundColor'];
+            $ds['data']            = array( 0.8, 0.9, 0.9, 1.1, 1.1, 1.4, 1.4 );
+            $ds['backgroundColor'] = array( $clear, $green, $clear, $blue, $clear, $red, $clear );
+            $ds['borderWidth']     = array( 0, 1, 0, 1, 0, 1, 0 );
+            $ds['datalabels']      = array(
+                'display' => array( true, false, true, false, true, false, true ),
+                // 0.8 and 1.4 under the two ends; 0.9 and 1.1 just outside the curve.
+                'anchor'  => array( 'center', 'end', 'end', 'end', 'end', 'end', 'center' ),
+                'align'   => array( 'bottom', 'end', 'end', 'end', 'end', 'end', 'bottom' ),
+                'offset'  => 2,
+                'color'   => '#2c3e50',
+                'font'    => array( 'size' => 22, 'weight' => 'bold' ), // a family list makes QuickChart drop the bold
+            );
+            unset( $ds );
+            $cfg['options']['plugins']['datalabels'] = array( 'display' => true );
+        }
         return 'https://quickchart.io/chart?c=' . rawurlencode( wp_json_encode( $cfg ) ) . '&w=380&h=340&bkg=white';
     }
 
@@ -1567,7 +1590,7 @@ class HDLV2_Widget_Config {
         // PNGs (every existing client kept seeing the duplicate value
         // text baked into the pixels). See class-hdlv2-staged-form.php
         // build_gauge_url for the current settings.
-        $cache_version = 'v5';   // bump on any gauge_url config change (v0.47.4: rate-sensitive key — was keyed only on practitioner|email, served stale needle on rate change; v0.32.0 HDL status palette)
+        $cache_version = 'v5';   // bump only if the picture can change while its address stays the same: the address fingerprint below already gives any changed gauge setting its own file (v0.48.76: v0.48.75's v6 taken back, so a merge re-makes no saved picture; v0.47.4: rate-sensitive key — was keyed only on practitioner|email, served stale needle on rate change; v0.32.0 HDL status palette)
         // Fingerprint the actual gauge URL (encodes rate + colours) so a changed rate
         // for the same practitioner|email re-renders instead of serving a stale needle.
         $url_fp   = substr( hash( 'sha256', (string) $remote_url ), 0, 12 );
