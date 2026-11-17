@@ -2470,7 +2470,7 @@
   // v0.48.82 (plan 3) — the Timeline upgrade under the thank-you, for a buyer who did not take it
   // (the server sends timeline_offer only with hdlv2_ff_timeline_upgrade on). The server sends the
   // prices, the date and the addresses; the words live here with the rest of the card's copy.
-  // DRAFT COPY for Matthew (opening O1 until he picks one).
+  // DRAFT COPY for the owner (opening O1 until he picks one).
   function timelineBlockHtml(o) {
     if (!o || typeof o !== 'object' || !/^https:\/\//i.test(o.url || '')) return '';
     var dated = !!o.ends;

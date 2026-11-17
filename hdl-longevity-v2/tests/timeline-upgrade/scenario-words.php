@@ -1,6 +1,6 @@
 <?php
 /**
- * Plan 3 (v0.48.82), P8 — "upgrade", never "add-on" or "upsell" (Matthew, M3), in any string this
+ * Plan 3 (v0.48.82), P8 — "upgrade", never "add-on" or "upsell" (the owner, M3), in any string this
  * branch adds. With the base commit at hand the added lines of the branch are read; without it
  * (a shallow CI checkout) the files this plan adds are read whole.
  *

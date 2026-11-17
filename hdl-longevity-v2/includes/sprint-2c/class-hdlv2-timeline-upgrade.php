@@ -2,7 +2,7 @@
 /**
  * HDLV2_Timeline_Upgrade — the Healthspan Timeline as an upgrade to the Full Report (v0.48.82, plan 3).
  *
- * Matthew, 2026-11-16: the Full Report is $27, or $37 with the Timeline ("ten dollars more"); a
+ * The owner, 2026-11-16: the Full Report is $27, or $37 with the Timeline ("ten dollars more"); a
  * buyer who did not take it is offered it for $10 for a week after their form, then $27 on its own.
  *
  * Who owns it is read from the buyer's Full Report tickets (hdlv2_widget_invites, source
