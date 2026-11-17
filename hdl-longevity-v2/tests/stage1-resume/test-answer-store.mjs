@@ -185,18 +185,19 @@ t('7.6 an invite’s prefill is taken as before: numbers for age and shape, text
 
 console.log('── 8. finished ──');
 const finishedSrc = fn('finished', '    ');
+const tellSrc = fn('tell', '    '); // v0.48.91: finished() tells through the release's tell() (plan 7, Push A)
 const finish = (apiUrl, withEvent = true) => {
   const seen = { drops: 0, events: [] };
   const ctx = { cfg: { apiUrl }, kept: { drop: () => { seen.drops++; } },
     answers: Object.assign({}, NINE, { _name: 'Test Person', _email: 'person@example.test', _phone: '+44 7700 900000', _safety: { symptoms: ['chest'] } }),
     el: { dispatchEvent: (e) => { seen.events.push(e); } } };
   if (withEvent) ctx.CustomEvent = function (type, init) { this.type = type; this.bubbles = !!(init && init.bubbles); this.detail = init && init.detail; };
-  vm.runInNewContext(finishedSrc + '\nfinished();', ctx);
+  vm.runInNewContext(tellSrc + '\n' + finishedSrc + '\nfinished();', ctx);
   return seen;
 };
-t('8.1 the kept answers are wiped and the page is told once, by an event that bubbles', () => {
+t('8.1 the kept answers are wiped and the page is told once, on the widget\u2019s own element (no bubbling)', () => {
   const s = finish('https://site.test/wp-json/hdl-v2/v1/widget/lead');
-  return s.drops === 1 && s.events.length === 1 && s.events[0].type === 'hdlw:finished' && s.events[0].bubbles === true;
+  return s.drops === 1 && s.events.length === 1 && s.events[0].type === 'hdlw:finished' && s.events[0].bubbles === false;
 });
 t('8.2 the signal’s detail holds the e-mail and nothing else', () => {
   const d = finish('https://site.test/x').events[0].detail;
@@ -209,7 +210,8 @@ t('8.6 saved( and held( both call it, first thing', () =>
   /\n      function saved\(data\) \{\n        finished\(\);/.test(js) && /\n      function held\(\) \{\n        finished\(\);/.test(js) && count('finished();') === 2);
 
 console.log('── 9. the box ──');
-const WORDS = ['Welcome back. Your answers so far are still here.', '>Start again<', 'Clear your answers and start from the first question?', '>Yes, start again<', '>Keep my answers<'];
+// '>Start again<' also names the offer's own link since plan 4 (F25); the box's is its button's.
+const WORDS = ['Welcome back. Your answers so far are still here.', 'hdlw-resume-again">Start again<', 'Clear your answers and start from the first question?', '>Yes, start again<', '>Keep my answers<'];
 t('9.1 the words of the box, each once', () => WORDS.every((w) => count(w) === 1));
 const styles = js.split('\n').filter((l) => /'\.hdlw-resume/.test(l));
 t('9.2 its styles: a 1 px border on all four sides, no bar on the left', () =>

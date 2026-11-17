@@ -51,15 +51,17 @@ t('1.5 the safety-check event has the same shape', () => {
 });
 
 console.log('── 2. where it is called ──');
+// v0.48.91 (plan 7, Push B): saved( and held( call finished(), which wipes the kept answers and then tells.
+const FINISHED = /\n    function finished\(\) \{\n      kept\.drop\(\);\n      tell\('hdlw:finished'\);\n    \}\n/;
 t('2.1 saved( tells "finished" first thing (the answers are on our server)', () =>
-  /\n      function saved\(data\) \{\n        tell\('hdlw:finished'\);/.test(js));
+  /\n      function saved\(data\) \{\n        finished\(\);/.test(js) && FINISHED.test(js));
 t('2.2 held( tells "finished" first thing (the answers are safely held and saved later)', () =>
-  /\n      function held\(\) \{\n        tell\('hdlw:finished'\);/.test(js));
+  /\n      function held\(\) \{\n        finished\(\);/.test(js) && FINISHED.test(js));
 t('2.3 the safety check tells "safety-check" just before it is drawn, and only on that branch', () =>
   /if \(cfg\.safetyScreen && !answers\._safetyDone\) \{\n          tell\('hdlw:safety-check'\);\n          \(cfg\.safetyNotice \? renderSafetyScreenV2 : renderSafetyScreen\)\(\);/.test(js));
-t('2.4 three calls and one definition, nothing else sends these events', () =>
-  count("tell('hdlw:finished')") === 2 && count("tell('hdlw:safety-check')") === 1
-  && count('hdlw:finished') === 2 && count('hdlw:safety-check') === 1 && count('function tell(') === 1);
+t('2.4 two calls and one definition, nothing else sends these events', () =>
+  count("tell('hdlw:finished')") === 1 && count('finished();') === 2 && count("tell('hdlw:safety-check')") === 1
+  && count('hdlw:finished') === 1 && count('hdlw:safety-check') === 1 && count('function tell(') === 1);
 t('2.5 the event names the check everybody sees, never what was ticked (no crisis or symptom event)', () =>
   !/hdlw:(crisis|hard|symptom|stop)/.test(js));
 
