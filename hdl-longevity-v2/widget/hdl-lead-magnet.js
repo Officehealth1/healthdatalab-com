@@ -399,6 +399,9 @@
 
   // Steps: q1, q2, q3, q4, q5, q6, q7, q8, q9, contact, result
   var STEP_COUNT = 11;
+  // v0.48.80 (2f) — the eleven fields the nine questions fill, and how long this browser keeps them.
+  var ANSWER_KEYS = ['q1_age','q1_sex','q2a','q2b','q3','q4','q5','q6','q7','q8','q9'];
+  var RESUME_MS = 7 * 24 * 60 * 60 * 1000;
 
   // ---------- FONTS & BRAND ----------
 
@@ -454,6 +457,19 @@
 
   // v0.48.42 — the question pictures' rules, injected only when the flag is on,
   // so the editorial block above stays byte-identical with it off.
+  // v0.48.80 (2f) — the welcome-back box (hdlv2_ff_stage1_resume): the light fill and a hairline on all four
+  // sides. Its own style tag, added only when the box shows, so the editorial block stays as it was.
+  function injectResumeStyles() {
+    if (document.getElementById('hdl-resume-style')) return;
+    var s = document.createElement('style');
+    s.id = 'hdl-resume-style';
+    s.textContent = '.hdlw-resume{margin:16px 28px 0;background:' + B.bg + ';border:1px solid ' + B.border + ';border-radius:' + B.radius + ';padding:12px 16px;font-family:' + B.body + ';font-size:13px;line-height:1.55;color:' + B.text + ';}'
+      + '.hdlw-resume p{margin:0 0 4px;}'
+      + '.hdlw-resume button{background:none;border:0;padding:6px 0;margin:0 18px 0 0;font:inherit;font-weight:600;color:' + B.dark + ';text-decoration:underline;cursor:pointer;}'
+      + '.hdlw-resume button:focus-visible{outline:2px solid var(--hdl-accent,#3d8da0);outline-offset:2px;}';
+    document.head.appendChild(s);
+  }
+
   function injectMotionStyles() {
     if (document.getElementById('hdl-motion-style')) return;
     var s = document.createElement('style');
@@ -920,6 +936,8 @@
     cfg.bandVideos = (publicCfg && publicCfg.band_videos) || (invite && invite.band_videos) || null; // v0.48.50 (W9)
     cfg.safetyNotice = (publicCfg && publicCfg.safety_notice) || (invite && invite.safety_notice) || null; // v0.48.66
     cfg.resultOffer = (publicCfg && publicCfg.result_offer) || (invite && invite.result_offer) || null; // v0.48.77 (2c)
+    // v0.48.80 (2f) — hdlv2_ff_stage1_resume: continue where you stopped. Public settings only, never with an invite.
+    cfg.resume = !!(publicCfg && publicCfg.resume_enabled) && !invite;
     if (cfg.questionMotion) injectMotionStyles();
 
     var id = 'hdlw-' + cfg.pracId;
@@ -947,19 +965,12 @@
     // here is enough — no per-step rebind needed. Whitelist matches the
     // server-side sanitiser in rest_verify_invite().
     if (invite && invite.prefill_stage1 && typeof invite.prefill_stage1 === 'object') {
-      var pf = invite.prefill_stage1;
-      var keys = ['q1_age','q1_sex','q2a','q2b','q3','q4','q5','q6','q7','q8','q9'];
-      for (var pi = 0; pi < keys.length; pi++) {
-        var k = keys[pi];
-        if (pf[k] === undefined || pf[k] === null) continue;
-        if (k === 'q1_age' || k === 'q2a') {
-          var n = parseInt(pf[k], 10);
-          if (n > 0) answers[k] = n;
-        } else {
-          answers[k] = String(pf[k]);
-        }
-      }
+      answers = takeAnswers(invite.prefill_stage1, false);
     }
+    // v0.48.80 (2f) — the answers this browser kept come back, when the switch is on.
+    var kept = answerStore(cfg.pracId), resumed = cfg.resume ? kept.get() : null;
+    if (publicCfg && publicCfg.resume_enabled === false) kept.drop(); // switched off: nothing from an earlier visit stays
+    if (resumed) answers = resumed.answers;
 
     // --- Build HTML shell ---
     // position:relative on the outer card so the top-corner Prev/Next arrows
@@ -1028,6 +1039,7 @@
 
     function goTo(step) {
       currentStep = step;
+      if (cfg.resume && step <= 9) kept.set(answers, step);
       updateProgress();
       updateStep(step);
       var renderers = [renderQ1, renderQ2, renderQ3, renderQ4, renderQ5, renderQ6, renderQ7, renderQ8, renderQ9, renderContact, renderResult];
@@ -1675,6 +1687,41 @@
     // Awaken commentary is a deterministic 3-paragraph builder \u2014 no AI
     // call. Practitioner sites embed the widget in a sandbox so we keep
     // every style inline.
+    // v0.48.80 (2f) — the answers are saved, or safely held: nothing waits in this browser any more, and the page
+    // that hosts the widget is told, so it can mark its own sign-up as finished. Neither asks the switch: with it
+    // off a person who finished must still be marked.
+    function finished() {
+      kept.drop();
+      if (!cfg.apiUrl || typeof CustomEvent !== 'function') return;
+      el.dispatchEvent(new CustomEvent('hdlw:finished', { bubbles: true, detail: { email: answers._email } }));
+    }
+
+    // v0.48.80 (2f) — the first screen after the kept answers come back says so and offers a clean start. The box
+    // sits inside the step's content, so the next step replaces it; the question is asked in the box itself.
+    function showResumeBox() {
+      injectResumeStyles();
+      var box = document.createElement('div');
+      box.className = 'hdlw-resume';
+      box.setAttribute('role', 'status');
+      function draw(asking) {
+        box.innerHTML = asking
+          ? '<p>Clear your answers and start from the first question?</p>'
+            + '<button type="button" class="hdlw-resume-yes">Yes, start again</button>'
+            + '<button type="button" class="hdlw-resume-keep">Keep my answers</button>'
+          : '<p>Welcome back. Your answers so far are still here.</p>'
+            + '<button type="button" class="hdlw-resume-again">Start again</button>';
+      }
+      box.addEventListener('click', function (e) {
+        var pressed = e.target.className;
+        if (pressed === 'hdlw-resume-yes') { kept.drop(); answers = {}; goTo(0); return; }
+        if (pressed !== 'hdlw-resume-again' && pressed !== 'hdlw-resume-keep') return;
+        draw(pressed === 'hdlw-resume-again');
+        box.lastChild.focus(); // the keyboard stays in the box: on the safe choice, or back on the first button
+      });
+      draw(false);
+      contentEl.insertBefore(box, contentEl.firstChild);
+    }
+
     function renderResult() {
       // v0.48.19 — never post without the contact step: any path that lands
       // here with no name or email goes back to "Where shall we send it?".
@@ -2088,6 +2135,7 @@
       // stay on the page (payload) for the resend.
       var statusEl = document.getElementById(id + '-status') || document.getElementById(id + '-continue');
       function saved(data) {
+        finished();
         var sent = document.getElementById(id + '-sent');
         if (sent) sent.hidden = false;
         // Invite-fast-path: pre-trusted, immediate magic link.
@@ -2141,6 +2189,7 @@
       // v0.48.16 — the server was busy or silent: the answers are on the
       // holding list. No Send again; the report follows by email.
       function held() {
+        finished();
         var sent = document.getElementById(id + '-sent');
         if (sent) sent.hidden = true;
         var c = heldCopy();
@@ -2202,7 +2251,8 @@
     };
 
     // --- Start ---
-    goTo(0);
+    goTo(resumed ? resumeStep(answers, resumed.step) : 0);
+    if (resumed) showResumeBox();
   }
 
   // ---------- UI HELPERS ----------
@@ -2362,6 +2412,73 @@
       set: function (k) { try { window.localStorage.setItem(name, k); } catch (e) { /* private mode: today's behaviour */ } },
       drop: function () { try { window.localStorage.removeItem(name); } catch (e) { /* private mode */ } }
     };
+  }
+
+  // v0.48.80 (2f) — the answers the widget may be handed: an invite's prefill (numbers for age and shape, text for
+  // the rest, as before), or this browser's own kept copy, which is also checked against what each question offers.
+  function takeAnswers(src, checked) {
+    var out = {};
+    if (!src || typeof src !== 'object') return out;
+    for (var i = 0; i < ANSWER_KEYS.length; i++) {
+      var k = ANSWER_KEYS[i], v = src[k];
+      if (v === undefined || v === null) continue;
+      if (k === 'q1_age' || k === 'q2a') {
+        if (!checked) v = parseInt(v, 10);
+        else if (typeof v !== 'number' || v % 1 !== 0 || (k === 'q2a' ? !Q2A_SCORES.hasOwnProperty(v) : v > 120)) continue;
+        if (v > 0) out[k] = v;
+      } else {
+        v = String(v);
+        if (!checked || answerOffered(k, v)) out[k] = v;
+      }
+    }
+    return out;
+  }
+  function answerOffered(k, v) {
+    if (k === 'q1_sex') return v === 'male' || v === 'female';
+    if (k === 'q2b') return Q2B_MODS.hasOwnProperty(v);
+    var opts = QUESTIONS[k] ? QUESTIONS[k].opts : [];
+    for (var i = 0; i < opts.length; i++) if (opts[i].v === v) return true;
+    return false;
+  }
+
+  // v0.48.80 (2f) — the nine answers wait in this browser, under the practitioner's number, so a person who is
+  // interrupted continues where they stopped on the same phone or computer. Only the answers, the step and the
+  // time of the first kept answer: never the name, e-mail, phone or safety ticks. Seven days after that first
+  // answer the copy is ignored and deleted, and it is deleted as soon as the settings say the switch is off.
+  // ponytail: answers in a browser that never returns stay there until that browser's storage is cleared; they
+  // never leave the device. A timed sweep would need a copy on the server, which is what this avoids.
+  function answerStore(pracId) {
+    var name = 'hdlw-s1-' + pracId;
+    function drop() { try { window.localStorage.removeItem(name); } catch (e) { /* private mode */ } }
+    // Our own record and not older than seven days, or null.
+    function load() {
+      try {
+        var rec = JSON.parse(window.localStorage.getItem(name) || 'null');
+        return rec && typeof rec.at === 'number' && Math.abs(Date.now() - rec.at) < RESUME_MS ? rec : null;
+      } catch (e) { return null; /* private mode, or text that is not ours */ }
+    }
+    return {
+      get: function () {
+        var rec = load(), a = rec ? takeAnswers(rec.answers, true) : {};
+        if (Object.keys(a).length) return { answers: a, step: rec.step };
+        drop();
+        return null;
+      },
+      // The time is the first kept answer's: a later step, or a return, never makes the seven days longer.
+      set: function (answers, step) {
+        var a = takeAnswers(answers, true), rec = load();
+        if (!Object.keys(a).length) { drop(); return; }
+        try { window.localStorage.setItem(name, JSON.stringify({ answers: a, step: step, at: rec ? rec.at : Date.now() })); } catch (e) { /* private mode: today's behaviour */ }
+      },
+      drop: drop
+    };
+  }
+  // The step to open: the first question with no answer, never past where they were, never past the contact step.
+  function resumeStep(a, savedStep) {
+    var fields = [['q1_age','q1_sex'], ['q2a','q2b'], ['q3'], ['q4'], ['q5'], ['q6'], ['q7'], ['q8'], ['q9']];
+    var s = 0, was = parseInt(savedStep, 10);
+    while (s < 9 && fields[s].every(function (k) { return a[k] != null; })) s++;
+    return Math.max(0, Math.min(s, was >= 0 ? was : 0));
   }
 
   // v0.48.62 — the yes or no sits under the result, about 2,000 px down a phone: a line above the gauge says it
