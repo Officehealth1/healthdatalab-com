@@ -38,12 +38,13 @@ check( 'R1.9 only one video on the page (today\'s)', 1 === substr_count( $h, '<i
 check( 'R1.10 a polite live region for "Day N saved"', false !== strpos( $h, 'aria-live="polite"' ) );
 
 echo "── R2. the upsell card ──\n";
-check( 'R2.1 no Full Report → the card: hook, price line, button to the offer url with the code', false !== strpos( $h, 'class="cd30-offer"' )
-    && false !== strpos( $h, esc_html( HDLV2_Offer::DEFAULTS['hook'] ) ) && false !== strpos( $h, 'Today $27 · $129 before' )
-    && false !== strpos( $h, 'href="https://altituding.com/full-report?code=YOURCODE"' ) && false !== strpos( $h, 'Go deeper with the Full Report' ) );
+// v0.48.73 — one price, $27 (Matthew 2026-11-16): no "$129 before", no code in the link.
+check( 'R2.1 no Full Report → the card: hook, price line, button to the offer url', false !== strpos( $h, 'class="cd30-offer"' )
+    && false !== strpos( $h, esc_html( HDLV2_Offer::DEFAULTS['hook'] ) ) && false !== strpos( $h, '<p>Today $27</p>' ) && false === strpos( $h, '129' )
+    && false !== strpos( $h, 'href="https://altituding.com/full-report"' ) && false === strpos( $h, 'code=' ) && false !== strpos( $h, 'Go deeper with the Full Report' ) );
 $GLOBALS['options']['hdlv2_stage1_offer'] = array( 'code' => 'ALTITUDE27', 'full_today_price' => '29', 'hook' => 'What is ageing you fastest?' );
 $h2 = HDLV2_Challenge::render_section( 5, false );
-check( 'R2.2 the figures and the code come from hdlv2_stage1_offer (no second copy)', false !== strpos( $h2, 'Today $29 · $129 before' ) && false !== strpos( $h2, '?code=ALTITUDE27' ) && false !== strpos( $h2, 'What is ageing you fastest?' ) );
+check( 'R2.2 the figures come from hdlv2_stage1_offer (no second copy); an old saved code never reaches the link', false !== strpos( $h2, '<p>Today $29</p>' ) && false === strpos( $h2, 'ALTITUDE27' ) && false !== strpos( $h2, 'What is ageing you fastest?' ) );
 check( 'R2.3 has the Full Report → no card', false === strpos( HDLV2_Challenge::render_section( 5, true ), 'cd30-offer' ) );
 enrol_client( 8, 206 );
 check( 'R2.4 another practitioner\'s client (the offer is not theirs) → no card', false === strpos( HDLV2_Challenge::render_section( 8, false ), 'cd30-offer' ) );
