@@ -8,6 +8,7 @@
 date_default_timezone_set( 'UTC' );
 require __DIR__ . '/../dashboard-products/stubs.php';
 function wp_timezone() { return new DateTimeZone( 'Europe/London' ); }
+function is_email( $x ) { return is_string( $x ) && filter_var( $x, FILTER_VALIDATE_EMAIL ) ? $x : false; }
 if ( file_exists( $P . 'sprint-2c/class-hdlv2-timeline-upgrade.php' ) ) {
     require_once $P . 'sprint-2c/class-hdlv2-timeline-upgrade.php';
 }

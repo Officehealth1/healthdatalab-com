@@ -139,7 +139,7 @@ function tl_progress( $id, $email, $sent = null, $prac = 122 ) {
     $scores = array_fill_keys( array( 'physicalActivity', 'sleepDuration', 'sleepQuality', 'stressLevels', 'socialConnections', 'dietQuality', 'alcoholConsumption', 'smokingStatus', 'cognitiveActivity', 'sunlightExposure', 'supplementIntake', 'dailyHydration' ), 4 );
     return (object) array(
         'id' => $id, 'client_user_id' => 500 + $id, 'practitioner_user_id' => $prac, 'client_name' => 'Kim Lane',
-        'client_email' => $email, 'token' => str_repeat( dechex( $id % 16 ), 64 ), 'created_at' => '2026-10-12 08:00:00',
+        'client_email' => $email, 'token' => str_repeat( 'ab', 31 ) . sprintf( '%02x', $id % 256 ), 'created_at' => '2026-10-12 08:00:00',
         'token_expires_at' => gmdate( 'Y-m-d H:i:s', time() + 30 * 86400 ), 'deleted_at' => null,
         'stage1_data' => json_encode( array( 'q1_age' => 52, 'q1_sex' => 'female', 'server_result' => array( 'rate' => 1.1 ) ) ),
         'stage2_data' => null,

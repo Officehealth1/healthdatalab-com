@@ -88,7 +88,7 @@
     you.rate = you.rate0;
     var mode = cfg && cfg.mode === 'full' ? 'full' : 'preview';
     var named = mode === 'full' ? namedPeople(cfg.key_people, you) : [];
-    return { mode: mode, tab: 'you', you: you, people: named.length ? named : defaultPeople(you), zoom: 0, fs: 0, wait: (cfg && cfg.wait_line) || '' };
+    return { mode: mode, tab: 'you', you: you, people: named.length ? named : defaultPeople(you), zoom: 0, fs: 0, wait: (cfg && cfg.wait_line) || '', lockNote: (cfg && cfg.lock_note) || '' };
   }
   // v0.48.50 (W29) — the people named on the Full Report form ("Who are you staying strong for?").
   // A birth year from the role (as the sample people) so the lane draws; the client edits it here.
@@ -363,7 +363,7 @@
   // v0.48.60 — the default people are examples, not measurements: one line under the lanes while every one is still a sample.
   function sampleNote(list, mode) {
     return list.length && list.every(function (p) { return p.sample === true; })
-      ? (mode === 'preview' ? 'Sample people. Your own unlock with the Full Report.' : 'Sample people. Edit them or add your own on the Loved ones tab.')
+      ? (mode === 'preview' ? (S.lockNote || 'Sample people. Your own unlock with the Full Report.') : 'Sample people. Edit them or add your own on the Loved ones tab.')
       : '';
   }
   // The one place the relationships map to the three headings.

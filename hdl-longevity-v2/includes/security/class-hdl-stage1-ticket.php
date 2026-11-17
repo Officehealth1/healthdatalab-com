@@ -13,11 +13,13 @@
  * Body: practitioner_id, email, name, external_ref (the seller's payment
  * reference, e.g. a Stripe session id), optional expires_days (1–365,
  * default 90), optional product ('stage1' default, 'full_report' or
- * 'challenge').
+ * 'challenge'; v0.48.82: 'timeline').
  * Response: { token, expires_at, idempotent }; a 'full_report' ticket adds
- * { open_url, stage1_found, auto_confirmed } (v0.48.15, see mint_full_report()),
- * a 'challenge' ticket adds { open_url, already_enrolled } (v0.48.23/24,
- * see mint_challenge()).
+ * { open_url, stage1_found, auto_confirmed } (v0.48.15, see mint_full_report())
+ * and { timeline_granted } (v0.48.82; optional body field `timeline`, a boolean:
+ * the paid session held the Timeline upgrade), a 'challenge' ticket adds
+ * { open_url, already_enrolled } (v0.48.23/24, see mint_challenge()).
+ * 'timeline' (v0.48.82, plan 3) makes no ticket: see grant_timeline().
  *
  * The same external_ref always returns the same token. That is enforced by
  * the UNIQUE key on widget_invites.external_ref: insert first, read the
@@ -70,7 +72,13 @@ class HDL_Stage1_Ticket {
         // ticket would be stored as an ordinary invite, or minted twice.
         $product_raw = $request->get_param( 'product' );
         $product     = null === $product_raw ? 'stage1' : (string) $product_raw;
-        $needs_db    = array( 'full_report' => '3.29', 'challenge' => '3.31' )[ $product ] ?? '3.27';
+        $needs_db    = array( 'full_report' => '3.29', 'challenge' => '3.31', 'timeline' => '3.34' )[ $product ] ?? '3.27';
+        // v0.48.82 — an upgrade needs Phase AO's column to be recorded: until then the payment is
+        // refused here and Stripe sends it again.
+        $timeline = $request->get_param( 'timeline' );
+        if ( true === $timeline && 'full_report' === $product ) {
+            $needs_db = '3.34';
+        }
         if ( version_compare( (string) get_option( 'hdlv2_db_version', '0' ), $needs_db, '<' ) ) {
             return self::refuse( 503, 'not_ready', 'Stage 1 tickets are not ready on this server.' );
         }
@@ -120,15 +128,21 @@ class HDL_Stage1_Ticket {
         if ( ( null !== $days_raw && ! is_numeric( $days_raw ) ) || $days < 1 || $days > self::MAX_DAYS ) {
             $invalid[] = 'expires_days';
         }
-        if ( ! in_array( $product, array( 'stage1', 'full_report', 'challenge' ), true ) ) {
+        if ( ! in_array( $product, array( 'stage1', 'full_report', 'challenge', 'timeline' ), true ) ) {
             $invalid[] = 'product';
+        }
+        if ( null !== $timeline && ! is_bool( $timeline ) ) {
+            $invalid[] = 'timeline';
         }
         if ( $invalid ) {
             return self::refuse( 400, 'invalid_body', 'One or more fields failed validation.', $invalid );
         }
 
         if ( 'full_report' === $product ) {
-            return self::mint_full_report( $practitioner_id, $email, $name, $external_ref, $days );
+            return self::mint_full_report( $practitioner_id, $email, $name, $external_ref, $days, true === $timeline );
+        }
+        if ( 'timeline' === $product ) {
+            return self::grant_timeline( $email, $external_ref );
         }
         if ( 'challenge' === $product ) {
             return self::mint_challenge( $practitioner_id, $email, $name, $external_ref, $days );
@@ -158,8 +172,8 @@ class HDL_Stage1_Ticket {
      * found and is never revived. A repeat call with the same external_ref
      * mints nothing and only confirms a lead that is still pending.
      */
-    private static function mint_full_report( $practitioner_id, $email, $name, $external_ref, $days ) {
-        $ticket = self::mint( $practitioner_id, $email, $name, $external_ref, $days, 'full_report' );
+    private static function mint_full_report( $practitioner_id, $email, $name, $external_ref, $days, $timeline = false ) {
+        $ticket = self::mint( $practitioner_id, $email, $name, $external_ref, $days, 'full_report', $timeline );
         if ( is_wp_error( $ticket ) ) {
             return $ticket;
         }
@@ -178,7 +192,66 @@ class HDL_Stage1_Ticket {
             'open_url'       => $auto ? site_url( '/rate-of-ageing-widget/?invite=' . $ticket['token'] ) : null,
             'stage1_found'   => $lead['found'],
             'auto_confirmed' => $lead['confirmed'],
+            // v0.48.82 — whether this ticket carries the Timeline (a stamp, see mint()).
+            'timeline_granted' => self::stamp_ready() && '' !== (string) self::stamp_of( $ticket['id'] ),
         ) );
+    }
+
+    /**
+     * v0.48.82 (plan 3) — the Timeline paid on its own ($10 for a week after the form, then $27).
+     * No ticket is made: the buyer's newest live Full Report ticket gets this payment's reference.
+     * The switch decides what pages show, never what was paid, so this runs whatever it says.
+     * Already owned (another payment's stamp, 'included', or a client with a report and no Stripe
+     * ticket): nothing is written and the seller is told, so the team can refund. open_url signs
+     * into the Timeline: it goes to this keyed caller and the buyer's inbox only.
+     *
+     * @return array { granted, idempotent, already_owned, has_full_report, late, ends_on, open_url }
+     */
+    private static function grant_timeline( $email, $external_ref ) {
+        global $wpdb;
+        $tickets = HDLV2_Timeline_Upgrade::tickets( $email );
+        $row     = $wpdb->get_row( $wpdb->prepare(
+            "SELECT id, token, practitioner_user_id, client_email, stage3_completed_at FROM {$wpdb->prefix}hdlv2_form_progress
+             WHERE LOWER(client_email) = %s AND deleted_at IS NULL ORDER BY id DESC LIMIT 1",
+            strtolower( $email )
+        ) );
+        $report  = $row ? HDLV2_Healthspan_Timeline::report_row( (int) $row->id ) : null;
+        $ends    = $row && ! empty( $row->stage3_completed_at )
+            ? HDLV2_Timeline_Upgrade::ends_at( $row->stage3_completed_at, HDLV2_Offer::get()['timeline_offer_days'] ) : 0;
+        $answer  = array(
+            'granted'         => false,
+            'idempotent'      => false,
+            'already_owned'   => false,
+            'has_full_report' => (bool) ( $tickets || $report ),
+            'late'            => $ends && time() > $ends,
+            'ends_on'         => $ends ? HDLV2_Timeline_Upgrade::day( $ends, 'Y-m-d' ) : null,
+            'open_url'        => $row && ! empty( $row->token ) ? HDLV2_Healthspan_Timeline::report_url( $row->token ) : null,
+        );
+        $code = 'granted';
+        if ( ! $answer['has_full_report'] ) {
+            $code = 'no_full_report';
+        } else {
+            $answer['granted'] = true;
+            $stamps = array_map( function ( $t ) { return (string) $t->timeline_paid_ref; }, $tickets );
+            if ( in_array( $external_ref, $stamps, true ) ) {
+                $answer['idempotent'] = true;
+                $code = 'idempotent';
+            } elseif ( ! $tickets || array_filter( $stamps, 'strlen' ) ) {
+                $answer['already_owned'] = true;
+                $code = 'already_owned';
+            } elseif ( ! $wpdb->query( $wpdb->prepare(
+                "UPDATE {$wpdb->prefix}hdlv2_widget_invites SET timeline_paid_ref = %s WHERE id = %d AND (timeline_paid_ref IS NULL OR timeline_paid_ref = '')",
+                $external_ref, (int) $tickets[0]->id
+            ) ) ) {
+                // Another delivery stamped it between the read and the write.
+                $now_ref = (string) self::stamp_of( (int) $tickets[0]->id );
+                $answer['idempotent']    = $now_ref === $external_ref;
+                $answer['already_owned'] = $now_ref !== $external_ref;
+                $code = $answer['idempotent'] ? 'idempotent' : 'already_owned';
+            }
+        }
+        error_log( '[HDL stage1-ticket] timeline ' . $code . ( $answer['late'] ? ' late' : '' ) );
+        return rest_ensure_response( $answer );
     }
 
     /**
@@ -279,10 +352,11 @@ class HDL_Stage1_Ticket {
      * their own input first.
      *
      * @param string $source 'paid_stage1' (needs paid mode), 'full_report', 'challenge' or 'timeline_link'.
+     * @param bool   $timeline v0.48.82 — a full_report ticket's sale held the Timeline upgrade.
      * @return array|WP_Error { id, token, expires_at (stored UTC), idempotent,
      *                         email, name } — email/name are the ticket's own.
      */
-    public static function mint( $practitioner_id, $email, $name, $external_ref, $days, $source = 'paid_stage1' ) {
+    public static function mint( $practitioner_id, $email, $name, $external_ref, $days, $source = 'paid_stage1', $timeline = false ) {
         global $wpdb;
         $access_mode = $wpdb->get_row( $wpdb->prepare(
             "SELECT access_mode FROM {$wpdb->prefix}hdlv2_widget_config WHERE practitioner_user_id = %d LIMIT 1",
@@ -298,8 +372,7 @@ class HDL_Stage1_Ticket {
 
         // Insert first: the UNIQUE key on external_ref decides, so two
         // deliveries of the same payment can never mint two tickets.
-        $was_suppressed = $wpdb->suppress_errors( true );
-        $inserted       = $wpdb->insert( $table, array(
+        $data   = array(
             'practitioner_id' => $practitioner_id,
             'token'           => $token,
             'client_name'     => $name,
@@ -308,7 +381,15 @@ class HDL_Stage1_Ticket {
             'expires_at'      => $expires_at,
             'source'          => $source,
             'external_ref'    => $external_ref,
-        ), array( '%d', '%s', '%s', '%s', '%s', '%s', '%s', '%s' ) );
+        );
+        $format = array( '%d', '%s', '%s', '%s', '%s', '%s', '%s', '%s' );
+        $stamps = 'full_report' === $source && self::stamp_ready();
+        if ( $stamps ) {
+            $data['timeline_paid_ref'] = self::stamp( $practitioner_id, $external_ref, $timeline ); // null = NULL
+            $format[] = '%s';
+        }
+        $was_suppressed = $wpdb->suppress_errors( true );
+        $inserted       = $wpdb->insert( $table, $data, $format );
         $wpdb->suppress_errors( $was_suppressed );
 
         if ( $inserted ) {
@@ -325,6 +406,13 @@ class HDL_Stage1_Ticket {
         if ( (int) $existing->practitioner_id !== (int) $practitioner_id || $source !== $existing->source ) {
             return self::refuse( 409, 'external_ref_conflict', 'This external_ref belongs to another ticket.' );
         }
+        // v0.48.82 — a repeat that now says the upgrade was bought fills an empty stamp, once.
+        if ( $stamps && $timeline ) {
+            $wpdb->query( $wpdb->prepare(
+                "UPDATE $table SET timeline_paid_ref = %s WHERE id = %d AND (timeline_paid_ref IS NULL OR timeline_paid_ref = '')",
+                $external_ref, (int) $existing->id
+            ) );
+        }
         return array(
             'id'         => (int) ( $existing->id ?? 0 ),
             'token'      => (string) $existing->token,
@@ -333,6 +421,34 @@ class HDL_Stage1_Ticket {
             'email'      => (string) $existing->client_email,
             'name'       => (string) $existing->client_name,
         );
+    }
+
+    /**
+     * v0.48.82 (plan 3) — a new Full Report ticket's Timeline stamp. Bought → this payment's reference
+     * (whatever the switch: it decides what is shown, never what was paid). A Stripe checkout (cs_…)
+     * for the offer's practitioner with the switch on → empty: the Timeline is an upgrade there.
+     * Everything else (switch off, a pack seat, another practitioner) → 'included', as before.
+     */
+    private static function stamp( $practitioner_id, $external_ref, $timeline ) {
+        if ( $timeline ) {
+            return $external_ref;
+        }
+        $sold = class_exists( 'HDLV2_Timeline_Upgrade' ) && HDLV2_Timeline_Upgrade::enabled()
+            && HDLV2_Offer::applies_to( $practitioner_id ) && 0 === strpos( $external_ref, 'cs_' );
+        return $sold ? null : 'included';
+    }
+
+    /** Phase AO (DB 3.34) has added timeline_paid_ref. */
+    private static function stamp_ready() {
+        return version_compare( (string) get_option( 'hdlv2_db_version', '0' ), '3.34', '>=' );
+    }
+
+    private static function stamp_of( $ticket_id ) {
+        global $wpdb;
+        return $wpdb->get_var( $wpdb->prepare(
+            "SELECT timeline_paid_ref FROM {$wpdb->prefix}hdlv2_widget_invites WHERE id = %d",
+            (int) $ticket_id
+        ) );
     }
 
     /** Stored UTC datetime → ISO 8601. */

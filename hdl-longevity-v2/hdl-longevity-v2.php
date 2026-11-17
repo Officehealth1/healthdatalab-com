@@ -3,7 +3,7 @@
  * Plugin Name: HDL Longevity V2 — Staged Workflow
  * Plugin URI: https://healthdatalab.net
  * Description: V2 longevity workflow: staged intake, WHY profiling, practitioner consultations, weekly flight plans, and AI coaching. Runs alongside the existing Health Data Lab plugin.
- * Version: 0.48.77
+ * Version: 0.48.82
  * Author: Health Data Lab
  * Author URI: https://healthdatalab.net
  * License: Proprietary
@@ -22,8 +22,8 @@ if ( ! defined( 'ABSPATH' ) ) {
 // register_activation_hook callbacks, which fire synchronously during
 // `wp plugin activate`, can reference them. The activator needs
 // HDLV2_DB_VERSION / HDLV2_VERSION at call time to update version options.
-define( 'HDLV2_VERSION', '0.48.77' );
-define( 'HDLV2_DB_VERSION', '3.33' );
+define( 'HDLV2_VERSION', '0.48.82' );
+define( 'HDLV2_DB_VERSION', '3.34' );
 
 // Client funnel token (hdlv2_form_progress.token) lifetime. FIXED window
 // from issuance: set when the token is created and refreshed ONLY when the
@@ -973,6 +973,7 @@ final class HDL_Longevity_V2 {
 
         // v0.48.29 — Healthspan Timeline page (flag hdlv2_ff_healthspan_timeline, off by default)
         require_once HDLV2_PLUGIN_DIR . 'includes/sprint-2c/class-hdlv2-healthspan-timeline.php';
+        require_once HDLV2_PLUGIN_DIR . 'includes/sprint-2c/class-hdlv2-timeline-upgrade.php'; // v0.48.82 (plan 3)
         // v0.48.34 — linked people on the timeline (flag hdlv2_ff_timeline_links, off by default)
         require_once HDLV2_PLUGIN_DIR . 'includes/sprint-2c/class-hdlv2-timeline-links.php';
 

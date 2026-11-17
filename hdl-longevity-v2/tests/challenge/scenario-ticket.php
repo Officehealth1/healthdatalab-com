@@ -81,7 +81,7 @@ $r = mint_req( array( 'product' => null ) );
 check( 'C2.1 product absent → { token, expires_at, idempotent }, source paid_stage1', is_array( $r ) && array_keys( $r ) === array( 'token', 'expires_at', 'idempotent' ) && 'paid_stage1' === ticket_rows( $w )[0]['data']['source'] );
 $w = setup();
 $r = mint_req( array( 'product' => 'full_report' ) );
-check( 'C2.2 full_report → its six keys, source full_report', is_array( $r ) && array_keys( $r ) === array( 'token', 'expires_at', 'idempotent', 'open_url', 'stage1_found', 'auto_confirmed' ) && 'full_report' === ticket_rows( $w )[0]['data']['source'] );
+check( 'C2.2 full_report → its seven keys (v0.48.82: timeline_granted), source full_report', is_array( $r ) && array_keys( $r ) === array( 'token', 'expires_at', 'idempotent', 'open_url', 'stage1_found', 'auto_confirmed', 'timeline_granted' ) && 'full_report' === ticket_rows( $w )[0]['data']['source'] );
 
 echo "── C3. Stage 1 answers sent with a challenge link ──\n";
 foreach ( array( 122 => 'its own practitioner', 206 => 'another practitioner' ) as $prac => $who ) {

@@ -220,6 +220,11 @@ class HDLV2_Staged_Form {
             $response['second_form_ties'] = HDLV2_Why_Picks::second_form_ties( $s2['why_picks'] ?? array(), $s2['why_pick_labels'] ?? array() );
         }
 
+        // v0.48.82 (plan 3) — the card after the form: the Timeline upgrade's offer, or that it is theirs (switch on only).
+        if ( class_exists( 'HDLV2_Timeline_Upgrade' ) ) {
+            $response += HDLV2_Timeline_Upgrade::card_fields( $progress, time() );
+        }
+
         return rest_ensure_response( $response );
     }
 
@@ -860,6 +865,11 @@ class HDLV2_Staged_Form {
 
         if ( $result_data ) {
             $response['result'] = $result_data;
+        }
+
+        // v0.48.82 (plan 3) — the card drawn right after the send carries the Timeline block.
+        if ( 3 === $stage && class_exists( 'HDLV2_Timeline_Upgrade' ) ) {
+            $response += HDLV2_Timeline_Upgrade::card_fields( $progress, time() );
         }
 
         // Include WHY data in Stage 2 response for on-screen display
@@ -2401,6 +2411,11 @@ class HDLV2_Staged_Form {
 
         // v0.48.10 — what a choices-page client chose, for the draft PDF (all '' otherwise).
         $payload += HDLV2_Why_Picks::payload_fields( $progress, $scores );
+
+        // v0.48.82 (plan 3) — the report e-mail's Timeline offer (Make module 63): five strings, always present.
+        if ( class_exists( 'HDLV2_Timeline_Upgrade' ) ) {
+            $payload += HDLV2_Timeline_Upgrade::payload_fields( $progress, time() );
+        }
 
         // v0.27.2 — Sanitise text fields for Make.com raw JSON template.
         // See class-hdlv2-final-report.php fire_webhook for full rationale.

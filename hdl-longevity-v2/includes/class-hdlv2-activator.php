@@ -1907,6 +1907,37 @@ class HDLV2_Activator {
             error_log( '[HDLV2] Phase AN (v3.33) migration: hdlv2_timeline_packs + timeline_links.pack_id, seat_invite_id verified.' );
         }
 
+        // Phase AO (DB v3.34) — the Timeline upgrade (v0.48.82, plan 3): widget_invites gains
+        // timeline_paid_ref, the Stripe reference that paid for the Timeline or 'included'. Every Full
+        // Report ticket already on file came with the Timeline, so it is stamped 'included' once the
+        // column is verified. Additive; the version bumps only after both.
+        if ( version_compare( $current_db_version, '3.34', '<' ) ) {
+            $invites_table = $p . 'hdlv2_widget_invites';
+            $has_stamp     = function () use ( $wpdb, $invites_table ) {
+                return (int) $wpdb->get_var( $wpdb->prepare(
+                    "SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+                     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s AND COLUMN_NAME = 'timeline_paid_ref'",
+                    $invites_table
+                ) ) > 0;
+            };
+            if ( ! $has_stamp() ) {
+                $wpdb->query( "ALTER TABLE `$invites_table` ADD COLUMN timeline_paid_ref VARCHAR(128) DEFAULT NULL AFTER external_ref" );
+                if ( $wpdb->last_error || ! $has_stamp() ) {
+                    error_log( '[HDLV2] Phase AO (v3.34) FAILED: ADD timeline_paid_ref — ' . $wpdb->last_error . ' — will retry next boot.' );
+                    return false;
+                }
+            }
+            $stamped = $wpdb->query(
+                "UPDATE `$invites_table` SET timeline_paid_ref = 'included'
+                 WHERE source = 'full_report' AND (timeline_paid_ref IS NULL OR timeline_paid_ref = '')"
+            );
+            if ( false === $stamped ) {
+                error_log( '[HDLV2] Phase AO (v3.34) FAILED: stamping the old Full Report tickets — ' . $wpdb->last_error . ' — will retry next boot.' );
+                return false;
+            }
+            error_log( '[HDLV2] Phase AO (v3.34) migration: widget_invites.timeline_paid_ref verified; ' . (int) $stamped . ' Full Report tickets stamped included.' );
+        }
+
         return true;
     }
 
@@ -2022,6 +2053,7 @@ class HDLV2_Activator {
             prefill_stage1 JSON DEFAULT NULL,
             source ENUM('practitioner','automation','paid_stage1','full_report','challenge','timeline_link') NOT NULL DEFAULT 'practitioner',
             external_ref VARCHAR(128) DEFAULT NULL,
+            timeline_paid_ref VARCHAR(128) DEFAULT NULL,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             PRIMARY KEY (id),
             UNIQUE KEY token (token),
