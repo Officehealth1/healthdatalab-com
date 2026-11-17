@@ -15,6 +15,7 @@
 import fs from 'node:fs';
 import vm from 'node:vm';
 import { execFileSync } from 'node:child_process';
+import { undo2c } from '../result-offer/render-result-2c.mjs'; // v0.48.77: the 2c edits are checked there
 import { fileURLToPath } from 'node:url';
 
 let PASS = 0, FAIL = 0;
@@ -48,7 +49,7 @@ if (fnSrc) {
 }
 
 // renderResult: b462b02's text plus the one call line, placed under the gauge picture.
-const rrNew = cutIn(js, '    function renderResult() {', '\n    }\n');
+const rrNew = undo2c(cutIn(js, '    function renderResult() {', '\n    }\n')); // v0.48.77: renderResult as at 2c's base when 2c changed only its own lines
 const rrOld = cutIn(old, '    function renderResult() {', '\n    }\n');
 const CALL = "        +       bandVideoHtml({ good: 'green', avg: 'blue', warn: 'red' }[bandClass], cfg.bandVideos)\n";
 const GAUGE = "        +       '<img class=\"hdlw-r-gauge-img\" src=\"' + gaugeUrl(rate) + '\" alt=\"Rate of ageing gauge \\u2014 ' + rateDisplay + '\">'\n";

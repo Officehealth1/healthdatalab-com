@@ -65,7 +65,7 @@ check( 'P.4 another practitioner\'s lead: still 36 keys, offer_show "0"', is_arr
 check( 'P.3 the ten keys ride as strings', is_array( $make ) && 10 === count( array_filter( array_intersect_key( $make, array_flip( $keys ) ), 'is_string' ) ) );
 check( 'P.5 the offer lead\'s payload: no code, no list price, no end date; the link without code, the e-mail in its fragment', is_array( $make )
     && '' === $make['offer_code'] && '' === $make['offer_list'] && '' === $make['offer_code_ends']
-    && 'https://altituding.com/full-report#email=' . rawurlencode( 'free@example.test' ) === $make['offer_url'] );
+    && 'https://altituding.com/full-report-faster#email=' . rawurlencode( 'free@example.test' ) === $make['offer_url'] ); // v0.48.77: the lead's band (red) page
 
 echo "── Q. personal(): no code, no request, even with the old wp-config constants still set ──\n";
 define( 'HDLV2_FULL_CODE_URL', 'https://alt.example.test/.netlify/functions/full-report-code' );

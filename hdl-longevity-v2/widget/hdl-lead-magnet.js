@@ -751,6 +751,33 @@
     return (typeof url === 'string' && /^https:\/\//i.test(url)) ? url : '';
   }
 
+  // v0.48.77 (2c) — the result page's Full Report button (hdlv2_ff_result_offer). The band's page
+  // comes from the server (HDLV2_Offer::result_offer_fields); the visitor's e-mail rides in the
+  // fragment, as on the e-mail's link, when it passes the Altituding page's own check. No https
+  // address, no offer: the card keeps its thank-you words.
+  function resultOfferHref(offer, band, email) {
+    var url = safeBuyUrl(offer && offer.band_urls ? offer.band_urls[band] : '');
+    if (!url) return '';
+    var good = typeof email === 'string' && email.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+    return good ? url + '#email=' + encodeURIComponent(email) : url;
+  }
+
+  // The thank-you card's words when the offer shows: the Stage 1 e-mail's (v44), in its order.
+  function resultOfferHtml(offer, href, esc) {
+    return '<h2 class="hdlw-r-thanks-headline">Do you know what is creating your number?</h2>'
+      + '<p>On its own, a number changes nothing.</p>'
+      + '<p>The Full Report shows what pulls yours up and what pulls it down.</p>'
+      + '<p>Advice online is written for everyone. This is written about you.</p>'
+      + '<div class="hdlw-r-buttons" style="margin:22px 0;">'
+      +   '<a class="hdlw-r-btn-primary" href="' + esc(href) + '">Yes, give me access to my Full Report</a>'
+      +   '<p class="hdlw-r-price">For a small investment of ' + esc(offer.today) + '.</p>'
+      + '</div>'
+      + '<p class="hdlw-r-offer-note"><strong>Important:</strong> this number is an estimate. No test can measure anyone\'s exact rate of ageing. Use it like a compass, not a GPS: a direction and a place to start.</p>'
+      + '<p class="hdlw-r-offer-quote"><strong>From you, a few decades on:</strong> Thank you for doing this when you did. I\'m so glad I\'m not the one sitting out of things. I\'m so glad I\'m not the one everyone has to help. You started early, and I\'m the one who got to enjoy it.</p>'
+      + '<p>None of this replaces your doctor. Keep them in the loop.</p>'
+      + '<p>Your free report is on its way to your inbox.</p>';
+  }
+
   function buyLink(el, publicCfg) {
     var url = safeBuyUrl((publicCfg && publicCfg.buy_url) || el.getAttribute('data-buy-url') || '');
     return url ? '<a class="hdlw-buy" href="' + escHtml(url) + '">Buy the report</a>' : '';
@@ -848,8 +875,6 @@
       if (publicCfg.cta_text)          cfg.ctaText   = publicCfg.cta_text;
       if (publicCfg.theme_color)       cfg.color     = publicCfg.theme_color;
       cfg.showBookOnPublic = !!publicCfg.show_book_button_after_widget;
-      // v0.48.29 — the Healthspan Timeline page; present only while its flag is on.
-      cfg.timelineUrl = safeBuyUrl(publicCfg.timeline_url || '');
     }
 
     var inviteToken = '', inviteName = '', inviteEmail = '';
@@ -894,6 +919,7 @@
     cfg.assetVer = String((publicCfg && publicCfg.asset_ver) || (invite && invite.asset_ver) || '');
     cfg.bandVideos = (publicCfg && publicCfg.band_videos) || (invite && invite.band_videos) || null; // v0.48.50 (W9)
     cfg.safetyNotice = (publicCfg && publicCfg.safety_notice) || (invite && invite.safety_notice) || null; // v0.48.66
+    cfg.resultOffer = (publicCfg && publicCfg.result_offer) || (invite && invite.result_offer) || null; // v0.48.77 (2c)
     if (cfg.questionMotion) injectMotionStyles();
 
     var id = 'hdlw-' + cfg.pracId;
@@ -1679,16 +1705,6 @@
       var firstName = (answers._name || '').split(/\s+/)[0] || 'there';
       var greeting = firstName === 'there' ? 'Hi there \u2014' : 'Hi ' + firstName + ' \u2014';
 
-      // v0.48.29 — the timeline teaser opens the page with these numbers in the
-      // fragment (never sent to a server). Adults only: the page reads 18 to 100.
-      var timelineHref = cfg.timelineUrl && age >= 18 && age <= 100
-        ? cfg.timelineUrl + '#a=' + age + '&s=' + (r.sex === 'male' ? 'M' : 'F') + '&r=' + rate.toFixed(2)
-          + '&n=' + encodeURIComponent(firstName === 'there' ? '' : firstName)
-          + (/^\d+$/.test(String(cfg.pracId)) ? '&p=' + cfg.pracId : '') // v0.48.60: the timeline's brand row
-        : '';
-      var timelineStrip = ['#3fae4a', '#3fae4a', '#3fae4a', '#3fae4a', '#3fae4a', '#e0b128', '#e0b128', '#e5761f', '#e5761f', '#c93437', '#c93437', '#b4bcb9']
-        .map(function (c, i) { return '<rect x="' + (i * 20) + '" y="0" width="18" height="40" rx="3" fill="' + c + '"/>'; }).join('');
-
       // Rate band drives the headline copy + the Awaken third paragraph.
       var bandColor, bandLabel, bandClass, awakenP1, awakenP3;
       var pct = Math.abs(Math.round((rate - 1) * 100));
@@ -1712,6 +1728,11 @@
         awakenP3  = 'The good news: a ' + rateDisplay + '\u00d7 rate is well inside the range that responds quickly to focused changes in strength training, sleep consistency and daily movement. Your practitioner will use this gauge as the baseline for everything that follows.';
       }
       var awakenP2 = 'This isn\u2019t a verdict \u2014 it\u2019s a starting picture. The 9 questions captured your activity, sleep, social, smoking and diet patterns. The result reflects today, not tomorrow. Most of these levers are within your control.';
+
+      // v0.48.77 (2c) — hdlv2_ff_result_offer: on the paths that show the thank-you card (never the
+      // practitioner-invited one) the card sells the Full Report like the Stage 1 e-mail.
+      var bandKey = { good: 'green', avg: 'blue', warn: 'red' }[bandClass];
+      var offerHref = fastInvite ? '' : resultOfferHref(cfg.resultOffer, bandKey, answers._email);
 
       var diffLabel = '';
       if (diff !== null) {
@@ -1834,6 +1855,10 @@
         // card font-stack so the page reads as one coherent visual.
         + '.hdlw-r-thanks-headline{font-family:' + SERIF + ';font-size:24px;font-weight:600;color:#111;margin:0 0 12px;letter-spacing:-0.01em;line-height:1.2;}'
         + '.hdlw-r-thanks-body{font-size:15px;color:#555;line-height:1.75;margin:0;}'
+        // v0.48.77 (2c) — the offer card's small price line and its two soft boxes, as in the Stage 1 e-mail.
+        + '.hdlw-r-card p.hdlw-r-price{font-size:13px;color:#888;margin:0;}'
+        + '.hdlw-r-card p.hdlw-r-offer-note{border:1px solid #e4e6ea;border-radius:10px;padding:12px 16px;font-size:13px;line-height:1.6;color:#2c3e50;}'
+        + '.hdlw-r-card p.hdlw-r-offer-quote{background:#f8f9fb;border-radius:10px;padding:18px 22px;font-style:italic;color:#2c3e50;}'
         + '.hdlw-r-btn-primary{display:inline-block;width:100%;max-width:320px;box-sizing:border-box;padding:12px 28px;background:#004F59;color:#fff;border:1px solid #004F59;border-radius:999px;text-decoration:none;font-size:14px;font-weight:600;text-align:center;transition:background .15s ease;}'
         + '.hdlw-r-btn-primary:hover{background:#003a42;border-color:#003a42;}'
         + '.hdlw-r-btn-secondary{display:inline-block;width:100%;max-width:320px;box-sizing:border-box;padding:12px 28px;background:#fff;color:#3d8da0;border:1px solid #3d8da0;border-radius:999px;text-decoration:none;font-size:14px;font-weight:600;text-align:center;transition:background .15s ease,color .15s ease;}'
@@ -1893,7 +1918,7 @@
         +     '</div>'
         +     '<span class="hdlw-r-hero-pill">Stage 1</span>'
         +   '</div>'
-        +   '<p class="hdlw-r-hero-body">Here\u2019s your starting picture, built from your 9 quick answers. Next, your <em>WHY</em> \u2014 what really matters to you \u2014 turns this snapshot into a plan that\u2019s truly yours.</p>'
+        +   '<p class="hdlw-r-hero-body">Here\u2019s your starting picture, built from your 9 quick answers.' + (offerHref ? '' : ' Next, your <em>WHY</em> \u2014 what really matters to you \u2014 turns this snapshot into a plan that\u2019s truly yours.') + '</p>'
         + '</section>'
 
         // v0.22.46 \u2014 2-column page grid below hero.
@@ -1910,7 +1935,7 @@
         +       '<h2>Your Health Gauge</h2>'
         +       '<p class="hdlw-r-lede">A snapshot of how fast you\u2019re ageing today, based on your quick answers.</p>'
         +       '<img class="hdlw-r-gauge-img" src="' + gaugeUrl(rate) + '" alt="Rate of ageing gauge \u2014 ' + rateDisplay + '">'
-        +       bandVideoHtml({ good: 'green', avg: 'blue', warn: 'red' }[bandClass], cfg.bandVideos)
+        +       ( bandVideoHtml(bandKey, cfg.bandVideos) || (offerHref ? bandVideoHtml('film', { film: cfg.resultOffer.video_url }) : '') )
         +     '</div>'
         +     '<div class="hdlw-r-stat">'
         +       '<p class="hdlw-r-stat-label">Rate of Ageing</p>'
@@ -1976,8 +2001,10 @@
             // said saved: the thank-you stays hidden and -status reports.
             +   '<div id="' + id + '-status" class="hdlw-r-status" role="status" aria-live="polite">Sending your answers\u2026</div>'
             +   '<div id="' + id + '-thanks" hidden>'
-            +     '<h2 class="hdlw-r-thanks-headline">Thank you.</h2>'
-            +     '<p class="hdlw-r-thanks-body">Your practitioner has been sent your data. Once they have looked at your data, you will receive another email.</p>'
+            +     ( offerHref
+                  ? resultOfferHtml(cfg.resultOffer, offerHref, escapeHtml)
+                  : '<h2 class="hdlw-r-thanks-headline">Thank you.</h2>'
+                  + '<p class="hdlw-r-thanks-body">Your practitioner has been sent your data. Once they have looked at your data, you will receive another email.</p>' )
             +     ( showBook
                   ? '<div class="hdlw-r-buttons" style="margin-top:22px;">' + bookSessionBtn + '</div>'
                   : '' )
@@ -1985,13 +2012,6 @@
         )
         +     '</div>'
         +     ( linkInvite ? '<div id="' + id + '-link" class="hdlw-r-card" role="region" aria-label="Share with ' + escapeHtml(linkFrom) + '" hidden></div>' : '' )
-        +     ( timelineHref
-            ? '<div class="hdlw-r-card hdlw-timeline-teaser">'
-            +   '<svg viewBox="0 0 240 40" width="100%" height="40" preserveAspectRatio="none" aria-hidden="true" focusable="false">' + timelineStrip + '</svg>'
-            +   '<p style="margin:14px 0 16px;font-weight:600;color:#2c3e50;">See your years beside the people you love</p>'
-            +   '<a class="hdlw-r-btn-secondary" href="' + escapeHtml(timelineHref) + '" target="_blank" rel="noopener noreferrer">Open my timeline</a>'
-            + '</div>'
-            : '' )
         +   '</div>'
 
         + '</div>' // end .hdlw-r-twocol

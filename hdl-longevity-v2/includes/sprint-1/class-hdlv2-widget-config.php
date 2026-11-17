@@ -1491,9 +1491,10 @@ class HDLV2_Widget_Config {
             // setting: HDLV2_Offer). offer_show "0" hides page 2 for a buyer who
             // already paid for the Full Report. v0.48.50: + offer_code_ends.
             + HDLV2_Offer::payload_keys( $offer_show );
-            // Where the offer shows, the link carries the lead's address (v0.48.73: no code).
+            // Where the offer shows, the link carries the lead's address (v0.48.73: no code)
+            // and opens the buying page for the lead's band (v0.48.77).
             if ( $offer_show ) {
-                $pdf_payload = array_merge( $pdf_payload, HDLV2_Offer::personal( $visitor_email ) );
+                $pdf_payload = array_merge( $pdf_payload, HDLV2_Offer::personal( $visitor_email, $band ) );
             }
 
             $stage1_webhook = defined( 'HDLV2_MAKE_STAGE1_PDF' ) ? HDLV2_MAKE_STAGE1_PDF : '';
@@ -2675,8 +2676,7 @@ class HDLV2_Widget_Config {
             'buy_url'                       => isset( $row->buy_url ) ? (string) $row->buy_url : '',
         ) + ( class_exists( 'HDLV2_Safety_Content' ) && HDLV2_Safety_Content::enabled() ? array( 'safety_notice' => HDLV2_Safety_Content::public_payload() ) : array() ) // v0.48.66 — the notice's words and numbers
           + ( HDLV2_Offer::applies_to( (int) $row->practitioner_user_id ) ? HDLV2_Offer::public_config_fields() : array() ) // v0.48.15 — the locked panel's price line
-          // v0.48.29 — the result screen's timeline teaser, beside the offer it sells (flag on only)
-          + ( HDLV2_Offer::applies_to( (int) $row->practitioner_user_id ) && class_exists( 'HDLV2_Healthspan_Timeline' ) ? HDLV2_Healthspan_Timeline::public_config_fields() : array() ) ) );
+          + HDLV2_Offer::result_offer_fields( (int) $row->practitioner_user_id ) ) ); // v0.48.77 — the result page's offer (switch on only)
     }
 
     /**
@@ -3220,7 +3220,8 @@ class HDLV2_Widget_Config {
             // v0.47.85 — 'paid_stage1' tells the widget this link buys the
             // public path (no "Continue to Stage 2").
             'source'                         => $source,
-        ) + ( class_exists( 'HDLV2_Safety_Content' ) && HDLV2_Safety_Content::enabled() ? array( 'safety_notice' => HDLV2_Safety_Content::public_payload() ) : array() ) + $link ); // v0.48.66
+        ) + ( class_exists( 'HDLV2_Safety_Content' ) && HDLV2_Safety_Content::enabled() ? array( 'safety_notice' => HDLV2_Safety_Content::public_payload() ) : array() ) + $link // v0.48.66
+          + HDLV2_Offer::result_offer_fields( (int) $invite->practitioner_id ) ); // v0.48.77 — the result page's offer (switch on only)
     }
 
     /**

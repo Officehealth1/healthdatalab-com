@@ -59,7 +59,7 @@ check( 'F.1 36 keys', is_array( $make ) && 36 === count( $make ) );
 check( 'F.2 band green at 0.90', 'green' === ( $make['band'] ?? null ) );
 check( 'F.3 band_video_url empty with the option absent', '' === ( $make['band_video_url'] ?? null ) );
 check( 'F.4 no code, no end date, no list price; an old saved code never rides', '' === ( $make['offer_code_ends'] ?? null ) && '' === $make['offer_code'] && '' === $make['offer_list'] );
-check( 'F.4b offer_url: the offer url, no code, the e-mail in its fragment', 'https://alt.example.test/full-report#email=ivy%40example.test' === $make['offer_url'] );
+check( 'F.4b offer_url: the green band\'s page (v0.48.77), no code, the e-mail in its fragment', 'https://alt.example.test/full-report-slower#email=ivy%40example.test' === $make['offer_url'] );
 check( 'F.5 the three keys are strings', is_array( $make ) && is_string( $make['band'] ?? null ) && is_string( $make['band_video_url'] ?? null ) && is_string( $make['offer_code_ends'] ?? null ) );
 
 define( 'HDLV2_FULL_CODE_URL', CODE_URL );
@@ -74,7 +74,7 @@ check( 'G.2 offer_code and offer_code_ends stay empty', is_array( $make ) && '' 
 check( 'G.3 band blue at 1.00', 'blue' === ( $make['band'] ?? null ) );
 check( 'G.4 still 36 keys', is_array( $make ) && 36 === count( $make ) );
 list( $make ) = fire_at( 1.00, 'not an email' );
-check( 'G.5 an invalid email: the plain offer url', is_array( $make ) && 'https://alt.example.test/full-report' === $make['offer_url'] );
+check( 'G.5 an invalid email: the blue band\'s page alone', is_array( $make ) && 'https://alt.example.test/full-report-average' === $make['offer_url'] );
 
 echo "── H. the band's video ──\n";
 $GLOBALS['options']['hdlv2_stage1_band_videos'] = array( 'green' => 'https://youtu.be/K2rQSjwvTws', 'red' => 'https://www.youtube.com/watch?v=abcdefghijk' );
