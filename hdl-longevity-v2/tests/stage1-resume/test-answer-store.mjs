@@ -114,6 +114,19 @@ t('3.3 no time, or a time that is not a number: nothing comes back', () => {
 });
 t('3.4 a clock set far ahead when it was saved: not kept for ever', () => read(FOUR, 4, NOW + 8 * DAY).got === null);
 
+t('3.5 a later step keeps the first time: the seven days run from the first kept answer, whatever comes after', () => {
+  const s = storage({ 'hdlw-s1-122': record(FOUR, 4, NOW - 3 * DAY) });
+  world({ localStorage: s }).answerStore('122').set(Object.assign({}, FOUR, { q5: 'b' }), 5);
+  const kept = JSON.parse(s.m.get('hdlw-s1-122'));
+  return kept.at === NOW - 3 * DAY && kept.step === 5 && kept.answers.q5 === 'b';
+});
+t('3.6 a record that is too old, or not ours, does not lend its time to a new one', () =>
+  [record(FOUR, 4, NOW - 8 * DAY), 'not json', JSON.stringify({ answers: FOUR, step: 4 })].every((text) => {
+    const s = storage({ 'hdlw-s1-122': text });
+    world({ localStorage: s }).answerStore('122').set(FOUR, 4);
+    return JSON.parse(s.m.get('hdlw-s1-122')).at === NOW;
+  }));
+
 console.log('── 4. one practitioner’s answers ──');
 t('4.1 the key carries the practitioner’s number', () => {
   const s = storage();
@@ -157,6 +170,11 @@ t('7.1 the switch is on only from the public settings, and never with an invite'
   return line && on({ resume_enabled: true }, null) === true && on({ resume_enabled: true }, { valid: true }) === false
     && on({ resume_enabled: false }, null) === false && on(null, null) === false && on({}, undefined) === false
     && on(null, { resume_enabled: true }) === false;
+});
+t('7.1b the switch answered "off": what an earlier visit kept is wiped at the start; no answer at all keeps it', () => {
+  const line = cut('    if (publicCfg && publicCfg.resume_enabled === false) ', ';');
+  const drops = (publicCfg) => { let n = 0; vm.runInNewContext(line + ';', { publicCfg, kept: { drop: () => { n++; } } }); return n; };
+  return line && drops({ resume_enabled: false }) === 1 && drops({ resume_enabled: true }) === 0 && drops({}) === 0 && drops(null) === 0;
 });
 const goToSrc = fn('goTo', '    ');
 const goTo = (resume, to) => {
@@ -223,6 +241,37 @@ t('9.4 no browser pop-up anywhere in the widget', () => !/\b(confirm|alert|promp
 t('9.5 the buttons are real buttons with a visible focus ring', () =>
   count('<button type="button" class="hdlw-resume-') === 3 && /\.hdlw-resume button:focus-visible\{outline:2px solid/.test(styles.join('\n')));
 
+/** The real box in a stand-in page: what it shows, and what each press does. */
+const boxWorld = () => {
+  const seen = { drops: 0, goTo: [], styles: 0, focus: [], inserted: null };
+  const box = {
+    html: '', listeners: {}, setAttribute() {}, addEventListener(type, f) { this.listeners[type] = f; },
+    set innerHTML(v) { this.html = v; }, get innerHTML() { return this.html; },
+    get lastChild() { const all = [...this.html.matchAll(/class="(hdlw-resume-[a-z]+)"/g)]; return { focus: () => seen.focus.push(all[all.length - 1][1]) }; },
+  };
+  const ctx = { document: { createElement: () => box }, contentEl: { firstChild: null, insertBefore: (n) => { seen.inserted = n; } },
+    injectResumeStyles: () => { seen.styles++; }, kept: { drop: () => { seen.drops++; } }, goTo: (s) => seen.goTo.push(s), answers: { q3: 'c' } };
+  vm.runInNewContext(fn('showResumeBox', '    ') + '\nshowResumeBox();', ctx);
+  return { seen, box, ctx, press: (cls) => box.listeners.click({ target: { className: cls } }) };
+};
+t('9.7 the box opens with the welcome line above the question, and nothing is cleared', () => {
+  const w = boxWorld();
+  return w.seen.inserted === w.box && /Welcome back\./.test(w.box.html) && !/Clear your answers/.test(w.box.html) && w.seen.drops === 0 && w.seen.styles === 1;
+});
+t('9.8 "Start again" only asks; "Keep my answers" changes nothing and the keyboard stays in the box', () => {
+  const w = boxWorld();
+  w.press('hdlw-resume-again');
+  const asked = /Clear your answers and start from the first question\?/.test(w.box.html) && !/Welcome back/.test(w.box.html);
+  w.press('hdlw-resume-keep');
+  w.press('');
+  return asked && /Welcome back\./.test(w.box.html) && w.seen.drops === 0 && w.seen.goTo.length === 0 && w.ctx.answers.q3 === 'c'
+    && w.seen.focus.join() === 'hdlw-resume-keep,hdlw-resume-again';
+});
+t('9.9 "Yes, start again" wipes the kept copy, empties the answers and opens the first question', () => {
+  const w = boxWorld();
+  w.press('hdlw-resume-again'); w.press('hdlw-resume-yes');
+  return w.seen.drops === 1 && Object.keys(w.ctx.answers).length === 0 && w.seen.goTo.join() === '0';
+});
 t('9.6 the text buttons use the text colour, not the practitioner\u2019s own colour (a pale one would not read on the light fill)', () =>
   /\.hdlw-resume button\{[^}]*;color:' \+ B\.dark \+ ';/.test(styles.join('\n')) && !/\.hdlw-resume button\{[^}]*hdl-accent/.test(styles.join('\n')));
 

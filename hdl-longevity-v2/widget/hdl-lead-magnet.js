@@ -996,6 +996,7 @@
     }
     // v0.48.80 (2f) — the answers this browser kept come back, when the switch is on.
     var kept = answerStore(cfg.pracId), resumed = cfg.resume ? kept.get() : null;
+    if (publicCfg && publicCfg.resume_enabled === false) kept.drop(); // switched off: nothing from an earlier visit stays
     if (resumed) answers = resumed.answers;
 
     // --- Build HTML shell ---
@@ -2489,29 +2490,32 @@
 
   // v0.48.80 (2f) — the nine answers wait in this browser, under the practitioner's number, so a person who is
   // interrupted continues where they stopped on the same phone or computer. Only the answers, the step and the
-  // time are kept: never the name, e-mail, phone or safety ticks. Older than seven days: ignored and deleted.
+  // time of the first kept answer: never the name, e-mail, phone or safety ticks. Seven days after that first
+  // answer the copy is ignored and deleted, and it is deleted as soon as the settings say the switch is off.
   // ponytail: answers in a browser that never returns stay there until that browser's storage is cleared; they
   // never leave the device. A timed sweep would need a copy on the server, which is what this avoids.
   function answerStore(pracId) {
     var name = 'hdlw-s1-' + pracId;
     function drop() { try { window.localStorage.removeItem(name); } catch (e) { /* private mode */ } }
+    // Our own record and not older than seven days, or null.
+    function load() {
+      try {
+        var rec = JSON.parse(window.localStorage.getItem(name) || 'null');
+        return rec && typeof rec.at === 'number' && Math.abs(Date.now() - rec.at) < RESUME_MS ? rec : null;
+      } catch (e) { return null; /* private mode, or text that is not ours */ }
+    }
     return {
       get: function () {
-        var found = null;
-        try {
-          var rec = JSON.parse(window.localStorage.getItem(name) || 'null');
-          if (rec && typeof rec.at === 'number' && Math.abs(Date.now() - rec.at) < RESUME_MS) {
-            var a = takeAnswers(rec.answers, true);
-            if (Object.keys(a).length) found = { answers: a, step: rec.step };
-          }
-        } catch (e) { /* private mode, or text that is not ours */ }
-        if (!found) drop();
-        return found;
+        var rec = load(), a = rec ? takeAnswers(rec.answers, true) : {};
+        if (Object.keys(a).length) return { answers: a, step: rec.step };
+        drop();
+        return null;
       },
+      // The time is the first kept answer's: a later step, or a return, never makes the seven days longer.
       set: function (answers, step) {
-        var a = takeAnswers(answers, true);
+        var a = takeAnswers(answers, true), rec = load();
         if (!Object.keys(a).length) { drop(); return; }
-        try { window.localStorage.setItem(name, JSON.stringify({ answers: a, step: step, at: Date.now() })); } catch (e) { /* private mode: today's behaviour */ }
+        try { window.localStorage.setItem(name, JSON.stringify({ answers: a, step: step, at: rec ? rec.at : Date.now() })); } catch (e) { /* private mode: today's behaviour */ }
       },
       drop: drop
     };
