@@ -1017,6 +1017,12 @@ class HDLV2_AI_Service {
             . "- Blood Pressure: {$sc('bloodPressureScore')}/5\n"
             . "- Heart Rate: {$sc('heartRateScore')}/5";
 
+        // v0.48.79 (M39; hdlv2_ff_empty_values) — a box left empty reads "n/a" below, never 0.
+        if ( get_option( 'hdlv2_ff_empty_values', false ) ) {
+            foreach ( array( 'bpSystolic', 'bpDiastolic', 'restingHeartRate' ) as $k ) {
+                $s3_raw[ $k ] = HDLV2_Final_Report::raw_measurement( $s3_raw[ $k ] ?? null );
+            }
+        }
         $bp_sys = isset( $s3_raw['bpSystolic'] )       ? (int) $s3_raw['bpSystolic']       : '';
         $bp_dia = isset( $s3_raw['bpDiastolic'] )      ? (int) $s3_raw['bpDiastolic']      : '';
         $hr_bpm = isset( $s3_raw['restingHeartRate'] ) ? (int) $s3_raw['restingHeartRate'] : '';
