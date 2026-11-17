@@ -176,7 +176,8 @@ check( 'C4.2 the practitioner\'s Sent Invites lists leave challenge links out (b
 // v0.48.24 (F1, F3) — a challenge link is a sale, not a practitioner invite.
 $cs = file_get_contents( $root . '/includes/sprint-4/class-hdlv2-client-status.php' );
 $cd = file_get_contents( $root . '/includes/sprint-4/class-hdlv2-client-dashboard.php' );
-check( 'C4.3 deleting a client never revokes their challenge link', 1 === substr_count( $cs, "AND status IN ('pending','opened')\n                   AND source NOT IN ('paid_stage1','challenge')" ) && 0 === substr_count( $cs, "<> 'paid_stage1'" ) );
+// v0.48.72 (G6) — the revoke also ends a used Full Report link; the challenge filter follows it unchanged.
+check( 'C4.3 deleting a client never revokes their challenge link', 1 === substr_count( $cs, "AND ( status IN ('pending','opened') OR ( status = 'completed' AND source = 'full_report' ) )\n                   AND source NOT IN ('paid_stage1','challenge')" ) && 0 === substr_count( $cs, "<> 'paid_stage1'" ) );
 check( 'C4.4 the dashboard "Start now" never carries a challenge link', 1 === substr_count( $cd, "AND source NOT IN ('paid_stage1','challenge')\n                   AND expires_at > %s" ) );
 check( 'C4.5 …the "is a V2 client" lookup still counts a challenge buyer (the one bare filter left)', 1 === substr_count( $cd, "<> 'paid_stage1'" ) && 1 === substr_count( $cd, "WHERE client_email = %s AND source <> 'paid_stage1' LIMIT 1" ) );
 check( 'C4.6 the practitioner\'s invite delete: same filter as its lists, no bare one left', 3 === substr_count( $wc, "source NOT IN ('paid_stage1','challenge')" ) && 0 === substr_count( $wc, "<> 'paid_stage1'" ) );
