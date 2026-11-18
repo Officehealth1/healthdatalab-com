@@ -65,7 +65,7 @@ function site_url( $p = '' ) { return 'https://stby.example.test' . $p; }
 function get_current_user_id() { return $GLOBALS['current_user_id']; }
 function email_exists( $e ) { return $GLOBALS['email_users'][ strtolower( $e ) ] ?? false; } // v0.48.24: set per test
 function wp_insert_user( $a ) { return 901; }
-function update_user_meta( ...$a ) { $GLOBALS['meta_writes'][] = array( 'update', $a ); return true; } // plan 2k: recorded, same answer
+function update_user_meta( ...$a ) { if ( ! empty( $GLOBALS['meta_write_fails'] ) ) return false; $GLOBALS['meta_writes'][] = array( 'update', $a ); return true; } // plan 2k: recorded; meta_write_fails makes it fail
 function get_user_meta( $uid, $k = '', $single = false ) { return $GLOBALS['usermeta'][ $uid ][ $k ] ?? ''; }
 function delete_user_meta( ...$a ) { $GLOBALS['meta_writes'][] = array( 'delete', $a ); return true; }
 function get_userdata( $id ) {

@@ -2380,30 +2380,6 @@ class HDLV2_Client_Dashboard {
     //  Helpers
     // ──────────────────────────────────────────────────────────────────────
 
-    /**
-     * The "Start now" link's ticket: the newest usable invite for the client's e-mail (see load_context()).
-     * v0.48.85 (plan 2k) — none for an account carrying the browser-pass mark: the purchase's own Full
-     * Report ticket is 'opened' after a straight-in claim, and its ?invite= link would let whoever holds
-     * this session pass the inbox proof as the owner (HDL_Stage1_Ticket::inbox_proof()).
-     */
-    private static function start_invite_token( $user ) {
-        global $wpdb;
-        $email = (string) $user->user_email;
-        if ( '' === $email || ( class_exists( 'HDL_Stage1_Ticket' ) && HDL_Stage1_Ticket::is_unproven( $user->ID ) ) ) {
-            return '';
-        }
-        $now    = current_time( 'mysql', true ); // GMT — matches gmdate()-stored expires_at
-        $invite = $wpdb->get_row( $wpdb->prepare(
-            "SELECT token FROM {$wpdb->prefix}hdlv2_widget_invites
-                 WHERE client_email = %s AND status IN ('pending','opened')
-                   AND source NOT IN ('paid_stage1','challenge')
-                   AND expires_at > %s
-                 ORDER BY id DESC LIMIT 1",
-            $email, $now
-        ) );
-        return $invite && $invite->token ? (string) $invite->token : '';
-    }
-
     private function load_context( $user_id ) {
         global $wpdb;
 
@@ -2485,7 +2461,22 @@ class HDLV2_Client_Dashboard {
         // completed/expired/revoked are intentionally excluded.
         // v0.48.24 — a challenge link is a sale, not a practitioner invite:
         // a newer one never displaces the practitioner's own "Start now" link.
-        $invite_token = $user ? self::start_invite_token( $user ) : '';
+        $invite_token = '';
+        $email = $user ? (string) $user->user_email : '';
+        if ( $email !== '' ) {
+            $now = current_time( 'mysql', true ); // GMT — matches gmdate()-stored expires_at
+            $invite = $wpdb->get_row( $wpdb->prepare(
+                "SELECT token FROM {$wpdb->prefix}hdlv2_widget_invites
+                 WHERE client_email = %s AND status IN ('pending','opened')
+                   AND source NOT IN ('paid_stage1','challenge')
+                   AND expires_at > %s
+                 ORDER BY id DESC LIMIT 1",
+                $email, $now
+            ) );
+            if ( $invite && $invite->token ) {
+                $invite_token = (string) $invite->token;
+            }
+        }
 
         return array(
             'first_name'         => $first,

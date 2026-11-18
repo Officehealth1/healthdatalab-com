@@ -47,11 +47,21 @@ class HDL_Stage1_Ticket {
     /** v0.48.81 (plan 2h) — straight-in asks per caller per hour. The caller is the selling site, so this caps the feature. */
     const OPEN_RATE_LIMIT = 120;
 
-    /** v0.48.85 (plan 2k) — user meta on an account a browser pass let in; holds the ticket id until the inbox proves itself. */
+    /** v0.48.85 (plan 2k) — user meta on an account a browser pass let in. G4: holds the SHA-256 of the browser key. */
     const UNPROVEN_META = 'hdlv2_unproven_entry';
+
+    /** v0.48.87 (plan 2k, G4) — how long a browser key opens its one form. One place; Matthew may change it. */
+    const BROWSER_KEY_LIFE = DAY_IN_SECONDS;
+
+    /** v0.48.87 (plan 2k, G4 step 7) — what a browser whose key ended sees, on the page and at a refused save. Draft words on Matthew's sheet. */
+    const ENDED_TITLE = "This browser's access has ended";
+    const ENDED_TEXT  = 'Open the link in your purchase e-mail to carry on. Your answers are saved.';
 
     public static function register_hooks() {
         add_action( 'rest_api_init', array( __CLASS__, 'register_routes' ) );
+        // v0.48.87 (plan 2k, G4) — every sign-in of an account ends its browser key: any ?invite=, a real
+        // ?token= link, wp-login, a password reset, the older plugin's links. The browser never gets a cookie.
+        add_action( 'set_auth_cookie', array( __CLASS__, 'end_browser_key_on_sign_in' ), 10, 4 );
     }
 
     public static function register_routes() {
@@ -142,10 +152,12 @@ class HDL_Stage1_Ticket {
 
     /**
      * v0.48.85 (plan 2k) — a browser pass: a buyer who pressed Buy on their own result page. It proves
-     * typing, not owning, so it gets less than the inbox pass: the form's own address (never the
-     * purchase e-mail's link), only into the account and record this purchase just made from that
-     * lead, and the account is marked so the purchase e-mail's link ends this browser's access
-     * (inbox_proof()). Behind hdlv2_ff_straight_in_result_page.
+     * typing, not owning, so it gets less than the inbox pass. G4 (2026-11-18): a key to one form, never an
+     * identity. Only into the account and record this purchase just made from that lead; the claim first,
+     * then a browser key of its own (a one-day transient naming the form row) and the mark on the account;
+     * the answer is the form page with that key. The row's real token is never returned here: it travels
+     * only by e-mail. Any sign-in of the account ends the key (end_browser_key(), browser_row()).
+     * Behind hdlv2_ff_straight_in_result_page.
      */
     private static function open_browser( $own, $ticket, $email, $user_id ) {
         global $wpdb;
@@ -170,27 +182,97 @@ class HDL_Stage1_Ticket {
             return self::open_no( 'account' );
         }
         $form = $wpdb->get_row( $wpdb->prepare(
-            "SELECT token FROM {$wpdb->prefix}hdlv2_form_progress WHERE client_user_id = %d AND practitioner_user_id = %d AND deleted_at IS NULL AND token_expires_at > UTC_TIMESTAMP() ORDER BY id DESC LIMIT 1",
+            "SELECT id FROM {$wpdb->prefix}hdlv2_form_progress WHERE client_user_id = %d AND practitioner_user_id = %d AND deleted_at IS NULL AND token_expires_at > UTC_TIMESTAMP() ORDER BY id DESC LIMIT 1",
             $user_id,
             $practitioner_id
         ) );
-        if ( ! $form || ! preg_match( '/^[a-f0-9]{64}$/', (string) $form->token ) ) {
+        $form_id = $form ? (int) $form->id : 0;
+        if ( ! $form_id ) {
             return self::open_no( 'form' );
         }
-        // The mark before the claim (review F3): the ?invite= handler moves the ticket out of 'pending'
-        // before it reads the mark, so either this claim lands first and the proof sees the mark, or the
-        // claim fails. A failed claim keeps the mark: deleting it would let a second ask from the browser
-        // that went in remove the first ask's mark; a mark on an account nobody entered costs the owner one
-        // reset at their next purchase-link opening.
-        if ( ! self::is_unproven( $user_id ) && ! update_user_meta( $user_id, self::UNPROVEN_META, (int) $ticket->id ) ) {
-            return self::open_no( 'mark' );
-        }
+        // The claim first: a failed claim mints nothing, so a second ask never touches the first one's key.
         if ( ! self::claim( (int) $ticket->id ) ) {
             return self::open_no( 'claim' );
         }
+        $key  = self::browser_token();
+        $hash = hash( 'sha256', $key );
+        if ( ! set_transient( 'hdlv2_bt_' . $hash, $form_id, self::BROWSER_KEY_LIFE ) ) {
+            return self::open_no( 'key' );
+        }
+        if ( ! update_user_meta( $user_id, self::UNPROVEN_META, $hash ) ) {
+            delete_transient( 'hdlv2_bt_' . $hash );
+            return self::open_no( 'mark' );
+        }
         error_log( '[HDL full-report-open] yes invite=' . (int) $ticket->id . ' browser' );
         $slug = trim( apply_filters( 'hdlv2_assessment_slug', 'assessment' ), '/' );
-        return rest_ensure_response( array( 'open' => true, 'url' => home_url( '/' . $slug . '/?token=' . $form->token ) ) );
+        return rest_ensure_response( array( 'open' => true, 'url' => home_url( '/' . $slug . '/?token=' . $key ) ) );
+    }
+
+    /**
+     * v0.48.87 (plan 2k, G4) — a browser key: 32 random hex and 32 hex of their HMAC. 64 hex like a form
+     * address (the page, cache and REST handlers take it as one), and known as a key without a lookup, so a
+     * key whose day is over gets the "access ended" words instead of "link not found".
+     */
+    private static function browser_token() {
+        $random = bin2hex( random_bytes( 16 ) );
+        return $random . self::browser_signature( $random );
+    }
+
+    private static function browser_signature( $random ) {
+        return substr( hash_hmac( 'sha256', 'hdlv2-browser-key|' . $random, wp_salt( 'auth' ) ), 0, 32 );
+    }
+
+    /** v0.48.87 (plan 2k, G4) — true for a key browser_token() made, live or not. */
+    public static function is_browser_token( $token ) {
+        return is_string( $token ) && preg_match( '/^[a-f0-9]{64}$/', $token )
+            && hash_equals( self::browser_signature( substr( $token, 0, 32 ) ), substr( $token, 32 ) );
+    }
+
+    /**
+     * v0.48.87 (plan 2k, G4) — the one resolver: browser key → SHA-256 → transient → form row. It signs
+     * nobody in. Null when the token is not a key or its day is over. Null too, and the key and the mark
+     * end, once the owner has arrived: any live session of the account (the browser never gets one, so
+     * every session is the owner's), the mark gone or naming another key, or the row gone.
+     *
+     * @return object|null { id, token, client_user_id }
+     */
+    public static function browser_row( $token ) {
+        if ( ! self::is_browser_token( $token ) ) {
+            return null;
+        }
+        $hash    = hash( 'sha256', $token );
+        $form_id = (int) get_transient( 'hdlv2_bt_' . $hash );
+        if ( ! $form_id ) {
+            return null;
+        }
+        global $wpdb;
+        $row = $wpdb->get_row( $wpdb->prepare(
+            "SELECT id, token, client_user_id FROM {$wpdb->prefix}hdlv2_form_progress WHERE id = %d AND deleted_at IS NULL AND token_expires_at > UTC_TIMESTAMP() LIMIT 1",
+            $form_id
+        ) );
+        $uid = $row ? (int) $row->client_user_id : 0;
+        if ( $uid ) {
+            wp_cache_delete( $uid, 'user_meta' ); // a sign-in in another request may have changed it
+        }
+        if ( ! $uid || $hash !== (string) get_user_meta( $uid, self::UNPROVEN_META, true )
+             || WP_Session_Tokens::get_instance( $uid )->get_all() ) {
+            delete_transient( 'hdlv2_bt_' . $hash );
+            if ( $uid ) {
+                delete_user_meta( $uid, self::UNPROVEN_META, $hash );
+            }
+            error_log( '[HDL full-report-open] browser key ended' );
+            return null;
+        }
+        return $row;
+    }
+
+    /**
+     * v0.48.87 (plan 2k, G4) — for the lookups the form itself uses (the staged form, audio, job status):
+     * a live key becomes its row's own token; any other token comes back unchanged.
+     */
+    public static function form_token( $token ) {
+        $row = self::browser_row( $token );
+        return $row ? (string) $row->token : $token;
     }
 
     /**
@@ -222,46 +304,40 @@ class HDL_Stage1_Ticket {
     }
 
     /**
-     * v0.48.85 (plan 2k) — inbox proof, called by the ?invite= handler for a full_report ticket before
-     * anyone is signed in, with the switches on or off (a mark must never outlive a switch). An account
-     * marked by open_browser() went straight in on typing alone; opening the purchase e-mail's link
-     * proves the inbox. One path, wherever the link is opened: the account goes back to a clean state,
-     * whatever was done with it before. Every session ends; every form record gets a new token (end
-     * dates and answers untouched), so the first browser's tab stops at its next save; a new random
-     * password (wp_set_password sends no mail; wp_update_user would tell the owner); every application password
-     * and any pending e-mail change go; then the mark goes. A browser already signed in as the account
-     * loses that session too (the password is in the cookie): the handler signs the opener in again
-     * after this. A failed write keeps the mark, so the next opening tries again.
-     *
-     * @return string '' (no mark), 'cleared' or 'failed'.
+     * v0.48.87 (plan 2k, G4) — the owner has arrived: end the account's browser key and its mark. The
+     * request's user-meta copy is dropped first, because email_exists() or a WP_User built earlier in this
+     * request may have read the meta before the mark was written (review 2, finding 4).
      */
-    public static function inbox_proof( $user_id ) {
+    public static function end_browser_key( $user_id ) {
         $user_id = (int) $user_id;
-        if ( ! self::is_unproven( $user_id ) ) {
-            return '';
+        if ( $user_id < 1 ) {
+            return;
         }
-        WP_Session_Tokens::get_instance( $user_id )->destroy_all();
-        global $wpdb;
-        $table = $wpdb->prefix . 'hdlv2_form_progress';
-        $ok    = true;
-        foreach ( (array) $wpdb->get_col( $wpdb->prepare( "SELECT id FROM $table WHERE client_user_id = %d", $user_id ) ) as $id ) {
-            $ok = false !== $wpdb->update( $table, array( 'token' => bin2hex( random_bytes( 32 ) ) ), array( 'id' => (int) $id ), array( '%s' ), array( '%d' ) ) && $ok;
+        wp_cache_delete( $user_id, 'user_meta' );
+        $hash = (string) get_user_meta( $user_id, self::UNPROVEN_META, true );
+        if ( '' === $hash ) {
+            return;
         }
-        wp_set_password( wp_generate_password( 32, true, true ), $user_id );
-        $ok = ! is_wp_error( WP_Application_Passwords::delete_all_application_passwords( $user_id ) ) && $ok;
-        delete_user_meta( $user_id, '_new_email' );
-        if ( ! $ok ) {
-            error_log( '[HDL full-report-open] proof failed' );
-            return 'failed';
-        }
+        delete_transient( 'hdlv2_bt_' . $hash );
         delete_user_meta( $user_id, self::UNPROVEN_META );
-        error_log( '[HDL full-report-open] proof cleared' );
-        return 'cleared';
+        error_log( '[HDL full-report-open] browser key ended' );
     }
 
-    /** v0.48.85 (plan 2k) — true while the account carries the mark open_browser() sets. */
-    public static function is_unproven( $user_id ) {
-        return (int) $user_id > 0 && '' !== (string) get_user_meta( (int) $user_id, self::UNPROVEN_META, true );
+    /** The set_auth_cookie action: its 4th argument is the account signing in. */
+    public static function end_browser_key_on_sign_in( $cookie, $expire, $expiration, $user_id ) {
+        self::end_browser_key( $user_id );
+    }
+
+    /**
+     * v0.48.87 (plan 2k, G4 step 7) — for a form call whose token found no row: a key we made (signed, so
+     * known after its transient is gone) gets the "access ended" words; anything else null (the caller's
+     * own "not found").
+     */
+    public static function ended_error( $token ) {
+        if ( ! self::is_browser_token( $token ) ) {
+            return null;
+        }
+        return new WP_Error( 'browser_key_ended', self::ENDED_TEXT, array( 'status' => 410, 'title' => self::ENDED_TITLE ) );
     }
 
     /** A straight-in refusal: one log line with the code, the same answer for every reason. */

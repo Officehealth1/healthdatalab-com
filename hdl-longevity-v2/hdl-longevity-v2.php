@@ -3,7 +3,7 @@
  * Plugin Name: HDL Longevity V2 — Staged Workflow
  * Plugin URI: https://healthdatalab.net
  * Description: V2 longevity workflow: staged intake, WHY profiling, practitioner consultations, weekly flight plans, and AI coaching. Runs alongside the existing Health Data Lab plugin.
- * Version: 0.48.86
+ * Version: 0.48.87
  * Author: Health Data Lab
  * Author URI: https://healthdatalab.net
  * License: Proprietary
@@ -22,7 +22,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 // register_activation_hook callbacks, which fire synchronously during
 // `wp plugin activate`, can reference them. The activator needs
 // HDLV2_DB_VERSION / HDLV2_VERSION at call time to update version options.
-define( 'HDLV2_VERSION', '0.48.86' );
+define( 'HDLV2_VERSION', '0.48.87' );
 define( 'HDLV2_DB_VERSION', '3.33' );
 
 // Client funnel token (hdlv2_form_progress.token) lifetime. FIXED window
@@ -200,9 +200,8 @@ add_action( 'init', function () {
             }
         }
 
-        // Mark invite as opened. v0.48.85 (plan 2k, review F3): before the inbox proof and only from
-        // 'pending', so a straight-in claim (HDL_Stage1_Ticket::open_browser, which writes its mark first)
-        // either lands before this and its mark is read below, or fails.
+        // Mark invite as opened. v0.48.85 (plan 2k, review F3): only from 'pending', so this opening and a
+        // straight-in claim (HDL_Stage1_Ticket::open_browser) cannot both move the ticket.
         if ( $invite->status === 'pending' ) {
             $wpdb->update(
                 $wpdb->prefix . 'hdlv2_widget_invites',
@@ -210,11 +209,6 @@ add_action( 'init', function () {
                 array( 'id' => (int) $invite->id, 'status' => 'pending' )
             );
         }
-
-        // v0.48.85 (plan 2k) — the purchase e-mail's link proves the inbox: an account a browser pass let
-        // in goes back to a clean state here (sessions, form addresses, password, application passwords),
-        // before anyone is signed in (switch on or off). The cookie below signs the opener in afresh.
-        if ( isset( $invite->source ) && 'full_report' === $invite->source && class_exists( 'HDL_Stage1_Ticket' ) ) { HDL_Stage1_Ticket::inbox_proof( $user_id ); }
 
         // Auto-login BEFORE the main query runs
         wp_set_current_user( $user_id );
@@ -380,6 +374,16 @@ add_action( 'init', function () {
              LIMIT 1",
             $token
         ) );
+
+        // v0.48.87 (plan 2k, G4) — no row has this token: a browser key opens its one form here with no
+        // sign-in (no wp_set_current_user, no cookie); the form's own calls carry the key.
+        if ( ! $progress && class_exists( 'HDL_Stage1_Ticket' ) && HDL_Stage1_Ticket::is_browser_token( $token ) ) {
+            if ( HDL_Stage1_Ticket::browser_row( $token ) ) {
+                return;
+            }
+            // A key we made whose day is over, or whose owner has signed in (G4 step 7).
+            hdlv2_render_link_card( HDL_Stage1_Ticket::ENDED_TITLE, HDL_Stage1_Ticket::ENDED_TEXT, '', '' );
+        }
 
         // v0.47.53 (B4) — fail CLOSED. Pre-fix, NULL expiry meant "valid
         // forever" and nothing ever wrote token_expires_at, so every client
@@ -937,8 +941,6 @@ final class HDL_Longevity_V2 {
         // v0.47.85 — keyed route that mints paid Stage 1 widget tickets.
         // Dark (503) until HDL_STAGE1_TICKET_KEY is defined in wp-config.
         require_once HDLV2_PLUGIN_DIR . 'includes/security/class-hdl-stage1-ticket.php';
-        // v0.48.85 (plan 2k) — while a browser-pass account waits for its inbox, nothing moves it out of reach.
-        require_once HDLV2_PLUGIN_DIR . 'includes/security/class-hdlv2-unproven-guard.php';
         // v0.48.15 — the Full Report offer in one setting (Stage 1 PDF page 2,
         // the widget's locked panel, the partnership line).
         require_once HDLV2_PLUGIN_DIR . 'includes/sprint-1/class-hdlv2-offer.php';
@@ -1067,7 +1069,6 @@ final class HDL_Longevity_V2 {
         // flag; with flag false every request returns 503.
         HDL_Paid_Report_Provisioner::get_instance()->register_hooks();
         HDL_Stage1_Ticket::register_hooks();
-        HDLV2_Unproven_Guard::register_hooks();
 
         // Sprint 1: Widget config dashboard + REST API + shortcode
         $widget_config = new HDLV2_Widget_Config();

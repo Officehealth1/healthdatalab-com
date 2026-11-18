@@ -182,8 +182,8 @@ class HDLV2_Offer {
     /**
      * v0.48.85 (plan 2k) — the browser pass: "b<unix time>.<64 hex>", given only in the lead reply to the
      * browser that sent the nine answers. It proves less than the inbox pass (typing, not owning), so
-     * HDL_Stage1_Ticket::handle_open() lets it open the form's own address only, marks the account, and the
-     * purchase e-mail's link returns the account to a clean state (inbox_proof()). Signed over the lead id
+     * HDL_Stage1_Ticket::handle_open() gives a one-day key to the form itself, never a sign-in, and any
+     * sign-in of the account ends that key (G4, v0.48.87). Signed over the lead id
      * and the digest of that lead row's answers, so a later re-send of the answers under the same e-mail
      * ends it. The lead id is read on the server, never shown (review F4). Nothing is stored.
      */
