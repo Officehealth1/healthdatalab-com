@@ -1949,7 +1949,7 @@
         +       '<h2>Your Health Gauge</h2>'
         +       '<p class="hdlw-r-lede">A snapshot of how fast you\u2019re ageing today, based on your quick answers.</p>'
         +       '<img class="hdlw-r-gauge-img" src="' + gaugeUrl(rate) + '" alt="Rate of ageing gauge \u2014 ' + rateDisplay + '">'
-        +       ( bandVideoHtml(bandKey, cfg.bandVideos) || (offerHref ? bandVideoHtml('film', { film: cfg.resultOffer.video_url }) : '') )
+        +       ( cfg.resultOffer && !offerHref ? '' : bandVideoHtml(bandKey, cfg.bandVideos) || (offerHref ? bandVideoHtml('film', { film: cfg.resultOffer.video_url }) : '') ) // v0.48.83 (2j): the films sell the $27 report, so with the switch on no button means no film
         +     '</div>'
         +     '<div class="hdlw-r-stat">'
         +       '<p class="hdlw-r-stat-label">Rate of Ageing</p>'

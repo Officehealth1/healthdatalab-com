@@ -22,7 +22,7 @@ const fns = ['safeBuyUrl', 'bandVideoHtml', 'resultOfferHref', 'resultOfferHtml'
 const cfgLine = cut('    cfg.resultOffer = ', ';');
 const hrefLine = cut('      var offerHref = ', ';\n');
 const hero = cut('\'<p class="hdlw-r-hero-body">', "+ '</p>'");
-const video = cut('( bandVideoHtml(bandKey', ": '') )");
+const video = cut('( cfg.resultOffer && !offerHref', ": '') )"); // v0.48.83 (2j): the guard in front, test-band-film-guard.mjs
 const thanks = cut("( offerHref\n                  ? resultOfferHtml(", "another email.</p>' )");
 ok(fns.every(Boolean) && cfgLine && hrefLine && hero && video && thanks, 'the four functions, the cfg line, the href line, the hero, the video and the card are found in the widget');
 

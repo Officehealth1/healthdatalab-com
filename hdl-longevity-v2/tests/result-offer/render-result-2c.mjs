@@ -53,6 +53,11 @@ export const EDITS = [
         statusEl.innerHTML = '';
         withBuyPass(el, offerHref, data.buy_pass); // v0.48.85 (plan 2k)
 `],
+  // v0.48.83 (plan 2j, Part P) — with the switch on, the film under the gauge only beside the buy button
+  // (tests/result-offer/test-band-film-guard.mjs). Nothing else in renderResult moved.
+  [String.raw`        +       ( bandVideoHtml(bandKey, cfg.bandVideos) || (offerHref ? bandVideoHtml('film', { film: cfg.resultOffer.video_url }) : '') )
+`, String.raw`        +       ( cfg.resultOffer && !offerHref ? '' : bandVideoHtml(bandKey, cfg.bandVideos) || (offerHref ? bandVideoHtml('film', { film: cfg.resultOffer.video_url }) : '') ) // v0.48.83 (2j): the films sell the $27 report, so with the switch on no button means no film
+`],
 ];
 
 /** The base renderResult with the 2c edits applied, or null when a piece is missing. */
