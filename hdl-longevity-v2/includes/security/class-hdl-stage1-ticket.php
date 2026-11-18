@@ -177,11 +177,16 @@ class HDL_Stage1_Ticket {
         if ( ! $form || ! preg_match( '/^[a-f0-9]{64}$/', (string) $form->token ) ) {
             return self::open_no( 'form' );
         }
+        // The mark before the claim (review F3): the ?invite= handler moves the ticket out of 'pending'
+        // before it reads the mark, so either this claim lands first and the proof sees the mark, or the
+        // claim fails. A failed claim keeps the mark: deleting it would let a second ask from the browser
+        // that went in remove the first ask's mark; a mark on an account nobody entered costs the owner one
+        // reset at their next purchase-link opening.
+        if ( ! self::is_unproven( $user_id ) && ! update_user_meta( $user_id, self::UNPROVEN_META, (int) $ticket->id ) ) {
+            return self::open_no( 'mark' );
+        }
         if ( ! self::claim( (int) $ticket->id ) ) {
             return self::open_no( 'claim' );
-        }
-        if ( ! update_user_meta( $user_id, self::UNPROVEN_META, (int) $ticket->id ) ) {
-            return self::open_no( 'mark' );
         }
         error_log( '[HDL full-report-open] yes invite=' . (int) $ticket->id . ' browser' );
         $slug = trim( apply_filters( 'hdlv2_assessment_slug', 'assessment' ), '/' );

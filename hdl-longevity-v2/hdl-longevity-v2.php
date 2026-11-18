@@ -200,6 +200,17 @@ add_action( 'init', function () {
             }
         }
 
+        // Mark invite as opened. v0.48.85 (plan 2k, review F3): before the inbox proof and only from
+        // 'pending', so a straight-in claim (HDL_Stage1_Ticket::open_browser, which writes its mark first)
+        // either lands before this and its mark is read below, or fails.
+        if ( $invite->status === 'pending' ) {
+            $wpdb->update(
+                $wpdb->prefix . 'hdlv2_widget_invites',
+                array( 'status' => 'opened', 'opened_at' => current_time( 'mysql' ) ),
+                array( 'id' => (int) $invite->id, 'status' => 'pending' )
+            );
+        }
+
         // v0.48.85 (plan 2k) — the purchase e-mail's link proves the inbox: an account a browser pass let
         // in goes back to a clean state here (sessions, form addresses, password, application passwords),
         // before anyone is signed in (switch on or off). The cookie below signs the opener in afresh.
@@ -216,15 +227,6 @@ add_action( 'init', function () {
         $is_challenge = isset( $invite->source ) && 'challenge' === $invite->source;
         if ( class_exists( 'HDLV2_Compatibility' ) && ! ( $is_challenge && $existing_user ) ) {
             HDLV2_Compatibility::create_practitioner_client_link( $invite->practitioner_id, $user_id );
-        }
-
-        // Mark invite as opened
-        if ( $invite->status === 'pending' ) {
-            $wpdb->update(
-                $wpdb->prefix . 'hdlv2_widget_invites',
-                array( 'status' => 'opened', 'opened_at' => current_time( 'mysql' ) ),
-                array( 'id' => $invite->id )
-            );
         }
 
         // Look up existing form_progress so we know whether Stage 1 is done.

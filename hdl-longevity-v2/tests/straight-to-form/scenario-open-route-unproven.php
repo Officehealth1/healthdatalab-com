@@ -32,6 +32,7 @@ class UnprovenWpdb extends FakeWpdb {
     public $registered_ago = array();
     public $leads = array(); // id → row
     public $forms = array(); // rows: client_user_id, practitioner_user_id, token, expires_in, deleted
+    public $marks_at_claim = null; // F3: how many mark writes had happened when the claim UPDATE ran
     public function get_row( $sql ) {
         if ( false !== strpos( $sql, 'hdlv2_widget_leads' ) ) {
             $this->queries[] = $sql;
@@ -71,6 +72,7 @@ class UnprovenWpdb extends FakeWpdb {
     public function query( $sql ) {
         $this->queries[] = $sql;
         if ( 0 !== strpos( ltrim( $sql ), 'UPDATE wp_hdlv2_widget_invites' ) ) return parent::query( $sql );
+        $this->marks_at_claim = count( marks() );
         $row = null;
         if ( preg_match( '/WHERE id = (\d+)/', $sql, $m ) ) { foreach ( $this->tickets as $t ) { if ( (int) $t->id === (int) $m[1] ) $row = $t; } }
         if ( ! $row ) return 0;
@@ -130,7 +132,14 @@ $m = marks();
 check( 'UO1.4 the mark hdlv2_unproven_entry = this ticket, on the buyer\'s account', 1 === count( $m ) && 'update' === $m[0][0] && UID === (int) $m[0][1][0] && 4401 === (int) $m[0][1][2] );
 check( 'UO1.5 never the e-mail\'s ?invite= link', is_array( $r ) && false === strpos( (string) ( $r['url'] ?? '' ), 'invite=' ) );
 check( 'UO1.6 the one UPDATE ran once', 1 === count( $w->sql_matching( 'UPDATE wp_hdlv2_widget_invites' ) ) );
-check( 'UO1.7 a second ask: no (claimed once)', $NO === ask() && 1 === count( marks() ) );
+check( 'UO1.7 a second ask: no (claimed once), and the first ask\'s mark is never deleted', $NO === ask() && ! array_filter( marks(), function ( $m ) { return 'delete' === $m[0]; } ) );
+$w = setup();
+ask();
+check( 'UO1.8 the mark is written before the claim (F3)', 1 === $w->marks_at_claim );
+$w = setup();
+$GLOBALS['usermeta'] = array( UID => array( 'hdlv2_unproven_entry' => '4400' ) );
+check( 'UO1.9 an account already marked: the yes, the mark not rewritten', true === ( ask()['open'] ?? null ) && ! marks() );
+$GLOBALS['usermeta'] = array();
 
 echo "── UO2. refusals, each with its code ──\n";
 $w = setup(); unset( $GLOBALS['options']['hdlv2_ff_straight_in_result_page'] ); no_with( '2.1 result-page switch absent', 'flag_off', $w, ask() );
@@ -154,8 +163,12 @@ $w = setup( array(), array(), array( 'id' => UID, 'ago' => 60 ), array() ); no_w
 $w = setup( array(), array(), array( 'id' => UID, 'ago' => 60 ), array( array( 'client_user_id' => UID, 'practitioner_user_id' => PRAC, 'token' => FTOK, 'expires_in' => 0, 'deleted' => false ) ) ); no_with( '2.19 the form token ran out', 'form', $w, ask() );
 $w = setup( array(), array(), array( 'id' => UID, 'ago' => 60 ), array( array( 'client_user_id' => UID, 'practitioner_user_id' => 122, 'token' => FTOK, 'expires_in' => 90, 'deleted' => false ) ) ); no_with( '2.20 the only form record is another practitioner\'s', 'form', $w, ask() );
 $w = setup( array(), array(), array( 'id' => UID, 'ago' => 60 ), array( array( 'client_user_id' => UID, 'practitioner_user_id' => PRAC, 'token' => FTOK, 'expires_in' => 90, 'deleted' => true ) ) ); no_with( '2.21 the form record is deleted', 'form', $w, ask() );
-$w = setup( array( 'status' => 'opened' ) ); check( 'UO 2.22 the ticket already opened: no (claim), no mark', $NO === ask() && ! marks() && log_has( 'claim' ) );
-$w = setup( array( 'made_ago' => 16 * 60 ), array(), array( 'id' => UID, 'ago' => 16 * 60 ) ); no_with( '2.23 a ticket made 16 minutes ago', 'claim', $w, ask() );
+// F3 (review): the mark is written before the claim and stays when the claim fails. Deleting it would let
+// a second ask from the browser that went in remove the first ask's mark; a mark left on an account that
+// never went in costs the owner one reset at their next purchase-link opening.
+function marked_kept() { $m = marks(); return 1 === count( $m ) && 'update' === $m[0][0] && UID === (int) $m[0][1][0]; }
+$w = setup( array( 'status' => 'opened' ) ); check( 'UO 2.22 the ticket already opened: no (claim), the mark written first is kept', $NO === ask() && 'opened' === st( $w ) && marked_kept() && log_has( 'claim' ) );
+$w = setup( array( 'made_ago' => 16 * 60 ), array(), array( 'id' => UID, 'ago' => 16 * 60 ) ); check( 'UO 2.23 a ticket made 16 minutes ago: no (claim), ticket pending, the mark kept', $NO === ask() && 'pending' === st( $w ) && marked_kept() && log_has( 'claim' ) );
 $w = setup( array( 'source' => 'challenge' ) ); no_with( '2.24 a challenge ticket', 'no_ticket', $w, ask() );
 
 echo "── UO3. the inbox pass is unchanged ──\n";

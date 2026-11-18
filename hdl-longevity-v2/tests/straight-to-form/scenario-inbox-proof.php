@@ -139,4 +139,9 @@ check( 'IP7.1 the call is in the ?invite= block', false !== $call );
 check( 'IP7.2 after the staff check and before the sign-in cookie', false !== $call && false !== $staff && false !== $cookie && $staff < $call && $call < $cookie );
 $line = $call ? substr( $block, strrpos( substr( $block, 0, $call ), "\n" ), 200 ) : '';
 check( 'IP7.3 only for a full_report ticket, and no switch around it', false !== strpos( $line, "'full_report' === \$invite->source" ) && false === strpos( $line, 'get_option' ) );
+// F3 (review): the ticket leaves 'pending' before the mark is read, by a conditional UPDATE, so a straight-in
+// claim either lands first (and its mark, written before it, is seen by the proof) or fails.
+$flip = strpos( $block, "array( 'id' => (int) \$invite->id, 'status' => 'pending' )" );
+check( 'IP7.4 a conditional pending-to-opened UPDATE (WHERE id AND status pending) before the proof', false !== $flip && false !== $call && $flip < $call );
+check( 'IP7.5 the unconditional update by the earlier read is gone', false === strpos( $block, "array( 'id' => \$invite->id )" ) && 1 === substr_count( $block, "'status' => 'opened'" ) );
 done();
