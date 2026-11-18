@@ -243,7 +243,13 @@ echo "── BT8. the form page opens past the membership plugin's site-wide sig
 // option filter, as the membership plugin reads it (2 = signed-in visitors only).
 class CardShown extends Exception {}
 function hdlv2_render_link_card( $title, $text, $a, $b ) { throw new CardShown( $title ); }
-function is_page( $slug = '' ) { return '' !== $slug && $slug === ( $GLOBALS['page'] ?? '' ); }
+// Pages by id: 501 the form page, 502 another page, 503 a child page that is also named "assessment".
+$GLOBALS['pages'] = array( 501 => 'assessment', 502 => 'my-dashboard', 503 => 'assessment' );
+function get_queried_object_id() { return (int) ( $GLOBALS['page_id'] ?? 0 ); }
+/** WordPress's is_page(): an empty argument is true on any page; a name matches any page of that name. */
+function is_page( $slug = '' ) { $id = get_queried_object_id(); return isset( $GLOBALS['pages'][ $id ] ) && ( '' === $slug || $slug === $GLOBALS['pages'][ $id ] ); }
+/** Only the top-level page owns the plain path; the child's path is parent/assessment. */
+function get_page_by_path( $path ) { return 'assessment' === $path ? (object) array( 'ID' => 501 ) : ( 'my-dashboard' === $path ? (object) array( 'ID' => 502 ) : null ); }
 function __return_zero() { return 0; }
 function run_hooks( $tag, $value = null ) {
     $hooks = $GLOBALS['hooked'][ $tag ] ?? array();
@@ -260,9 +266,9 @@ for ( $i = (int) strpos( $handler, '{', (int) $b0 ); false !== $b0 && $i < strle
 $KEY_BRANCH = false !== $b0 && false !== $b1 ? substr( $handler, $b0, $b1 - $b0 + 1 ) : '';
 check( 'BT8.0 the key branch is found in the loader', '' !== $KEY_BRANCH && false !== strpos( $KEY_BRANCH, 'browser_row( $token )' ) );
 /** The key branch for one request on $page; gives the site-wide rule's value and what the branch did. */
-function visit( $token, $progress, $page ) {
-    $GLOBALS['hooked'] = array();
-    $GLOBALS['page']   = $page;
+function visit( $token, $progress, $page_id ) {
+    $GLOBALS['hooked']  = array();
+    $GLOBALS['page_id'] = $page_id;
     $did = 'passed';
     try { ( function () use ( $token, $progress ) { eval( $GLOBALS['KEY_BRANCH'] ); } )(); } catch ( CardShown $c ) { $did = 'card:' . $c->getMessage(); }
     $before = run_hooks( 'um_get_option_filter__accessible', 2 );
@@ -270,21 +276,28 @@ function visit( $token, $progress, $page ) {
     return array( 'rule' => run_hooks( 'um_get_option_filter__accessible', 2 ), 'before' => $before, 'did' => $did, 'hooked' => array_keys( $GLOBALS['hooked'] ) );
 }
 setup(); $key = issue();
-$a = visit( $key, null, 'assessment' );
+$a = visit( $key, null, 501 );
 check( 'BT8.a a live key on the form page: the rule reads everyone (0) for this request', 0 === $a['rule'] && 'passed' === $a['did'] );
 check( 'BT8.a2 only once the page is known (template_redirect, before the plugin\'s own at 1000)', 2 === $a['before']
     && 1 === ( $GLOBALS['hooked']['template_redirect'][0][1] ?? 0 ) && isset( $GLOBALS['transients'][ tkey( $key ) ] ) );
-$b = visit( $key, null, 'my-dashboard' );
+$b = visit( $key, null, 502 );
 check( 'BT8.b the same live key on another page: the rule stays (2)', 2 === $b['rule'] );
 setup(); $key = issue(); WP_Session_Tokens::$live[ UID ] = array( array( 'expiration' => time() + 3600 ) );
-$c = visit( $key, null, 'assessment' );
+$c = visit( $key, null, 501 );
 check( 'BT8.c an ended key on the form page: the rule stays (2) and the card shows as today', 2 === $c['rule'] && 'card:' . HDL_Stage1_Ticket::ENDED_TITLE === $c['did'] );
 setup();
-$d = visit( '', null, 'assessment' );
+$d = visit( '', null, 501 );
 check( 'BT8.d no token: the rule stays (2), nothing hooked', 2 === $d['rule'] && ! $d['hooked'] );
 setup(); $key = issue();
-$e = visit( FTOK, $wpdb->forms[0], 'assessment' );
+$e = visit( FTOK, $wpdb->forms[0], 501 );
 check( 'BT8.e a row\'s real token (the sign-in path): the rule stays (2), nothing hooked', 2 === $e['rule'] && ! $e['hooked'] );
+setup(); $key = issue();
+$h = visit( $key, null, 503 );
+check( 'BT8.g the same live key on another page that is also named "assessment": the rule stays (2)', 2 === $h['rule'] );
+$GLOBALS['filter_values']['hdlv2_assessment_slug'] = '';
+$g1 = visit( $key, null, 502 ); $g2 = visit( $key, null, 501 );
+unset( $GLOBALS['filter_values']['hdlv2_assessment_slug'] );
+check( 'BT8.h the slug filtered to empty: no page opens, not even the form page (review 4)', 2 === $g1['rule'] && 2 === $g2['rule'] );
 $opener = preg_match( '/static function open_form_page_for_key\(.*?\n    }\n/s', $tk, $om ) ? $om[0] : '';
 check( 'BT8.f no function of the membership plugin is called, only its filter name', '' !== $opener && false === strpos( $opener, 'UM(' ) && false !== strpos( $opener, "'um_get_option_filter__accessible'" ) );
 @unlink( $LOG );

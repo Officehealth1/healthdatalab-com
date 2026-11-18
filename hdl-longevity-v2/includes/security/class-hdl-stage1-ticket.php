@@ -279,11 +279,14 @@ class HDL_Stage1_Ticket {
      * v0.48.88 (plan 2k, R4-1) — called only once browser_row() has accepted the key. The membership plugin's
      * site-wide "signed-in visitors only" rule would send this signed-out browser to the login page; for this
      * one request, and only on the form page, the rule reads "everyone". Every other page keeps the wall. Only
-     * the rule's own option filter is named, so without that plugin this does nothing.
+     * the rule's own option filter is named, so without that plugin this does nothing. The page is matched by
+     * its id, not is_page( $slug ): is_page( '' ) is true on every page, and a name matches any page so named.
      */
     public static function open_form_page_for_key() {
         add_action( 'template_redirect', function () {
-            if ( is_page( trim( apply_filters( 'hdlv2_assessment_slug', 'assessment' ), '/' ) ) ) {
+            $slug = trim( apply_filters( 'hdlv2_assessment_slug', 'assessment' ), '/' );
+            $page = '' !== $slug ? get_page_by_path( $slug ) : null;
+            if ( $page && get_queried_object_id() === (int) $page->ID ) {
                 add_filter( 'um_get_option_filter__accessible', '__return_zero' );
             }
         }, 1 );

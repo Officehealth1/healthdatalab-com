@@ -30,7 +30,8 @@ function set_transient( $k, $v, $ttl = 0 ) { $GLOBALS['transients'][ $k ] = $v; 
 function delete_transient( $k ) { unset( $GLOBALS['transients'][ $k ] ); return true; }
 function get_option( $k, $d = false ) { return $GLOBALS['options'][ $k ] ?? $d; }
 function update_option( $k, $v ) { return true; }
-function apply_filters( $tag, $value ) { return $value; }
+// A suite may pin a filter's answer in $GLOBALS['filter_values'][ $tag ]; otherwise the value passes through.
+function apply_filters( $tag, $value ) { return array_key_exists( $tag, $GLOBALS['filter_values'] ?? array() ) ? $GLOBALS['filter_values'][ $tag ] : $value; }
 function do_action() {}
 // Recorded, never run here: a suite that needs a hook to fire runs $GLOBALS['hooked'] itself.
 function add_action( $tag = '', $cb = null, $priority = 10 ) { $GLOBALS['hooked'][ $tag ][] = array( $cb, $priority ); }
