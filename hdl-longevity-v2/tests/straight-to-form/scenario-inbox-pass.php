@@ -56,13 +56,13 @@ foreach ( array( '', 'x', $t . '.' . str_repeat( 'g', 64 ), $t . '.' . strtouppe
     check( "IP3.6.$i a badly shaped pass: false, no error", ! $ok( $bad, 'ivy+x@example.test', 122 ) );
 }
 
-echo "── IP4. 3 days, never from the future ──\n";
+echo "── IP4. 24 hours (gate row F17: a forwarded e-mail or PDF stops working the next day), never from the future ──\n";
 $now = time();
-check( 'IP4.1 made 2 days 23 hours ago: true', $ok( $pass( 'ivy@example.test', 122, $now - 3 * DAY_IN_SECONDS + 3600 ), 'ivy@example.test', 122, $now ) );
-check( 'IP4.2 made 3 days and a minute ago: false', ! $ok( $pass( 'ivy@example.test', 122, $now - 3 * DAY_IN_SECONDS - 60 ), 'ivy@example.test', 122, $now ) );
+check( 'IP4.1 made 23 hours ago: true', $ok( $pass( 'ivy@example.test', 122, $now - 23 * HOUR_IN_SECONDS ), 'ivy@example.test', 122, $now ) );
+check( 'IP4.2 made 24 hours and a minute ago: false', ! $ok( $pass( 'ivy@example.test', 122, $now - DAY_IN_SECONDS - 60 ), 'ivy@example.test', 122, $now ) );
 check( 'IP4.3 made 30 seconds ahead (clock skew): true', $ok( $pass( 'ivy@example.test', 122, $now + 30 ), 'ivy@example.test', 122, $now ) );
 check( 'IP4.4 made more than a minute ahead: false', ! $ok( $pass( 'ivy@example.test', 122, $now + 120 ), 'ivy@example.test', 122, $now ) );
-check( 'IP4.5 the constant says 3 days', defined( 'HDLV2_Offer::INBOX_PASS_DAYS' ) && 3 === HDLV2_Offer::INBOX_PASS_DAYS );
+check( 'IP4.5 the constant says 24 hours', defined( 'HDLV2_Offer::INBOX_PASS_HOURS' ) && 24 === HDLV2_Offer::INBOX_PASS_HOURS && ! defined( 'HDLV2_Offer::INBOX_PASS_DAYS' ) );
 
 echo "── IP5. letter case of the e-mail ──\n";
 check( 'IP5.1 made for Ivy@Example.TEST, checked for ivy@example.test (Stripe gives it lower-cased): true',

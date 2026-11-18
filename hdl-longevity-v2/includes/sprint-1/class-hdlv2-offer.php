@@ -28,8 +28,9 @@ class HDLV2_Offer {
 
     const OPTION = 'hdlv2_stage1_offer';
 
-    /** v0.48.81 (plan 2h) — how long the inbox pass in a results e-mail works (planner's guess; Quim confirms before live). */
-    const INBOX_PASS_DAYS = 3;
+    /** How long the inbox pass in a results e-mail works. Gate row F17 (secure default, 2026-11-19): 24 hours, so a
+     *  forwarded e-mail stops opening the form the next day. Was 3 days (v0.48.81). */
+    const INBOX_PASS_HOURS = 24;
 
     /** v0.48.85 (plan 2k) — how long the browser pass from the lead reply works (Stripe and back fits well inside). */
     const BROWSER_PASS_MINUTES = 60;
@@ -166,14 +167,14 @@ class HDLV2_Offer {
         return $time . '.' . hash_hmac( 'sha256', $msg, wp_salt( 'auth' ) );
     }
 
-    /** True for a pass made for this e-mail and practitioner, under INBOX_PASS_DAYS old, not from the future. */
+    /** True for a pass made for this e-mail and practitioner, under INBOX_PASS_HOURS old, not from the future. */
     public static function inbox_pass_ok( $pass, $email, $practitioner_id, $now = null ) {
         if ( ! is_string( $pass ) || ! preg_match( '/^(\d{10})\.[a-f0-9]{64}$/', $pass, $m ) ) {
             return false;
         }
         $now  = null === $now ? time() : (int) $now;
         $made = (int) $m[1];
-        if ( $made > $now + MINUTE_IN_SECONDS || $made < $now - self::INBOX_PASS_DAYS * DAY_IN_SECONDS ) {
+        if ( $made > $now + MINUTE_IN_SECONDS || $made < $now - self::INBOX_PASS_HOURS * HOUR_IN_SECONDS ) {
             return false;
         }
         return hash_equals( self::inbox_pass( $email, $practitioner_id, $made ), $pass );
