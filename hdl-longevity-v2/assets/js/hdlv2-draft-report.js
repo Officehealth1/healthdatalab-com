@@ -351,8 +351,9 @@
     html +=
       '<section class="hdlv2-dr-section">' +
         '<h2>Your Health Profile</h2>' +
-        '<p class="hdlv2-dr-section-sub">How you\'re scoring across the twenty longevity metrics (0 = low, 5 = excellent), on the same colour scale as your final report.</p>' +
+        radarSubLine(calc.not_provided) +
         '<div class="hdlv2-dr-radar-wrap"><canvas id="hdlv2-dr-radar"></canvas></div>' +
+        notProvidedLine(calc.not_provided) +
         renderRadarCommentary(ai.radar_commentary) +
         // v0.36.3 — DRAFT-only yellow note (mirrors trajectory above).
         (isFinal ? '' :
@@ -737,6 +738,21 @@
       '<div class="hdlv2-dr-metab-divider"></div>' +
       '<div class="hdlv2-dr-metab-chips">' + chips + '</div>';
     el.style.display = '';
+  }
+
+  // v0.48.79 (M39; hdlv2_ff_empty_values) — calc.not_provided names the chart inputs the client left
+  // empty (sent only with the switch on). The line above the chart counts what is drawn, and one grey
+  // line under it names the rest. Without a list both read as before.
+  function radarSubLine(notProvided) {
+    var n = Array.isArray(notProvided) ? notProvided.length : 0;
+    return '<p class="hdlv2-dr-section-sub">How you\'re scoring across ' + (n ? (20 - n) + ' of ' : '') +
+      'the twenty longevity metrics (0 = low, 5 = excellent), on the same colour scale as your final report.</p>';
+  }
+
+  function notProvidedLine(notProvided) {
+    return Array.isArray(notProvided) && notProvided.length
+      ? '<p class="hdlv2-dr-section-sub">Not provided: ' + escape(notProvided.join(', ')) + '.</p>'
+      : '';
   }
 
   function renderRadarCommentary(rc) {

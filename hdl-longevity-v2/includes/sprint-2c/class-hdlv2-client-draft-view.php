@@ -235,6 +235,10 @@ class HDLV2_Client_Draft_View {
             // practitioner consultation panel (both read this rest_get_draft calc).
             'metabolic' => HDLV2_Rate_Calculator::metabolic_signal( $calc_source['scores'] ?? array(), $calc_source ),
         );
+        // v0.48.79 (M39; hdlv2_ff_empty_values) — the chart inputs left empty, named once under the chart.
+        if ( get_option( 'hdlv2_ff_empty_values', false ) ) {
+            $calc['not_provided'] = HDLV2_Final_Report::inputs_not_provided( $calc['scores'] );
+        }
 
         // Practitioner info
         $prac_name     = '';

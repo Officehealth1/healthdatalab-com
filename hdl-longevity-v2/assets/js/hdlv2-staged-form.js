@@ -436,7 +436,10 @@
     sitToStand: { file: 't-chair-stands.svg', caption: 'Chair stands' },
     balance: { file: 't-balance.svg', caption: 'One leg' },
     skinElasticity: { file: 't-skin-pinch.svg', caption: 'Pinch, release' },
-    waist: { file: 'g-waist-hip.svg', caption: 'Waist · Hip', still: true }
+    waist: { file: 'g-waist-hip.svg', caption: 'Waist · Hip', still: true },
+    // v0.48.78 (M36; hdlv2_ff_form_clarity) — the pair under "Who are you staying strong for?".
+    sittingOut: { file: 'p-sitting-out.svg', caption: 'Sitting out', still: true },
+    joiningIn: { file: 'p-joining-in.svg', caption: 'Joining in', still: true }
   };
 
   // A picture and its caption. A moving one is a <picture> whose reduced-motion source is
@@ -1623,7 +1626,9 @@
       + '<div class="hdlv2-form-body">'
       +   '<div class="hdlv2-why-groups">' + columns + '</div>'
       +   '<p id="hdlv2-picks-count" class="hdlv2-picks-count" aria-live="polite"></p>'
-      +   '<section class="hdlv2-why-needs" id="hdlv2-why-needs"' + (rows.length ? '' : ' hidden') + '>'
+      // v0.48.78 (M35; hdlv2_ff_form_clarity) — a result in the middle of the form confused people; the
+      // report page already shows it ("What your choices need, and where you are"). Not drawn when on.
+      +   (CFG.form_clarity ? '' : '<section class="hdlv2-why-needs" id="hdlv2-why-needs"' + (rows.length ? '' : ' hidden') + '>'
       +     '<h3>What your picks need from your body</h3>'
       +     '<p>For the life you picked, these are the abilities to keep in surplus today. Everyone ages; the surplus is what you build now.</p>'
       +     '<div class="hdlv2-why-needs-body">'
@@ -1631,8 +1636,9 @@
       +       '<div class="hdlv2-why-radar"><div id="hdlv2-why-radar">' + radarChart(radarData(rows, names), 440) + '</div>'
       +       '<p class="hdlv2-why-caption">5 is the most a life can ask of one ability. Your answers on the next pages show where you stand today on each one.</p></div>'
       +     '</div>'
-      +   '</section>'
-      +   whoForHtml(peopleFromData(d))
+      +   '</section>')
+      // Switch off: today's call, unchanged (tests/who-for reads it).
+      +   (CFG.form_clarity ? whoForHtml(peopleFromData(d), true) : whoForHtml(peopleFromData(d)))
       +   picksTextarea('own_words', 'Anything else? (optional)', d.own_words, '', 600)
       +   '<button type="button" id="hdlv2-picks-next" class="hdlv2-btn">Next &#8594;</button>'
       + '</div>' + saveIndicator(true) + footer() + '</div>';
@@ -1770,12 +1776,18 @@
       + '</div>';
   }
 
-  function whoForHtml(people) {
+  // v0.48.78 (M36; hdlv2_ff_form_clarity, passed as clear) \u2014 why we ask, two still pictures, and no
+  // timeline promise (the Timeline is an upgrade a buyer may not have). Without the pictures: drop one line.
+  function whoForHtml(people, clear) {
     var rows = people.slice(0, WHO_MAX);
     while (rows.length < WHO_MIN_ROWS) rows.push({ name: '', rel: '' });
     return '<fieldset class="hdlv2-field hdlv2-who-for" id="hdlv2-who-for">'
       + '<legend>Who are you staying strong for?</legend>'
-      + '<p class="hdlv2-who-help">Name them. We\u2019ll remember them for your timeline.</p>'
+      + (clear
+        ? '<p class="hdlv2-who-help">How you age affects the people who matter to you.</p>'
+          + (S1_IMG_BASE ? '<div class="hdlv2-who-pics">' + motionFigure('hdlv2-who-pic', TAP_MOTION.sittingOut) + motionFigure('hdlv2-who-pic', TAP_MOTION.joiningIn) + '</div>' : '')
+          + '<p class="hdlv2-who-help">To personalise your Full Report, feel free to share who is important to you.</p>'
+        : '<p class="hdlv2-who-help">Name them. We\u2019ll remember them for your timeline.</p>')
       + '<div class="hdlv2-who-rows">' + rows.map(function (p, i) { return whoForRow(i, p); }).join('') + '</div>'
       + '<button type="button" class="hdlv2-who-add"' + (rows.length >= WHO_MAX ? ' hidden' : '') + '>+ Add another</button>'
       + '</fieldset>';
@@ -2177,10 +2189,17 @@
     var tm = field && CFG.question_motion && S1_IMG_BASE && TAP_MOTION[field];
     var screen;
     if (tapStep === 0) {
+      var first = tapFirstValues(s1d, d);
       screen = tapHeading('Here is what you told us')
-        + '<p class="hdlv2-s1-prompt">We filled in what we could from your first answers. Pick any row marked Unknown, and tap Change if one is not right.</p>'
+        // v0.48.78 (M37; hdlv2_ff_form_clarity) — say what a row with no answer wants, without "Unknown";
+        // back from step 2 every row is answered, so the middle sentence is left out.
+        + '<p class="hdlv2-s1-prompt">' + (CFG.form_clarity
+          ? 'We filled in what we could from your first answers. '
+            + (TAP_FIRST.some(function (f) { return !first[f]; }) ? 'Some rows have no answer yet: choose one for each. ' : '')
+            + 'If an answer is not right, tap Change.'
+          : 'We filled in what we could from your first answers. Pick any row marked Unknown, and tap Change if one is not right.') + '</p>'
         + '<p class="hdlv2-s1-prompt">Your answers here build your draft longevity report.</p>'
-        + '<div id="hdlv2-tap-rows" class="hdlv2-tap-rows">' + tapFirstRows(tapFirstValues(s1d, d)) + '</div>'
+        + '<div id="hdlv2-tap-rows" class="hdlv2-tap-rows">' + tapFirstRows(first) + '</div>'
         + '<button type="button" id="hdlv2-tap-next" class="hdlv2-btn hdlv2-s1-next">Looks right, carry on</button>';
     } else if (field) {
       var q = TAP_TITLES[field];
@@ -2239,7 +2258,7 @@
         +   '<span class="hdlv2-tap-row-label" id="hdlv2-tap-label-' + f + '">'
         +     (CFG.question_motion ? '<svg class="hdlv2-tap-row-icon" aria-hidden="true" viewBox="0 0 256 256">' + ROW_ICONS[f] + '</svg>' : '')
         +     esc(TAP_FIRST_LABELS[f]) + '</span>'
-        +   '<span class="hdlv2-tap-row-value' + (opt ? '' : ' is-empty') + '">' + esc(opt ? opt.l : 'Unknown — please select') + '</span>'
+        +   '<span class="hdlv2-tap-row-value' + (opt ? '' : ' is-empty') + '">' + esc(opt ? opt.l : (CFG.form_clarity ? 'No answer yet. Choose one below.' : 'Unknown — please select')) + '</span>'
         +   (opt ? '<button type="button" class="hdlv2-tap-change" id="hdlv2-tap-change-' + f + '" data-row="' + f + '" aria-expanded="' + open + '" aria-controls="hdlv2-tap-opts-' + f + '">Change</button>' : '')
         + '</div>'
         + '<div class="hdlv2-s1-options" id="hdlv2-tap-opts-' + f + '" role="radiogroup" aria-labelledby="hdlv2-tap-label-' + f + '" data-row="' + f + '"' + (open ? '' : ' hidden') + '>'
@@ -2256,7 +2275,9 @@
     var empty = TAP_FIRST.filter(function (f) { return !vals[f]; });
     if (!empty.length) { tapGo(data, 1); return; }
     if (!document.querySelector('.hdlv2-tap-wait')) {
-      document.getElementById('hdlv2-tap-next').insertAdjacentHTML('afterend', '<p class="hdlv2-tap-wait" role="status">Please answer the rows marked Unknown.</p>');
+      // v0.48.78 (M37; hdlv2_ff_form_clarity). Read guarded: tests/second-form-copy runs this function without CFG.
+      var wait = typeof CFG !== 'undefined' && CFG.form_clarity ? 'Please choose an answer for each row that has none yet.' : 'Please answer the rows marked Unknown.';
+      document.getElementById('hdlv2-tap-next').insertAdjacentHTML('afterend', '<p class="hdlv2-tap-wait" role="status">' + wait + '</p>');
     }
     var first = document.querySelector('#hdlv2-tap-opts-' + empty[0] + ' .hdlv2-s1-opt');
     if (first) first.focus();
