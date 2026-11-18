@@ -276,6 +276,20 @@ class HDL_Stage1_Ticket {
     }
 
     /**
+     * v0.48.88 (plan 2k, R4-1) — called only once browser_row() has accepted the key. The membership plugin's
+     * site-wide "signed-in visitors only" rule would send this signed-out browser to the login page; for this
+     * one request, and only on the form page, the rule reads "everyone". Every other page keeps the wall. Only
+     * the rule's own option filter is named, so without that plugin this does nothing.
+     */
+    public static function open_form_page_for_key() {
+        add_action( 'template_redirect', function () {
+            if ( is_page( trim( apply_filters( 'hdlv2_assessment_slug', 'assessment' ), '/' ) ) ) {
+                add_filter( 'um_get_option_filter__accessible', '__return_zero' );
+            }
+        }, 1 );
+    }
+
+    /**
      * Never into an account that held anything before this purchase: only the one the purchase's own
      * confirm made, so no older than the ticket (5 s for the same-second insert) and never over 20
      * minutes. Ages, not times: user_registered is UTC, created_at the database's own clock.

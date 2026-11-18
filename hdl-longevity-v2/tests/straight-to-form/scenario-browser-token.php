@@ -237,5 +237,55 @@ echo "── BT7. the page script shows the server's words ──\n";
 $js = $src( 'assets/js/hdlv2-staged-form.js' );
 check( 'BT7.1 load and autosave handle browser_key_ended', 2 <= substr_count( $js, "'browser_key_ended'" ) );
 check( 'BT7.2 the words live on the server only', false === strpos( $js, 'access has ended' ) );
+
+echo "── BT8. the form page opens past the membership plugin's site-wide sign-in rule, for a live key only (R4-1) ──\n";
+// The loader's real key branch, cut from its source and run (eval of our own file, tests only); then the template_redirect step; then the rule's own
+// option filter, as the membership plugin reads it (2 = signed-in visitors only).
+class CardShown extends Exception {}
+function hdlv2_render_link_card( $title, $text, $a, $b ) { throw new CardShown( $title ); }
+function is_page( $slug = '' ) { return '' !== $slug && $slug === ( $GLOBALS['page'] ?? '' ); }
+function __return_zero() { return 0; }
+function run_hooks( $tag, $value = null ) {
+    $hooks = $GLOBALS['hooked'][ $tag ] ?? array();
+    usort( $hooks, function ( $a, $b ) { return $a[1] <=> $b[1]; } );
+    foreach ( $hooks as $h ) { $r = call_user_func( $h[0], $value ); if ( null !== $value ) $value = $r; }
+    return $value;
+}
+$b0 = strpos( $handler, "if ( ! \$progress && class_exists( 'HDL_Stage1_Ticket' )" );
+$depth = 0; $b1 = false;
+for ( $i = (int) strpos( $handler, '{', (int) $b0 ); false !== $b0 && $i < strlen( $handler ); $i++ ) {
+    if ( '{' === $handler[ $i ] ) $depth++;
+    if ( '}' === $handler[ $i ] && 0 === --$depth ) { $b1 = $i; break; }
+}
+$KEY_BRANCH = false !== $b0 && false !== $b1 ? substr( $handler, $b0, $b1 - $b0 + 1 ) : '';
+check( 'BT8.0 the key branch is found in the loader', '' !== $KEY_BRANCH && false !== strpos( $KEY_BRANCH, 'browser_row( $token )' ) );
+/** The key branch for one request on $page; gives the site-wide rule's value and what the branch did. */
+function visit( $token, $progress, $page ) {
+    $GLOBALS['hooked'] = array();
+    $GLOBALS['page']   = $page;
+    $did = 'passed';
+    try { ( function () use ( $token, $progress ) { eval( $GLOBALS['KEY_BRANCH'] ); } )(); } catch ( CardShown $c ) { $did = 'card:' . $c->getMessage(); }
+    $before = run_hooks( 'um_get_option_filter__accessible', 2 );
+    run_hooks( 'template_redirect' );
+    return array( 'rule' => run_hooks( 'um_get_option_filter__accessible', 2 ), 'before' => $before, 'did' => $did, 'hooked' => array_keys( $GLOBALS['hooked'] ) );
+}
+setup(); $key = issue();
+$a = visit( $key, null, 'assessment' );
+check( 'BT8.a a live key on the form page: the rule reads everyone (0) for this request', 0 === $a['rule'] && 'passed' === $a['did'] );
+check( 'BT8.a2 only once the page is known (template_redirect, before the plugin\'s own at 1000)', 2 === $a['before']
+    && 1 === ( $GLOBALS['hooked']['template_redirect'][0][1] ?? 0 ) && isset( $GLOBALS['transients'][ tkey( $key ) ] ) );
+$b = visit( $key, null, 'my-dashboard' );
+check( 'BT8.b the same live key on another page: the rule stays (2)', 2 === $b['rule'] );
+setup(); $key = issue(); WP_Session_Tokens::$live[ UID ] = array( array( 'expiration' => time() + 3600 ) );
+$c = visit( $key, null, 'assessment' );
+check( 'BT8.c an ended key on the form page: the rule stays (2) and the card shows as today', 2 === $c['rule'] && 'card:' . HDL_Stage1_Ticket::ENDED_TITLE === $c['did'] );
+setup();
+$d = visit( '', null, 'assessment' );
+check( 'BT8.d no token: the rule stays (2), nothing hooked', 2 === $d['rule'] && ! $d['hooked'] );
+setup(); $key = issue();
+$e = visit( FTOK, $wpdb->forms[0], 'assessment' );
+check( 'BT8.e a row\'s real token (the sign-in path): the rule stays (2), nothing hooked', 2 === $e['rule'] && ! $e['hooked'] );
+$opener = preg_match( '/static function open_form_page_for_key\(.*?\n    }\n/s', $tk, $om ) ? $om[0] : '';
+check( 'BT8.f no function of the membership plugin is called, only its filter name', '' !== $opener && false === strpos( $opener, 'UM(' ) && false !== strpos( $opener, "'um_get_option_filter__accessible'" ) );
 @unlink( $LOG );
 done();

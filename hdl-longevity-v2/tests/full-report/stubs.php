@@ -32,8 +32,9 @@ function get_option( $k, $d = false ) { return $GLOBALS['options'][ $k ] ?? $d; 
 function update_option( $k, $v ) { return true; }
 function apply_filters( $tag, $value ) { return $value; }
 function do_action() {}
-function add_action() {}
-function add_filter() {}
+// Recorded, never run here: a suite that needs a hook to fire runs $GLOBALS['hooked'] itself.
+function add_action( $tag = '', $cb = null, $priority = 10 ) { $GLOBALS['hooked'][ $tag ][] = array( $cb, $priority ); }
+function add_filter( $tag = '', $cb = null, $priority = 10 ) { $GLOBALS['hooked'][ $tag ][] = array( $cb, $priority ); }
 function add_shortcode() {}
 function register_rest_route() {}
 function current_time( $fmt, $gmt = 0 ) {
