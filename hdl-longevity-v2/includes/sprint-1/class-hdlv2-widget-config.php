@@ -3298,7 +3298,7 @@ class HDLV2_Widget_Config {
         $invites = $wpdb->get_results( $wpdb->prepare(
             "SELECT id, client_name, client_email, status, token, expires_at, created_at, opened_at, completed_at
              FROM {$wpdb->prefix}hdlv2_widget_invites
-             WHERE practitioner_id = %d AND source NOT IN ('paid_stage1','challenge') AND source <> 'timeline_link'
+             WHERE practitioner_id = %d AND source NOT IN ('paid_stage1','challenge','full_report') AND source <> 'timeline_link'
              ORDER BY created_at DESC
              LIMIT 100",
             $user_id
@@ -3662,7 +3662,7 @@ class HDLV2_Widget_Config {
         $invites = $wpdb->get_results( $wpdb->prepare(
             "SELECT id, client_name, client_email, status, token, expires_at, created_at, opened_at, completed_at
              FROM {$wpdb->prefix}hdlv2_widget_invites
-             WHERE practitioner_id = %d AND source NOT IN ('paid_stage1','challenge') AND source <> 'timeline_link'
+             WHERE practitioner_id = %d AND source NOT IN ('paid_stage1','challenge','full_report') AND source <> 'timeline_link'
              ORDER BY created_at DESC
              LIMIT 100",
             $user_id
@@ -3708,11 +3708,12 @@ class HDLV2_Widget_Config {
 
         global $wpdb;
         // v0.48.24 — a challenge link is a sale, not a practitioner invite:
-        // never listed (see the Sent Invites queries), so never deleted here.
+        // never listed (see the Sent Invites queries), so never deleted here. Nor a Full Report
+        // ticket (gate row F2): a deleted row would free its payment reference for a new link.
         $deleted = $wpdb->query( $wpdb->prepare(
             "DELETE FROM {$wpdb->prefix}hdlv2_widget_invites
              WHERE id = %d AND practitioner_id = %d AND status IN ('expired','revoked','completed')
-               AND source NOT IN ('paid_stage1','challenge') AND source <> 'timeline_link'",
+               AND source NOT IN ('paid_stage1','challenge','full_report') AND source <> 'timeline_link'",
             $invite_id,
             $user_id
         ) );

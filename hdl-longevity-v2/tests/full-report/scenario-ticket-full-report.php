@@ -184,7 +184,7 @@ check( 'T9.3 never signs in a practitioner\'s account', false === strpos( $o, 'A
 $o = $run( 'invite-full-report-admin' );
 check( 'T9.4 never signs in an admin account', false === strpos( $o, 'AUTH_COOKIE_SET' ) && false !== strpos( $o, 'Please sign in' ) );
 
-echo "── T10. Sent Invites lists keep full_report rows ──\n";
+echo "── T10. Sent Invites lists and their delete leave full_report tickets out (gate row F2, 2026-11-18) ──\n";
 $src = file_get_contents( __DIR__ . '/../../includes/sprint-1/class-hdlv2-widget-config.php' );
-check( 'T10.1 the lists and the delete exclude paid_stage1 (and, since v0.48.23/24, challenge), never full_report', 3 === substr_count( $src, "source NOT IN ('paid_stage1','challenge')" ) && 0 === substr_count( $src, "source <> 'paid_stage1'" ) && false === strpos( $src, "'full_report')" ) );
+check( 'T10.1 the lists and the delete exclude paid_stage1, challenge and full_report (F2: a deleted row frees its payment reference)', 3 === substr_count( $src, "source NOT IN ('paid_stage1','challenge','full_report')" ) && 0 === substr_count( $src, "source <> 'paid_stage1'" ) );
 done();
