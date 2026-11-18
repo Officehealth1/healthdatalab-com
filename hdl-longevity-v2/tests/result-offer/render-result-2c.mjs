@@ -44,6 +44,15 @@ export const EDITS = [
                   : '<h2 class="hdlw-r-thanks-headline">Thank you.</h2>'
                   + '<p class="hdlw-r-thanks-body">Your practitioner has been sent your data. Once they have looked at your data, you will receive another email.</p>' )
 `],
+  // v0.48.85 (plan 2k): the lead reply's browser pass reaches the drawn offer button.
+  [String.raw`
+        // Public path (and paid tickets): the thank-you wall.
+        statusEl.innerHTML = '';
+`, String.raw`
+        // Public path (and paid tickets): the thank-you wall.
+        statusEl.innerHTML = '';
+        withBuyPass(el, offerHref, data.buy_pass); // v0.48.85 (plan 2k)
+`],
 ];
 
 /** The base renderResult with the 2c edits applied, or null when a piece is missing. */

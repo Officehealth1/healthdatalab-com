@@ -487,6 +487,7 @@
     fetch(CFG.api_base + '/load?token=' + encodeURIComponent(token), { headers: { 'X-WP-Nonce': CFG.nonce } })
       .then(function (r) { return r.json(); })
       .then(function (data) {
+        if (data.code === 'browser_key_ended') { showKeyEnded(data); return; }
         if (data.code === 'invalid_token') { showError('Assessment not found', 'This link may have expired. Contact your practitioner.'); return; }
         serverData = data;
         currentStage = data.current_stage || 1;
@@ -504,6 +505,13 @@
   // ── LOADING / ERROR ──
   function showLoading() {
     root.innerHTML = HDLV2Loading.skeleton('form');
+  }
+
+  // v0.48.87 (plan 2k, G4) — this browser's one-day key to the form ended (its day is over, or the
+  // owner signed in): the server's words, on load and at a refused save.
+  function showKeyEnded(res) {
+    if (saveTimer) clearTimeout(saveTimer);
+    showError((res.data && res.data.title) || '', res.message || '');
   }
 
   function showError(title, message) {
@@ -557,7 +565,7 @@
       headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': CFG.nonce },
       body: JSON.stringify({ token: token, stage: stage, data: formData })
     }).then(function(r){ return r.json(); })
-      .then(function(res){ saving=false; if(res.success){setSaveStatus('saved','Saved');setTimeout(function(){setSaveStatus('','');},3000);}else{setSaveStatus('error','Save failed');}})
+      .then(function(res){ saving=false; if(res && res.code === 'browser_key_ended'){ showKeyEnded(res); return; } if(res.success){setSaveStatus('saved','Saved');setTimeout(function(){setSaveStatus('','');},3000);}else{setSaveStatus('error','Save failed');}})
       .catch(function(){ saving=false; setSaveStatus('error','Connection error'); });
   }
 

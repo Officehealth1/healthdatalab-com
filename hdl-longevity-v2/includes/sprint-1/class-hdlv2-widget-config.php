@@ -807,6 +807,20 @@ class HDLV2_Widget_Config {
         if ( $ticket_id && $lead_id && 'timeline_link' === $invite->source && class_exists( 'HDLV2_Timeline_Links' ) ) {
             $public_response['link_key'] = HDLV2_Timeline_Links::consent_key( $ticket_id, $lead_id );
         }
+        // v0.48.85 (plan 2k) — the pass for the result page's Buy button, the same way: only in this
+        // reply, signed over the row as stored now (HDLV2_Offer::browser_pass). For every row, so every
+        // successful reply has one shape (review F4): a pass for a row already confirmed or rejected opens
+        // nothing, as the open route needs the lead confirmed by the purchase's own ticket.
+        if ( HDLV2_Offer::browser_pass_on( $practitioner_id ) ) {
+            global $wpdb;
+            $stored = $wpdb->get_row( $wpdb->prepare(
+                "SELECT * FROM {$wpdb->prefix}hdlv2_widget_leads WHERE id = %d",
+                (int) $lead_id
+            ) );
+            if ( $stored ) {
+                $public_response['buy_pass'] = HDLV2_Offer::browser_pass( $visitor_email, $practitioner_id, (int) $lead_id, self::lead_digest( $stored ) );
+            }
+        }
         return rest_ensure_response( $public_response );
     }
 
@@ -952,6 +966,16 @@ class HDLV2_Widget_Config {
             'send_make_pdf'            => true,
         ) );
         return true;
+    }
+
+    /**
+     * v0.48.85 (plan 2k) — the digest a browser pass is signed over: the nine answers, the name and the
+     * phone as the lead row holds them. A later submission under the same e-mail overwrites the row, so
+     * the digest changes and the pass stops working. The keys the server adds (safety) are left out.
+     */
+    public static function lead_digest( $row ) {
+        $data = json_decode( (string) ( $row->stage1_data ?? '' ), true );
+        return hash( 'sha256', wp_json_encode( array( self::stage1_answers( $data ), (string) ( $row->visitor_name ?? '' ), (string) ( $row->visitor_phone ?? '' ) ) ) );
     }
 
     /** The nine answers only (no server_result / _safety*), for "did the answers change?". */
@@ -1668,6 +1692,16 @@ class HDLV2_Widget_Config {
         if ( $existing ) {
             $form_token = $existing->token;
             $fp_id      = (int) $existing->id;
+            // Resolve client_user_id for the V1 link (may be null on legacy rows)
+            $client_user_id = (int) $wpdb->get_var( $wpdb->prepare(
+                "SELECT client_user_id FROM {$wpdb->prefix}hdlv2_form_progress WHERE id = %d",
+                $existing->id
+            ) );
+            // v0.48.87 (plan 2k, G4; review 2 finding 2b, review 3 finding 2) — the owner's own Stage 1 is
+            // about to reach this row: a result-page buyer's browser key on it ends first, as at any sign-in.
+            if ( $client_user_id && class_exists( 'HDL_Stage1_Ticket' ) ) {
+                HDL_Stage1_Ticket::end_browser_key( $client_user_id );
+            }
             $fp_update  = array(
                 'stage1_data'         => wp_json_encode( $stage1_data ),
                 'stage1_completed_at' => current_time( 'mysql' ),
@@ -1684,11 +1718,6 @@ class HDLV2_Widget_Config {
                 $fp_update,
                 array( 'id' => $existing->id )
             );
-            // Resolve client_user_id for the V1 link (may be null on legacy rows)
-            $client_user_id = (int) $wpdb->get_var( $wpdb->prepare(
-                "SELECT client_user_id FROM {$wpdb->prefix}hdlv2_form_progress WHERE id = %d",
-                $existing->id
-            ) );
 
             // v0.46.21 (QA F5) — seed the already-messaged submit-time safety
             // flags into the REUSED row too. The INSERT branch below does this;
@@ -2515,8 +2544,8 @@ class HDLV2_Widget_Config {
         return rest_ensure_response( $out );
     }
 
-    /** Newest lead of this practitioner for this email, or null. */
-    private static function newest_lead( $practitioner_id, $email ) {
+    /** Newest lead of this practitioner for this email, or null. v0.48.85: public, HDL_Stage1_Ticket checks a browser pass against it. */
+    public static function newest_lead( $practitioner_id, $email ) {
         global $wpdb;
         return $wpdb->get_row( $wpdb->prepare(
             "SELECT * FROM {$wpdb->prefix}hdlv2_widget_leads

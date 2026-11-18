@@ -143,7 +143,15 @@ class HDLV2_Staged_Form {
 
         $progress = $this->get_progress_by_token( $token );
         if ( ! $progress ) {
-            return new WP_Error( 'invalid_token', 'Assessment not found.', array( 'status' => 404 ) );
+            // v0.48.87 (plan 2k, G4 step 7) — an ended browser key gets its own words.
+            $ended = class_exists( 'HDL_Stage1_Ticket' ) ? HDL_Stage1_Ticket::ended_error( $token ) : null;
+            return $ended ?: new WP_Error( 'invalid_token', 'Assessment not found.', array( 'status' => 404 ) );
+        }
+        // v0.48.87 (plan 2k, G4; review 3 finding 3) — the page opened with the row's own token, which travels
+        // only by e-mail, is the owner arriving, signed in or not: any browser key on the account ends. Only
+        // here: Make's callback and the server's own calls use the real token on the other routes.
+        if ( class_exists( 'HDL_Stage1_Ticket' ) && ! HDL_Stage1_Ticket::is_browser_token( $token ) ) {
+            HDL_Stage1_Ticket::end_browser_key( (int) $progress->client_user_id );
         }
 
         // Phase 17 (v0.22.26) — fetch practitioner CTA + name + logo so the
@@ -238,7 +246,9 @@ class HDLV2_Staged_Form {
 
         $progress = $this->get_progress_by_token( $token );
         if ( ! $progress ) {
-            return new WP_Error( 'invalid_token', 'Assessment not found.', array( 'status' => 404 ) );
+            // v0.48.87 (plan 2k, G4 step 7) — an ended browser key gets its own words.
+            $ended = class_exists( 'HDL_Stage1_Ticket' ) ? HDL_Stage1_Ticket::ended_error( $token ) : null;
+            return $ended ?: new WP_Error( 'invalid_token', 'Assessment not found.', array( 'status' => 404 ) );
         }
 
         $stage = (int) ( $params['stage'] ?? 0 );
@@ -3065,6 +3075,12 @@ class HDLV2_Staged_Form {
         // authed clients with expired tokens will start getting 403s here and
         // on the checkin/timeline/flight-plan/audio/job-queue token gates —
         // add a bypass like draft-view's then.
+        //
+        // v0.48.87 (plan 2k, G4) — a browser key (a result-page buyer's browser) reads and saves this one
+        // form as its row's own token. Its holder is never signed in and is never told that token.
+        if ( class_exists( 'HDL_Stage1_Ticket' ) ) {
+            $token = HDL_Stage1_Ticket::form_token( $token );
+        }
         return $wpdb->get_row( $wpdb->prepare(
             "SELECT * FROM {$wpdb->prefix}hdlv2_form_progress WHERE token = %s AND deleted_at IS NULL AND token_expires_at > UTC_TIMESTAMP() LIMIT 1",
             $token
