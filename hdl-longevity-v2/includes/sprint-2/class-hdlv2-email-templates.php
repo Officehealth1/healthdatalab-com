@@ -225,14 +225,14 @@ class HDLV2_Email_Templates {
         // $data['rate']/['bio_age']/['age']/['radar_chart_url']/['trajectory_chart_url'] unused.
         $content = "
             <h2 style='margin:0 0 8px;color:" . self::DARK . ";'>Full Report form completed</h2>
-            <p style='color:" . self::MUTED . ";margin:0 0 24px;line-height:1.5;'>Draft Trajectory Plan is ready. Your client <strong>{$cname}</strong> has completed all three stages. Please review before the consultation.</p>
+            <p style='color:" . self::MUTED . ";margin:0 0 24px;line-height:1.5;'>Full Report is ready. Your client <strong>{$cname}</strong> has completed all three stages. Please review before the consultation.</p>
 
             <p style='color:#444;line-height:1.6;margin:0 0 24px;'>
-                Remember this report is a draft and requires you to adjust and check the data provided by your client during the consultation in order to generate the final report that will be based on their data, your edits where needed and your consultation information.
+                Review it before you finalise; you can adjust anything.
             </p>"
-            . self::cta_button( $url, 'Review Draft Trajectory Plan' );
+            . self::cta_button( $url, 'Review Full Report' );
 
-        return self::base_layout( $content, $data['practitioner_id'] ?? null, 'Draft Trajectory Plan — Review Required' );
+        return self::base_layout( $content, $data['practitioner_id'] ?? null, 'Full Report — Review Required' );
     }
 
     // ──────────────────────────────────────────────────────────────
@@ -244,9 +244,8 @@ class HDLV2_Email_Templates {
         $draft_url = esc_url( $data['draft_url'] ?? '' );
 
         $cta_block = $draft_url
-            ? "<p style='font-size:15px;color:#2c3e50;line-height:1.7;margin:0 0 20px;'>Your draft report is ready for a first look. It includes your trajectory chart, your 21-metric health profile, and a first pass of what your data is telling us.</p>"
-              . self::cta_button( $draft_url, 'View your draft report' )
-              . "<p style='font-size:12px;color:" . self::MUTED . ";line-height:1.6;margin:20px 0 0;'>This is a <strong>draft</strong> &mdash; your practitioner will fine-tune it with you during your consultation, then send you the final plan.</p>"
+            ? "<p style='font-size:15px;color:#2c3e50;line-height:1.7;margin:0 0 20px;'>Your Full Report is ready. It includes your trajectory chart, your 21-metric health profile, and a first pass of what your data is telling us.</p>"
+              . self::cta_button( $draft_url, 'View your Full Report' )
             : "<p style='font-size:15px;color:#2c3e50;line-height:1.7;margin:0;'>Your practitioner is now reviewing your results and will send you your personalised report soon.</p>";
 
         $content = "
@@ -255,7 +254,7 @@ class HDLV2_Email_Templates {
             {$cta_block}"
             . self::dashboard_button();
 
-        return self::base_layout( $content, $data['practitioner_id'] ?? null, 'Your Draft Report' );
+        return self::base_layout( $content, $data['practitioner_id'] ?? null, 'Your Full Report' );
     }
 
     // ──────────────────────────────────────────────────────────────

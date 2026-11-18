@@ -87,7 +87,7 @@ $wpdb = fresh();
 client( 507, 122, 3 );
 $wpdb->reports[807] = (object) array( 'id' => 77, 'report_type' => 'draft', 'report_content' => '{}' );
 $t = by_key( HDLV2_Products::for_client( 507 ) );
-check( 'S7.1 Full Report yours, draft line', 'yours' === $t['full_report']['state'] && 'Draft · consultation next' === $t['full_report']['note'] );
+check( 'S7.1 Full Report yours, ready line', 'yours' === $t['full_report']['state'] && 'Ready' === $t['full_report']['note'] );
 check( 'S7.2 Full Report opens /my-report/ (no token in the url)', 'https://stby.test/my-report/' === $t['full_report']['url'] );
 check( 'S7.3 Timeline yours, opens the client timeline', 'yours' === $t['timeline']['state'] && 'https://stby.test/healthspan-timeline/?t=' . str_repeat( 'a', 64 ) === $t['timeline']['url'] );
 

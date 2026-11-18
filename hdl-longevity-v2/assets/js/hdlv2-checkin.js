@@ -181,7 +181,7 @@
           'Reading your check-in',
           'Spotting wins and obstacles',
           'Scoring adherence',
-          'Drafting your summary'
+          'Writing your summary'
         ],
         capPercent: 90,
         stepMs: 3500

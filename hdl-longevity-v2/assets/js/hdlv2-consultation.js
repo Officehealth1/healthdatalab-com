@@ -1574,11 +1574,11 @@
       var ask = (window.HDLV2UI && window.HDLV2UI.confirm)
         ? window.HDLV2UI.confirm({
             title: 'Generate the Trajectory Plan for ' + clientName + '?',
-            body: 'This will replace the Draft.',
+            body: 'This will replace the Full Report.',
             confirmLabel: 'Generate Trajectory Plan',
             cancelLabel: 'Cancel'
           })
-        : Promise.resolve(window.confirm('Generate the Trajectory Plan for ' + clientName + '? This will replace the Draft.'));
+        : Promise.resolve(window.confirm('Generate the Trajectory Plan for ' + clientName + '? This will replace the Full Report.'));
       ask.then(function (confirmed) {
         if (!confirmed) return;
         btn.disabled = true;
@@ -1710,7 +1710,7 @@
   var REPORT_PREP_MESSAGES = [
     'Reviewing the consultation notes…',
     'Preparing the health summary…',
-    'Drafting the recommendations…',
+    'Writing the recommendations…',
     'Shaping the long-term milestones…',
     'Putting the report together…',
     'Still working — this can take a minute or two.'

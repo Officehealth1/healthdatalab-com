@@ -210,7 +210,7 @@ class HDLV2_AI_Service {
         }
 
         $user_prompt = sprintf(
-            "Generate a personalised longevity draft report.\n\n"
+            "Generate a personalised full longevity report.\n\n"
             . "=== HARD CONSTRAINTS ===\n"
             . "1. DATA WHITELIST. The only scored metrics that exist in this client's data are the 21 keys\n"
             . "   listed in Health Scores below. Do NOT mention any metric outside that list — we do NOT\n"
@@ -380,8 +380,7 @@ class HDLV2_AI_Service {
         else                         { $traj_status = 'Well Below Population Pace'; }
 
         $user_prompt =
-              "You are writing the interactive DRAFT report for a longevity client.\n"
-            . "This is shown on their web portal BEFORE their practitioner consultation.\n"
+              "You are writing the interactive Full Report for a longevity client.\n"
             . "Tone: warm, direct, data-grounded. Second person (\"you\"). No generic advice.\n\n"
 
             . "=== HARD CONSTRAINTS — BREAK THESE AND THE REPORT IS WRONG ===\n"
@@ -444,7 +443,7 @@ class HDLV2_AI_Service {
             // so the /my-report/ page has substance, not a teaser. The
             // server-side cap is also skipped in the Final path.
             . "  \"opening\": \"" . ( $apply_draft_cap
-                ? "DRAFT TEASER. 2 sentences MAX, 220 characters MAX. Sentence 1: name the rate (X.XXx) + bio vs chrono age — the headline finding only. Sentence 2: point to the consultation as where you and they will unpack what it means. DO NOT enumerate scores, name specific metrics beyond the rate, list strengths/focus areas, or quote goals — that detail lives elsewhere in this JSON (radar_commentary, goals_linkage) and in the final report. Use <strong> for the rate number only."
+                ? "TEASER. 2 sentences MAX, 220 characters MAX. Sentence 1: name the rate (X.XXx) + bio vs chrono age — the headline finding only. DO NOT enumerate scores, name specific metrics beyond the rate, list strengths/focus areas, or quote goals — that detail lives elsewhere in this JSON (radar_commentary, goals_linkage) and in the final report. Use <strong> for the rate number only."
                 : "FINAL ANALYSIS OPENING. 2 to 4 sentences, up to 600 characters. This is the finalised, post-consultation report on the client's portal — the client deserves substance, not a teaser. Sentence 1: name the rate (X.XXx) + biological vs chronological age as the headline finding. Sentence 2-3: bridge to ONE specific lowest-scoring whitelist metric (name it + score) and how it ties to their distilled WHY or a named person from their key_people list. Sentence 4 (optional): point to the recommendations cards on this page as the actionable response. Use <strong> for the rate number and key score values only. Do not enumerate all scores — that detail lives in radar_commentary and the recommendations section."
             ) . "\",\n"
             . "  \"trajectory_commentary\": [\"bullet 1\", \"bullet 2\", \"bullet 3\"],\n"
@@ -478,7 +477,7 @@ class HDLV2_AI_Service {
             . "- Every recs_preview item MUST reference at least one specific score by name + number (e.g. \"given your sleepQuality 2/5...\").\n"
             . "- Return JSON only. No markdown. No code fences.";
 
-        $system = 'You are a longevity coach writing a personalised interactive draft report. You ONLY reference the 21 whitelisted metrics in the input — you never invent clinical markers. You respect severity bands (2/5 is a focus area, not an emergency). You ground trajectory commentary in the actual rate + chart status. Return JSON only — no prose outside the JSON object.';
+        $system = 'You are a longevity coach writing a personalised interactive full report. You ONLY reference the 21 whitelisted metrics in the input — you never invent clinical markers. You respect severity bands (2/5 is a focus area, not an emergency). You ground trajectory commentary in the actual rate + chart status. Return JSON only — no prose outside the JSON object.';
 
         $response = self::call_claude( $key, $system, $user_prompt, 2200 );
         if ( is_wp_error( $response ) ) {
@@ -2019,7 +2018,7 @@ PROMPT;
     private static function report_placeholder() {
         return array(
             'awaken_content' => '<p>Your current health snapshot has been captured. A detailed AWAKEN analysis will be generated once the AI service is configured.</p>',
-            'lift_content'   => '<p>Your personalised action plan will appear here. Your practitioner will review your data and provide targeted recommendations.</p>',
+            'lift_content'   => '<p>Your personalised action plan will appear here.</p>',
             'thrive_content' => '<p>Your long-term longevity vision will be crafted based on your WHY and health data. Stay tuned.</p>',
         );
     }

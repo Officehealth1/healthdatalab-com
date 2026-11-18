@@ -2206,7 +2206,7 @@
             + (TAP_FIRST.some(function (f) { return !first[f]; }) ? 'Some rows have no answer yet: choose one for each. ' : '')
             + 'If an answer is not right, tap Change.'
           : 'We filled in what we could from your first answers. Pick any row marked Unknown, and tap Change if one is not right.') + '</p>'
-        + '<p class="hdlv2-s1-prompt">Your answers here build your draft longevity report.</p>'
+        + '<p class="hdlv2-s1-prompt">Your answers here build your full longevity report.</p>'
         + '<div id="hdlv2-tap-rows" class="hdlv2-tap-rows">' + tapFirstRows(first) + '</div>'
         + '<button type="button" id="hdlv2-tap-next" class="hdlv2-btn hdlv2-s1-next">Looks right, carry on</button>';
     } else if (field) {
@@ -2481,12 +2481,10 @@
       + '<div class="hdlv2-ty-banner"><h1>Full&nbsp;Report&nbsp;complete</h1></div>'
       + '<div class="hdlv2-ty-body">'
       +   '<h2 class="hdlv2-ty-h1">Thanks, ' + esc(firstName) + ' — your assessment is in.</h2>'
-      +   '<p class="hdlv2-ty-lead">From what you’ve told us we’ve built your draft longevity report. It’s on its way to your email and should arrive within a few minutes.</p>'
+      +   '<p class="hdlv2-ty-lead">From what you’ve told us we’ve built your full longevity report. It’s on its way to your email and should arrive within a few minutes.</p>'
       +   '<p class="hdlv2-ty-subhead">What happens next</p>'
       +   '<ol class="hdlv2-ty-list">'
-      +     '<li>Check your inbox for your Draft Report.</li>'
-      +     '<li>If you haven’t already done so, please book your consultation with your practitioner.</li>'
-      +     '<li>Your final personalised report follows after that consultation.</li>'
+      +     '<li>Check your inbox for your Full Report.</li>'
       +   '</ol>'
       +   (s1.timeline_owned === true ? '<p class="hdlv2-ty-lead">Your Healthspan Timeline is yours. It opens when your Full Report lands.</p>' : '')
       +   '<p class="hdlv2-ty-note">' + noteLine + '</p>'

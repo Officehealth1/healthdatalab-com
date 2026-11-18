@@ -1831,7 +1831,7 @@ class HDLV2_Staged_Form {
         return sprintf(
             '<p><strong>%syour Full Report measurements put your rate of ageing at %s× — %s.</strong> Biological age estimate: %s years against your real age of %d.</p>'
             . '<p>The 21-metric panel gives your practitioner the detail they need to build a precise plan with you.</p>'
-            . '<p>Your Draft Report is being generated now. Your practitioner will review it, then walk you through it in your consultation.</p>',
+            . '<p>Your Full Report is being made now.</p>',
             $name,
             number_format( $rate, 2 ),
             esc_html( $verdict ),
@@ -1990,7 +1990,7 @@ class HDLV2_Staged_Form {
                     'practitioner_id' => $progress->practitioner_user_id ?? null,
                     'draft_url'       => $draft_url,
                 ) );
-                wp_mail( $client_email, 'Your Draft Report is Ready', $html,
+                wp_mail( $client_email, 'Your Full Report is Ready', $html,
                     array( 'Content-Type: text/html; charset=UTF-8' ) );
             }
 
@@ -2005,7 +2005,7 @@ class HDLV2_Staged_Form {
                     'trajectory_chart_url' => $trajectory_chart_url,
                     'practitioner_id'      => $progress->practitioner_user_id ?? null,
                 ) ),
-                sprintf( 'Draft Trajectory Plan Ready: %s', $client_name ?: $client_email )
+                sprintf( 'Full Report Ready: %s', $client_name ?: $client_email )
             );
         }
     }
