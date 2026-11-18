@@ -143,18 +143,21 @@ class HDLV2_Healthspan_Timeline {
             self::log_gate_once();
         }
         $report = self::report_row( (int) $row->id );
-        $data   = self::frame( $report ? 'full' : 'preview', self::you( $row, $report ), (int) $row->id, (int) $row->practitioner_user_id, self::paid( $row ) );
+        // v0.48.82 (plan 3) — with hdlv2_ff_timeline_upgrade on, a Stripe buyer who did not take the
+        // upgrade keeps their own lane and the lock (HDLV2_Timeline_Upgrade::owned(); off = true).
+        $full   = $report && ( ! class_exists( 'HDLV2_Timeline_Upgrade' ) || HDLV2_Timeline_Upgrade::owned( $row ) );
+        $data   = self::frame( $full ? 'full' : 'preview', self::you( $row, $report ), (int) $row->id, (int) $row->practitioner_user_id, self::paid( $row ), $row );
         $prac   = self::practitioner( (int) $row->practitioner_user_id );
         if ( $prac ) {
             $data['prac'] = $prac;
         }
         // v0.48.34 — linked people (HDLV2_Timeline_Links): the routes' address and a REST nonce, full mode only.
-        $links = $report && class_exists( 'HDLV2_Timeline_Links' ) ? HDLV2_Timeline_Links::page_config( $row ) : array();
+        $links = $full && class_exists( 'HDLV2_Timeline_Links' ) ? HDLV2_Timeline_Links::page_config( $row ) : array();
         if ( $links ) {
             $data['links'] = $links;
         }
         // v0.48.50 (W29) — the people the client named on the Full Report form seed the Loved ones (full mode).
-        if ( $report && class_exists( 'HDLV2_Why_Picks' ) ) {
+        if ( $full && class_exists( 'HDLV2_Why_Picks' ) ) {
             $people = HDLV2_Why_Picks::people_for_timeline( $row->stage2_data );
             if ( $people ) {
                 $data['key_people'] = $people;
@@ -340,8 +343,11 @@ class HDLV2_Healthspan_Timeline {
         );
     }
 
-    /** @param string $paid self::paid(): '' (not bought), 'bought' or 'written'. */
-    private static function frame( $mode, $you, $progress_id, $practitioner_id, $paid = '' ) {
+    /**
+     * @param string      $paid self::paid(): '' (not bought), 'bought' or 'written'.
+     * @param object|null $row  v0.48.82 — the client record, for the Timeline upgrade's lines.
+     */
+    private static function frame( $mode, $you, $progress_id, $practitioner_id, $paid = '', $row = null ) {
         $title = sanitize_text_field( (string) get_option( 'hdlv2_ht_title', '' ) );
         $data  = array(
             'mode'         => $mode,
@@ -357,8 +363,14 @@ class HDLV2_Healthspan_Timeline {
             // v0.48.61 — which timeline model draws the lanes; 2 only on Matthew's written yes (plan 2026-11-10).
             'model'        => '2' === (string) get_option( 'hdlv2_ht_model' ) ? 2 : 1,
         );
-        // DA2 stands (the report is the gate): a buyer is not sold the report again while it is written.
-        if ( '' !== $paid && 'preview' === $mode ) {
+        $upgrade = 'preview' === $mode ? self::upgrade_lock( $row, $practitioner_id, $paid ) : null;
+        if ( $upgrade ) {
+            $data['offer'] = $upgrade['offer'];
+            if ( isset( $upgrade['lock_note'] ) ) {
+                $data['lock_note'] = $upgrade['lock_note'];
+            }
+        } elseif ( '' !== $paid && 'preview' === $mode ) {
+            // DA2 stands (the report is the gate): a buyer is not sold the report again while it is written.
             $data['offer']     = array( 'line' => self::WAIT_LINES[ $paid ], 'wait' => true );
             $data['wait_line'] = self::WAIT_LINES[ $paid ];
         }
@@ -386,6 +398,40 @@ class HDLV2_Healthspan_Timeline {
             'button' => 'Get the full report',
             'url'    => $o['url'],
         );
+    }
+
+    /**
+     * v0.48.82 (plan 3) — the lock line with hdlv2_ff_timeline_upgrade on (null = today's line).
+     * A Stripe buyer without the Timeline: the upgrade at $10 (until their date once the form is
+     * sent), then the Timeline at $27, in place of the waiting line. Someone with no Full Report at
+     * the offer's practitioner, or the open page: the Full Report and the upgrade together.
+     */
+    private static function upgrade_lock( $row, $practitioner_id, $paid ) {
+        if ( ! class_exists( 'HDLV2_Timeline_Upgrade' ) || ! HDLV2_Timeline_Upgrade::enabled() ) {
+            return null;
+        }
+        if ( $row && '' !== $paid && ! HDLV2_Timeline_Upgrade::owned( $row ) ) {
+            $o    = HDLV2_Timeline_Upgrade::offer_for( $row, time() );
+            $lock = array( 'line' => 'Your loved ones unlock with the Healthspan Timeline.' );
+            if ( $o && '' !== $o['ends'] ) {
+                $lock = array( 'line' => 'Your loved ones unlock with the Timeline upgrade: ' . $o['price'] . ' until ' . $o['ends'] . '.', 'button' => 'Upgrade for ' . $o['price'], 'url' => $o['url'] );
+            } elseif ( $o && '' !== $o['worth'] ) {
+                $lock = array( 'line' => 'Your loved ones unlock with the Timeline upgrade (' . $o['price'] . ').', 'button' => 'Upgrade for ' . $o['price'], 'url' => $o['url'] );
+            } elseif ( $o ) {
+                $lock = array( 'line' => 'Your loved ones unlock with the Healthspan Timeline (' . $o['price'] . ').', 'button' => 'Get the Timeline', 'url' => $o['url'] );
+            }
+            return array( 'offer' => $lock, 'lock_note' => 'Sample people. Your own unlock with the Timeline upgrade.' );
+        }
+        $offer = HDLV2_Offer::get();
+        if ( '' !== $paid || '' === $offer['url'] || ( null !== $practitioner_id && ! HDLV2_Offer::applies_to( $practitioner_id ) ) ) {
+            return null;
+        }
+        $sum = (float) $offer['full_today_price'] + (float) $offer['timeline_upgrade_price'];
+        return array( 'offer' => array(
+            'line'   => 'Your loved ones unlock with the Full Report and the Timeline upgrade (' . HDLV2_Offer::money( floor( $sum ) == $sum ? (string) (int) $sum : number_format( $sum, 2, '.', '' ), $offer ) . ' together).',
+            'button' => 'Get the full report',
+            'url'    => $offer['url'],
+        ) );
     }
 
     /** DA8 — Matthew's words and link; no card unless title, button and an https url are set. */

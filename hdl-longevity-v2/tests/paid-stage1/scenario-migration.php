@@ -47,7 +47,7 @@ class FakeWpdb {
     }
     public function get_charset_collate() { return ''; }
     public function get_var( $q ) {
-        if ( preg_match( "/COLUMN_NAME = '(pack_id|seat_invite_id)'/", $q ) ) return '1'; // Phase AN (v3.33): create_tables() added them first
+        if ( preg_match( "/COLUMN_NAME = '(pack_id|seat_invite_id|timeline_paid_ref)'/", $q ) ) return '1'; // Phase AN (v3.33) and AO (v3.34): create_tables() added them first
         if ( false !== strpos( $q, 'COLUMN_TYPE' ) ) return $this->source_type;
         if ( false !== strpos( $q, 'INFORMATION_SCHEMA.STATISTICS' ) ) return $this->has_ref_key ? '1' : '0';
         if ( false !== strpos( $q, 'INFORMATION_SCHEMA.TABLES' ) ) return '1'; // Phase AL (v3.31): dbDelta made hdlv2_challenge_days
@@ -59,7 +59,8 @@ class FakeWpdb {
     public $writes = array();   // UPDATE / DELETE / INSERT — existing rows must stay as they are
     public function query( $q ) {
         $this->last_error = '';
-        if ( preg_match( '/^\s*(UPDATE|DELETE|INSERT)/i', $q ) && false === strpos( $q, 'SET stage1_fired_at = COALESCE' ) ) $this->writes[] = $q;
+        // Phase AO (v3.34) stamps the old Full Report tickets 'included' in the new column: the only row write allowed.
+        if ( preg_match( '/^\s*(UPDATE|DELETE|INSERT)/i', $q ) && false === strpos( $q, 'SET stage1_fired_at = COALESCE' ) && false === strpos( $q, "SET timeline_paid_ref = 'included'" ) ) $this->writes[] = $q;
         if ( 0 !== stripos( ltrim( $q ), 'ALTER TABLE' ) ) return 1;
         $this->alters[] = $q;
         if ( $this->fail_on && false !== strpos( $q, $this->fail_on ) ) {
@@ -130,7 +131,7 @@ ok( '14.23 failed ALTER → run_migrations returns false (retries next boot)', f
 $src = file_get_contents( dirname( __DIR__, 2 ) . '/includes/class-hdlv2-activator.php' );
 ok( '14.24 fresh installs get the column too (CREATE TABLE)', 1 === preg_match( "/CREATE TABLE \\\$table_widget \\([^;]*ticket_page_url VARCHAR\\(500\\) NOT NULL DEFAULT ''/s", $src ) );
 $loader = file_get_contents( dirname( __DIR__, 2 ) . '/hdl-longevity-v2.php' );
-ok( '14.25 loader constant is 3.33 (v0.48.35)', false !== strpos( $loader, "define( 'HDLV2_DB_VERSION', '3.33' );" ) );
+ok( '14.25 loader constant is 3.34 (v0.48.82)', false !== strpos( $loader, "define( 'HDLV2_DB_VERSION', '3.34' );" ) );
 
 echo "\nPASS=$pass FAIL=$fail\n";
 exit( $fail ? 1 : 0 );

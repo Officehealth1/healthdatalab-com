@@ -2435,7 +2435,11 @@
             keepalive: true
           }).catch(function(){ /* swallow — server-side fire-and-forget is primary */ });
 
-          renderThankYou(data || serverData);
+          // v0.48.82 (plan 3) — the answer says whether to offer the Timeline upgrade on the card.
+          var shown = data || serverData || {};
+          shown.timeline_offer = res.timeline_offer;
+          shown.timeline_owned = res.timeline_owned;
+          renderThankYou(shown);
         } else {
           btn.disabled=false; btn.textContent='Complete Assessment \u2713';
           setSaveStatus('error', res.message||'Please try again');
@@ -2484,10 +2488,44 @@
       +     '<li>If you haven’t already done so, please book your consultation with your practitioner.</li>'
       +     '<li>Your final personalised report follows after that consultation.</li>'
       +   '</ol>'
+      +   (s1.timeline_owned === true ? '<p class="hdlv2-ty-lead">Your Healthspan Timeline is yours. It opens when your Full Report lands.</p>' : '')
       +   '<p class="hdlv2-ty-note">' + noteLine + '</p>'
       + '</div>'
+      + timelineBlockHtml(s1.timeline_offer)
       + thankYouFooter()
       + '</div>';
+  }
+
+  // v0.48.82 (plan 3) — the Timeline upgrade under the thank-you, for a buyer who did not take it
+  // (the server sends timeline_offer only with hdlv2_ff_timeline_upgrade on). The server sends the
+  // prices, the date and the addresses; the words live here with the rest of the card's copy.
+  // DRAFT COPY for the owner (opening O1 until he picks one).
+  function timelineBlockHtml(o) {
+    if (!o || typeof o !== 'object' || !/^https:\/\//i.test(o.url || '')) return '';
+    var dated = !!o.ends;
+    return '<div class="hdlv2-ty-timeline">'
+      + timelineVideoHtml(o.video_url)
+      + '<p class="hdlv2-ty-subhead">Who are you staying strong for?</p>'
+      + '<p class="hdlv2-ty-timeline-line">Your Healthspan Timeline puts your years beside theirs, on one picture.</p>'
+      + '<p class="hdlv2-ty-timeline-line">' + (dated
+          ? 'Upgrade for ' + esc(o.price) + ' until ' + esc(o.ends) + '. On its own it is ' + esc(o.worth) + '.'
+          : 'Your Healthspan Timeline is ' + esc(o.price) + '.') + '</p>'
+      + '<a class="hdlv2-btn hdlv2-ty-timeline-btn" href="' + esc(o.url) + '" target="_blank" rel="noopener noreferrer">'
+      +   (dated ? 'Yes, upgrade me to the Timeline · ' : 'Yes, give me my Healthspan Timeline · ') + esc(o.price) + '</a>'
+      + '<p class="hdlv2-ty-timeline-small">Estimates, not predictions.</p>'
+      + '</div>';
+  }
+
+  // The Timeline film: a YouTube link or id only. The same check as bandVideoHtml() in
+  // widget/hdl-lead-magnet.js (a separate file partner sites load; the two share no code).
+  function timelineVideoHtml(url) {
+    url = typeof url === 'string' ? url : '';
+    var m = /^https?:\/\/(?:www\.)?youtu\.be\/([A-Za-z0-9_-]{11})(?:[?#]|$)/.exec(url)
+      || /^https?:\/\/(?:www\.|m\.)?youtube\.com\/watch\?(?:[^#]*&)?v=([A-Za-z0-9_-]{11})(?:[&#]|$)/.exec(url)
+      || /^([A-Za-z0-9_-]{11})$/.exec(url);
+    if (!m) return '';
+    return '<div class="hdlv2-ty-timeline-video"><iframe src="https://www.youtube-nocookie.com/embed/' + m[1] + '" title="Your Healthspan Timeline" loading="lazy" '
+      + 'allow="accelerometer; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe></div>';
   }
 
   // v0.46.29 — Thank-you card header now carries the practitioner attribution

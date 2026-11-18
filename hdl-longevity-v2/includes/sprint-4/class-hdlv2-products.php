@@ -47,6 +47,11 @@ class HDLV2_Products {
         'challenge'   => array( 'One small step a day for 30 days.', 'Free once your Stage 1 is in.' ),
     );
 
+    /** v0.48.82 (plan 3) — the Timeline as an upgrade: the tile's words and the panel's second line. */
+    const TL_UPGRADE = 'An upgrade to your Full Report';
+    const TL_OFFER   = 'Upgrade · ';
+    const TL_ABOUT   = 'An upgrade to your Full Report. A family pack adds seats for the people you choose.';
+
     public static function init() {
         add_action( 'rest_api_init', array( __CLASS__, 'register_routes' ) );
     }
@@ -156,8 +161,17 @@ class HDLV2_Products {
         }
 
         // Timeline: comes with the Full Report (hdlv2_ht_gate 'addon' is reserved and behaves the same).
+        // v0.48.82 (plan 3) — with hdlv2_ff_timeline_upgrade on, at the offer's practitioner, it is an
+        // upgrade for a Stripe buyer who did not take it (HDLV2_Timeline_Upgrade): priced, it sells itself.
+        $upgrade = $prac_id && class_exists( 'HDLV2_Timeline_Upgrade' ) && HDLV2_Timeline_Upgrade::enabled() && HDLV2_Offer::applies_to( $prac_id );
+        $tl_row  = $row ? (object) array_merge( (array) $row, array( 'client_email' => $email ) ) : null;
         if ( ! HDLV2_Healthspan_Timeline::enabled() ) {
             $timeline = self::item( 'timeline', 'Timeline', 'not-yet', 'Coming soon' );
+        } elseif ( $upgrade && ! ( $report && HDLV2_Timeline_Upgrade::owned( $tl_row ) ) ) {
+            $o        = $report ? HDLV2_Timeline_Upgrade::offer_for( $tl_row, time() ) : null;
+            $timeline = $o
+                ? self::item( 'timeline', 'Timeline', 'not-yet', '' !== $o['ends'] ? self::TL_OFFER . $o['price'] . ' until ' . HDLV2_Timeline_Upgrade::day( $o['ends_at'], 'j M' ) : $o['price'], $o['url'], $o['price'] )
+                : self::item( 'timeline', 'Timeline', 'not-yet', self::TL_UPGRADE );
         } elseif ( $report && ! empty( $row->token ) ) {
             $family   = class_exists( 'HDLV2_Timeline_Links' ) ? HDLV2_Timeline_Links::dashboard_pack( (int) $row->id ) : null;
             $pack     = $family ? $family['pack'] : null;
@@ -257,15 +271,22 @@ class HDLV2_Products {
      * @param bool   $read_only         v0.48.40 — the practitioner's view of the page: the two lines, no button
      */
     public static function render_locked( array $item, array $full_report_item, $practitioner_name, $read_only = false ) {
-        $seller = 'timeline' === $item['key'] ? $full_report_item : $item;
+        // v0.48.82 — a priced Timeline (the upgrade) sells itself; otherwise it borrows the Full Report's action.
+        $seller = 'timeline' === $item['key'] && null === $item['price'] ? $full_report_item : $item;
         $sells  = ! $read_only && 'not-yet' === $item['state'] && null !== $seller['price'] && '' !== $seller['url'];
-        $h      = '<div class="cdp-product-card cdp-locked">' . self::product_head( $item, ! ( $sells && 'timeline' !== $item['key'] ) );
-        foreach ( self::ABOUT[ $item['key'] ] as $line ) {
+        $h      = '<div class="cdp-product-card cdp-locked">' . self::product_head( $item, ! ( $sells && $seller === $item ) );
+        $about  = self::ABOUT[ $item['key'] ];
+        if ( 'timeline' === $item['key'] && ( null !== $item['price'] || self::TL_UPGRADE === $item['note'] ) ) {
+            $about[1] = self::TL_ABOUT;
+        }
+        foreach ( $about as $line ) {
             $h .= '<p class="cdp-product-about">' . esc_html( $line ) . '</p>';
         }
         if ( $sells ) {
-            $h .= '<a class="cdp-btn cdp-btn-primary" href="' . esc_url( $seller['url'] ) . '">'
-                . esc_html( 'Get the ' . $seller['label'] . ' · ' . $seller['note'] ) . '</a>';
+            $words = 0 === strpos( $seller['note'], self::TL_OFFER ) && 'timeline' === $seller['key']
+                ? 'Upgrade to the Timeline · ' . substr( $seller['note'], strlen( self::TL_OFFER ) )
+                : 'Get the ' . $seller['label'] . ' · ' . $seller['note'];
+            $h .= '<a class="cdp-btn cdp-btn-primary" href="' . esc_url( $seller['url'] ) . '">' . esc_html( $words ) . '</a>';
         } elseif ( ! $read_only && ( ( 'not-yet' === $item['state'] && 'not-yet' === $seller['state'] ) || 'open' === $item['state'] ) ) {
             $h .= '<button type="button" class="cdp-btn cdp-btn-secondary" data-open-tab="messages">'
                 . esc_html( 'Ask ' . ( '' !== (string) $practitioner_name ? $practitioner_name : 'your practitioner' ) ) . '</button>';
