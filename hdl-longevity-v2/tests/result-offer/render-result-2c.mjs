@@ -58,6 +58,13 @@ export const EDITS = [
   [String.raw`        +       ( bandVideoHtml(bandKey, cfg.bandVideos) || (offerHref ? bandVideoHtml('film', { film: cfg.resultOffer.video_url }) : '') )
 `, String.raw`        +       ( cfg.resultOffer && !offerHref ? '' : bandVideoHtml(bandKey, cfg.bandVideos) || (offerHref ? bandVideoHtml('film', { film: cfg.resultOffer.video_url }) : '') ) // v0.48.83 (2j): the films sell the $27 report, so with the switch on no button means no film
 `],
+  // Walk W1 (plan 4, 2026-11-19): gate row F25's "Start again" is drawn as a link.
+  [String.raw`
+        + '.hdlw-r-card p.hdlw-r-price{font-size:13px;color:#888;margin:0;}'
+`, String.raw`
+        + '.hdlw-r-card p.hdlw-r-price{font-size:13px;color:#888;margin:0;}'
+        + '.hdlw-r-card p.hdlw-r-offer-email a{color:#3d8da0;text-decoration:underline;}'
+`],
 ];
 
 /** The base renderResult with the 2c edits applied, or null when a piece is missing. */

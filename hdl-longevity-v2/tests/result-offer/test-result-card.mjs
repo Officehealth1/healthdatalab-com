@@ -83,6 +83,11 @@ ok(!/Timeline|timeline/.test(on + TODAY), 'K6 no Timeline word in either card');
 // Gate row F25: above Buy, the address the report goes to (Stripe locks it), and a way to start again. Nothing stored.
 const mailOn = card('https://alt.test/x', OFFER, 'ivy@example.test');
 const LINE = '<p class="hdlw-r-offer-email">Your Full Report will be sent to <strong>ivy@example.test</strong>. Not your address? <a href="">Start again</a></p>';
+// Walk W1 (2026-11-19): an empty href follows Altituding's <base href="/"> to the home page. The link names this page.
+const PAGE = { href: 'https://alt.test/report/start?signed=1#hdl' };
+const again = run("resultOfferHtml(OFFER, 'https://alt.test/x', escapeHtml, 'ivy@example.test')", { OFFER, location: PAGE });
+ok(again.indexOf('Not your address? <a href="https://alt.test/report/start?signed=1">Start again</a>') > 0, 'K10 Start again names this page (no hash), never an empty href');
+ok(/\.hdlw-r-card p\.hdlw-r-offer-email a\{[^}]*text-decoration:underline/.test(js), 'K11 Start again is drawn as a link');
 ok(mailOn.indexOf(LINE) > 0 && mailOn.indexOf(LINE) < mailOn.indexOf('hdlw-r-btn-primary'), 'K7 the e-mail line sits above the button');
 ok(card('https://alt.test/x', OFFER, 'a<b>@x.test').indexOf('<strong>a&lt;b&gt;@x.test</strong>') > 0, 'K8 the address is escaped');
 ok(on.indexOf('hdlw-r-offer-email') < 0 && card('', OFFER, 'ivy@example.test') === TODAY, 'K9 no address, or switch off: no line, today\'s words exactly');

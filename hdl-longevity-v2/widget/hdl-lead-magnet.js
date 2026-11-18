@@ -778,12 +778,14 @@
 
   // The thank-you card's words when the offer shows: the Stage 1 e-mail's (v44), in its order.
   function resultOfferHtml(offer, href, esc, email) {
+    // "Start again" names this page: an empty href would follow a <base href="/"> (Altituding's start page) home.
+    var again = typeof location !== 'undefined' ? String(location.href).split('#')[0] : '';
     return '<h2 class="hdlw-r-thanks-headline">Do you know what is creating your number?</h2>'
       + '<p>On its own, a number changes nothing.</p>'
       + '<p>The Full Report shows what pulls yours up and what pulls it down.</p>'
       + '<p>Advice online is written for everyone. This is written about you.</p>'
       // Gate row F25: Stripe locks this address, so show it before Buy; "Start again" reloads the questions.
-      + ( email ? '<p class="hdlw-r-offer-email">Your Full Report will be sent to <strong>' + esc(email) + '</strong>. Not your address? <a href="">Start again</a></p>' : '' )
+      + ( email ? '<p class="hdlw-r-offer-email">Your Full Report will be sent to <strong>' + esc(email) + '</strong>. Not your address? <a href="' + esc(again) + '">Start again</a></p>' : '' )
       + '<div class="hdlw-r-buttons" style="margin:22px 0;">'
       +   '<a class="hdlw-r-btn-primary" href="' + esc(href) + '">Yes, give me access to my Full Report</a>'
       +   '<p class="hdlw-r-price">For a small investment of ' + esc(offer.today) + '.</p>'
@@ -1873,6 +1875,7 @@
         + '.hdlw-r-thanks-body{font-size:15px;color:#555;line-height:1.75;margin:0;}'
         // v0.48.77 (2c) — the offer card's small price line and its two soft boxes, as in the Stage 1 e-mail.
         + '.hdlw-r-card p.hdlw-r-price{font-size:13px;color:#888;margin:0;}'
+        + '.hdlw-r-card p.hdlw-r-offer-email a{color:#3d8da0;text-decoration:underline;}'
         + '.hdlw-r-card p.hdlw-r-offer-note{border:1px solid #e4e6ea;border-radius:10px;padding:12px 16px;font-size:13px;line-height:1.6;color:#2c3e50;}'
         + '.hdlw-r-card p.hdlw-r-offer-quote{background:#f8f9fb;border-radius:10px;padding:18px 22px;font-style:italic;color:#2c3e50;}'
         + '.hdlw-r-btn-primary{display:inline-block;width:100%;max-width:320px;box-sizing:border-box;padding:12px 28px;background:#004F59;color:#fff;border:1px solid #004F59;border-radius:999px;text-decoration:none;font-size:14px;font-weight:600;text-align:center;transition:background .15s ease;}'
