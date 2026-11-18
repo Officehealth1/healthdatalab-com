@@ -3,7 +3,7 @@
  * Plugin Name: HDL Longevity V2 — Staged Workflow
  * Plugin URI: https://healthdatalab.net
  * Description: V2 longevity workflow: staged intake, WHY profiling, practitioner consultations, weekly flight plans, and AI coaching. Runs alongside the existing Health Data Lab plugin.
- * Version: 0.48.79
+ * Version: 0.48.88
  * Author: Health Data Lab
  * Author URI: https://healthdatalab.net
  * License: Proprietary
@@ -22,7 +22,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 // register_activation_hook callbacks, which fire synchronously during
 // `wp plugin activate`, can reference them. The activator needs
 // HDLV2_DB_VERSION / HDLV2_VERSION at call time to update version options.
-define( 'HDLV2_VERSION', '0.48.79' );
+define( 'HDLV2_VERSION', '0.48.88' );
 define( 'HDLV2_DB_VERSION', '3.33' );
 
 // Client funnel token (hdlv2_form_progress.token) lifetime. FIXED window
@@ -200,6 +200,16 @@ add_action( 'init', function () {
             }
         }
 
+        // Mark invite as opened. v0.48.85 (plan 2k, review F3): only from 'pending', so this opening and a
+        // straight-in claim (HDL_Stage1_Ticket::open_browser) cannot both move the ticket.
+        if ( $invite->status === 'pending' ) {
+            $wpdb->update(
+                $wpdb->prefix . 'hdlv2_widget_invites',
+                array( 'status' => 'opened', 'opened_at' => current_time( 'mysql' ) ),
+                array( 'id' => (int) $invite->id, 'status' => 'pending' )
+            );
+        }
+
         // Auto-login BEFORE the main query runs
         wp_set_current_user( $user_id );
         wp_set_auth_cookie( $user_id, false );
@@ -211,15 +221,6 @@ add_action( 'init', function () {
         $is_challenge = isset( $invite->source ) && 'challenge' === $invite->source;
         if ( class_exists( 'HDLV2_Compatibility' ) && ! ( $is_challenge && $existing_user ) ) {
             HDLV2_Compatibility::create_practitioner_client_link( $invite->practitioner_id, $user_id );
-        }
-
-        // Mark invite as opened
-        if ( $invite->status === 'pending' ) {
-            $wpdb->update(
-                $wpdb->prefix . 'hdlv2_widget_invites',
-                array( 'status' => 'opened', 'opened_at' => current_time( 'mysql' ) ),
-                array( 'id' => $invite->id )
-            );
         }
 
         // Look up existing form_progress so we know whether Stage 1 is done.
@@ -373,6 +374,17 @@ add_action( 'init', function () {
              LIMIT 1",
             $token
         ) );
+
+        // v0.48.87 (plan 2k, G4) — no row has this token: a browser key opens its one form here with no
+        // sign-in (no wp_set_current_user, no cookie); the form's own calls carry the key.
+        if ( ! $progress && class_exists( 'HDL_Stage1_Ticket' ) && HDL_Stage1_Ticket::is_browser_token( $token ) ) {
+            if ( HDL_Stage1_Ticket::browser_row( $token ) ) {
+                HDL_Stage1_Ticket::open_form_page_for_key();
+                return;
+            }
+            // A key we made whose day is over, or whose owner has signed in (G4 step 7).
+            hdlv2_render_link_card( HDL_Stage1_Ticket::ENDED_TITLE, HDL_Stage1_Ticket::ENDED_TEXT, '', '' );
+        }
 
         // v0.47.53 (B4) — fail CLOSED. Pre-fix, NULL expiry meant "valid
         // forever" and nothing ever wrote token_expires_at, so every client

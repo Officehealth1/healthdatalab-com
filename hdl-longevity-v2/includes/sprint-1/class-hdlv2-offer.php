@@ -28,6 +28,12 @@ class HDLV2_Offer {
 
     const OPTION = 'hdlv2_stage1_offer';
 
+    /** v0.48.81 (plan 2h) — how long the inbox pass in a results e-mail works (planner's guess; Quim confirms before live). */
+    const INBOX_PASS_DAYS = 3;
+
+    /** v0.48.85 (plan 2k) — how long the browser pass from the lead reply works (Stripe and back fits well inside). */
+    const BROWSER_PASS_MINUTES = 60;
+
     /** One source for the partnership line on every page a buyer reaches. */
     const PARTNER_LINE = 'Powered by HealthDataLab · a partnership focused on longevity';
 
@@ -118,16 +124,91 @@ class HDLV2_Offer {
      *
      * v0.48.77: the link opens the buying page for the lead's band (band_url).
      *
-     * @param string $email the lead's address; left out of the link when not valid.
-     * @param string $band  HDLV2_Stage1_Commentary::band_key() of the lead's rate ('' = none).
+     * v0.48.81 (plan 2h): with hdlv2_ff_straight_to_form on, the fragment also carries
+     * &own=<inbox pass>. The e-mail and the PDF are the only places it goes (this one key,
+     * offer_url); the result page's button never gets one. Switch off: today's link.
+     *
+     * @param string $email           the lead's address; left out of the link when not valid.
+     * @param string $band            HDLV2_Stage1_Commentary::band_key() of the lead's rate ('' = none).
+     * @param int    $practitioner_id the lead's practitioner; no pass without one.
      * @return array { offer_code, offer_url, offer_code_ends }
      */
-    public static function personal( $email = '', $band = '' ) {
+    public static function personal( $email = '', $band = '', $practitioner_id = 0 ) {
+        $url = self::with_email( self::band_url( $band ), $email );
+        if ( get_option( 'hdlv2_ff_straight_to_form', false ) && is_email( $email ) && absint( $practitioner_id ) ) {
+            $url .= '&own=' . self::inbox_pass( $email, $practitioner_id );
+        }
         return array(
             'offer_code'      => '',
-            'offer_url'       => self::with_email( self::band_url( $band ), $email ),
+            'offer_url'       => $url,
             'offer_code_ends' => '',
         );
+    }
+
+    /**
+     * v0.48.81 (plan 2h) — the inbox pass: "<unix time>.<64 hex>", signed with the site's auth salt
+     * (the pattern of HDLV2_Timeline_Links::consent_key). Nothing is stored; a changed salt ends
+     * every pass. It proves the browser opened what we sent to that inbox, nothing more:
+     * HDL_Stage1_Ticket::handle_open() accepts it only with a fresh payment for the same e-mail.
+     */
+    public static function inbox_pass( $email, $practitioner_id, $time = null ) {
+        $time = null === $time ? time() : (int) $time;
+        $msg  = 'hdlv2-inbox-pass|' . absint( $practitioner_id ) . '|' . strtolower( trim( (string) $email ) ) . '|' . $time;
+        return $time . '.' . hash_hmac( 'sha256', $msg, wp_salt( 'auth' ) );
+    }
+
+    /** True for a pass made for this e-mail and practitioner, under INBOX_PASS_DAYS old, not from the future. */
+    public static function inbox_pass_ok( $pass, $email, $practitioner_id, $now = null ) {
+        if ( ! is_string( $pass ) || ! preg_match( '/^(\d{10})\.[a-f0-9]{64}$/', $pass, $m ) ) {
+            return false;
+        }
+        $now  = null === $now ? time() : (int) $now;
+        $made = (int) $m[1];
+        if ( $made > $now + MINUTE_IN_SECONDS || $made < $now - self::INBOX_PASS_DAYS * DAY_IN_SECONDS ) {
+            return false;
+        }
+        return hash_equals( self::inbox_pass( $email, $practitioner_id, $made ), $pass );
+    }
+
+    /**
+     * v0.48.85 (plan 2k) — whether the lead reply hands the browser a pass for the result page's Buy
+     * button: the three switches on and the offer shown to this practitioner's leads.
+     */
+    public static function browser_pass_on( $practitioner_id ) {
+        return get_option( 'hdlv2_ff_straight_in_result_page', false ) && get_option( 'hdlv2_ff_straight_to_form', false )
+            && get_option( 'hdlv2_ff_result_offer', false ) && self::applies_to( $practitioner_id );
+    }
+
+    /**
+     * v0.48.85 (plan 2k) — the browser pass: "b<unix time>.<64 hex>", given only in the lead reply to the
+     * browser that sent the nine answers. It proves less than the inbox pass (typing, not owning), so
+     * HDL_Stage1_Ticket::handle_open() gives a one-day key to the form itself, never a sign-in, and any
+     * sign-in of the account ends that key (G4, v0.48.87). Signed over the lead id
+     * and the digest of that lead row's answers, so a later re-send of the answers under the same e-mail
+     * ends it. The lead id is read on the server, never shown (review F4). Nothing is stored.
+     */
+    public static function browser_pass( $email, $practitioner_id, $lead_id, $digest, $time = null ) {
+        $time = null === $time ? time() : (int) $time;
+        $msg  = 'hdlv2-browser-pass|' . absint( $practitioner_id ) . '|' . strtolower( trim( (string) $email ) ) . '|' . absint( $lead_id ) . '|' . (string) $digest . '|' . $time;
+        return 'b' . $time . '.' . hash_hmac( 'sha256', $msg, wp_salt( 'auth' ) );
+    }
+
+    /** True for a string in the browser pass's shape (the inbox pass has no leading b). */
+    public static function is_browser_pass( $pass ) {
+        return is_string( $pass ) && (bool) preg_match( '/^b\d{10}\.[a-f0-9]{64}$/', $pass );
+    }
+
+    /** True for a pass made for this e-mail, practitioner, lead and digest, under BROWSER_PASS_MINUTES old, not from the future. */
+    public static function browser_pass_ok( $pass, $email, $practitioner_id, $lead_id, $digest, $now = null ) {
+        if ( '' === (string) $digest || ! self::is_browser_pass( $pass ) ) {
+            return false;
+        }
+        $now  = null === $now ? time() : (int) $now;
+        $made = (int) substr( $pass, 1, 10 );
+        if ( $made > $now + MINUTE_IN_SECONDS || $made < $now - self::BROWSER_PASS_MINUTES * MINUTE_IN_SECONDS ) {
+            return false;
+        }
+        return hash_equals( self::browser_pass( $email, $practitioner_id, $lead_id, $digest, $made ), $pass );
     }
 
     /**
