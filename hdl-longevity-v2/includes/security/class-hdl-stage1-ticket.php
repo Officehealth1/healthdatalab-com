@@ -483,7 +483,8 @@ class HDL_Stage1_Ticket {
         if ( is_wp_error( $ticket ) ) {
             return $ticket;
         }
-        $auto = (bool) get_option( 'hdlv2_full_report_auto_confirm', 1 );
+        // Gate row F3: a revoked ticket (its client was deleted) is never confirmed or opened again by a repeat.
+        $auto = (bool) get_option( 'hdlv2_full_report_auto_confirm', 1 ) && empty( $ticket['revoked'] );
         // A repeat call (same external_ref) confirms a lead the first call
         // could not; confirm_lead_for_purchase() only reports otherwise.
         if ( $auto ) {
@@ -703,7 +704,7 @@ class HDL_Stage1_Ticket {
         }
 
         $existing = $wpdb->get_row( $wpdb->prepare(
-            "SELECT id, token, expires_at, practitioner_id, source, client_email, client_name FROM $table WHERE external_ref = %s LIMIT 1",
+            "SELECT id, token, expires_at, practitioner_id, source, client_email, client_name, status FROM $table WHERE external_ref = %s LIMIT 1",
             $external_ref
         ) );
         if ( ! $existing ) {
@@ -726,6 +727,7 @@ class HDL_Stage1_Ticket {
             'idempotent' => true,
             'email'      => (string) $existing->client_email,
             'name'       => (string) $existing->client_name,
+            'revoked'    => 'revoked' === ( $existing->status ?? '' ),
         );
     }
 
