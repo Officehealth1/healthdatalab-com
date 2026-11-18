@@ -777,11 +777,13 @@
   }
 
   // The thank-you card's words when the offer shows: the Stage 1 e-mail's (v44), in its order.
-  function resultOfferHtml(offer, href, esc) {
+  function resultOfferHtml(offer, href, esc, email) {
     return '<h2 class="hdlw-r-thanks-headline">Do you know what is creating your number?</h2>'
       + '<p>On its own, a number changes nothing.</p>'
       + '<p>The Full Report shows what pulls yours up and what pulls it down.</p>'
       + '<p>Advice online is written for everyone. This is written about you.</p>'
+      // Gate row F25: Stripe locks this address, so show it before Buy; "Start again" reloads the questions.
+      + ( email ? '<p class="hdlw-r-offer-email">Your Full Report will be sent to <strong>' + esc(email) + '</strong>. Not your address? <a href="">Start again</a></p>' : '' )
       + '<div class="hdlw-r-buttons" style="margin:22px 0;">'
       +   '<a class="hdlw-r-btn-primary" href="' + esc(href) + '">Yes, give me access to my Full Report</a>'
       +   '<p class="hdlw-r-price">For a small investment of ' + esc(offer.today) + '.</p>'
@@ -2016,7 +2018,7 @@
             +   '<div id="' + id + '-status" class="hdlw-r-status" role="status" aria-live="polite">Sending your answers\u2026</div>'
             +   '<div id="' + id + '-thanks" hidden>'
             +     ( offerHref
-                  ? resultOfferHtml(cfg.resultOffer, offerHref, escapeHtml)
+                  ? resultOfferHtml(cfg.resultOffer, offerHref, escapeHtml, answers._email)
                   : '<h2 class="hdlw-r-thanks-headline">Thank you.</h2>'
                   + '<p class="hdlw-r-thanks-body">Your practitioner has been sent your data. Once they have looked at your data, you will receive another email.</p>' )
             +     ( showBook

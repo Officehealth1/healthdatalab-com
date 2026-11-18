@@ -40,7 +40,7 @@ export const EDITS = [
   [String.raw`            +     '<h2 class="hdlw-r-thanks-headline">Thank you.</h2>'
             +     '<p class="hdlw-r-thanks-body">Your practitioner has been sent your data. Once they have looked at your data, you will receive another email.</p>'
 `, String.raw`            +     ( offerHref
-                  ? resultOfferHtml(cfg.resultOffer, offerHref, escapeHtml)
+                  ? resultOfferHtml(cfg.resultOffer, offerHref, escapeHtml, answers._email)
                   : '<h2 class="hdlw-r-thanks-headline">Thank you.</h2>'
                   + '<p class="hdlw-r-thanks-body">Your practitioner has been sent your data. Once they have looked at your data, you will receive another email.</p>' )
 `],

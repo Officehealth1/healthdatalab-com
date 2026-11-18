@@ -57,7 +57,7 @@ ok(hrefOf(false, { today: '$27', band_urls: { red: 'http://alt.test/full-report-
 ok(hrefOf(false, { today: '$27' }, 'red', 'ivy@example.test') === '', 'H9 no band_urls: no offer');
 
 console.log('── K. the card ──');
-const card = (offerHref, offer = OFFER) => run(thanks, { offerHref, cfg: { resultOffer: offer } });
+const card = (offerHref, offer = OFFER, email) => run(thanks, { offerHref, cfg: { resultOffer: offer }, answers: { _email: email } });
 const TODAY = '<h2 class="hdlw-r-thanks-headline">Thank you.</h2><p class="hdlw-r-thanks-body">Your practitioner has been sent your data. Once they have looked at your data, you will receive another email.</p>';
 ok(card('') === TODAY, 'K1 switch off: today\'s thank-you words, exactly');
 const on = card('https://alt.test/full-report-faster#email=ivy%40example.test');
@@ -80,6 +80,12 @@ ok(!/target=/.test(on), 'K4 the button opens in the same tab');
 ok(card('https://alt.test/x"><b>', { today: '<i>$27</i>' }).indexOf('href="https://alt.test/x&quot;&gt;&lt;b&gt;"') > 0
   && card('https://alt.test/x', { today: '<i>$27</i>' }).indexOf('&lt;i&gt;$27&lt;/i&gt;') > 0, 'K5 the address and the price are escaped');
 ok(!/Timeline|timeline/.test(on + TODAY), 'K6 no Timeline word in either card');
+// Gate row F25: above Buy, the address the report goes to (Stripe locks it), and a way to start again. Nothing stored.
+const mailOn = card('https://alt.test/x', OFFER, 'ivy@example.test');
+const LINE = '<p class="hdlw-r-offer-email">Your Full Report will be sent to <strong>ivy@example.test</strong>. Not your address? <a href="">Start again</a></p>';
+ok(mailOn.indexOf(LINE) > 0 && mailOn.indexOf(LINE) < mailOn.indexOf('hdlw-r-btn-primary'), 'K7 the e-mail line sits above the button');
+ok(card('https://alt.test/x', OFFER, 'a<b>@x.test').indexOf('<strong>a&lt;b&gt;@x.test</strong>') > 0, 'K8 the address is escaped');
+ok(on.indexOf('hdlw-r-offer-email') < 0 && card('', OFFER, 'ivy@example.test') === TODAY, 'K9 no address, or switch off: no line, today\'s words exactly');
 
 console.log('── E. the hero sentence ──');
 const heroOf = (offerHref) => run(hero, { offerHref });
