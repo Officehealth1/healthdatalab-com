@@ -53,7 +53,10 @@ $base = array( // md5 of each method's source at 4a0fa73: the flag-off page is b
     'products_strip'      => '4aa4b8943a506d29eae92a28831142bd',
     'inbox_launcher_host' => '1b1d77e2cc09e9b304a8cb110e45ebb1',
     'hero_for_state'      => '55a43d0082508cff41c5fb6e8f7288c7',
-    'path_for_state'      => '1035b52b8767abac157b3501a0432e47',
+    // v0.48.84: the step-3 heading reads "your Full Report is on its way" (was "your practitioner is
+    // drafting your report") and its line no longer promises a consultation; proved equal to the
+    // 4a0fa73 source with those two strings swapped.
+    'path_for_state'      => 'e17e2319a10b5e5d87ed9f456b254b9c',
     'steps_grid'          => 'fab19fd6aa21a898291be590b7b17784',
     'help_footer'         => '42a2311a1ff5b45529c42552368db271',
 );

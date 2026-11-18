@@ -103,21 +103,6 @@
   font-family: Poppins, Inter, sans-serif;
   font-size: 30px; font-weight: 700; margin: 0; letter-spacing: -0.5px;
 }
-.hdlv2-dr-draft-badge {
-  display: inline-flex; align-items: center; gap: 6px;
-  background: rgba(254, 243, 199, 0.95);
-  color: #92400e;
-  padding: 6px 12px;
-  border-radius: 999px;
-  font-size: 12px; font-weight: 700; letter-spacing: 0.8px;
-  text-transform: uppercase;
-}
-.hdlv2-dr-draft-badge::before {
-  content: ''; width: 6px; height: 6px; border-radius: 50%;
-  background: var(--hdlv2-amber);
-  animation: hdlv2-dr-pulse-badge 2s infinite;
-}
-@keyframes hdlv2-dr-pulse-badge { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
 .hdlv2-dr-hero-subtitle {
   font-size: 15px; opacity: 0.95; max-width: 620px; margin: 0;
   position: relative; line-height: 1.6;
@@ -353,17 +338,6 @@
 .hdlv2-dr-rec-body p {
   font-size: 13px; color: var(--hdlv2-ink-soft); margin: 0; line-height: 1.55;
 }
-.hdlv2-dr-rec-pill {
-  background: var(--hdlv2-amber-bg);
-  color: #92400e;
-  border: 1px solid var(--hdlv2-amber-border);
-  border-radius: 999px;
-  padding: 3px 10px;
-  font-size: 10px; font-weight: 700; letter-spacing: 0.8px;
-  text-transform: uppercase;
-  white-space: nowrap;
-  margin-top: 6px;
-}
 
 /* ── What happens next ── */
 .hdlv2-dr-next {
@@ -377,7 +351,6 @@
   font-family: Poppins, Inter, sans-serif;
   font-size: 18px; font-weight: 600; color: var(--hdlv2-teal); margin: 0 0 8px;
 }
-.hdlv2-dr-next p { font-size: 14px; color: var(--hdlv2-ink-soft); margin: 0 0 12px; line-height: 1.6; }
 .hdlv2-dr-steps { list-style: none; padding: 0; margin: 12px 0 0; counter-reset: step; }
 .hdlv2-dr-steps li {
   counter-increment: step;
@@ -431,8 +404,8 @@
 /*           section, milestone timeline. Uses existing design tokens only. */
 /* ──────────────────────────────────────────────────────────────────────── */
 
-/* Final badge — green tint equivalent of the amber .hdlv2-dr-draft-badge.
-   Same geometry, no pulse (it's a completed state, not in-progress). */
+/* Final badge — green tint, shown on the Trajectory Plan only (v0.48.84: the
+   Full Report carries no badge). */
 .hdlv2-dr-final-badge {
   display: inline-flex; align-items: center; gap: 6px;
   background: rgba(209, 250, 229, 0.95);

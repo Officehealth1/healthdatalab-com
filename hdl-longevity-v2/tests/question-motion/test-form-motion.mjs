@@ -61,7 +61,7 @@ const OFF = { steps: 'c482278ae0d07b6a99a51768021c6354f34091f7e9664f69239e271e41
 // v0.48.49 (PR 2): Matthew's wording is for everyone, outside the flag. Put back, it must give the
 // 310d61d bytes again, so nothing else on these screens moved. [new, 310d61d] as rendered.
 const PR2 = [
-  ['<p class="hdlv2-s1-prompt">Your answers here build your draft longevity report.</p>', ''],
+  ['<p class="hdlv2-s1-prompt">Your answers here build your full longevity report.</p>', ''],
   ['How often do you give your brain a challenging task?', 'How often do you give your brain something new to work on?'],
   ['e.g. learning a new skill, puzzles, complex problem-solving at work.', 'e.g. reading, learning new skills, puzzles, problem-solving at work.'],
   ['It doesn’t matter which ones. We’re looking at your habit of giving your body extra support.', 'Tells your practitioner what you already take.'],
