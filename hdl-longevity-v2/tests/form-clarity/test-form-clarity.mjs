@@ -133,7 +133,7 @@ const step = (mode, n, vals) => tap(mode, `wizardSectionContent = function (sec)
 const rows = (mode) => tap(mode, 'this.OUT = tapFirstRows(' + J(VALS) + ');');
 const s0 = step('on', 0), r0 = rows('on');
 const row = (h, f) => h.split('<div class="hdlv2-tap-row">').find((r) => r.indexOf('id="hdlv2-tap-label-' + f + '"') !== -1) || '';
-ok(s0.indexOf('<p class="hdlv2-s1-prompt">' + NEW.prompt + '</p><p class="hdlv2-s1-prompt">Your answers here build your draft longevity report.</p>') !== -1, 'C3.1 the new line above the rows');
+ok(s0.indexOf('<p class="hdlv2-s1-prompt">' + NEW.prompt + '</p><p class="hdlv2-s1-prompt">Your answers here build your full longevity report.</p>') !== -1, 'C3.1 the new line above the rows (M1: "full", PR #40)');
 for (const f of ['physicalActivity', 'sleepQuality']) {
   ok(row(r0, f).indexOf('<span class="hdlv2-tap-row-value is-empty">' + NEW.empty + '</span>') !== -1, `C3.2.${f} the empty row reads "${NEW.empty}" in the grey italic class`);
   ok(/ role="radiogroup"[^>]*data-row="\w+">/.test(row(r0, f)) && row(r0, f).indexOf('hdlv2-tap-change') === -1, `C3.3.${f} its answers open, no Change`);

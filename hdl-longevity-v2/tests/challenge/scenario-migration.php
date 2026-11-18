@@ -40,6 +40,7 @@ class FakeWpdb {
     }
     public function get_charset_collate() { return ''; }
     public function get_var( $q ) {
+        if ( false !== strpos( $q, "COLUMN_NAME = 'timeline_paid_ref'" ) ) return '1'; // Phase AO (v3.34): modelled as done; its own tests are in tests/timeline-upgrade/
         if ( preg_match( "/COLUMN_NAME = '(pack_id|seat_invite_id)'/", $q ) ) return '1'; // Phase AN (v3.33): create_tables() added them first
         if ( false !== strpos( $q, 'COLUMN_TYPE' ) ) return $this->source_type;
         if ( false !== strpos( $q, 'INFORMATION_SCHEMA.TABLES' ) && preg_match( "/TABLE_NAME = '(\w+)'/", $q, $m ) ) {
@@ -49,6 +50,7 @@ class FakeWpdb {
     }
     public function query( $q ) {
         $this->last_error = '';
+        if ( false !== strpos( $q, 'timeline_paid_ref' ) ) return 0; // Phase AO (v3.34): its stamp is tested in tests/timeline-upgrade/
         if ( preg_match( '/^\s*(UPDATE|DELETE|INSERT)/i', $q ) ) $this->writes[] = $q;
         if ( 0 !== stripos( ltrim( $q ), 'ALTER TABLE' ) ) return 1;
         $this->alters[] = $q;
@@ -100,7 +102,11 @@ ok( 'L.7 fresh installs: invites ENUM carries challenge', false !== strpos( $src
 ok( 'L.8 CREATE TABLE challenge_days: UNIQUE (client_user_id, day_no), note VARCHAR(500), dbDelta run', 1 === preg_match( '/CREATE TABLE \$table_challenge \(.*UNIQUE KEY client_day \(client_user_id, day_no\)/s', $src )
     && false !== strpos( $src, 'note VARCHAR(500) DEFAULT NULL' ) && false !== strpos( $src, 'dbDelta( $sql_challenge );' ) );
 $loader = file_get_contents( dirname( __DIR__, 2 ) . '/hdl-longevity-v2.php' );
-ok( 'L.9 loader: header + constant 0.48.65, DB 3.33', false !== strpos( $loader, ' * Version: 0.48.65' ) && false !== strpos( $loader, "define( 'HDLV2_VERSION', '0.48.65' );" ) && false !== strpos( $loader, "define( 'HDLV2_DB_VERSION', '3.33' );" ) );
+function loader_at_least( $loader, $ver, $db ) { // header == constant, and both at or beyond the pin (the 0.47.79 precedent)
+    preg_match( "/define\\( 'HDLV2_VERSION', '([0-9.]+)' \\);/", $loader, $v ); preg_match( '/\\* Version: ([0-9.]+)/', $loader, $h ); preg_match( "/define\\( 'HDLV2_DB_VERSION', '([0-9.]+)' \\);/", $loader, $d );
+    return $v && $h && $d && $v[1] === $h[1] && version_compare( $v[1], $ver, '>=' ) && version_compare( $d[1], $db, '>=' );
+}
+ok( 'L.9 loader: header == constant, at or beyond 0.48.65 / 3.33', loader_at_least( $loader, '0.48.65', '3.33' ) );
 $health = file_get_contents( dirname( __DIR__, 2 ) . '/includes/sprint-4/class-hdlv2-client-status.php' );
 ok( 'L.10 /health expects the new table (17)', false !== strpos( $health, "'hdlv2_challenge_days'" ) );
 

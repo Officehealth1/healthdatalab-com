@@ -43,6 +43,7 @@ class FakeWpdb {
     }
     public function get_charset_collate() { return ''; }
     public function get_var( $q ) {
+        if ( false !== strpos( $q, "COLUMN_NAME = 'timeline_paid_ref'" ) ) return '1'; // Phase AO (v3.34): modelled as done; its own tests are in tests/timeline-upgrade/
         if ( preg_match( "/COLUMN_NAME = '(pack_id|seat_invite_id)'/", $q ) ) return '1'; // Phase AN (v3.33): create_tables() added them first
         // Phase AL (v3.31): modelled as done (dbDelta made the table, the ENUM has 'challenge').
         if ( false !== strpos( $q, 'COLUMN_TYPE' ) ) return "enum('practitioner','automation','paid_stage1','full_report','challenge','timeline_link')";
@@ -57,6 +58,7 @@ class FakeWpdb {
     }
     public function query( $q ) {
         $this->last_error = '';
+        if ( false !== strpos( $q, 'timeline_paid_ref' ) ) return 0; // Phase AO (v3.34): its stamp is tested in tests/timeline-upgrade/
         if ( $this->fail_on && false !== strpos( $q, $this->fail_on ) ) {
             $this->last_error = 'Lock wait timeout (simulated)';
             return false;
@@ -133,7 +135,11 @@ ok( 'K.11 cron map: drain every minute, replay every five, alert hourly',
     && false !== strpos( $src, "'hdlv2_stage1_waiting_replay'   => 'hdlv2_five_minutes'" )
     && false !== strpos( $src, "'hdlv2_stage1_alert'            => 'hourly'" ) );
 $loader = file_get_contents( dirname( __DIR__, 2 ) . '/hdl-longevity-v2.php' );
-ok( 'K.12 loader constants 0.48.65 / 3.33 (v0.48.35; Phase AK stays in it)', false !== strpos( $loader, "define( 'HDLV2_DB_VERSION', '3.33' );" ) && false !== strpos( $loader, "define( 'HDLV2_VERSION', '0.48.65' );" ) );
+function loader_at_least( $loader, $ver, $db ) { // header == constant, and both at or beyond the pin (the 0.47.79 precedent)
+    preg_match( "/define\\( 'HDLV2_VERSION', '([0-9.]+)' \\);/", $loader, $v ); preg_match( '/\\* Version: ([0-9.]+)/', $loader, $h ); preg_match( "/define\\( 'HDLV2_DB_VERSION', '([0-9.]+)' \\);/", $loader, $d );
+    return $v && $h && $d && $v[1] === $h[1] && version_compare( $v[1], $ver, '>=' ) && version_compare( $d[1], $db, '>=' );
+}
+ok( 'K.12 loader: header == constant, at or beyond 0.48.65 / 3.33', loader_at_least( $loader, '0.48.65', '3.33' ) );
 
 echo "\nPASS=$pass FAIL=$fail\n";
 exit( $fail ? 1 : 0 );

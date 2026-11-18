@@ -32,8 +32,8 @@ const render = (data) => {
 const BASE = { client_name: 'Kim Lane', client_email: 'kim@example.test', practitioner_name: 'Pat', practitioner_email: 'pat@example.test', practitioner_logo_url: '' };
 const OFFER = { price: '$10', worth: '$27', ends: '24 November 2026', url: 'https://buy.stripe.example.test/upgrade?locked_prefilled_email=kim%40example.test', video_url: '' };
 const md5 = (s) => crypto.createHash('md5').update(s).digest('hex');
-// renderThankYou of the base (8b64a25) with BASE and these stand-ins.
-const BASE_MD5 = 'b10b49d874a2cde4caec264750ca57f6';
+// renderThankYou of the base with BASE and these stand-ins. Base = 5d48ceb (#40, the Full Report words); 8b64a25 was b10b49d8… before the rename.
+const BASE_MD5 = 'a07c8543e065c17356ada3ef4baf62da';
 
 console.log('── A. a buyer without the Timeline ──');
 let h = render(Object.assign({}, BASE, { timeline_offer: OFFER }));

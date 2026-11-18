@@ -21,6 +21,7 @@ class FakeWpdb {
     public function prepare( $q, ...$args ) { foreach ( $args as $a ) { $q = preg_replace( '/%[sd]/', is_int( $a ) ? (string) $a : "'" . $a . "'", $q, 1 ); } return $q; }
     public function get_charset_collate() { return ''; }
     public function get_var( $q ) {
+        if ( false !== strpos( $q, "COLUMN_NAME = 'timeline_paid_ref'" ) ) return '1'; // Phase AO (v3.34): modelled as done; its own tests are in tests/timeline-upgrade/
         if ( false !== strpos( $q, 'COLUMN_TYPE' ) ) return $this->source_type;
         if ( false !== strpos( $q, 'INFORMATION_SCHEMA.TABLES' ) && preg_match( "/TABLE_NAME = '(\w+)'/", $q, $m ) ) return isset( $this->tables[ $m[1] ] ) ? '1' : '0';
         if ( false !== strpos( $q, 'INFORMATION_SCHEMA.COLUMNS' ) && preg_match( "/COLUMN_NAME = '(\w+)'/", $q, $m ) ) return in_array( $m[1], $this->cols, true ) ? '1' : '0';
@@ -28,6 +29,7 @@ class FakeWpdb {
     }
     public function query( $q ) {
         $this->last_error = '';
+        if ( false !== strpos( $q, 'timeline_paid_ref' ) ) return 0; // Phase AO (v3.34): its stamp is tested in tests/timeline-upgrade/
         if ( preg_match( '/^\s*(UPDATE|DELETE|INSERT)/i', $q ) ) $this->writes[] = $q;
         if ( 0 !== stripos( ltrim( $q ), 'ALTER TABLE' ) ) return 1;
         $this->alters[] = $q;
@@ -65,7 +67,11 @@ preg_match( '/CREATE TABLE \$table_links \((.*?)\) \$charset_collate/s', $src, $
 ok( 'M.7 fresh installs: the links table carries both columns', false !== strpos( $l[1] ?? '', 'pack_id BIGINT(20) UNSIGNED DEFAULT NULL' ) && false !== strpos( $l[1] ?? '', 'seat_invite_id BIGINT(20) UNSIGNED DEFAULT NULL' ) );
 ok( 'M.8 dbDelta runs it', false !== strpos( $src, 'dbDelta( $sql_packs );' ) );
 $loader = file_get_contents( dirname( __DIR__, 2 ) . '/hdl-longevity-v2.php' );
-ok( 'M.9 loader: 0.48.65 / 3.33', false !== strpos( $loader, ' * Version: 0.48.65' ) && false !== strpos( $loader, "define( 'HDLV2_VERSION', '0.48.65' );" ) && false !== strpos( $loader, "define( 'HDLV2_DB_VERSION', '3.33' );" ) );
+function loader_at_least( $loader, $ver, $db ) { // header == constant, and both at or beyond the pin (the 0.47.79 precedent)
+    preg_match( "/define\\( 'HDLV2_VERSION', '([0-9.]+)' \\);/", $loader, $v ); preg_match( '/\\* Version: ([0-9.]+)/', $loader, $h ); preg_match( "/define\\( 'HDLV2_DB_VERSION', '([0-9.]+)' \\);/", $loader, $d );
+    return $v && $h && $d && $v[1] === $h[1] && version_compare( $v[1], $ver, '>=' ) && version_compare( $d[1], $db, '>=' );
+}
+ok( 'M.9 loader: header == constant, at or beyond 0.48.65 / 3.33', loader_at_least( $loader, '0.48.65', '3.33' ) );
 $status = file_get_contents( dirname( __DIR__, 2 ) . '/includes/sprint-4/class-hdlv2-client-status.php' );
 ok( 'M.10 /health expects the new table', false !== strpos( $status, "'hdlv2_timeline_packs'," ) );
 echo "\nPASS=$pass FAIL=$fail\n";
