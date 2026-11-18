@@ -31,6 +31,9 @@ class HDLV2_Offer {
     /** v0.48.81 (plan 2h) — how long the inbox pass in a results e-mail works (planner's guess; Quim confirms before live). */
     const INBOX_PASS_DAYS = 3;
 
+    /** v0.48.85 (plan 2k) — how long the browser pass from the lead reply works (Stripe and back fits well inside). */
+    const BROWSER_PASS_MINUTES = 60;
+
     /** One source for the partnership line on every page a buyer reaches. */
     const PARTNER_LINE = 'Powered by HealthDataLab · a partnership focused on longevity';
 
@@ -165,6 +168,47 @@ class HDLV2_Offer {
             return false;
         }
         return hash_equals( self::inbox_pass( $email, $practitioner_id, $made ), $pass );
+    }
+
+    /**
+     * v0.48.85 (plan 2k) — whether the lead reply hands the browser a pass for the result page's Buy
+     * button: the three switches on and the offer shown to this practitioner's leads.
+     */
+    public static function browser_pass_on( $practitioner_id ) {
+        return get_option( 'hdlv2_ff_straight_in_result_page', false ) && get_option( 'hdlv2_ff_straight_to_form', false )
+            && get_option( 'hdlv2_ff_result_offer', false ) && self::applies_to( $practitioner_id );
+    }
+
+    /**
+     * v0.48.85 (plan 2k) — the browser pass: "b<unix time>.<lead id>.<64 hex>", given only in the lead
+     * reply to the browser that sent the nine answers. It proves less than the inbox pass (typing, not
+     * owning), so HDL_Stage1_Ticket::handle_open() lets it open the form's own address only, marks the
+     * account, and the purchase e-mail's link ends that browser's access (inbox_proof()). Signed over the
+     * lead id and the digest of that lead row's answers, so a later re-send of the answers under the same
+     * e-mail ends it. Nothing is stored.
+     */
+    public static function browser_pass( $email, $practitioner_id, $lead_id, $digest, $time = null ) {
+        $time = null === $time ? time() : (int) $time;
+        $msg  = 'hdlv2-browser-pass|' . absint( $practitioner_id ) . '|' . strtolower( trim( (string) $email ) ) . '|' . absint( $lead_id ) . '|' . (string) $digest . '|' . $time;
+        return 'b' . $time . '.' . absint( $lead_id ) . '.' . hash_hmac( 'sha256', $msg, wp_salt( 'auth' ) );
+    }
+
+    /** The lead id a well-shaped browser pass names, or 0. */
+    public static function browser_pass_lead( $pass ) {
+        return is_string( $pass ) && preg_match( '/^b\d{10}\.([1-9]\d{0,9})\.[a-f0-9]{64}$/', $pass, $m ) ? (int) $m[1] : 0;
+    }
+
+    /** True for a pass made for this e-mail, practitioner, lead and digest, under BROWSER_PASS_MINUTES old, not from the future. */
+    public static function browser_pass_ok( $pass, $email, $practitioner_id, $lead_id, $digest, $now = null ) {
+        if ( '' === (string) $digest || ! self::browser_pass_lead( $pass ) || ! preg_match( '/^b(\d{10})\./', $pass, $m ) ) {
+            return false;
+        }
+        $now  = null === $now ? time() : (int) $now;
+        $made = (int) $m[1];
+        if ( $made > $now + MINUTE_IN_SECONDS || $made < $now - self::BROWSER_PASS_MINUTES * MINUTE_IN_SECONDS ) {
+            return false;
+        }
+        return hash_equals( self::browser_pass( $email, $practitioner_id, $lead_id, $digest, $made ), $pass );
     }
 
     /**

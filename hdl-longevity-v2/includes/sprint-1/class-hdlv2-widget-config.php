@@ -807,6 +807,18 @@ class HDLV2_Widget_Config {
         if ( $ticket_id && $lead_id && 'timeline_link' === $invite->source && class_exists( 'HDLV2_Timeline_Links' ) ) {
             $public_response['link_key'] = HDLV2_Timeline_Links::consent_key( $ticket_id, $lead_id );
         }
+        // v0.48.85 (plan 2k) — the pass for the result page's Buy button, the same way: only in this
+        // reply, signed over the row as stored now (HDLV2_Offer::browser_pass).
+        if ( HDLV2_Offer::browser_pass_on( $practitioner_id ) ) {
+            global $wpdb;
+            $stored = $wpdb->get_row( $wpdb->prepare(
+                "SELECT * FROM {$wpdb->prefix}hdlv2_widget_leads WHERE id = %d",
+                (int) $lead_id
+            ) );
+            if ( $stored ) {
+                $public_response['buy_pass'] = HDLV2_Offer::browser_pass( $visitor_email, $practitioner_id, (int) $lead_id, self::lead_digest( $stored ) );
+            }
+        }
         return rest_ensure_response( $public_response );
     }
 
@@ -955,6 +967,16 @@ class HDLV2_Widget_Config {
     }
 
     /** The nine answers only (no server_result / _safety*), for "did the answers change?". */
+    /**
+     * v0.48.85 (plan 2k) — the digest a browser pass is signed over: the nine answers, the name and the
+     * phone as the lead row holds them. A later submission under the same e-mail overwrites the row, so
+     * the digest changes and the pass stops working. The keys the server adds (safety) are left out.
+     */
+    public static function lead_digest( $row ) {
+        $data = json_decode( (string) ( $row->stage1_data ?? '' ), true );
+        return hash( 'sha256', wp_json_encode( array( self::stage1_answers( $data ), (string) ( $row->visitor_name ?? '' ), (string) ( $row->visitor_phone ?? '' ) ) ) );
+    }
+
     private static function stage1_answers( $data ) {
         $data = is_array( $data ) ? $data : array();
         $out  = array();
@@ -2516,7 +2538,8 @@ class HDLV2_Widget_Config {
     }
 
     /** Newest lead of this practitioner for this email, or null. */
-    private static function newest_lead( $practitioner_id, $email ) {
+    /** v0.48.85: public, HDL_Stage1_Ticket::handle_open() checks a browser pass against it. */
+    public static function newest_lead( $practitioner_id, $email ) {
         global $wpdb;
         return $wpdb->get_row( $wpdb->prepare(
             "SELECT * FROM {$wpdb->prefix}hdlv2_widget_leads

@@ -3,7 +3,7 @@
  * Plugin Name: HDL Longevity V2 — Staged Workflow
  * Plugin URI: https://healthdatalab.net
  * Description: V2 longevity workflow: staged intake, WHY profiling, practitioner consultations, weekly flight plans, and AI coaching. Runs alongside the existing Health Data Lab plugin.
- * Version: 0.48.81
+ * Version: 0.48.85
  * Author: Health Data Lab
  * Author URI: https://healthdatalab.net
  * License: Proprietary
@@ -22,7 +22,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 // register_activation_hook callbacks, which fire synchronously during
 // `wp plugin activate`, can reference them. The activator needs
 // HDLV2_DB_VERSION / HDLV2_VERSION at call time to update version options.
-define( 'HDLV2_VERSION', '0.48.81' );
+define( 'HDLV2_VERSION', '0.48.85' );
 define( 'HDLV2_DB_VERSION', '3.33' );
 
 // Client funnel token (hdlv2_form_progress.token) lifetime. FIXED window
@@ -199,6 +199,10 @@ add_action( 'init', function () {
                 delete_user_meta( $user_id, 'pending' );
             }
         }
+
+        // v0.48.85 (plan 2k) — the purchase e-mail's link proves the inbox: an account a browser pass let
+        // in loses that browser's sessions and form address here, before anyone is signed in (switch on or off).
+        if ( isset( $invite->source ) && 'full_report' === $invite->source && class_exists( 'HDL_Stage1_Ticket' ) ) { HDL_Stage1_Ticket::inbox_proof( $user_id, get_current_user_id() ); }
 
         // Auto-login BEFORE the main query runs
         wp_set_current_user( $user_id );

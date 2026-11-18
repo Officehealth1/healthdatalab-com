@@ -47,6 +47,9 @@ class HDL_Stage1_Ticket {
     /** v0.48.81 (plan 2h) — straight-in asks per caller per hour. The caller is the selling site, so this caps the feature. */
     const OPEN_RATE_LIMIT = 120;
 
+    /** v0.48.85 (plan 2k) — user meta on an account a browser pass let in; holds the ticket id until the inbox proves itself. */
+    const UNPROVEN_META = 'hdlv2_unproven_entry';
+
     public static function register_hooks() {
         add_action( 'rest_api_init', array( __CLASS__, 'register_routes' ) );
     }
@@ -100,8 +103,10 @@ class HDL_Stage1_Ticket {
 
         $external_ref = $request->get_param( 'external_ref' );
         $own          = $request->get_param( 'own' );
+        // v0.48.85 (plan 2k) — two kinds: the inbox pass, or a browser pass from the lead reply.
+        $browser = HDLV2_Offer::browser_pass_lead( $own );
         if ( ! is_string( $external_ref ) || ! preg_match( '/^[A-Za-z0-9_.:\-]{1,128}$/', $external_ref )
-             || ! is_string( $own ) || ! preg_match( '/^\d{10}\.[a-f0-9]{64}$/', $own ) ) {
+             || ! is_string( $own ) || ( ! $browser && ! preg_match( '/^\d{10}\.[a-f0-9]{64}$/', $own ) ) ) {
             return self::open_no( 'shape' );
         }
 
@@ -119,34 +124,133 @@ class HDL_Stage1_Ticket {
         if ( $user_id && hdlv2_is_staff_account( $user_id ) ) {
             return self::open_no( 'staff' );
         }
+        if ( $browser ) {
+            return self::open_browser( $own, $browser, $ticket, $email, $user_id );
+        }
         if ( ! HDLV2_Offer::inbox_pass_ok( $own, $email, (int) $ticket->practitioner_id ) ) {
             return self::open_no( 'pass' );
         }
-        // Never into an account that held anything before this purchase: only none yet, or the one
-        // the purchase's own confirm made, so no older than the ticket (5 s for the same-second
-        // insert) and never over 20 minutes. Ages, not times: user_registered is UTC, created_at
-        // the database's own clock.
-        if ( $user_id && ! $wpdb->get_var( $wpdb->prepare(
-            "SELECT 1 FROM {$wpdb->users} u, $table t WHERE u.ID = %d AND t.id = %d AND TIMESTAMPDIFF(SECOND, u.user_registered, UTC_TIMESTAMP()) <= TIMESTAMPDIFF(SECOND, t.created_at, NOW()) + 5 AND u.user_registered >= UTC_TIMESTAMP() - INTERVAL 20 MINUTE",
-            $user_id,
-            (int) $ticket->id
-        ) ) ) {
+        if ( $user_id && ! self::made_by_purchase( $user_id, (int) $ticket->id ) ) {
             return self::open_no( 'account' );
         }
-        // The first-time lock and the 15 minutes in one statement: only one request can move a
-        // pending ticket, and a ticket the e-mailed link already opened is no longer pending.
-        // created_at is the database's own clock (DEFAULT CURRENT_TIMESTAMP), so NOW(); the end
-        // date is stored in UTC.
-        $claimed = $wpdb->query( $wpdb->prepare(
-            "UPDATE $table SET status = 'opened', opened_at = %s WHERE id = %d AND source = 'full_report' AND status = 'pending' AND created_at >= NOW() - INTERVAL 15 MINUTE AND expires_at > UTC_TIMESTAMP()",
-            current_time( 'mysql' ),
-            (int) $ticket->id
-        ) );
-        if ( 1 !== (int) $claimed ) {
+        if ( ! self::claim( (int) $ticket->id ) ) {
             return self::open_no( 'claim' );
         }
         error_log( '[HDL full-report-open] yes invite=' . (int) $ticket->id );
         return rest_ensure_response( array( 'open' => true ) );
+    }
+
+    /**
+     * v0.48.85 (plan 2k) — a browser pass: a buyer who pressed Buy on their own result page. It proves
+     * typing, not owning, so it gets less than the inbox pass: the form's own address (never the
+     * purchase e-mail's link), only into the account and record this purchase just made from that
+     * lead, and the account is marked so the purchase e-mail's link ends this browser's access
+     * (inbox_proof()). Behind hdlv2_ff_straight_in_result_page.
+     */
+    private static function open_browser( $own, $lead_id, $ticket, $email, $user_id ) {
+        global $wpdb;
+        if ( ! get_option( 'hdlv2_ff_straight_in_result_page', false ) ) {
+            return self::open_no( 'flag_off' );
+        }
+        $practitioner_id = (int) $ticket->practitioner_id;
+        // The newest row for this e-mail is the one the purchase confirmed; a newer submission under
+        // the same e-mail (another browser) replaces it and ends the pass.
+        $lead = HDLV2_Widget_Config::newest_lead( $practitioner_id, $email );
+        if ( ! $lead || (int) $lead->id !== (int) $lead_id ) {
+            return self::open_no( 'lead' );
+        }
+        if ( ! HDLV2_Offer::browser_pass_ok( $own, $email, $practitioner_id, (int) $lead_id, HDLV2_Widget_Config::lead_digest( $lead ) ) ) {
+            return self::open_no( 'pass' );
+        }
+        if ( 'confirmed' !== $lead->status || (int) ( $lead->invite_id ?? 0 ) !== (int) $ticket->id ) {
+            return self::open_no( 'lead' );
+        }
+        // Never "none yet": the purchase's confirm made the account and the record.
+        if ( ! $user_id || ! self::made_by_purchase( $user_id, (int) $ticket->id ) ) {
+            return self::open_no( 'account' );
+        }
+        $form = $wpdb->get_row( $wpdb->prepare(
+            "SELECT token FROM {$wpdb->prefix}hdlv2_form_progress WHERE client_user_id = %d AND practitioner_user_id = %d AND deleted_at IS NULL AND token_expires_at > UTC_TIMESTAMP() ORDER BY id DESC LIMIT 1",
+            $user_id,
+            $practitioner_id
+        ) );
+        if ( ! $form || ! preg_match( '/^[a-f0-9]{64}$/', (string) $form->token ) ) {
+            return self::open_no( 'form' );
+        }
+        if ( ! self::claim( (int) $ticket->id ) ) {
+            return self::open_no( 'claim' );
+        }
+        if ( ! update_user_meta( $user_id, self::UNPROVEN_META, (int) $ticket->id ) ) {
+            return self::open_no( 'mark' );
+        }
+        error_log( '[HDL full-report-open] yes invite=' . (int) $ticket->id . ' browser' );
+        $slug = trim( apply_filters( 'hdlv2_assessment_slug', 'assessment' ), '/' );
+        return rest_ensure_response( array( 'open' => true, 'url' => home_url( '/' . $slug . '/?token=' . $form->token ) ) );
+    }
+
+    /**
+     * Never into an account that held anything before this purchase: only the one the purchase's own
+     * confirm made, so no older than the ticket (5 s for the same-second insert) and never over 20
+     * minutes. Ages, not times: user_registered is UTC, created_at the database's own clock.
+     */
+    private static function made_by_purchase( $user_id, $ticket_id ) {
+        global $wpdb;
+        return (bool) $wpdb->get_var( $wpdb->prepare(
+            "SELECT 1 FROM {$wpdb->users} u, {$wpdb->prefix}hdlv2_widget_invites t WHERE u.ID = %d AND t.id = %d AND TIMESTAMPDIFF(SECOND, u.user_registered, UTC_TIMESTAMP()) <= TIMESTAMPDIFF(SECOND, t.created_at, NOW()) + 5 AND u.user_registered >= UTC_TIMESTAMP() - INTERVAL 20 MINUTE",
+            (int) $user_id,
+            (int) $ticket_id
+        ) );
+    }
+
+    /**
+     * The first-time lock and the 15 minutes in one statement: only one request can move a pending
+     * ticket, and a ticket the e-mailed link already opened is no longer pending. created_at is the
+     * database's own clock (DEFAULT CURRENT_TIMESTAMP), so NOW(); the end date is stored in UTC.
+     */
+    private static function claim( $ticket_id ) {
+        global $wpdb;
+        return 1 === (int) $wpdb->query( $wpdb->prepare(
+            "UPDATE {$wpdb->prefix}hdlv2_widget_invites SET status = 'opened', opened_at = %s WHERE id = %d AND source = 'full_report' AND status = 'pending' AND created_at >= NOW() - INTERVAL 15 MINUTE AND expires_at > UTC_TIMESTAMP()",
+            current_time( 'mysql' ),
+            (int) $ticket_id
+        ) );
+    }
+
+    /**
+     * v0.48.85 (plan 2k) — inbox proof, called by the ?invite= handler for a full_report ticket before
+     * anyone is signed in, with the switches on or off (a mark must never outlive a switch). An account
+     * marked by open_browser() went straight in on typing alone; opening the purchase e-mail's link
+     * proves the inbox. In the browser already signed in as that account: the mark goes. Anywhere
+     * else: every session of the account ends and every form record gets a new token (end dates and
+     * answers untouched), so the first browser's tab stops at its next save; then the mark goes. A
+     * failed token write keeps the mark, so the next opening tries again.
+     *
+     * @return string '' (no mark), 'same', 'cleared' or 'failed'.
+     */
+    public static function inbox_proof( $user_id, $current_user_id ) {
+        $user_id = (int) $user_id;
+        if ( ! $user_id || '' === (string) get_user_meta( $user_id, self::UNPROVEN_META, true ) ) {
+            return '';
+        }
+        if ( (int) $current_user_id === $user_id ) {
+            delete_user_meta( $user_id, self::UNPROVEN_META );
+            error_log( '[HDL full-report-open] proof same' );
+            return 'same';
+        }
+        WP_Session_Tokens::get_instance( $user_id )->destroy_all();
+        global $wpdb;
+        $table = $wpdb->prefix . 'hdlv2_form_progress';
+        $ok    = true;
+        foreach ( (array) $wpdb->get_col( $wpdb->prepare( "SELECT id FROM $table WHERE client_user_id = %d", $user_id ) ) as $id ) {
+            $ok = false !== $wpdb->update( $table, array( 'token' => bin2hex( random_bytes( 32 ) ) ), array( 'id' => (int) $id ), array( '%s' ), array( '%d' ) ) && $ok;
+        }
+        if ( ! $ok ) {
+            error_log( '[HDL full-report-open] proof failed' );
+            return 'failed';
+        }
+        delete_user_meta( $user_id, self::UNPROVEN_META );
+        error_log( '[HDL full-report-open] proof cleared' );
+        return 'cleared';
     }
 
     /** A straight-in refusal: one log line with the code, the same answer for every reason. */

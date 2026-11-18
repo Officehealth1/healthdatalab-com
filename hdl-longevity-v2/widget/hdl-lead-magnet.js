@@ -755,11 +755,25 @@
   // comes from the server (HDLV2_Offer::result_offer_fields); the visitor's e-mail rides in the
   // fragment, as on the e-mail's link, when it passes the Altituding page's own check. No https
   // address, no offer: the card keeps its thank-you words.
-  function resultOfferHref(offer, band, email) {
+  // v0.48.85 (plan 2k): `pass` is the browser pass from this browser's own lead reply; it rides beside the
+  // e-mail (the buying page needs both) and is kept in a variable only, never in storage.
+  function resultOfferHref(offer, band, email, pass) {
     var url = safeBuyUrl(offer && offer.band_urls ? offer.band_urls[band] : '');
     if (!url) return '';
     var good = typeof email === 'string' && email.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-    return good ? url + '#email=' + encodeURIComponent(email) : url;
+    if (!good) return url;
+    var own = typeof pass === 'string' && /^b\d{10}\.[1-9]\d{0,9}\.[a-f0-9]{64}$/.test(pass) ? '&own=' + pass : '';
+    return url + '#email=' + encodeURIComponent(email) + own;
+  }
+
+  // v0.48.85 (plan 2k) — the lead reply arrives after the result is drawn: the button that holds the
+  // offer address gets the pass. Nothing happens when no button was drawn or the pass is not well shaped.
+  function withBuyPass(root, href, pass) {
+    if (!href || typeof pass !== 'string' || !/^b\d{10}\.[1-9]\d{0,9}\.[a-f0-9]{64}$/.test(pass) || href.indexOf('#email=') < 0) return;
+    var links = root.querySelectorAll('a');
+    for (var i = 0; i < links.length; i++) {
+      if (links[i].getAttribute('href') === href) links[i].setAttribute('href', href + '&own=' + pass);
+    }
   }
 
   // The thank-you card's words when the offer shows: the Stage 1 e-mail's (v44), in its order.
@@ -2101,6 +2115,7 @@
         }
         // Public path (and paid tickets): the thank-you wall.
         statusEl.innerHTML = '';
+        withBuyPass(el, offerHref, data.buy_pass); // v0.48.85 (plan 2k)
         // v0.48.23 — a challenge buyer is signed in here: straight on to the 30 days.
         if (invite && invite.source === 'challenge') {
           statusEl.innerHTML = '<a class="hdlw-r-btn-primary" href="'
