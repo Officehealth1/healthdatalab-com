@@ -57,7 +57,7 @@ ok(hrefOf(false, { today: '$27', band_urls: { red: 'http://alt.test/full-report-
 ok(hrefOf(false, { today: '$27' }, 'red', 'ivy@example.test') === '', 'H9 no band_urls: no offer');
 
 console.log('── K. the card ──');
-const card = (offerHref, offer = OFFER, email) => run(thanks, { offerHref, cfg: { resultOffer: offer }, answers: { _email: email } });
+const card = (offerHref, offer = OFFER, email, inviteToken = '') => run(thanks, { offerHref, cfg: { resultOffer: offer }, answers: { _email: email }, inviteToken });
 const TODAY = '<h2 class="hdlw-r-thanks-headline">Thank you.</h2><p class="hdlw-r-thanks-body">Your practitioner has been sent your data. Once they have looked at your data, you will receive another email.</p>';
 ok(card('') === TODAY, 'K1 switch off: today\'s thank-you words, exactly');
 const on = card('https://alt.test/full-report-faster#email=ivy%40example.test');
@@ -81,15 +81,20 @@ ok(card('https://alt.test/x"><b>', { today: '<i>$27</i>' }).indexOf('href="https
   && card('https://alt.test/x', { today: '<i>$27</i>' }).indexOf('&lt;i&gt;$27&lt;/i&gt;') > 0, 'K5 the address and the price are escaped');
 ok(!/Timeline|timeline/.test(on + TODAY), 'K6 no Timeline word in either card');
 // Gate row F25: above Buy, the address the report goes to (Stripe locks it), and a way to start again. Nothing stored.
-const mailOn = card('https://alt.test/x', OFFER, 'ivy@example.test');
+const LOCKED = 'https://alt.test/x#email=ivy%40example.test'; // Stripe locks the address only when the link carries it
+const mailOn = card(LOCKED, OFFER, 'ivy@example.test');
 const LINE = '<p class="hdlw-r-offer-email">Your Full Report will be sent to <strong>ivy@example.test</strong>. Not your address? <a href="">Start again</a></p>';
 // Walk W1 (2026-11-19): an empty href follows Altituding's <base href="/"> to the home page. The link names this page.
 const PAGE = { href: 'https://alt.test/report/start?signed=1#hdl' };
-const again = run("resultOfferHtml(OFFER, 'https://alt.test/x', escapeHtml, 'ivy@example.test')", { OFFER, location: PAGE });
+const again = run("resultOfferHtml(OFFER, LOCKED, escapeHtml, 'ivy@example.test', true)", { OFFER, LOCKED, location: PAGE });
 ok(again.indexOf('Not your address? <a href="https://alt.test/report/start?signed=1">Start again</a>') > 0, 'K10 Start again names this page (no hash), never an empty href');
 ok(/\.hdlw-r-card p\.hdlw-r-offer-email a\{[^}]*text-decoration:underline/.test(js), 'K11 Start again is drawn as a link');
 ok(mailOn.indexOf(LINE) > 0 && mailOn.indexOf(LINE) < mailOn.indexOf('hdlw-r-btn-primary'), 'K7 the e-mail line sits above the button');
-ok(card('https://alt.test/x', OFFER, 'a<b>@x.test').indexOf('<strong>a&lt;b&gt;@x.test</strong>') > 0, 'K8 the address is escaped');
+ok(card('https://alt.test/x#email=a', OFFER, 'a<b>@x.test').indexOf('<strong>a&lt;b&gt;@x.test</strong>') > 0, 'K8 the address is escaped');
+// Review 2026-11-19: no line when Stripe will not lock the address; no "Start again" on a ticket (it reloads a used link).
+ok(card('https://alt.test/x', OFFER, 'ivy@example.test').indexOf('hdlw-r-offer-email') < 0, 'K12 the link does not lock the e-mail: no line (it would be untrue)');
+const ticket = card(LOCKED, OFFER, 'ivy@example.test', 'a'.repeat(64));
+ok(ticket.indexOf('Your Full Report will be sent to <strong>ivy@example.test</strong>.</p>') > 0 && ticket.indexOf('Start again') < 0, 'K13 on a ticket the address shows, without "Start again"');
 ok(on.indexOf('hdlw-r-offer-email') < 0 && card('', OFFER, 'ivy@example.test') === TODAY, 'K9 no address, or switch off: no line, today\'s words exactly');
 
 console.log('── E. the hero sentence ──');
