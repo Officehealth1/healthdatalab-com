@@ -808,14 +808,16 @@ class HDLV2_Widget_Config {
             $public_response['link_key'] = HDLV2_Timeline_Links::consent_key( $ticket_id, $lead_id );
         }
         // v0.48.85 (plan 2k) — the pass for the result page's Buy button, the same way: only in this
-        // reply, signed over the row as stored now (HDLV2_Offer::browser_pass).
+        // reply, signed over the row as stored now (HDLV2_Offer::browser_pass). Only for a row still
+        // waiting: the open route needs the lead confirmed by the purchase's own ticket, which a row
+        // already confirmed or rejected can never be.
         if ( HDLV2_Offer::browser_pass_on( $practitioner_id ) ) {
             global $wpdb;
             $stored = $wpdb->get_row( $wpdb->prepare(
                 "SELECT * FROM {$wpdb->prefix}hdlv2_widget_leads WHERE id = %d",
                 (int) $lead_id
             ) );
-            if ( $stored ) {
+            if ( $stored && 'pending' === ( $stored->status ?? '' ) ) {
                 $public_response['buy_pass'] = HDLV2_Offer::browser_pass( $visitor_email, $practitioner_id, (int) $lead_id, self::lead_digest( $stored ) );
             }
         }

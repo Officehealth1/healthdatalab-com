@@ -15,12 +15,13 @@ load_sources();
 
 /** Answers the re-read of the lead row by id from what the request wrote. */
 class ReplyWpdb extends FakeWpdb {
+    public $preset = array(); // id → a row already on file (the UPDATE branch)
     public function get_row( $sql ) {
         if ( false !== strpos( $sql, 'hdlv2_widget_leads' ) && preg_match( '/WHERE id = (\d+)/', $sql, $m ) ) {
             $this->queries[] = $sql;
             $ins = $this->inserts_into( 'hdlv2_widget_leads' );
-            if ( ! $ins ) return null;
-            $row = (object) end( $ins )['data'];
+            if ( ! $ins && ! isset( $this->preset[ (int) $m[1] ] ) ) return null;
+            $row = isset( $this->preset[ (int) $m[1] ] ) ? clone $this->preset[ (int) $m[1] ] : (object) end( $ins )['data'];
             $row->id = (int) $m[1];
             foreach ( $this->updates as $u ) {
                 if ( false !== strpos( (string) ( $u['table'] ?? '' ), 'hdlv2_widget_leads' ) && (int) ( $u['where']['id'] ?? 0 ) === (int) $m[1] ) {
@@ -70,6 +71,20 @@ foreach ( array(
     $r = post_lead( lead_params( 'reply+2@example.test' ) );
     check( "LR2 $label: no buy_pass", is_array( $r ) && ! isset( $r['buy_pass'] ) && true === ( $r['success'] ?? null ) );
 }
+
+echo "── LR4. answers re-sent onto a row already decided: no buy_pass ──\n";
+foreach ( array( 'confirmed', 'rejected' ) as $st ) {
+    $w = fresh();
+    $w->existing_lead_id = 2600;
+    $w->preset[2600] = (object) array( 'id' => 2600, 'status' => $st, 'invite_id' => 4401, 'visitor_name' => 'Owner', 'visitor_phone' => '', 'stage1_data' => '{}' );
+    $r = post_lead( lead_params( 'reply+5@example.test' ) );
+    check( "LR4 a $st row: success, no buy_pass", is_array( $r ) && true === ( $r['success'] ?? null ) && ! isset( $r['buy_pass'] ) );
+}
+$w = fresh();
+$w->existing_lead_id = 2601;
+$w->preset[2601] = (object) array( 'id' => 2601, 'status' => 'pending', 'invite_id' => null, 'visitor_name' => 'Owner', 'visitor_phone' => '', 'stage1_data' => '{}' );
+$r = post_lead( lead_params( 'reply+6@example.test' ) );
+check( 'LR4 a pending row re-sent: a buy_pass over the row as it is now', is_array( $r ) && isset( $r['buy_pass'] ) && 2601 === HDLV2_Offer::browser_pass_lead( $r['buy_pass'] ) );
 
 echo "── LR3. the new switch absent: the reply equals the base ──\n";
 fresh( array( 'hdlv2_ff_straight_to_form', 'hdlv2_ff_result_offer' ) );
