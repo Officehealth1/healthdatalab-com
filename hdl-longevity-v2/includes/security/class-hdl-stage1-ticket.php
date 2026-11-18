@@ -220,22 +220,20 @@ class HDL_Stage1_Ticket {
      * v0.48.85 (plan 2k) — inbox proof, called by the ?invite= handler for a full_report ticket before
      * anyone is signed in, with the switches on or off (a mark must never outlive a switch). An account
      * marked by open_browser() went straight in on typing alone; opening the purchase e-mail's link
-     * proves the inbox. In the browser already signed in as that account: the mark goes. Anywhere
-     * else: every session of the account ends and every form record gets a new token (end dates and
-     * answers untouched), so the first browser's tab stops at its next save; then the mark goes. A
-     * failed token write keeps the mark, so the next opening tries again.
+     * proves the inbox. One path, wherever the link is opened: the account goes back to a clean state,
+     * whatever was done with it before. Every session ends; every form record gets a new token (end
+     * dates and answers untouched), so the first browser's tab stops at its next save; a new random
+     * password (wp_set_password sends no mail; wp_update_user would tell the owner); every application password
+     * and any pending e-mail change go; then the mark goes. A browser already signed in as the account
+     * loses that session too (the password is in the cookie): the handler signs the opener in again
+     * after this. A failed write keeps the mark, so the next opening tries again.
      *
-     * @return string '' (no mark), 'same', 'cleared' or 'failed'.
+     * @return string '' (no mark), 'cleared' or 'failed'.
      */
-    public static function inbox_proof( $user_id, $current_user_id ) {
+    public static function inbox_proof( $user_id ) {
         $user_id = (int) $user_id;
-        if ( ! $user_id || '' === (string) get_user_meta( $user_id, self::UNPROVEN_META, true ) ) {
+        if ( ! self::is_unproven( $user_id ) ) {
             return '';
-        }
-        if ( (int) $current_user_id === $user_id ) {
-            delete_user_meta( $user_id, self::UNPROVEN_META );
-            error_log( '[HDL full-report-open] proof same' );
-            return 'same';
         }
         WP_Session_Tokens::get_instance( $user_id )->destroy_all();
         global $wpdb;
@@ -244,6 +242,9 @@ class HDL_Stage1_Ticket {
         foreach ( (array) $wpdb->get_col( $wpdb->prepare( "SELECT id FROM $table WHERE client_user_id = %d", $user_id ) ) as $id ) {
             $ok = false !== $wpdb->update( $table, array( 'token' => bin2hex( random_bytes( 32 ) ) ), array( 'id' => (int) $id ), array( '%s' ), array( '%d' ) ) && $ok;
         }
+        wp_set_password( wp_generate_password( 32, true, true ), $user_id );
+        $ok = ! is_wp_error( WP_Application_Passwords::delete_all_application_passwords( $user_id ) ) && $ok;
+        delete_user_meta( $user_id, '_new_email' );
         if ( ! $ok ) {
             error_log( '[HDL full-report-open] proof failed' );
             return 'failed';
@@ -251,6 +252,11 @@ class HDL_Stage1_Ticket {
         delete_user_meta( $user_id, self::UNPROVEN_META );
         error_log( '[HDL full-report-open] proof cleared' );
         return 'cleared';
+    }
+
+    /** v0.48.85 (plan 2k) — true while the account carries the mark open_browser() sets. */
+    public static function is_unproven( $user_id ) {
+        return (int) $user_id > 0 && '' !== (string) get_user_meta( (int) $user_id, self::UNPROVEN_META, true );
     }
 
     /** A straight-in refusal: one log line with the code, the same answer for every reason. */

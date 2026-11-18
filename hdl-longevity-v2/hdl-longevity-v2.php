@@ -201,8 +201,9 @@ add_action( 'init', function () {
         }
 
         // v0.48.85 (plan 2k) — the purchase e-mail's link proves the inbox: an account a browser pass let
-        // in loses that browser's sessions and form address here, before anyone is signed in (switch on or off).
-        if ( isset( $invite->source ) && 'full_report' === $invite->source && class_exists( 'HDL_Stage1_Ticket' ) ) { HDL_Stage1_Ticket::inbox_proof( $user_id, get_current_user_id() ); }
+        // in goes back to a clean state here (sessions, form addresses, password, application passwords),
+        // before anyone is signed in (switch on or off). The cookie below signs the opener in afresh.
+        if ( isset( $invite->source ) && 'full_report' === $invite->source && class_exists( 'HDL_Stage1_Ticket' ) ) { HDL_Stage1_Ticket::inbox_proof( $user_id ); }
 
         // Auto-login BEFORE the main query runs
         wp_set_current_user( $user_id );

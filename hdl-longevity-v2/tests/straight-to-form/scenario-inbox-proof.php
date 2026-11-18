@@ -1,12 +1,13 @@
 <?php
 /**
  * v0.48.85 (plan 2k) — inbox proof. When a Full Report ticket's ?invite= link is opened and the account
- * carries hdlv2_unproven_entry (it went straight in on a browser pass), the inbox has now proved itself:
- *   - opened in the browser already signed in as that account: the mark goes, nothing else;
- *   - opened anywhere else: every session of the account ends, every form record gets a new token (end
- *     dates, answers and everything else untouched), then the mark goes. The old address is refused.
- * With the switch on or off. Against the REAL HDL_Stage1_Ticket::inbox_proof(), and the ?invite= handler
- * in hdl-longevity-v2.php is read to prove it calls it before anyone is signed in.
+ * carries hdlv2_unproven_entry (it went straight in on a browser pass), the inbox has now proved itself.
+ * One path, wherever it is opened (planner's gate G3, 2026-11-18: "the proof returns the account to a
+ * clean state, whatever was done before it"): every session ends, every form record gets a new token
+ * (end dates, answers and everything else untouched), a new random password (set without a mail), every
+ * application password and any pending e-mail change deleted, then the mark goes. The old address is
+ * refused. With the switch on or off. Against the REAL HDL_Stage1_Ticket::inbox_proof(), and the
+ * ?invite= handler in hdl-longevity-v2.php is read to prove it calls it before anyone is signed in.
  *
  * Run:  php scenario-inbox-proof.php   (self-asserting, exit 0/1)
  */
@@ -18,6 +19,12 @@ class WP_Session_Tokens {
     private $uid;
     public static function get_instance( $uid ) { $o = new self(); $o->uid = (int) $uid; return $o; }
     public function destroy_all() { self::$ended[] = $this->uid; }
+}
+function wp_set_password( $pw, $uid ) { $GLOBALS['passwords_set'][] = array( (int) $uid, $pw ); }
+class WP_Application_Passwords {
+    public static $deleted = array();
+    public static $fail = false;
+    public static function delete_all_application_passwords( $uid ) { self::$deleted[] = (int) $uid; return self::$fail ? new WP_Error( 'db', 'x' ) : 2; }
 }
 load_sources();
 $LOG = tempnam( sys_get_temp_dir(), 'hdlv2-proof-log' );
@@ -49,6 +56,9 @@ function setup( $marked = true ) {
     $GLOBALS['meta_writes'] = array();
     $GLOBALS['usermeta'] = $marked ? array( UID => array( 'hdlv2_unproven_entry' => '4401' ) ) : array();
     WP_Session_Tokens::$ended = array();
+    WP_Application_Passwords::$deleted = array();
+    WP_Application_Passwords::$fail = false;
+    $GLOBALS['passwords_set'] = array();
     $wpdb = new ProofWpdb();
     $wpdb->forms = array(
         371 => array( 'client_user_id' => UID, 'token' => OLD, 'token_expires_at' => '2027-02-16 10:00:00', 'stage2_data' => '{"saved":"answers"}' ),
@@ -57,13 +67,18 @@ function setup( $marked = true ) {
     );
     return $wpdb;
 }
-function proof( $current ) { return method_exists( 'HDL_Stage1_Ticket', 'inbox_proof' ) ? HDL_Stage1_Ticket::inbox_proof( UID, $current ) : 'NO METHOD'; }
-function deleted_mark() { return (bool) array_filter( $GLOBALS['meta_writes'], function ( $m ) { return 'delete' === $m[0] && UID === (int) $m[1][0] && 'hdlv2_unproven_entry' === $m[1][1]; } ); }
+function proof() { return method_exists( 'HDL_Stage1_Ticket', 'inbox_proof' ) ? HDL_Stage1_Ticket::inbox_proof( UID ) : 'NO METHOD'; }
+function deleted( $key ) { return (bool) array_filter( $GLOBALS['meta_writes'], function ( $m ) use ( $key ) { return 'delete' === $m[0] && UID === (int) $m[1][0] && $key === $m[1][1]; } ); }
+function deleted_mark() { return deleted( 'hdlv2_unproven_entry' ); }
+/** The clean state: a new password set once for the account, its application passwords deleted, no pending e-mail change. */
+function clean_state() { return 1 === count( $GLOBALS['passwords_set'] ) && UID === $GLOBALS['passwords_set'][0][0] && '' !== (string) $GLOBALS['passwords_set'][0][1]
+    && array( UID ) === WP_Application_Passwords::$deleted && deleted( '_new_email' ); }
 function token_updates( $w ) { return array_values( array_filter( $w->updates, function ( $u ) { return false !== strpos( $u['table'], 'hdlv2_form_progress' ); } ) ); }
 
-echo "── IP1. another browser opens the e-mail's link ──\n";
+echo "── IP1. the e-mail's link is opened: the account goes back to a clean state ──\n";
 $w = setup();
-$r = proof( 0 );
+$GLOBALS['current_user_id'] = 0;
+$r = proof();
 check( 'IP1.1 answer: cleared', 'cleared' === $r );
 check( 'IP1.2 every session of the account ended', array( UID ) === WP_Session_Tokens::$ended );
 $t = token_updates( $w );
@@ -74,34 +89,42 @@ check( 'IP1.5 only the token was written (end dates and answers unchanged)', arr
 check( 'IP1.6 another account\'s record untouched', str_repeat( 'f', 64 ) === $w->forms[900]['token'] );
 check( 'IP1.7 the mark is gone', deleted_mark() );
 check( 'IP1.8 the old address no longer matches any record (refused by the ?token= handler)', ! in_array( OLD, array_column( $w->forms, 'token' ), true ) );
-$w = setup();
-proof( 55 );
-check( 'IP1.9 signed in as someone else counts as another browser', array( UID ) === WP_Session_Tokens::$ended && deleted_mark() );
+check( 'IP1.9 a new password (no mail: wp_set_password), every application password and any pending e-mail change deleted', clean_state() );
+$src_t = (string) file_get_contents( __DIR__ . '/../../includes/security/class-hdl-stage1-ticket.php' );
+check( 'IP1.10 the new password is 32 random characters', false !== strpos( $src_t, 'wp_set_password( wp_generate_password( 32, true, true ), $user_id )' ) && false === strpos( $src_t, 'wp_update_user(' ) );
 
-echo "── IP2. the same browser opens it ──\n";
+echo "── IP2. the browser already signed in as the account: the same one path (G3, fix F2) ──\n";
 $w = setup();
-check( 'IP2.1 answer: same', 'same' === proof( UID ) );
-check( 'IP2.2 the mark is gone and nothing else changed', deleted_mark() && ! WP_Session_Tokens::$ended && ! token_updates( $w ) && OLD === $w->forms[371]['token'] );
+$GLOBALS['current_user_id'] = UID;
+check( 'IP2.1 answer: cleared, never "same"', 'cleared' === proof() );
+check( 'IP2.2 sessions ended, every token new, clean state, mark gone', array( UID ) === WP_Session_Tokens::$ended && 2 === count( token_updates( $w ) ) && OLD !== $w->forms[371]['token'] && clean_state() && deleted_mark() );
+check( 'IP2.3 the proof no longer takes the signed-in user', 1 === ( new ReflectionMethod( 'HDL_Stage1_Ticket', 'inbox_proof' ) )->getNumberOfParameters() );
+$GLOBALS['current_user_id'] = 0;
 
 echo "── IP3. no mark: equal to the base ──\n";
 $w = setup( false );
-check( 'IP3.1 answer: nothing; no session ended, no token, no meta write', '' === proof( 0 ) && ! WP_Session_Tokens::$ended && ! token_updates( $w ) && ! $GLOBALS['meta_writes'] );
-check( 'IP3.2 user 0: nothing', '' === ( method_exists( 'HDL_Stage1_Ticket', 'inbox_proof' ) ? HDL_Stage1_Ticket::inbox_proof( 0, 0 ) : 'x' ) );
+check( 'IP3.1 answer: nothing; no session ended, no token, no password, no meta write', '' === proof() && ! WP_Session_Tokens::$ended && ! token_updates( $w ) && ! $GLOBALS['meta_writes'] && ! $GLOBALS['passwords_set'] && ! WP_Application_Passwords::$deleted );
+check( 'IP3.2 user 0: nothing', '' === ( method_exists( 'HDL_Stage1_Ticket', 'inbox_proof' ) ? HDL_Stage1_Ticket::inbox_proof( 0 ) : 'x' ) );
 
 echo "── IP4. the switch off: the mark is still cleared ──\n";
 $w = setup();
 $GLOBALS['options'] = array( 'hdlv2_ff_straight_in_result_page' => '0', 'hdlv2_ff_straight_to_form' => '0' );
-check( 'IP4.1 cleared with both switches off', 'cleared' === proof( 0 ) && deleted_mark() && array( UID ) === WP_Session_Tokens::$ended );
+check( 'IP4.1 cleared with both switches off', 'cleared' === proof() && deleted_mark() && array( UID ) === WP_Session_Tokens::$ended && clean_state() );
 
 echo "── IP5. a token write fails: the mark stays, so the next opening tries again ──\n";
 $w = setup();
 $w->fail_update = true;
-check( 'IP5.1 answer: failed, the mark kept', 'failed' === proof( 0 ) && ! deleted_mark() );
+check( 'IP5.1 answer: failed, the mark kept', 'failed' === proof() && ! deleted_mark() );
+check( 'IP5.2 the password and application passwords are still reset', 1 === count( $GLOBALS['passwords_set'] ) && array( UID ) === WP_Application_Passwords::$deleted );
+$w = setup();
+WP_Application_Passwords::$fail = true;
+check( 'IP5.3 the application passwords delete fails: failed, the mark kept', 'failed' === proof() && ! deleted_mark() );
 
 echo "── IP6. the log ──\n";
 $log = (string) file_get_contents( $LOG );
-foreach ( array( 'cleared', 'same', 'failed' ) as $code ) { check( "IP6.1 a proof line with code $code", (bool) preg_match( '/\[HDL full-report-open\] proof ' . $code . '$/m', $log ) ); }
-check( 'IP6.2 no token in the log', false === strpos( $log, OLD ) && ! preg_match( '/[a-f0-9]{64}/', $log ) );
+foreach ( array( 'cleared', 'failed' ) as $code ) { check( "IP6.1 a proof line with code $code", (bool) preg_match( '/\[HDL full-report-open\] proof ' . $code . '$/m', $log ) ); }
+check( 'IP6.2 no token and no password in the log', false === strpos( $log, OLD ) && ! preg_match( '/[a-f0-9]{64}/', $log ) && false === strpos( $log, 'pw-test' ) );
+check( 'IP6.3 no "same" line any more', ! preg_match( '/proof same/', $log ) );
 @unlink( $LOG );
 
 echo "── IP7. the ?invite= handler calls it before anyone is signed in ──\n";
@@ -109,7 +132,7 @@ $src = (string) file_get_contents( __DIR__ . '/../../hdl-longevity-v2.php' );
 $start = strpos( $src, "if ( ! empty( \$_GET['invite'] ) ) {" );
 $end = strpos( $src, '// ── ?prac_login=TOKEN', (int) $start );
 $block = $start && $end ? substr( $src, $start, $end - $start ) : '';
-$call = strpos( $block, 'HDL_Stage1_Ticket::inbox_proof( $user_id, get_current_user_id() )' );
+$call = strpos( $block, 'HDL_Stage1_Ticket::inbox_proof( $user_id )' );
 $staff = strpos( $block, 'hdlv2_render_staff_sign_in_card();' );
 $cookie = strpos( $block, 'wp_set_auth_cookie( $user_id, false );' );
 check( 'IP7.1 the call is in the ?invite= block', false !== $call );
