@@ -41,7 +41,7 @@ class HDLV2_Products {
     /** What each product is, two lines, on the panel a locked tab opens. Placeholder copy: Matthew's words replace it. */
     const ABOUT = array(
         'stage1'      => array( 'Nine questions, about three minutes.', 'Your pace of ageing, straight away.' ),
-        'full_report' => array( 'Your real measurements, reviewed with your practitioner in a consultation.', 'Your personalised Trajectory Plan, as a PDF and on this page.' ),
+        'full_report' => array( 'Your real measurements.', 'Your personalised Trajectory Plan, as a PDF and on this page.' ),
         'timeline'    => array( 'Your healthspan, year by year, as one picture.', 'It comes with your Full Report. A family pack adds seats for the people you choose.' ),
         'flight_plan' => array( 'A plan for the week, every week, after your consultation.', 'Built from your Sunday check-in.' ),
         'challenge'   => array( 'One small step a day for 30 days.', 'Free once your Stage 1 is in.' ),
@@ -142,7 +142,7 @@ class HDLV2_Products {
         // Full Report
         if ( $report ) {
             $full = self::item( 'full_report', 'Full Report', 'yours',
-                'final' === $report->report_type ? 'Final' : 'Draft · consultation next', home_url( '/my-report/' ) );
+                'final' === $report->report_type ? 'Final' : 'Ready', home_url( '/my-report/' ) );
         } elseif ( $ticket || ( $row && ( $row->stage2_completed_at || $row->stage3_completed_at ) ) ) {
             $full = self::item( 'full_report', 'Full Report', 'in-progress',
                 $row && $row->stage3_completed_at ? $who . ' is writing it'

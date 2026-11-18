@@ -2943,7 +2943,7 @@
       var meds = (s3.medications         || '').trim();
       var cond = (s3.existing_conditions || '').trim();
       var hbBlock = (fh || meds || cond)
-        ? '<h4 class="hdlv2-hb-section-h">Health Background<span class="hdlv2-hb-note">Optional &middot; client free-text &middot; not scored &middot; woven into Claude draft</span></h4>'
+        ? '<h4 class="hdlv2-hb-section-h">Health Background<span class="hdlv2-hb-note">Optional &middot; client free-text &middot; not scored &middot; woven into the Full Report</span></h4>'
           + '<div class="hdlv2-hb-grid">'
           +   hbCard('Family history',                  fh,   iconHistory)
           +   hbCard('Current medications',             meds, iconMeds)
@@ -2960,8 +2960,8 @@
         ? '<div class="hdlv2-dl-doc hdlv2-dl-doc--stack">'
           +   '<div class="hdlv2-dl-doc-ico">' + docIconSVG() + '</div>'
           +   '<div class="hdlv2-dl-doc-body">'
-          +     '<span class="hdlv2-dl-doc-title">Draft Report</span>'
-          +     '<span class="hdlv2-dl-doc-meta">Draft after the Full Report form &middot; the same PDF emailed to the client</span>'
+          +     '<span class="hdlv2-dl-doc-title">Full Report</span>'
+          +     '<span class="hdlv2-dl-doc-meta">Made after the Full Report form &middot; the same PDF emailed to the client</span>'
           +   '</div>'
           +   '<a class="hdlv2-dl-btn" href="' + esc(s3.pdf_url) + '" target="_blank" rel="noopener" download>' + flightNotesIconSVG() + '<span>Download PDF</span></a>'
           + '</div>'
@@ -2985,7 +2985,7 @@
       var f = data && data.final;
       if (!f || !f.has_report) {
         target.innerHTML = '<div class="hdlv2-detail-empty">'
-          + 'Trajectory Plan hasn’t been generated yet. Open the Consultation tab and click <strong>Generate Trajectory Plan</strong> after reviewing the draft.'
+          + 'Trajectory Plan hasn’t been generated yet. Open the Consultation tab and click <strong>Generate Trajectory Plan</strong> after reviewing the Full Report.'
           + '</div>';
         return;
       }

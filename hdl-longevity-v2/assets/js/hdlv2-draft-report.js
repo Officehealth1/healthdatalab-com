@@ -69,7 +69,7 @@
       '<div class="hdlv2-dr-loading" data-hdlv2-state="loading" style="text-align:left;">' +
         '<div style="text-align:center;margin-bottom:24px;">' +
           '<div class="hdlv2-dr-loading-icon"></div>' +
-          '<h3 style="margin:0 0 6px;">Preparing your draft report</h3>' +
+          '<h3 style="margin:0 0 6px;">Preparing your Full Report</h3>' +
           '<p style="color:#555;margin:0 0 4px;">We\'re running your results through our analysis</p>' +
           '<p style="font-size:12px;color:#888;margin:0;">This usually takes 20 – 60 seconds.</p>' +
           '<div id="hdlv2-dr-progress-mount" style="display:flex;justify-content:center;"></div>' +
@@ -82,7 +82,7 @@
         steps: [
           'Reading your responses',
           'Analysing patterns',
-          'Drafting paragraphs',
+          'Writing paragraphs',
           'Polishing the report'
         ],
         capPercent: 92,
@@ -126,7 +126,7 @@
         var data = r.body;
 
         if (data.status === 'incomplete') {
-          renderError('One more step to go', data.message || 'Complete your full assessment to see your draft report.');
+          renderError('One more step to go', data.message || 'Complete your full assessment to see your Full Report.');
           return;
         }
 
@@ -145,7 +145,7 @@
         } else {
           renderError(
             'Still preparing your report',
-            'Your draft is taking longer than usual. Please refresh in a few minutes — or check back from your email link.'
+            'Your Full Report is taking longer than usual. Please refresh in a few minutes — or check back from your email link.'
           );
         }
       })
@@ -237,17 +237,17 @@
     var firstName = (data.client_name || '').split(' ')[0] || 'there';
     var heroSubtitleHtml = isFinal
       ? 'This is your <strong style="font-weight:600;">finalised Trajectory Plan</strong>, reviewed by your practitioner. Use it as your roadmap — your weekly Flight Plan is next.'
-      : 'Here\'s a first look at what we\'ve learnt so far. <strong style="font-weight:600;">This is a draft</strong> — your practitioner will fine-tune it during your consultation, then send you the final plan.';
+      : '';
 
     html += '<header class="hdlv2-dr-hero">' +
       '<div class="hdlv2-dr-hero-header">' +
         '<div>' +
           '<p class="hdlv2-dr-hero-greeting">Hi ' + escape(firstName) + ' —</p>' +
-          '<h1 class="hdlv2-dr-hero-title">Your Trajectory Plan</h1>' +
+          '<h1 class="hdlv2-dr-hero-title">' + (isFinal ? 'Your Trajectory Plan' : 'Your Full Report') + '</h1>' +
         '</div>' +
-        '<span class="hdlv2-dr-' + (isFinal ? 'final' : 'draft') + '-badge">' + (isFinal ? 'Final' : 'Draft') + '</span>' +
+        (isFinal ? '<span class="hdlv2-dr-final-badge">Final</span>' : '') +
       '</div>' +
-      '<p class="hdlv2-dr-hero-subtitle">' + heroSubtitleHtml + '</p>' +
+      (heroSubtitleHtml ? '<p class="hdlv2-dr-hero-subtitle">' + heroSubtitleHtml + '</p>' : '') +
     '</header>';
 
     // Pace of Ageing — gauge hero + 3 supporting stat cards
@@ -336,7 +336,7 @@
         (isFinal ? '' :
           '<div class="hdlv2-dr-draft-note">' +
             '<span class="hdlv2-dr-draft-note-icon">⚑</span>' +
-            '<div><strong>This is your draft trajectory chart.</strong> It\'ll be fine-tuned with your practitioner during your consultation.</div>' +
+            '<div><strong>This is your trajectory chart.</strong></div>' +
           '</div>'
         ) +
       '</section>';
@@ -358,7 +358,7 @@
         (isFinal ? '' :
           '<div class="hdlv2-dr-draft-note">' +
             '<span class="hdlv2-dr-draft-note-icon">⚑</span>' +
-            '<div><strong>This is your draft health profile.</strong> Your practitioner will review these scores with you and may adjust figures based on your consultation.</div>' +
+            '<div><strong>This is your health profile.</strong></div>' +
           '</div>'
         ) +
       '</section>';
@@ -410,19 +410,18 @@
     if (Array.isArray(ai.recs_preview) && ai.recs_preview.length) {
       html +=
         '<section class="hdlv2-dr-recs">' +
-          '<div class="hdlv2-dr-ai-label">' + (isFinal ? 'Recommendations' : 'Draft recommendations') + '</div>' +
+          '<div class="hdlv2-dr-ai-label">' + (isFinal ? 'Recommendations' : 'Your recommendations') + '</div>' +
           '<h2>' + (isFinal ? 'Your starting-point plan' : 'Your practitioner\'s starting-point plan') + '</h2>' +
           '<p class="hdlv2-dr-section-sub">' +
             (isFinal
               ? 'First-pass suggestions from your data — your weekly Flight Plan turns these into specific actions.'
-              : 'First-pass suggestions from your data — your practitioner will refine these in your consultation.'
+              : 'First-pass suggestions from your data.'
             ) +
           '</p>' +
           ai.recs_preview.map(function (r, i) {
             return '<div class="hdlv2-dr-rec-item">' +
               '<div class="hdlv2-dr-rec-icon">' + (i + 1) + '</div>' +
               '<div class="hdlv2-dr-rec-body"><h3>' + escape(r.title || '') + '</h3><p>' + (r.body || '') + '</p></div>' +
-              (isFinal ? '' : '<span class="hdlv2-dr-rec-pill">Draft</span>') +
             '</div>';
           }).join('') +
         '</section>';
@@ -459,10 +458,7 @@
     html +=
       '<section class="hdlv2-dr-next">' +
         '<h2>What happens next</h2>' +
-        '<p>This report isn\'t finished yet — it\'s the starting point for the conversation with your practitioner.</p>' +
         '<ol class="hdlv2-dr-steps">' +
-          '<li><strong>Book (or attend) your consultation</strong> with your practitioner — they\'ll walk you through these numbers in detail.</li>' +
-          '<li><strong>Your final report arrives after the consultation</strong> — with refined numbers, personal recommendations, and a weekly action plan.</li>' +
           '<li><strong>Weekly check-ins begin</strong> so you can track progress together.</li>' +
         '</ol>' +
       '</section>';
