@@ -935,6 +935,8 @@ final class HDL_Longevity_V2 {
         // v0.47.85 — keyed route that mints paid Stage 1 widget tickets.
         // Dark (503) until HDL_STAGE1_TICKET_KEY is defined in wp-config.
         require_once HDLV2_PLUGIN_DIR . 'includes/security/class-hdl-stage1-ticket.php';
+        // v0.48.85 (plan 2k) — while a browser-pass account waits for its inbox, nothing moves it out of reach.
+        require_once HDLV2_PLUGIN_DIR . 'includes/security/class-hdlv2-unproven-guard.php';
         // v0.48.15 — the Full Report offer in one setting (Stage 1 PDF page 2,
         // the widget's locked panel, the partnership line).
         require_once HDLV2_PLUGIN_DIR . 'includes/sprint-1/class-hdlv2-offer.php';
@@ -1063,6 +1065,7 @@ final class HDL_Longevity_V2 {
         // flag; with flag false every request returns 503.
         HDL_Paid_Report_Provisioner::get_instance()->register_hooks();
         HDL_Stage1_Ticket::register_hooks();
+        HDLV2_Unproven_Guard::register_hooks();
 
         // Sprint 1: Widget config dashboard + REST API + shortcode
         $widget_config = new HDLV2_Widget_Config();
