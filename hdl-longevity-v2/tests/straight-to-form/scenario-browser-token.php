@@ -247,7 +247,7 @@ function hdlv2_render_link_card( $title, $text, $a, $b ) { throw new CardShown( 
 $GLOBALS['pages'] = array( 501 => 'assessment', 502 => 'my-dashboard', 503 => 'assessment' );
 function get_queried_object_id() { return (int) ( $GLOBALS['page_id'] ?? 0 ); }
 /** WordPress's is_page(): an empty argument is true on any page; a name matches any page of that name. */
-function is_page( $slug = '' ) { $id = get_queried_object_id(); return isset( $GLOBALS['pages'][ $id ] ) && ( '' === $slug || $slug === $GLOBALS['pages'][ $id ] ); }
+function is_page( $slug = '' ) { if ( 'page' !== ( $GLOBALS['query_type'] ?? 'page' ) ) return false; $id = get_queried_object_id(); return isset( $GLOBALS['pages'][ $id ] ) && ( '' === $slug || $slug === $GLOBALS['pages'][ $id ] ); }
 /** Only the top-level page owns the plain path; the child's path is parent/assessment. */
 function get_page_by_path( $path ) { return 'assessment' === $path ? (object) array( 'ID' => 501 ) : ( 'my-dashboard' === $path ? (object) array( 'ID' => 502 ) : null ); }
 function __return_zero() { return 0; }
@@ -298,6 +298,10 @@ $GLOBALS['filter_values']['hdlv2_assessment_slug'] = '';
 $g1 = visit( $key, null, 502 ); $g2 = visit( $key, null, 501 );
 unset( $GLOBALS['filter_values']['hdlv2_assessment_slug'] );
 check( 'BT8.h the slug filtered to empty: no page opens, not even the form page (review 4)', 2 === $g1['rule'] && 2 === $g2['rule'] );
+$GLOBALS['query_type'] = 'category'; // a category (or author) archive whose id equals the form page's id
+$i = visit( $key, null, 501 );
+$GLOBALS['query_type'] = 'page';
+check( 'BT8.i an archive whose id equals the form page\'s id: the rule stays (2) (review 4 follow-up)', 2 === $i['rule'] );
 $opener = preg_match( '/static function open_form_page_for_key\(.*?\n    }\n/s', $tk, $om ) ? $om[0] : '';
 check( 'BT8.f no function of the membership plugin is called, only its filter name', '' !== $opener && false === strpos( $opener, 'UM(' ) && false !== strpos( $opener, "'um_get_option_filter__accessible'" ) );
 @unlink( $LOG );
