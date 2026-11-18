@@ -72,19 +72,20 @@ foreach ( array(
     check( "LR2 $label: no buy_pass", is_array( $r ) && ! isset( $r['buy_pass'] ) && true === ( $r['success'] ?? null ) );
 }
 
-echo "── LR4. answers re-sent onto a row already decided: no buy_pass ──\n";
-foreach ( array( 'confirmed', 'rejected' ) as $st ) {
+echo "── LR4. one reply shape for every row (review F4: no oracle for who is already a client) ──\n";
+$keys = array();
+foreach ( array( 'pending' => 2601, 'confirmed' => 2600, 'rejected' => 2602 ) as $st => $id ) {
     $w = fresh();
-    $w->existing_lead_id = 2600;
-    $w->preset[2600] = (object) array( 'id' => 2600, 'status' => $st, 'invite_id' => 4401, 'visitor_name' => 'Owner', 'visitor_phone' => '', 'stage1_data' => '{}' );
+    $w->existing_lead_id = $id;
+    $w->preset[ $id ] = (object) array( 'id' => $id, 'status' => $st, 'invite_id' => 'pending' === $st ? null : 4401, 'visitor_name' => 'Owner', 'visitor_phone' => '', 'stage1_data' => '{}' );
     $r = post_lead( lead_params( 'reply+5@example.test' ) );
-    check( "LR4 a $st row: success, no buy_pass", is_array( $r ) && true === ( $r['success'] ?? null ) && ! isset( $r['buy_pass'] ) );
+    $keys[ $st ] = is_array( $r ) ? array_keys( $r ) : null;
+    $row = $w->get_row( "SELECT * FROM wp_hdlv2_widget_leads WHERE id = $id" );
+    check( "LR4 a $st row re-sent: success and a buy_pass over the row as it is now", is_array( $r ) && true === ( $r['success'] ?? null ) && isset( $r['buy_pass'] )
+        && HDLV2_Offer::browser_pass_ok( $r['buy_pass'], 'reply+5@example.test', 206, $id, HDLV2_Widget_Config::lead_digest( $row ) ) );
 }
-$w = fresh();
-$w->existing_lead_id = 2601;
-$w->preset[2601] = (object) array( 'id' => 2601, 'status' => 'pending', 'invite_id' => null, 'visitor_name' => 'Owner', 'visitor_phone' => '', 'stage1_data' => '{}' );
-$r = post_lead( lead_params( 'reply+6@example.test' ) );
-check( 'LR4 a pending row re-sent: a buy_pass over the row as it is now', is_array( $r ) && isset( $r['buy_pass'] ) && 2601 === HDLV2_Offer::browser_pass_lead( $r['buy_pass'] ) );
+check( 'LR4.4 the three replies have the same keys', $keys['pending'] && $keys['pending'] === $keys['confirmed'] && $keys['pending'] === $keys['rejected'] );
+check( 'LR4.5 the pass shows no lead id (b<10 digits>.<64 hex>)', isset( $r['buy_pass'] ) && (bool) preg_match( '/^b\d{10}\.[a-f0-9]{64}$/', $r['buy_pass'] ) );
 
 echo "── LR3. the new switch absent: the reply equals the base ──\n";
 fresh( array( 'hdlv2_ff_straight_to_form', 'hdlv2_ff_result_offer' ) );

@@ -18,13 +18,13 @@ if (!fns.every(Boolean)) { console.log(`\nPASS=${PASS} FAIL=${FAIL}`); process.e
 const run = (expr, ctx = {}) => { const c = Object.assign({ out: undefined }, ctx); vm.runInNewContext(fns.join('\n') + '\nout = (' + expr + ');', c); return c.out; };
 
 const OFFER = { band_urls: { red: 'https://alt.test/full-report-faster' } };
-const PASS_OK = 'b1763430000.2401.' + 'a'.repeat(64);
+const PASS_OK = 'b1763430000.' + 'a'.repeat(64);
 
 console.log('── W1. the address ──');
 ok(run('resultOfferHref(o, "red", "a@b.test")', { o: OFFER }) === 'https://alt.test/full-report-faster#email=a%40b.test', 'W1.1 without a pass: the base address');
 ok(run('resultOfferHref(o, "red", "a@b.test", p)', { o: OFFER, p: PASS_OK }) === 'https://alt.test/full-report-faster#email=a%40b.test&own=' + PASS_OK, 'W1.2 with a pass: &own= after the e-mail');
 ok(run('resultOfferHref(o, "red", "not-an-email", p)', { o: OFFER, p: PASS_OK }) === 'https://alt.test/full-report-faster', 'W1.3 no good e-mail: no fragment, no pass');
-for (const [label, bad] of [['an inbox pass', '1763430000.' + 'a'.repeat(64)], ['markup', 'b1.2.<x>'], ['upper hex', 'b1763430000.2401.' + 'A'.repeat(64)], ['a number', 5], ['empty', '']]) {
+for (const [label, bad] of [['an inbox pass', '1763430000.' + 'a'.repeat(64)], ['markup', 'b1.2.<x>'], ['upper hex', 'b1763430000.' + 'A'.repeat(64)], ['the old shape with a lead id', 'b1763430000.2401.' + 'a'.repeat(64)], ['a number', 5], ['empty', '']]) {
   ok(run('resultOfferHref(o, "red", "a@b.test", p)', { o: OFFER, p: bad }) === 'https://alt.test/full-report-faster#email=a%40b.test', 'W1.4 ' + label + ': left out');
 }
 ok(run('resultOfferHref(o, "green", "a@b.test", p)', { o: OFFER, p: PASS_OK }) === '', 'W1.5 no band page: no button, no pass');

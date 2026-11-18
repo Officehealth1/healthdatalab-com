@@ -109,7 +109,7 @@ function setup( $t = array(), $l = array(), $acct = array( 'id' => UID, 'ago' =>
 $CAN = method_exists( 'HDLV2_Offer', 'browser_pass' ) && method_exists( 'HDLV2_Widget_Config', 'lead_digest' );
 function bpass( $over = array(), $time = null ) {
     global $CAN;
-    if ( ! $CAN ) return 'b' . time() . '.' . LEAD . '.' . str_repeat( 'a', 64 );
+    if ( ! $CAN ) return 'b' . time() . '.' . str_repeat( 'a', 64 );
     $o = array_merge( array( 'email' => EMAIL, 'prac' => PRAC, 'lead' => LEAD, 'answers' => answers() ), $over );
     return HDLV2_Offer::browser_pass( $o['email'], $o['prac'], $o['lead'], HDLV2_Widget_Config::lead_digest( lead_row( array( 'id' => $o['lead'], 'stage1_data' => $o['answers'] ) ) ), $time );
 }
@@ -119,7 +119,8 @@ function ask( $own = null ) {
 function st( $w ) { return $w->tickets[ REF ]->status; }
 function marks() { return array_values( array_filter( $GLOBALS['meta_writes'] ?? array(), function ( $m ) { return 'hdlv2_unproven_entry' === ( $m[1][1] ?? '' ); } ) ); }
 $NO = array( 'open' => false );
-function log_has( $code ) { global $LOG; return (bool) preg_match( '/\[HDL full-report-open\] no ' . $code . '$/m', (string) file_get_contents( $LOG ) ); }
+/** The refusal's code is on the newest log line (the log file holds every case before it). */
+function log_has( $code ) { global $LOG; $lines = array_values( array_filter( explode( "\n", (string) file_get_contents( $LOG ) ) ) ); return (bool) preg_match( '/\[HDL full-report-open\] no ' . $code . '$/', (string) end( $lines ) ); }
 function no_with( $label, $code, $w, $r ) { global $NO; check( "UO $label: no ($code), ticket pending, no mark", $NO === $r && 'pending' === st( $w ) && ! marks() && log_has( $code ) ); }
 
 echo "── UO1. the yes ──\n";
@@ -144,14 +145,16 @@ $GLOBALS['usermeta'] = array();
 echo "── UO2. refusals, each with its code ──\n";
 $w = setup(); unset( $GLOBALS['options']['hdlv2_ff_straight_in_result_page'] ); no_with( '2.1 result-page switch absent', 'flag_off', $w, ask() );
 $w = setup(); unset( $GLOBALS['options']['hdlv2_ff_straight_to_form'] ); no_with( '2.2 straight-to-form switch absent', 'flag_off', $w, ask() );
-$w = setup(); no_with( '2.3 a browser pass in a bad shape', 'shape', $w, ask( 'b123.45.' . str_repeat( 'a', 64 ) ) );
+$w = setup(); no_with( '2.3 a browser pass in a bad shape', 'shape', $w, ask( 'b123.' . str_repeat( 'a', 64 ) ) );
+$w = setup(); no_with( '2.3b the old shape with a lead id', 'shape', $w, ask( 'b' . time() . '.' . LEAD . '.' . str_repeat( 'a', 64 ) ) );
 $w = setup(); no_with( '2.4 a pass for another e-mail', 'pass', $w, ask( bpass( array( 'email' => 'other@example.test' ) ) ) );
 $w = setup(); no_with( '2.5 a pass for another practitioner', 'pass', $w, ask( bpass( array( 'prac' => 122 ) ) ) );
 $w = setup(); no_with( '2.6 another browser re-sent the answers (the row changed after the pass)', 'pass', $w, ask( bpass( array( 'answers' => answers( 'd' ) ) ) ) );
 $w = setup(); no_with( '2.7 a pass 61 minutes old', 'pass', $w, ask( bpass( array(), time() - 61 * MINUTE_IN_SECONDS ) ) );
 $w = setup(); no_with( '2.8 a pass from the future', 'pass', $w, ask( bpass( array(), time() + 5 * MINUTE_IN_SECONDS ) ) );
-$w = setup(); $w->leads[ LEAD + 5 ] = lead_row( array( 'id' => LEAD + 5 ) ); no_with( '2.9 the pass\'s lead is not the newest for this e-mail', 'lead', $w, ask() );
-$w = setup(); no_with( '2.10 a pass naming another lead id', 'lead', $w, ask( bpass( array( 'lead' => LEAD + 1 ) ) ) );
+$w = setup(); $w->leads[ LEAD + 5 ] = lead_row( array( 'id' => LEAD + 5 ) ); no_with( '2.9 the pass\'s lead is not the newest for this e-mail', 'pass', $w, ask() );
+$w = setup(); no_with( '2.10 a pass made over another lead id', 'pass', $w, ask( bpass( array( 'lead' => LEAD + 1 ) ) ) );
+$w = setup(); $w->leads = array(); no_with( '2.10b no lead on file for this e-mail', 'lead', $w, ask() );
 $w = setup( array(), array( 'status' => 'pending' ) ); no_with( '2.11 the lead is still pending', 'lead', $w, ask() );
 $w = setup( array(), array( 'invite_id' => 4400 ) ); no_with( '2.12 the lead was confirmed by another ticket', 'lead', $w, ask() );
 $w = setup( array(), array( 'invite_id' => null ) ); no_with( '2.13 the lead was confirmed by the practitioner (no ticket)', 'lead', $w, ask() );

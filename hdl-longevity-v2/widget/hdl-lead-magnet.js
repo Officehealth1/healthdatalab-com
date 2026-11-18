@@ -762,14 +762,14 @@
     if (!url) return '';
     var good = typeof email === 'string' && email.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
     if (!good) return url;
-    var own = typeof pass === 'string' && /^b\d{10}\.[1-9]\d{0,9}\.[a-f0-9]{64}$/.test(pass) ? '&own=' + pass : '';
+    var own = typeof pass === 'string' && /^b\d{10}\.[a-f0-9]{64}$/.test(pass) ? '&own=' + pass : '';
     return url + '#email=' + encodeURIComponent(email) + own;
   }
 
   // v0.48.85 (plan 2k) — the lead reply arrives after the result is drawn: the button that holds the
   // offer address gets the pass. Nothing happens when no button was drawn or the pass is not well shaped.
   function withBuyPass(root, href, pass) {
-    if (!href || typeof pass !== 'string' || !/^b\d{10}\.[1-9]\d{0,9}\.[a-f0-9]{64}$/.test(pass) || href.indexOf('#email=') < 0) return;
+    if (!href || typeof pass !== 'string' || !/^b\d{10}\.[a-f0-9]{64}$/.test(pass) || href.indexOf('#email=') < 0) return;
     var links = root.querySelectorAll('a');
     for (var i = 0; i < links.length; i++) {
       if (links[i].getAttribute('href') === href) links[i].setAttribute('href', href + '&own=' + pass);

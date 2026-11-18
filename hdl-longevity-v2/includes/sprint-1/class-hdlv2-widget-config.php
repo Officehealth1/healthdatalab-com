@@ -808,16 +808,16 @@ class HDLV2_Widget_Config {
             $public_response['link_key'] = HDLV2_Timeline_Links::consent_key( $ticket_id, $lead_id );
         }
         // v0.48.85 (plan 2k) — the pass for the result page's Buy button, the same way: only in this
-        // reply, signed over the row as stored now (HDLV2_Offer::browser_pass). Only for a row still
-        // waiting: the open route needs the lead confirmed by the purchase's own ticket, which a row
-        // already confirmed or rejected can never be.
+        // reply, signed over the row as stored now (HDLV2_Offer::browser_pass). For every row, so every
+        // successful reply has one shape (review F4): a pass for a row already confirmed or rejected opens
+        // nothing, as the open route needs the lead confirmed by the purchase's own ticket.
         if ( HDLV2_Offer::browser_pass_on( $practitioner_id ) ) {
             global $wpdb;
             $stored = $wpdb->get_row( $wpdb->prepare(
                 "SELECT * FROM {$wpdb->prefix}hdlv2_widget_leads WHERE id = %d",
                 (int) $lead_id
             ) );
-            if ( $stored && 'pending' === ( $stored->status ?? '' ) ) {
+            if ( $stored ) {
                 $public_response['buy_pass'] = HDLV2_Offer::browser_pass( $visitor_email, $practitioner_id, (int) $lead_id, self::lead_digest( $stored ) );
             }
         }
@@ -968,7 +968,6 @@ class HDLV2_Widget_Config {
         return true;
     }
 
-    /** The nine answers only (no server_result / _safety*), for "did the answers change?". */
     /**
      * v0.48.85 (plan 2k) — the digest a browser pass is signed over: the nine answers, the name and the
      * phone as the lead row holds them. A later submission under the same e-mail overwrites the row, so
@@ -979,6 +978,7 @@ class HDLV2_Widget_Config {
         return hash( 'sha256', wp_json_encode( array( self::stage1_answers( $data ), (string) ( $row->visitor_name ?? '' ), (string) ( $row->visitor_phone ?? '' ) ) ) );
     }
 
+    /** The nine answers only (no server_result / _safety*), for "did the answers change?". */
     private static function stage1_answers( $data ) {
         $data = is_array( $data ) ? $data : array();
         $out  = array();
@@ -2539,8 +2539,7 @@ class HDLV2_Widget_Config {
         return rest_ensure_response( $out );
     }
 
-    /** Newest lead of this practitioner for this email, or null. */
-    /** v0.48.85: public, HDL_Stage1_Ticket::handle_open() checks a browser pass against it. */
+    /** Newest lead of this practitioner for this email, or null. v0.48.85: public, HDL_Stage1_Ticket checks a browser pass against it. */
     public static function newest_lead( $practitioner_id, $email ) {
         global $wpdb;
         return $wpdb->get_row( $wpdb->prepare(

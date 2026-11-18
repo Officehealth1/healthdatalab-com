@@ -104,7 +104,7 @@ class HDL_Stage1_Ticket {
         $external_ref = $request->get_param( 'external_ref' );
         $own          = $request->get_param( 'own' );
         // v0.48.85 (plan 2k) — two kinds: the inbox pass, or a browser pass from the lead reply.
-        $browser = HDLV2_Offer::browser_pass_lead( $own );
+        $browser = HDLV2_Offer::is_browser_pass( $own );
         if ( ! is_string( $external_ref ) || ! preg_match( '/^[A-Za-z0-9_.:\-]{1,128}$/', $external_ref )
              || ! is_string( $own ) || ( ! $browser && ! preg_match( '/^\d{10}\.[a-f0-9]{64}$/', $own ) ) ) {
             return self::open_no( 'shape' );
@@ -125,7 +125,7 @@ class HDL_Stage1_Ticket {
             return self::open_no( 'staff' );
         }
         if ( $browser ) {
-            return self::open_browser( $own, $browser, $ticket, $email, $user_id );
+            return self::open_browser( $own, $ticket, $email, $user_id );
         }
         if ( ! HDLV2_Offer::inbox_pass_ok( $own, $email, (int) $ticket->practitioner_id ) ) {
             return self::open_no( 'pass' );
@@ -147,19 +147,19 @@ class HDL_Stage1_Ticket {
      * lead, and the account is marked so the purchase e-mail's link ends this browser's access
      * (inbox_proof()). Behind hdlv2_ff_straight_in_result_page.
      */
-    private static function open_browser( $own, $lead_id, $ticket, $email, $user_id ) {
+    private static function open_browser( $own, $ticket, $email, $user_id ) {
         global $wpdb;
         if ( ! get_option( 'hdlv2_ff_straight_in_result_page', false ) ) {
             return self::open_no( 'flag_off' );
         }
         $practitioner_id = (int) $ticket->practitioner_id;
-        // The newest row for this e-mail is the one the purchase confirmed; a newer submission under
-        // the same e-mail (another browser) replaces it and ends the pass.
+        // The newest row for this e-mail is the one the purchase confirmed; the pass is signed over its id
+        // and answers, so a newer submission under the same e-mail (another browser) ends the pass.
         $lead = HDLV2_Widget_Config::newest_lead( $practitioner_id, $email );
-        if ( ! $lead || (int) $lead->id !== (int) $lead_id ) {
+        if ( ! $lead ) {
             return self::open_no( 'lead' );
         }
-        if ( ! HDLV2_Offer::browser_pass_ok( $own, $email, $practitioner_id, (int) $lead_id, HDLV2_Widget_Config::lead_digest( $lead ) ) ) {
+        if ( ! HDLV2_Offer::browser_pass_ok( $own, $email, $practitioner_id, (int) $lead->id, HDLV2_Widget_Config::lead_digest( $lead ) ) ) {
             return self::open_no( 'pass' );
         }
         if ( 'confirmed' !== $lead->status || (int) ( $lead->invite_id ?? 0 ) !== (int) $ticket->id ) {
