@@ -1692,6 +1692,16 @@ class HDLV2_Widget_Config {
         if ( $existing ) {
             $form_token = $existing->token;
             $fp_id      = (int) $existing->id;
+            // Resolve client_user_id for the V1 link (may be null on legacy rows)
+            $client_user_id = (int) $wpdb->get_var( $wpdb->prepare(
+                "SELECT client_user_id FROM {$wpdb->prefix}hdlv2_form_progress WHERE id = %d",
+                $existing->id
+            ) );
+            // v0.48.87 (plan 2k, G4; review 2 finding 2b, review 3 finding 2) — the owner's own Stage 1 is
+            // about to reach this row: a result-page buyer's browser key on it ends first, as at any sign-in.
+            if ( $client_user_id && class_exists( 'HDL_Stage1_Ticket' ) ) {
+                HDL_Stage1_Ticket::end_browser_key( $client_user_id );
+            }
             $fp_update  = array(
                 'stage1_data'         => wp_json_encode( $stage1_data ),
                 'stage1_completed_at' => current_time( 'mysql' ),
@@ -1708,16 +1718,6 @@ class HDLV2_Widget_Config {
                 $fp_update,
                 array( 'id' => $existing->id )
             );
-            // Resolve client_user_id for the V1 link (may be null on legacy rows)
-            $client_user_id = (int) $wpdb->get_var( $wpdb->prepare(
-                "SELECT client_user_id FROM {$wpdb->prefix}hdlv2_form_progress WHERE id = %d",
-                $existing->id
-            ) );
-            // v0.48.87 (plan 2k, G4; review 2 finding 2b) — the owner's own Stage 1 has reached this row:
-            // a result-page buyer's browser key on it ends, as at any sign-in.
-            if ( $client_user_id && class_exists( 'HDL_Stage1_Ticket' ) ) {
-                HDL_Stage1_Ticket::end_browser_key( $client_user_id );
-            }
 
             // v0.46.21 (QA F5) — seed the already-messaged submit-time safety
             // flags into the REUSED row too. The INSERT branch below does this;

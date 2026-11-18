@@ -147,6 +147,12 @@ class HDLV2_Staged_Form {
             $ended = class_exists( 'HDL_Stage1_Ticket' ) ? HDL_Stage1_Ticket::ended_error( $token ) : null;
             return $ended ?: new WP_Error( 'invalid_token', 'Assessment not found.', array( 'status' => 404 ) );
         }
+        // v0.48.87 (plan 2k, G4; review 3 finding 3) — the page opened with the row's own token, which travels
+        // only by e-mail, is the owner arriving, signed in or not: any browser key on the account ends. Only
+        // here: Make's callback and the server's own calls use the real token on the other routes.
+        if ( class_exists( 'HDL_Stage1_Ticket' ) && ! HDL_Stage1_Ticket::is_browser_token( $token ) ) {
+            HDL_Stage1_Ticket::end_browser_key( (int) $progress->client_user_id );
+        }
 
         // Phase 17 (v0.22.26) — fetch practitioner CTA + name + logo so the
         // Stage 1 result page can render the "Book a session" button and

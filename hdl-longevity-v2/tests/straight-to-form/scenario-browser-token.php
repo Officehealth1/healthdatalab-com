@@ -159,6 +159,14 @@ $words = function ( $e ) { return $e instanceof WP_Error && 'browser_key_ended' 
     && HDL_Stage1_Ticket::ENDED_TEXT === $e->message && HDL_Stage1_Ticket::ENDED_TITLE === ( $e->data['title'] ?? '' ); };
 check( 'BT4.7 after the owner signs in, a load says the key ended (410, the words of G4 step 7)', $words( $ended_load ) );
 check( 'BT4.8 and a save is refused with the same words', $words( $ended_save ) );
+setup(); $key = issue();
+$form->rest_save_form( new FakeRequest( array( 'token' => FTOK, 'stage' => 3, 'data' => array( 'weight' => '80' ) ) ) );
+check( 'BT4.10 a save with the real token (Make\'s callback and server calls use it too) leaves the key alone', isset( $GLOBALS['transients'][ tkey( $key ) ] ) && ! mark_deleted() );
+$form->rest_load_form( new FakeRequest( array(), array(), 'GET', '', array( 'token' => FTOK ) ) );
+check( 'BT4.11 the page opened with the real token (the owner, signed in or not; review 3 finding 3) ends the key', ! isset( $GLOBALS['transients'][ tkey( $key ) ] ) && mark_deleted() );
+setup(); $key = issue();
+$form->rest_load_form( new FakeRequest( array(), array(), 'GET', '', array( 'token' => $key ) ) );
+check( 'BT4.12 the page opened with the key itself does not end it', isset( $GLOBALS['transients'][ tkey( $key ) ] ) && ! mark_deleted() );
 check( 'BT4.9 the words', "This browser's access has ended" === HDL_Stage1_Ticket::ENDED_TITLE && 'Open the link in your purchase e-mail to carry on. Your answers are saved.' === HDL_Stage1_Ticket::ENDED_TEXT );
 
 echo "── BT5. who accepts the key, read from the source ──\n";
@@ -194,7 +202,8 @@ foreach ( array_merge( array( new SplFileInfo( $ROOT . 'hdl-longevity-v2.php' ) 
 check( 'BT5.7 no other file accepts a key: timeline, check-in, flight plan, /my-report/, the report view, the dashboard (' . implode( ',', $hits ) . ')', ! $hits );
 $wc = $src( 'includes/sprint-1/class-hdlv2-widget-config.php' );
 $reuse = substr( $wc, (int) strpos( $wc, 'if ( $existing ) {' ), 3000 );
-check( 'BT5.8 the owner\'s own Stage 1 reusing the row ends the key (review 2, finding 2b)', false !== strpos( $reuse, 'HDL_Stage1_Ticket::end_browser_key(' ) );
+check( 'BT5.8 the owner\'s own Stage 1 reusing the row ends the key (review 2, finding 2b), before its answers are written (review 3, finding 2)',
+    false !== strpos( $reuse, 'HDL_Stage1_Ticket::end_browser_key(' ) && strpos( $reuse, 'HDL_Stage1_Ticket::end_browser_key(' ) < strpos( $reuse, '$wpdb->update(' ) );
 $tk = $src( 'includes/security/class-hdl-stage1-ticket.php' );
 check( 'BT5.9 every sign-in runs the end (set_auth_cookie, the user id is its 4th argument)', (bool) preg_match( "/add_action\(\s*'set_auth_cookie',\s*array\(\s*__CLASS__,\s*'end_browser_key_on_sign_in'\s*\),\s*10,\s*4\s*\)/", $tk ) );
 
