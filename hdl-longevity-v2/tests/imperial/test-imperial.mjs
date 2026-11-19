@@ -19,15 +19,15 @@ const js = fs.readFileSync(new URL('../../assets/js/hdlv2-staged-form.js', impor
 const fnIn = (text, name) => (text.match(new RegExp('  function ' + name + '\\([^)]*\\) \\{[\\s\\S]*?\\n  \\}')) || [''])[0];
 const varIn = (text, head) => { const at = text.indexOf('  var ' + head); return at < 0 ? '' : text.slice(at, text.indexOf(';\n', at) + 2); };
 const ESC = "function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\"/g, '&quot;'); }\n";
-const NAMES = ['r1', 'toMetric', 'toImperial', 'unitsDefault', 'unitsNow', 'unitsSwitch', 'measureInput', 'writeImperial'];
-const src = varIn(js, 'IN_CM') + NAMES.map((n) => fnIn(js, n)).join('\n');
+const NAMES = ['r1', 'toMetric', 'toImperial', 'unitsDefault', 'unitsNow', 'unitsSwitch', 'measureInput', 'writeImperial', 'keepHeight'];
+const src = varIn(js, 'IN_CM') + varIn(js, 'HEIGHT_CM') + NAMES.map((n) => fnIn(js, n)).join('\n');
 ok(NAMES.every((n) => fnIn(js, n) !== '') && varIn(js, 'IN_CM') !== '', 'the unit functions are top-level in the form script');
 
 function ctxWith({ lang, stored, els } = {}) {
   const store = stored ? { 'hdlv2-units': stored } : {};
   const c = { formData: {}, navigator: lang ? { language: lang } : undefined,
     localStorage: { getItem: (k) => (k in store ? store[k] : null), setItem: (k, v) => { store[k] = v; } }, store,
-    document: { getElementById: (id) => (els && id in els ? { value: els[id] } : null) },
+    document: { getElementById: (id) => (els && id in els ? box(els[id]) : null) },
     fieldInputWithSkip: (name, label, type, value, ph) => `[metric ${name}|${label}|${value || ''}|${ph}]`, renderTooltip: (t) => ` [tip ${t}]` };
   if (NAMES.every((n) => fnIn(js, n))) vm.runInNewContext(ESC + src, c);
   return c;
@@ -69,12 +69,56 @@ const body = (text) => { const a = text.indexOf("        + '<h5 class=\"hdlv2-su
 const nb = body(js);
 ok(/Body shape<\/h5>'\n        \+ unitsSwitch\(unitsNow\(\)\)\n        \+ '<div class="hdlv2-field-grid cols-2">'/.test(nb), 'the switch sits between the heading and the grid, on its own line (seen squashed inside the grid on STBY)');
 ok(nb.indexOf("+ unitsSwitch(unitsNow())") > 0 && nb.indexOf("measureInput('height', d)") > 0 && nb.indexOf("measureInput('hip', d,") > 0, 'the body block draws the switch, then the four fields through measureInput');
-ok(/function onFieldChange\(e\) \{\n    var imp = e\.target\.getAttribute\('data-imp'\);\n    if \(imp\) \{ writeImperial\(imp\);/.test(js), 'onFieldChange hands an imperial box to writeImperial');
+ok(/function onFieldChange\(e\) \{\n    var imp = e\.target\.getAttribute\('data-imp'\);\n    if \(imp\) \{ e\.target\.classList\.remove\('error'\); writeImperial\(imp\);/.test(js), 'onFieldChange hands an imperial box to writeImperial');
 ok(js.indexOf("localStorage.setItem('hdlv2-units'") > 0 || js.indexOf('localStorage.setItem(UNITS_KEY') > 0, 'a switch click is remembered');
 const css = fs.readFileSync(new URL('../../assets/css/hdlv2-form.css', import.meta.url), 'utf8');
 ok(/\.hdlv2-units-opt \{[^}]*white-space: nowrap/.test(css), 'pill text stays on one line');
 const rule = (css.match(/\.hdlv2-units-opt\.is-on \{[^}]*\}/) || [''])[0];
 ok(rule !== '' && /background: #3d8da0/.test(rule) && !/border-left/.test(css.slice(css.indexOf('.hdlv2-units'))), 'the active option is a filled teal pill; no rail');
+
+// F32 (plan 5, 2026-11-19): a height outside 50 to 250 cm (the practitioner edit's bounds,
+// class-hdlv2-consultation.php) is not kept in either unit; the box says so; in range is unchanged.
+const php = fs.readFileSync(new URL('../../includes/sprint-2c/class-hdlv2-consultation.php', import.meta.url), 'utf8');
+ok(/'height'\s*=> array\( 50,\s*250 \)/.test(php), 'the bounds come from the practitioner edit (50 to 250 cm), no new number');
+function box(value) {
+  const cls = new Set(), attrs = {}, field = { kids: [], querySelector: (s) => field.kids.find((k) => s === '.hdlv2-height-hint' && /hdlv2-height-hint/.test(k.html)) || null,
+    insertAdjacentHTML: (pos, html) => { const k = { html, remove: () => { field.kids = field.kids.filter((x) => x !== k); } }; field.kids.push(k); } };
+  return { value, field, closest: (s) => (s === '.hdlv2-field' ? field : null), classList: { toggle: (c, on) => (on ? cls.add(c) : cls.delete(c)), remove: (c) => cls.delete(c), contains: (c) => cls.has(c) },
+    setAttribute: (k, v) => { attrs[k] = v; }, removeAttribute: (k) => { delete attrs[k]; }, attrs };
+}
+function heightCtx(ft, inch) {
+  const els = { 'hdlv2-f-height-ft': box(ft), 'hdlv2-f-height-in': box(inch) };
+  els['hdlv2-f-height-in'].closest = els['hdlv2-f-height-ft'].closest; // one field holds both boxes
+  const c = { formData: {}, navigator: { language: 'en-US' }, localStorage: { getItem: () => null, setItem() {} },
+    document: { getElementById: (id) => els[id] || null }, fieldInputWithSkip: () => '', renderTooltip: () => '' };
+  if (NAMES.every((n) => fnIn(js, n))) vm.runInNewContext(ESC + src, c);
+  return { c, els };
+}
+{
+  const { c, els } = heightCtx('75', '');
+  ok(typeof c.writeImperial === 'function' && typeof c.keepHeight === 'function', 'keepHeight is a top-level function beside writeImperial');
+  if (c.keepHeight) {
+    c.writeImperial('height');
+    const ft = els['hdlv2-f-height-ft'];
+    ok(c.formData.height === '', '75 ft is refused: nothing kept (was 2286 cm)');
+    ok(ft.classList.contains('error') && ft.attrs['aria-invalid'] === 'true' && els['hdlv2-f-height-in'].classList.contains('error'), 'both boxes show the error border and aria-invalid');
+    const hint = ft.field.querySelector('.hdlv2-height-hint');
+    ok(hint && /role="alert"/.test(hint.html) && /Please check your height\./.test(hint.html) && /class="hdlv2-field-hint hdlv2-height-hint"/.test(hint.html), 'one line under the field says so (role alert, the form\'s own hint class)');
+    els['hdlv2-f-height-ft'].value = '5'; els['hdlv2-f-height-in'].value = '10';
+    c.writeImperial('height');
+    ok(c.formData.height === '177.8' && !ft.classList.contains('error') && !('aria-invalid' in ft.attrs) && ft.field.querySelector('.hdlv2-height-hint') === null, '5 ft 10 in after that: 177.8 cm kept, error and line gone');
+    const lo = heightCtx('1', '7'); lo.c.writeImperial('height');
+    const edge = heightCtx('1', '8'); edge.c.writeImperial('height');
+    const top = heightCtx('8', '2'); top.c.writeImperial('height');
+    const over = heightCtx('8', '3'); over.c.writeImperial('height');
+    ok(lo.c.formData.height === '' && edge.c.formData.height === '50.8' && top.c.formData.height === '248.9' && over.c.formData.height === '', 'edges: 1 ft 7 in (48.3) and 8 ft 3 in (251.5) refused; 1 ft 8 in (50.8) and 8 ft 2 in (248.9) kept');
+    const empty = heightCtx('', ''); empty.c.writeImperial('height');
+    ok(empty.c.formData.height === '' && !empty.els['hdlv2-f-height-ft'].classList.contains('error'), 'both boxes emptied: not kept, no error (skipping stays allowed)');
+    const cm = box('2286'); ok(c.keepHeight('2286', [cm]) === '' && cm.classList.contains('error') && c.keepHeight('170', [cm]) === '170' && !cm.classList.contains('error'), 'the centimetre box goes through the same check: 2286 refused, 170 kept');
+  }
+}
+ok(/function onFieldChange\(e\) \{[\s\S]*?name === 'height' \? keepHeight\(v, \[e\.target\]\) : v/.test(js), 'onFieldChange sends the centimetre box through keepHeight');
+ok(/if \(imp\) \{ e\.target\.classList\.remove\('error'\); writeImperial\(imp\);/.test(js), 'an imperial box clears its border before writeImperial, so the check can set it again');
 
 console.log(`\nPASS=${PASS} FAIL=${FAIL}`);
 process.exit(FAIL ? 1 : 0);

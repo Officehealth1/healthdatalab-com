@@ -550,11 +550,12 @@
   // ── AUTO-SAVE ──
   function onFieldChange(e) {
     var imp = e.target.getAttribute('data-imp');
-    if (imp) { writeImperial(imp); e.target.classList.remove('error'); if (saveTimer) clearTimeout(saveTimer); saveTimer = setTimeout(function(){ autoSave(currentStage); }, 2000); return; }
+    if (imp) { e.target.classList.remove('error'); writeImperial(imp); if (saveTimer) clearTimeout(saveTimer); saveTimer = setTimeout(function(){ autoSave(currentStage); }, 2000); return; }
     var name = e.target.getAttribute('data-field');
     if (!name) return;
-    formData[name] = e.target.value.trim();
+    var v = e.target.value.trim();
     e.target.classList.remove('error');
+    formData[name] = name === 'height' ? keepHeight(v, [e.target]) : v;
     if (saveTimer) clearTimeout(saveTimer);
     saveTimer = setTimeout(function(){ autoSave(currentStage); }, 2000);
   }
@@ -2665,6 +2666,23 @@
     }
     var m = toMetric(v)[{ height: 'height_cm', weight: 'weight_kg', waist: 'waist_cm', hip: 'hip_cm' }[name]];
     formData[name] = m != null && isFinite(m) ? String(m) : '';
+    if (name === 'height') formData.height = keepHeight(formData.height, [document.getElementById('hdlv2-f-height-ft'), document.getElementById('hdlv2-f-height-in')]);
+  }
+  // F32 (plan 5, 2026-11-19): a height outside what the practitioner's edit accepts (50 to 250 cm,
+  // class-hdlv2-consultation.php) is not kept, in either unit; the box turns red and one line says so.
+  var HEIGHT_CM = [50, 250];
+  function keepHeight(cm, boxes) {
+    var n = parseFloat(cm), bad = cm !== '' && !(n >= HEIGHT_CM[0] && n <= HEIGHT_CM[1]);
+    var field = boxes[0] && boxes[0].closest ? boxes[0].closest('.hdlv2-field') : null;
+    var hint = field ? field.querySelector('.hdlv2-height-hint') : null;
+    boxes.forEach(function (b) {
+      if (!b) return;
+      b.classList.toggle('error', bad);
+      if (bad) b.setAttribute('aria-invalid', 'true'); else b.removeAttribute('aria-invalid');
+    });
+    if (bad && field && !hint) field.insertAdjacentHTML('beforeend', '<p class="hdlv2-field-hint hdlv2-height-hint" role="alert">Please check your height.</p>');
+    if (!bad && hint) hint.remove();
+    return bad ? '' : cm;
   }
   // The switch redraws the screen; the box being left has already written its value (blur).
   function bindUnits(rerender) {
