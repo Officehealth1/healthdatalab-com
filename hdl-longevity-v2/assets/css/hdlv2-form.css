@@ -2377,6 +2377,8 @@
   line-height: 1.55;
   margin: 4px 0 12px;
 }
+/* F32 (plan 5): the height line is an error, so status red (4.8:1 on white), not the muted tip. */
+.hdlv2-height-hint { color: #dc2626; font-style: normal; }
 
 /* Section-intro callout — appears at the top of the Health Background
    section. Calm soft-fill card matching the Stage 2 callout vocabulary. */

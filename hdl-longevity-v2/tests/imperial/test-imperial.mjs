@@ -120,5 +120,7 @@ function heightCtx(ft, inch) {
 ok(/function onFieldChange\(e\) \{[\s\S]*?name === 'height' \? keepHeight\(v, \[e\.target\]\) : v/.test(js), 'onFieldChange sends the centimetre box through keepHeight');
 ok(/if \(imp\) \{ e\.target\.classList\.remove\('error'\); writeImperial\(imp\);/.test(js), 'an imperial box clears its border before writeImperial, so the check can set it again');
 
+ok(/\.hdlv2-height-hint \{[^}]*color: #dc2626;[^}]*font-style: normal;/.test(css), 'the height line reads as an error: status red #dc2626 (4.8:1 on white), not the muted italic hint (review W3)');
+
 console.log(`\nPASS=${PASS} FAIL=${FAIL}`);
 process.exit(FAIL ? 1 : 0);
