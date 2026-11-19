@@ -143,7 +143,15 @@ class HDLV2_Staged_Form {
 
         $progress = $this->get_progress_by_token( $token );
         if ( ! $progress ) {
-            return new WP_Error( 'invalid_token', 'Assessment not found.', array( 'status' => 404 ) );
+            // v0.48.87 (plan 2k, G4 step 7) — an ended browser key gets its own words.
+            $ended = class_exists( 'HDL_Stage1_Ticket' ) ? HDL_Stage1_Ticket::ended_error( $token ) : null;
+            return $ended ?: new WP_Error( 'invalid_token', 'Assessment not found.', array( 'status' => 404 ) );
+        }
+        // v0.48.87 (plan 2k, G4; review 3 finding 3) — the page opened with the row's own token, which travels
+        // only by e-mail, is the owner arriving, signed in or not: any browser key on the account ends. Only
+        // here: Make's callback and the server's own calls use the real token on the other routes.
+        if ( class_exists( 'HDL_Stage1_Ticket' ) && ! HDL_Stage1_Ticket::is_browser_token( $token ) ) {
+            HDL_Stage1_Ticket::end_browser_key( (int) $progress->client_user_id );
         }
 
         // Phase 17 (v0.22.26) — fetch practitioner CTA + name + logo so the
@@ -220,6 +228,11 @@ class HDLV2_Staged_Form {
             $response['second_form_ties'] = HDLV2_Why_Picks::second_form_ties( $s2['why_picks'] ?? array(), $s2['why_pick_labels'] ?? array() );
         }
 
+        // v0.48.82 (plan 3) — the card after the form: the Timeline upgrade's offer, or that it is theirs (switch on only).
+        if ( class_exists( 'HDLV2_Timeline_Upgrade' ) ) {
+            $response += HDLV2_Timeline_Upgrade::card_fields( $progress, time() );
+        }
+
         return rest_ensure_response( $response );
     }
 
@@ -238,7 +251,9 @@ class HDLV2_Staged_Form {
 
         $progress = $this->get_progress_by_token( $token );
         if ( ! $progress ) {
-            return new WP_Error( 'invalid_token', 'Assessment not found.', array( 'status' => 404 ) );
+            // v0.48.87 (plan 2k, G4 step 7) — an ended browser key gets its own words.
+            $ended = class_exists( 'HDL_Stage1_Ticket' ) ? HDL_Stage1_Ticket::ended_error( $token ) : null;
+            return $ended ?: new WP_Error( 'invalid_token', 'Assessment not found.', array( 'status' => 404 ) );
         }
 
         $stage = (int) ( $params['stage'] ?? 0 );
@@ -862,6 +877,11 @@ class HDLV2_Staged_Form {
             $response['result'] = $result_data;
         }
 
+        // v0.48.82 (plan 3) — the card drawn right after the send carries the Timeline block.
+        if ( 3 === $stage && class_exists( 'HDLV2_Timeline_Upgrade' ) ) {
+            $response += HDLV2_Timeline_Upgrade::card_fields( $progress, time() );
+        }
+
         // Include WHY data in Stage 2 response for on-screen display
         if ( $stage === 2 ) {
             $response['why_data'] = array(
@@ -1305,6 +1325,8 @@ class HDLV2_Staged_Form {
             'need_scale_v2'   => (bool) get_option( 'hdlv2_ff_need_scale_v2', false ),
             // v0.48.50 (W33-W40) — the research note's test wording, sun and water answers (absent = off).
             'second_form_wording_v2' => (bool) get_option( 'hdlv2_ff_second_form_wording_v2', false ),
+            // v0.48.78 (M35-M37) — no picks panel, the people block's words and pictures, step 1's lines (absent = off).
+            'form_clarity'    => (bool) get_option( 'hdlv2_ff_form_clarity', false ),
         ) );
 
         return '<div id="hdlv2-assessment" class="hdlv2-assessment-root"></div>';
@@ -1809,7 +1831,7 @@ class HDLV2_Staged_Form {
         return sprintf(
             '<p><strong>%syour Full Report measurements put your rate of ageing at %s× — %s.</strong> Biological age estimate: %s years against your real age of %d.</p>'
             . '<p>The 21-metric panel gives your practitioner the detail they need to build a precise plan with you.</p>'
-            . '<p>Your Draft Report is being generated now. Your practitioner will review it, then walk you through it in your consultation.</p>',
+            . '<p>Your Full Report is being made now.</p>',
             $name,
             number_format( $rate, 2 ),
             esc_html( $verdict ),
@@ -1968,7 +1990,7 @@ class HDLV2_Staged_Form {
                     'practitioner_id' => $progress->practitioner_user_id ?? null,
                     'draft_url'       => $draft_url,
                 ) );
-                wp_mail( $client_email, 'Your Draft Report is Ready', $html,
+                wp_mail( $client_email, 'Your Full Report is Ready', $html,
                     array( 'Content-Type: text/html; charset=UTF-8' ) );
             }
 
@@ -1983,7 +2005,7 @@ class HDLV2_Staged_Form {
                     'trajectory_chart_url' => $trajectory_chart_url,
                     'practitioner_id'      => $progress->practitioner_user_id ?? null,
                 ) ),
-                sprintf( 'Draft Trajectory Plan Ready: %s', $client_name ?: $client_email )
+                sprintf( 'Full Report Ready: %s', $client_name ?: $client_email )
             );
         }
     }
@@ -2401,6 +2423,11 @@ class HDLV2_Staged_Form {
 
         // v0.48.10 — what a choices-page client chose, for the draft PDF (all '' otherwise).
         $payload += HDLV2_Why_Picks::payload_fields( $progress, $scores );
+
+        // v0.48.82 (plan 3) — the report e-mail's Timeline offer (Make module 63): five strings, always present.
+        if ( class_exists( 'HDLV2_Timeline_Upgrade' ) ) {
+            $payload += HDLV2_Timeline_Upgrade::payload_fields( $progress, time() );
+        }
 
         // v0.27.2 — Sanitise text fields for Make.com raw JSON template.
         // See class-hdlv2-final-report.php fire_webhook for full rationale.
@@ -3065,6 +3092,12 @@ class HDLV2_Staged_Form {
         // authed clients with expired tokens will start getting 403s here and
         // on the checkin/timeline/flight-plan/audio/job-queue token gates —
         // add a bypass like draft-view's then.
+        //
+        // v0.48.87 (plan 2k, G4) — a browser key (a result-page buyer's browser) reads and saves this one
+        // form as its row's own token. Its holder is never signed in and is never told that token.
+        if ( class_exists( 'HDL_Stage1_Ticket' ) ) {
+            $token = HDL_Stage1_Ticket::form_token( $token );
+        }
         return $wpdb->get_row( $wpdb->prepare(
             "SELECT * FROM {$wpdb->prefix}hdlv2_form_progress WHERE token = %s AND deleted_at IS NULL AND token_expires_at > UTC_TIMESTAMP() LIMIT 1",
             $token

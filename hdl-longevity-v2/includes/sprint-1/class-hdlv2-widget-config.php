@@ -589,6 +589,13 @@ class HDLV2_Widget_Config {
             $clean_safety = HDLV2_Safety_Screen::sanitize_input( $params['safety'] );
             if ( ! empty( $clean_safety ) ) {
                 $stage1_data['_safety'] = $clean_safety;
+                // v0.48.66 — the "I have read this" press (notice, version, country; the
+                // server stamps the time). Junk, or a press for a notice these ticks never
+                // show (v0.48.67), is dropped; the lead is never refused for it.
+                $ack = class_exists( 'HDLV2_Safety_Content' ) && HDLV2_Safety_Content::enabled() ? HDLV2_Safety_Content::sanitize_ack( $params['safety_ack'] ?? null, $clean_safety ) : null;
+                if ( $ack ) {
+                    $stage1_data['_safety_ack'] = $ack;
+                }
             }
         }
 
@@ -743,6 +750,7 @@ class HDLV2_Widget_Config {
                     'client_email'         => $visitor_email,
                     'client_name'          => $visitor_name,
                     'practitioner_user_id' => $practitioner_id,
+                    'notice'               => class_exists( 'HDLV2_Safety_Content' ) ? HDLV2_Safety_Content::email_context( $stage1_data, $visitor_loc['country'] ) : null, // v0.48.66
                 ), $stage1_data['_safety'] );
 
                 if ( ! empty( $stamped ) ) {
@@ -798,6 +806,20 @@ class HDLV2_Widget_Config {
         // sent the answers: never cached, so a repeat post with the same email gets none.
         if ( $ticket_id && $lead_id && 'timeline_link' === $invite->source && class_exists( 'HDLV2_Timeline_Links' ) ) {
             $public_response['link_key'] = HDLV2_Timeline_Links::consent_key( $ticket_id, $lead_id );
+        }
+        // v0.48.85 (plan 2k) — the pass for the result page's Buy button, the same way: only in this
+        // reply, signed over the row as stored now (HDLV2_Offer::browser_pass). For every row, so every
+        // successful reply has one shape (review F4): a pass for a row already confirmed or rejected opens
+        // nothing, as the open route needs the lead confirmed by the purchase's own ticket.
+        if ( HDLV2_Offer::browser_pass_on( $practitioner_id ) ) {
+            global $wpdb;
+            $stored = $wpdb->get_row( $wpdb->prepare(
+                "SELECT * FROM {$wpdb->prefix}hdlv2_widget_leads WHERE id = %d",
+                (int) $lead_id
+            ) );
+            if ( $stored ) {
+                $public_response['buy_pass'] = HDLV2_Offer::browser_pass( $visitor_email, $practitioner_id, (int) $lead_id, self::lead_digest( $stored ) );
+            }
         }
         return rest_ensure_response( $public_response );
     }
@@ -939,12 +961,21 @@ class HDLV2_Widget_Config {
             'form_token'               => ! empty( $row->stage1_cache_token ) ? (string) $row->stage1_cache_token : bin2hex( hash( 'sha256', $practitioner_id . '|' . $email, true ) ),
             'config'                   => $config,
             'invite_id'                => null,
-            'offer_ref'                => 'lead-' . (int) $row->id,
             // v0.41.24 — Make.com Module 40 sends the practitioner's "New Lead" email.
             'send_practitioner_notify' => false,
             'send_make_pdf'            => true,
         ) );
         return true;
+    }
+
+    /**
+     * v0.48.85 (plan 2k) — the digest a browser pass is signed over: the nine answers, the name and the
+     * phone as the lead row holds them. A later submission under the same e-mail overwrites the row, so
+     * the digest changes and the pass stops working. The keys the server adds (safety) are left out.
+     */
+    public static function lead_digest( $row ) {
+        $data = json_decode( (string) ( $row->stage1_data ?? '' ), true );
+        return hash( 'sha256', wp_json_encode( array( self::stage1_answers( $data ), (string) ( $row->visitor_name ?? '' ), (string) ( $row->visitor_phone ?? '' ) ) ) );
     }
 
     /** The nine answers only (no server_result / _safety*), for "did the answers change?". */
@@ -1078,6 +1109,7 @@ class HDLV2_Widget_Config {
      * The Stage 1 report's gauge: the dial only. The PDF prints the rate and the interpretation pill
      * in its own type beside it (v0.30.0), so the image carries neither. v0.48.41 — public: the
      * client dashboard's Stage 1 card and Today's preview show this same picture.
+     * v0.48.75 — flag hdlv2_ff_gauge_scale: the scale 0.8 · 0.9 · 1.1 · 1.4 printed on the curve.
      */
     public static function stage1_report_gauge_url( $rate ) {
         if ( ! $rate ) return '';
@@ -1101,6 +1133,28 @@ class HDLV2_Widget_Config {
                 'subtitle' => array('display'=>false),
             ),
         );
+        if ( get_option( 'hdlv2_ff_gauge_scale', false ) ) {
+            // A part of no width at each scale value: datalabels prints the part's value exactly
+            // where the colour changes. The coloured parts, their borders and the needle draw as
+            // before (pixel-equal with the labels off, 2026-11-17).
+            $ds    = &$cfg['data']['datasets'][0];
+            $clear = 'rgba(0,0,0,0)';
+            list( $green, $blue, $red ) = $ds['backgroundColor'];
+            $ds['data']            = array( 0.8, 0.9, 0.9, 1.1, 1.1, 1.4, 1.4 );
+            $ds['backgroundColor'] = array( $clear, $green, $clear, $blue, $clear, $red, $clear );
+            $ds['borderWidth']     = array( 0, 1, 0, 1, 0, 1, 0 );
+            $ds['datalabels']      = array(
+                'display' => array( true, false, true, false, true, false, true ),
+                // 0.8 and 1.4 under the two ends; 0.9 and 1.1 just outside the curve.
+                'anchor'  => array( 'center', 'end', 'end', 'end', 'end', 'end', 'center' ),
+                'align'   => array( 'bottom', 'end', 'end', 'end', 'end', 'end', 'bottom' ),
+                'offset'  => 2,
+                'color'   => '#2c3e50',
+                'font'    => array( 'size' => 22, 'weight' => 'bold' ), // a family list makes QuickChart drop the bold
+            );
+            unset( $ds );
+            $cfg['options']['plugins']['datalabels'] = array( 'display' => true );
+        }
         return 'https://quickchart.io/chart?c=' . rawurlencode( wp_json_encode( $cfg ) ) . '&w=380&h=340&bkg=white';
     }
 
@@ -1210,7 +1264,6 @@ class HDLV2_Widget_Config {
         $stage1_data     = $args['stage1_data'];
         $form_token      = $args['form_token'];
         $config          = $args['config'];
-        $invite_id       = $args['invite_id'] ?? null;
         $send_notify     = ! empty( $args['send_practitioner_notify'] );
         $send_make_pdf   = ! empty( $args['send_make_pdf'] );
 
@@ -1225,7 +1278,7 @@ class HDLV2_Widget_Config {
         // Build a sanitized copy for the two outbound sinks; the working
         // $stage1_data is left intact for the internal server_result read below.
         $stage1_data_outbound = $stage1_data;
-        unset( $stage1_data_outbound['_safety'], $stage1_data_outbound['_safety_flags'], $stage1_data_outbound['server_result'] );
+        unset( $stage1_data_outbound['_safety'], $stage1_data_outbound['_safety_flags'], $stage1_data_outbound['_safety_ack'], $stage1_data_outbound['server_result'] );
 
         // Optional config webhook
         if ( $config && ! empty( $config->webhook_url )
@@ -1485,11 +1538,11 @@ class HDLV2_Widget_Config {
             // setting: HDLV2_Offer). offer_show "0" hides page 2 for a buyer who
             // already paid for the Full Report. v0.48.50: + offer_code_ends.
             + HDLV2_Offer::payload_keys( $offer_show );
-            // v0.48.18 — where the offer shows, this person's own one-use code
-            // (same keys, so Make and the template are unchanged); v0.48.50 its end date.
+            // Where the offer shows, the link carries the lead's address (v0.48.73: no code)
+            // and opens the buying page for the lead's band (v0.48.77); v0.48.81 (plan 2h): + the
+            // inbox pass, behind hdlv2_ff_straight_to_form.
             if ( $offer_show ) {
-                $offer_ref   = $args['offer_ref'] ?? ( $invite_id ? 'invite-' . (int) $invite_id : '' );
-                $pdf_payload = array_merge( $pdf_payload, HDLV2_Offer::personal( $offer_ref, $visitor_email, $band ) );
+                $pdf_payload = array_merge( $pdf_payload, HDLV2_Offer::personal( $visitor_email, $band, $practitioner_id ) );
             }
 
             $stage1_webhook = defined( 'HDLV2_MAKE_STAGE1_PDF' ) ? HDLV2_MAKE_STAGE1_PDF : '';
@@ -1559,7 +1612,7 @@ class HDLV2_Widget_Config {
         // PNGs (every existing client kept seeing the duplicate value
         // text baked into the pixels). See class-hdlv2-staged-form.php
         // build_gauge_url for the current settings.
-        $cache_version = 'v5';   // bump on any gauge_url config change (v0.47.4: rate-sensitive key — was keyed only on practitioner|email, served stale needle on rate change; v0.32.0 HDL status palette)
+        $cache_version = 'v5';   // bump only if the picture can change while its address stays the same: the address fingerprint below already gives any changed gauge setting its own file (v0.48.76: v0.48.75's v6 taken back, so a merge re-makes no saved picture; v0.47.4: rate-sensitive key — was keyed only on practitioner|email, served stale needle on rate change; v0.32.0 HDL status palette)
         // Fingerprint the actual gauge URL (encodes rate + colours) so a changed rate
         // for the same practitioner|email re-renders instead of serving a stale needle.
         $url_fp   = substr( hash( 'sha256', (string) $remote_url ), 0, 12 );
@@ -1662,6 +1715,16 @@ class HDLV2_Widget_Config {
         if ( $existing ) {
             $form_token = $existing->token;
             $fp_id      = (int) $existing->id;
+            // Resolve client_user_id for the V1 link (may be null on legacy rows)
+            $client_user_id = (int) $wpdb->get_var( $wpdb->prepare(
+                "SELECT client_user_id FROM {$wpdb->prefix}hdlv2_form_progress WHERE id = %d",
+                $existing->id
+            ) );
+            // v0.48.87 (plan 2k, G4; review 2 finding 2b, review 3 finding 2) — the owner's own Stage 1 is
+            // about to reach this row: a result-page buyer's browser key on it ends first, as at any sign-in.
+            if ( $client_user_id && class_exists( 'HDL_Stage1_Ticket' ) ) {
+                HDL_Stage1_Ticket::end_browser_key( $client_user_id );
+            }
             $fp_update  = array(
                 'stage1_data'         => wp_json_encode( $stage1_data ),
                 'stage1_completed_at' => current_time( 'mysql' ),
@@ -1678,11 +1741,6 @@ class HDLV2_Widget_Config {
                 $fp_update,
                 array( 'id' => $existing->id )
             );
-            // Resolve client_user_id for the V1 link (may be null on legacy rows)
-            $client_user_id = (int) $wpdb->get_var( $wpdb->prepare(
-                "SELECT client_user_id FROM {$wpdb->prefix}hdlv2_form_progress WHERE id = %d",
-                $existing->id
-            ) );
 
             // v0.46.21 (QA F5) — seed the already-messaged submit-time safety
             // flags into the REUSED row too. The INSERT branch below does this;
@@ -1902,7 +1960,7 @@ class HDLV2_Widget_Config {
              && class_exists( 'HDLV2_Safety_Screen' )
              && ! empty( $stage1_data['_safety'] ) ) {
             try {
-                HDLV2_Safety_Screen::process( $fp_id, $stage1_data['_safety'] );
+                HDLV2_Safety_Screen::process( $fp_id, $stage1_data['_safety'], class_exists( 'HDLV2_Safety_Content' ) ? HDLV2_Safety_Content::email_context( $stage1_data, $visitor_country ) : null ); // v0.48.66
             } catch ( \Throwable $e ) {
                 error_log( '[HDLV2 safety-screen] process failed for fp=' . $fp_id . ': ' . $e->getMessage() );
             }
@@ -2509,8 +2567,8 @@ class HDLV2_Widget_Config {
         return rest_ensure_response( $out );
     }
 
-    /** Newest lead of this practitioner for this email, or null. */
-    private static function newest_lead( $practitioner_id, $email ) {
+    /** Newest lead of this practitioner for this email, or null. v0.48.85: public, HDL_Stage1_Ticket checks a browser pass against it. */
+    public static function newest_lead( $practitioner_id, $email ) {
         global $wpdb;
         return $wpdb->get_row( $wpdb->prepare(
             "SELECT * FROM {$wpdb->prefix}hdlv2_widget_leads
@@ -2669,9 +2727,9 @@ class HDLV2_Widget_Config {
             // the snippet carried data-access.
             'access_mode'                   => isset( $row->access_mode ) && 'paid' === $row->access_mode ? 'paid' : 'open',
             'buy_url'                       => isset( $row->buy_url ) ? (string) $row->buy_url : '',
-        ) + ( HDLV2_Offer::applies_to( (int) $row->practitioner_user_id ) ? HDLV2_Offer::public_config_fields() : array() ) // v0.48.15 — the locked panel's price line
-          // v0.48.29 — the result screen's timeline teaser, beside the offer it sells (flag on only)
-          + ( HDLV2_Offer::applies_to( (int) $row->practitioner_user_id ) && class_exists( 'HDLV2_Healthspan_Timeline' ) ? HDLV2_Healthspan_Timeline::public_config_fields() : array() ) ) );
+        ) + ( class_exists( 'HDLV2_Safety_Content' ) && HDLV2_Safety_Content::enabled() ? array( 'safety_notice' => HDLV2_Safety_Content::public_payload() ) : array() ) // v0.48.66 — the notice's words and numbers
+          + ( HDLV2_Offer::applies_to( (int) $row->practitioner_user_id ) ? HDLV2_Offer::public_config_fields() : array() ) // v0.48.15 — the locked panel's price line
+          + HDLV2_Offer::result_offer_fields( (int) $row->practitioner_user_id ) ) ); // v0.48.77 — the result page's offer (switch on only)
     }
 
     /**
@@ -3215,7 +3273,8 @@ class HDLV2_Widget_Config {
             // v0.47.85 — 'paid_stage1' tells the widget this link buys the
             // public path (no "Continue to Stage 2").
             'source'                         => $source,
-        ) + $link );
+        ) + ( class_exists( 'HDLV2_Safety_Content' ) && HDLV2_Safety_Content::enabled() ? array( 'safety_notice' => HDLV2_Safety_Content::public_payload() ) : array() ) + $link // v0.48.66
+          + HDLV2_Offer::result_offer_fields( (int) $invite->practitioner_id ) ); // v0.48.77 — the result page's offer (switch on only)
     }
 
     /**
@@ -3239,7 +3298,7 @@ class HDLV2_Widget_Config {
         $invites = $wpdb->get_results( $wpdb->prepare(
             "SELECT id, client_name, client_email, status, token, expires_at, created_at, opened_at, completed_at
              FROM {$wpdb->prefix}hdlv2_widget_invites
-             WHERE practitioner_id = %d AND source NOT IN ('paid_stage1','challenge') AND source <> 'timeline_link'
+             WHERE practitioner_id = %d AND source NOT IN ('paid_stage1','challenge','full_report') AND source <> 'timeline_link'
              ORDER BY created_at DESC
              LIMIT 100",
             $user_id
@@ -3603,7 +3662,7 @@ class HDLV2_Widget_Config {
         $invites = $wpdb->get_results( $wpdb->prepare(
             "SELECT id, client_name, client_email, status, token, expires_at, created_at, opened_at, completed_at
              FROM {$wpdb->prefix}hdlv2_widget_invites
-             WHERE practitioner_id = %d AND source NOT IN ('paid_stage1','challenge') AND source <> 'timeline_link'
+             WHERE practitioner_id = %d AND source NOT IN ('paid_stage1','challenge','full_report') AND source <> 'timeline_link'
              ORDER BY created_at DESC
              LIMIT 100",
             $user_id
@@ -3649,11 +3708,12 @@ class HDLV2_Widget_Config {
 
         global $wpdb;
         // v0.48.24 — a challenge link is a sale, not a practitioner invite:
-        // never listed (see the Sent Invites queries), so never deleted here.
+        // never listed (see the Sent Invites queries), so never deleted here. Nor a Full Report
+        // ticket (gate row F2): a deleted row would free its payment reference for a new link.
         $deleted = $wpdb->query( $wpdb->prepare(
             "DELETE FROM {$wpdb->prefix}hdlv2_widget_invites
              WHERE id = %d AND practitioner_id = %d AND status IN ('expired','revoked','completed')
-               AND source NOT IN ('paid_stage1','challenge') AND source <> 'timeline_link'",
+               AND source NOT IN ('paid_stage1','challenge','full_report') AND source <> 'timeline_link'",
             $invite_id,
             $user_id
         ) );

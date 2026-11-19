@@ -32,7 +32,7 @@ check( 'S2.1 Stage 1 yours', 'yours' === $t['stage1']['state'] );
 check( 'S2.2 Stage 1 opens the PDF', 'https://stby.test/?hdlv2_stage1_pdf=802' === $t['stage1']['url'] );
 check( 'S2.3 Stage 1 line is the day it was done', 'Done 2 Nov' === $t['stage1']['note'] );
 check( 'S2.4 Full Report not-yet with the offer price', 'not-yet' === $t['full_report']['state'] && '$27' === $t['full_report']['price'] );
-check( 'S2.5 Full Report opens the offer url with the shared code', 'https://altituding.com/full-report?code=YOURCODE' === $t['full_report']['url'] );
+check( 'S2.5 Full Report opens the offer url, no code (v0.48.73)', 'https://altituding.com/full-report' === $t['full_report']['url'] );
 check( 'S2.6 Full Report line names the price', 'Today $27' === $t['full_report']['note'] );
 check( 'S2.7 Timeline locked: comes with the Full Report', 'not-yet' === $t['timeline']['state'] && 'Comes with your Full Report' === $t['timeline']['note'] && '' === $t['timeline']['url'] );
 check( 'S2.8 Flight Plan locked: after the consultation', 'not-yet' === $t['flight_plan']['state'] && 'After your consultation' === $t['flight_plan']['note'] );
@@ -87,7 +87,7 @@ $wpdb = fresh();
 client( 507, 122, 3 );
 $wpdb->reports[807] = (object) array( 'id' => 77, 'report_type' => 'draft', 'report_content' => '{}' );
 $t = by_key( HDLV2_Products::for_client( 507 ) );
-check( 'S7.1 Full Report yours, draft line', 'yours' === $t['full_report']['state'] && 'Draft · consultation next' === $t['full_report']['note'] );
+check( 'S7.1 Full Report yours, ready line', 'yours' === $t['full_report']['state'] && 'Ready' === $t['full_report']['note'] );
 check( 'S7.2 Full Report opens /my-report/ (no token in the url)', 'https://stby.test/my-report/' === $t['full_report']['url'] );
 check( 'S7.3 Timeline yours, opens the client timeline', 'yours' === $t['timeline']['state'] && 'https://stby.test/healthspan-timeline/?t=' . str_repeat( 'a', 64 ) === $t['timeline']['url'] );
 

@@ -124,6 +124,10 @@ class HDLV2_Audio_Service {
         $token = $request->get_param( 'token' ) ?: '';
         if ( $token && preg_match( '/^[a-f0-9]{64}$/', $token ) ) {
             global $wpdb;
+            // v0.48.87 (plan 2k, G4) — a browser key answers for its one form (HDL_Stage1_Ticket::form_token).
+            if ( class_exists( 'HDL_Stage1_Ticket' ) ) {
+                $token = HDL_Stage1_Ticket::form_token( $token );
+            }
             // v0.47.53 (B4) — `AND token_expires_at > UTC_TIMESTAMP()`:
             // expired tokens no longer authenticate to audio endpoints.
             $exists = $wpdb->get_var( $wpdb->prepare(
@@ -266,6 +270,11 @@ class HDLV2_Audio_Service {
             // too is harmless.)
             $owner_token = $request->get_param( 'token' );
             $owner_token = ( is_string( $owner_token ) && preg_match( '/^[a-f0-9]{64}$/', $owner_token ) ) ? $owner_token : '';
+            // v0.48.87 (plan 2k, G4) — a browser key stamps its row's own token, so the poll (which resolves
+            // it the same way) and the eraser (which hashes the account's tokens) both match.
+            if ( $owner_token && class_exists( 'HDL_Stage1_Ticket' ) ) {
+                $owner_token = HDL_Stage1_Ticket::form_token( $owner_token );
+            }
 
             $job_id = HDLV2_Job_Queue::enqueue(
                 'transcribe_audio',

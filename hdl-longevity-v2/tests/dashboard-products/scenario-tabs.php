@@ -11,7 +11,7 @@ if ( ! class_exists( 'HDLV2_Products' ) || ! method_exists( 'HDLV2_Products', 'r
 }
 
 $ORDER = array( 'today', 'stage1', 'report', 'timeline', 'flight_plan', 'challenge', 'messages' );
-$OFFER = 'https://altituding.com/full-report?code=YOURCODE';
+$OFFER = 'https://altituding.com/full-report'; // v0.48.73: no code
 
 /** The pill of one tab as "state:words" ('' when the tab has none). v0.48.39: a lock carries its words for screen readers. */
 function pill( $html, $key ) {

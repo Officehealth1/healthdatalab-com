@@ -81,7 +81,7 @@ $r = mint_req( array( 'product' => null ) );
 check( 'C2.1 product absent → { token, expires_at, idempotent }, source paid_stage1', is_array( $r ) && array_keys( $r ) === array( 'token', 'expires_at', 'idempotent' ) && 'paid_stage1' === ticket_rows( $w )[0]['data']['source'] );
 $w = setup();
 $r = mint_req( array( 'product' => 'full_report' ) );
-check( 'C2.2 full_report → its six keys, source full_report', is_array( $r ) && array_keys( $r ) === array( 'token', 'expires_at', 'idempotent', 'open_url', 'stage1_found', 'auto_confirmed' ) && 'full_report' === ticket_rows( $w )[0]['data']['source'] );
+check( 'C2.2 full_report → its seven keys (v0.48.82: timeline_granted), source full_report', is_array( $r ) && array_keys( $r ) === array( 'token', 'expires_at', 'idempotent', 'open_url', 'stage1_found', 'auto_confirmed', 'timeline_granted' ) && 'full_report' === ticket_rows( $w )[0]['data']['source'] );
 
 echo "── C3. Stage 1 answers sent with a challenge link ──\n";
 foreach ( array( 122 => 'its own practitioner', 206 => 'another practitioner' ) as $prac => $who ) {
@@ -172,13 +172,14 @@ $root = dirname( __DIR__, 2 );
 $sf = file_get_contents( $root . '/includes/sprint-2/class-hdlv2-staged-form.php' );
 $wc = file_get_contents( $root . '/includes/sprint-1/class-hdlv2-widget-config.php' );
 check( 'C4.1 Stage 1 finished on the form does not complete a challenge link', 1 === substr_count( $sf, "AND source NOT IN ('paid_stage1','challenge')" ) );
-check( 'C4.2 the practitioner\'s Sent Invites lists leave challenge links out (both)', 2 === substr_count( $wc, "WHERE practitioner_id = %d AND source NOT IN ('paid_stage1','challenge')" ) );
+check( 'C4.2 the practitioner\'s Sent Invites lists leave challenge links out (both)', 2 === substr_count( $wc, "WHERE practitioner_id = %d AND source NOT IN ('paid_stage1','challenge','full_report')" ) );
 // v0.48.24 (F1, F3) — a challenge link is a sale, not a practitioner invite.
 $cs = file_get_contents( $root . '/includes/sprint-4/class-hdlv2-client-status.php' );
 $cd = file_get_contents( $root . '/includes/sprint-4/class-hdlv2-client-dashboard.php' );
-check( 'C4.3 deleting a client never revokes their challenge link', 1 === substr_count( $cs, "AND status IN ('pending','opened')\n                   AND source NOT IN ('paid_stage1','challenge')" ) && 0 === substr_count( $cs, "<> 'paid_stage1'" ) );
+// v0.48.72 (G6) — the revoke also ends a used Full Report link; the challenge filter follows it unchanged.
+check( 'C4.3 deleting a client never revokes their challenge link', 1 === substr_count( $cs, "AND ( status IN ('pending','opened') OR ( status = 'completed' AND source = 'full_report' ) )\n                   AND source NOT IN ('paid_stage1','challenge')" ) && 0 === substr_count( $cs, "<> 'paid_stage1'" ) );
 check( 'C4.4 the dashboard "Start now" never carries a challenge link', 1 === substr_count( $cd, "AND source NOT IN ('paid_stage1','challenge')\n                   AND expires_at > %s" ) );
 check( 'C4.5 …the "is a V2 client" lookup still counts a challenge buyer (the one bare filter left)', 1 === substr_count( $cd, "<> 'paid_stage1'" ) && 1 === substr_count( $cd, "WHERE client_email = %s AND source <> 'paid_stage1' LIMIT 1" ) );
-check( 'C4.6 the practitioner\'s invite delete: same filter as its lists, no bare one left', 3 === substr_count( $wc, "source NOT IN ('paid_stage1','challenge')" ) && 0 === substr_count( $wc, "<> 'paid_stage1'" ) );
+check( 'C4.6 the practitioner\'s invite delete: same filter as its lists, no bare one left', 3 === substr_count( $wc, "source NOT IN ('paid_stage1','challenge','full_report')" ) && 0 === substr_count( $wc, "<> 'paid_stage1'" ) );
 
 done();

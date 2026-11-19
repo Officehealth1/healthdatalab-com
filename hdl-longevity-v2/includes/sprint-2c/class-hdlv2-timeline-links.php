@@ -585,6 +585,11 @@ class HDLV2_Timeline_Links {
         if ( ! HDLV2_Healthspan_Timeline::report_row( (int) $row->id ) ) {
             return new WP_Error( 'full_report_needed', 'Linking people comes with the full report.', array( 'status' => 403 ) );
         }
+        // v0.48.82 (plan 3) — with the Timeline upgrade on, linking people is part of the Timeline: a Stripe
+        // buyer who did not take it is refused here as the page keeps them in preview.
+        if ( class_exists( 'HDLV2_Timeline_Upgrade' ) && ! HDLV2_Timeline_Upgrade::owned( $row ) ) {
+            return new WP_Error( 'timeline_upgrade_needed', 'Linking people comes with the Healthspan Timeline.', array( 'status' => 403 ) );
+        }
         return $row;
     }
 

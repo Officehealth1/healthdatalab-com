@@ -73,9 +73,11 @@ check( 'A6.2 for_client(): LOWER(client_email) = %s with strtolower( $email )',
 check( 'A6.3 no exact client_email = %s left in either', false === strpos( $tl, ' client_email = %s' ) && false === strpos( $pr, ' client_email = %s' ) );
 
 echo "A7 version\n";
-check( 'A7.1 plugin header 0.48.65', 1 === preg_match( '/\* Version:\s+0\.48\.65\b/', $main ) );
-check( 'A7.2 HDLV2_VERSION 0.48.65', false !== strpos( $main, "define( 'HDLV2_VERSION', '0.48.65' )" ) );
-check( 'A7.3 HDLV2_DB_VERSION stays 3.33', false !== strpos( $main, "define( 'HDLV2_DB_VERSION', '3.33' )" ) );
+function loader_at_least( $loader, $ver, $db ) { // header == constant, and both at or beyond the pin (the 0.47.79 precedent)
+    preg_match( "/define\\( 'HDLV2_VERSION', '([0-9.]+)' \\);/", $loader, $v ); preg_match( '/\\* Version: ([0-9.]+)/', $loader, $h ); preg_match( "/define\\( 'HDLV2_DB_VERSION', '([0-9.]+)' \\);/", $loader, $d );
+    return $v && $h && $d && $v[1] === $h[1] && version_compare( $v[1], $ver, '>=' ) && version_compare( $d[1], $db, '>=' );
+}
+check( 'A7.1 plugin header == HDLV2_VERSION, at or beyond 0.48.65, DB at or beyond 3.33', loader_at_least( $main, '0.48.65', '3.33' ) );
 
 echo "\nPASS=$PASS FAIL=$FAIL\n";
 exit( 0 === $FAIL ? 0 : 1 );

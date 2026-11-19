@@ -506,14 +506,14 @@ class HDLV2_Challenge {
              . $cta . '</aside>';
     }
 
-    /** D4: the hook, prices, url and code are the Stage 1 offer's own. */
+    /** D4: the hook, price and url are the Stage 1 offer's own (v0.48.73: one price, no code). */
     private static function offer_card( $has_full_report, $practitioner_id ) {
         if ( $has_full_report || ! HDLV2_Offer::applies_to( $practitioner_id ) ) {
             return '';
         }
         $o = HDLV2_Offer::get();
         return '<aside class="cd30-offer"><h3>' . esc_html( $o['hook'] ) . '</h3>'
-             . '<p>Today ' . esc_html( HDLV2_Offer::money( $o['full_today_price'], $o ) ) . ' · ' . esc_html( HDLV2_Offer::money( $o['full_list_price'], $o ) ) . ' before</p>'
-             . '<a class="cd30-offer-btn" href="' . esc_url( add_query_arg( 'code', rawurlencode( $o['code'] ), $o['url'] ) ) . '">Go deeper with the Full Report</a></aside>';
+             . '<p>Today ' . esc_html( HDLV2_Offer::money( $o['full_today_price'], $o ) ) . '</p>'
+             . '<a class="cd30-offer-btn" href="' . esc_url( $o['url'] ) . '">Go deeper with the Full Report</a></aside>';
     }
 }

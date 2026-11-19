@@ -3,7 +3,7 @@
  * Plugin Name: HDL Longevity V2 — Staged Workflow
  * Plugin URI: https://healthdatalab.net
  * Description: V2 longevity workflow: staged intake, WHY profiling, practitioner consultations, weekly flight plans, and AI coaching. Runs alongside the existing Health Data Lab plugin.
- * Version: 0.48.65
+ * Version: 0.48.89
  * Author: Health Data Lab
  * Author URI: https://healthdatalab.net
  * License: Proprietary
@@ -22,8 +22,8 @@ if ( ! defined( 'ABSPATH' ) ) {
 // register_activation_hook callbacks, which fire synchronously during
 // `wp plugin activate`, can reference them. The activator needs
 // HDLV2_DB_VERSION / HDLV2_VERSION at call time to update version options.
-define( 'HDLV2_VERSION', '0.48.65' );
-define( 'HDLV2_DB_VERSION', '3.33' );
+define( 'HDLV2_VERSION', '0.48.89' );
+define( 'HDLV2_DB_VERSION', '3.34' );
 
 // Client funnel token (hdlv2_form_progress.token) lifetime. FIXED window
 // from issuance: set when the token is created and refreshed ONLY when the
@@ -55,7 +55,8 @@ define( 'HDLV2_PLUGIN_FILE', __FILE__ );
  * By logging the user in at init, they're authenticated before UM checks access.
  */
 add_action( 'init', function () {
-    if ( is_admin() || is_user_logged_in() ) return;
+    if ( is_admin() ) return;
+    if ( is_user_logged_in() && ! hdlv2_own_full_report_link_or_card() ) return;
 
     // v0.41.3 — Skip REST API requests. The handlers below call
     // hdlv2_render_link_card() which sets status_header(410) and echoes an
@@ -88,9 +89,13 @@ add_action( 'init', function () {
         $token = sanitize_text_field( $_GET['invite'] );
         if ( ! preg_match( '/^[a-f0-9]{64}$/', $token ) ) return;
 
+        // v0.48.71 — a used Full Report ticket keeps signing its owner in until
+        // expires_at, as the buyer's e-mail says ("Your link works until …");
+        // the expiry check below still applies. Its status is not written back.
         global $wpdb;
         $invite = $wpdb->get_row( $wpdb->prepare(
-            "SELECT * FROM {$wpdb->prefix}hdlv2_widget_invites WHERE token = %s AND status IN ('pending','opened') LIMIT 1",
+            "SELECT * FROM {$wpdb->prefix}hdlv2_widget_invites
+             WHERE token = %s AND ( status IN ('pending','opened') OR ( status = 'completed' AND source = 'full_report' ) ) LIMIT 1",
             $token
         ) );
 
@@ -195,6 +200,16 @@ add_action( 'init', function () {
             }
         }
 
+        // Mark invite as opened. v0.48.85 (plan 2k, review F3): only from 'pending', so this opening and a
+        // straight-in claim (HDL_Stage1_Ticket::open_browser) cannot both move the ticket.
+        if ( $invite->status === 'pending' ) {
+            $wpdb->update(
+                $wpdb->prefix . 'hdlv2_widget_invites',
+                array( 'status' => 'opened', 'opened_at' => current_time( 'mysql' ) ),
+                array( 'id' => (int) $invite->id, 'status' => 'pending' )
+            );
+        }
+
         // Auto-login BEFORE the main query runs
         wp_set_current_user( $user_id );
         wp_set_auth_cookie( $user_id, false );
@@ -206,15 +221,6 @@ add_action( 'init', function () {
         $is_challenge = isset( $invite->source ) && 'challenge' === $invite->source;
         if ( class_exists( 'HDLV2_Compatibility' ) && ! ( $is_challenge && $existing_user ) ) {
             HDLV2_Compatibility::create_practitioner_client_link( $invite->practitioner_id, $user_id );
-        }
-
-        // Mark invite as opened
-        if ( $invite->status === 'pending' ) {
-            $wpdb->update(
-                $wpdb->prefix . 'hdlv2_widget_invites',
-                array( 'status' => 'opened', 'opened_at' => current_time( 'mysql' ) ),
-                array( 'id' => $invite->id )
-            );
         }
 
         // Look up existing form_progress so we know whether Stage 1 is done.
@@ -368,6 +374,17 @@ add_action( 'init', function () {
              LIMIT 1",
             $token
         ) );
+
+        // v0.48.87 (plan 2k, G4) — no row has this token: a browser key opens its one form here with no
+        // sign-in (no wp_set_current_user, no cookie); the form's own calls carry the key.
+        if ( ! $progress && class_exists( 'HDL_Stage1_Ticket' ) && HDL_Stage1_Ticket::is_browser_token( $token ) ) {
+            if ( HDL_Stage1_Ticket::browser_row( $token ) ) {
+                HDL_Stage1_Ticket::open_form_page_for_key();
+                return;
+            }
+            // A key we made whose day is over, or whose owner has signed in (G4 step 7).
+            hdlv2_render_link_card( HDL_Stage1_Ticket::ENDED_TITLE, HDL_Stage1_Ticket::ENDED_TEXT, '', '' );
+        }
 
         // v0.47.53 (B4) — fail CLOSED. Pre-fix, NULL expiry meant "valid
         // forever" and nothing ever wrote token_expires_at, so every client
@@ -687,6 +704,55 @@ function hdlv2_is_staff_account( $user_id ) {
         : user_can( $user_id, 'edit_posts' );
 }
 
+/**
+ * v0.48.71 — a Full Report link opened in a browser that is already signed in
+ * (Matthew 2026-11-16: "this is not going to be linked to the right one"). The
+ * ?invite= login returns at once for a signed-in browser, so without this the
+ * buyer stayed in whatever account the browser held.
+ *
+ * - The ticket's own account is signed in: true, the login runs and opens the form.
+ * - Any other account, client or practitioner: a card whose one button is
+ *   WordPress's own sign-out (it carries the log-out nonce) back to this link on
+ *   our host. Opening a link never ends a session (login CSRF: a link someone
+ *   else sends must not move this browser into their account). Exits.
+ * - No Full Report ticket in date for this token, a REST call or a bad token:
+ *   false, the signed-in browser is left alone.
+ *
+ * @return bool true when the ?invite= login should run for this request.
+ */
+function hdlv2_own_full_report_link_or_card() {
+    if ( empty( $_GET['invite'] )
+         || ( isset( $_SERVER['REQUEST_URI'] ) && false !== strpos( $_SERVER['REQUEST_URI'], '/wp-json/' ) ) ) {
+        return false;
+    }
+    $token = sanitize_text_field( wp_unslash( $_GET['invite'] ) );
+    if ( ! preg_match( '/^[a-f0-9]{64}$/', $token ) ) {
+        return false;
+    }
+    global $wpdb;
+    $email = $wpdb->get_var( $wpdb->prepare(
+        "SELECT client_email FROM {$wpdb->prefix}hdlv2_widget_invites
+         WHERE token = %s AND source = 'full_report' AND status IN ('pending','opened','completed') AND expires_at > UTC_TIMESTAMP() LIMIT 1",
+        $token
+    ) );
+    if ( null === $email ) {
+        return false;
+    }
+    if ( 0 === strcasecmp( (string) wp_get_current_user()->user_email, (string) $email ) ) {
+        return true;
+    }
+    // Rebuilt from the path and the checked token only, on our own host.
+    $path = (string) wp_parse_url( isset( $_SERVER['REQUEST_URI'] ) ? wp_unslash( $_SERVER['REQUEST_URI'] ) : '', PHP_URL_PATH );
+    $link = home_url( '/' . ltrim( $path, '/' ) ) . '?invite=' . $token;
+    // DRAFT COPY for the owner (plan 2026-11-17 gate fixes, G2): the three strings below.
+    hdlv2_render_link_card(
+        'You are signed in to another account',
+        'This link belongs to a different account. Sign out to open it.',
+        'Sign out and open the link',
+        wp_logout_url( $link )
+    );
+}
+
 /** v0.48.20 — the card shown instead of signing a staff account in. Exits. */
 function hdlv2_render_staff_sign_in_card() {
     hdlv2_render_link_card(
@@ -884,6 +950,7 @@ final class HDL_Longevity_V2 {
         require_once HDLV2_PLUGIN_DIR . 'includes/sprint-1/class-hdlv2-widget-config.php';
         require_once HDLV2_PLUGIN_DIR . 'includes/sprint-1/class-hdlv2-widget-renderer.php';
         require_once HDLV2_PLUGIN_DIR . 'includes/sprint-1/class-hdlv2-safety-screen.php';
+        require_once HDLV2_PLUGIN_DIR . 'includes/sprint-1/class-hdlv2-safety-content.php'; // v0.48.66 — the notice's words and numbers
         // v0.48.16 — Stage 1 under load: PDF drain + busy gate + alert, Brevo holding list replay.
         require_once HDLV2_PLUGIN_DIR . 'includes/sprint-1/class-hdlv2-stage1-drain.php';
         require_once HDLV2_PLUGIN_DIR . 'includes/sprint-1/class-hdlv2-stage1-waiting.php';
@@ -918,6 +985,7 @@ final class HDL_Longevity_V2 {
 
         // v0.48.29 — Healthspan Timeline page (flag hdlv2_ff_healthspan_timeline, off by default)
         require_once HDLV2_PLUGIN_DIR . 'includes/sprint-2c/class-hdlv2-healthspan-timeline.php';
+        require_once HDLV2_PLUGIN_DIR . 'includes/sprint-2c/class-hdlv2-timeline-upgrade.php'; // v0.48.82 (plan 3)
         // v0.48.34 — linked people on the timeline (flag hdlv2_ff_timeline_links, off by default)
         require_once HDLV2_PLUGIN_DIR . 'includes/sprint-2c/class-hdlv2-timeline-links.php';
 

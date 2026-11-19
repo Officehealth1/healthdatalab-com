@@ -422,6 +422,7 @@ class HDLV2_Auto_Consultation {
         ), ARRAY_A );
 
         $s1 = $progress ? ( json_decode( $progress->stage1_data, true ) ?: array() ) : array();
+        unset( $s1['_safety_ack'] ); // v0.48.67 — the safety notice press is not intake; never sent to the AI
         $s3 = $progress ? ( json_decode( $progress->stage3_data, true ) ?: array() ) : array();
         $distilled_why = $why_row ? (string) ( $why_row['distilled_why'] ?? '' ) : '';
 

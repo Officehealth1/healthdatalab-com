@@ -441,6 +441,10 @@ class HDLV2_Job_Queue {
         $token = $request->get_param( 'token' ) ?: '';
         if ( $token && preg_match( '/^[a-f0-9]{64}$/', $token ) ) {
             global $wpdb;
+            // v0.48.87 (plan 2k, G4) — a browser key answers for its one form (HDL_Stage1_Ticket::form_token).
+            if ( class_exists( 'HDL_Stage1_Ticket' ) ) {
+                $token = HDL_Stage1_Ticket::form_token( $token );
+            }
             // v0.47.53 (B4) — `AND token_expires_at > UTC_TIMESTAMP()`:
             // expired (or never-backfilled NULL — fail closed) tokens no
             // longer authenticate. Practitioners short-circuit above.
@@ -553,6 +557,8 @@ class HDLV2_Job_Queue {
         $token = (string) $request->get_param( 'token' );
         if ( ! preg_match( '/^[a-f0-9]{64}$/', $token ) ) {
             $token = '';
+        } elseif ( class_exists( 'HDL_Stage1_Ticket' ) ) {
+            $token = HDL_Stage1_Ticket::form_token( $token ); // v0.48.87 (plan 2k, G4): as permission_read()
         }
 
         $row = $wpdb->get_row( $wpdb->prepare(

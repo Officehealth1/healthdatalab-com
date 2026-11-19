@@ -122,7 +122,7 @@ class HDLV2_Client_Draft_View {
             return rest_ensure_response( array(
                 'status'  => 'incomplete',
                 'type'    => 'draft',
-                'message' => 'Complete your full assessment to see your draft report.',
+                'message' => 'Complete your full assessment to see your Full Report.',
             ) );
         }
 
@@ -235,6 +235,10 @@ class HDLV2_Client_Draft_View {
             // practitioner consultation panel (both read this rest_get_draft calc).
             'metabolic' => HDLV2_Rate_Calculator::metabolic_signal( $calc_source['scores'] ?? array(), $calc_source ),
         );
+        // v0.48.79 (M39; hdlv2_ff_empty_values) — the chart inputs left empty, named once under the chart.
+        if ( get_option( 'hdlv2_ff_empty_values', false ) ) {
+            $calc['not_provided'] = HDLV2_Final_Report::inputs_not_provided( $calc['scores'] );
+        }
 
         // Practitioner info
         $prac_name     = '';
@@ -481,7 +485,7 @@ class HDLV2_Client_Draft_View {
         <div id="hdlv2-draft-report-root" class="hdlv2-dr">
             <div class="hdlv2-dr-loading" data-hdlv2-state="loading">
                 <div class="hdlv2-dr-loading-icon"></div>
-                <h3>Preparing your draft report</h3>
+                <h3>Preparing your Full Report</h3>
                 <p>We're running your results through our analysis<span class="hdlv2-dr-loading-dots"></span></p>
                 <p style="font-size:12px;color:#888;margin-top:16px;">This usually takes 20 – 60 seconds.</p>
             </div>

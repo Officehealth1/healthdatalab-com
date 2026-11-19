@@ -15,6 +15,7 @@
 import fs from 'node:fs';
 import vm from 'node:vm';
 import { execFileSync } from 'node:child_process';
+import { undo2c } from '../result-offer/render-result-2c.mjs'; // v0.48.77: the 2c edits are checked there
 import { fileURLToPath } from 'node:url';
 
 let PASS = 0, FAIL = 0;
@@ -48,7 +49,7 @@ if (fnSrc) {
 }
 
 // renderResult: b462b02's text plus the one call line, placed under the gauge picture.
-const rrNew = cutIn(js, '    function renderResult() {', '\n    }\n');
+const rrNew = undo2c(cutIn(js, '    function renderResult() {', '\n    }\n')); // v0.48.77: renderResult as at 2c's base when 2c changed only its own lines
 const rrOld = cutIn(old, '    function renderResult() {', '\n    }\n');
 const CALL = "        +       bandVideoHtml({ good: 'green', avg: 'blue', warn: 'red' }[bandClass], cfg.bandVideos)\n";
 const GAUGE = "        +       '<img class=\"hdlw-r-gauge-img\" src=\"' + gaugeUrl(rate) + '\" alt=\"Rate of ageing gauge \\u2014 ' + rateDisplay + '\">'\n";
@@ -59,7 +60,9 @@ const PLINE = "          + (/^\\d+$/.test(String(cfg.pracId)) ? '&p=' + cfg.prac
 // (tests/healthspan-timeline-links/test-ui.js); that one block is set aside, everything else stays b462b02's.
 const LINKCARD = (t) => cutIn(t, '      // v0.48.34 — the yes or no. The key came back', '      function failed(body, status) {');
 ok(LINKCARD(rrNew) !== '' && LINKCARD(rrOld) !== '', 'found the showLinkCard block in both');
-ok(rrNew.indexOf(PLINE) > 0 && rrNew.replace(PLINE, '').replace(LINKCARD(rrNew), LINKCARD(rrOld)) === rrOld.replace(GAUGE, GAUGE + CALL), 'renderResult is b462b02\'s text with only the call added after the gauge picture (and the 0.48.60 &p= line, the 0.48.62 link card)');
+// v0.48.66: the safety notice's press rides in the lead POST (tests/safety-notice/test-widget-notice.mjs); that one line is allowed too.
+const ACKLINE = '      if (answers._safetyAck) payload.safety_ack = answers._safetyAck; // v0.48.66\n';
+ok(rrNew.indexOf(PLINE) > 0 && rrNew.replace(PLINE, '').replace(ACKLINE, '').replace(LINKCARD(rrNew), LINKCARD(rrOld)) === rrOld.replace(GAUGE, GAUGE + CALL), 'renderResult is b462b02\'s text with only the call added after the gauge picture (and the 0.48.60 &p= line, the 0.48.62 link card, the 0.48.66 safety_ack line)');
 ok(rrNew.indexOf(CALL) > 0 && rrNew.indexOf(CALL) < rrNew.indexOf("escapeHtml(awakenP1)"), 'the video sits before the three paragraphs in source order');
 
 // Outside renderResult: only the function and the cfg line were added.

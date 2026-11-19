@@ -655,7 +655,7 @@ if ( $has_mint ) {
 
 echo "── 13. other readers of the invites table ignore paid tickets ──\n";
 // v0.48.23 — some filters also leave out challenge links: either shape excludes paid tickets.
-function paid_filters( $src ) { return substr_count( $src, "source <> 'paid_stage1'" ) + substr_count( $src, "source NOT IN ('paid_stage1','challenge')" ); }
+function paid_filters( $src ) { return substr_count( $src, "source <> 'paid_stage1'" ) + substr_count( $src, "source NOT IN ('paid_stage1','challenge')" ) + substr_count( $src, "source NOT IN ('paid_stage1','challenge','full_report')" ); }
 $GLOBALS['current_user_id'] = 206;
 $wpdb = fresh_wpdb( 'paid' );
 widget_instance()->rest_list_invites( new FakeRequest( array() ) );

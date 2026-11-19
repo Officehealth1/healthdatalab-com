@@ -39,6 +39,7 @@ class FakeWpdb {
     }
     public function get_charset_collate() { return ''; }
     public function get_var( $q ) {
+        if ( false !== strpos( $q, "COLUMN_NAME = 'timeline_paid_ref'" ) ) return '1'; // Phase AO (v3.34): modelled as done; its own tests are in tests/timeline-upgrade/
         if ( preg_match( "/COLUMN_NAME = '(pack_id|seat_invite_id)'/", $q ) ) return '1'; // Phase AN (v3.33): create_tables() added them first
         if ( false !== strpos( $q, 'COLUMN_TYPE' ) ) return $this->source_type;
         if ( false !== strpos( $q, 'INFORMATION_SCHEMA.TABLES' ) && preg_match( "/TABLE_NAME = '(\w+)'/", $q, $m ) ) {
@@ -48,6 +49,7 @@ class FakeWpdb {
     }
     public function query( $q ) {
         $this->last_error = '';
+        if ( false !== strpos( $q, 'timeline_paid_ref' ) ) return 0; // Phase AO (v3.34): its stamp is tested in tests/timeline-upgrade/
         if ( preg_match( '/^\s*(UPDATE|DELETE|INSERT)/i', $q ) ) $this->writes[] = $q;
         if ( 0 !== stripos( ltrim( $q ), 'ALTER TABLE' ) ) return 1;
         $this->alters[] = $q;
@@ -112,8 +114,11 @@ $missing = array_filter( $cols, function ( $c ) use ( $ddl ) { return false === 
 ok( 'M.8 CREATE TABLE timeline_links: every column and key (missing: ' . implode( ' | ', $missing ) . ')', $ddl && ! $missing );
 ok( 'M.9 dbDelta runs it', false !== strpos( $src, 'dbDelta( $sql_links );' ) );
 $loader = file_get_contents( dirname( __DIR__, 2 ) . '/hdl-longevity-v2.php' );
-ok( 'M.10 loader: header + constant 0.48.65, DB 3.33, the class loaded', false !== strpos( $loader, ' * Version: 0.48.65' ) && false !== strpos( $loader, "define( 'HDLV2_VERSION', '0.48.65' );" )
-    && false !== strpos( $loader, "define( 'HDLV2_DB_VERSION', '3.33' );" ) && false !== strpos( $loader, 'class-hdlv2-timeline-links.php' ) );
+function loader_at_least( $loader, $ver, $db ) { // header == constant, and both at or beyond the pin (the 0.47.79 precedent)
+    preg_match( "/define\\( 'HDLV2_VERSION', '([0-9.]+)' \\);/", $loader, $v ); preg_match( '/\\* Version: ([0-9.]+)/', $loader, $h ); preg_match( "/define\\( 'HDLV2_DB_VERSION', '([0-9.]+)' \\);/", $loader, $d );
+    return $v && $h && $d && $v[1] === $h[1] && version_compare( $v[1], $ver, '>=' ) && version_compare( $d[1], $db, '>=' );
+}
+ok( 'M.10 loader: header == constant, at or beyond 0.48.65 / 3.33, the class loaded', loader_at_least( $loader, '0.48.65', '3.33' ) && false !== strpos( $loader, 'class-hdlv2-timeline-links.php' ) );
 
 echo "\nPASS=$pass FAIL=$fail\n";
 exit( $fail ? 1 : 0 );

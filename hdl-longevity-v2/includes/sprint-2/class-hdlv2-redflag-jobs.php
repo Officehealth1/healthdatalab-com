@@ -49,8 +49,9 @@ class HDLV2_Redflag_Jobs {
         // v0.43.0 — the front-door safety screen stores its ticks under
         // stage1_data._safety and flags them deterministically at signup.
         // Strip the key before the AI scan so the same symptoms aren't
-        // re-flagged (which would create near-duplicate flags).
-        unset( $stage1['_safety'] );
+        // re-flagged (which would create near-duplicate flags). v0.48.67 — the
+        // "I have read this" press (_safety_ack) is not intake: never sent to the AI.
+        unset( $stage1['_safety'], $stage1['_safety_ack'] );
         $stage3 = json_decode( (string) $progress->stage3_data, true ) ?: array();
         $why    = $wpdb->get_row( $wpdb->prepare(
             "SELECT key_people, motivations, fears, distilled_why, ai_reformulation

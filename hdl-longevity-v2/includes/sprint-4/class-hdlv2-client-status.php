@@ -418,6 +418,7 @@ class HDLV2_Client_Status {
         // state for this table).
         // v0.48.24 — a challenge link is a sale, not a practitioner invite:
         // it stays live when the practitioner deletes the client.
+        // v0.48.72 — since 0.48.71 a used Full Report link lives 90 days, so the delete ends it too.
         $client_email = $client_user ? strtolower( trim( $client_user->user_email ) ) : null;
         $invites_cancelled = 0;
         if ( $client_email ) {
@@ -426,7 +427,7 @@ class HDLV2_Client_Status {
                  SET status = 'revoked'
                  WHERE practitioner_id = %d
                    AND LOWER(client_email) = %s
-                   AND status IN ('pending','opened')
+                   AND ( status IN ('pending','opened') OR ( status = 'completed' AND source = 'full_report' ) )
                    AND source NOT IN ('paid_stage1','challenge')",
                 $practitioner_id, $client_email
             ) );

@@ -243,11 +243,12 @@ check( '(j) title option overrides', 'Your Life Map' === $T::page_data( '' )['ti
 // (k) the lock line and the button come from HDLV2_Offer.
 $db = fresh();
 $o = $T::page_data( '' )['offer'];
-check( '(k) L1 a fragment visitor\'s line carries the price and says where the code is', 'Your loved ones unlock with the Full Report (today $27 with the code from your email).' === $o['line'] );
-check( '(k) button + offer url; anonymous → the code word never printed', 'Get the full report' === $o['button'] && 'https://altituding.com/full-report' === $o['url'] );
+// v0.48.73 — one price for everyone (no code): the known client's line and url for a fragment visitor too.
+check( '(k) L1 a fragment visitor\'s line carries the price, no code', 'Your loved ones unlock with the full report (today $27).' === $o['line'] );
+check( '(k) button + offer url; anonymous → no code', 'Get the full report' === $o['button'] && 'https://altituding.com/full-report' === $o['url'] );
 $db->progress[ tok( '9' ) ] = row( 9, array( 'stage3_data' => null, 'stage3_completed_at' => null ) );
 $o = $T::page_data( tok( '9' ) )['offer'];
-check( '(k) a known client (token) → the url carries the code, as the dashboard offer card', 'https://altituding.com/full-report?code=YOURCODE' === $o['url'] );
+check( '(k) a known client (token) → the same url, no code, as the dashboard offer card', 'https://altituding.com/full-report' === $o['url'] && 'Your loved ones unlock with the full report (today $27).' === $o['line'] );
 $GLOBALS['options']['hdlv2_stage1_offer'] = array( 'url' => '' );
 $o = $T::page_data( '' )['offer'];
 check( '(k) no offer configured → button absent, line "unlocks with the full report"', ! isset( $o['button'] ) && ! isset( $o['url'] ) && 'Your loved ones unlock with the full report.' === $o['line'] );
@@ -265,9 +266,8 @@ check( 'science shown when hdlv2_ht_show_science = 1', true === $T::page_data( '
 $db = fresh();
 $GLOBALS['options'] = array();
 check( 'flag off → shortcode prints nothing', '' === $T::render_shortcode() );
-check( 'flag off → no widget public-config field', array() === $T::public_config_fields() );
+check( 'no widget public-config field (v0.48.77: the result-page teaser is gone)', ! method_exists( $T, 'public_config_fields' ) );
 $GLOBALS['options']['hdlv2_ff_healthspan_timeline'] = '1';
-check( 'flag on → widget public-config carries timeline_url', array( 'timeline_url' => 'https://stby.test/healthspan-timeline/' ) === $T::public_config_fields() );
 $html = $T::render_shortcode();
 check( 'flag on, no token → mount + window.HDLV2_HT printed', false !== strpos( $html, 'id="hdlv2-ht-root"' ) && 1 === count( $GLOBALS['inline'] ) && 0 === strpos( $GLOBALS['inline'][0], 'window.HDLV2_HT = {' ) );
 $GLOBALS['inline'] = array();
@@ -351,11 +351,11 @@ check( 'P2 Stage 3 submitted + no report → "being written", no button', $waiti
 $db->tickets[] = ticket( 'kim42@example.test' );
 check( 'P2b a ticket and Stage 3 submitted → "being written" (the questions are done)', $waiting( $T::page_data( tok( '2' ) ) ) );
 
-// P3: no ticket, no Stage 3 → the offer as today: the code in the url for a known client, none for a fragment visitor.
+// P3: no ticket, no Stage 3 → the offer: the plain url for a known client and a fragment visitor (v0.48.73: no code).
 $db = fresh();
 $db->progress[ tok( '3' ) ] = row( 43, array( 'stage3_data' => null, 'stage3_completed_at' => null ) );
 $d = $T::page_data( tok( '3' ) );
-check( 'P3 a known client, nothing bought → paid false, the code in the button\'s url', false === $d['paid'] && 'Get the full report' === $d['offer']['button'] && 'https://altituding.com/full-report?code=YOURCODE' === $d['offer']['url'] && ! isset( $d['wait_line'] ) );
+check( 'P3 a known client, nothing bought → paid false, the plain url in the button', false === $d['paid'] && 'Get the full report' === $d['offer']['button'] && 'https://altituding.com/full-report' === $d['offer']['url'] && ! isset( $d['wait_line'] ) );
 $d = $T::page_data( '' );
 check( 'P3 a fragment visitor → paid false, the offer url without a code', false === $d['paid'] && 'https://altituding.com/full-report' === $d['offer']['url'] && ! isset( $d['wait_line'] ) );
 $d = $T::page_data( tok( '3' ) );

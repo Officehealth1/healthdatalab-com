@@ -7,12 +7,14 @@
  * defaults below (Matthew's call of 2026-10-13; his words replace the
  * placeholders one field at a time). Change one field:
  *
- *   wp option patch update hdlv2_stage1_offer code SUMMERFREE
+ *   wp option patch update hdlv2_stage1_offer hook "What is ageing you fastest?"
  *
  * (the option must exist first: `wp option add hdlv2_stage1_offer '{}' --format=json`;
- * several fields at once: `wp option update hdlv2_stage1_offer '{"code":"X","hook":"Y"}' --format=json`).
+ * several fields at once: `wp option update hdlv2_stage1_offer '{"title":"X","hook":"Y"}' --format=json`).
  *
  * Prices are numbers without a symbol; `currency` is printed in front.
+ * v0.48.73 — one price, $27 (Matthew, 2026-11-16): no code and no list price. A saved option
+ * that still holds `code` or `full_list_price` loses them as unknown keys.
  *
  * @package HDL_Longevity_V2
  * @since   0.48.15
@@ -26,16 +28,21 @@ class HDLV2_Offer {
 
     const OPTION = 'hdlv2_stage1_offer';
 
+    /** How long the inbox pass in a results e-mail works. Gate row F17 (secure default, 2026-11-19): 24 hours, so a
+     *  forwarded e-mail stops opening the form the next day. Was 3 days (v0.48.81). */
+    const INBOX_PASS_HOURS = 24;
+
+    /** v0.48.85 (plan 2k) — how long the browser pass from the lead reply works (Stripe and back fits well inside). */
+    const BROWSER_PASS_MINUTES = 60;
+
     /** One source for the partnership line on every page a buyer reaches. */
     const PARTNER_LINE = 'Powered by HealthDataLab · a partnership focused on longevity';
 
     const DEFAULTS = array(
         'currency'              => '$',
-        'code'                  => 'YOURCODE',
         'hook'                  => 'Find out more about what is impacting your longevity the most',
         'title'                 => 'Want to go deeper?',
         'stage1_list_price'     => '29',
-        'full_list_price'       => '129',
         'full_today_price'      => '27',
         'url'                   => 'https://altituding.com/full-report',
         'caption'               => 'The abilities your choices need, against where you are today',
@@ -49,6 +56,15 @@ class HDLV2_Offer {
         // The practitioner whose clients see this offer (Matthew: Altituding).
         // 0 = every practitioner.
         'practitioner_id'       => 122,
+        // v0.48.82 (plan 3) — the Healthspan Timeline as an upgrade (HDLV2_Timeline_Upgrade): $10 at
+        // checkout or for timeline_offer_days after the form, then $27 on its own. The links are
+        // Stripe payment links; empty = that offer is not shown.
+        'timeline_upgrade_price' => '10',
+        'timeline_alone_price'   => '27',
+        'timeline_upgrade_url'   => '',
+        'timeline_alone_url'     => '',
+        'timeline_video_url'     => '',
+        'timeline_offer_days'    => 7,
     );
 
     /** The defaults with the saved option laid over them, cleaned. Unknown keys are dropped. */
@@ -66,7 +82,7 @@ class HDLV2_Offer {
                 $out[ $k ] = absint( $v );
             } elseif ( is_bool( self::DEFAULTS[ $k ] ) ) {
                 $out[ $k ] = (bool) $v && 'false' !== $v && '0' !== $v;
-            } elseif ( 'url' === $k || 'video_url' === $k || 'challenge_url' === $k ) {
+            } elseif ( in_array( $k, array( 'url', 'video_url', 'challenge_url', 'timeline_upgrade_url', 'timeline_alone_url', 'timeline_video_url' ), true ) ) {
                 $out[ $k ] = esc_url_raw( (string) $v );
             } elseif ( substr( $k, -6 ) === '_price' ) {
                 $out[ $k ] = preg_match( '/^\d{1,6}(\.\d{1,2})?$/', (string) $v ) ? (string) $v : self::DEFAULTS[ $k ];
@@ -92,8 +108,8 @@ class HDLV2_Offer {
     /**
      * The ten Stage 1 PDF payload keys. Strings only: Make caches a field's
      * type from the first payload it sees (see the note on rate_of_ageing).
-     * offer_code_ends (v0.48.50) is '' here; personal() fills it with the
-     * person's own code's end date (YYYY-MM-DD).
+     * offer_list, offer_code and offer_code_ends stay as '' since v0.48.73
+     * (no list price, no code): Make's 36-key contract keeps the keys.
      */
     public static function payload_keys( $show = true ) {
         $o = self::get();
@@ -102,8 +118,8 @@ class HDLV2_Offer {
             'offer_title'     => $o['title'],
             'offer_hook'      => $o['hook'],
             'offer_today'     => self::money( $o['full_today_price'], $o ),
-            'offer_list'      => self::money( $o['full_list_price'], $o ),
-            'offer_code'      => $o['code'],
+            'offer_list'      => '',
+            'offer_code'      => '',
             'offer_url'       => $o['url'],
             'offer_caption'   => $o['caption'],
             'offer_video_url' => $o['video_url'],
@@ -112,62 +128,130 @@ class HDLV2_Offer {
     }
 
     /**
-     * v0.48.18 — this person's own one-use Full Report code, asked of Altituding
-     * (netlify/functions/full-report-code.js), which has Stripe make it. Called
-     * from the drain, never the visitor's request. Any failure, or the two
-     * wp-config constants absent: the shared code from the option, in the
-     * link too (0.48.22), so the PDF always goes out and its button opens the gate.
+     * The person's own offer keys for the Stage 1 PDF and e-mail. v0.48.73: no code
+     * (flat $27, Matthew 2026-11-16), so nothing is asked of Altituding; the link
+     * carries the lead's address in its fragment so the page locks it at Stripe.
      *
-     * v0.48.50: the request also carries the lead's email and band, so Altituding
-     * can put the code and its end date on the Brevo contact for the follow-up
-     * emails (it already holds the contact from the Stage 1 sign-up); the answer's
-     * expires_at becomes offer_code_ends ('' on the shared code).
+     * v0.48.77: the link opens the buying page for the lead's band (band_url).
      *
-     * @param string $ref   lead-<id> or invite-<id>.
-     * @param string $email the lead's address, pre-filled at Stripe and sent to Altituding when valid.
-     * @param string $band  green / blue / red (HDLV2_Stage1_Commentary::band_key).
+     * v0.48.81 (plan 2h): with hdlv2_ff_straight_to_form on, the fragment also carries
+     * &own=<inbox pass>. The e-mail and the PDF are the only places it goes (this one key,
+     * offer_url); the result page's button never gets one. Switch off: today's link.
+     *
+     * @param string $email           the lead's address; left out of the link when not valid.
+     * @param string $band            HDLV2_Stage1_Commentary::band_key() of the lead's rate ('' = none).
+     * @param int    $practitioner_id the lead's practitioner; no pass without one.
      * @return array { offer_code, offer_url, offer_code_ends }
      */
-    public static function personal( $ref, $email = '', $band = '' ) {
-        $o      = self::get();
-        $shared = array(
-            'offer_code'      => $o['code'],
-            'offer_url'       => self::with_email( add_query_arg( 'code', rawurlencode( $o['code'] ), $o['url'] ), $email ),
+    public static function personal( $email = '', $band = '', $practitioner_id = 0 ) {
+        $url = self::with_email( self::band_url( $band ), $email );
+        if ( get_option( 'hdlv2_ff_straight_to_form', false ) && is_email( $email ) && absint( $practitioner_id ) ) {
+            $url .= '&own=' . self::inbox_pass( $email, $practitioner_id );
+        }
+        return array(
+            'offer_code'      => '',
+            'offer_url'       => $url,
             'offer_code_ends' => '',
         );
-        $url    = defined( 'HDLV2_FULL_CODE_URL' ) ? (string) HDLV2_FULL_CODE_URL : '';
-        $key    = self::code_key();
-        if ( '' === $url || '' === $key || ! preg_match( '/^[A-Za-z0-9_-]{1,64}$/', (string) $ref ) ) {
-            return $shared;
+    }
+
+    /**
+     * v0.48.81 (plan 2h) — the inbox pass: "<unix time>.<64 hex>", signed with the site's auth salt
+     * (the pattern of HDLV2_Timeline_Links::consent_key). Nothing is stored; a changed salt ends
+     * every pass. It proves the browser opened what we sent to that inbox, nothing more:
+     * HDL_Stage1_Ticket::handle_open() accepts it only with a fresh payment for the same e-mail.
+     */
+    public static function inbox_pass( $email, $practitioner_id, $time = null ) {
+        $time = null === $time ? time() : (int) $time;
+        $msg  = 'hdlv2-inbox-pass|' . absint( $practitioner_id ) . '|' . strtolower( trim( (string) $email ) ) . '|' . $time;
+        return $time . '.' . hash_hmac( 'sha256', $msg, wp_salt( 'auth' ) );
+    }
+
+    /** True for a pass made for this e-mail and practitioner, under INBOX_PASS_HOURS old, not from the future. */
+    public static function inbox_pass_ok( $pass, $email, $practitioner_id, $now = null ) {
+        if ( ! is_string( $pass ) || ! preg_match( '/^(\d{10})\.[a-f0-9]{64}$/', $pass, $m ) ) {
+            return false;
         }
-        $ask = array( 'ref' => (string) $ref );
-        if ( is_email( $email ) ) {
-            $ask['email'] = $email;
+        $now  = null === $now ? time() : (int) $now;
+        $made = (int) $m[1];
+        if ( $made > $now + MINUTE_IN_SECONDS || $made < $now - self::INBOX_PASS_HOURS * HOUR_IN_SECONDS ) {
+            return false;
         }
-        if ( in_array( $band, array( 'green', 'blue', 'red' ), true ) ) {
-            $ask['band'] = $band;
+        return hash_equals( self::inbox_pass( $email, $practitioner_id, $made ), $pass );
+    }
+
+    /**
+     * v0.48.85 (plan 2k) — whether the lead reply hands the browser a pass for the result page's Buy
+     * button: the three switches on and the offer shown to this practitioner's leads.
+     */
+    public static function browser_pass_on( $practitioner_id ) {
+        return get_option( 'hdlv2_ff_straight_in_result_page', false ) && get_option( 'hdlv2_ff_straight_to_form', false )
+            && get_option( 'hdlv2_ff_result_offer', false ) && self::applies_to( $practitioner_id );
+    }
+
+    /**
+     * v0.48.85 (plan 2k) — the browser pass: "b<unix time>.<64 hex>", given only in the lead reply to the
+     * browser that sent the nine answers. It proves less than the inbox pass (typing, not owning), so
+     * HDL_Stage1_Ticket::handle_open() gives a one-day key to the form itself, never a sign-in, and any
+     * sign-in of the account ends that key (G4, v0.48.87). Signed over the lead id
+     * and the digest of that lead row's answers, so a later re-send of the answers under the same e-mail
+     * ends it. The lead id is read on the server, never shown (review F4). Nothing is stored.
+     */
+    public static function browser_pass( $email, $practitioner_id, $lead_id, $digest, $time = null ) {
+        $time = null === $time ? time() : (int) $time;
+        $msg  = 'hdlv2-browser-pass|' . absint( $practitioner_id ) . '|' . strtolower( trim( (string) $email ) ) . '|' . absint( $lead_id ) . '|' . (string) $digest . '|' . $time;
+        return 'b' . $time . '.' . hash_hmac( 'sha256', $msg, wp_salt( 'auth' ) );
+    }
+
+    /** True for a string in the browser pass's shape (the inbox pass has no leading b). */
+    public static function is_browser_pass( $pass ) {
+        return is_string( $pass ) && (bool) preg_match( '/^b\d{10}\.[a-f0-9]{64}$/', $pass );
+    }
+
+    /** True for a pass made for this e-mail, practitioner, lead and digest, under BROWSER_PASS_MINUTES old, not from the future. */
+    public static function browser_pass_ok( $pass, $email, $practitioner_id, $lead_id, $digest, $now = null ) {
+        if ( '' === (string) $digest || ! self::is_browser_pass( $pass ) ) {
+            return false;
         }
-        // 3 s: a drain tick sends up to 20 PDFs inside one minute.
-        $res  = wp_remote_post( $url, array(
-            'body'    => wp_json_encode( $ask ),
-            'headers' => array( 'Content-Type' => 'application/json', 'X-HDL-Full-Code-Key' => $key ),
-            'timeout' => 3,
+        $now  = null === $now ? time() : (int) $now;
+        $made = (int) substr( $pass, 1, 10 );
+        if ( $made > $now + MINUTE_IN_SECONDS || $made < $now - self::BROWSER_PASS_MINUTES * MINUTE_IN_SECONDS ) {
+            return false;
+        }
+        return hash_equals( self::browser_pass( $email, $practitioner_id, $lead_id, $digest, $made ), $pass );
+    }
+
+    /**
+     * v0.48.77 (plan 2c) — the buying page for a band: the offer url plus -slower, -average or
+     * -faster; an unknown or empty band gets the url unchanged.
+     */
+    public static function band_url( $band ) {
+        // ponytail: the buying page must answer at <url>-<band word>; a different offer url needs
+        // the same three rewrites on its own site (Altituding's netlify.toml has them for /full-report).
+        $words = array( 'green' => 'slower', 'blue' => 'average', 'red' => 'faster' );
+        $url   = self::get()['url'];
+        return isset( $words[ $band ] ) && '' !== $url ? rtrim( $url, '/' ) . '-' . $words[ $band ] : $url;
+    }
+
+    /**
+     * v0.48.77 (plan 2c) — the Stage 1 result page's offer, behind hdlv2_ff_result_offer, for the
+     * offer's practitioner only: the price, the three band pages and the offer film for a band
+     * with no video. The widget adds the visitor's own e-mail; nothing personal is sent here.
+     */
+    public static function result_offer_fields( $practitioner_id ) {
+        if ( ! get_option( 'hdlv2_ff_result_offer', false ) || ! self::applies_to( $practitioner_id ) ) {
+            return array();
+        }
+        $o = self::get();
+        return array( 'result_offer' => array(
+            'today'     => self::money( $o['full_today_price'], $o ),
+            'band_urls' => array(
+                'green' => self::band_url( 'green' ),
+                'blue'  => self::band_url( 'blue' ),
+                'red'   => self::band_url( 'red' ),
+            ),
+            'video_url' => $o['video_url'],
         ) );
-        $http = is_wp_error( $res ) ? 0 : (int) wp_remote_retrieve_response_code( $res );
-        $body = 200 === $http ? json_decode( wp_remote_retrieve_body( $res ), true ) : null;
-        $code = is_array( $body ) && is_string( $body['code'] ?? null ) ? $body['code'] : '';
-        if ( ! preg_match( '/^[A-Za-z0-9-]{4,40}$/', $code ) ) {
-            error_log( '[HDLV2 offer] personal code failed (HTTP ' . $http . ') — shared code used' );
-            return $shared;
-        }
-        // Seconds since 1970, from now to five years on; anything else (absent, ms, text) leaves the date out.
-        $ends = $body['expires_at'] ?? null;
-        $ends = is_int( $ends ) && $ends > time() && $ends < time() + 5 * 366 * 86400 ? gmdate( 'Y-m-d', $ends ) : '';
-        return array(
-            'offer_code'      => $code,
-            'offer_url'       => self::with_email( add_query_arg( 'code', rawurlencode( $code ), $o['url'] ), $email ),
-            'offer_code_ends' => $ends,
-        );
     }
 
     /**
@@ -176,11 +260,6 @@ class HDLV2_Offer {
      */
     private static function with_email( $url, $email ) {
         return is_email( $email ) ? $url . '#email=' . rawurlencode( $email ) : $url;
-    }
-
-    /** The key Altituding checks; wp-config only. */
-    private static function code_key() {
-        return defined( 'HDLV2_FULL_CODE_KEY' ) ? (string) HDLV2_FULL_CODE_KEY : '';
     }
 
     /** What the widget's locked panel needs. The code word itself is never public. */

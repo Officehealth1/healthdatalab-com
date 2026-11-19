@@ -103,7 +103,10 @@ $prompts = array(
 // 0.48.9 + the 0.48.8 pick (d6a28e6) with --snapshot, before any 0.48.10 change.
 $SNAP = array(
     'extract'    => '31a239551a596fa8e70e8d63464053ed66a47235a75b2158e0839bbe92dab425',
-    'draft'      => '1192ddd6a9abc99dd2d00fc96860192144489a69d5defce875547d513641a27d',
+    // v0.48.84: the first line reads "a personalised full longevity report" (recorded approval,
+    // 2026-11-17; pinned in tests/full-report-wording/scenario-prompt-lines.php). Proved equal to
+    // the 0.48.9 request with that one line swapped; nothing else moved.
+    'draft'      => 'd09728d549ab8392f3ed3461670288eafc7b1edf546458164022da565c86e8df',
     'milestones' => '202c08b010e5a5d51102f2cd35cbf6b7e3ac7c2f53dde47f9876302d52030d51',
     'brief'      => 'ff9ff340d463e5e2a4baa9ab247e1ecc55fc779e0f5d44f92b22ec8e7920aa20',
 );

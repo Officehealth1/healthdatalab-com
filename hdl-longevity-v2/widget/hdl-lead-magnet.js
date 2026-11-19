@@ -174,6 +174,101 @@
       + 'style="display:block;width:100%;height:100%;border:0;"></iframe></div>';
   }
 
+  // ---------- SAFETY NOTICE BY COUNTRY (v0.48.66) ----------
+  // cfg.safetyNotice = HDLV2_Safety_Content::public_payload(), present only when
+  // hdlv2_ff_safety_notice_v2 is on. The words, the rows and the numbers all come
+  // from the server; the phone number follows the country, never the language.
+
+  // The notices' language: the browser's, when the server has it; English otherwise.
+  function sfxLang(sn) {
+    var l = String((typeof navigator !== 'undefined' && navigator.language) || 'en').slice(0, 2).toLowerCase();
+    return sn.notices[l] ? l : 'en';
+  }
+
+  function sfxRowFor(sn, cc) {
+    for (var i = 0; i < sn.countries.length; i++) {
+      if (sn.countries[i].code === cc) return sn.countries[i];
+    }
+    return sn.generic;
+  }
+
+  // Text escaped, then the tokens: numbers as visible digits behind a tel: link.
+  function sfxFill(text, row) {
+    function tel(n) { return '<a href="tel:' + String(n).replace(/\D/g, '') + '"><b>' + escHtml(n) + '</b></a>'; }
+    var crisis = escHtml(row.crisis);
+    if (row.crisis_number) crisis = crisis.replace(escHtml(row.crisis_number), function () { return tel(row.crisis_number); });
+    return escHtml(text)
+      .replace(/\{EMERGENCY\}/g, function () { return row.emergency ? tel(row.emergency) : '<b>' + escHtml(row.emergency_text) + '</b>'; })
+      .replace(/\{DOCTOR\}/g, function () { return escHtml(row.doctor); })
+      .replace(/\{CRISIS\}/g, function () { return '<b>' + crisis + '</b>'; });
+  }
+
+  // Which notices the ticks call for, read from each row's tier (set server-side
+  // from the row's own urgency / is_crisis): c = support, a = act now, b = this week.
+  function sfxTiers(sn, picked) {
+    var seen = { a: false, b: false, c: false };
+    var groups = ['symptoms', 'mh'];
+    for (var g = 0; g < groups.length; g++) {
+      var keys = (picked && picked[groups[g]]) || [], rows = sn.rows[groups[g]] || [];
+      for (var r = 0; r < rows.length; r++) {
+        if (keys.indexOf(rows[r].k) > -1 && seen.hasOwnProperty(rows[r].tier)) seen[rows[r].tier] = true;
+      }
+    }
+    return seen;
+  }
+
+  // One notice screen: title, the sheet's lines, one country menu, one button.
+  // btn overrides the button words (notice C keeps today's "Continue" / "See my results →").
+  function sfxNoticeHtml(sn, lang, kind, cc, also, id, btn) {
+    var T = sn.notices[lang] || sn.notices.en, N = T[kind], row = sfxRowFor(sn, cc), body = '', opts = '';
+    for (var i = 0; i < N.body.length; i++) body += '<p class="hdlw-callout-body">' + sfxFill(N.body[i], row) + '</p>';
+    if (kind === 'a' && also) body += '<p class="hdlw-callout-body">' + escHtml(T.also) + '</p>';
+    // v0.48.67 sheet 10.7: under the new lines the UK keeps only NHS 111 and Shout (999 and Samaritans are in them).
+    // ponytail: these two lines repeat renderCrisisScreen's; drop that copy when the old screen goes.
+    if (kind === 'c' && row.code === 'GB') {
+      body += '<p class="hdlw-callout-body">'
+        + '<b>NHS 111</b> — then choose the mental-health option.<br>'
+        + '<b>Shout</b> — text <b>85258</b>.'
+        + '</p>';
+    }
+    for (var j = 0; j < sn.countries.length; j++) {
+      var c = sn.countries[j];
+      opts += '<option value="' + escHtml(c.code) + '"' + (c.code === row.code ? ' selected' : '') + '>' + escHtml(c.name) + '</option>';
+    }
+    opts += '<option value=""' + (row.code ? '' : ' selected') + '>' + escHtml(sn.generic.name) + '</option>';
+    return '<div lang="' + escHtml(lang) + '" translate="no">'
+      + '<div class="hdlw-q-opener"><h2 class="hdlw-q-title">' + escHtml(N.title) + '</h2><div class="hdlw-q-rule"></div></div>'
+      + '<div class="hdlw-sfx-country"><label for="' + id + '-sfx-country">' + escHtml(T.country) + '</label>'
+      +   '<select id="' + id + '-sfx-country">' + opts + '</select></div>'
+      + '<div class="hdlw-callout hdlw-sfx-notice">' + body + '</div>'
+      + '<div class="hdlw-fields" style="padding-top:0;"><button id="' + id + '-sfx-go" type="button" class="hdlw-cta">' + escHtml(btn || N.button) + '</button></div>'
+      + '</div>';
+  }
+
+  // The callout with a plain border all round (no rail), and the country menu.
+  function injectNoticeStyles() {
+    if (document.getElementById('hdlw-notice-styles')) return;
+    var s = document.createElement('style');
+    s.id = 'hdlw-notice-styles';
+    s.textContent = '.hdlw-sfx-notice{border-left:1px solid ' + B.border + ';border-radius:3px;}'
+      + '.hdlw-sfx-notice .hdlw-callout-body{margin:0 0 10px;}'
+      + '.hdlw-sfx-notice .hdlw-callout-body:last-child{margin-bottom:0;}'
+      + '.hdlw-sfx-notice a{color:inherit;text-decoration:underline;}'
+      + '.hdlw-r .hdlw-sfx-notice{margin:0 0 16px;}'
+      + '.hdlw-sfx-country{margin:0 28px 10px;display:flex;align-items:center;gap:8px;font-family:' + B.body + ';font-size:12.5px;color:' + B.text + ';}'
+      + '.hdlw-sfx-country select{font:inherit;padding:6px 8px;border:1px solid ' + B.border + ';border-radius:3px;background:#fff;color:' + B.text + ';}'
+      + '.hdlw-sfx-country select:focus-visible{outline:2px solid var(--hdl-accent,#3d8da0);outline-offset:2px;}';
+    document.head.appendChild(s);
+  }
+
+  // The notice's action again, above the result (A and B only): A's own repeat line (both actions, v0.48.67), else the first line.
+  function sfxReminderHtml(sn, lang, kind, cc) {
+    if (kind !== 'a' && kind !== 'b') return '';
+    var T = sn.notices[lang] || sn.notices.en;
+    return '<div class="hdlw-callout hdlw-sfx-notice" lang="' + escHtml(lang) + '" translate="no"><p class="hdlw-callout-body">'
+      + '<b>' + escHtml(T.reminder) + '</b> ' + sfxFill(T[kind].repeat || T[kind].body[0], sfxRowFor(sn, cc)) + '</p></div>';
+  }
+
   // ---------- QUESTION DEFINITIONS ----------
 
   var QUESTIONS = {
@@ -656,6 +751,54 @@
     return (typeof url === 'string' && /^https:\/\//i.test(url)) ? url : '';
   }
 
+  // v0.48.77 (2c) — the result page's Full Report button (hdlv2_ff_result_offer). The band's page
+  // comes from the server (HDLV2_Offer::result_offer_fields); the visitor's e-mail rides in the
+  // fragment, as on the e-mail's link, when it passes the Altituding page's own check. No https
+  // address, no offer: the card keeps its thank-you words.
+  // v0.48.85 (plan 2k): `pass` is the browser pass from this browser's own lead reply; it rides beside the
+  // e-mail (the buying page needs both) and is kept in a variable only, never in storage.
+  function resultOfferHref(offer, band, email, pass) {
+    var url = safeBuyUrl(offer && offer.band_urls ? offer.band_urls[band] : '');
+    if (!url) return '';
+    var good = typeof email === 'string' && email.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+    if (!good) return url;
+    var own = typeof pass === 'string' && /^b\d{10}\.[a-f0-9]{64}$/.test(pass) ? '&own=' + pass : '';
+    return url + '#email=' + encodeURIComponent(email) + own;
+  }
+
+  // v0.48.85 (plan 2k) — the lead reply arrives after the result is drawn: the button that holds the
+  // offer address gets the pass. Nothing happens when no button was drawn or the pass is not well shaped.
+  function withBuyPass(root, href, pass) {
+    if (!href || typeof pass !== 'string' || !/^b\d{10}\.[a-f0-9]{64}$/.test(pass) || href.indexOf('#email=') < 0) return;
+    var links = root.querySelectorAll('a');
+    for (var i = 0; i < links.length; i++) {
+      if (links[i].getAttribute('href') === href) links[i].setAttribute('href', href + '&own=' + pass);
+    }
+  }
+
+  // The thank-you card's words when the offer shows: the Stage 1 e-mail's (v44), in its order.
+  function resultOfferHtml(offer, href, esc, email, canRestart) {
+    // The address line only when the Buy link carries it (then Stripe locks it). "Start again" names this page (an
+    // empty href would follow Altituding's <base href="/"> home) and never shows on a ticket: it would reload a used link.
+    var again = canRestart && typeof location !== 'undefined' ? String(location.href).split('#')[0] : '';
+    var locked = email && String(href).indexOf('#email=') >= 0;
+    return '<h2 class="hdlw-r-thanks-headline">Do you know what is creating your number?</h2>'
+      + '<p>On its own, a number changes nothing.</p>'
+      + '<p>The Full Report shows what pulls yours up and what pulls it down.</p>'
+      + '<p>Advice online is written for everyone. This is written about you.</p>'
+      // Gate row F25: Stripe locks this address, so show it before Buy; "Start again" reloads the questions.
+      + ( locked ? '<p class="hdlw-r-offer-email">Your Full Report will be sent to <strong>' + esc(email) + '</strong>.'
+          + ( canRestart ? ' Not your address? <a href="' + esc(again) + '">Start again</a>' : '' ) + '</p>' : '' )
+      + '<div class="hdlw-r-buttons" style="margin:22px 0;">'
+      +   '<a class="hdlw-r-btn-primary" href="' + esc(href) + '">Yes, give me access to my Full Report</a>'
+      +   '<p class="hdlw-r-price">For a small investment of ' + esc(offer.today) + '.</p>'
+      + '</div>'
+      + '<p class="hdlw-r-offer-note"><strong>Important:</strong> this number is an estimate. No test can measure anyone\'s exact rate of ageing. Use it like a compass, not a GPS: a direction and a place to start.</p>'
+      + '<p class="hdlw-r-offer-quote"><strong>From you, a few decades on:</strong> Thank you for doing this when you did. I\'m so glad I\'m not the one sitting out of things. I\'m so glad I\'m not the one everyone has to help. You started early, and I\'m the one who got to enjoy it.</p>'
+      + '<p>None of this replaces your doctor. Keep them in the loop.</p>'
+      + '<p>Your free report is on its way to your inbox.</p>';
+  }
+
   function buyLink(el, publicCfg) {
     var url = safeBuyUrl((publicCfg && publicCfg.buy_url) || el.getAttribute('data-buy-url') || '');
     return url ? '<a class="hdlw-buy" href="' + escHtml(url) + '">Buy the report</a>' : '';
@@ -703,7 +846,7 @@
 
   // ---------- WIDGET BUILDER ----------
 
-  function buildWidget(el, invite, publicCfg) {
+  function buildWidget(el, invite, publicCfg, late) {
     loadFonts();
     injectEditorialStyles();
 
@@ -753,8 +896,6 @@
       if (publicCfg.cta_text)          cfg.ctaText   = publicCfg.cta_text;
       if (publicCfg.theme_color)       cfg.color     = publicCfg.theme_color;
       cfg.showBookOnPublic = !!publicCfg.show_book_button_after_widget;
-      // v0.48.29 — the Healthspan Timeline page; present only while its flag is on.
-      cfg.timelineUrl = safeBuyUrl(publicCfg.timeline_url || '');
     }
 
     var inviteToken = '', inviteName = '', inviteEmail = '';
@@ -798,6 +939,14 @@
     cfg.questionMotion = !!((publicCfg && publicCfg.question_motion_enabled) || (invite && invite.question_motion_enabled));
     cfg.assetVer = String((publicCfg && publicCfg.asset_ver) || (invite && invite.asset_ver) || '');
     cfg.bandVideos = (publicCfg && publicCfg.band_videos) || (invite && invite.band_videos) || null; // v0.48.50 (W9)
+    cfg.safetyNotice = (publicCfg && publicCfg.safety_notice) || (invite && invite.safety_notice) || null; // v0.48.66
+    cfg.resultOffer = (publicCfg && publicCfg.result_offer) || (invite && invite.result_offer) || null; // v0.48.77 (2c)
+    // v0.48.89 (A10) — the settings answer came after pullPublicConfig's cut-off: it still fills these
+    // two, which the result page first reads minutes later, and nothing else. A result already drawn stays.
+    if (late) late.fill = function (lateCfg) {
+      cfg.bandVideos = lateCfg.band_videos || null;
+      cfg.resultOffer = lateCfg.result_offer || null;
+    };
     if (cfg.questionMotion) injectMotionStyles();
 
     var id = 'hdlw-' + cfg.pracId;
@@ -1245,7 +1394,7 @@
         // Off = identical to before. On = collect the 2 safety answers + fire
         // any crisis/hard interrupt, then goTo(10).
         if (cfg.safetyScreen && !answers._safetyDone) {
-          renderSafetyScreen();
+          (cfg.safetyNotice ? renderSafetyScreenV2 : renderSafetyScreen)();
         } else {
           goTo(10);
         }
@@ -1440,6 +1589,99 @@
       if (go2) go2.addEventListener('click', function () { goTo(10); });
     }
 
+    // --- v0.48.66 Safety notice by country (cfg.safetyNotice, hdlv2_ff_safety_notice_v2) ---
+    //
+    // The same check with the server's rows and the "automatic" line above it,
+    // then one of three fixed notices chosen by each row's tier, in the numbers
+    // of the visitor's country (a menu changes it). The press rides in the lead
+    // POST as safety_ack. Switch off = the functions above, untouched.
+    var sfxCountry = '';
+
+    function renderSafetyScreenV2() {
+      var sn = cfg.safetyNotice, lang = sfxLang(sn), T = sn.notices[lang];
+      injectNoticeStyles();
+      sfxCountry = (visitorGeo && visitorGeo.country) || '';
+      var np = document.getElementById(id + '-nav-prev'); if (np) np.style.display = 'none';
+      var nx = document.getElementById(id + '-nav-next'); if (nx) nx.style.display = 'none';
+      if (stepEl) stepEl.innerHTML = '<b>Safety</b>';
+      var sfxShell = contentEl.closest('.hdlw-shell');
+      if (sfxShell) {
+        if (sfxShell.parentElement) sfxShell.parentElement.style.maxWidth = 'none';
+        sfxShell.style.maxWidth = '880px';
+      }
+      var esc = function (r) { return { k: escHtml(r.k), t: escHtml(r.t) }; };
+      var symHtml = '', mhHtml = '';
+      for (var a = 0; a < sn.rows.symptoms.length; a++) symHtml += sfxRow('symptoms', esc(sn.rows.symptoms[a]));
+      for (var b = 0; b < sn.rows.mh.length; b++) mhHtml += sfxRow('mh', esc(sn.rows.mh[b]));
+
+      contentEl.innerHTML = ''
+        + '<div class="hdlw-sfx-sec">'
+        +   '<div class="hdlw-q-opener">'
+        +     '<p class="hdlw-q-section">One last check · before your result</p>'
+        +     '<h2 class="hdlw-q-title">A quick safety check</h2>'
+        +     '<div class="hdlw-q-rule"></div>'
+        +     '<p class="hdlw-q-prompt">This isn’t a medical assessment — but part of our job is to notice anything that deserves a doctor’s eye before we build your plan. Tick anything you’ve noticed in the last 6–12 months, even once or twice.</p>'
+        +   '</div>'
+        +   '<div class="hdlw-callout hdlw-sfx-notice" lang="' + escHtml(lang) + '" translate="no"><p class="hdlw-callout-body">' + sfxFill(T.check, sfxRowFor(sn, sfxCountry)) + '</p></div>'
+        +   '<div class="hdlw-sfx-grid">' + symHtml + sfxNoneRow('symptoms', 'None of these') + '</div>'
+        + '</div>'
+        + '<div class="hdlw-sfx-sec">'
+        +   '<div class="hdlw-q-opener">'
+        +     '<p class="hdlw-q-section">Optional &amp; confidential</p>'
+        +     '<h2 class="hdlw-q-title">How you’ve been feeling</h2>'
+        +     '<div class="hdlw-q-rule"></div>'
+        +     '<p class="hdlw-q-prompt">And how have you been feeling in yourself lately? Skip anything you’d rather not answer.</p>'
+        +   '</div>'
+        +   '<div class="hdlw-sfx-grid">' + mhHtml + sfxNoneRow('mh', 'None of these · I’d rather not say') + '</div>'
+        + '</div>'
+        + '<div class="hdlw-fields" style="padding-top:0;">'
+        +   '<button id="' + id + '-sfx-continue" type="button" class="hdlw-cta">See my results →</button>'
+        + '</div>';
+
+      sfxBindToggles();
+      var cont = document.getElementById(id + '-sfx-continue');
+      if (cont) cont.addEventListener('click', sfxContinueV2);
+    }
+
+    function sfxContinueV2() {
+      var sfxShell = contentEl.closest('.hdlw-shell');
+      if (sfxShell) {
+        sfxShell.style.maxWidth = '';
+        if (sfxShell.parentElement) sfxShell.parentElement.style.maxWidth = '';
+      }
+      var picked = sfxCollect();
+      answers._safety = (picked.symptoms || picked.mh) ? picked : null;
+      answers._safetyDone = true;
+      var t = sfxTiers(cfg.safetyNotice, picked);
+      var next = t.a ? 'a' : (t.b ? 'b' : '');
+      if (t.c) { renderNoticeV2('c', next, t.a && t.b); return; }
+      if (next) { renderNoticeV2(next, '', t.a && t.b); return; }
+      goTo(10);
+    }
+
+    // kind = the notice on screen; next = the notice after C (or ''); also = A's extra line.
+    function renderNoticeV2(kind, next, also) {
+      var sn = cfg.safetyNotice, lang = sfxLang(sn);
+      var btn = kind === 'c' ? (next ? 'Continue' : 'See my results →') : '';
+      contentEl.innerHTML = sfxNoticeHtml(sn, lang, kind, sfxCountry, also, id, btn);
+      if (contentEl.scrollIntoView) contentEl.scrollIntoView({ block: 'start' });
+      var sel = document.getElementById(id + '-sfx-country');
+      if (sel) sel.addEventListener('change', function () {
+        sfxCountry = sel.value;
+        renderNoticeV2(kind, next, also);
+        var again = document.getElementById(id + '-sfx-country');
+        if (again) again.focus();
+      });
+      var go = document.getElementById(id + '-sfx-go');
+      if (go) go.addEventListener('click', function () {
+        if (kind === 'c' && next) { renderNoticeV2(next, '', also); return; }
+        answers._safetyAck = { notice: kind, version: sn.version, country: sfxCountry };
+        goTo(10);
+        var res = contentEl.querySelector('.hdlw-r');
+        if (res) res.insertAdjacentHTML('afterbegin', sfxReminderHtml(sn, lang, kind, sfxCountry));
+      });
+    }
+
     // --- Results ---
     //
     // Phase 17 (v0.22.26) \u2014 full mockup parity. Replaces the previous narrow
@@ -1490,16 +1732,6 @@
       var firstName = (answers._name || '').split(/\s+/)[0] || 'there';
       var greeting = firstName === 'there' ? 'Hi there \u2014' : 'Hi ' + firstName + ' \u2014';
 
-      // v0.48.29 — the timeline teaser opens the page with these numbers in the
-      // fragment (never sent to a server). Adults only: the page reads 18 to 100.
-      var timelineHref = cfg.timelineUrl && age >= 18 && age <= 100
-        ? cfg.timelineUrl + '#a=' + age + '&s=' + (r.sex === 'male' ? 'M' : 'F') + '&r=' + rate.toFixed(2)
-          + '&n=' + encodeURIComponent(firstName === 'there' ? '' : firstName)
-          + (/^\d+$/.test(String(cfg.pracId)) ? '&p=' + cfg.pracId : '') // v0.48.60: the timeline's brand row
-        : '';
-      var timelineStrip = ['#3fae4a', '#3fae4a', '#3fae4a', '#3fae4a', '#3fae4a', '#e0b128', '#e0b128', '#e5761f', '#e5761f', '#c93437', '#c93437', '#b4bcb9']
-        .map(function (c, i) { return '<rect x="' + (i * 20) + '" y="0" width="18" height="40" rx="3" fill="' + c + '"/>'; }).join('');
-
       // Rate band drives the headline copy + the Awaken third paragraph.
       var bandColor, bandLabel, bandClass, awakenP1, awakenP3;
       var pct = Math.abs(Math.round((rate - 1) * 100));
@@ -1523,6 +1755,11 @@
         awakenP3  = 'The good news: a ' + rateDisplay + '\u00d7 rate is well inside the range that responds quickly to focused changes in strength training, sleep consistency and daily movement. Your practitioner will use this gauge as the baseline for everything that follows.';
       }
       var awakenP2 = 'This isn\u2019t a verdict \u2014 it\u2019s a starting picture. The 9 questions captured your activity, sleep, social, smoking and diet patterns. The result reflects today, not tomorrow. Most of these levers are within your control.';
+
+      // v0.48.77 (2c) — hdlv2_ff_result_offer: on the paths that show the thank-you card (never the
+      // practitioner-invited one) the card sells the Full Report like the Stage 1 e-mail.
+      var bandKey = { good: 'green', avg: 'blue', warn: 'red' }[bandClass];
+      var offerHref = fastInvite ? '' : resultOfferHref(cfg.resultOffer, bandKey, answers._email);
 
       var diffLabel = '';
       if (diff !== null) {
@@ -1645,6 +1882,11 @@
         // card font-stack so the page reads as one coherent visual.
         + '.hdlw-r-thanks-headline{font-family:' + SERIF + ';font-size:24px;font-weight:600;color:#111;margin:0 0 12px;letter-spacing:-0.01em;line-height:1.2;}'
         + '.hdlw-r-thanks-body{font-size:15px;color:#555;line-height:1.75;margin:0;}'
+        // v0.48.77 (2c) — the offer card's small price line and its two soft boxes, as in the Stage 1 e-mail.
+        + '.hdlw-r-card p.hdlw-r-price{font-size:13px;color:#888;margin:0;}'
+        + '.hdlw-r-card p.hdlw-r-offer-email a{color:#3d8da0;text-decoration:underline;}'
+        + '.hdlw-r-card p.hdlw-r-offer-note{border:1px solid #e4e6ea;border-radius:10px;padding:12px 16px;font-size:13px;line-height:1.6;color:#2c3e50;}'
+        + '.hdlw-r-card p.hdlw-r-offer-quote{background:#f8f9fb;border-radius:10px;padding:18px 22px;font-style:italic;color:#2c3e50;}'
         + '.hdlw-r-btn-primary{display:inline-block;width:100%;max-width:320px;box-sizing:border-box;padding:12px 28px;background:#004F59;color:#fff;border:1px solid #004F59;border-radius:999px;text-decoration:none;font-size:14px;font-weight:600;text-align:center;transition:background .15s ease;}'
         + '.hdlw-r-btn-primary:hover{background:#003a42;border-color:#003a42;}'
         + '.hdlw-r-btn-secondary{display:inline-block;width:100%;max-width:320px;box-sizing:border-box;padding:12px 28px;background:#fff;color:#3d8da0;border:1px solid #3d8da0;border-radius:999px;text-decoration:none;font-size:14px;font-weight:600;text-align:center;transition:background .15s ease,color .15s ease;}'
@@ -1704,7 +1946,7 @@
         +     '</div>'
         +     '<span class="hdlw-r-hero-pill">Stage 1</span>'
         +   '</div>'
-        +   '<p class="hdlw-r-hero-body">Here\u2019s your starting picture, built from your 9 quick answers. Next, your <em>WHY</em> \u2014 what really matters to you \u2014 turns this snapshot into a plan that\u2019s truly yours.</p>'
+        +   '<p class="hdlw-r-hero-body">Here\u2019s your starting picture, built from your 9 quick answers.' + (offerHref ? '' : ' Next, your <em>WHY</em> \u2014 what really matters to you \u2014 turns this snapshot into a plan that\u2019s truly yours.') + '</p>'
         + '</section>'
 
         // v0.22.46 \u2014 2-column page grid below hero.
@@ -1721,7 +1963,7 @@
         +       '<h2>Your Health Gauge</h2>'
         +       '<p class="hdlw-r-lede">A snapshot of how fast you\u2019re ageing today, based on your quick answers.</p>'
         +       '<img class="hdlw-r-gauge-img" src="' + gaugeUrl(rate) + '" alt="Rate of ageing gauge \u2014 ' + rateDisplay + '">'
-        +       bandVideoHtml({ good: 'green', avg: 'blue', warn: 'red' }[bandClass], cfg.bandVideos)
+        +       ( cfg.resultOffer && !offerHref ? '' : bandVideoHtml(bandKey, cfg.bandVideos) || (offerHref ? bandVideoHtml('film', { film: cfg.resultOffer.video_url }) : '') ) // v0.48.83 (2j): the films sell the $27 report, so with the switch on no button means no film
         +     '</div>'
         +     '<div class="hdlw-r-stat">'
         +       '<p class="hdlw-r-stat-label">Rate of Ageing</p>'
@@ -1787,8 +2029,10 @@
             // said saved: the thank-you stays hidden and -status reports.
             +   '<div id="' + id + '-status" class="hdlw-r-status" role="status" aria-live="polite">Sending your answers\u2026</div>'
             +   '<div id="' + id + '-thanks" hidden>'
-            +     '<h2 class="hdlw-r-thanks-headline">Thank you.</h2>'
-            +     '<p class="hdlw-r-thanks-body">Your practitioner has been sent your data. Once they have looked at your data, you will receive another email.</p>'
+            +     ( offerHref
+                  ? resultOfferHtml(cfg.resultOffer, offerHref, escapeHtml, answers._email, !inviteToken)
+                  : '<h2 class="hdlw-r-thanks-headline">Thank you.</h2>'
+                  + '<p class="hdlw-r-thanks-body">Your practitioner has been sent your data. Once they have looked at your data, you will receive another email.</p>' )
             +     ( showBook
                   ? '<div class="hdlw-r-buttons" style="margin-top:22px;">' + bookSessionBtn + '</div>'
                   : '' )
@@ -1796,13 +2040,6 @@
         )
         +     '</div>'
         +     ( linkInvite ? '<div id="' + id + '-link" class="hdlw-r-card" role="region" aria-label="Share with ' + escapeHtml(linkFrom) + '" hidden></div>' : '' )
-        +     ( timelineHref
-            ? '<div class="hdlw-r-card hdlw-timeline-teaser">'
-            +   '<svg viewBox="0 0 240 40" width="100%" height="40" preserveAspectRatio="none" aria-hidden="true" focusable="false">' + timelineStrip + '</svg>'
-            +   '<p style="margin:14px 0 16px;font-weight:600;color:#2c3e50;">See your years beside the people you love</p>'
-            +   '<a class="hdlw-r-btn-secondary" href="' + escapeHtml(timelineHref) + '" target="_blank" rel="noopener noreferrer">Open my timeline</a>'
-            + '</div>'
-            : '' )
         +   '</div>'
 
         + '</div>' // end .hdlw-r-twocol
@@ -1863,6 +2100,7 @@
       // v0.43.0 - front-door safety answers (present only when the flag is on
       // and something was ticked). Server sanitises against a key allowlist.
       if (answers._safety) payload.safety = answers._safety;
+      if (answers._safetyAck) payload.safety_ack = answers._safetyAck; // v0.48.66
       if (inviteToken) payload.invite_token = inviteToken;
       // v0.47.83 — coarse location (country + state) if the init-time geo
       // lookup resolved. Optional by design: absent when blocked/slow, and
@@ -1891,6 +2129,7 @@
         }
         // Public path (and paid tickets): the thank-you wall.
         statusEl.innerHTML = '';
+        withBuyPass(el, offerHref, data.buy_pass); // v0.48.85 (plan 2k)
         // v0.48.23 — a challenge buyer is signed in here: straight on to the 30 days.
         if (invite && invite.source === 'challenge') {
           statusEl.innerHTML = '<a class="hdlw-r-btn-primary" href="'
@@ -2066,6 +2305,13 @@
   // Network failure or timeout: invokes the callback with null. buildWidget
   // then falls back to the embed's data-* attributes, so old embed snippets
   // never break.
+  //
+  // v0.48.89 (A10) — on the timeout the callback also gets `late`. An answer
+  // that lands after it (a cold or far connection) goes to late.fill, which
+  // buildWidget sets: the result page still gets its offer and band film.
+  // (A10b) — the wait is 5 s, was 1.5 s: a widget built without its answer has
+  // no safety screen and no question pictures, and a slow line must not skip
+  // them. A request that fails outright still builds at once.
   function pullPublicConfig(el, callback) {
     var pracId = el.getAttribute('data-practitioner-id') || '';
     var apiUrl = el.getAttribute('data-api') || '';
@@ -2075,11 +2321,12 @@
     if (configUrl === apiUrl) { callback(null); return; } // unable to derive
 
     var done = false;
+    var late = {};
     var safety = setTimeout(function () {
       if (done) return;
       done = true;
-      callback(null);
-    }, 1500);
+      callback(null, late);
+    }, 5000);
 
     fetch(configUrl + '?practitioner_id=' + encodeURIComponent(pracId), {
       method: 'GET',
@@ -2088,7 +2335,7 @@
     })
       .then(function (r) { return r.ok ? r.json() : null; })
       .then(function (data) {
-        if (done) return;
+        if (done) { if (late.fill && data && data.config) late.fill(data.config); return; }
         done = true;
         clearTimeout(safety);
         callback(data && data.config ? data.config : null);
@@ -2290,10 +2537,10 @@
         // Public path — fetch fresh config before render, fall back to
         // embed's data-* attributes on timeout/error.
         (function (el) {
-          pullPublicConfig(el, function (publicCfg) {
+          pullPublicConfig(el, function (publicCfg, late) {
             // Embeds pasted before data-access existed learn it here.
             if (accessScreen(false, null, false, publicCfg) === 'locked') { showLocked(el, publicCfg); return; }
-            buildWidget(el, null, publicCfg);
+            buildWidget(el, null, publicCfg, late);
           });
         })(widgets[i]);
       }

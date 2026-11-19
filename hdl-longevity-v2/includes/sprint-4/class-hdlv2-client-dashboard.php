@@ -1436,20 +1436,19 @@ class HDLV2_Client_Dashboard {
         $pdf_url      = $ctx['report_pdf_url'] ?? '';
         $report_type  = $ctx['report_type'] ?? '';
         $is_final     = ( $report_type === 'final' );
-        $status_label = $is_final ? 'Final' : 'Draft';
         $display_name = esc_html( $ctx['display_name'] ?? $ctx['first_name'] );
 
         $h = '';
 
         // ── Cover ──────────────────────────────────────────────────────────
         $h .= '<div class="cdp-report-cover cdp-reveal cdp-reveal-1">';
-        $h .= '<div class="cdp-report-meta">Your Trajectory Plan &middot; <span class="cdp-report-badge cdp-report-badge-' . ( $is_final ? 'final' : 'draft' ) . '">' . esc_html( $status_label ) . '</span></div>';
+        $h .= '<div class="cdp-report-meta">' . ( $is_final ? 'Your Trajectory Plan &middot; <span class="cdp-report-badge cdp-report-badge-final">Final</span>' : 'Your Full Report' ) . '</div>';
         $h .= '<h1>' . $display_name . '</h1>';
         $h .= '<p class="cdp-report-subtitle">';
         if ( $is_final && $reviewer_raw && $issued ) {
             $h .= 'A personalised plan, reviewed and finalised by ' . esc_html( $reviewer_raw ) . ' on ' . esc_html( $issued ) . '.';
         } elseif ( $reviewer_raw && $issued ) {
-            $h .= 'Draft prepared by ' . esc_html( $reviewer_raw ) . ' on ' . esc_html( $issued ) . '. Final consultation pending.';
+            $h .= 'Full Report prepared by ' . esc_html( $reviewer_raw ) . ' on ' . esc_html( $issued ) . '.';
         } elseif ( $issued ) {
             $h .= 'Your personalised longevity plan. Issued ' . esc_html( $issued ) . '.';
         } else {
@@ -2230,8 +2229,8 @@ class HDLV2_Client_Dashboard {
         } else { // stage3-done
             $h .= '<div class="cd-path">';
             $h .= '<div class="cd-path-icon" aria-hidden="true">' . $this->icon( 'doc' ) . '</div>';
-            $h .= '<h3>Step 3 done &mdash; your practitioner is drafting your report</h3>';
-            $h .= '<p>' . $practitioner . ' is reviewing your assessment and writing your personalised report. You&rsquo;ll be invited to a consultation when it&rsquo;s ready.</p>';
+            $h .= '<h3>Step 3 done &mdash; your Full Report is on its way</h3>';
+            $h .= '<p>' . $practitioner . ' is reviewing your assessment and writing your personalised report.</p>';
             $h .= '</div>';
         }
 
