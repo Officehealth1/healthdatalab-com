@@ -2309,6 +2309,9 @@
   // v0.48.89 (A10) — on the timeout the callback also gets `late`. An answer
   // that lands after it (a cold or far connection) goes to late.fill, which
   // buildWidget sets: the result page still gets its offer and band film.
+  // (A10b) — the wait is 5 s, was 1.5 s: a widget built without its answer has
+  // no safety screen and no question pictures, and a slow line must not skip
+  // them. A request that fails outright still builds at once.
   function pullPublicConfig(el, callback) {
     var pracId = el.getAttribute('data-practitioner-id') || '';
     var apiUrl = el.getAttribute('data-api') || '';
@@ -2323,7 +2326,7 @@
       if (done) return;
       done = true;
       callback(null, late);
-    }, 1500);
+    }, 5000);
 
     fetch(configUrl + '?practitioner_id=' + encodeURIComponent(pracId), {
       method: 'GET',

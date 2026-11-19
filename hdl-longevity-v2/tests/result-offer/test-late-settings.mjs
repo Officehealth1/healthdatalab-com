@@ -1,8 +1,10 @@
 #!/usr/bin/env node
 /**
  * v0.48.89 (gate row A10) — the public settings answer (/widget/public-config) can land after the
- * widget's 1500 ms cut-off. The widget is built from the embed's attributes by then; the late answer
+ * widget's cut-off. The widget is built from the embed's attributes by then; the late answer
  * must still bring the result page's Full Report button and band film, and nothing else.
+ * A10b — the cut-off is 5 s (it was 1.5 s): an answer that takes 3 s must build the widget WITH its
+ * settings, so a slow line does not skip the safety screen or the question pictures.
  * The REAL widget pieces are cut and run in vm (test-result-card.mjs pattern) on a hand-wound clock:
  * pullPublicConfig, the public path's call in init(), accessScreen, buildWidget's two cfg lines and
  * its late fill, and renderResult's button, film and card lines.
@@ -21,7 +23,7 @@ const esc = (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</
 const fns = ['bandVideoHtml', 'accessScreen', 'safeBuyUrl', 'resultOfferHref', 'resultOfferHtml', 'pullPublicConfig'].map((n) => cut('  function ' + n + '(', '\n  }\n'));
 const wire = cut('          pullPublicConfig(el, function (publicCfg', '\n          });\n'); // init(), the public path
 const sig = cut('  function buildWidget(', ') {');
-const cfgLines = [cut('    cfg.bandVideos = ', ';'), cut('    cfg.resultOffer = ', ';')];
+const cfgLines = ['safetyScreen', 'questionMotion', 'bandVideos', 'resultOffer'].map((k) => cut('    cfg.' + k + ' = ', ';'));
 const fill = cut('    if (late) late.fill = ', '\n    };\n'); // '' before the fix
 const hrefLine = cut('      var offerHref = ', ';\n');
 const film = cut('( cfg.resultOffer && !offerHref', ": '') )");
@@ -89,15 +91,18 @@ const NO_INVITE = ''; // a public visitor: no personal link
 const THANKS = 'Your practitioner has been sent your data';
 const BUTTON = 'Yes, give me access to my Full Report';
 
-console.log('── T1. the settings answer takes 3 seconds; the visitor then answers the nine questions ──');
+console.log('── T1. the settings answer takes 7 seconds, past the cut-off; the visitor then answers the nine questions ──');
 {
-  const p = await load({ at: 3000, reply: answer(CONFIG) });
-  await p.to(1500);
-  ok(p.built.length === 1 && p.built[0] === null && p.cfg.resultOffer === null && p.cfg.bandVideos === null, 'T1.1 at 1500 ms the widget is built from the embed, with no offer and no film yet');
-  await p.to(3000);
+  const p = await load({ at: 7000, reply: answer(CONFIG) });
+  await p.to(4999);
+  ok(p.built.length === 0, 'T1.0 the widget waits 5 seconds for its settings: nothing is built at 4999 ms');
+  await p.to(5000);
+  ok(p.built.length === 1 && p.built[0] === null && p.cfg.resultOffer === null && p.cfg.bandVideos === null, 'T1.1 at 5000 ms the widget is built from the embed, with no offer and no film yet');
+  await p.to(7000);
   ok(p.built.length === 1 && p.locked === 0, 'T1.2 the late answer builds nothing again and locks nothing (its access_mode says paid)');
   ok(p.cfg.resultOffer === CONFIG.result_offer && p.cfg.bandVideos === CONFIG.band_videos, 'T1.3 the late answer fills result_offer and band_videos');
-  ok(Object.keys(EMBED).every((k) => p.cfg[k] === EMBED[k]) && Object.keys(p.cfg).sort().join() === Object.keys(EMBED).concat('bandVideos', 'resultOffer').sort().join(), 'T1.4 and only those two: name, colour, booking link and the Book switch stay as built');
+  ok(Object.keys(EMBED).every((k) => p.cfg[k] === EMBED[k]) && p.cfg.safetyScreen === false && p.cfg.questionMotion === false
+    && Object.keys(p.cfg).sort().join() === Object.keys(EMBED).concat('bandVideos', 'resultOffer', 'safetyScreen', 'questionMotion').sort().join(), 'T1.4 and only those two: name, colour, booking link, the Book switch, the safety screen and the pictures stay as built');
   await p.to(90000);
   for (const band of ['green', 'blue', 'red']) {
     const r = p.result(band);
@@ -108,6 +113,21 @@ console.log('── T1. the settings answer takes 3 seconds; the visitor then an
   ok(p.threw === null, 'T1.7 nothing throws');
 }
 
+console.log('── T4 (A10b). the settings answer takes 3 seconds: inside the wait, so the widget has its settings ──');
+{
+  const open = Object.assign({}, CONFIG, { access_mode: 'open' });
+  const p = await load({ at: 3000, reply: answer(open) });
+  await p.to(2999);
+  ok(p.built.length === 0 && p.locked === 0, 'T4.1 nothing is built while the answer is on its way (2999 ms)');
+  await p.to(3000);
+  ok(p.built.length === 1 && p.built[0] === open, 'T4.2 at 3000 ms the widget is built once, with the whole answer');
+  ok(!!p.cfg && p.cfg.safetyScreen === true && p.cfg.questionMotion === true, 'T4.3 the safety screen and the question pictures are on, as the server says');
+  await p.to(90000);
+  const r = p.cfg ? p.result('red') : { href: '', film: '', card: '' };
+  ok(r.href === 'https://alt.test/full-report-faster#email=ivy%40example.test' && count(r.card, BUTTON) === 1 && count(r.film, FILM.red) === 1, 'T4.4 the result has the Full Report button and the band film');
+  ok(p.built.length === 1 && p.threw === null, 'T4.5 nothing is built again at 5000 ms; nothing throws');
+}
+
 console.log('── T2. the answer comes in time: as before ──');
 {
   const p = await load({ at: 300, reply: answer(CONFIG) });
@@ -116,8 +136,8 @@ console.log('── T2. the answer comes in time: as before ──');
   const open = Object.assign({}, CONFIG, { access_mode: 'open' });
   const q = await load({ at: 300, reply: answer(open) });
   await q.to(90000);
-  ok(q.built.length === 1 && q.built[0] === open && q.locked === 0, 'T2.2 built once, with the whole answer, and not again at 1500 ms');
-  const late = await load({ at: 3000, reply: answer(open) });
+  ok(q.built.length === 1 && q.built[0] === open && q.locked === 0, 'T2.2 built once, with the whole answer, and not again at the cut-off');
+  const late = await load({ at: 7000, reply: answer(open) });
   await late.to(90000);
   ok(['green', 'blue', 'red'].every((b) => JSON.stringify(q.result(b)) === JSON.stringify(late.result(b))), 'T2.3 button, film and card are byte for byte the same whether the answer was in time or late');
   ok(/^ {12}buildWidget\(el, null, publicCfg, late\);$/m.test(wire) && !/late/.test(cut('  function inviteFailed(', '\n  }\n')), 'T2.4 only the public path hands the late slot on; the invite paths do not');
@@ -126,12 +146,12 @@ console.log('── T2. the answer comes in time: as before ──');
 console.log('── T3. the settings request fails ──');
 for (const [label, opts] of [
   ['the network fails before the cut-off', { at: 200, reply: null }],
-  ['the network fails after the cut-off', { at: 5000, reply: null }],
+  ['the network fails after the cut-off', { at: 8000, reply: null }],
   ['the server answers 500 in time', { at: 200, reply: { ok: false, json: () => Promise.reject(new Error('no body')) } }],
-  ['the server answers 500 late', { at: 3000, reply: { ok: false, json: () => Promise.reject(new Error('no body')) } }],
-  ['a late answer with no config in it', { at: 3000, reply: { ok: true, json: () => Promise.resolve({}) } }],
-  ['a late answer that is not JSON', { at: 3000, reply: { ok: true, json: () => Promise.reject(new SyntaxError('bad json')) } }],
-  ['a late answer with the offer switched off', { at: 3000, reply: answer({ access_mode: 'open', practitioner_name: 'From the server' }) }],
+  ['the server answers 500 late', { at: 7000, reply: { ok: false, json: () => Promise.reject(new Error('no body')) } }],
+  ['a late answer with no config in it', { at: 7000, reply: { ok: true, json: () => Promise.resolve({}) } }],
+  ['a late answer that is not JSON', { at: 7000, reply: { ok: true, json: () => Promise.reject(new SyntaxError('bad json')) } }],
+  ['a late answer with the offer switched off', { at: 7000, reply: answer({ access_mode: 'open', practitioner_name: 'From the server' }) }],
 ]) {
   const p = await load(opts);
   await p.to(90000);
