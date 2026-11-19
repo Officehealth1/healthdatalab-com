@@ -846,7 +846,7 @@
 
   // ---------- WIDGET BUILDER ----------
 
-  function buildWidget(el, invite, publicCfg) {
+  function buildWidget(el, invite, publicCfg, late) {
     loadFonts();
     injectEditorialStyles();
 
@@ -941,6 +941,12 @@
     cfg.bandVideos = (publicCfg && publicCfg.band_videos) || (invite && invite.band_videos) || null; // v0.48.50 (W9)
     cfg.safetyNotice = (publicCfg && publicCfg.safety_notice) || (invite && invite.safety_notice) || null; // v0.48.66
     cfg.resultOffer = (publicCfg && publicCfg.result_offer) || (invite && invite.result_offer) || null; // v0.48.77 (2c)
+    // v0.48.89 (A10) — the settings answer came after pullPublicConfig's cut-off: it still fills these
+    // two, which the result page first reads minutes later, and nothing else. A result already drawn stays.
+    if (late) late.fill = function (lateCfg) {
+      cfg.bandVideos = lateCfg.band_videos || null;
+      cfg.resultOffer = lateCfg.result_offer || null;
+    };
     if (cfg.questionMotion) injectMotionStyles();
 
     var id = 'hdlw-' + cfg.pracId;
@@ -2299,6 +2305,10 @@
   // Network failure or timeout: invokes the callback with null. buildWidget
   // then falls back to the embed's data-* attributes, so old embed snippets
   // never break.
+  //
+  // v0.48.89 (A10) — on the timeout the callback also gets `late`. An answer
+  // that lands after it (a cold or far connection) goes to late.fill, which
+  // buildWidget sets: the result page still gets its offer and band film.
   function pullPublicConfig(el, callback) {
     var pracId = el.getAttribute('data-practitioner-id') || '';
     var apiUrl = el.getAttribute('data-api') || '';
@@ -2308,10 +2318,11 @@
     if (configUrl === apiUrl) { callback(null); return; } // unable to derive
 
     var done = false;
+    var late = {};
     var safety = setTimeout(function () {
       if (done) return;
       done = true;
-      callback(null);
+      callback(null, late);
     }, 1500);
 
     fetch(configUrl + '?practitioner_id=' + encodeURIComponent(pracId), {
@@ -2321,7 +2332,7 @@
     })
       .then(function (r) { return r.ok ? r.json() : null; })
       .then(function (data) {
-        if (done) return;
+        if (done) { if (late.fill && data && data.config) late.fill(data.config); return; }
         done = true;
         clearTimeout(safety);
         callback(data && data.config ? data.config : null);
@@ -2523,10 +2534,10 @@
         // Public path — fetch fresh config before render, fall back to
         // embed's data-* attributes on timeout/error.
         (function (el) {
-          pullPublicConfig(el, function (publicCfg) {
+          pullPublicConfig(el, function (publicCfg, late) {
             // Embeds pasted before data-access existed learn it here.
             if (accessScreen(false, null, false, publicCfg) === 'locked') { showLocked(el, publicCfg); return; }
-            buildWidget(el, null, publicCfg);
+            buildWidget(el, null, publicCfg, late);
           });
         })(widgets[i]);
       }
