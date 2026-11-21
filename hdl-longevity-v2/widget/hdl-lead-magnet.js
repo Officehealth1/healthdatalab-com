@@ -1394,6 +1394,7 @@
         // Off = identical to before. On = collect the 2 safety answers + fire
         // any crisis/hard interrupt, then goTo(10).
         if (cfg.safetyScreen && !answers._safetyDone) {
+          tell('hdlw:safety-check');
           (cfg.safetyNotice ? renderSafetyScreenV2 : renderSafetyScreen)();
         } else {
           goTo(10);
@@ -1680,6 +1681,15 @@
         var res = contentEl.querySelector('.hdlw-r');
         if (res) res.insertAdjacentHTML('afterbegin', sfxReminderHtml(sn, lang, kind, sfxCountry));
       });
+    }
+
+    // v0.48.90 (plan 7, Push A) — the page that hosts the widget is told when the answers are saved (or safely
+    // held) and when the visitor reaches the safety check, which everybody with the check sees, so it says
+    // nothing about what was ticked. The detail is the e-mail typed at the contact step, nothing else.
+    // Altituding listens to stop its one reminder e-mail; a host that does not listen sees no change.
+    function tell(type) {
+      if (!cfg.apiUrl || typeof CustomEvent !== 'function') return;
+      el.dispatchEvent(new CustomEvent(type, { bubbles: true, detail: { email: answers._email } }));
     }
 
     // --- Results ---
@@ -2116,6 +2126,7 @@
       // stay on the page (payload) for the resend.
       var statusEl = document.getElementById(id + '-status') || document.getElementById(id + '-continue');
       function saved(data) {
+        tell('hdlw:finished');
         var sent = document.getElementById(id + '-sent');
         if (sent) sent.hidden = false;
         // Invite-fast-path: pre-trusted, immediate magic link.
@@ -2170,6 +2181,7 @@
       // v0.48.16 — the server was busy or silent: the answers are on the
       // holding list. No Send again; the report follows by email.
       function held() {
+        tell('hdlw:finished');
         var sent = document.getElementById(id + '-sent');
         if (sent) sent.hidden = true;
         var c = heldCopy();

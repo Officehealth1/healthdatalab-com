@@ -32,7 +32,9 @@ ok(oldBlock.length > 3000 && oldBlock === newBlock, 'flag off: the lists, render
 const CALL_OLD = '          renderSafetyScreen();\n';
 const CALL_NEW = '          (cfg.safetyNotice ? renderSafetyScreenV2 : renderSafetyScreen)();\n';
 const rcOld = cutIn(old, '    function renderContact() {', '\n    }\n'), rcNew = cutIn(js, '    function renderContact() {', '\n    }\n');
-ok(rcOld.indexOf(CALL_OLD) > 0 && rcNew === rcOld.replace(CALL_OLD, CALL_NEW), 'renderContact changed by the one dispatch line only');
+// v0.48.90 (plan 7, Push A): the host page is told the visitor reached the check (tests/stage1-finished); that one line too.
+const TELL_LINE = "          tell('hdlw:safety-check');\n";
+ok(rcOld.indexOf(CALL_OLD) > 0 && rcNew === rcOld.replace(CALL_OLD, TELL_LINE + CALL_NEW), 'renderContact changed by the one dispatch line and the one safety-check signal only');
 const cfgLine = '    cfg.safetyNotice = (publicCfg && publicCfg.safety_notice) || (invite && invite.safety_notice) || null; // v0.48.66\n';
 ok(js.indexOf(cfgLine) > 0, 'cfg.safetyNotice read from the public config or the invite payload');
 const ACK_LINE = '      if (answers._safetyAck) payload.safety_ack = answers._safetyAck; // v0.48.66\n';

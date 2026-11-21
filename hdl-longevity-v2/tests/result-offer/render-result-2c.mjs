@@ -65,6 +65,20 @@ export const EDITS = [
         + '.hdlw-r-card p.hdlw-r-price{font-size:13px;color:#888;margin:0;}'
         + '.hdlw-r-card p.hdlw-r-offer-email a{color:#3d8da0;text-decoration:underline;}'
 `],
+  // v0.48.90 (plan 7, Push A) — the host page is told the answers are saved: one line at the top of saved() and
+  // of held() (tests/stage1-finished/test-finished-signal.mjs). Nothing else in renderResult moved.
+  [String.raw`
+      function saved(data) {
+        var sent`, String.raw`
+      function saved(data) {
+        tell('hdlw:finished');
+        var sent`],
+  [String.raw`
+      function held() {
+        var sent`, String.raw`
+      function held() {
+        tell('hdlw:finished');
+        var sent`],
 ];
 
 /** The base renderResult with the 2c edits applied, or null when a piece is missing. */

@@ -49,6 +49,12 @@ class HDL_Stage1_Ticket {
     /** v0.48.81 (plan 2h) — straight-in asks per caller per hour. The caller is the selling site, so this caps the feature. */
     const OPEN_RATE_LIMIT = 120;
 
+    /** v0.48.90 (plan 7, Push A) — finished asks per caller per hour; the selling site asks once or twice per finish. */
+    const FINISHED_RATE_LIMIT = 600;
+
+    /** v0.48.90 — a lead saved this long ago or less counts as "just finished"; the selling site asks seconds after the save. */
+    const FINISHED_WINDOW = HOUR_IN_SECONDS;
+
     /** v0.48.85 (plan 2k) — user meta on an account a browser pass let in. G4: holds the SHA-256 of the browser key. */
     const UNPROVEN_META = 'hdlv2_unproven_entry';
 
@@ -72,6 +78,11 @@ class HDL_Stage1_Ticket {
             'callback'            => array( __CLASS__, 'handle' ),
             // Auth happens in the handler so a server without the key
             // answers 503 whatever the caller sends.
+            'permission_callback' => '__return_true',
+        ) );
+        register_rest_route( 'hdl/v1', '/stage1-finished', array(
+            'methods'             => 'POST',
+            'callback'            => array( __CLASS__, 'handle_finished' ),
             'permission_callback' => '__return_true',
         ) );
         register_rest_route( 'hdl/v1', '/full-report-open', array(
@@ -358,6 +369,55 @@ class HDL_Stage1_Ticket {
             return null;
         }
         return new WP_Error( 'browser_key_ended', self::ENDED_TEXT, array( 'status' => 410, 'title' => self::ENDED_TITLE ) );
+    }
+
+    /**
+     * v0.48.90 (plan 7, Push A) — POST /wp-json/hdl/v1/stage1-finished. The selling site asks after its page heard
+     * the widget say the answers are saved, before it marks its own mailing contact as finished (no reminder for
+     * them). The proof is our own lead row: this practitioner, this address, saved in the last FINISHED_WINDOW.
+     * So a stranger who calls the selling site's function with someone else's address marks nothing (gate F15).
+     * Read-only; the address is never logged.
+     *
+     * Body: { practitioner_id, email }. Answer: { finished: true|false }, the same no for every reason.
+     * 401/503 as the ticket route; 429 over the limit.
+     */
+    public static function handle_finished( $request ) {
+        $expected = defined( 'HDL_STAGE1_TICKET_KEY' ) ? (string) HDL_STAGE1_TICKET_KEY : '';
+        if ( '' === $expected ) {
+            return self::refuse( 503, 'not_configured', 'Stage 1 tickets are not enabled on this server.' );
+        }
+        $provided = (string) $request->get_header( 'X-HDL-Stage1-Ticket-Key' );
+        if ( '' === $provided || ! hash_equals( $expected, $provided ) ) {
+            return self::refuse( 401, 'unauthorized', 'Unauthorized.' );
+        }
+        $rl = HDLV2_Rate_Limiter::consume( HDLV2_Rate_Limiter::bucket_key( array( 'stage1-finished', HDLV2_Rate_Limit_Middleware::get_ip() ) ), self::FINISHED_RATE_LIMIT, HOUR_IN_SECONDS );
+        if ( ! $rl['allowed'] ) {
+            error_log( '[HDL stage1-finished] no limit' );
+            $resp = new WP_REST_Response( array( 'code' => 'rate_limited', 'message' => 'Too many requests.', 'data' => array( 'status' => 429 ) ), 429 );
+            $resp->header( 'Retry-After', (string) (int) $rl['retry_after'] );
+            return $resp;
+        }
+
+        $no    = rest_ensure_response( array( 'finished' => false ) );
+        $email = $request->get_param( 'email' );
+        $prac  = $request->get_param( 'practitioner_id' );
+        if ( ! is_string( $email ) || ! is_scalar( $prac ) || ! absint( $prac ) ) {
+            return $no;
+        }
+        $email = sanitize_email( $email );
+        if ( ! is_email( $email ) ) {
+            return $no;
+        }
+        // created_at is written with current_time( 'mysql' ) (the site clock): the cut-off is on the same clock.
+        $since = gmdate( 'Y-m-d H:i:s', strtotime( current_time( 'mysql' ) . ' UTC' ) - self::FINISHED_WINDOW );
+        global $wpdb;
+        $found = $wpdb->get_var( $wpdb->prepare(
+            "SELECT id FROM {$wpdb->prefix}hdlv2_widget_leads WHERE practitioner_user_id = %d AND visitor_email = %s AND created_at >= %s LIMIT 1",
+            absint( $prac ),
+            $email,
+            $since
+        ) );
+        return $found ? rest_ensure_response( array( 'finished' => true ) ) : $no;
     }
 
     /** A straight-in refusal: one log line with the code, the same answer for every reason. */
