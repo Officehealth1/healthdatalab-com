@@ -35,9 +35,9 @@ const API = 'https://site.test/wp-json/hdl-v2/v1/widget/lead';
 
 console.log('── 1. tell() ──');
 ok(tellSrc !== '', '1.0 the widget has a tell(type) function');
-t('1.1 one event of the asked type, and it bubbles to the host page', () => {
+t('1.1 one event of the asked type, on the widget\u2019s own element only (it does not bubble to other listeners)', () => {
   const e = tell('hdlw:finished', API);
-  return e.length === 1 && e[0].type === 'hdlw:finished' && e[0].bubbles === true;
+  return e.length === 1 && e[0].type === 'hdlw:finished' && e[0].bubbles === false;
 });
 t('1.2 its detail holds the typed e-mail and nothing else (no name, phone, answer or safety tick)', () => {
   const d = tell('hdlw:finished', API)[0].detail;
