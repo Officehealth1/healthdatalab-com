@@ -1728,14 +1728,23 @@
         +   '<button type="button" class="hdlw-cta hdlw-resume-continue">Continue</button>'
         +   '<button type="button" class="hdlw-resume-again">Start again</button>'
         + '</div>';
-      contentEl.querySelector('.hdlw-resume-continue').addEventListener('click', function () {
+      var go = contentEl.querySelector('.hdlw-resume-continue'), again = contentEl.querySelector('.hdlw-resume-again');
+      // As advance(): the screen moves after 250 ms with both buttons disabled, so the second press of a
+      // double-click lands on a disabled button, never on an answer of the question that opens next.
+      function pick(then) {
+        return function () {
+          go.disabled = again.disabled = true;
+          setTimeout(then, 250);
+        };
+      }
+      go.addEventListener('click', pick(function () {
         answers = resumed.answers;
         goTo(resumeStep(answers, resumed.step));
-      });
-      contentEl.querySelector('.hdlw-resume-again').addEventListener('click', function () {
+      }));
+      again.addEventListener('click', pick(function () {
         kept.drop();
         goTo(0);
-      });
+      }));
     }
 
     // --- Results ---
