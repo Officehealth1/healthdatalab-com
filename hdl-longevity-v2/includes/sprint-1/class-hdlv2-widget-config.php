@@ -2720,6 +2720,9 @@ class HDLV2_Widget_Config {
             // v0.48.42 — the question pictures, and the plugin version for their ?ver= cache key.
             'question_motion_enabled'       => self::question_motion_enabled(),
             'asset_ver'                     => HDLV2_VERSION,
+            // v0.48.80 — continue where you stopped: the widget keeps the nine answers in the visitor's own
+            // browser. Public answer only; an invited person's answers are never kept there.
+            'resume_enabled'                => (bool) get_option( 'hdlv2_ff_stage1_resume', false ),
             // v0.48.50 — Matthew's video per band, under the gauge on the result ({} when none).
             'band_videos'                   => (object) HDLV2_Stage1_Commentary::band_videos( (int) $row->practitioner_user_id ), // v0.48.51 the offer's practitioner only
             // v0.47.85 — paid mode: the widget shows its locked panel to a

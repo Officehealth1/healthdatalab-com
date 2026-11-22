@@ -399,6 +399,9 @@
 
   // Steps: q1, q2, q3, q4, q5, q6, q7, q8, q9, contact, result
   var STEP_COUNT = 11;
+  // v0.48.80 (2f) — the eleven fields the nine questions fill, and how long this browser keeps them.
+  var ANSWER_KEYS = ['q1_age','q1_sex','q2a','q2b','q3','q4','q5','q6','q7','q8','q9'];
+  var RESUME_MS = 7 * 24 * 60 * 60 * 1000;
 
   // ---------- FONTS & BRAND ----------
 
@@ -452,8 +455,21 @@
   // microcopy (`q.cite`) sitting under each question prompt. The PNG files
   // remain on disk for compatibility but nothing references them.
 
+  // v0.48.80 (2f), v0.48.91 (plan 7, F12) — the carry-on choice screen (hdlv2_ff_stage1_resume) is
+  // drawn with the question screen's own classes; only its text button needs a rule. Its own style tag, added
+  // only when the choice shows, so the editorial block stays as it was.
+  function injectResumeStyles() {
+    if (document.getElementById('hdl-resume-style')) return;
+    var s = document.createElement('style');
+    s.id = 'hdl-resume-style';
+    s.textContent = '.hdlw-resume-again{display:block;margin:10px auto 0;background:none;border:0;padding:6px 0;font-family:' + B.body + ';font-size:13px;font-weight:600;color:' + B.dark + ';text-decoration:underline;cursor:pointer;}'
+      + '.hdlw-resume-again:focus-visible{outline:2px solid var(--hdl-accent,#3d8da0);outline-offset:2px;}';
+    document.head.appendChild(s);
+  }
+
   // v0.48.42 — the question pictures' rules, injected only when the flag is on,
   // so the editorial block above stays byte-identical with it off.
+
   function injectMotionStyles() {
     if (document.getElementById('hdl-motion-style')) return;
     var s = document.createElement('style');
@@ -947,6 +963,8 @@
       cfg.bandVideos = lateCfg.band_videos || null;
       cfg.resultOffer = lateCfg.result_offer || null;
     };
+    // v0.48.80 (2f) — hdlv2_ff_stage1_resume: continue where you stopped. Public settings only, never with an invite.
+    cfg.resume = !!(publicCfg && publicCfg.resume_enabled) && !invite;
     if (cfg.questionMotion) injectMotionStyles();
 
     var id = 'hdlw-' + cfg.pracId;
@@ -974,19 +992,12 @@
     // here is enough — no per-step rebind needed. Whitelist matches the
     // server-side sanitiser in rest_verify_invite().
     if (invite && invite.prefill_stage1 && typeof invite.prefill_stage1 === 'object') {
-      var pf = invite.prefill_stage1;
-      var keys = ['q1_age','q1_sex','q2a','q2b','q3','q4','q5','q6','q7','q8','q9'];
-      for (var pi = 0; pi < keys.length; pi++) {
-        var k = keys[pi];
-        if (pf[k] === undefined || pf[k] === null) continue;
-        if (k === 'q1_age' || k === 'q2a') {
-          var n = parseInt(pf[k], 10);
-          if (n > 0) answers[k] = n;
-        } else {
-          answers[k] = String(pf[k]);
-        }
-      }
+      answers = takeAnswers(invite.prefill_stage1, false);
     }
+    // v0.48.80 (2f) — the answers this browser kept, read only when the switch is on. v0.48.91 (F12): they are
+    // not used or shown until the visitor picks Continue on the first screen (showResumeChoice).
+    var kept = answerStore(cfg.pracId), resumed = cfg.resume ? kept.get() : null;
+    if (publicCfg && publicCfg.resume_enabled === false) kept.drop(); // switched off: nothing from an earlier visit stays
 
     // --- Build HTML shell ---
     // position:relative on the outer card so the top-corner Prev/Next arrows
@@ -1055,6 +1066,7 @@
 
     function goTo(step) {
       currentStep = step;
+      if (cfg.resume && step <= 9) kept.set(answers, step);
       updateProgress();
       updateStep(step);
       var renderers = [renderQ1, renderQ2, renderQ3, renderQ4, renderQ5, renderQ6, renderQ7, renderQ8, renderQ9, renderContact, renderResult];
@@ -1693,6 +1705,48 @@
       el.dispatchEvent(new CustomEvent(type, { bubbles: false, detail: { email: answers._email } }));
     }
 
+    // v0.48.80 (2f) — the answers are saved, or safely held: nothing waits in this browser any more, and the page
+    // that hosts the widget is told, so it can mark its own sign-up as finished. Neither asks the switch: with it
+    // off a person who finished must still be marked.
+    function finished() {
+      kept.drop();
+      tell('hdlw:finished');
+    }
+
+    // v0.48.91 (plan 7, F12) — answers kept in this browser may be another person's (a shared computer), so
+    // nothing of them is shown or scored until the visitor picks Continue. Start again wipes them. The screen
+    // uses the question screen's own classes; no question, answer or step number of the kept copy is drawn.
+    function showResumeChoice() {
+      injectResumeStyles();
+      contentEl.innerHTML = ''
+        + '<div class="hdlw-q-opener">'
+        +   '<h2 class="hdlw-q-title">Continue or start again?</h2>'
+        +   '<div class="hdlw-q-rule"></div>'
+        +   '<p class="hdlw-q-prompt">This browser kept answers from an earlier visit.</p>'
+        + '</div>'
+        + '<div class="hdlw-fields">'
+        +   '<button type="button" class="hdlw-cta hdlw-resume-continue">Continue</button>'
+        +   '<button type="button" class="hdlw-resume-again">Start again</button>'
+        + '</div>';
+      var go = contentEl.querySelector('.hdlw-resume-continue'), again = contentEl.querySelector('.hdlw-resume-again');
+      // As advance(): the screen moves after 250 ms with both buttons disabled, so the second press of a
+      // double-click lands on a disabled button, never on an answer of the question that opens next.
+      function pick(then) {
+        return function () {
+          go.disabled = again.disabled = true;
+          setTimeout(then, 250);
+        };
+      }
+      go.addEventListener('click', pick(function () {
+        answers = resumed.answers;
+        goTo(resumeStep(answers, resumed.step));
+      }));
+      again.addEventListener('click', pick(function () {
+        kept.drop();
+        goTo(0);
+      }));
+    }
+
     // --- Results ---
     //
     // Phase 17 (v0.22.26) \u2014 full mockup parity. Replaces the previous narrow
@@ -2127,7 +2181,7 @@
       // stay on the page (payload) for the resend.
       var statusEl = document.getElementById(id + '-status') || document.getElementById(id + '-continue');
       function saved(data) {
-        tell('hdlw:finished');
+        finished();
         var sent = document.getElementById(id + '-sent');
         if (sent) sent.hidden = false;
         // Invite-fast-path: pre-trusted, immediate magic link.
@@ -2182,7 +2236,7 @@
       // v0.48.16 — the server was busy or silent: the answers are on the
       // holding list. No Send again; the report follows by email.
       function held() {
-        tell('hdlw:finished');
+        finished();
         var sent = document.getElementById(id + '-sent');
         if (sent) sent.hidden = true;
         var c = heldCopy();
@@ -2244,7 +2298,8 @@
     };
 
     // --- Start ---
-    goTo(0);
+    // v0.48.91 (F12) — kept answers: ask first (showResumeChoice); otherwise question one, as before.
+    if (resumed) showResumeChoice(); else goTo(0);
   }
 
   // ---------- UI HELPERS ----------
@@ -2412,6 +2467,73 @@
       set: function (k) { try { window.localStorage.setItem(name, k); } catch (e) { /* private mode: today's behaviour */ } },
       drop: function () { try { window.localStorage.removeItem(name); } catch (e) { /* private mode */ } }
     };
+  }
+
+  // v0.48.80 (2f) — the answers the widget may be handed: an invite's prefill (numbers for age and shape, text for
+  // the rest, as before), or this browser's own kept copy, which is also checked against what each question offers.
+  function takeAnswers(src, checked) {
+    var out = {};
+    if (!src || typeof src !== 'object') return out;
+    for (var i = 0; i < ANSWER_KEYS.length; i++) {
+      var k = ANSWER_KEYS[i], v = src[k];
+      if (v === undefined || v === null) continue;
+      if (k === 'q1_age' || k === 'q2a') {
+        if (!checked) v = parseInt(v, 10);
+        else if (typeof v !== 'number' || v % 1 !== 0 || (k === 'q2a' ? !Q2A_SCORES.hasOwnProperty(v) : v > 120)) continue;
+        if (v > 0) out[k] = v;
+      } else {
+        v = String(v);
+        if (!checked || answerOffered(k, v)) out[k] = v;
+      }
+    }
+    return out;
+  }
+  function answerOffered(k, v) {
+    if (k === 'q1_sex') return v === 'male' || v === 'female';
+    if (k === 'q2b') return Q2B_MODS.hasOwnProperty(v);
+    var opts = QUESTIONS[k] ? QUESTIONS[k].opts : [];
+    for (var i = 0; i < opts.length; i++) if (opts[i].v === v) return true;
+    return false;
+  }
+
+  // v0.48.80 (2f) — the nine answers wait in this browser, under the practitioner's number, so a person who is
+  // interrupted continues where they stopped on the same phone or computer. Only the answers, the step and the
+  // time of the first kept answer: never the name, e-mail, phone or safety ticks. Seven days after that first
+  // answer the copy is ignored and deleted, and it is deleted as soon as the settings say the switch is off.
+  // ponytail: answers in a browser that never returns stay there until that browser's storage is cleared; they
+  // never leave the device. A timed sweep would need a copy on the server, which is what this avoids.
+  function answerStore(pracId) {
+    var name = 'hdlw-s1-' + pracId;
+    function drop() { try { window.localStorage.removeItem(name); } catch (e) { /* private mode */ } }
+    // Our own record and not older than seven days, or null.
+    function load() {
+      try {
+        var rec = JSON.parse(window.localStorage.getItem(name) || 'null');
+        return rec && typeof rec.at === 'number' && Math.abs(Date.now() - rec.at) < RESUME_MS ? rec : null;
+      } catch (e) { return null; /* private mode, or text that is not ours */ }
+    }
+    return {
+      get: function () {
+        var rec = load(), a = rec ? takeAnswers(rec.answers, true) : {};
+        if (Object.keys(a).length) return { answers: a, step: rec.step };
+        drop();
+        return null;
+      },
+      // The time is the first kept answer's: a later step, or a return, never makes the seven days longer.
+      set: function (answers, step) {
+        var a = takeAnswers(answers, true), rec = load();
+        if (!Object.keys(a).length) { drop(); return; }
+        try { window.localStorage.setItem(name, JSON.stringify({ answers: a, step: step, at: rec ? rec.at : Date.now() })); } catch (e) { /* private mode: today's behaviour */ }
+      },
+      drop: drop
+    };
+  }
+  // The step to open: the first question with no answer, never past where they were, never past the contact step.
+  function resumeStep(a, savedStep) {
+    var fields = [['q1_age','q1_sex'], ['q2a','q2b'], ['q3'], ['q4'], ['q5'], ['q6'], ['q7'], ['q8'], ['q9']];
+    var s = 0, was = parseInt(savedStep, 10);
+    while (s < 9 && fields[s].every(function (k) { return a[k] != null; })) s++;
+    return Math.max(0, Math.min(s, was >= 0 ? was : 0));
   }
 
   // v0.48.62 — the yes or no sits under the result, about 2,000 px down a phone: a line above the gauge says it
