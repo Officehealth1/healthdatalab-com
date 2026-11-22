@@ -247,6 +247,8 @@ t('9.3 the screen reuses the question screen’s own look (opener, title, rule, 
     && !/hdlw-callout/.test(src);
 });
 t('9.4 no browser pop-up anywhere in the widget', () => !/\b(confirm|alert|prompt)\(/.test(js));
+t('9.6 the text button uses the text colour, not the practitioner\u2019s own colour (a pale one would not read)', () =>
+  /\.hdlw-resume-again\{[^}]*;color:' \+ B\.dark \+ ';/.test(styles.join('\n')) && !/\.hdlw-resume-again\{[^}]*hdl-accent/.test(styles.join('\n')));
 t('9.5 both choices are real buttons; the text one has a visible focus ring', () =>
   count('<button type="button" class="hdlw-cta hdlw-resume-continue">') === 1 && count('<button type="button" class="hdlw-resume-again">') === 1
   && /\.hdlw-resume-again:focus-visible\{outline:2px solid/.test(styles.join('\n')));
@@ -255,21 +257,29 @@ console.log('── 10. nothing of the kept answers shows before the choice (F12
 const choiceSrc = fn('showResumeChoice', '    ');
 /** The real showResumeChoice on a fake screen: `press` is 'continue', 'again' or nothing. */
 const choose = (press) => {
-  const seen = { html: '', goTo: [], drops: 0, styles: 0 };
+  const seen = { html: '', goTo: [], drops: 0, styles: 0, timers: [] };
   const buttons = {};
   const ctx = {
+    setTimeout: (f, ms) => { seen.timers.push(ms); seen.run = f; },
     id: 'hdlw-206', answers: {}, resumed: { answers: Object.assign({}, FOUR), step: 4 },
     kept: { drop: () => { seen.drops++; } },
     injectResumeStyles: () => { seen.styles++; },
     goTo: (n) => { seen.goTo.push([n, JSON.stringify(ctx.answers)]); },
     contentEl: {
       set innerHTML(v) { seen.html = v; }, get innerHTML() { return seen.html; },
-      querySelector: (sel) => (buttons[sel] = buttons[sel] || { on: {}, addEventListener(type, f) { this.on[type] = f; } }),
+      querySelector: (sel) => (buttons[sel] = buttons[sel] || { on: {}, disabled: false, addEventListener(type, f) { this.on[type] = f; } }),
     },
   };
   vm.runInNewContext(pieces.join('\n') + '\n' + choiceSrc + '\nshowResumeChoice();', ctx);
-  const b = { continue: buttons['.hdlw-resume-continue'], again: buttons['.hdlw-resume-again'] }[press];
-  if (b) b.on.click();
+  const both = [buttons['.hdlw-resume-continue'], buttons['.hdlw-resume-again']];
+  const b = { continue: both[0], again: both[1] }[press];
+  // A real browser fires no click on a disabled button; the fake does the same.
+  const click = (x) => { if (x && !x.disabled) x.on.click(); };
+  if (b) {
+    click(b); click(b); click(both[0]); click(both[1]); // a double-click, then the other button, before the screen moves
+    seen.beforeTimer = { goTo: seen.goTo.length, drops: seen.drops, disabled: both.every((x) => x.disabled) };
+    if (seen.run) seen.run();
+  }
   seen.answers = plain(ctx.answers);
   return seen;
 };
@@ -286,6 +296,11 @@ t('10.3 Start again: the kept answers are wiped and question one opens empty', (
   const s = choose('again');
   return s.drops === 1 && s.goTo.length === 1 && s.goTo[0][0] === 0 && s.goTo[0][1] === '{}';
 });
+t('10.4 a double-click acts once: both buttons are disabled at the first press and the screen moves after the widget\u2019s own 250 ms', () =>
+  ['continue', 'again'].every((p) => {
+    const s = choose(p);
+    return s.beforeTimer.disabled && s.beforeTimer.goTo === 0 && s.beforeTimer.drops === 0 && s.timers.length === 1 && s.timers[0] === 250 && s.goTo.length === 1;
+  }));
 
 console.log('── 11. the start, switch on and switch off (F14: off equals the base) ──');
 const initSrc = cut('    var kept = answerStore(cfg.pracId)', "kept.drop(); // switched off: nothing from an earlier visit stays\n");
@@ -321,6 +336,10 @@ t('11.4 switch off after it was on: nothing kept is read or shown; the server’
   const late = start({ resume: false, publicCfg: null, seed: KEPT }); // settings too slow: nothing read, nothing wiped
   return off.first.join() === 'q1' && JSON.stringify(off.answers) === '{}' && !off.calls.includes('get') && off.left.length === 0
     && late.first.join() === 'q1' && late.calls.length === 0 && late.left.join() === 'hdlw-s1-206';
+});
+t('11.6 a settings answer that comes after the cut-off never switches the feature on (late.fill leaves it alone)', () => {
+  const fill = cut('    if (late) late.fill = ', '\n    };\n');
+  return fill !== '' && !/resume/.test(fill) && count('cfg.resume =') === 1 && count('kept.get()') === 1;
 });
 t('11.5 an invite never reads the browser copy (cfg.resume is false with an invite, 7.1)', () => {
   const r = start({ resume: false, publicCfg: { resume_enabled: true }, seed: KEPT });
