@@ -236,7 +236,7 @@ t('9.1 the words of the choice, each once', () => WORDS.every((w) => count(w) ==
 t('9.1b the 2f box and its second question are gone', () =>
   ['Welcome back. Your answers so far are still here.', 'Clear your answers and start from the first question?', 'Yes, start again', 'Keep my answers', 'showResumeBox']
     .every((w) => count(w) === 0));
-const styles = js.split('\n').filter((l) => /'\.hdlw-resume/.test(l));
+const styles = js.split('\n').filter((l) => /^\s*(s\.textContent = |\+ )'\.hdlw-resume/.test(l)); // style lines, not querySelector
 t('9.2 its own styles: the text button only, no bar on the left, nothing forced', () =>
   styles.length === 2 && /\.hdlw-resume-again\{/.test(styles[0]) && !/border-left|::before|!important/.test(styles.join('\n')));
 t('9.2b the style tag is added only when the choice shows', () =>

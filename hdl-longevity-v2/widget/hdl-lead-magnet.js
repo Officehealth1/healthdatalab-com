@@ -455,20 +455,20 @@
   // microcopy (`q.cite`) sitting under each question prompt. The PNG files
   // remain on disk for compatibility but nothing references them.
 
-  // v0.48.42 — the question pictures' rules, injected only when the flag is on,
-  // so the editorial block above stays byte-identical with it off.
-  // v0.48.80 (2f) — the welcome-back box (hdlv2_ff_stage1_resume): the light fill and a hairline on all four
-  // sides. Its own style tag, added only when the box shows, so the editorial block stays as it was.
+  // v0.48.80 (2f), v0.48.91 (plan 7, F12) — the carry-on choice screen (hdlv2_ff_stage1_resume) is
+  // drawn with the question screen's own classes; only its text button needs a rule. Its own style tag, added
+  // only when the choice shows, so the editorial block stays as it was.
   function injectResumeStyles() {
     if (document.getElementById('hdl-resume-style')) return;
     var s = document.createElement('style');
     s.id = 'hdl-resume-style';
-    s.textContent = '.hdlw-resume{margin:16px 28px 0;background:' + B.bg + ';border:1px solid ' + B.border + ';border-radius:' + B.radius + ';padding:12px 16px;font-family:' + B.body + ';font-size:13px;line-height:1.55;color:' + B.text + ';}'
-      + '.hdlw-resume p{margin:0 0 4px;}'
-      + '.hdlw-resume button{background:none;border:0;padding:6px 0;margin:0 18px 0 0;font:inherit;font-weight:600;color:' + B.dark + ';text-decoration:underline;cursor:pointer;}'
-      + '.hdlw-resume button:focus-visible{outline:2px solid var(--hdl-accent,#3d8da0);outline-offset:2px;}';
+    s.textContent = '.hdlw-resume-again{display:block;margin:10px auto 0;background:none;border:0;padding:6px 0;font-family:' + B.body + ';font-size:13px;font-weight:600;color:' + B.dark + ';text-decoration:underline;cursor:pointer;}'
+      + '.hdlw-resume-again:focus-visible{outline:2px solid var(--hdl-accent,#3d8da0);outline-offset:2px;}';
     document.head.appendChild(s);
   }
+
+  // v0.48.42 — the question pictures' rules, injected only when the flag is on,
+  // so the editorial block above stays byte-identical with it off.
 
   function injectMotionStyles() {
     if (document.getElementById('hdl-motion-style')) return;
@@ -994,10 +994,10 @@
     if (invite && invite.prefill_stage1 && typeof invite.prefill_stage1 === 'object') {
       answers = takeAnswers(invite.prefill_stage1, false);
     }
-    // v0.48.80 (2f) — the answers this browser kept come back, when the switch is on.
+    // v0.48.80 (2f) — the answers this browser kept, read only when the switch is on. v0.48.91 (F12): they are
+    // not used or shown until the visitor picks Continue on the first screen (showResumeChoice).
     var kept = answerStore(cfg.pracId), resumed = cfg.resume ? kept.get() : null;
     if (publicCfg && publicCfg.resume_enabled === false) kept.drop(); // switched off: nothing from an earlier visit stays
-    if (resumed) answers = resumed.answers;
 
     // --- Build HTML shell ---
     // position:relative on the outer card so the top-corner Prev/Next arrows
@@ -1705,6 +1705,39 @@
       el.dispatchEvent(new CustomEvent(type, { bubbles: false, detail: { email: answers._email } }));
     }
 
+    // v0.48.80 (2f) — the answers are saved, or safely held: nothing waits in this browser any more, and the page
+    // that hosts the widget is told, so it can mark its own sign-up as finished. Neither asks the switch: with it
+    // off a person who finished must still be marked.
+    function finished() {
+      kept.drop();
+      tell('hdlw:finished');
+    }
+
+    // v0.48.91 (plan 7, F12) — answers kept in this browser may be another person's (a shared computer), so
+    // nothing of them is shown or scored until the visitor picks Continue. Start again wipes them. The screen
+    // uses the question screen's own classes; no question, answer or step number of the kept copy is drawn.
+    function showResumeChoice() {
+      injectResumeStyles();
+      contentEl.innerHTML = ''
+        + '<div class="hdlw-q-opener">'
+        +   '<h2 class="hdlw-q-title">Continue or start again?</h2>'
+        +   '<div class="hdlw-q-rule"></div>'
+        +   '<p class="hdlw-q-prompt">This browser kept answers from an earlier visit.</p>'
+        + '</div>'
+        + '<div class="hdlw-fields">'
+        +   '<button type="button" class="hdlw-cta hdlw-resume-continue">Continue</button>'
+        +   '<button type="button" class="hdlw-resume-again">Start again</button>'
+        + '</div>';
+      contentEl.querySelector('.hdlw-resume-continue').addEventListener('click', function () {
+        answers = resumed.answers;
+        goTo(resumeStep(answers, resumed.step));
+      });
+      contentEl.querySelector('.hdlw-resume-again').addEventListener('click', function () {
+        kept.drop();
+        goTo(0);
+      });
+    }
+
     // --- Results ---
     //
     // Phase 17 (v0.22.26) \u2014 full mockup parity. Replaces the previous narrow
@@ -1725,40 +1758,6 @@
     // Awaken commentary is a deterministic 3-paragraph builder \u2014 no AI
     // call. Practitioner sites embed the widget in a sandbox so we keep
     // every style inline.
-    // v0.48.80 (2f) — the answers are saved, or safely held: nothing waits in this browser any more, and the page
-    // that hosts the widget is told, so it can mark its own sign-up as finished. Neither asks the switch: with it
-    // off a person who finished must still be marked.
-    function finished() {
-      kept.drop();
-      tell('hdlw:finished');
-    }
-
-    // v0.48.80 (2f) — the first screen after the kept answers come back says so and offers a clean start. The box
-    // sits inside the step's content, so the next step replaces it; the question is asked in the box itself.
-    function showResumeBox() {
-      injectResumeStyles();
-      var box = document.createElement('div');
-      box.className = 'hdlw-resume';
-      box.setAttribute('role', 'status');
-      function draw(asking) {
-        box.innerHTML = asking
-          ? '<p>Clear your answers and start from the first question?</p>'
-            + '<button type="button" class="hdlw-resume-yes">Yes, start again</button>'
-            + '<button type="button" class="hdlw-resume-keep">Keep my answers</button>'
-          : '<p>Welcome back. Your answers so far are still here.</p>'
-            + '<button type="button" class="hdlw-resume-again">Start again</button>';
-      }
-      box.addEventListener('click', function (e) {
-        var pressed = e.target.className;
-        if (pressed === 'hdlw-resume-yes') { kept.drop(); answers = {}; goTo(0); return; }
-        if (pressed !== 'hdlw-resume-again' && pressed !== 'hdlw-resume-keep') return;
-        draw(pressed === 'hdlw-resume-again');
-        box.lastChild.focus(); // the keyboard stays in the box: on the safe choice, or back on the first button
-      });
-      draw(false);
-      contentEl.insertBefore(box, contentEl.firstChild);
-    }
-
     function renderResult() {
       // v0.48.19 — never post without the contact step: any path that lands
       // here with no name or email goes back to "Where shall we send it?".
@@ -2290,8 +2289,8 @@
     };
 
     // --- Start ---
-    goTo(resumed ? resumeStep(answers, resumed.step) : 0);
-    if (resumed) showResumeBox();
+    // v0.48.91 (F12) — kept answers: ask first (showResumeChoice); otherwise question one, as before.
+    if (resumed) showResumeChoice(); else goTo(0);
   }
 
   // ---------- UI HELPERS ----------
