@@ -192,8 +192,9 @@ t('7.2 a step change writes the answers and the step when the switch is on', () 
 });
 t('7.3 the contact step is written, the result step is not', () => goTo(true, 9).length === 1 && goTo(true, 10).length === 0);
 t('7.4 switch off: nothing is ever written', () => [0, 4, 9, 10].every((s) => goTo(false, s).length === 0));
-t('7.5 the kept answers are taken only when the switch is on, and the widget starts on their step', () =>
-  /resumed = cfg\.resume \? kept\.get\(\) : null/.test(js) && /\n    goTo\(resumed \? resumeStep\(answers, resumed\.step\) : 0\);/.test(js));
+t('7.5 the kept answers are read only when the switch is on, and the start asks before it opens a question (F12)', () =>
+  /resumed = cfg\.resume \? kept\.get\(\) : null/.test(js) && /\n    if \(resumed\) showResumeChoice\(\); else goTo\(0\);\n  \}\n/.test(js)
+  && !/answers = resumed\.answers;\n(?!\s*goTo\(resumeStep)/.test(js));
 t('7.6 an invite’s prefill is taken as before: numbers for age and shape, text for the rest, unchecked', () => {
   const w = world({ localStorage: storage() });
   const got = plain(w.takeAnswers({ q1_age: '47', q2a: '3', q3: 5, q9: 'zz', q5: null, extra: 'x', q1_sex: 'Female' }, false));
@@ -227,53 +228,104 @@ t('8.5 the wipe and the signal do not ask the switch', () => finishedSrc && !/cf
 t('8.6 saved( and held( both call it, first thing', () =>
   /\n      function saved\(data\) \{\n        finished\(\);/.test(js) && /\n      function held\(\) \{\n        finished\(\);/.test(js) && count('finished();') === 2);
 
-console.log('── 9. the box ──');
-// '>Start again<' also names the offer's own link since plan 4 (F25); the box's is its button's.
-const WORDS = ['Welcome back. Your answers so far are still here.', 'hdlw-resume-again">Start again<', 'Clear your answers and start from the first question?', '>Yes, start again<', '>Keep my answers<'];
-t('9.1 the words of the box, each once', () => WORDS.every((w) => count(w) === 1));
+console.log('── 9. the choice screen (F12) ──');
+// v0.48.91 (plan 7, Push B) — the 2f box under a question becomes a screen of its own, before any question.
+const WORDS = ['Continue or start again?', 'This browser kept answers from an earlier visit.',
+  'class="hdlw-cta hdlw-resume-continue">Continue<', 'class="hdlw-resume-again">Start again<'];
+t('9.1 the words of the choice, each once', () => WORDS.every((w) => count(w) === 1));
+t('9.1b the 2f box and its second question are gone', () =>
+  ['Welcome back. Your answers so far are still here.', 'Clear your answers and start from the first question?', 'Yes, start again', 'Keep my answers', 'showResumeBox']
+    .every((w) => count(w) === 0));
 const styles = js.split('\n').filter((l) => /'\.hdlw-resume/.test(l));
-t('9.2 its styles: a 1 px border on all four sides, no bar on the left', () =>
-  styles.length > 0 && /\.hdlw-resume\{[^}]*border:1px solid/.test(styles.join('\n')) && !/border-left|::before|!important/.test(styles.join('\n')));
-t('9.2b the styles sit in their own tag, added only when the box shows', () =>
-  styles.length === 4 && /\n    function showResumeBox\(\) \{\n      injectResumeStyles\(\);/.test(js) && count('injectResumeStyles();') === 1);
-t('9.3 the box is not the callout with the left bar', () => !/hdlw-callout[^'"]*hdlw-resume|hdlw-resume[^'"]*hdlw-callout/.test(js));
+t('9.2 its own styles: the text button only, no bar on the left, nothing forced', () =>
+  styles.length === 2 && /\.hdlw-resume-again\{/.test(styles[0]) && !/border-left|::before|!important/.test(styles.join('\n')));
+t('9.2b the style tag is added only when the choice shows', () =>
+  /\n    function showResumeChoice\(\) \{\n      injectResumeStyles\(\);/.test(js) && count('injectResumeStyles();') === 1);
+t('9.3 the screen reuses the question screen’s own look (opener, title, rule, prompt, the main button)', () => {
+  const src = fn('showResumeChoice', '    ');
+  return ['hdlw-q-opener', 'hdlw-q-title', 'hdlw-q-rule', 'hdlw-q-prompt', 'hdlw-fields', 'hdlw-cta'].every((c) => src.includes(c))
+    && !/hdlw-callout/.test(src);
+});
 t('9.4 no browser pop-up anywhere in the widget', () => !/\b(confirm|alert|prompt)\(/.test(js));
-t('9.5 the buttons are real buttons with a visible focus ring', () =>
-  count('<button type="button" class="hdlw-resume-') === 3 && /\.hdlw-resume button:focus-visible\{outline:2px solid/.test(styles.join('\n')));
+t('9.5 both choices are real buttons; the text one has a visible focus ring', () =>
+  count('<button type="button" class="hdlw-cta hdlw-resume-continue">') === 1 && count('<button type="button" class="hdlw-resume-again">') === 1
+  && /\.hdlw-resume-again:focus-visible\{outline:2px solid/.test(styles.join('\n')));
 
-/** The real box in a stand-in page: what it shows, and what each press does. */
-const boxWorld = () => {
-  const seen = { drops: 0, goTo: [], styles: 0, focus: [], inserted: null };
-  const box = {
-    html: '', listeners: {}, setAttribute() {}, addEventListener(type, f) { this.listeners[type] = f; },
-    set innerHTML(v) { this.html = v; }, get innerHTML() { return this.html; },
-    get lastChild() { const all = [...this.html.matchAll(/class="(hdlw-resume-[a-z]+)"/g)]; return { focus: () => seen.focus.push(all[all.length - 1][1]) }; },
+console.log('── 10. nothing of the kept answers shows before the choice (F12, a shared computer) ──');
+const choiceSrc = fn('showResumeChoice', '    ');
+/** The real showResumeChoice on a fake screen: `press` is 'continue', 'again' or nothing. */
+const choose = (press) => {
+  const seen = { html: '', goTo: [], drops: 0, styles: 0 };
+  const buttons = {};
+  const ctx = {
+    id: 'hdlw-206', answers: {}, resumed: { answers: Object.assign({}, FOUR), step: 4 },
+    kept: { drop: () => { seen.drops++; } },
+    injectResumeStyles: () => { seen.styles++; },
+    goTo: (n) => { seen.goTo.push([n, JSON.stringify(ctx.answers)]); },
+    contentEl: {
+      set innerHTML(v) { seen.html = v; }, get innerHTML() { return seen.html; },
+      querySelector: (sel) => (buttons[sel] = buttons[sel] || { on: {}, addEventListener(type, f) { this.on[type] = f; } }),
+    },
   };
-  const ctx = { document: { createElement: () => box }, contentEl: { firstChild: null, insertBefore: (n) => { seen.inserted = n; } },
-    injectResumeStyles: () => { seen.styles++; }, kept: { drop: () => { seen.drops++; } }, goTo: (s) => seen.goTo.push(s), answers: { q3: 'c' } };
-  vm.runInNewContext(fn('showResumeBox', '    ') + '\nshowResumeBox();', ctx);
-  return { seen, box, ctx, press: (cls) => box.listeners.click({ target: { className: cls } }) };
+  vm.runInNewContext(pieces.join('\n') + '\n' + choiceSrc + '\nshowResumeChoice();', ctx);
+  const b = { continue: buttons['.hdlw-resume-continue'], again: buttons['.hdlw-resume-again'] }[press];
+  if (b) b.on.click();
+  seen.answers = plain(ctx.answers);
+  return seen;
 };
-t('9.7 the box opens with the welcome line above the question, and nothing is cleared', () => {
-  const w = boxWorld();
-  return w.seen.inserted === w.box && /Welcome back\./.test(w.box.html) && !/Clear your answers/.test(w.box.html) && w.seen.drops === 0 && w.seen.styles === 1;
+t('10.1 the screen holds no stored answer, no question opens and nothing is scored before a choice', () => {
+  const s = choose();
+  return choiceSrc && s.goTo.length === 0 && JSON.stringify(s.answers) === '{}' && s.styles === 1
+    && !/female|even|44\b|hdlw-selected|hdlw-opt/.test(s.html);
 });
-t('9.8 "Start again" only asks; "Keep my answers" changes nothing and the keyboard stays in the box', () => {
-  const w = boxWorld();
-  w.press('hdlw-resume-again');
-  const asked = /Clear your answers and start from the first question\?/.test(w.box.html) && !/Welcome back/.test(w.box.html);
-  w.press('hdlw-resume-keep');
-  w.press('');
-  return asked && /Welcome back\./.test(w.box.html) && w.seen.drops === 0 && w.seen.goTo.length === 0 && w.ctx.answers.q3 === 'c'
-    && w.seen.focus.join() === 'hdlw-resume-keep,hdlw-resume-again';
+t('10.2 Continue: the kept answers come back and the first unanswered question opens (question five here)', () => {
+  const s = choose('continue');
+  return s.goTo.length === 1 && s.goTo[0][0] === 4 && s.goTo[0][1] === JSON.stringify(FOUR) && s.drops === 0;
 });
-t('9.9 "Yes, start again" wipes the kept copy, empties the answers and opens the first question', () => {
-  const w = boxWorld();
-  w.press('hdlw-resume-again'); w.press('hdlw-resume-yes');
-  return w.seen.drops === 1 && Object.keys(w.ctx.answers).length === 0 && w.seen.goTo.join() === '0';
+t('10.3 Start again: the kept answers are wiped and question one opens empty', () => {
+  const s = choose('again');
+  return s.drops === 1 && s.goTo.length === 1 && s.goTo[0][0] === 0 && s.goTo[0][1] === '{}';
 });
-t('9.6 the text buttons use the text colour, not the practitioner\u2019s own colour (a pale one would not read on the light fill)', () =>
-  /\.hdlw-resume button\{[^}]*;color:' \+ B\.dark \+ ';/.test(styles.join('\n')) && !/\.hdlw-resume button\{[^}]*hdl-accent/.test(styles.join('\n')));
+
+console.log('── 11. the start, switch on and switch off (F14: off equals the base) ──');
+const initSrc = cut('    var kept = answerStore(cfg.pracId)', "kept.drop(); // switched off: nothing from an earlier visit stays\n");
+const startSrc = cut('    // --- Start ---', 'else goTo(0);');
+/** The real start-up lines: kept answers read (or not), then the first screen. Storage calls are counted. */
+const start = ({ resume, publicCfg, seed = {} }) => {
+  const s = storage(seed), calls = [];
+  const spy = { getItem: (k) => { calls.push('get'); return s.getItem(k); }, setItem: (k, v) => { calls.push('set'); s.setItem(k, v); }, removeItem: (k) => { calls.push('remove'); s.removeItem(k); } };
+  const w = world({ localStorage: spy });
+  const seen = { first: [] };
+  Object.assign(w, { cfg: { pracId: '206', resume }, publicCfg, answers: {}, seen,
+    goTo: (n) => seen.first.push('q' + (n + 1)), showResumeChoice: () => seen.first.push('choice') });
+  vm.runInContext(initSrc + startSrc, w);
+  return { first: seen.first, answers: plain(w.answers), calls, left: [...s.m.keys()] };
+};
+const KEPT = { 'hdlw-s1-206': record(FOUR, 4, NOW - DAY) };
+t('11.0 the start-up lines are found', () => initSrc !== '' && startSrc !== '');
+t('11.1 switch on, answers kept: the choice first, the answers untouched until it', () => {
+  const r = start({ resume: true, publicCfg: { resume_enabled: true }, seed: KEPT });
+  return r.first.join() === 'choice' && JSON.stringify(r.answers) === '{}' && r.left.join() === 'hdlw-s1-206';
+});
+t('11.2 switch on, nothing kept: question one, as the base', () => {
+  const r = start({ resume: true, publicCfg: { resume_enabled: true } });
+  return r.first.join() === 'q1' && JSON.stringify(r.answers) === '{}';
+});
+t('11.3 switch off, every state the base can reach (nothing kept): question one, storage never read or written', () =>
+  [{ resume_enabled: false }, {}, null].every((publicCfg) => {
+    const r = start({ resume: false, publicCfg });
+    return r.first.join() === 'q1' && JSON.stringify(r.answers) === '{}' && r.left.length === 0 && !r.calls.includes('get') && !r.calls.includes('set');
+  }));
+t('11.4 switch off after it was on: nothing kept is read or shown; the server’s "off" wipes the copy', () => {
+  const off = start({ resume: false, publicCfg: { resume_enabled: false }, seed: KEPT });
+  const late = start({ resume: false, publicCfg: null, seed: KEPT }); // settings too slow: nothing read, nothing wiped
+  return off.first.join() === 'q1' && JSON.stringify(off.answers) === '{}' && !off.calls.includes('get') && off.left.length === 0
+    && late.first.join() === 'q1' && late.calls.length === 0 && late.left.join() === 'hdlw-s1-206';
+});
+t('11.5 an invite never reads the browser copy (cfg.resume is false with an invite, 7.1)', () => {
+  const r = start({ resume: false, publicCfg: { resume_enabled: true }, seed: KEPT });
+  return r.first.join() === 'q1' && r.calls.length === 0;
+});
 
 console.log('\n' + PASS + ' passed, ' + FAIL + ' failed');
 process.exit(FAIL ? 1 : 0);
