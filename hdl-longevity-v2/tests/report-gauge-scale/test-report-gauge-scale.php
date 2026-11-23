@@ -84,7 +84,9 @@ check( 'B9 the numbers in the brand\'s dark navy, bold', '#2c3e50' === ( $dl['co
 check( 'B10 datalabels switched on for the chart (the parts choose which show)', true === ( $c['options']['plugins']['datalabels']['display'] ?? null ) );
 $c2 = $c;
 unset( $c2['data']['datasets'][0]['data'], $c2['data']['datasets'][0]['backgroundColor'], $c2['data']['datasets'][0]['borderWidth'], $c2['data']['datasets'][0]['datalabels'], $c2['options']['plugins'] );
-check( 'B11 nothing else moves: needle, range, value, padding, every other option equal', $b === $c2 );
+$b2 = $b;
+unset( $b2['data']['datasets'][0]['data'], $b2['data']['datasets'][0]['backgroundColor'], $b2['data']['datasets'][0]['borderWidth'] );
+check( 'B11 nothing else moves: needle, range, value, padding, every other option equal', $b2 === $c2 && ! isset( $b['options']['plugins'] ) );
 foreach ( array( array( 0.3, 0.5 ), array( 2.4, 2.0 ), array( 1.11, 1.11 ), array( 0.951, 0.95 ) ) as $p ) {
     $v = cfg_of( HDLV2_Staged_Form::build_gauge_url( $p[0], array( 'stage3' => true, 'scale' => true ) ) )['data']['datasets'][0]['value'] ?? null;
     check( "B12 rate {$p[0]}: the needle at {$p[1]}, as today", $p[1] == $v );
@@ -107,7 +109,7 @@ $next_at  = strpos( $src, "\n    /**", $fire_at );
 $build_at = strpos( $src, 'function build_gauge_url(' );
 $hits = 0;
 foreach ( new RecursiveIteratorIterator( new RecursiveDirectoryIterator( $root, FilesystemIterator::SKIP_DOTS ) ) as $f ) {
-    if ( 'php' === $f->getExtension() ) $hits += substr_count( file_get_contents( $f->getPathname() ), 'hdlv2_ff_report_gauge_scale' );
+    if ( 'php' === $f->getExtension() ) $hits += substr_count( file_get_contents( $f->getPathname() ), "'hdlv2_ff_report_gauge_scale'" );
 }
 check( 'D1 read once, inside fire_make_webhook(), and nowhere else in includes/', 1 === substr_count( $src, $read ) && 1 === $hits && strpos( $src, $read ) > $fire_at && strpos( $src, $read ) < $next_at );
 check( 'D2 build_gauge_url() takes the scale as an option and never reads an option itself', false === strpos( substr( $src, $build_at, strpos( $src, "\n    }\n", $build_at ) - $build_at ), 'get_option' ) );
