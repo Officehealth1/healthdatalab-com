@@ -2263,6 +2263,7 @@
 
   // Screen 1 rows: label, current answer, Change. An unanswered row's cards
   // are open from the start; otherwise one row is open at a time.
+  // v0.48.92 (plan 8, K15; hdlv2_ff_form_focus) — an empty row says only "Choose one".
   function tapFirstRows(vals) {
     return TAP_FIRST.map(function (f) {
       var opt = S3_OPTIONS[f].filter(function (o) { return o.v !== '' && o.v === vals[f]; })[0];
@@ -2272,7 +2273,7 @@
         +   '<span class="hdlv2-tap-row-label" id="hdlv2-tap-label-' + f + '">'
         +     (CFG.question_motion ? '<svg class="hdlv2-tap-row-icon" aria-hidden="true" viewBox="0 0 256 256">' + ROW_ICONS[f] + '</svg>' : '')
         +     esc(TAP_FIRST_LABELS[f]) + '</span>'
-        +   '<span class="hdlv2-tap-row-value' + (opt ? '' : ' is-empty') + '">' + esc(opt ? opt.l : (CFG.form_clarity ? 'No answer yet. Choose one below.' : 'Unknown — please select')) + '</span>'
+        +   '<span class="hdlv2-tap-row-value' + (opt ? '' : ' is-empty') + '">' + esc(opt ? opt.l : (CFG.form_focus ? 'Choose one' : CFG.form_clarity ? 'No answer yet. Choose one below.' : 'Unknown — please select')) + '</span>'
         +   (opt ? '<button type="button" class="hdlv2-tap-change" id="hdlv2-tap-change-' + f + '" data-row="' + f + '" aria-expanded="' + open + '" aria-controls="hdlv2-tap-opts-' + f + '">Change</button>' : '')
         + '</div>'
         + '<div class="hdlv2-s1-options" id="hdlv2-tap-opts-' + f + '" role="radiogroup" aria-labelledby="hdlv2-tap-label-' + f + '" data-row="' + f + '"' + (open ? '' : ' hidden') + '>'
