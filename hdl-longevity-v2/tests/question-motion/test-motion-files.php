@@ -23,7 +23,7 @@ $static   = array_merge( array( 'g-waist-hip.svg', 'g-drinks.svg' ), $plates, $p
 // v0.48.92 (plan 8, K23): f- files belong to the finish screen, not to a question (outside TAP_MOTION).
 $finish   = array( 'f-finished.svg' );
 $expected = array_merge( array( 'q3-zone2.svg', 'q4-stairs.svg', 'q5-floor-a.svg', 'q5-floor-b.svg', 'q5-floor-c.svg', 'q5-floor-d.svg', 'q5-floor-e.svg', 'q6-sleep.svg', 'q7-smoking.svg', 'q8-social.svg',
-	'q9-diet.svg', 't-balance.svg', 't-chair-stands.svg', 't-skin-pinch.svg', 'g-waist-hip.svg',
+	'q9-diet.svg', 't-balance.svg', 't-chair-stands.svg', 't-skin-pinch.svg', 't-skin-pinch-2.svg', 'g-waist-hip.svg',
 	'q4-stairs-a.svg', 'q4-stairs-b.svg', 'q4-stairs-c.svg', 'q4-stairs-d.svg', 'q4-stairs-e.svg', 'g-drinks.svg' ), $plates, $people, $finish );
 $answers  = array_merge( $poses, $plates ); // every picture that sits on an answer, not at the top
 $palette  = array( '#004f59', '#3d8da0', '#e4e6ea', '#f8f9fb', '#ffffff' );
@@ -33,7 +33,7 @@ $ease     = 'cubic-bezier(.4,0,.2,1)';
 function ms( $t ) { return false !== strpos( $t, 'ms' ) ? (float) $t : (float) $t * 1000; }
 
 ok( is_dir( $dir ), 'the motion folder exists' );
-ok( 29 === count( $expected ) && count( glob( $dir . '*.svg' ) ?: array() ) === count( $expected ), 'the folder holds exactly the 29 named files (' . count( glob( $dir . '*.svg' ) ?: array() ) . ')' );
+ok( 30 === count( $expected ) && count( glob( $dir . '*.svg' ) ?: array() ) === count( $expected ), 'the folder holds exactly the 30 named files (' . count( glob( $dir . '*.svg' ) ?: array() ) . ')' );
 foreach ( $expected as $name ) {
 	$f = $dir . $name;
 	if ( ! is_file( $f ) ) { ok( false, "$name exists" ); continue; }
@@ -160,5 +160,11 @@ ok( 1 === substr_count( $fsrc, "'f-finished.svg'" ) && ! in_array( 'f-finished.s
 $pinch = (string) @file_get_contents( $dir . 't-skin-pinch.svg' );
 ok( ! preg_match( '/<line class="f"/', $pinch ) && preg_match_all( '/<path class="f"/', $pinch ) >= 2, 't-skin-pinch.svg draws the pinching thumb and finger as curved strokes, no straight bars' );
 ok( preg_match( '/class="p"[^>]*d="[^"]*[cCqQ]/', $pinch ), 't-skin-pinch.svg draws the flat hand with curves (palm, fingers, thumb)' );
+// v0.48.93 (hdlv2_ff_form_focus): the pinch from Gemini's four key frames, one pose at a time, no blend.
+$pinch2 = (string) @file_get_contents( $dir . 't-skin-pinch-2.svg' );
+preg_match_all( '/<path class="h ([a-d])"/', $pinch2, $hp );
+ok( array( 'a', 'b', 'c', 'd' ) === $hp[1], 't-skin-pinch-2.svg draws the pinching hand once per pose, in order (ready, pinched, fold, flat)' );
+ok( 4 === preg_match_all( '/@keyframes [a-d]\{/', $pinch2 ) && ! preg_match( '/@keyframes[^@]*(opacity|transform)/', $pinch2 ), 't-skin-pinch-2.svg switches poses in one step (visibility only, no fade or move)' );
+ok( false !== strpos( $pinch2, '.a,.c,.d{visibility:hidden}' ) && ! preg_match( '/\.b\{[^}]*visibility:hidden/', $pinch2 ), 't-skin-pinch-2.svg rests on the pinched pose when it does not move (the still, reduced motion)' );
 echo "PASS=$pass FAIL=$fail\n";
 exit( $fail ? 1 : 0 );
