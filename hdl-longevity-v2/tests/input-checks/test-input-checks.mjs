@@ -253,7 +253,7 @@ console.log('── P3: the switch off ──');
 const TAP_SRC = [cut('  var S3_OPTIONS = {', '\n  };\n'), cut('  var TEST_HOW = {', '\n  };\n'), cut('  var TAP_STEPS = ', ';\n'), cut('  var TAP_FIRST = ', ';\n'),
   cut('  var TAP_FIRST_LABELS = {', '\n  };\n'), cut('  var TAP_ORDER = ', ';\n'), cut('  var TAP_NEUTRAL = ', ';\n'), cut('  var TAP_TITLES = {', '\n  };\n'),
   cut('  var S1_IMG_BASE = ', '\n  })();\n'), cut('  var TAP_MOTION = {', '\n  };\n'), cut('  var ICONS = {', '\n  };\n'), cut('  var ROW_ICONS = {', '\n  };\n'),
-  fn('motionFigure'), fn('tapHeading'), fn('tapReason'), fn('tapFirstRows'), fn('renderTapStep'), fn('wizardSectionContent'), cut('  var IN_CM = ', ';\n'), fn('r1'),
+  cut('  function rn(', '\n'), fn('motionFigure'), fn('tapHeading'), fn('tapReason'), fn('tapFirstRows'), fn('renderTapStep'), fn('wizardSectionContent'), cut('  var IN_CM = ', ';\n'), fn('r1'),
   fn('toImperial'), fn('unitsDefault'), fn('unitsNow'), fn('unitsSwitch'), fn('measureInput'), fn('fieldInputWithSkip'), fn('renderTooltip'), fn('fieldReadonly'), fn('fieldTextarea')].join('\n');
 function draw(cfg, n) {
   const c = Object.assign({ plugin_url: 'https://example.test/', asset_ver: 't' }, cfg);

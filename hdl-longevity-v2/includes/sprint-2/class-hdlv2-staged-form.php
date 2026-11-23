@@ -1314,7 +1314,7 @@ class HDLV2_Staged_Form {
             HDLV2_VERSION
         );
 
-        $cfg = array(
+        wp_localize_script( 'hdlv2-staged-form', 'hdlv2_form', HDLV2_Report_Names::config( array(
             'api_base'   => rest_url( 'hdl-v2/v1/form' ),
             'nonce'      => wp_create_nonce( 'wp_rest' ),
             'plugin_url' => HDLV2_PLUGIN_URL,
@@ -1330,12 +1330,7 @@ class HDLV2_Staged_Form {
             // v0.48.92 (plan 8) — larger question and labels, "Choose one", the drinks picture, Matthew's
             // own-words question and the two-card finish screen (absent = off).
             'form_focus'      => (bool) get_option( 'hdlv2_ff_form_focus', false ),
-        );
-        // v0.48.97 (plan 11; hdlv2_ff_input_checks) — absent or off, the script gets no new key.
-        if ( get_option( 'hdlv2_ff_input_checks', false ) ) {
-            $cfg['input_checks'] = self::input_checks();
-        }
-        wp_localize_script( 'hdlv2-staged-form', 'hdlv2_form', HDLV2_Report_Names::config( $cfg ) );
+        ) + ( get_option( 'hdlv2_ff_input_checks', false ) ? array( 'input_checks' => self::input_checks() ) : array() ) ) ); // v0.48.97 (plan 11) — absent or off, no new key
 
         return '<div id="hdlv2-assessment" class="hdlv2-assessment-root"></div>';
     }
