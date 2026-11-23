@@ -187,7 +187,9 @@ for (const f of ['physicalActivity', 'sleepQuality']) {
   ok(row(rows('focusOnly'), f).indexOf('<span class="hdlv2-tap-row-value is-empty">Choose one</span>') !== -1, `C6.2.${f} focus on alone (clarity off): "Choose one" too`);
 }
 ok((s0f + r0f).indexOf('No answer yet') === -1 && (s0f + r0f).indexOf('Unknown') === -1, 'C6.3 focus on: no "No answer yet" and no "Unknown"');
-ok(s0f.indexOf('<p class="hdlv2-s1-prompt">' + NEW.prompt + '</p>') !== -1, 'C6.4 the line above the rows stays');
+// Gate fix (K15): with the focus switch the middle sentence loses "no answer yet".
+const FOCUS_PROMPT = 'We filled in what we could from your first answers. Choose one for each empty row. If an answer is not right, tap Change.';
+ok(s0f.indexOf('<p class="hdlv2-s1-prompt">' + FOCUS_PROMPT + '</p>') !== -1, 'C6.4 the line above the rows: "Choose one for each empty row."');
 ok(/<div class="hdlv2-card hdlv2-focus">\[brand\]<div class="hdlv2-header"><h2>Your Full Report<\/h2><\/div>[\s\S]*<h3 class="hdlv2-s1-title hdlv2-tap-heading" id="hdlv2-tap-title" tabindex="-1">Here is what you told us<\/h3>/.test(s0f),
   'C6.5 the heading stays where it is, under "Your Full Report"; the card carries the focus class');
 ok(step('absent', 0).indexOf('hdlv2-focus') === -1 && step('on', 0).indexOf('hdlv2-focus') === -1, 'C6.6 focus absent: no focus class');
@@ -210,8 +212,13 @@ ok(/width:\s*24px;\s*height:\s*24px/.test(decl(wide, '.hdlv2-focus .hdlv2-tap-ro
 ok(fcss.length > 50 && !/border-left|::before/.test(fcss), 'C6.14 no accent rail in the focus rules');
 // Final review: focus on alone (clarity off) must not still speak of rows "marked Unknown".
 const s0fo = step('focusOnly', 0), waitFo = press('focusOnly', {}, 1).inserted.map((x) => x[1]).join('');
-ok(s0fo.indexOf('<p class="hdlv2-s1-prompt">' + NEW.prompt + '</p>') !== -1 && s0fo.indexOf('Unknown') === -1, 'C6.16 focus on alone: the line above the rows is the clarity line, no "Unknown"');
+ok(s0fo.indexOf('<p class="hdlv2-s1-prompt">' + FOCUS_PROMPT + '</p>') !== -1 && s0fo.indexOf('Unknown') === -1, 'C6.16 focus on alone: the line above the rows is the focus line, no "Unknown"');
 ok(waitFo.indexOf(NEW.wait) !== -1 && waitFo.indexOf('Unknown') === -1, 'C6.17 focus on alone: the too-early line is the clarity line, no "Unknown"');
+// Gate fix (K15): one empty row, no empty row, and the focus switch off.
+const ONE = Object.assign({}, VALS, { physicalActivity: '2' }), s0one = step('focus', 0, ONE);
+ok(!/no answer yet/i.test(s0one) && s0one.indexOf('Choose one for each empty row.') !== -1, 'C6.18 focus on, one empty row: no "no answer yet" in any case, and "Choose one for each empty row."');
+ok(line0(step('focus', 0, ALL)) === '<p class="hdlv2-s1-prompt">We filled in what we could from your first answers. If an answer is not right, tap Change.</p>', 'C6.19 focus on, every row answered: the line has no middle sentence');
+ok(step('on', 0, ONE).indexOf('<p class="hdlv2-s1-prompt">' + NEW.prompt + '</p>') !== -1, 'C6.20 focus off, clarity on: "Some rows have no answer yet: choose one for each." stays');
 ok(!/#[0-9a-f]{3,6}\b/gi.test(fcss.replace(/#004F59|#3d8da0|#2c3e50|#888888|#888\b|#e4e6ea|#f8f9fb|#fafbfc|#ffffff|#fff\b/gi, '')), 'C6.15 brand colours only');
 
 console.log(`PASS=${PASS} FAIL=${FAIL}`);

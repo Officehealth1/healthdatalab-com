@@ -2215,10 +2215,13 @@
       screen = tapHeading('Here is what you told us')
         // v0.48.78 (M37; hdlv2_ff_form_clarity) — say what a row with no answer wants, without "Unknown";
         // back from step 2 every row is answered, so the middle sentence is left out.
-        // v0.48.92 — the focus switch draws "Choose one" rows, so it takes the clarity line too (never "Unknown").
+        // v0.48.92 — the focus switch draws "Choose one" rows, so it takes the clarity line too (never "Unknown"),
+        // and its middle sentence drops "no answer yet" (K15). DRAFT COPY for the owner.
         + '<p class="hdlv2-s1-prompt">' + (CFG.form_clarity || CFG.form_focus
           ? 'We filled in what we could from your first answers. '
-            + (TAP_FIRST.some(function (f) { return !first[f]; }) ? 'Some rows have no answer yet: choose one for each. ' : '')
+            + (TAP_FIRST.some(function (f) { return !first[f]; })
+              ? (CFG.form_focus ? 'Choose one for each empty row. ' : 'Some rows have no answer yet: choose one for each. ')
+              : '')
             + 'If an answer is not right, tap Change.'
           : 'We filled in what we could from your first answers. Pick any row marked Unknown, and tap Change if one is not right.') + '</p>'
         + '<p class="hdlv2-s1-prompt">Your answers here build your full longevity report.</p>'
