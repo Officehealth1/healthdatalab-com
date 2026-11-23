@@ -1,6 +1,6 @@
 <?php
 /**
- * v0.48.95 (plan 11; hdlv2_ff_input_checks) — what the switch hands to the two scripts, and that the form's
+ * v0.48.97 (plan 11; hdlv2_ff_input_checks) — what the switch hands to the two scripts, and that the form's
  * hard limits are the calculator's own. Drives the REAL HDLV2_Staged_Form::render_shortcode(),
  * HDLV2_Staged_Form::input_checks(), HDLV2_Widget_Config::rest_get_public_config() / rest_verify_invite()
  * and HDLV2_Rate_Calculator::calculate_full().

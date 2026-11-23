@@ -2748,6 +2748,23 @@
 }
 /* end form focus */
 
+/* v0.48.97 (plan 11; hdlv2_ff_input_checks) — nothing here matches with the switch off: the script draws
+   these only with it on. A line under a measure or age box: a question in body navy, a refusal in status red
+   (4.8:1 on white). The card before finishing: the form's soft fill and hairline, no rail. */
+.hdlv2-check-line { font-size: 14px; color: #2c3e50; font-style: normal; }
+.hdlv2-check-line.is-hard { color: #dc2626; }
+.hdlv2-check-keep { min-height: 40px; color: #3d8da0; }
+.hdlv2-gap-card { margin: 0 0 16px; padding: 18px 20px; background: #f8f9fb; border: 1px solid #e4e6ea; border-radius: 12px; }
+.hdlv2-gap-title { margin: 0 0 6px; font-family: 'Poppins', sans-serif; font-size: 18px; font-weight: 700; color: #004F59; }
+.hdlv2-gap-line { margin: 0 0 14px; font-size: 15px; line-height: 1.55; color: #2c3e50; }
+.hdlv2-gap-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+.hdlv2-gap-actions .hdlv2-btn { width: auto; padding: 11px 24px; }
+.hdlv2-gap-actions .hdlv2-btn:focus-visible { outline: 2px solid #3d8da0; outline-offset: 2px; }
+.hdlv2-gap-actions .hdlv2-gap-finish { background: #fff; color: #3d8da0; border: 1px solid #e4e6ea; }
+/* The finish button waits under the card; "Finish without them" presses it. */
+.hdlv2-gap-card + .hdlv2-s1-next { display: none; }
+/* end input checks */
+
 /* v0.48.50 (W41) — measurements in cm · kg or ft in · lb: two pills, the active one filled
    teal (no rail); imperial height is two boxes side by side. */
 .hdlv2-units { display: flex; width: max-content; max-width: 100%; gap: 4px; padding: 4px; margin: 0 0 12px; background: #f8f9fb; border: 1px solid #e4e6ea; border-radius: 999px; }

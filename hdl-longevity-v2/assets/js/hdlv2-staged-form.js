@@ -557,12 +557,13 @@
   // ── AUTO-SAVE ──
   function onFieldChange(e) {
     var imp = e.target.getAttribute('data-imp');
-    if (imp) { e.target.classList.remove('error'); writeImperial(imp); if (saveTimer) clearTimeout(saveTimer); saveTimer = setTimeout(function(){ autoSave(currentStage); }, 2000); return; }
+    if (imp) { e.target.classList.remove('error'); writeImperial(imp); checkBox(imp); if (saveTimer) clearTimeout(saveTimer); saveTimer = setTimeout(function(){ autoSave(currentStage); }, 2000); return; }
     var name = e.target.getAttribute('data-field');
     if (!name) return;
     var v = e.target.value.trim();
     e.target.classList.remove('error');
     formData[name] = name === 'height' ? keepHeight(v, [e.target]) : v;
+    checkBox(name);
     if (saveTimer) clearTimeout(saveTimer);
     saveTimer = setTimeout(function(){ autoSave(currentStage); }, 2000);
   }
@@ -790,7 +791,7 @@
     body.innerHTML = ''
       + '<h3 class="hdlv2-s1-title">Age &amp; Sex</h3>'
       + '<p class="hdlv2-s1-prompt">Used to calibrate your results to population norms.</p>'
-      + fieldInput('q1_age','Age','number',d.q1_age || 50,'Your age in years')
+      + fieldInput('q1_age','Age','number',d.q1_age || (CFG.input_checks ? '' : 50),'Your age in years')
       + '<div class="hdlv2-field"><label>Sex</label>'
       +   '<div class="hdlv2-s1-sex">'
       +     '<button type="button" class="hdlv2-s1-sex-btn'+(d.q1_sex==='male'?' selected':'')+'" data-sex="male">Male</button>'
@@ -809,6 +810,8 @@
     body.querySelector('#hdlv2-s1-next').addEventListener('click', function(){
       var ageEl = body.querySelector('[data-field="q1_age"]');
       var age = parseInt(ageEl ? ageEl.value : '', 10);
+      // v0.48.97 (plan 11, I5; hdlv2_ff_input_checks) — an age from 1 to 120, typed, never assumed. DRAFT COPY for the owner.
+      if (CFG.input_checks && ageEl && fieldLine([ageEl], 'hdlv2-check-q1_age', age >= 1 && age <= 120 ? '' : 'Please type your age.', true)) return;
       if (!age || age < 1) { if(ageEl) ageEl.classList.add('error'); return; }
       if (!formData.q1_sex) { setSaveStatus('error','Please select Male or Female'); return; }
       formData.q1_age = age;
@@ -2188,6 +2191,8 @@
 
   // Leaving a screen saves once: the whole formData, as the wizard's Next does.
   function tapGo(data, delta) {
+    // v0.48.97 (plan 11, I4 and P2) — forward from the measurements waits for its numbers (switch on only).
+    if (delta > 0 && tapStep === TAP_STEPS - 2 && numbersHold()) return;
     tapLeave();
     if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
     saveWhenFree(3);
@@ -2382,6 +2387,51 @@
     document.addEventListener('keydown', tapKeyHandler);
   }
 
+  // v0.48.97 (plan 11, I3; hdlv2_ff_input_checks) — before the last finish, once per form: the scored
+  // answers still empty, named by the words of the server's one map (HDLV2_Staged_Form::input_checks()).
+  // The four body measures are named by their boxes; heart rate and blood pressure by their scores.
+  var gapsAsked = false;
+
+  // Pure over formData: the empty ones in the order the form asks them, each with the step that asks it.
+  function emptyAnswers() {
+    var L = CFG.input_checks.labels, out = [], m = TAP_STEPS - 2;
+    var none = function (f) { return !isFinite(parseFloat(formData[f])); };
+    var noNumber = function (f) { return !(parseFloat(formData[f]) > 0); };
+    TAP_FIRST.concat(tapOrder).forEach(function (f, i) {
+      if (L[f] && none(f)) out.push({ label: L[f], step: i < TAP_FIRST.length ? 0 : i - TAP_FIRST.length + 1 });
+    });
+    [['height', 'Height'], ['weight', 'Weight'], ['waist', 'Waist'], ['hip', 'Hip']].forEach(function (p) {
+      if (noNumber(p[0])) out.push({ label: p[1], step: m, box: p[0] });
+    });
+    if (noNumber('restingHeartRate')) out.push({ label: L.heartRateScore, step: m, box: 'restingHeartRate' });
+    if (noNumber('bpSystolic') && noNumber('bpDiastolic')) out.push({ label: L.bloodPressureScore, step: m, box: 'bpSystolic' });
+    return out;
+  }
+
+  // True when the card is shown instead of finishing. DRAFT COPY for the owner: the heading, line and buttons.
+  function askGapsOnce(data, done) {
+    if (!CFG.input_checks || gapsAsked) return false;
+    gapsAsked = true;
+    var gaps = emptyAnswers();
+    if (!gaps.length) return false;
+    done.insertAdjacentHTML('beforebegin', '<section class="hdlv2-gap-card" id="hdlv2-gap-card" aria-labelledby="hdlv2-gap-title">'
+      + '<h4 class="hdlv2-gap-title" id="hdlv2-gap-title" tabindex="-1" aria-describedby="hdlv2-gap-line">Before you finish</h4>'
+      + '<p class="hdlv2-gap-line" id="hdlv2-gap-line">You left these empty: ' + esc(gaps.map(function (g) { return g.label; }).join(', ')) + '. Your report will use the answers you gave.</p>'
+      + '<div class="hdlv2-gap-actions"><button type="button" class="hdlv2-btn" id="hdlv2-gap-add">Add them now</button>'
+      + '<button type="button" class="hdlv2-btn hdlv2-gap-finish" id="hdlv2-gap-finish">Finish without them</button></div></section>');
+    document.getElementById('hdlv2-gap-add').addEventListener('click', function () {
+      tapGo(data, gaps[0].step - tapStep);
+      var box = gaps[0].box && numberBoxes(gaps[0].box)[0];
+      if (box) box.focus();
+    });
+    document.getElementById('hdlv2-gap-finish').addEventListener('click', function () {
+      document.getElementById('hdlv2-gap-card').remove();
+      done.click();
+    });
+    document.getElementById('hdlv2-gap-title').focus();
+    return true;
+  }
+
   // Complete waits for a save in flight, so an older one cannot land after
   // it, and never completes while one is still going: after
   // TAP_COMPLETE_WAIT_MS the button comes back with a message instead.
@@ -2406,6 +2456,8 @@
     }
     done.addEventListener('click', function () {
       if (done.disabled) return;
+      // Read guarded: tests/second-form runs this function without CFG.
+      if (typeof CFG !== 'undefined' && CFG.input_checks && askGapsOnce(data, done)) return;
       if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
       // completeStage3 sends the whole formData itself; a queued save must
       // not land after it.
@@ -2732,9 +2784,86 @@
       b.classList.toggle('error', bad);
       if (bad) b.setAttribute('aria-invalid', 'true'); else b.removeAttribute('aria-invalid');
     });
-    if (bad && field && !hint) field.insertAdjacentHTML('beforeend', '<p class="hdlv2-field-hint hdlv2-height-hint" role="alert">Please check your height.</p>');
+    // v0.48.97 — with hdlv2_ff_input_checks the box's line comes from checkBox(), so there is one line only.
+    if (bad && field && !hint && !(typeof CFG !== 'undefined' && CFG.input_checks)) field.insertAdjacentHTML('beforeend', '<p class="hdlv2-field-hint hdlv2-height-hint" role="alert">Please check your height.</p>');
     if (!bad && hint) hint.remove();
     return bad ? '' : cm;
+  }
+
+  // v0.48.97 (plan 11, I4 and P2; hdlv2_ff_input_checks) — the seven measure boxes, checked when one is left
+  // and on the measurements step's Next. None of it changes a score: a number the calculator cannot use is
+  // refused, an unusual one is asked about once and kept as typed if the person says so. The limits and
+  // ranges come from HDLV2_Staged_Form::input_checks(). DRAFT COPY for the owner: both lines and the button.
+  var NUMBER_UNITS = { height: 'cm', weight: 'kg', waist: 'cm', hip: 'cm', restingHeartRate: 'bpm', bpSystolic: 'mmHg', bpDiastolic: 'mmHg' };
+  var oddKept = {};
+
+  // Pure: 'hard' (never scored: 0 and below, at or above a limit handed over, a height outside the form's own
+  // 50-250 cm), 'odd' (outside the usual range and not kept yet) or null. An empty box is always allowed.
+  function numberKind(name, metric) {
+    var ic = CFG.input_checks, s = String(metric == null ? '' : metric).trim();
+    if (!ic || s === '') return null;
+    var n = Number(s), cap = ic.hard[name], usual = ic.usual[name];
+    if (!(n > 0) || (cap && n >= cap) || (name === 'height' && (n < HEIGHT_CM[0] || n > HEIGHT_CM[1]))) return 'hard';
+    return usual && (n < usual[0] || n > usual[1]) && oddKept[name] !== s ? 'odd' : null;
+  }
+
+  // The box or boxes of one measure on screen: the metric one, or the imperial one(s).
+  function numberBoxes(name) {
+    var ids = document.getElementById('hdlv2-f-' + name) ? ['hdlv2-f-' + name]
+      : name === 'height' ? ['hdlv2-f-height-ft', 'hdlv2-f-height-in'] : ['hdlv2-f-' + name + '-imp'];
+    return ids.map(function (id) { return document.getElementById(id); }).filter(Boolean);
+  }
+
+  // What is typed in one measure: the metric value to check, and the number and unit to show it back.
+  // Imperial boxes are checked after conversion: writeImperial() has put the metric value in formData; empty
+  // there with figures in the boxes means it was refused, which counts as 0 (never scored).
+  function numberTyped(name) {
+    var b = numberBoxes(name), v = b.map(function (x) { return String(x.value).trim(); });
+    if (!v.join('')) return { metric: '', num: '', unit: '' };
+    if (b[0].id === 'hdlv2-f-' + name) return { metric: v[0], num: v[0], unit: NUMBER_UNITS[name] };
+    return { metric: formData[name] ? String(formData[name]) : '0',
+      num: name === 'height' ? (v[0] || '0') + ' ft ' + (v[1] || '0') + ' in' : v[0], unit: name === 'height' ? '' : name === 'weight' ? 'lb' : 'in' };
+  }
+
+  // One line under a field, tied to its box(es) for screen readers; html '' takes it away. The same line is
+  // not drawn twice, so it is announced once. Returns the line.
+  function fieldLine(boxes, id, html, hard) {
+    var old = document.getElementById(id), field = boxes[0] && boxes[0].closest('.hdlv2-field');
+    if (old && html && old.innerHTML === html) return old;
+    if (old) old.remove();
+    boxes.forEach(function (b) {
+      if (html) b.setAttribute('aria-describedby', id); else b.removeAttribute('aria-describedby');
+      b.classList.toggle('error', !!(html && hard));
+      if (html && hard) b.setAttribute('aria-invalid', 'true'); else b.removeAttribute('aria-invalid');
+    });
+    if (html && field) field.insertAdjacentHTML('beforeend', '<p class="hdlv2-field-hint hdlv2-check-line' + (hard ? ' is-hard' : '') + '" id="' + id + '" role="alert">' + html + '</p>');
+    return document.getElementById(id);
+  }
+
+  function checkBox(name) {
+    if (!CFG.input_checks || !NUMBER_UNITS[name]) return null;
+    var t = numberTyped(name), kind = numberKind(name, t.metric), boxes = numberBoxes(name);
+    if (kind === 'hard') formData[name] = '';
+    var line = fieldLine(boxes, 'hdlv2-check-' + name, kind === 'hard'
+      ? 'We cannot use ' + esc(t.num) + ' here. Please check it, or leave the box empty.'
+      : kind === 'odd' ? 'Is ' + esc(t.num + (t.unit ? ' ' + t.unit : '')) + ' right? <button type="button" class="hdlv2-tap-change hdlv2-check-keep">Yes, keep it</button>' : '', kind === 'hard');
+    var keep = line && line.querySelector('.hdlv2-check-keep');
+    if (keep) keep.onclick = function () {
+      oddKept[name] = t.metric;
+      fieldLine(boxes, 'hdlv2-check-' + name, '');
+      boxes[0].focus();
+    };
+    return kind;
+  }
+
+  // The measurements step's Next: every box checked; the first that needs the person gets focus.
+  function numbersHold() {
+    if (!CFG.input_checks) return false;
+    var first = Object.keys(NUMBER_UNITS).filter(function (n) { return checkBox(n); })[0];
+    if (!first) return false;
+    var keep = document.querySelector('#hdlv2-check-' + first + ' .hdlv2-check-keep');
+    (keep || numberBoxes(first)[0]).focus();
+    return true;
   }
   // The switch redraws the screen; the box being left has already written its value (blur).
   function bindUnits(rerender) {

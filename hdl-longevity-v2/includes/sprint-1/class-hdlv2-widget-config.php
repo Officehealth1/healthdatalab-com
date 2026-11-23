@@ -2732,7 +2732,8 @@ class HDLV2_Widget_Config {
             'buy_url'                       => isset( $row->buy_url ) ? (string) $row->buy_url : '',
         ) + ( class_exists( 'HDLV2_Safety_Content' ) && HDLV2_Safety_Content::enabled() ? array( 'safety_notice' => HDLV2_Safety_Content::public_payload() ) : array() ) // v0.48.66 — the notice's words and numbers
           + ( HDLV2_Offer::applies_to( (int) $row->practitioner_user_id ) ? HDLV2_Offer::public_config_fields() : array() ) // v0.48.15 — the locked panel's price line
-          + HDLV2_Offer::result_offer_fields( (int) $row->practitioner_user_id ) ) ); // v0.48.77 — the result page's offer (switch on only)
+          + HDLV2_Offer::result_offer_fields( (int) $row->practitioner_user_id ) // v0.48.77 — the result page's offer (switch on only)
+          + ( get_option( 'hdlv2_ff_input_checks', false ) ? array( 'age_typed' => true ) : array() ) ) ); // v0.48.97 (plan 11) — the age box starts empty
     }
 
     /**

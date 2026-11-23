@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * v0.48.95 (plan 11; hdlv2_ff_input_checks) — the Full Report form asks once about empty answers, refuses a
+ * v0.48.97 (plan 11; hdlv2_ff_input_checks) — the Full Report form asks once about empty answers, refuses a
  * number the calculator cannot use, asks about an unusual one, and leaves the age box empty. The REAL
  * functions of assets/js/hdlv2-staged-form.js, run in vm against a few fake elements.
  *   I4 hard: systolic 250+ and diastolic 150+ (the limits handed over, never typed in the script), 0 and
@@ -32,7 +32,7 @@ const LABELS = { bmiScore: 'BMI', whrScore: 'Waist-to-hip ratio', whtrScore: 'Wa
 const CHECKS = { hard: { bpSystolic: 250, bpDiastolic: 150 }, usual: { height: [120, 220], weight: [35, 250], waist: [50, 180], hip: [60, 180], restingHeartRate: [35, 130], bpSystolic: [80, 200], bpDiastolic: [50, 120] }, labels: LABELS };
 const ON = { input_checks: CHECKS }, OFF = {};
 
-const NAMES = ['r1', 'toMetric', 'imperialMetric', 'writeImperial', 'keepHeight', 'numberKind', 'numberBoxes', 'numberTyped', 'fieldLine', 'checkBox', 'numbersHold', 'emptyAnswers', 'askGapsOnce'];
+const NAMES = ['r1', 'toMetric', 'writeImperial', 'keepHeight', 'numberKind', 'numberBoxes', 'numberTyped', 'fieldLine', 'checkBox', 'numbersHold', 'emptyAnswers', 'askGapsOnce'];
 const SRC = ESC + [cut('  var IN_CM = ', ';\n'), cut('  var HEIGHT_CM = ', ';\n'), cut('  var TAP_STEPS = ', ';\n'), cut('  var TAP_FIRST = ', ';\n'), cut('  var TAP_ORDER = ', ';\n'),
   cut('  var NUMBER_UNITS = ', ';\n'), cut('  var oddKept = ', ';\n'), cut('  var gapsAsked = ', ';\n'), ...NAMES.map(fn)].join('\n');
 ok(NAMES.every((n) => fn(n) !== '') && cut('  var NUMBER_UNITS = ', ';\n') !== '', 'the new functions and the units map are top-level in the form script');
@@ -45,10 +45,10 @@ function page(cfg) {
     const e = { id, value, attrs, html: '', handlers, field: null,
       setAttribute(k, v) { attrs[k] = String(v); }, removeAttribute(k) { delete attrs[k]; }, getAttribute(k) { return k in attrs ? attrs[k] : null; },
       classList: { toggle: (c, on) => ((on === undefined ? !cls.has(c) : on) ? cls.add(c) : cls.delete(c)), add: (c) => cls.add(c), remove: (c) => cls.delete(c), contains: (c) => cls.has(c) },
-      addEventListener(t, f) { (handlers[t] = handlers[t] || []).push(f); }, click() { (handlers.click || []).forEach((f) => f.call(e)); },
+      addEventListener(t, f) { (handlers[t] = handlers[t] || []).push(f); }, click() { (handlers.click || []).forEach((f) => f.call(e)); if (e.onclick) e.onclick(); },
       focus() { doc.active = e; }, closest: (s) => (s === '.hdlv2-field' ? e.field : null),
       querySelector(sel) { const c = sel.replace(/^\./, ''); return sel[0] === '.' && new RegExp('class="[^"]*\\b' + c + '\\b').test(e.html) ? (kids[sel] = kids[sel] || mk(null)) : null; },
-      insertAdjacentHTML(pos, h) { const m = h.match(/^<\w+[^>]*\bid="([^"]+)"/); const n = mk(m ? m[1] : null); n.html = h; n.pos = pos; n.parent = e; e.kids.push(n);
+      insertAdjacentHTML(pos, h) { const m = h.match(/^<\w+[^>]*\bid="([^"]+)"/); const n = mk(m ? m[1] : null); n.html = h; n.innerHTML = h.replace(/^<[^>]+>/, "").replace(/<\/\w+>$/, ""); n.pos = pos; n.parent = e; e.kids.push(n);
         (h.match(/\bid="[^"]+"/g) || []).forEach((x) => { const i = x.slice(4, -1); if (!els[i]) { els[i] = i === n.id ? n : mk(i); els[i].html = els[i].html || h; } }); if (n.id) els[n.id] = n; },
       kids: [], remove() { if (e.parent) e.parent.kids = e.parent.kids.filter((k) => k !== e); Object.keys(els).forEach((k) => { if (els[k] === e || (e.html && els[k].html === e.html)) delete els[k]; }); } };
     if (id) els[id] = e;
@@ -100,6 +100,19 @@ console.log('── I4: a number the calculator cannot use ──');
   ok(x.ctx.checkBox('weight') === 'hard' && lineOf(x, 'weight').html.indexOf('We cannot use &lt;b&gt; here.') !== -1, 'I4.18 what was typed is escaped before it is shown');
 }
 
+{
+  const p = metric(ON), r = { renders: 0 };
+  Object.assign(p.ctx, { tapLeave() {}, saveWhenFree() {}, saveTimer: null, renderTapStep() { r.renders++; }, root: { scrollIntoView() {} } });
+  vm.runInNewContext(fn('tapGo'), p.ctx);
+  p.ctx.tapStep = 11; p.els['hdlv2-f-bpSystolic'].value = '260';
+  p.ctx.tapGo({}, 1);
+  ok(p.ctx.tapStep === 11 && r.renders === 0 && !!lineOf(p, 'bpSystolic'), 'I4.19 the real tapGo: Next from the measurements with 260 stays, the line shows');
+  p.ctx.tapGo({}, -1);
+  ok(p.ctx.tapStep === 10 && r.renders === 1, 'I4.20 Previous is never held');
+  p.ctx.tapStep = 11; p.els['hdlv2-f-bpSystolic'].value = '';
+  p.ctx.tapGo({}, 1);
+  ok(p.ctx.tapStep === 12 && r.renders === 2, 'I4.21 cleared: Next moves on');
+}
 console.log('── P2: an unusual number ──');
 {
   const p = metric(ON);
@@ -189,7 +202,7 @@ function lastStep(cfg, data) {
   ok(none.p.ctx.askGapsOnce({}, none.done) === false && !none.p.els['hdlv2-gap-card'], 'I3.16 nothing empty: no card, the finish goes on');
   const zero = lastStep(ON, Object.assign({}, ANSWERED, { stressLevels: '0' }));
   ok(zero.p.ctx.emptyAnswers().length === 0, 'I3.17 an answer of 0 (the first card) is an answer');
-  ok(/if \(askGapsOnce\(data, done\)\) return;/.test(fn('bindTapComplete')), 'I3.18 the buyer\'s finish button asks first');
+  ok(/if \(typeof CFG !== 'undefined' && CFG\.input_checks && askGapsOnce\(data, done\)\) return;/.test(fn('bindTapComplete')), 'I3.18 the buyer\'s finish button asks first (read guarded, as tapFirstNext)');
   ok(!/askGapsOnce/.test(fn('renderWizardSection') + fn('completeStage3')), 'I3.19 the old wizard and completeStage3 do not ask (the buyer\'s path only)');
   const p = page(ON);
   ok(J(p.ctx.TAP_FIRST.concat(p.ctx.TAP_ORDER).filter((f) => !(f in LABELS))) === '[]', 'I3.20 every question of the form has a label in the handed map');
@@ -233,7 +246,8 @@ console.log('── P3: the switch off ──');
   ok(s.p.ctx.askGapsOnce({}, s.done) === false && !s.p.els['hdlv2-gap-card'], 'P3.5 no card before finishing');
   ok(/function onFieldChange\(e\) \{\n    var imp = e\.target\.getAttribute\('data-imp'\);\n    if \(imp\) \{ e\.target\.classList\.remove\('error'\); writeImperial\(imp\); checkBox\(imp\);/.test(js)
     && /formData\[name\] = name === 'height' \? keepHeight\(v, \[e\.target\]\) : v;\n    checkBox\(name\);/.test(js), 'P3.6 a box left goes to checkBox after today\'s write (checkBox returns at once with the switch off)');
-  ok(/if \(tapStep === 0\) tapFirstNext\(data\); else if \(!numbersHold\(\)\) tapGo\(data, 1\);/.test(fn('renderTapStep')), 'P3.7 the measurements step\'s Next asks numbersHold first');
+  ok(/if \(tapStep === 0\) tapFirstNext\(data\); else tapGo\(data, 1\);/.test(fn('renderTapStep')), 'P3.7 the Next button\'s line is today\'s (tests/second-form-copy N9.7)');
+  ok(/^  function tapGo\(data, delta\) \{\n[^\n]*\n    if \(delta > 0 && tapStep === TAP_STEPS - 2 && numbersHold\(\)\) return;\n    tapLeave\(\);/.test(fn('tapGo')), 'P3.8 tapGo asks numbersHold first, forward from the measurements only');
 }
 // The steps are drawn the same with the switch on and off (the lines come only from what is typed).
 const TAP_SRC = [cut('  var S3_OPTIONS = {', '\n  };\n'), cut('  var TEST_HOW = {', '\n  };\n'), cut('  var TAP_STEPS = ', ';\n'), cut('  var TAP_FIRST = ', ';\n'),
@@ -252,6 +266,17 @@ function draw(cfg, n) {
   return ctx.root.innerHTML;
 }
 for (const n of [11, 12]) ok(draw(ON, n) === draw(OFF, n) && draw(ON, n).length > 200, `P3.${n - 3} step ${n + 1} is drawn the same on and off`);
+
+console.log('── the style rules ──');
+const css = fs.readFileSync(new URL('../../assets/css/hdlv2-form.css', import.meta.url), 'utf8');
+const block = css.slice(css.indexOf('/* v0.48.97 (plan 11; hdlv2_ff_input_checks)'), css.indexOf('/* end input checks */'));
+const classes = [...new Set((block.match(/\.hdlv2-[\w-]+/g) || []).map((c) => c.slice(1)))];
+const drawn = classes.filter((c) => js.indexOf(c) !== -1 || ['hdlv2-btn', 'hdlv2-s1-next'].includes(c));
+ok(block.length > 100 && J(drawn) === J(classes), 'S1 every class in the block is one the script draws (' + classes.length + ')');
+ok(!/border-left|::before|box-shadow/.test(block), 'S2 no rail and no shadow');
+ok(!/#[0-9a-f]{3,6}\b/gi.test(block.replace(/#004F59|#3d8da0|#2c3e50|#dc2626|#e4e6ea|#f8f9fb|#fff\b/gi, '')), 'S3 brand and status colours only');
+ok(/\.hdlv2-check-line\.is-hard \{ color: #dc2626; \}/.test(block) && /\.hdlv2-check-keep \{ min-height: 40px;/.test(block), 'S4 a refusal in status red; the keep button at least 40 px tall');
+ok(/\.hdlv2-gap-card \+ \.hdlv2-s1-next \{ display: none; \}/.test(block), 'S5 the finish button waits under the card while it shows');
 
 console.log(`PASS=${PASS} FAIL=${FAIL}`);
 process.exit(FAIL ? 1 : 0);

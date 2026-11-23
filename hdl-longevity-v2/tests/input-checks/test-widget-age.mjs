@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * v0.48.95 (plan 11, I5; hdlv2_ff_input_checks) — the free report's first step: the age box starts empty
+ * v0.48.97 (plan 11, I5; hdlv2_ff_input_checks) — the free report's first step: the age box starts empty
  * with the key on, and Continue waits for an age from 1 to 120 with one line under the box. The REAL
  * renderQ1() and ageLine() of widget/hdl-lead-magnet.js, run in vm.
  *   W1 key off: the step is today's, character for character (sha256 fixtures taken before the change),
