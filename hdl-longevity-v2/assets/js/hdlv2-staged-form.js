@@ -2215,7 +2215,8 @@
       screen = tapHeading('Here is what you told us')
         // v0.48.78 (M37; hdlv2_ff_form_clarity) — say what a row with no answer wants, without "Unknown";
         // back from step 2 every row is answered, so the middle sentence is left out.
-        + '<p class="hdlv2-s1-prompt">' + (CFG.form_clarity
+        // v0.48.92 — the focus switch draws "Choose one" rows, so it takes the clarity line too (never "Unknown").
+        + '<p class="hdlv2-s1-prompt">' + (CFG.form_clarity || CFG.form_focus
           ? 'We filled in what we could from your first answers. '
             + (TAP_FIRST.some(function (f) { return !first[f]; }) ? 'Some rows have no answer yet: choose one for each. ' : '')
             + 'If an answer is not right, tap Change.'
@@ -2302,7 +2303,7 @@
     if (!empty.length) { tapGo(data, 1); return; }
     if (!document.querySelector('.hdlv2-tap-wait')) {
       // v0.48.78 (M37; hdlv2_ff_form_clarity). Read guarded: tests/second-form-copy runs this function without CFG.
-      var wait = typeof CFG !== 'undefined' && CFG.form_clarity ? 'Please choose an answer for each row that has none yet.' : 'Please answer the rows marked Unknown.';
+      var wait = typeof CFG !== 'undefined' && (CFG.form_clarity || CFG.form_focus) ? 'Please choose an answer for each row that has none yet.' : 'Please answer the rows marked Unknown.';
       document.getElementById('hdlv2-tap-next').insertAdjacentHTML('afterend', '<p class="hdlv2-tap-wait" role="status">' + wait + '</p>');
     }
     var first = document.querySelector('#hdlv2-tap-opts-' + empty[0] + ' .hdlv2-s1-opt');
@@ -2506,7 +2507,8 @@
         + '<div class="hdlv2-ty-banner"><h1>Full&nbsp;Report&nbsp;complete</h1></div>'
         + '<div class="hdlv2-ty-body">'
         +   (S1_IMG_BASE ? motionFigure('hdlv2-ty-finished', FINISH_PICTURE) : '')
-        +   '<h2 class="hdlv2-ty-h1">Congratulations, ' + esc(firstName) + '. Your Full Report is filled in.</h2>'
+        // deriveFirstName() gives 'there' when no usable name is known: then no name at all.
+        +   '<h2 class="hdlv2-ty-h1">Congratulations' + (firstName === 'there' ? '' : ', ' + esc(firstName)) + '. Your Full Report is filled in.</h2>'
         +   '<p class="hdlv2-ty-lead">Your results are on their way to your email and should arrive within a few minutes.</p>'
         +   '<p class="hdlv2-ty-subhead">What happens next</p>'
         +   '<ol class="hdlv2-ty-list">'

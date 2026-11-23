@@ -116,6 +116,12 @@ ok(cards(h).length === 2 && (two || '').includes('An upgrade for your Full Repor
   && !/hdlv2-ty-timeline|\$/.test(h) && !(one || '').includes('Healthspan'), 'I9 an owner: card two says it is theirs, no button, no price');
 h = render(BASE, ON);
 ok(cards(h).length === 1 && !h.includes('An upgrade') && h.includes('Congratulations, Kim.'), 'I10 neither: one card, no upgrade heading');
+// Final review: no usable first name (deriveFirstName gives 'there') must not read "Congratulations, there."
+const renderThere = (data, cfg) => { const root = { innerHTML: '' }; vm.runInNewContext(PIC_SRC + '\n' + fns.join('\n') + '\nrenderThankYou(DATA);', { root, serverData: null, esc,
+  CFG: Object.assign({ plugin_url: PLUGIN, asset_ver: '0.48.92' }, cfg), window: { hdlv2_form: { plugin_url: PLUGIN } }, document: { getElementsByTagName: () => [] },
+  deriveFirstName: () => 'there', setRootClasses: () => {}, thankYouHeader: () => '<header>H</header>', thankYouFooter: () => '<footer>F</footer>', DATA: data }); return root.innerHTML; };
+h = renderThere(BASE, ON);
+ok(h.includes('<h2 class="hdlv2-ty-h1">Congratulations. Your Full Report is filled in.</h2>') && !h.includes('there'), 'I14 no first name: "Congratulations." with no "there"');
 const fy = cut('  function renderThankYou(', '\n  }\n');
 ok(/DRAFT COPY for the owner/.test(fy), 'I11 the new strings are marked draft copy for the owner');
 const up = css.slice(css.indexOf('/* v0.48.92 (plan 8, K23;'), css.indexOf('/* end finish screen */'));

@@ -208,6 +208,10 @@ ok(/font-family:\s*'Poppins'/.test(decl(wide, H)) && /font-weight:\s*700/.test(d
 ok(/font-family:\s*'Poppins'/.test(decl(wide, L)) && /font-weight:\s*600/.test(decl(wide, L)) && /color:\s*#004F59/i.test(decl(wide, L)), 'C6.12 the row label: Poppins 600, dark teal');
 ok(/width:\s*24px;\s*height:\s*24px/.test(decl(wide, '.hdlv2-focus .hdlv2-tap-row-icon')), 'C6.13 the row icon grows to 24 px');
 ok(fcss.length > 50 && !/border-left|::before/.test(fcss), 'C6.14 no accent rail in the focus rules');
+// Final review: focus on alone (clarity off) must not still speak of rows "marked Unknown".
+const s0fo = step('focusOnly', 0), waitFo = press('focusOnly', {}, 1).inserted.map((x) => x[1]).join('');
+ok(s0fo.indexOf('<p class="hdlv2-s1-prompt">' + NEW.prompt + '</p>') !== -1 && s0fo.indexOf('Unknown') === -1, 'C6.16 focus on alone: the line above the rows is the clarity line, no "Unknown"');
+ok(waitFo.indexOf(NEW.wait) !== -1 && waitFo.indexOf('Unknown') === -1, 'C6.17 focus on alone: the too-early line is the clarity line, no "Unknown"');
 ok(!/#[0-9a-f]{3,6}\b/gi.test(fcss.replace(/#004F59|#3d8da0|#2c3e50|#888888|#888\b|#e4e6ea|#f8f9fb|#fafbfc|#ffffff|#fff\b/gi, '')), 'C6.15 brand colours only');
 
 console.log(`PASS=${PASS} FAIL=${FAIL}`);
