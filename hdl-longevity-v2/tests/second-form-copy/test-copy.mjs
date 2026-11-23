@@ -9,11 +9,22 @@
  */
 import fs from 'node:fs';
 import vm from 'node:vm';
+// v0.48.96 (plan 12): the scripts name a report through rn(); with hdlv2_ff_report_names off it prints today's words.
+const RN_OFF = 'function rn(key, today) { return today; }\n';
 
 let PASS = 0, FAIL = 0;
 const ok = (c, l) => { c ? PASS++ : FAIL++; console.log((c ? '  PASS  ' : '  FAIL  ') + l); };
 
-const js = fs.readFileSync(new URL('../../assets/js/hdlv2-staged-form.js', import.meta.url), 'utf8');
+// v0.48.96 (plan 12): a report name is the switch-off value of rn( key, today ); read each call back
+// as the words it prints with hdlv2_ff_report_names off, so these checks still read today's source.
+const asToday = (s) => s
+  .replace(/(['"]) \+ rn\('[a-z]+', '([^']+)'\)\.replace\(\/ \/g, '&nbsp;'\) \+ \1/g, (m, q, w) => w.replace(/ /g, '&nbsp;'))
+  .replace(/\$\{rn\('[a-z]+', '([^']+)'\)\}/g, '$1')
+  .replace(/(['"]) \+ rn\('[a-z]+', '([^']+)'\) \+ \1/g, '$2')
+  .replace(/rn\('[a-z]+', '([^']+)'\) \+ (['"])/g, '$2$1')
+  .replace(/(['"]) \+ rn\('[a-z]+', '([^']+)'\)/g, '$2$1')
+  .replace(/\brn\('[a-z]+', '([^']+)'\)/g, "'$1'");
+const js = asToday(fs.readFileSync(new URL('../../assets/js/hdlv2-staged-form.js', import.meta.url), 'utf8'));
 const cut = (head, end) => { const at = js.indexOf(head); return at < 0 ? '' : js.slice(at, js.indexOf(end, at) + end.length); };
 const fn = (name) => cut('  function ' + name + '(', '\n  }\n');
 const has = (s) => js.indexOf(s) !== -1;
@@ -25,7 +36,7 @@ const ctx = {
   serverData: {}, tapFirstRows: () => '[rows]', tapFirstValues: () => ({}), root: { innerHTML: '' }, formData: {}, tapStep: 0, tapOrder: [],
 };
 ctx.CFG = ctx.window.hdlv2_form;
-vm.runInNewContext([cut('  var TEST_HOW = {', '\n  };\n'), cut('  var TAP_NEUTRAL = ', ';\n'), cut('  var TAP_TITLES = {', '\n  };\n'),
+vm.runInNewContext(RN_OFF + [cut('  var TEST_HOW = {', '\n  };\n'), cut('  var TAP_NEUTRAL = ', ';\n'), cut('  var TAP_TITLES = {', '\n  };\n'),
   cut('  var TAP_STEPS = ', ';\n'), cut('  var S1_IMG_BASE = ', '\n  })();\n'), fn('tapHeading'), fn('renderTapStep')].join('\n'), ctx);
 const T = ctx.TAP_TITLES || {}, HOW = ctx.TEST_HOW || {};
 

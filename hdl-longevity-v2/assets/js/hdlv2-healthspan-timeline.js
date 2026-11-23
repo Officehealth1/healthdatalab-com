@@ -22,6 +22,9 @@
 (function (root) {
   'use strict';
 
+  // v0.48.96 — a report's name: the class's (report_names, hdlv2_ff_report_names on) or today's words.
+  function rn(key, today) { var c = root.HDLV2_HT, n = c && c.report_names; return (n && n[key]) || today; }
+
   /* ---------- knobs (DA4: the calculation review signs or changes them) ---------- */
   var HDLV2_HT_KNOBS = {
     recovK: 2.5,    // biological years recovered per 0.1 of pace change: placeholder, Matthew to sign
@@ -363,7 +366,7 @@
   // v0.48.60 — the default people are examples, not measurements: one line under the lanes while every one is still a sample.
   function sampleNote(list, mode) {
     return list.length && list.every(function (p) { return p.sample === true; })
-      ? (mode === 'preview' ? (S.lockNote || 'Sample people. Your own unlock with the Full Report.') : 'Sample people. Edit them or add your own on the Loved ones tab.')
+      ? (mode === 'preview' ? (S.lockNote || 'Sample people. Your own unlock with the ' + rn('paid', 'Full Report') + '.') : 'Sample people. Edit them or add your own on the Loved ones tab.')
       : '';
   }
   // The one place the relationships map to the three headings.
@@ -401,7 +404,7 @@
     var pill = b === null ? '<span class="ht-pill" style="--c:var(--ht-muted)">not yet born</span>' : gone ? '<span class="ht-pill" style="--c:var(--ht-muted)">beyond expected lifespan</span>' : '<span class="ht-pill" style="--c:' + STAGES[st - 1].c + '">' + STAGES[st - 1].name + ' · ' + STAGES[st - 1].label + '</span>';
     var na = '<small>–</small>';
     var lifeWords = p !== S.you ? 'Set from their own report\'s lifestyle score.'
-      : life == null ? 'Your lifestyle score comes with the full report.'
+      : life == null ? 'Your lifestyle score comes with the ' + rn('paid', 'full report') + '.'
       : 'From a lifestyle score of ' + life + '/5' + (S.you.lifeSource === 'stage1' ? ' (your free check)' : '') + ': ' + (gain > 60 ? 'the fast part of the curve, early changes pay off quickly.' : gain > 30 ? 'solid headroom left.' : 'already near the top; gains come slower now.');
     return '<div class="ht-eyebrow">' + iconHtml('compass') + (isNow ? 'Where you are right now' : 'This moment') + ' · Tap or hover a year to move it</div>'
       + '<div class="ht-who"><b class="ht-name">' + esc(p.name) + '</b><span>' + dateStr + '</span><span>age <b>' + ageLabel(age, unit) + '</b></span><span>biological age <b>' + (ok ? b.toFixed(1) : '–') + '</b></span>' + pill + '</div>'
@@ -483,7 +486,7 @@
   // offer.wait (v0.48.60): a buyer whose report is not written yet; the line, no button.
   function lockHtml(offer) {
     offer = offer || {};
-    return '<p>' + iconHtml(offer.wait ? 'hourglass' : 'lock') + esc(offer.line || 'Your loved ones unlock with the full report.') + '</p>'
+    return '<p>' + iconHtml(offer.wait ? 'hourglass' : 'lock') + esc(offer.line || 'Your loved ones unlock with the ' + rn('paid', 'full report') + '.') + '</p>'
       + (offer.button && /^https:\/\//i.test(offer.url || '') ? '<a class="ht-btn" href="' + esc(offer.url) + '" target="_blank" rel="noopener noreferrer">' + esc(offer.button) + '</a>' : '');
   }
   function waitHtml(line) { return line ? '<p class="ht-wait" role="status">' + esc(line) + '</p>' : ''; }
@@ -539,7 +542,7 @@
   function factsHtml(Y, mode) {
     var age = NOW_Y - Y.born;
     return '<span>age <b>' + age + '</b></span><span>biological age <b>' + (Y.bio !== '' ? (+Y.bio).toFixed(1) : age) + '</b></span>'
-      + (Y.life != null ? '<span>lifestyle <b>' + Y.life + '/5</b></span>' : mode === 'preview' ? '<span>lifestyle · with the Full Report</span>' : '');
+      + (Y.life != null ? '<span>lifestyle <b>' + Y.life + '/5</b></span>' : mode === 'preview' ? '<span>lifestyle · with the ' + rn('paid', 'Full Report') + '</span>' : '');
   }
   function renderYou() {
     var Y = S.you, el = $('#ht-you'), facts = factsHtml(Y, S.mode);
@@ -633,7 +636,7 @@
     return '<div class="ht-row ht-linked"><span class="ht-cell">' + esc(l.label) + '</span><span class="ht-cell">' + capWord(esc(l.relationship)) + '</span>'
       + '<span class="ht-cell">' + (sh ? 'age ' + sh.age : esc(l.born_guess || '–')) + '</span><span class="ht-cell">' + esc((sh ? sh.sex : l.sex_guess) || '–') + '</span>'
       + '<span class="ht-cell">' + (sh ? (+sh.rate).toFixed(2) + '× <small class="ht-mark">from their report</small>' : 'Same as you') + '</span>'
-      + '<span class="ht-link-act"><span class="ht-chip" data-status="' + esc(l.status) + '">' + chipLabel(l.status) + '</span>' + (l.full_report ? '<span class="ht-chip" data-status="report">Full Report</span>' : '') + act + '</span></div>';
+      + '<span class="ht-link-act"><span class="ht-chip" data-status="' + esc(l.status) + '">' + chipLabel(l.status) + '</span>' + (l.full_report ? '<span class="ht-chip" data-status="report">' + rn('paid', 'Full Report') + '</span>' : '') + act + '</span></div>';
   }
   function inviteBoxHtml(url, canShare) {
     return '<div class="ht-invite"><label class="ht-eyebrow" for="ht-invite-url">Send this link yourself, by any message</label>'

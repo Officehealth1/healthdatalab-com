@@ -75,6 +75,8 @@ class FakeWpdb {
 }
 $GLOBALS['wpdb'] = new FakeWpdb();
 
+if ( ! function_exists( 'get_option' ) ) { function get_option( $k, $d = false ) { return $d; } } // v0.48.96: the names switch, absent
+require_once dirname( __DIR__, 2 ) . '/includes/class-hdlv2-report-names.php'; // v0.48.96: the report names
 require __DIR__ . '/../../includes/sprint-4/class-hdlv2-client-status.php';
 
 // Testable: pin the resolvers (the handler calls them via static::).

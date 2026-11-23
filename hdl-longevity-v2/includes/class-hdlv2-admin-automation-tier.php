@@ -85,7 +85,7 @@ class HDLV2_Admin_Automation_Tier {
 
         echo '<div class="wrap">';
         echo '<h1>Automation Tier</h1>';
-        echo '<p style="max-width:760px;color:#555;">Manage the paid automation tier — clients who complete the assessment without a practitioner consultation, with Make.com Route 1 generating their Trajectory Plan automatically.</p>';
+        echo '<p style="max-width:760px;color:#555;">Manage the paid automation tier — clients who complete the assessment without a practitioner consultation, with Make.com Route 1 generating their ' . HDLV2_Report_Names::say( 'consultation', 'Trajectory Plan' ) . ' automatically.</p>';
 
         // Tab nav.
         echo '<h2 class="nav-tab-wrapper" style="margin-top:24px;">';
@@ -171,7 +171,7 @@ class HDLV2_Admin_Automation_Tier {
                     <td>
                         <label>
                             <input type="checkbox" name="redflag_scan" id="hdlv2_redflag" value="1" <?php checked( $redflag ); ?>>
-                            <span>When on, a completed Full Report form (or any client you scan manually) is checked for medical red flags; flags appear on the practitioner dashboard and the client is emailed a non-diagnostic GP nudge. Leave OFF until tested.</span>
+                            <span>When on, a completed <?php echo esc_html( HDLV2_Report_Names::say( 'paid', 'Full Report' ) ); ?> form (or any client you scan manually) is checked for medical red flags; flags appear on the practitioner dashboard and the client is emailed a non-diagnostic GP nudge. Leave OFF until tested.</span>
                         </label>
                     </td>
                 </tr>
@@ -222,7 +222,7 @@ class HDLV2_Admin_Automation_Tier {
                 </tr>
 
                 <tr>
-                    <th scope="row"><label for="hdlv2_hold">Hold Trajectory Plan for practitioner review</label></th>
+                    <th scope="row"><label for="hdlv2_hold">Hold <?php echo esc_html( HDLV2_Report_Names::say( 'consultation', 'Trajectory Plan' ) ); ?> for practitioner review</label></th>
                     <td>
                         <label>
                             <input type="checkbox" name="hold_for_review" id="hdlv2_hold" value="1" <?php checked( $hold ); ?>>

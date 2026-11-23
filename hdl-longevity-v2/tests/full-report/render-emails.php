@@ -11,6 +11,7 @@ error_reporting( E_ALL & ~E_DEPRECATED & ~E_WARNING & ~E_NOTICE );
 require __DIR__ . '/stubs.php';
 
 $ROOT = __DIR__ . '/../../';
+require_once dirname( __DIR__, 2 ) . '/includes/class-hdlv2-report-names.php'; // v0.48.96: the report names
 require $ROOT . 'includes/sprint-2/class-hdlv2-email-templates.php';
 require $ROOT . 'includes/sprint-2/class-hdlv2-rate-calculator.php';
 require $ROOT . 'includes/sprint-2/class-hdlv2-stage1-commentary.php';

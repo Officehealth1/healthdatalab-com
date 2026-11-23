@@ -23,6 +23,8 @@
   'use strict';
 
   var CFG = window.hdlv2_client_enhance || {};
+  // v0.48.96 — a report's name: the class's (report_names, hdlv2_ff_report_names on) or today's words.
+  function rn(key, today) { var c = window.hdlv2_client_enhance, n = c && c.report_names; return (n && n[key]) || today; }
 
   // Rule-0: do nothing unless both flags + entitlement resolved server-side.
   function active() {
@@ -117,7 +119,7 @@
     if (!host) return;
     var pid = parseInt(host.getAttribute('data-progress'), 10) || 0;
     var cid = parseInt(host.getAttribute('data-client'), 10) || 0;
-    if (!pid) { host.innerHTML = shell('<p class="hdlv2-irc-note">Complete the Full Report form first to capture iris photos for this client.</p>'); return; }
+    if (!pid) { host.innerHTML = shell('<p class="hdlv2-irc-note">Complete the ' + rn('paid', 'Full Report') + ' form first to capture iris photos for this client.</p>'); return; }
     ensureStyles();
     // Read any captured analysis for this consultation (PURE local read).
     host.innerHTML = shell('<p class="hdlv2-irc-note">' + HDLV2Loading.skeleton('inline') + ' Checking iris analysis&hellip;</p>');

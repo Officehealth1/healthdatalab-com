@@ -380,6 +380,7 @@ function nothing_recorded( $wpdb ) {
 /** Load the real sources the scenarios drive. */
 function load_sources() {
     $ROOT = __DIR__ . '/../../';
+    require_once dirname( __DIR__, 2 ) . '/includes/class-hdlv2-report-names.php'; // v0.48.96: the report names
     foreach ( array(
         'includes/sprint-1/class-hdlv2-offer.php',
         'includes/sprint-2/class-hdlv2-email-templates.php',

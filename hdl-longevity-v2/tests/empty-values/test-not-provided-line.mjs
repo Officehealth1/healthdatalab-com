@@ -9,6 +9,8 @@
  */
 import fs from 'node:fs';
 import vm from 'node:vm';
+// v0.48.96 (plan 12): the scripts name a report through rn(); with hdlv2_ff_report_names off it prints today's words.
+const RN_OFF = 'function rn(key, today) { return today; }\n';
 
 let PASS = 0, FAIL = 0;
 const ok = (c, l) => { c ? PASS++ : FAIL++; console.log((c ? '  PASS  ' : '  FAIL  ') + l); };
@@ -26,7 +28,7 @@ const TODAY = '<section class="hdlv2-dr-section"><h2>Your Health Profile</h2>'
 
 function section(calc, isFinal = true) {
   const ctx = { calc, ai: { radar_commentary: null }, isFinal, html: '', renderRadarCommentary: () => '[rc]' };
-  vm.runInNewContext([fn('escape'), fn('radarSubLine'), fn('notProvidedLine')].join('\n') + '\n' + SECTION + '\nthis.OUT = html;', ctx);
+  vm.runInNewContext(RN_OFF + [fn('escape'), fn('radarSubLine'), fn('notProvidedLine')].join('\n') + '\n' + SECTION + '\nthis.OUT = html;', ctx);
   return ctx.OUT;
 }
 const safe = (calc) => { try { return section(calc); } catch (e) { return 'ERROR ' + e.message; } };

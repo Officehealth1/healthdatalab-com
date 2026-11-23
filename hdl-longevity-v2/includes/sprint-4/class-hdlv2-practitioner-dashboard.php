@@ -226,7 +226,7 @@ class HDLV2_Practitioner_Dashboard {
         // the ready card). Not a secret — just the base host, no path/secret.
         $iris_host = ( $iris_on && defined( 'IRISMAPPER_BASE' ) ) ? (string) wp_parse_url( IRISMAPPER_BASE, PHP_URL_HOST ) : '';
 
-        wp_localize_script( 'hdlv2-client-list-enhance', 'hdlv2_client_enhance', array(
+        wp_localize_script( 'hdlv2-client-list-enhance', 'hdlv2_client_enhance', HDLV2_Report_Names::config( array(
             'api_base'         => rest_url( 'hdl-v2/v1' ),
             'nonce'            => wp_create_nonce( 'wp_rest' ),
             // v0.41.14 — separate nonce for the V1 wp_ajax_health_tracker_delete_client
@@ -261,7 +261,7 @@ class HDLV2_Practitioner_Dashboard {
             // Real IrisMapper brand MARK — the eye-spiral symbol only (no
             // wordmark), the official app icon (android-chrome-512). Transparent.
             'iris_logo_url'              => $iris_on ? HDLV2_PLUGIN_URL . 'assets/images/irismapper-mark.png' : '',
-        ) );
+        ) ) );
     }
 
     public function render_shortcode( $atts ) {
@@ -297,12 +297,12 @@ class HDLV2_Practitioner_Dashboard {
         $consultation_slug = apply_filters( 'hdlv2_consultation_slug', 'consultation' );
         $flight_plan_slug  = apply_filters( 'hdlv2_flight_plan_slug', 'my-flight-plan' );
 
-        wp_localize_script( 'hdlv2-practitioner-dashboard', 'hdlv2_prac_dashboard', array(
+        wp_localize_script( 'hdlv2-practitioner-dashboard', 'hdlv2_prac_dashboard', HDLV2_Report_Names::config( array(
             'api_base'         => rest_url( 'hdl-v2/v1' ),
             'nonce'            => wp_create_nonce( 'wp_rest' ),
             'consultation_url' => home_url( '/' . trim( $consultation_slug, '/' ) . '/' ),
             'flight_plan_url'  => home_url( '/' . trim( $flight_plan_slug, '/' ) . '/' ),
-        ) );
+        ) ) );
 
         return '<div id="hdlv2-practitioner-dashboard"></div>';
     }
@@ -435,9 +435,9 @@ class HDLV2_Practitioner_Dashboard {
         $t .= '<h2 class="hdlv2-pdt-section-title">How the assessment unfolds</h2>';
         $t .= '<ul class="hdlv2-pdt-steps">';
         $t .= '<li><strong>Stage 1 &middot; Quick insight</strong>9 questions, ~3 minutes. Pace-of-ageing gauge sent by email.</li>';
-        $t .= '<li><strong>Full Report &middot; WHY</strong>You release this stage when ready. Client records their motivation; AI distils it.</li>';
-        $t .= '<li><strong>Full Report &middot; form</strong>21 measurements, 5 sections. Writes the Full Report by itself, for your review.</li>';
-        $t .= '<li><strong>Consultation &middot; Trajectory Plan</strong>You edit, add notes, finalise. PDF + Flight Plan delivered to the client.</li>';
+        $t .= '<li><strong>' . HDLV2_Report_Names::say( 'paid', 'Full Report' ) . ' &middot; WHY</strong>You release this stage when ready. Client records their motivation; AI distils it.</li>';
+        $t .= '<li><strong>' . HDLV2_Report_Names::say( 'paid', 'Full Report' ) . ' &middot; form</strong>21 measurements, 5 sections. Writes the ' . HDLV2_Report_Names::say( 'paid', 'Full Report' ) . ' by itself, for your review.</li>';
+        $t .= '<li><strong>Consultation &middot; ' . HDLV2_Report_Names::say( 'consultation', 'Trajectory Plan' ) . '</strong>You edit, add notes, finalise. PDF + Flight Plan delivered to the client.</li>';
         $t .= '</ul>';
 
         // ── Customize collapsible — empty state only ──

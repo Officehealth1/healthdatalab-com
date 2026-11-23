@@ -12,7 +12,8 @@
  *    picture, measured 2026-11-23). The three coloured parts, their edges, the needle and every
  *    other setting are today's.
  * C: switch on, every other gauge address stays today's.
- * D: the switch is read in one place, inside fire_make_webhook(); the builder never reads it.
+ * D: the switch is read once per report: inside fire_make_webhook() (the Full Report) and, from v0.48.96,
+ *    inside build_pdf_payload() (the consultation report); the builder never reads it.
  */
 
 error_reporting( E_ALL & ~E_DEPRECATED & ~E_WARNING & ~E_NOTICE );
@@ -100,7 +101,7 @@ check( 'C2 the two plain calls (Stage 1 e-mails): today\'s', 'b14d85d519e2cc98ad
 check( 'C3 the practitioner\'s panel (show_value): today\'s', '94a98bb1f746d11194294ce436d4a2a9' === md5( HDLV2_Staged_Form::build_gauge_url( 1.11, array( 'show_value' => true ) ) ) );
 sw( null );
 
-echo "── D. one place reads the switch ──\n";
+echo "── D. one place per report reads the switch ──\n";
 $root = dirname( __DIR__, 2 ) . '/includes/';
 $src  = file_get_contents( $root . 'sprint-2/class-hdlv2-staged-form.php' );
 $read = "get_option( 'hdlv2_ff_report_gauge_scale'";
@@ -111,7 +112,14 @@ $hits = 0;
 foreach ( new RecursiveIteratorIterator( new RecursiveDirectoryIterator( $root, FilesystemIterator::SKIP_DOTS ) ) as $f ) {
     if ( 'php' === $f->getExtension() ) $hits += substr_count( file_get_contents( $f->getPathname() ), "'hdlv2_ff_report_gauge_scale'" );
 }
-check( 'D1 read once, inside fire_make_webhook(), and nowhere else in includes/', 1 === substr_count( $src, $read ) && 1 === $hits && strpos( $src, $read ) > $fire_at && strpos( $src, $read ) < $next_at );
+// v0.48.96 (plan 12): the consultation PDF's gauge reads it too, once, in build_pdf_payload().
+$fin      = file_get_contents( $root . 'sprint-2c/class-hdlv2-final-report.php' );
+$fin_at   = strpos( $fin, 'function build_pdf_payload(' );
+$fin_next = strpos( $fin, "\n    /**", $fin_at );
+check( 'D1 read once inside fire_make_webhook() (the Full Report), once inside build_pdf_payload() (the consultation report), nowhere else in includes/',
+    1 === substr_count( $src, $read ) && 1 === substr_count( $fin, $read ) && 2 === $hits
+    && strpos( $src, $read ) > $fire_at && strpos( $src, $read ) < $next_at
+    && strpos( $fin, $read ) > $fin_at && ( false === $fin_next || strpos( $fin, $read ) < $fin_next ) );
 check( 'D2 build_gauge_url() takes the scale as an option and never reads an option itself', false === strpos( substr( $src, $build_at, strpos( $src, "\n    }\n", $build_at ) - $build_at ), 'get_option' ) );
 
 echo "── E. no dead gauge builder in the practitioner's report (amendment 2026-11-23, task 7a) ──\n";

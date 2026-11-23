@@ -20,7 +20,16 @@ const crypto = require('crypto');
 let PASS = 0, FAIL = 0;
 function ok(cond, label) { (cond ? PASS++ : FAIL++); console.log((cond ? 'PASS  ' : 'FAIL  ') + label); }
 
-const src = fs.readFileSync(path.join(__dirname, '..', '..', 'assets', 'js', 'hdlv2-staged-form.js'), 'utf8');
+// v0.48.96 (plan 12): a report name is the switch-off value of rn( key, today ); read each call back
+// as the words it prints with hdlv2_ff_report_names off, so these checks still read today's source.
+const asToday = (s) => s
+  .replace(/(['"]) \+ rn\('[a-z]+', '([^']+)'\)\.replace\(\/ \/g, '&nbsp;'\) \+ \1/g, (m, q, w) => w.replace(/ /g, '&nbsp;'))
+  .replace(/\$\{rn\('[a-z]+', '([^']+)'\)\}/g, '$1')
+  .replace(/(['"]) \+ rn\('[a-z]+', '([^']+)'\) \+ \1/g, '$2')
+  .replace(/rn\('[a-z]+', '([^']+)'\) \+ (['"])/g, '$2$1')
+  .replace(/(['"]) \+ rn\('[a-z]+', '([^']+)'\)/g, '$2$1')
+  .replace(/\brn\('[a-z]+', '([^']+)'\)/g, "'$1'");
+const src = asToday(fs.readFileSync(path.join(__dirname, '..', '..', 'assets', 'js', 'hdlv2-staged-form.js'), 'utf8'));
 
 function body(name) {
   const m = src.match(new RegExp('  function ' + name + '\\([^)]*\\) \\{[\\s\\S]*?\\n  \\}'));
@@ -279,7 +288,7 @@ ok(/aria-live="polite"/.test(page), 'the counter is announced (aria-live)');
 ok(!/\b(alert|confirm|prompt)\(/.test(src), 'the shipped file has no alert( / confirm( / prompt(');
 ok(src.indexOf('Tap the parts of life you care about') === -1 && src.indexOf('Start with one or two that matter to you.') === -1
   && src.indexOf('What your choices ask of your body') === -1, 'the old long copy is gone');
-const cle = fs.readFileSync(path.join(__dirname, '..', '..', 'assets', 'js', 'hdlv2-client-list-enhance.js'), 'utf8');
+const cle = asToday(fs.readFileSync(path.join(__dirname, '..', '..', 'assets', 'js', 'hdlv2-client-list-enhance.js'), 'utf8'));
 ok(cle.indexOf("'<div class=\"hdlv2-consult-caption\">Need is out of 5: 5 means every choice leans on the ability fully. Scores are out of 5, averaged from the answers listed. They are not a test of the ability itself. Stage 1 answers run 1 to 5, Full Report form answers 0 to 5. The projection to 90 uses published average losses for each ability, age and sex (about 5 to 34% a decade): an estimate.'") !== -1
   && /\(s2\.choices\.stage3_done \? '' : ' Full Report form not finished: based on Stage 1 answers only\.'\)/.test(cle),
   'practitioner caption (v0.48.11: says what need means; v0.48.13: per-ability rates; v0.48.21: Full Report form)');

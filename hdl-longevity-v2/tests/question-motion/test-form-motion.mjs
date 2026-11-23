@@ -13,6 +13,8 @@
 import fs from 'node:fs';
 import vm from 'node:vm';
 import crypto from 'node:crypto';
+// v0.48.96 (plan 12): the scripts name a report through rn(); with hdlv2_ff_report_names off it prints today's words.
+const RN_OFF = 'function rn(key, today) { return today; }\n';
 
 let PASS = 0, FAIL = 0;
 const ok = (c, l) => { c ? PASS++ : FAIL++; console.log((c ? '  PASS  ' : '  FAIL  ') + l); };
@@ -47,7 +49,7 @@ function run(motion, call, extra) {
     root: { innerHTML: '' }, formData: { waist: '84', hip: '' }, tapOpenRow: null, tapStep: 0, tapOrder: [],
   };
   ctx.CFG = ctx.window.hdlv2_form;
-  vm.runInNewContext(src + '\ntapOrder = TAP_ORDER;\n' + call, ctx);
+  vm.runInNewContext(RN_OFF + src + '\ntapOrder = TAP_ORDER;\n' + call, ctx);
   return ctx;
 }
 const VALS = { physicalActivity: '2', sleepDuration: '4', sleepQuality: '', smokingStatus: '5', socialConnections: '3', dietQuality: '' };

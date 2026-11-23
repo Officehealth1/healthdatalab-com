@@ -14,6 +14,8 @@
   var POLL_INTERVAL_MS = 3000;
   var POLL_MAX_ATTEMPTS = 120;                // 120 * 3s = 6 minutes
   var CONFIG = window.HDLV2_DRAFT_REPORT || {};
+  // v0.48.96 — a report's name: the class's (report_names, hdlv2_ff_report_names on) or today's words.
+  function rn(key, today) { var c = window.HDLV2_DRAFT_REPORT, n = c && c.report_names; return (n && n[key]) || today; }
 
   // v0.22.7 — closure-scoped state, set by start(). Allows mounting into
   // any container (e.g. the practitioner consultation page), not just the
@@ -69,7 +71,7 @@
       '<div class="hdlv2-dr-loading" data-hdlv2-state="loading" style="text-align:left;">' +
         '<div style="text-align:center;margin-bottom:24px;">' +
           '<div class="hdlv2-dr-loading-icon"></div>' +
-          '<h3 style="margin:0 0 6px;">Preparing your Full Report</h3>' +
+          '<h3 style="margin:0 0 6px;">Preparing your ' + rn('paid', 'Full Report') + '</h3>' +
           '<p style="color:#555;margin:0 0 4px;">We\'re running your results through our analysis</p>' +
           '<p style="font-size:12px;color:#888;margin:0;">This usually takes 20 – 60 seconds.</p>' +
           '<div id="hdlv2-dr-progress-mount" style="display:flex;justify-content:center;"></div>' +
@@ -126,7 +128,7 @@
         var data = r.body;
 
         if (data.status === 'incomplete') {
-          renderError('One more step to go', data.message || 'Complete your full assessment to see your Full Report.');
+          renderError('One more step to go', data.message || 'Complete your full assessment to see your ' + rn('paid', 'Full Report') + '.');
           return;
         }
 
@@ -145,7 +147,7 @@
         } else {
           renderError(
             'Still preparing your report',
-            'Your Full Report is taking longer than usual. Please refresh in a few minutes — or check back from your email link.'
+            'Your ' + rn('paid', 'Full Report') + ' is taking longer than usual. Please refresh in a few minutes — or check back from your email link.'
           );
         }
       })
@@ -236,14 +238,14 @@
     // Hero
     var firstName = (data.client_name || '').split(' ')[0] || 'there';
     var heroSubtitleHtml = isFinal
-      ? 'This is your <strong style="font-weight:600;">finalised Trajectory Plan</strong>, reviewed by your practitioner. Use it as your roadmap — your weekly Flight Plan is next.'
+      ? 'This is your <strong style="font-weight:600;">finalised ' + rn('consultation', 'Trajectory Plan') + '</strong>, reviewed by your practitioner. Use it as your roadmap — your weekly Flight Plan is next.'
       : '';
 
     html += '<header class="hdlv2-dr-hero">' +
       '<div class="hdlv2-dr-hero-header">' +
         '<div>' +
           '<p class="hdlv2-dr-hero-greeting">Hi ' + escape(firstName) + ' —</p>' +
-          '<h1 class="hdlv2-dr-hero-title">' + (isFinal ? 'Your Trajectory Plan' : 'Your Full Report') + '</h1>' +
+          '<h1 class="hdlv2-dr-hero-title">' + (isFinal ? 'Your ' + rn('consultation', 'Trajectory Plan') : 'Your ' + rn('paid', 'Full Report')) + '</h1>' +
         '</div>' +
         (isFinal ? '<span class="hdlv2-dr-final-badge">Final</span>' : '') +
       '</div>' +
@@ -375,7 +377,7 @@
         '<section class="hdlv2-dr-goals">' +
           '<div class="hdlv2-dr-ai-label">Tying this back to your goals</div>' +
           '<h2>What you told us — and what your data says</h2>' +
-          '<p class="hdlv2-dr-section-sub">From what you shared in your Full Report — how your data connects to what actually matters to you.</p>' +
+          '<p class="hdlv2-dr-section-sub">From what you shared in your ' + rn('paid', 'Full Report') + ' — how your data connects to what actually matters to you.</p>' +
           ai.goals_linkage.map(function (g) {
             return '<div class="hdlv2-dr-goal-item">' +
               '<div class="hdlv2-dr-goal-quote">"' + escape(g.goal_quote || '') + '"</div>' +
@@ -545,8 +547,8 @@
         + '</div>';
     }
     var sub = editable
-      ? 'Edit any milestone below — what you set here is what your client receives in the final report. No extra email, no extra cost.'
-      : 'Personalised milestones generated from your data and the choices you made in your Full Report — what progress could look like over time.';
+      ? 'Edit any milestone below — what you set here is what your client receives in the ' + rn('consultation', 'final report') + '. No extra email, no extra cost.'
+      : 'Personalised milestones generated from your data and the choices you made in your ' + rn('paid', 'Full Report') + ' — what progress could look like over time.';
 
     return '<section class="hdlv2-dr-section hdlv2-dr-milestones' + (editable ? ' hdlv2-dr-ms-editable' : '') + '" id="hdlv2-dr-ms-section">'
       + '<div class="hdlv2-dr-ai-label">Milestone timeline</div>'
@@ -742,7 +744,7 @@
   function radarSubLine(notProvided) {
     var n = Array.isArray(notProvided) ? notProvided.length : 0;
     return '<p class="hdlv2-dr-section-sub">How you\'re scoring across ' + (n ? (20 - n) + ' of ' : '') +
-      'the twenty longevity metrics (0 = low, 5 = excellent), on the same colour scale as your final report.</p>';
+      'the twenty longevity metrics (0 = low, 5 = excellent), on the same colour scale as your ' + rn('consultation', 'final report') + '.</p>';
   }
 
   function notProvidedLine(notProvided) {

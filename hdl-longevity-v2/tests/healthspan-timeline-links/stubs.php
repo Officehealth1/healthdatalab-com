@@ -244,6 +244,7 @@ class TlWpdb {
 }
 
 $ROOT = dirname( __DIR__, 2 );
+require_once dirname( __DIR__, 2 ) . '/includes/class-hdlv2-report-names.php'; // v0.48.96: the report names
 require_once $ROOT . '/includes/sprint-2/class-hdlv2-email-templates.php';
 require_once $ROOT . '/includes/sprint-1/class-hdlv2-offer.php';
 require_once $ROOT . '/includes/sprint-2c/class-hdlv2-healthspan-timeline.php';

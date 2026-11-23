@@ -66,7 +66,14 @@ foreach ( $left as $l ) echo "        left: $l\n";
 check( 'R.1 zero client-facing "Stage 2/3" (' . count( $left ) . ' left)', 0 === count( $left ) );
 
 echo "── H1 each renamed spot says the Full Report ──\n";
-$src = function ( $f ) use ( $ROOT ) { return file_get_contents( $ROOT . $f ); };
+// v0.48.96 (plan 12): a report name is now the switch-off value of HDLV2_Report_Names::say() / rn();
+// read each call back as the words it prints with hdlv2_ff_report_names off.
+$src = function ( $f ) use ( $ROOT ) {
+    $s = file_get_contents( $ROOT . $f );
+    $s = preg_replace( "/HDLV2_Report_Names::say\\( [^,]+, '([^']+)' \\)/", "'$1'", $s );
+    $s = preg_replace( "/\\brn\\('[a-z]+', '([^']+)'\\)/", "'$1'", $s );
+    return str_replace( array( "' . '", "' + '", "\" . '", "' . \"" ), '', $s );
+};
 $want = array(
     'widget/hdl-lead-magnet.js' => array(
         'The Full Report shows what matters most to you and what your real measurements say, so your practitioner can plan with you.',

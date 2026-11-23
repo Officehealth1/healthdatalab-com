@@ -290,7 +290,7 @@ class HDLV2_Webhook_Monitor {
             foreach ( (array) $rows as $r ) {
                 $stuck[] = array(
                     'key' => 'report:' . (int) $r->id,
-                    'msg' => sprintf( 'Final Report #%d (client %d): PDF never arrived from Make.com/PDFMonkey (>%d min). The web report is fine — only the downloadable PDF is missing; re-fire the Make scenario or re-finalise.', (int) $r->id, (int) $r->client_user_id, $min ),
+                    'msg' => sprintf( HDLV2_Report_Names::say( 'consultation', 'Final Report' ) . ' #%d (client %d): PDF never arrived from Make.com/PDFMonkey (>%d min). The web report is fine — only the downloadable PDF is missing; re-fire the Make scenario or re-finalise.', (int) $r->id, (int) $r->client_user_id, $min ),
                 );
             }
         }

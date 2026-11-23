@@ -21,6 +21,7 @@ function rest_url( $p ) { return 'https://example.test/wp-json/' . $p; }
 function wp_create_nonce() { return 'nonce'; }
 class WP_Error { public function __construct() {} }
 function is_wp_error( $x ) { return $x instanceof WP_Error; }
+require_once dirname( __DIR__, 2 ) . '/includes/class-hdlv2-report-names.php'; // v0.48.96: the report names
 require __DIR__ . '/../../includes/sprint-2/class-hdlv2-staged-form.php';
 
 $pass = 0; $fail = 0;

@@ -27,7 +27,16 @@ let PASS = 0, FAIL = 0;
 function ok(cond, label) { (cond ? PASS++ : FAIL++); console.log((cond ? 'PASS  ' : 'FAIL  ') + label); }
 
 const ROOT = path.join(__dirname, '..', '..');
-const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8');
+// v0.48.96 (plan 12): a report name is the switch-off value of rn( key, today ); read each call back
+// as the words it prints with hdlv2_ff_report_names off, so these checks still read today's source.
+const asToday = (s) => s
+  .replace(/(['"]) \+ rn\('[a-z]+', '([^']+)'\)\.replace\(\/ \/g, '&nbsp;'\) \+ \1/g, (m, q, w) => w.replace(/ /g, '&nbsp;'))
+  .replace(/\$\{rn\('[a-z]+', '([^']+)'\)\}/g, '$1')
+  .replace(/(['"]) \+ rn\('[a-z]+', '([^']+)'\) \+ \1/g, '$2')
+  .replace(/rn\('[a-z]+', '([^']+)'\) \+ (['"])/g, '$2$1')
+  .replace(/(['"]) \+ rn\('[a-z]+', '([^']+)'\)/g, '$2$1')
+  .replace(/\brn\('[a-z]+', '([^']+)'\)/g, "'$1'");
+const read = (rel) => asToday(fs.readFileSync(path.join(ROOT, rel), 'utf8'));
 const list = (dir, ext) => fs.readdirSync(path.join(ROOT, dir))
   .filter((f) => f.endsWith(ext) && !f.startsWith('._'))
   .map((f) => dir + '/' + f);

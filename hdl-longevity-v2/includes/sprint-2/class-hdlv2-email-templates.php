@@ -181,7 +181,7 @@ class HDLV2_Email_Templates {
                 This is a preliminary estimate based on 6 data points.
                 <strong>It would be a lot more accurate if we knew a little bit more about you.</strong>
             </p>"
-            . self::cta_button( $url, 'Continue to your Full Report' );
+            . self::cta_button( $url, 'Continue to your ' . HDLV2_Report_Names::say( 'paid', 'Full Report' ) );
 
         return self::base_layout( $content, $data['practitioner_id'] ?? null, 'Your Stage 1 Result' );
     }
@@ -224,15 +224,15 @@ class HDLV2_Email_Templates {
         // charts live in the draft report behind the CTA, not inlined here.
         // $data['rate']/['bio_age']/['age']/['radar_chart_url']/['trajectory_chart_url'] unused.
         $content = "
-            <h2 style='margin:0 0 8px;color:" . self::DARK . ";'>Full Report form completed</h2>
-            <p style='color:" . self::MUTED . ";margin:0 0 24px;line-height:1.5;'>Full Report is ready. Your client <strong>{$cname}</strong> has completed all three stages. Please review before the consultation.</p>
+            <h2 style='margin:0 0 8px;color:" . self::DARK . ";'>" . HDLV2_Report_Names::say( 'paid', 'Full Report' ) . " form completed</h2>
+            <p style='color:" . self::MUTED . ";margin:0 0 24px;line-height:1.5;'>" . HDLV2_Report_Names::say( 'paid', 'Full Report' ) . " is ready. Your client <strong>{$cname}</strong> has completed all three stages. Please review before the consultation.</p>
 
             <p style='color:#444;line-height:1.6;margin:0 0 24px;'>
                 Review it before you finalise; you can adjust anything.
             </p>"
-            . self::cta_button( $url, 'Review Full Report' );
+            . self::cta_button( $url, 'Review ' . HDLV2_Report_Names::say( 'paid', 'Full Report' ) );
 
-        return self::base_layout( $content, $data['practitioner_id'] ?? null, 'Full Report — Review Required' );
+        return self::base_layout( $content, $data['practitioner_id'] ?? null, HDLV2_Report_Names::say( 'paid', 'Full Report' ) . ' — Review Required' );
     }
 
     // ──────────────────────────────────────────────────────────────
@@ -244,8 +244,8 @@ class HDLV2_Email_Templates {
         $draft_url = esc_url( $data['draft_url'] ?? '' );
 
         $cta_block = $draft_url
-            ? "<p style='font-size:15px;color:#2c3e50;line-height:1.7;margin:0 0 20px;'>Your Full Report is ready. It includes your trajectory chart, your 21-metric health profile, and a first pass of what your data is telling us.</p>"
-              . self::cta_button( $draft_url, 'View your Full Report' )
+            ? "<p style='font-size:15px;color:#2c3e50;line-height:1.7;margin:0 0 20px;'>Your " . HDLV2_Report_Names::say( 'paid', 'Full Report' ) . " is ready. It includes your trajectory chart, your 21-metric health profile, and a first pass of what your data is telling us.</p>"
+              . self::cta_button( $draft_url, 'View your ' . HDLV2_Report_Names::say( 'paid', 'Full Report' ) )
             : "<p style='font-size:15px;color:#2c3e50;line-height:1.7;margin:0;'>Your practitioner is now reviewing your results and will send you your personalised report soon.</p>";
 
         $content = "
@@ -254,7 +254,7 @@ class HDLV2_Email_Templates {
             {$cta_block}"
             . self::dashboard_button();
 
-        return self::base_layout( $content, $data['practitioner_id'] ?? null, 'Your Full Report' );
+        return self::base_layout( $content, $data['practitioner_id'] ?? null, 'Your ' . HDLV2_Report_Names::say( 'paid', 'Full Report' ) );
     }
 
     // ──────────────────────────────────────────────────────────────
@@ -522,17 +522,17 @@ class HDLV2_Email_Templates {
         $url     = esc_url( $data['dashboard_url'] ?: home_url( '/' . trim( apply_filters( 'hdlv2_practitioner_dashboard_slug', 'clients' ), '/' ) . '/' ) );
 
         $content = "
-            <h2 style='margin:0 0 12px;color:" . self::DARK . ";font-family:Poppins,Inter,sans-serif;font-size:20px;font-weight:700;'>Ready to open the Full Report form for your client</h2>
-            <p style='color:" . self::MUTED . ";margin:0 0 20px;font-size:14px;line-height:1.6;'>Your client <strong>{$cname}</strong> has submitted their Full Report WHY. Review and release the gate to open the Full Report form.</p>
+            <h2 style='margin:0 0 12px;color:" . self::DARK . ";font-family:Poppins,Inter,sans-serif;font-size:20px;font-weight:700;'>Ready to open the " . HDLV2_Report_Names::say( 'paid', 'Full Report' ) . " form for your client</h2>
+            <p style='color:" . self::MUTED . ";margin:0 0 20px;font-size:14px;line-height:1.6;'>Your client <strong>{$cname}</strong> has submitted their " . HDLV2_Report_Names::say( 'paid', 'Full Report' ) . " WHY. Review and release the gate to open the " . HDLV2_Report_Names::say( 'paid', 'Full Report' ) . " form.</p>
 
             <p style='font-size:13px;color:#444;line-height:1.6;margin:0 0 24px;'>
                 Clicking below opens your dashboard with this client highlighted &mdash; you can review the full WHY, add
-                a note, and release the gate with one click. The client will be emailed the link to the Full Report form.
+                a note, and release the gate with one click. The client will be emailed the link to the " . HDLV2_Report_Names::say( 'paid', 'Full Report' ) . " form.
             </p>"
-            . self::cta_button( $url, 'Review and open the Full Report form' )
+            . self::cta_button( $url, 'Review and open the ' . HDLV2_Report_Names::say( 'paid', 'Full Report' ) . ' form' )
             . "<p style='font-size:11px;color:" . self::MUTED . ";line-height:1.5;margin:18px 0 0;text-align:center;'>{$cemail}</p>";
 
-        return self::base_layout( $content, $data['practitioner_id'] ?? null, 'Full Report · WHY — ready to review' );
+        return self::base_layout( $content, $data['practitioner_id'] ?? null, HDLV2_Report_Names::say( 'paid', 'Full Report' ) . ' · WHY — ready to review' );
     }
 
     // ──────────────────────────────────────────────────────────────
@@ -585,10 +585,10 @@ class HDLV2_Email_Templates {
         </table>";
 
         $content = "<p style='font-size:16px;color:" . self::DARK_TEXT . ";line-height:1.7;margin:0 0 18px;'>Dear " . esc_html( $first ) . ",</p>"
-            . "<p style='font-size:15px;color:#2c3e50;line-height:1.7;margin:0 0 18px;'>I've reviewed the answers you shared in your Full Report (your Why). Your measurements are the next piece &mdash; they collect detailed health measurements that, combined with everything you've already shared, will form the basis of your personalised Trajectory Plan.</p>"
+            . "<p style='font-size:15px;color:#2c3e50;line-height:1.7;margin:0 0 18px;'>I've reviewed the answers you shared in your " . HDLV2_Report_Names::say( 'paid', 'Full Report' ) . " (your Why). Your measurements are the next piece &mdash; they collect detailed health measurements that, combined with everything you've already shared, will form the basis of your personalised " . HDLV2_Report_Names::say( 'consultation', 'Trajectory Plan' ) . ".</p>"
             . "<p style='font-size:15px;color:#2c3e50;line-height:1.7;margin:0 0 18px;'>It takes around <strong>10&ndash;15 minutes</strong>. A few of the questions involve simple physical checks (a sit-to-stand test, a breath hold, a balance test) and a tape measure for waist and hip. If anything isn't possible right now, leave it blank &mdash; we'll cover it in your first consultation. Best to do your honest best rather than guess.</p>"
             . "<p style='font-size:15px;color:#2c3e50;line-height:1.7;margin:0 0 8px;'>When you're ready:</p>"
-            . self::cta_button( $form_url, 'Continue your Full Report' )
+            . self::cta_button( $form_url, 'Continue your ' . HDLV2_Report_Names::say( 'paid', 'Full Report' ) )
             . $help_line
             . "<p style='font-size:15px;color:#2c3e50;line-height:1.7;margin:24px 0 4px;'>Warm regards,</p>"
             . "<p style='font-size:15px;color:" . self::DARK_TEAL . ";font-weight:600;line-height:1.7;margin:0 0 22px;'>" . esc_html( $prac_first ) . "</p>"
@@ -599,17 +599,17 @@ class HDLV2_Email_Templates {
         // (current_time respects the WP site timezone; safe across STBY + LIVE)
         $subject_name = $client_name !== '' ? $client_name : 'your client';
         $subject      = sprintf(
-            'Your Full Report is open — %s — %s',
+            'Your ' . HDLV2_Report_Names::say( 'paid', 'Full Report' ) . ' is open — %s — %s',
             $subject_name,
             current_time( 'd/m/Y H:i' )
         );
 
-        $preheader = "Your practitioner has reviewed your WHY. Your Full Report continues.";
+        $preheader = "Your practitioner has reviewed your WHY. Your " . HDLV2_Report_Names::say( 'paid', 'Full Report' ) . " continues.";
 
         $html = self::base_layout(
             $content,
             $data['practitioner_id'] ?? null,
-            'Your Full Report is open',
+            'Your ' . HDLV2_Report_Names::say( 'paid', 'Full Report' ) . ' is open',
             $preheader
         );
 
@@ -1103,13 +1103,13 @@ class HDLV2_Email_Templates {
         // lists live in the final report behind the CTA (and the client's PDF),
         // not inlined here. $data rate/bio_age/age/positives/negatives unused.
         $content = "
-            <h2 style='margin:0 0 12px;color:" . self::DARK . ";font-family:Poppins,Inter,sans-serif;font-size:22px;font-weight:700;'>Final report delivered to {$cname}</h2>
+            <h2 style='margin:0 0 12px;color:" . self::DARK . ";font-family:Poppins,Inter,sans-serif;font-size:22px;font-weight:700;'>" . HDLV2_Report_Names::say( 'consultation', 'Final report' ) . " delivered to {$cname}</h2>
             <p style='color:" . self::MUTED . ";margin:0 0 24px;font-size:14px;line-height:1.6;'>You&rsquo;ve finalised the report. A branded PDF has been emailed to your client, and their Week 1 Flight Plan is being prepared.</p>
-            <p style='color:#444;line-height:1.7;margin:0 0 8px;font-size:14px;'>Open the final report to preview exactly what {$cname} sees:</p>"
-            . self::cta_button( $url, 'Open Trajectory Plan' )
+            <p style='color:#444;line-height:1.7;margin:0 0 8px;font-size:14px;'>Open the " . HDLV2_Report_Names::say( 'consultation', 'final report' ) . " to preview exactly what {$cname} sees:</p>"
+            . self::cta_button( $url, 'Open ' . HDLV2_Report_Names::say( 'consultation', 'Trajectory Plan' ) )
             . "<p style='font-size:12px;color:" . self::MUTED . ";line-height:1.5;margin:20px 0 0;text-align:center;'>Delivered to {$email} &middot; Flight Plan follows shortly</p>";
 
-        return self::base_layout( $content, $data['practitioner_id'] ?? null, 'Trajectory Plan Delivered' );
+        return self::base_layout( $content, $data['practitioner_id'] ?? null, HDLV2_Report_Names::say( 'consultation', 'Trajectory Plan' ) . ' Delivered' );
     }
 
     // ──────────────────────────────────────────────────────────────
@@ -1128,13 +1128,13 @@ class HDLV2_Email_Templates {
         // inlined in the email body. $data['rate']/['bio_age'] intentionally
         // unused now.
         $content = "
-            <h2 style='margin:0 0 12px;color:" . self::DARK . ";font-family:Poppins,Inter,sans-serif;font-size:22px;font-weight:700;'>Hi " . esc_html( $first ) . ", your Trajectory Plan is ready</h2>
-            <p style='color:#2c3e50;line-height:1.7;margin:0 0 20px;font-size:15px;'>Your personalised longevity report has been finalised by your practitioner. Your PDF copy will arrive in a separate email shortly &mdash; or review your full report online now:</p>"
-            . self::cta_button( $url, 'View Your Trajectory Plan' )
+            <h2 style='margin:0 0 12px;color:" . self::DARK . ";font-family:Poppins,Inter,sans-serif;font-size:22px;font-weight:700;'>Hi " . esc_html( $first ) . ", your " . HDLV2_Report_Names::say( 'consultation', 'Trajectory Plan' ) . " is ready</h2>
+            <p style='color:#2c3e50;line-height:1.7;margin:0 0 20px;font-size:15px;'>Your personalised longevity report has been finalised by your practitioner. Your PDF copy will arrive in a separate email shortly &mdash; or review your " . HDLV2_Report_Names::say( 'paid', 'full report' ) . " online now:</p>"
+            . self::cta_button( $url, 'View Your ' . HDLV2_Report_Names::say( 'consultation', 'Trajectory Plan' ) )
             . self::dashboard_button()
             . "<p style='font-size:12px;color:" . self::MUTED . ";line-height:1.5;margin:20px 0 0;text-align:center;'>Questions? Just reply to this email — your practitioner will see it.</p>";
 
-        return self::base_layout( $content, $data['practitioner_id'] ?? null, 'Your Trajectory Plan' );
+        return self::base_layout( $content, $data['practitioner_id'] ?? null, 'Your ' . HDLV2_Report_Names::say( 'consultation', 'Trajectory Plan' ) );
     }
 
     // ──────────────────────────────────────────────────────────────
@@ -1150,7 +1150,7 @@ class HDLV2_Email_Templates {
         $content = "
             <h2 style='margin:0 0 12px;color:" . self::DARK . ";font-family:Poppins,Inter,sans-serif;font-size:22px;font-weight:700;'>" . esc_html( $data['label'] . ' shared their pace of ageing with you' ) . "</h2>
             <p style='color:#2c3e50;line-height:1.7;margin:0 0 20px;font-size:15px;'>Their lane on your timeline now uses the numbers from their own free check. Open your timeline to see your years side by side.</p>"
-            . ( empty( $data['seat_used'] ) ? '' : "<p style='color:#2c3e50;line-height:1.7;margin:0 0 20px;font-size:15px;'>" . esc_html( $data['label'] . ' now has their Full Report through your family pack.' ) . '</p>' )
+            . ( empty( $data['seat_used'] ) ? '' : "<p style='color:#2c3e50;line-height:1.7;margin:0 0 20px;font-size:15px;'>" . esc_html( $data['label'] . ' now has their ' . HDLV2_Report_Names::say( 'paid', 'Full Report' ) . ' through your family pack.' ) . '</p>' )
             . self::cta_button( $data['page_url'], 'Open your timeline' );
         return self::base_layout( $content, null, 'Your healthspan timeline' );
     }
@@ -1164,7 +1164,7 @@ class HDLV2_Email_Templates {
         $content = "
             <h2 style='margin:0 0 12px;color:" . self::DARK . ";font-family:Poppins,Inter,sans-serif;font-size:22px;font-weight:700;'>" . esc_html( sprintf( "You're on %s's timeline as %s", $data['owner_first'], $data['label'] ) ) . "</h2>
             <p style='color:#2c3e50;line-height:1.7;margin:0 0 12px;font-size:15px;'>" . esc_html( sprintf( 'We shared three numbers with %s: your pace of ageing, age and sex. Nothing else from your answers is shared.', $data['owner_first'] ) ) . "</p>"
-            . ( empty( $data['report_url'] ) ? '' : "<p style='color:#2c3e50;line-height:1.7;margin:0 0 12px;font-size:15px;'>" . ( 'existing' === ( $data['report_kind'] ?? '' ) ? 'You already have a Full Report; open it any time.' : 'Your Full Report is unlocked. This link is yours alone: it signs you in.' ) . '</p>' . self::cta_button( $data['report_url'], 'Open my Full Report' ) ) . "
+            . ( empty( $data['report_url'] ) ? '' : "<p style='color:#2c3e50;line-height:1.7;margin:0 0 12px;font-size:15px;'>" . ( 'existing' === ( $data['report_kind'] ?? '' ) ? 'You already have a ' . HDLV2_Report_Names::say( 'paid', 'Full Report' ) . '; open it any time.' : 'Your ' . HDLV2_Report_Names::say( 'paid', 'Full Report' ) . ' is unlocked. This link is yours alone: it signs you in.' ) . '</p>' . self::cta_button( $data['report_url'], 'Open my ' . HDLV2_Report_Names::say( 'paid', 'Full Report' ) ) ) . "
             <p style='color:#2c3e50;line-height:1.7;margin:0 0 20px;font-size:15px;'>You can withdraw at any time. Your numbers come off their timeline straight away.<br>
                 <a href='" . esc_url( $data['withdraw'] ) . "' style='display:inline-block;padding:10px 0;color:" . self::DARK_TEAL . ";text-decoration:underline;font-size:15px;font-weight:600;'>Withdraw my numbers</a></p>";
         return self::base_layout( $content, null, 'Your healthspan timeline' );

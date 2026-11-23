@@ -52,6 +52,18 @@ class HDLV2_Products {
     const TL_OFFER   = 'Upgrade · ';
     const TL_ABOUT   = 'An upgrade to your Full Report. A family pack adds seats for the people you choose.';
 
+    /**
+     * v0.48.96 (plan 12) — the constants above keep today's words; this names the report where they are
+     * read (hdlv2_ff_report_names). Here "Trajectory Plan" is what the paid report gives, so both read 'paid'.
+     */
+    private static function named( $text ) {
+        return str_replace(
+            array( 'Full Report', 'Trajectory Plan' ),
+            array( HDLV2_Report_Names::say( 'paid', 'Full Report' ), HDLV2_Report_Names::say( 'paid', 'Trajectory Plan' ) ),
+            $text
+        );
+    }
+
     public static function init() {
         add_action( 'rest_api_init', array( __CLASS__, 'register_routes' ) );
     }
@@ -146,18 +158,18 @@ class HDLV2_Products {
 
         // Full Report
         if ( $report ) {
-            $full = self::item( 'full_report', 'Full Report', 'yours',
+            $full = self::item( 'full_report', HDLV2_Report_Names::say( 'paid', 'Full Report' ), 'yours',
                 'final' === $report->report_type ? 'Final' : 'Ready', home_url( '/my-report/' ) );
         } elseif ( $ticket || ( $row && ( $row->stage2_completed_at || $row->stage3_completed_at ) ) ) {
-            $full = self::item( 'full_report', 'Full Report', 'in-progress',
+            $full = self::item( 'full_report', HDLV2_Report_Names::say( 'paid', 'Full Report' ), 'in-progress',
                 $row && $row->stage3_completed_at ? $who . ' is writing it'
                 : ( $row && $row->stage2_completed_at ? 'Questions under way' : 'Bought · your questions next' ) );
         } elseif ( $prac_id && HDLV2_Offer::applies_to( $prac_id ) ) {
             $o    = HDLV2_Offer::get();
-            $full = self::item( 'full_report', 'Full Report', 'not-yet', 'Today ' . HDLV2_Offer::money( $o['full_today_price'], $o ),
+            $full = self::item( 'full_report', HDLV2_Report_Names::say( 'paid', 'Full Report' ), 'not-yet', 'Today ' . HDLV2_Offer::money( $o['full_today_price'], $o ),
                 $o['url'], HDLV2_Offer::money( $o['full_today_price'], $o ) );
         } else {
-            $full = self::item( 'full_report', 'Full Report', 'not-yet', $ask );
+            $full = self::item( 'full_report', HDLV2_Report_Names::say( 'paid', 'Full Report' ), 'not-yet', $ask );
         }
 
         // Timeline: comes with the Full Report (hdlv2_ht_gate 'addon' is reserved and behaves the same).
@@ -171,7 +183,7 @@ class HDLV2_Products {
             $o        = $report ? HDLV2_Timeline_Upgrade::offer_for( $tl_row, time() ) : null;
             $timeline = $o
                 ? self::item( 'timeline', 'Timeline', 'not-yet', '' !== $o['ends'] ? self::TL_OFFER . $o['price'] . ' until ' . HDLV2_Timeline_Upgrade::day( $o['ends_at'], 'j M' ) : $o['price'], $o['url'], $o['price'] )
-                : self::item( 'timeline', 'Timeline', 'not-yet', self::TL_UPGRADE );
+                : self::item( 'timeline', 'Timeline', 'not-yet', self::named( self::TL_UPGRADE ) );
         } elseif ( $report && ! empty( $row->token ) ) {
             $family   = class_exists( 'HDLV2_Timeline_Links' ) ? HDLV2_Timeline_Links::dashboard_pack( (int) $row->id ) : null;
             $pack     = $family ? $family['pack'] : null;
@@ -181,7 +193,7 @@ class HDLV2_Products {
                     : 'Family pack ended' );
             $timeline = self::item( 'timeline', 'Timeline', 'yours', $line, HDLV2_Healthspan_Timeline::report_url( $row->token ) );
         } else {
-            $timeline = self::item( 'timeline', 'Timeline', 'not-yet', 'Comes with your Full Report' );
+            $timeline = self::item( 'timeline', 'Timeline', 'not-yet', 'Comes with your ' . HDLV2_Report_Names::say( 'paid', 'Full Report' ) );
         }
 
         $dashboard = home_url( '/' . trim( apply_filters( 'hdlv2_client_dashboard_slug', 'my-dashboard' ), '/' ) . '/' );
@@ -276,9 +288,10 @@ class HDLV2_Products {
         $sells  = ! $read_only && 'not-yet' === $item['state'] && null !== $seller['price'] && '' !== $seller['url'];
         $h      = '<div class="cdp-product-card cdp-locked">' . self::product_head( $item, ! ( $sells && $seller === $item ) );
         $about  = self::ABOUT[ $item['key'] ];
-        if ( 'timeline' === $item['key'] && ( null !== $item['price'] || self::TL_UPGRADE === $item['note'] ) ) {
+        if ( 'timeline' === $item['key'] && ( null !== $item['price'] || self::named( self::TL_UPGRADE ) === $item['note'] ) ) {
             $about[1] = self::TL_ABOUT;
         }
+        $about = array_map( array( __CLASS__, 'named' ), $about );
         foreach ( $about as $line ) {
             $h .= '<p class="cdp-product-about">' . esc_html( $line ) . '</p>';
         }

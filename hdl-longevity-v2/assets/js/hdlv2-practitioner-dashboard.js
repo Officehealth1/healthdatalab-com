@@ -13,6 +13,8 @@
   'use strict';
 
   var CFG = window.hdlv2_prac_dashboard || {};
+  // v0.48.96 — a report's name: the class's (report_names, hdlv2_ff_report_names on) or today's words.
+  function rn(key, today) { var c = window.hdlv2_prac_dashboard, n = c && c.report_names; return (n && n[key]) || today; }
   var root = document.getElementById('hdlv2-practitioner-dashboard');
   if (!root || !CFG.api_base || !CFG.nonce) return;
 
@@ -211,7 +213,7 @@
   function renderActions(c) {
     var parts = [];
     if (c.status === 'awaiting_why_release' && c.progress_id) {
-      parts.push('<button type="button" class="hdlv2-pd-btn hdlv2-pd-btn-primary" data-release-progress="' + c.progress_id + '">Open the Full Report form</button>');
+      parts.push('<button type="button" class="hdlv2-pd-btn hdlv2-pd-btn-primary" data-release-progress="' + c.progress_id + '">Open the ' + rn('paid', 'Full Report') + ' form</button>');
     }
     if (c.progress_id) {
       var consultUrl = CFG.consultation_url + '?progress_id=' + encodeURIComponent(c.progress_id);
@@ -234,12 +236,12 @@
     // v0.20.10 — themed modal instead of browser-native confirm().
     var ask = (window.HDLV2UI && window.HDLV2UI.confirm)
       ? window.HDLV2UI.confirm({
-          title: 'Open the Full Report form for this client?',
-          body: 'This emails them the link to the Full Report form and cannot be undone.',
+          title: 'Open the ' + rn('paid', 'Full Report') + ' form for this client?',
+          body: 'This emails them the link to the ' + rn('paid', 'Full Report') + ' form and cannot be undone.',
           confirmLabel: 'Yes, send invite',
           cancelLabel: 'Cancel'
         })
-      : Promise.resolve(window.confirm('Open the Full Report form for this client?\n\nThis emails them the link to the Full Report form and cannot be undone.'));
+      : Promise.resolve(window.confirm('Open the ' + rn('paid', 'Full Report') + ' form for this client?\n\nThis emails them the link to the ' + rn('paid', 'Full Report') + ' form and cannot be undone.'));
     ask.then(function (confirmed) {
       if (!confirmed) return;
       _doReleaseWhy(btn, progressId);

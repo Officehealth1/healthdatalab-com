@@ -301,7 +301,7 @@ class HDLV2_Stage1_Commentary {
 
         if ( ! isset( $library[ $key ] ) ) {
             // Defensive — shouldn't fire if pick_factors stays in sync with the library
-            return '<p>One of your answers points to a focus area worth attention with your practitioner in your Full Report.</p>';
+            return '<p>One of your answers points to a focus area worth attention with your practitioner in your ' . HDLV2_Report_Names::say( 'paid', 'Full Report' ) . '.</p>';
         }
 
         $entry = $library[ $key ];
@@ -428,7 +428,7 @@ class HDLV2_Stage1_Commentary {
 
     private static function p5_whats_next() {
         return '<p>This is a 9-question snapshot, not a verdict. Most of what shapes your rate is within your control, '
-            . 'and rates can shift inside months when the right levers move. The Full Report captures your <em>why</em> '
+            . 'and rates can shift inside months when the right levers move. The ' . HDLV2_Report_Names::say( 'paid', 'Full Report' ) . ' captures your <em>why</em> '
             . '&mdash; the people, fears and motivations that turn knowledge into action &mdash; and turns your real '
             . 'measurements into a personalised longevity plan with your practitioner. The number you saw today is where you start.</p>';
     }
@@ -637,7 +637,7 @@ class HDLV2_Stage1_Commentary {
         if ( isset( $lib[ $key ] ) ) {
             return self::html_to_plain( $lib[ $key ]['body'] );
         }
-        return 'One of your answers points to a focus area worth attention with your practitioner in your Full Report.';
+        return 'One of your answers points to a focus area worth attention with your practitioner in your ' . HDLV2_Report_Names::say( 'paid', 'Full Report' ) . '.';
     }
 
     /**

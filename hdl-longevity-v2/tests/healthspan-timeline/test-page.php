@@ -98,6 +98,7 @@ class FakeWpdb {
     }
 }
 
+require_once dirname( __DIR__, 2 ) . '/includes/class-hdlv2-report-names.php'; // v0.48.96: the report names
 require_once dirname( __DIR__, 2 ) . '/includes/sprint-1/class-hdlv2-offer.php';
 require_once dirname( __DIR__, 2 ) . '/includes/sprint-2/class-hdlv2-stage1-commentary.php';
 $src = dirname( __DIR__, 2 ) . '/includes/sprint-2c/class-hdlv2-healthspan-timeline.php';

@@ -60,7 +60,14 @@ $base = array( // md5 of each method's source at 4a0fa73: the flag-off page is b
     'steps_grid'          => 'fab19fd6aa21a898291be590b7b17784',
     'help_footer'         => '42a2311a1ff5b45529c42552368db271',
 );
-$changed = array_keys( array_filter( $base, function ( $md5, $n ) use ( $dash ) { return md5( method_src( $dash, $n ) ) !== $md5; }, ARRAY_FILTER_USE_BOTH ) );
+// v0.48.96 (plan 12): a report name in path_for_state and steps_grid is the switch-off value of
+// HDLV2_Report_Names::say(); each call is read back as the words it prints with the switch off, so the
+// pins above still prove the flag-off source byte for byte.
+$as_today = function ( $s ) {
+    $s = preg_replace( "/HDLV2_Report_Names::say\\( [^,]+, '([^']+)' \\)/", "'$1'", $s );
+    return str_replace( "' . '", '', $s );
+};
+$changed = array_keys( array_filter( $base, function ( $md5, $n ) use ( $dash, $as_today ) { return md5( $as_today( method_src( $dash, $n ) ) ) !== $md5; }, ARRAY_FILTER_USE_BOTH ) );
 check( 'H1.3 the flag-off path untouched (ten methods byte-equal to the base)' . ( $changed ? ': ' . implode( ', ', $changed ) : '' ), ! $changed );
 check( 'H1.4 the report and progress panels call the shared bodies (no copy)',
     false !== strpos( method_src( $dash, 'pop_report_panel' ), '$this->report_body( $ctx )' ) && false !== strpos( method_src( $dash, 'pop_progress_panel' ), '$this->progress_body( $ctx )' )

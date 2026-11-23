@@ -495,7 +495,7 @@ class HDLV2_Admin_Restore {
                             <th style="width:50px;">ID</th>
                             <th>Client</th>
                             <th>Practitioner</th>
-                            <th>Stage 1 / Full Report form</th>
+                            <th>Stage 1 / <?php echo esc_html( HDLV2_Report_Names::say( 'paid', 'Full Report' ) ); ?> form</th>
                             <th>Deleted at</th>
                             <th>Deleted by</th>
                             <th style="width:90px;">Archived for</th>
