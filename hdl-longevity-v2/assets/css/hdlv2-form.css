@@ -2713,6 +2713,18 @@
 }
 .hdlv2-tap-row-icon { width: 20px; height: 20px; margin-right: 8px; color: #3d8da0; fill: currentColor; vertical-align: -4px; }
 
+/* v0.48.92 (plan 8; hdlv2_ff_form_focus) — the Full Report form after Matthew's walk. Everything here
+   matches only inside the tap card's .hdlv2-focus, which the script adds with the switch on.
+   K19: the question pictures larger. K20: a picture with no how-to box (the drinks) sits above the answers. */
+.hdlv2-focus .hdlv2-tap-motion img,
+.hdlv2-focus .hdlv2-body-guide img { width: 120px; height: 120px; }
+@media (min-width: 640px) {
+  .hdlv2-focus .hdlv2-tap-motion img,
+  .hdlv2-focus .hdlv2-body-guide img { width: 144px; height: 144px; }
+}
+.hdlv2-tap-motion + .hdlv2-s1-options { clear: both; }
+/* end form focus */
+
 /* v0.48.50 (W41) — measurements in cm · kg or ft in · lb: two pills, the active one filled
    teal (no rail); imperial height is two boxes side by side. */
 .hdlv2-units { display: flex; width: max-content; max-width: 100%; gap: 4px; padding: 4px; margin: 0 0 12px; background: #f8f9fb; border: 1px solid #e4e6ea; border-radius: 999px; }

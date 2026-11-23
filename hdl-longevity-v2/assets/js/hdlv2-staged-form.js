@@ -439,7 +439,9 @@
     waist: { file: 'g-waist-hip.svg', caption: 'Waist · Hip', still: true },
     // v0.48.78 (M36; hdlv2_ff_form_clarity) — the pair under "Who are you staying strong for?".
     sittingOut: { file: 'p-sitting-out.svg', caption: 'Sitting out', still: true },
-    joiningIn: { file: 'p-joining-in.svg', caption: 'Joining in', still: true }
+    joiningIn: { file: 'p-joining-in.svg', caption: 'Joining in', still: true },
+    // v0.48.92 (plan 8, K20; hdlv2_ff_form_focus) — four glasses beside the alcohol question.
+    alcoholConsumption: { file: 'g-drinks.svg', caption: 'A usual week', still: true }
   };
 
   // A picture and its caption. A moving one is a <picture> whose reduced-motion source is
@@ -2216,6 +2218,8 @@
         + (q.hint ? '<p class="hdlv2-s1-prompt">' + esc(q.hint) + '</p>' : '')
         + '<p class="hdlv2-tap-reason">' + tapReason(field, data.second_form_ties) + '</p>'
         + (q.how ? (tm ? motionFigure('hdlv2-tap-motion', tm) : '') + '<p class="hdlv2-tap-how"><strong>How to do it:</strong> ' + esc(q.how) + '</p>' : '')
+        // v0.48.92 (plan 8, K20; hdlv2_ff_form_focus) — a question with a picture and no how-to text.
+        + (!q.how && tm && CFG.form_focus ? motionFigure('hdlv2-tap-motion', tm) : '')
         + '<div class="hdlv2-s1-options" role="radiogroup" aria-labelledby="hdlv2-tap-title">' + tapCards(field, d[field]) + '</div>'
         + '<button type="button" id="hdlv2-tap-skip" class="hdlv2-tap-skip">Skip this one</button>'
         + '<p class="hdlv2-s1-kbd-hint">Press <kbd>A</kbd>–<kbd>F</kbd> to choose</p>';
@@ -2230,7 +2234,8 @@
         + '<button id="hdlv2-complete-s3" class="hdlv2-btn hdlv2-s1-next">Complete Assessment &#10003;</button>';
     }
 
-    root.innerHTML = '<div class="hdlv2-card">'
+    // v0.48.92 (plan 8; hdlv2_ff_form_focus) — hdlv2-focus carries the larger question, labels and pictures.
+    root.innerHTML = '<div class="hdlv2-card' + (CFG.form_focus ? ' hdlv2-focus' : '') + '">'
       + brandBar(serverData) + '<div class="hdlv2-header"><h2>Your Full Report</h2></div>'
       + '<div class="hdlv2-s1">'
       +   '<div class="hdlv2-s1-header">'
