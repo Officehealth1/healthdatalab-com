@@ -114,4 +114,10 @@ foreach ( new RecursiveIteratorIterator( new RecursiveDirectoryIterator( $root, 
 check( 'D1 read once, inside fire_make_webhook(), and nowhere else in includes/', 1 === substr_count( $src, $read ) && 1 === $hits && strpos( $src, $read ) > $fire_at && strpos( $src, $read ) < $next_at );
 check( 'D2 build_gauge_url() takes the scale as an option and never reads an option itself', false === strpos( substr( $src, $build_at, strpos( $src, "\n    }\n", $build_at ) - $build_at ), 'get_option' ) );
 
+echo "── E. no dead gauge builder in the practitioner's report (amendment 2026-11-23, task 7a) ──\n";
+check( 'E1 HDLV2_Final_Report has no build_gauge_url() of its own (it had no caller)', ! ( new ReflectionClass( 'HDLV2_Final_Report' ) )->hasMethod( 'build_gauge_url' ) );
+check( 'E2 HDLV2_Final_Report::gauge_url() still returns today\'s address, switch absent', $golden === md5( HDLV2_Final_Report::gauge_url( 1.11 ) ) );
+$fr = file_get_contents( $root . 'sprint-2c/class-hdlv2-final-report.php' );
+check( 'E3 no comment points at gauge lines that are not there', false === strpos( $fr, 'lines 1245/1259' ) && false === strpos( $fr, 'see line 470' ) );
+
 done();
