@@ -965,6 +965,8 @@
     };
     // v0.48.80 (2f) — hdlv2_ff_stage1_resume: continue where you stopped. Public settings only, never with an invite.
     cfg.resume = !!(publicCfg && publicCfg.resume_enabled) && !invite;
+    // v0.48.97 (plan 11, I5; hdlv2_ff_input_checks) — the age box starts empty and Continue waits for an age.
+    cfg.ageTyped = !!(publicCfg && publicCfg.age_typed);
     if (cfg.questionMotion) injectMotionStyles();
 
     var id = 'hdlw-' + cfg.pracId;
@@ -1145,6 +1147,17 @@
       navNextBtn.addEventListener('mouseleave', function () { this.style.background = 'transparent'; });
     }
 
+    // v0.48.97 (plan 11, I5) — one line under the age box, tied to it; true while the age is missing or
+    // outside 1 to 120. DRAFT COPY for the owner.
+    function ageLine(input, bad) {
+      var line = document.getElementById(input.id + '-line');
+      if (bad && !line) input.insertAdjacentHTML('afterend', '<p id="' + input.id + '-line" role="alert" style="font-family:' + B.body + ';font-size:13px;line-height:1.5;color:#dc2626;margin:6px 0 0;">Please type your age.</p>');
+      if (!bad && line) line.remove();
+      if (bad) { input.setAttribute('aria-describedby', input.id + '-line'); input.setAttribute('aria-invalid', 'true'); input.style.borderColor = '#dc2626'; }
+      else { input.removeAttribute('aria-describedby'); input.removeAttribute('aria-invalid'); }
+      return bad;
+    }
+
     // --- Q1: Age + Sex (editorial entry) ---
     function renderQ1() {
       contentEl.innerHTML = ''
@@ -1160,7 +1173,7 @@
         + '<div class="hdlw-fields">'
         +   '<div class="hdlw-field">'
         +     '<label class="hdlw-field-label" for="' + id + '-q1age">Age in years</label>'
-        +     '<input id="' + id + '-q1age" class="hdlw-field-input" type="number" min="1" max="120" inputmode="numeric" value="' + (answers.q1_age || 50) + '" placeholder="Your age in years">'
+        +     '<input id="' + id + '-q1age" class="hdlw-field-input" type="number" min="1" max="120" inputmode="numeric" value="' + (answers.q1_age || (cfg.ageTyped ? '' : 50)) + '" placeholder="Your age in years">'
         +   '</div>'
         +   '<div class="hdlw-field">'
         +     '<label class="hdlw-field-label">Sex</label>'
@@ -1185,6 +1198,7 @@
       document.getElementById(id + '-q1next').addEventListener('click', function () {
         var ageInput = document.getElementById(id + '-q1age');
         var age = parseInt(ageInput.value, 10);
+        if (cfg.ageTyped && ageLine(ageInput, !(age >= 1 && age <= 120))) return;
         if (!age || age < 1 || !answers.q1_sex) {
           if (!age) ageInput.style.borderColor = '#dc2626';
           return;

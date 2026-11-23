@@ -1330,9 +1330,37 @@ class HDLV2_Staged_Form {
             // v0.48.92 (plan 8) — larger question and labels, "Choose one", the drinks picture, Matthew's
             // own-words question and the two-card finish screen (absent = off).
             'form_focus'      => (bool) get_option( 'hdlv2_ff_form_focus', false ),
-        ) ) );
+        ) + ( get_option( 'hdlv2_ff_input_checks', false ) ? array( 'input_checks' => self::input_checks() ) : array() ) ) ); // v0.48.97 (plan 11) — absent or off, no new key
 
         return '<div id="hdlv2-assessment" class="hdlv2-assessment-root"></div>';
+    }
+
+    /**
+     * v0.48.97 (plan 11) — what the Full Report form checks before it moves on. None of it changes a score.
+     *   hard:   a number at or above is never scored: get_systolic_score() and get_diastolic_score() drop it
+     *           without a word (tests/input-checks/scenario-limits.php proves they agree at 249/250, 149/150).
+     *   usual:  metric; outside it the form asks "is this right?" and keeps the number if the person says so.
+     *           DRAFT values for the owner (plan 11 § 5).
+     *   labels: the 21 scored answers by their words, from the one map, for the card before finishing.
+     */
+    public static function input_checks() {
+        $labels = array();
+        foreach ( array_keys( HDLV2_Rate_Calculator::FULL_WEIGHTS ) as $key ) {
+            $labels[ $key ] = HDLV2_Email_Templates::score_key_to_label( $key );
+        }
+        return array(
+            'hard'   => array( 'bpSystolic' => 250, 'bpDiastolic' => 150 ),
+            'usual'  => array(
+                'height'           => array( 120, 220 ),
+                'weight'           => array( 35, 250 ),
+                'waist'            => array( 50, 180 ),
+                'hip'              => array( 60, 180 ),
+                'restingHeartRate' => array( 35, 130 ),
+                'bpSystolic'       => array( 80, 200 ),
+                'bpDiastolic'      => array( 50, 120 ),
+            ),
+            'labels' => $labels,
+        );
     }
 
     // ──────────────────────────────────────────────────────────────
