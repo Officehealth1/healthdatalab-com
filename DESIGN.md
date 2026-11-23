@@ -100,7 +100,8 @@ checks every file against this section.
   none): head `circle r="9"` filled `#004F59`, torso one stroke, each leg
   two strokes (thigh 16, shin 16), each arm two strokes (upper 13, fore
   13); stroke-width 6, `#004F59`, round caps.
-- No face, hands, hair, clothes or gender cue.
+- No face, hands, hair, clothes or gender cue. One exception: the skin pinch
+  draws its two hands as hand shapes, because the test is done with the hands.
 - The same proportions in every file on the 120 grid: head 18, torso 30,
   leg 32, arm 26. A scene scales the whole rig, never one limb.
 - Joints are nested groups: the joint's position is a `transform`
@@ -117,8 +118,12 @@ checks every file against this section.
 - Measuring bands (the waist and hip guide): stroke 2, `#3d8da0` at full
   strength, dashed `3 3`, round caps, drawn over the figure so they read
   across it.
-- The two pinching fingers (skin pinch) are the person's own: stroke 6
-  `#004F59`, round caps, the figure's ink. The hand under them is a prop.
+- The skin pinch: the pinching hand is the person's own, in the figure's
+  ink: a filled `#004F59` back of the hand that comes in from the disc's edge
+  (its wrist end follows the disc, r 57.5), with the thumb and first finger as
+  curved stroke-6 `#004F59` strokes, round caps, that meet it. The hand lifts
+  on one joint at the wrist; thumb and finger open on their own joints. The
+  flat hand under it (palm, four fingers, thumb) is a prop.
 - What sinks under a surface (the pinch's ridge flattening back into the
   hand) is hidden by a patch filled `#f8f9fb`, the disc's colour, drawn
   after it and before the surface. A `clipPath` would need `url()`.
