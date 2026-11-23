@@ -72,8 +72,10 @@ $KEPT = array(
     ),
 );
 
-$TODAY = '/full (longevity )?report|trajectory plan|final (longevity )?report|finali[sz]ed longevity report/i';
-$NEW   = '/Longevity Report|Comprehensive Report/';
+// A space, &nbsp; or \u00a0 between the words (the finish banner keeps its words on one line with &nbsp;).
+$SP    = '(?:\s|&nbsp;|\\\\u00a0)+';
+$TODAY = "/full{$SP}(?:longevity{$SP})?report|trajectory{$SP}plan|final{$SP}(?:longevity{$SP})?report|finali[sz]ed{$SP}longevity{$SP}report/i";
+$NEW   = "/Longevity{$SP}Report|Comprehensive{$SP}Report/";
 
 function readable( $root, $file ) {
     $out = array();

@@ -1372,7 +1372,7 @@
 
     root.innerHTML = '<div class="hdlv2-card hdlv2-ty-card">'
       + thankYouHeader(pracName, pracLogo)
-      + '<div class="hdlv2-ty-banner"><h1>Full&nbsp;Report&nbsp;·&nbsp;Your&nbsp;WHY</h1></div>'
+      + '<div class="hdlv2-ty-banner"><h1>' + rn('paid', 'Full Report').replace(/ /g, '&nbsp;') + '&nbsp;·&nbsp;Your&nbsp;WHY</h1></div>'
       + '<div class="hdlv2-ty-body">'
       +   '<h2 class="hdlv2-ty-h1">Thank you for sharing, ' + esc(firstName) + '.</h2>'
       +   '<p class="hdlv2-ty-lead">' + leadLine + '</p>'
@@ -2510,7 +2510,7 @@
         : timelineBlockHtml(s1.timeline_offer);
       root.innerHTML = '<div class="hdlv2-card hdlv2-ty-card">'
         + thankYouHeader(pracName, pracLogo)
-        + '<div class="hdlv2-ty-banner"><h1>Full&nbsp;Report&nbsp;complete</h1></div>'
+        + '<div class="hdlv2-ty-banner"><h1>' + rn('paid', 'Full Report').replace(/ /g, '&nbsp;') + '&nbsp;complete</h1></div>'
         + '<div class="hdlv2-ty-body">'
         +   (S1_IMG_BASE ? motionFigure('hdlv2-ty-finished', FINISH_PICTURE) : '')
         // deriveFirstName() gives 'there' when no usable name is known: then no name at all.
@@ -2531,7 +2531,7 @@
 
     root.innerHTML = '<div class="hdlv2-card hdlv2-ty-card">'
       + thankYouHeader(pracName, pracLogo)
-      + '<div class="hdlv2-ty-banner"><h1>Full&nbsp;Report&nbsp;complete</h1></div>'
+      + '<div class="hdlv2-ty-banner"><h1>' + rn('paid', 'Full Report').replace(/ /g, '&nbsp;') + '&nbsp;complete</h1></div>'
       + '<div class="hdlv2-ty-body">'
       +   '<h2 class="hdlv2-ty-h1">Thanks, ' + esc(firstName) + ' — your assessment is in.</h2>'
       +   '<p class="hdlv2-ty-lead">From what you’ve told us we’ve built your ' + rn('paid', 'full longevity report') + '. It’s on its way to your email and should arrive within a few minutes.</p>'
