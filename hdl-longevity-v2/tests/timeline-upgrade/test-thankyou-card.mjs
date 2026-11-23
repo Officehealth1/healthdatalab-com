@@ -19,14 +19,18 @@ ok(fns.every(Boolean), 'renderThankYou, timelineBlockHtml and timelineVideoHtml 
 
 // The card's own helpers, as small stand-ins: the test is about the block, not the shell.
 const esc = (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
-const render = (data) => {
+// v0.48.92 (plan 8): the picture helper and the switch. CFG {} = the switch absent.
+const PIC_SRC = [cut('  var S1_IMG_BASE = ', '\n  })();\n'), cut('  var FINISH_PICTURE = ', ';\n'), cut('  function motionFigure(', '\n  }\n')].join('\n');
+const PLUGIN = 'https://example.test/wp-content/plugins/hdl-longevity-v2/';
+const render = (data, cfg) => {
   const root = { innerHTML: '' };
   const ctx = {
-    root, serverData: null, esc,
+    root, serverData: null, esc, CFG: Object.assign({ plugin_url: PLUGIN, asset_ver: '0.48.92' }, cfg || {}),
+    window: { hdlv2_form: { plugin_url: PLUGIN } }, document: { getElementsByTagName: () => [] },
     deriveFirstName: () => 'Kim', setRootClasses: () => {},
     thankYouHeader: () => '<header>H</header>', thankYouFooter: () => '<footer>F</footer>',
   };
-  vm.runInNewContext(fns.join('\n') + '\nrenderThankYou(DATA);', Object.assign(ctx, { DATA: data }));
+  vm.runInNewContext(PIC_SRC + '\n' + fns.join('\n') + '\nrenderThankYou(DATA);', Object.assign(ctx, { DATA: data }));
   return root.innerHTML;
 };
 const BASE = { client_name: 'Kim Lane', client_email: 'kim@example.test', practitioner_name: 'Pat', practitioner_email: 'pat@example.test', practitioner_logo_url: '' };
@@ -84,6 +88,39 @@ const blk = css.slice(css.indexOf('.hdlv2-ty-timeline'), css.indexOf('/* end tim
 ok(blk.length > 20 && /background:\s*#f8f9fb/.test(blk), 'H1 the block has the soft fill');
 ok(!/border-left|::before/.test(blk), 'H2 no accent rail');
 ok(!/#[0-9a-f]{3,6}/gi.test(blk.replace(/#f8f9fb|#004f59|#2c3e50|#3d8da0|#ffffff|#e4e6ea|#666666/gi, '')), 'H3 no new colour (only the card\'s own)');
+
+ok(BASE_MD5 === md5(render(BASE, { form_focus: false })) && BASE_MD5 === md5(render(BASE, { form_focus: 0 })), 'F3 the switch set off → the same card, byte for byte');
+
+console.log('── I. plan 8 (K23; hdlv2_ff_form_focus): finished, then the offer apart ──');
+const ON = { form_focus: true };
+const cards = (h) => h.split('<div class="hdlv2-card hdlv2-ty-card').slice(1);
+const pic = `${PLUGIN}assets/images/motion/f-finished.svg?ver=0.48.92`;
+h = render(Object.assign({}, BASE, { timeline_offer: OFFER }), ON);
+let [one, two] = cards(h);
+ok(cards(h).length === 2, 'I1 two cards');
+ok(PIC_SRC.indexOf('f-finished.svg') !== -1 && (one || '').includes(`<picture><source srcset="${pic}&amp;still=1#still" media="(prefers-reduced-motion: reduce)"><img src="${pic}" alt="You have finished" width="96" height="96" loading="eager" decoding="async"></picture>`),
+  'I2 card one: the moving finish picture, its still for reduced motion, alt "You have finished"');
+ok((one || '').includes('<h2 class="hdlv2-ty-h1">Congratulations, Kim. Your Full Report is filled in.</h2>')
+  && (one || '').includes('Your results are on their way to your email and should arrive within a few minutes.'), 'I3 card one: the congratulations and the e-mail line');
+ok((one || '').includes('What happens next') && (one || '').includes('<li>Check your inbox for your Full Report.</li>') && (one || '').includes('check your spam folder')
+  && (one || '').indexOf('<img') < (one || '').indexOf('Congratulations'), 'I4 card one: today\'s list and spam note, the picture above the heading');
+ok(!/hdlv2-ty-timeline|Healthspan/.test(one || '') && !h.includes('your assessment is in'), 'I5 card one holds no offer; the old thanks line is gone');
+ok((two || '').includes('<h2 class="hdlv2-ty-upgrade-title">An upgrade for your Full Report</h2>') && (two || '').includes('class="hdlv2-ty-timeline"')
+  && (two || '').indexOf('An upgrade for your Full Report') < (two || '').indexOf('hdlv2-ty-timeline'), 'I6 card two: its own heading, then the Timeline block');
+const block = render(Object.assign({}, BASE, { timeline_offer: OFFER })).match(/<div class="hdlv2-ty-timeline">[\s\S]*?Estimates, not predictions\.<\/p><\/div>/)[0];
+ok((two || '').includes(block), 'I7 the Timeline block itself is unchanged');
+ok(h.indexOf('<footer>F</footer>') < h.indexOf('hdlv2-ty-upgrade') && (one || '').includes('<footer>F</footer>'), 'I8 the footer closes card one; card two stands apart below it');
+h = render(Object.assign({}, BASE, { timeline_owned: true }), ON);
+[one, two] = cards(h);
+ok(cards(h).length === 2 && (two || '').includes('An upgrade for your Full Report') && (two || '').includes('Your Healthspan Timeline is yours. It opens when your Full Report lands.')
+  && !/hdlv2-ty-timeline|\$/.test(h) && !(one || '').includes('Healthspan'), 'I9 an owner: card two says it is theirs, no button, no price');
+h = render(BASE, ON);
+ok(cards(h).length === 1 && !h.includes('An upgrade') && h.includes('Congratulations, Kim.'), 'I10 neither: one card, no upgrade heading');
+const fy = cut('  function renderThankYou(', '\n  }\n');
+ok(/DRAFT COPY for the owner/.test(fy), 'I11 the new strings are marked draft copy for the owner');
+const up = css.slice(css.indexOf('/* v0.48.92 (plan 8, K23)'), css.indexOf('/* end finish screen */'));
+ok(/\.hdlv2-ty-upgrade \{[^}]*margin-top:\s*24px/.test(up), 'I12 clear space between the two cards');
+ok(up.length > 20 && !/border-left|::before/.test(up) && !/#[0-9a-f]{3,6}\b/gi.test(up.replace(/#004F59|#3d8da0|#2c3e50|#888888|#888\b|#e4e6ea|#f8f9fb|#ffffff/gi, '')), 'I13 no rail, brand colours only');
 
 console.log(`\nPASS=${PASS} FAIL=${FAIL}`);
 process.exit(FAIL ? 1 : 0);

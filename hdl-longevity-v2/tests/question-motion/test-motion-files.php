@@ -18,10 +18,13 @@ $poses    = array( 'q4-stairs-a.svg', 'q4-stairs-b.svg', 'q4-stairs-c.svg', 'q4-
 $plates   = array( 'q9-plate-a.svg', 'q9-plate-b.svg', 'q9-plate-c.svg', 'q9-plate-d.svg', 'q9-plate-e.svg' );
 // v0.48.78 (M36): the two still people pictures beside "Who are you staying strong for?".
 $people   = array( 'p-sitting-out.svg', 'p-joining-in.svg' );
-$static   = array_merge( array( 'g-waist-hip.svg' ), $plates, $people );
+// v0.48.92 (plan 8, K20): the drinks beside the alcohol question, a thing, so still.
+$static   = array_merge( array( 'g-waist-hip.svg', 'g-drinks.svg' ), $plates, $people );
+// v0.48.92 (plan 8, K23): f- files belong to the finish screen, not to a question (outside TAP_MOTION).
+$finish   = array( 'f-finished.svg' );
 $expected = array_merge( array( 'q3-zone2.svg', 'q4-stairs.svg', 'q5-floor-a.svg', 'q5-floor-b.svg', 'q5-floor-c.svg', 'q5-floor-d.svg', 'q5-floor-e.svg', 'q6-sleep.svg', 'q7-smoking.svg', 'q8-social.svg',
 	'q9-diet.svg', 't-balance.svg', 't-chair-stands.svg', 't-skin-pinch.svg', 'g-waist-hip.svg',
-	'q4-stairs-a.svg', 'q4-stairs-b.svg', 'q4-stairs-c.svg', 'q4-stairs-d.svg', 'q4-stairs-e.svg' ), $plates, $people );
+	'q4-stairs-a.svg', 'q4-stairs-b.svg', 'q4-stairs-c.svg', 'q4-stairs-d.svg', 'q4-stairs-e.svg', 'g-drinks.svg' ), $plates, $people, $finish );
 $answers  = array_merge( $poses, $plates ); // every picture that sits on an answer, not at the top
 $palette  = array( '#004f59', '#3d8da0', '#e4e6ea', '#f8f9fb', '#ffffff' );
 $ease     = 'cubic-bezier(.4,0,.2,1)';
@@ -30,6 +33,7 @@ $ease     = 'cubic-bezier(.4,0,.2,1)';
 function ms( $t ) { return false !== strpos( $t, 'ms' ) ? (float) $t : (float) $t * 1000; }
 
 ok( is_dir( $dir ), 'the motion folder exists' );
+ok( 29 === count( $expected ) && count( glob( $dir . '*.svg' ) ?: array() ) === count( $expected ), 'the folder holds exactly the 29 named files (' . count( glob( $dir . '*.svg' ) ?: array() ) . ')' );
 foreach ( $expected as $name ) {
 	$f = $dir . $name;
 	if ( ! is_file( $f ) ) { ok( false, "$name exists" ); continue; }
@@ -140,7 +144,7 @@ $wq = array_values( array_filter( $have, function ( $x ) use ( $answers ) { retu
 $wp = array_values( array_intersect( $have, $answers ) ); sort( $wp );
 $wsrc = file_get_contents( $root . '/widget/hdl-lead-magnet.js' );
 $p  = $files( $wsrc, 'OPTION_POSES' );
-$ft = array_values( array_filter( $have, function ( $x ) { return 0 !== strpos( $x, 'q' ); } ) ); sort( $ft );
+$ft = array_values( array_filter( $have, function ( $x ) { return 0 !== strpos( $x, 'q' ) && 0 !== strpos( $x, 'f-' ); } ) ); sort( $ft );
 ok( null !== $w && $w === $wq, 'the widget map (QUESTION_MOTION) lists exactly the drawn q- top scenes: ' . implode( ', ', (array) $w ) );
 ok( null !== $p && $p === $wp, 'the widget answer map (OPTION_POSES) lists exactly the drawn Q4 poses, Q5 poses and Q9 plates: ' . implode( ', ', (array) $p ) );
 // Round 3f: the plates are still, so the widget draws one plain picture and no hover pair for Q9 only.
@@ -148,6 +152,13 @@ preg_match( '/var OPTION_POSES = \{(.*?)\n  \};/s', $wsrc, $om );
 preg_match_all( '/\b(q\d):\s*\{([^}]*)\}/', $om[1] ?? '', $rowsm, PREG_SET_ORDER );
 $stillq = array(); foreach ( $rowsm as $r ) if ( preg_match( '/\bstill:\s*true\b/', $r[2] ) ) $stillq[] = $r[1];
 ok( array( 'q9' ) === $stillq, 'OPTION_POSES marks Q9 alone as still (still: true): ' . ( implode( ', ', $stillq ) ?: 'none' ) );
-ok( null !== $f && $f === $ft, 'the form map (TAP_MOTION) lists exactly the drawn t- and g- scenes: ' . implode( ', ', (array) $f ) );
+ok( null !== $f && $f === $ft, 'the form map (TAP_MOTION) lists exactly the drawn t-, g- and p- scenes: ' . implode( ', ', (array) $f ) );
+// v0.48.92 (plan 8): the finish picture is the thank-you card's own, named once in the form script.
+$fsrc = file_get_contents( $root . '/assets/js/hdlv2-staged-form.js' );
+ok( 1 === substr_count( $fsrc, "'f-finished.svg'" ) && ! in_array( 'f-finished.svg', (array) $f, true ), 'f-finished.svg is named once in the form script, outside TAP_MOTION' );
+// K18: the pinching hand reads as a hand: thumb and finger are curves meeting a knuckle, not two straight bars.
+$pinch = (string) @file_get_contents( $dir . 't-skin-pinch.svg' );
+ok( ! preg_match( '/<line class="f"/', $pinch ) && preg_match_all( '/<path class="f"/', $pinch ) >= 2, 't-skin-pinch.svg draws the pinching thumb and finger as curved strokes, no straight bars' );
+ok( preg_match( '/class="p"[^>]*d="[^"]*[cCqQ]/', $pinch ), 't-skin-pinch.svg draws the flat hand with curves (palm, fingers, thumb)' );
 echo "PASS=$pass FAIL=$fail\n";
 exit( $fail ? 1 : 0 );

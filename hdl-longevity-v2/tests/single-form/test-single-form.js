@@ -256,6 +256,21 @@ ok(/class="hdlv2-why-radar"[\s\S]*class="hdlv2-why-caption"/.test(html), 'the ca
 // v0.48.50 (W29): the people box became name + role rows (tests/who-for has the rows themselves).
 ok(html.indexOf('<legend>Who are you staying strong for?</legend>') !== -1 && html.indexOf('placeholder="First name"') !== -1, 'people question and placeholder, as written (v0.48.50)');
 ok(html.indexOf('Anything else? (optional)') !== -1, 'own-words label, as written');
+// v0.48.92 (plan 8, K13; hdlv2_ff_form_focus): Matthew's question and one help line, the key and limit unchanged.
+const OWN_ASK = (src.match(/  var OWN_WORDS_ASK = \{[\s\S]*?\n  \};\n/) || [''])[0];
+let focusHtml = '';
+try {
+  const fctx = Object.assign({}, pageCtx, { CFG: { form_focus: true }, root: Object.assign(fakeEl(), { querySelectorAll: function () { return []; } }) });
+  vm.runInNewContext(ICON_SRC + '\n' + (src.match(/  var TICK = [\s\S]*?;\n/) || [''])[0] + (src.match(/  var radarShown = [^\n]*\n/) || [''])[0] + WHO_VARS + OWN_ASK
+    + PAGE_FNS.map(body).join('\n') + '\nrenderWhyPicks(serverData);', fctx);
+  focusHtml = fctx.root.innerHTML;
+} catch (e) { console.log('      renderWhyPicks (focus) threw: ' + e.message); }
+const ASK = 'Is there anything else that is important to you about your vitality and what you can do in the years ahead? (optional)';
+ok(OWN_ASK !== '' && focusHtml.indexOf('<label for="hdlv2-f-own_words">' + ASK + '</label>') !== -1 && focusHtml.indexOf('Anything else?') === -1, 'focus on: the own-words box asks Matthew\'s question');
+ok(focusHtml.indexOf('<p class="hdlv2-field-hint" id="hdlv2-help-own_words">A sentence is enough.</p>') !== -1
+  && /<textarea id="hdlv2-f-own_words" data-field="own_words" aria-describedby="hdlv2-help-own_words" rows="2" maxlength="600"/.test(focusHtml),
+  'focus on: one help line under it, read out with the box; key own_words and limit 600 unchanged');
+ok(html.indexOf('hdlv2-help-own_words') === -1 && html.indexOf(ASK) === -1, 'focus off: no help line and today\'s label');
 ok(/>Next</.test(html) || />Next &#8594;</.test(html), 'Next button');
 ok(/role="img"[^>]*aria-label="Nothing picked yet\."/.test(html), 'the chart is on the page from the start, empty, with its spoken label');
 ok((html.match(/<svg[^>]*aria-hidden="true"/g) || []).length >= 9, 'every picture is decoration (aria-hidden): 3 group + 6 ability pictures');

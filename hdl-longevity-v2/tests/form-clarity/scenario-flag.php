@@ -44,5 +44,17 @@ $zero = $config();
 check( 'S4 option set to 0: form_clarity is false', is_array( $zero ) && false === ( $zero['form_clarity'] ?? null ) );
 unset( $absent['form_clarity'], $on['form_clarity'] );
 check( 'S5 every other key is the same either way', is_array( $absent ) && $absent === $on );
+// v0.48.92 (plan 8): hdlv2_ff_form_focus is read the same way.
+$GLOBALS['options'] = array();
+$fa = $config();
+check( 'S6 option absent: form_focus is false', is_array( $fa ) && array_key_exists( 'form_focus', $fa ) && false === $fa['form_focus'] );
+$GLOBALS['options']['hdlv2_ff_form_focus'] = '1';
+$fo = $config();
+check( 'S7 option set: form_focus is true', is_array( $fo ) && true === ( $fo['form_focus'] ?? null ) );
+$GLOBALS['options']['hdlv2_ff_form_focus'] = '0';
+$fz = $config();
+check( 'S8 option set to 0: form_focus is false', is_array( $fz ) && false === ( $fz['form_focus'] ?? null ) );
+unset( $fa['form_focus'], $fo['form_focus'] );
+check( 'S9 every other key is the same either way', is_array( $fa ) && $fa === $fo );
 echo "\n" . ( $fail ? "SCENARIO: FAIL ($fail)\n" : "SCENARIO: PASS ($pass)\n" );
 exit( $fail ? 1 : 0 );

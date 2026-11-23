@@ -27,7 +27,9 @@ const esc = (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</
 const BASE = 'https://example.test/wp-content/plugins/hdl-longevity-v2/';
 const VER = '0.48.78';
 // The switch: absent (as on the live site today), false, and on.
-const CFGS = { absent: { plugin_url: BASE, asset_ver: VER }, false: { plugin_url: BASE, asset_ver: VER, form_clarity: false }, on: { plugin_url: BASE, asset_ver: VER, form_clarity: true } };
+const CFGS = { absent: { plugin_url: BASE, asset_ver: VER }, false: { plugin_url: BASE, asset_ver: VER, form_clarity: false }, on: { plugin_url: BASE, asset_ver: VER, form_clarity: true },
+  // v0.48.92 (plan 8; hdlv2_ff_form_focus): with the clarity switch, and on its own.
+  focus: { plugin_url: BASE, asset_ver: VER, form_clarity: true, form_focus: true }, focusOnly: { plugin_url: BASE, asset_ver: VER, form_focus: true } };
 
 // Today's strings (C4) and § 6's new ones.
 const OLD = {
@@ -177,6 +179,36 @@ for (let n = 1; n < 13; n++) ok(step('on', n) === step('absent', n), `C5.${n} st
 const body = (mode, id) => tap(mode, `this.OUT = wizardSectionContent({ id: '${id}' }, { q1_age: 52, q1_sex: 'female' }, formData);`);
 ok(['body', 'background'].every((id) => body('on', id) === body('absent', id)), 'C5.13 the measurements and background sections are the same');
 ok(!/form_clarity/.test(fn('renderWizardSection') + fn('wizardSectionContent')), 'C5.14 the old wizard does not read the switch');
+
+console.log('── C6 (plan 8, K14 K15 K16 K17; hdlv2_ff_form_focus): step 1 reads in size order ──');
+const s0f = step('focus', 0), r0f = rows('focus');
+for (const f of ['physicalActivity', 'sleepQuality']) {
+  ok(row(r0f, f).indexOf('<span class="hdlv2-tap-row-value is-empty">Choose one</span>') !== -1, `C6.1.${f} focus on: the empty row reads "Choose one"`);
+  ok(row(rows('focusOnly'), f).indexOf('<span class="hdlv2-tap-row-value is-empty">Choose one</span>') !== -1, `C6.2.${f} focus on alone (clarity off): "Choose one" too`);
+}
+ok((s0f + r0f).indexOf('No answer yet') === -1 && (s0f + r0f).indexOf('Unknown') === -1, 'C6.3 focus on: no "No answer yet" and no "Unknown"');
+ok(s0f.indexOf('<p class="hdlv2-s1-prompt">' + NEW.prompt + '</p>') !== -1, 'C6.4 the line above the rows stays');
+ok(/<div class="hdlv2-card hdlv2-focus">\[brand\]<div class="hdlv2-header"><h2>Your Full Report<\/h2><\/div>[\s\S]*<h3 class="hdlv2-s1-title hdlv2-tap-heading" id="hdlv2-tap-title" tabindex="-1">Here is what you told us<\/h3>/.test(s0f),
+  'C6.5 the heading stays where it is, under "Your Full Report"; the card carries the focus class');
+ok(step('absent', 0).indexOf('hdlv2-focus') === -1 && step('on', 0).indexOf('hdlv2-focus') === -1, 'C6.6 focus absent: no focus class');
+ok(row(rows('on'), 'physicalActivity').indexOf(NEW.empty) !== -1, 'C6.7 clarity on, focus absent: today\'s "' + NEW.empty + '" stays');
+const fcss = css.slice(css.indexOf('/* v0.48.92 (plan 8'), css.indexOf('/* end form focus */'));
+const narrow = (fcss.match(/@media \(max-width: 479px\) \{([\s\S]*?)\n\}/) || ['', ''])[1];
+const wide = fcss.replace(/@media[^{]*\{[\s\S]*?\n\}/g, '');
+const size = (block, sel) => { const m = new RegExp(sel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\s*\\{([^}]*)\\}').exec(block); const f = m && /font-size:\s*(\d+)px/.exec(m[1]); return f ? +f[1] : NaN; };
+const decl = (block, sel) => { const m = new RegExp(sel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\s*\\{([^}]*)\\}').exec(block); return m ? m[1] : ''; };
+const ANS = size(css, '.hdlv2-tap-row-value'), OPT = size(css, '.hdlv2-s1-opt');
+const H = '.hdlv2-focus .hdlv2-tap-heading', L = '.hdlv2-focus .hdlv2-tap-row-label', T = '.hdlv2-focus .hdlv2-header h2';
+ok(size(wide, H) === 26 && size(wide, L) === 18 && ANS === 15 && OPT === 15 && size(wide, T) === 16, `C6.8 desktop sizes: section name ${size(wide, H)}, row label ${size(wide, L)}, answers ${ANS}/${OPT}, card title ${size(wide, T)}`);
+ok(size(narrow, H) === 22 && size(narrow, L) === 16, `C6.9 under 480 px: section name ${size(narrow, H)}, row label ${size(narrow, L)}`);
+const hN = size(narrow, H), lN = size(narrow, L), tN = isNaN(size(narrow, T)) ? size(wide, T) : size(narrow, T);
+ok(size(wide, H) > size(wide, L) && size(wide, L) > ANS && size(wide, T) < size(wide, H) && hN > lN && lN > ANS && tN < hN,
+  'C6.10 the order holds at both widths: section name > row label > answers, and the card title below the section name');
+ok(/font-family:\s*'Poppins'/.test(decl(wide, H)) && /font-weight:\s*700/.test(decl(wide, H)) && /color:\s*#004F59/i.test(decl(wide, H)), 'C6.11 the section name: Poppins 700, dark teal');
+ok(/font-family:\s*'Poppins'/.test(decl(wide, L)) && /font-weight:\s*600/.test(decl(wide, L)) && /color:\s*#004F59/i.test(decl(wide, L)), 'C6.12 the row label: Poppins 600, dark teal');
+ok(/width:\s*24px;\s*height:\s*24px/.test(decl(wide, '.hdlv2-focus .hdlv2-tap-row-icon')), 'C6.13 the row icon grows to 24 px');
+ok(fcss.length > 50 && !/border-left|::before/.test(fcss), 'C6.14 no accent rail in the focus rules');
+ok(!/#[0-9a-f]{3,6}\b/gi.test(fcss.replace(/#004F59|#3d8da0|#2c3e50|#888888|#888\b|#e4e6ea|#f8f9fb|#fafbfc|#ffffff|#fff\b/gi, '')), 'C6.15 brand colours only');
 
 console.log(`PASS=${PASS} FAIL=${FAIL}`);
 process.exit(FAIL ? 1 : 0);
