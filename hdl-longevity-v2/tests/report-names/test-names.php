@@ -53,7 +53,9 @@ function get_userdata( $id ) {
 }
 function get_user_meta() { return ''; }
 class WP_Error { public function get_error_message() { return ''; } }
-class Fake_WPDB { public $prefix = 'wp_'; public function prepare( $q ) { return $q; } public function get_var() { return null; } public function get_row() { return null; } public function get_results() { return array(); } }
+// get_row() answers the final report row lookup with $GLOBALS['final_row'] (null: no row yet).
+class Fake_WPDB { public $prefix = 'wp_'; public function prepare( $q ) { return $q; } public function get_var() { return null; } public function get_row( $q = '' ) { return false !== strpos( (string) $q, "report_type = 'final'" ) ? ( $GLOBALS['final_row'] ?? null ) : null; } public function get_results() { return array(); } }
+function mysql2date( $f, $d ) { return date( $f, strtotime( $d ) ); }
 $GLOBALS['wpdb'] = new Fake_WPDB();
 class HDLV2_Staged_Form { public static function format_milestones( $m ) { return ''; } public static function build_gauge_url() { return ''; } }
 class HDLV2_Why_Picks { public static function payload_fields() { return array(); } public static function block_for_row() { return ''; } }
@@ -116,6 +118,12 @@ check( 'F3 switch on: report_name is the consultation name', 'Comprehensive Repo
 check( 'F4 switch on: paid_report_name names the form the client filled in', 'Longevity Report' === ( $on['paid_report_name'] ?? null ) );
 check( 'F5 switch on: the line names B, the account that did the consultation, though the client is A\'s', 'Reviewed with you by Nora Quill, 23 November 2026' === ( $on['reviewed_line'] ?? null ) );
 check( 'F6 switch on: practitioner_name (today\'s field) is B too: one account, one name', 'Nora Quill' === ( $on['practitioner_name'] ?? null ) );
+$GLOBALS['final_row'] = (object) array( 'practitioner_user_id' => 4, 'created_at' => '2026-11-20 09:15:00' );
+$again = final_payload( 3 );
+check( 'F8 a later re-render (the PDF service passes the client\'s practitioner A) still names B and the day the report was made', 'Reviewed with you by Nora Quill, 20 November 2026' === ( $again['reviewed_line'] ?? null ) );
+$GLOBALS['final_row'] = (object) array( 'practitioner_user_id' => 0, 'created_at' => '2026-11-20 09:15:00' );
+check( 'F9 a report the automation tier made (no practitioner on the row): no line', '' === ( final_payload( 3 )['reviewed_line'] ?? null ) );
+$GLOBALS['final_row'] = null;
 $same = final_payload( 3 );
 unset( $same['report_name'], $same['paid_report_name'], $same['reviewed_line'] );
 sw( null );

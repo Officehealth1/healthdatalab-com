@@ -1444,11 +1444,20 @@ class HDLV2_Final_Report {
 
         // v0.48.96 (plan 12) — hdlv2_ff_report_names: the report's name, the name of the form the
         // client filled in, and "Reviewed with you by {the account that made this report}, {date}".
-        // Plain text, before the pass below. No key with the switch off.
+        // The account and the date come from the final report row (written before this payload on a
+        // finalise), so a later re-render from the PDF service names the same account and day; with
+        // no row yet, the caller's account and today. Plain text, before the pass below. No key off.
         if ( HDLV2_Report_Names::on() ) {
+            $made = $wpdb->get_row( $wpdb->prepare(
+                "SELECT practitioner_user_id, created_at FROM {$wpdb->prefix}hdlv2_reports WHERE form_progress_id = %d AND report_type = 'final' ORDER BY id DESC LIMIT 1",
+                $progress->id
+            ) );
             $payload['report_name']      = HDLV2_Report_Names::say( 'consultation', '' );
             $payload['paid_report_name'] = HDLV2_Report_Names::say( 'paid', '' );
-            $payload['reviewed_line']    = HDLV2_Report_Names::reviewed_line( $practitioner_id, $payload['report_date'] );
+            $payload['reviewed_line']    = HDLV2_Report_Names::reviewed_line(
+                $made ? (int) $made->practitioner_user_id : $practitioner_id,
+                ( $made && $made->created_at ) ? mysql2date( 'j F Y', $made->created_at ) : $payload['report_date']
+            );
         }
 
         $html_safe_fields = array(

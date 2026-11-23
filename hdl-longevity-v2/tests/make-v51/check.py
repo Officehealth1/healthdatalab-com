@@ -10,7 +10,8 @@ Exit 0 = pass. Run against v50 itself and it must fail.
   2  Safe in any order: each report name is ifempty(1.report_name; <v50's words at that spot>), and the
      reviewed line prints only when the plugin sends it.
   3  Escaped: the reviewed line, the report names in HTML and every client name printed in the touched
-     e-mails' HTML go through escapeHTML; the buyer's greeting splits on a space (the first name).
+     e-mails' HTML go through escapeHTML, and in the WHY e-mails the practitioner's name in alt= too;
+     the buyer's greeting splits on a space (the first name).
   4  The test site's e-mail fences unchanged; the live file never mentions the test site.
 """
 import json
@@ -18,8 +19,9 @@ import os
 import re
 import sys
 
+sys.dont_write_bytecode = True  # importing build.py must not leave a __pycache__ in the repository
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from build import CHANGES, LIVE_ONLY, NAMES, get, walk  # noqa: E402
+from build import ALT_NEW, NAMES, changes, get, walk  # noqa: E402
 
 fails = []
 base = json.load(open(sys.argv[1], encoding="utf-8"))
@@ -33,9 +35,7 @@ if sorted(B) != sorted(C):
 
 # 1 — undo the changes, field by field.
 touched = {}
-for mid, field, old, new, times in CHANGES:
-    if stby and mid in LIVE_ONLY:
-        continue
+for mid, field, old, new, times in changes(env):
     key = (mid, "html" if field.startswith("html") else field)
     text = touched.get(key, get(C[mid], field))
     if text.count(new) != times:
@@ -67,7 +67,7 @@ if {a: b for a, b in cand.items() if a not in ("flow", "name")} != {a: b for a, 
     fails.append("top-level keys changed")
 
 # 2 — fallbacks and the reviewed line.
-mails = [m for m in (63, 81, 84, 17, 91) if not (stby and m in LIVE_ONLY)]
+mails = [63, 81, 84, 17, 91]
 for mid in mails:
     blob = json.dumps(C[mid]["mapper"], ensure_ascii=False)
     for m in re.finditer(r"1\.report_name", blob):
@@ -91,6 +91,9 @@ for mid in mails:
         fails.append(f"#{mid} prints a client name without escapeHTML")
     if re.search(r"\{\{ifempty\(1\.report_name", h):
         fails.append(f"#{mid} prints report_name in HTML without escapeHTML")
+for mid in (81, 84):
+    if ALT_NEW not in C[mid]["mapper"]["html"]:
+        fails.append(f"#{mid} the practitioner's name in alt= is not escaped (no quote pass on this route)")
 if "escapeHTML(first(split(1.client_name; space)))" not in C[63]["mapper"]["html"]:
     fails.append("#63 the greeting does not use the first name")
 
