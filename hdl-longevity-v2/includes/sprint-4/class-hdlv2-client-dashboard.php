@@ -1442,13 +1442,13 @@ class HDLV2_Client_Dashboard {
 
         // ── Cover ──────────────────────────────────────────────────────────
         $h .= '<div class="cdp-report-cover cdp-reveal cdp-reveal-1">';
-        $h .= '<div class="cdp-report-meta">' . ( $is_final ? 'Your Trajectory Plan &middot; <span class="cdp-report-badge cdp-report-badge-final">Final</span>' : 'Your Full Report' ) . '</div>';
+        $h .= '<div class="cdp-report-meta">' . ( $is_final ? 'Your ' . HDLV2_Report_Names::say( 'consultation', 'Trajectory Plan' ) . ' &middot; <span class="cdp-report-badge cdp-report-badge-final">Final</span>' : 'Your ' . HDLV2_Report_Names::say( 'paid', 'Full Report' ) ) . '</div>';
         $h .= '<h1>' . $display_name . '</h1>';
         $h .= '<p class="cdp-report-subtitle">';
         if ( $is_final && $reviewer_raw && $issued ) {
             $h .= 'A personalised plan, reviewed and finalised by ' . esc_html( $reviewer_raw ) . ' on ' . esc_html( $issued ) . '.';
         } elseif ( $reviewer_raw && $issued ) {
-            $h .= 'Full Report prepared by ' . esc_html( $reviewer_raw ) . ' on ' . esc_html( $issued ) . '.';
+            $h .= HDLV2_Report_Names::say( 'paid', 'Full Report' ) . ' prepared by ' . esc_html( $reviewer_raw ) . ' on ' . esc_html( $issued ) . '.';
         } elseif ( $issued ) {
             $h .= 'Your personalised longevity plan. Issued ' . esc_html( $issued ) . '.';
         } else {
@@ -1519,7 +1519,7 @@ class HDLV2_Client_Dashboard {
 
             // CTA below the priorities — drives back to /my-report/
             $h .= '<div class="cdp-recos-foot">';
-            $h .= $this->client_link( '<a href="' . esc_url( $report_url ) . '" class="cdp-btn cdp-btn-primary">Open the full report &rarr;</a>' );
+            $h .= $this->client_link( '<a href="' . esc_url( $report_url ) . '" class="cdp-btn cdp-btn-primary">Open the ' . HDLV2_Report_Names::say( $is_final ? 'consultation' : 'paid', 'full report' ) . ' &rarr;</a>' );
             if ( $pdf_url ) {
                 $h .= '<a href="' . esc_url( $pdf_url ) . '" target="_blank" rel="noopener noreferrer" class="cdp-btn cdp-btn-line">Download PDF</a>';
             }
@@ -1528,7 +1528,7 @@ class HDLV2_Client_Dashboard {
             $h .= '</div>';
         } else {
             $h .= '<div class="cdp-card cdp-card-quiet cdp-reveal cdp-reveal-3">';
-            $h .= '<p>The full report contains your practitioner&rsquo;s recommendations and personalised plan.' . $this->client_link( ' <a href="' . esc_url( $report_url ) . '">Open the full report &rarr;</a>' ) . '</p>';
+            $h .= '<p>The ' . HDLV2_Report_Names::say( $is_final ? 'consultation' : 'paid', 'full report' ) . ' contains your practitioner&rsquo;s recommendations and personalised plan.' . $this->client_link( ' <a href="' . esc_url( $report_url ) . '">Open the ' . HDLV2_Report_Names::say( $is_final ? 'consultation' : 'paid', 'full report' ) . ' &rarr;</a>' ) . '</p>';
             $h .= '</div>';
         }
 
@@ -2229,7 +2229,7 @@ class HDLV2_Client_Dashboard {
         } else { // stage3-done
             $h .= '<div class="cd-path">';
             $h .= '<div class="cd-path-icon" aria-hidden="true">' . $this->icon( 'doc' ) . '</div>';
-            $h .= '<h3>Step 3 done &mdash; your Full Report is on its way</h3>';
+            $h .= '<h3>Step 3 done &mdash; your ' . HDLV2_Report_Names::say( 'paid', 'Full Report' ) . ' is on its way</h3>';
             $h .= '<p>' . $practitioner . ' is reviewing your assessment and writing your personalised report.</p>';
             $h .= '</div>';
         }
@@ -2310,9 +2310,9 @@ class HDLV2_Client_Dashboard {
 
         $bodies = array(
             1 => array( 'Stage 1 &middot; Quick insight',     '9 questions, ~3 minutes. You see your pace-of-ageing gauge straight away.' ),
-            2 => array( 'Full Report &middot; What matters most', 'You pick what matters most to you in your last decade.' ),
-            3 => array( 'Full Report &middot; Your measurements', 'Your real measurements, 5 short sections. Your practitioner reviews them with you.' ),
-            4 => array( 'Consultation &middot; Trajectory Plan', 'Your practitioner edits, adds notes, finalises. PDF + Flight Plan delivered to you.' ),
+            2 => array( HDLV2_Report_Names::say( 'paid', 'Full Report' ) . ' &middot; What matters most', 'You pick what matters most to you in your last decade.' ),
+            3 => array( HDLV2_Report_Names::say( 'paid', 'Full Report' ) . ' &middot; Your measurements', 'Your real measurements, 5 short sections. Your practitioner reviews them with you.' ),
+            4 => array( 'Consultation &middot; ' . HDLV2_Report_Names::say( 'consultation', 'Trajectory Plan' ), 'Your practitioner edits, adds notes, finalises. PDF + Flight Plan delivered to you.' ),
         );
 
         $h = '<ol class="cd-steps">';

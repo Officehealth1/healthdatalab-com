@@ -104,7 +104,7 @@ class HDLV2_Compatibility {
         if ( ! $rows ) {
             return array();
         }
-        $labels = array( 1 => 'Stage 1', 2 => 'Full Report · WHY', 3 => 'Full Report · form' );
+        $labels = array( 1 => 'Stage 1', 2 => HDLV2_Report_Names::say( 'paid', 'Full Report' ) . ' · WHY', 3 => HDLV2_Report_Names::say( 'paid', 'Full Report' ) . ' · form' );
         $out = array();
         foreach ( $rows as $r ) {
             // Consultation-eligibility gate — Stage 3 complete AND awaiting/in
@@ -682,7 +682,7 @@ class HDLV2_Compatibility {
             (int) $progress->id
         ) );
         if ( ! $why ) {
-            return array( 'ok' => false, 'code' => 'no_why', 'message' => 'The Full Report has not been started yet.', 'status' => 400 );
+            return array( 'ok' => false, 'code' => 'no_why', 'message' => 'The ' . HDLV2_Report_Names::say( 'paid', 'Full Report' ) . ' has not been started yet.', 'status' => 400 );
         }
         if ( $why->released ) {
             return array( 'ok' => true, 'already_released' => true );

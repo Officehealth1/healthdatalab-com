@@ -15,6 +15,8 @@
  */
 import fs from 'node:fs';
 import vm from 'node:vm';
+// v0.48.96 (plan 12): the scripts name a report through rn(); with hdlv2_ff_report_names off it prints today's words.
+const RN_OFF = 'function rn(key, today) { return today; }\n';
 
 let PASS = 0, FAIL = 0;
 const ok = (c, l) => { c ? PASS++ : FAIL++; console.log((c ? '  PASS  ' : '  FAIL  ') + l); };
@@ -70,7 +72,7 @@ function page(mode, picks) {
     clearSaveError() {}, saveWhenFree() {}, setTimeout() {}, clearTimeout() {}, esc,
   };
   let error = '';
-  try { vm.runInNewContext(PAGE_SRC + '\nrenderWhyPicks(serverData);\nupdatePicks();\nredrawRadar(true);', ctx); } catch (e) { error = e.message; }
+  try { vm.runInNewContext(RN_OFF + PAGE_SRC + '\nrenderWhyPicks(serverData);\nupdatePicks();\nredrawRadar(true);', ctx); } catch (e) { error = e.message; }
   return { html: root.innerHTML, error };
 }
 
@@ -87,7 +89,7 @@ ok(onPage.html.split('id="hdlv2-picks-count"')[0] === offPage.html.split('id="hd
 
 console.log('── C2 (M36): "Who are you staying strong for?" with the switch on ──');
 const run = (mode, code) => { const c = { CFG: CFGS[mode], window: { hdlv2_form: CFGS[mode] }, document: { getElementsByTagName: () => [] }, esc };
-  vm.runInNewContext(PAGE_SRC + '\nthis.OUT = ' + code + ';', c); return c.OUT; };
+  vm.runInNewContext(RN_OFF + PAGE_SRC + '\nthis.OUT = ' + code + ';', c); return c.OUT; };
 const whoOn = (onPage.html.split('id="hdlv2-who-for"')[1] || '').split('</fieldset>')[0];
 const pic = (file, word) => `<figure class="hdlv2-who-pic"><img src="${BASE}assets/images/motion/${file}?ver=${VER}" alt="" width="96" height="96" loading="eager" decoding="async"><figcaption>${word}</figcaption></figure>`;
 const ORDER = ['<legend>Who are you staying strong for?</legend>', '<p class="hdlv2-who-help">' + NEW.line2 + '</p>',
@@ -128,7 +130,7 @@ function tap(mode, call, vals = VALS) {
     fieldSelect: (n) => `[sel:${n}]`, fieldTextarea: (n) => `[ta:${n}]`, s1Prefill: () => '',
     root: { innerHTML: '' }, formData: {}, tapOpenRow: null, tapStep: 0, tapOrder: [],
   };
-  vm.runInNewContext(TAP_SRC + '\ntapOrder = TAP_ORDER;\n' + call, ctx);
+  vm.runInNewContext(RN_OFF + TAP_SRC + '\ntapOrder = TAP_ORDER;\n' + call, ctx);
   return ctx.OUT;
 }
 const step = (mode, n, vals) => tap(mode, `wizardSectionContent = function (sec) { return '[section:' + sec.id + ']'; }; tapStep = ${n}; renderTapStep({ stage1_data: {}, second_form_ties: {} }, false); this.OUT = root.innerHTML;`, vals);
@@ -155,7 +157,7 @@ function press(mode, saved, clicks) {
     document: { getElementById: (id) => (id === 'hdlv2-tap-next' ? btn : null),
       querySelector: (sel) => (sel === '.hdlv2-tap-wait' ? (t.inserted.length ? {} : null) : /^#hdlv2-tap-opts-\w+ \.hdlv2-s1-opt$/.test(sel) ? { focus() { t.focused = sel; } } : null) },
   };
-  vm.runInNewContext([cut('  var S1_TO_S3_DEFAULTS = {', '\n  };\n'), cut('  var TAP_FIRST = ', ';\n'), fn('s1Prefill'), fn('tapFirstValues'), fn('tapFirstNext')].join('\n')
+  vm.runInNewContext(RN_OFF + [cut('  var S1_TO_S3_DEFAULTS = {', '\n  };\n'), cut('  var TAP_FIRST = ', ';\n'), fn('s1Prefill'), fn('tapFirstValues'), fn('tapFirstNext')].join('\n')
     + `\nfor (var i = 0; i < ${clicks}; i++) tapFirstNext({ stage1_data: { q6: 'b', q7: 'a', q8: 'd', q9: 'e' } });`, c);
   return t;
 }

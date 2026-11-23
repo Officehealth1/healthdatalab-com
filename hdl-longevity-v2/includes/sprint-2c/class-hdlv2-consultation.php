@@ -2049,10 +2049,10 @@ class HDLV2_Consultation {
             HDLV2_VERSION,
             true
         );
-        wp_localize_script( 'hdlv2-draft-report', 'HDLV2_DRAFT_REPORT', array(
+        wp_localize_script( 'hdlv2-draft-report', 'HDLV2_DRAFT_REPORT', HDLV2_Report_Names::config( array(
             'rest_url' => esc_url_raw( rest_url( 'hdl-v2/v1/reports/draft' ) ),
             'nonce'    => wp_create_nonce( 'wp_rest' ),
-        ) );
+        ) ) );
         wp_enqueue_style(
             'hdlv2-draft-report',
             HDLV2_PLUGIN_URL . 'assets/css/hdlv2-draft-report.css',
@@ -2115,14 +2115,14 @@ class HDLV2_Consultation {
             HDLV2_VERSION
         );
 
-        wp_localize_script( 'hdlv2-consultation', 'hdlv2_consult', array(
+        wp_localize_script( 'hdlv2-consultation', 'hdlv2_consult', HDLV2_Report_Names::config( array(
             'api_base'    => rest_url( 'hdl-v2/v1/consultation' ),
             // v0.25.2 — list endpoint for the new /consultation/ landing
             // page (no ?progress_id). Branched in init() of the JS.
             'list_url'    => rest_url( 'hdl-v2/v1/consultations/list' ),
             'clients_url' => home_url( '/clients/' ),
             'nonce'       => wp_create_nonce( 'wp_rest' ),
-        ) );
+        ) ) );
 
         // v0.21.0 — Practitioner nav spine: sticky top bar with
         // "← Back to clients" + breadcrumb + freshness. Resolves the client

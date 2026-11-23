@@ -737,7 +737,7 @@ class HDLV2_Checkin {
                 'client_name'        => $client_label,
                 'reasons'            => array(
                     sprintf(
-                        'Full Report · WHY submitted %d day%s ago — please review and open the Full Report form so they can continue.',
+                        HDLV2_Report_Names::say( 'paid', 'Full Report' ) . ' · WHY submitted %d day%s ago — please review and open the ' . HDLV2_Report_Names::say( 'paid', 'Full Report' ) . ' form so they can continue.',
                         (int) $days_waiting,
                         $days_waiting === 1 ? '' : 's'
                     ),

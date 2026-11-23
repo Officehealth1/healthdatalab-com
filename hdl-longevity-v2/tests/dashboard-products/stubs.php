@@ -111,6 +111,7 @@ class ProductsWpdb {
 }
 
 $P = dirname( __DIR__, 2 ) . '/includes/';
+require_once $P . 'class-hdlv2-report-names.php';
 require_once $P . 'sprint-1/class-hdlv2-offer.php';
 require_once $P . 'sprint-4/class-hdlv2-challenge.php';
 require_once $P . 'sprint-2c/class-hdlv2-healthspan-timeline.php';

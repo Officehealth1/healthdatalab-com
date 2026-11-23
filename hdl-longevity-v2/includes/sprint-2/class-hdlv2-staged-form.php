@@ -915,7 +915,7 @@ class HDLV2_Staged_Form {
             return new WP_Error( 'invalid_token', 'Assessment not found.', array( 'status' => 404 ) );
         }
         if ( empty( $progress->stage3_completed_at ) ) {
-            return new WP_Error( 'stage3_incomplete', 'The Full Report measurements must be completed first.', array( 'status' => 400 ) );
+            return new WP_Error( 'stage3_incomplete', 'The ' . HDLV2_Report_Names::say( 'paid', 'Full Report' ) . ' measurements must be completed first.', array( 'status' => 400 ) );
         }
 
         // v0.46.x (prod-readiness CL-02) — move the 3 Claude calls OFF the
@@ -1314,7 +1314,7 @@ class HDLV2_Staged_Form {
             HDLV2_VERSION
         );
 
-        wp_localize_script( 'hdlv2-staged-form', 'hdlv2_form', array(
+        wp_localize_script( 'hdlv2-staged-form', 'hdlv2_form', HDLV2_Report_Names::config( array(
             'api_base'   => rest_url( 'hdl-v2/v1/form' ),
             'nonce'      => wp_create_nonce( 'wp_rest' ),
             'plugin_url' => HDLV2_PLUGIN_URL,
@@ -1330,7 +1330,7 @@ class HDLV2_Staged_Form {
             // v0.48.92 (plan 8) — larger question and labels, "Choose one", the drinks picture, Matthew's
             // own-words question and the two-card finish screen (absent = off).
             'form_focus'      => (bool) get_option( 'hdlv2_ff_form_focus', false ),
-        ) );
+        ) ) );
 
         return '<div id="hdlv2-assessment" class="hdlv2-assessment-root"></div>';
     }
@@ -1598,7 +1598,7 @@ class HDLV2_Staged_Form {
         $vision      = trim( (string) ( $stage2_data['vision_text'] ?? '' ) );
 
         if ( strlen( $vision ) < 10 ) {
-            return new WP_Error( 'no_vision', 'No WHY text found for this token. Complete the first part of your Full Report first.', array( 'status' => 400 ) );
+            return new WP_Error( 'no_vision', 'No WHY text found for this token. Complete the first part of your ' . HDLV2_Report_Names::say( 'paid', 'Full Report' ) . ' first.', array( 'status' => 400 ) );
         }
 
         $client_name = $progress->client_name ?: ( $stage2_data['name'] ?? '' );
@@ -1744,7 +1744,7 @@ class HDLV2_Staged_Form {
             return new WP_Error( 'invalid_token', 'Assessment not found.', array( 'status' => 404 ) );
         }
         if ( empty( $progress->stage3_completed_at ) ) {
-            return new WP_Error( 'stage3_incomplete', 'The Full Report measurements must be completed first.', array( 'status' => 400 ) );
+            return new WP_Error( 'stage3_incomplete', 'The ' . HDLV2_Report_Names::say( 'paid', 'Full Report' ) . ' measurements must be completed first.', array( 'status' => 400 ) );
         }
 
         $stage3_data = json_decode( $progress->stage3_data, true ) ?: array();
@@ -1832,9 +1832,9 @@ class HDLV2_Staged_Form {
                                         : 'faster than the average pace' );
 
         return sprintf(
-            '<p><strong>%syour Full Report measurements put your rate of ageing at %s× — %s.</strong> Biological age estimate: %s years against your real age of %d.</p>'
+            '<p><strong>%syour ' . HDLV2_Report_Names::say( 'paid', 'Full Report' ) . ' measurements put your rate of ageing at %s× — %s.</strong> Biological age estimate: %s years against your real age of %d.</p>'
             . '<p>The 21-metric panel gives your practitioner the detail they need to build a precise plan with you.</p>'
-            . '<p>Your Full Report is being made now.</p>',
+            . '<p>Your ' . HDLV2_Report_Names::say( 'paid', 'Full Report' ) . ' is being made now.</p>',
             $name,
             number_format( $rate, 2 ),
             esc_html( $verdict ),
@@ -1993,7 +1993,7 @@ class HDLV2_Staged_Form {
                     'practitioner_id' => $progress->practitioner_user_id ?? null,
                     'draft_url'       => $draft_url,
                 ) );
-                wp_mail( $client_email, 'Your Full Report is Ready', $html,
+                wp_mail( $client_email, 'Your ' . HDLV2_Report_Names::say( 'paid', 'Full Report' ) . ' is Ready', $html,
                     array( 'Content-Type: text/html; charset=UTF-8' ) );
             }
 
@@ -2008,7 +2008,7 @@ class HDLV2_Staged_Form {
                     'trajectory_chart_url' => $trajectory_chart_url,
                     'practitioner_id'      => $progress->practitioner_user_id ?? null,
                 ) ),
-                sprintf( 'Full Report Ready: %s', $client_name ?: $client_email )
+                sprintf( HDLV2_Report_Names::say( 'paid', 'Full Report' ) . ' Ready: %s', $client_name ?: $client_email )
             );
         }
     }
@@ -2452,6 +2452,12 @@ class HDLV2_Staged_Form {
             $payload['gauge_url'] = self::build_gauge_url( $rate_num, array( 'stage3' => true, 'scale' => true ) );
         }
 
+        // v0.48.96 (plan 12) — hdlv2_ff_report_names: the report's name for Make's e-mail and the PDF.
+        // Off, no key is added.
+        if ( HDLV2_Report_Names::on() ) {
+            $payload['report_name'] = HDLV2_Report_Names::say( 'paid', '' );
+        }
+
         // D-2 — report-PDF callback fields (Make downloads the PDF, then POSTs
         // pdf_url back to /reports/pdf-callback). report_id is re-queried here so
         // every draft-fire path (incl. self-heal) carries it. URL + secret hold no
@@ -2665,6 +2671,10 @@ class HDLV2_Staged_Form {
         );
         // v0.48.8 — single-form fields (fire_single_stage2_pdf); none otherwise.
         $payload = array_merge( $payload, $extra );
+        // v0.48.96 (plan 12) — the WHY e-mails name the $27 report; no key with the switch off.
+        if ( HDLV2_Report_Names::on() ) {
+            $payload['report_name'] = HDLV2_Report_Names::say( 'paid', '' );
+        }
 
         HDLV2_Webhook_Monitor::fire(
             $webhook_url,

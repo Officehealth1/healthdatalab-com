@@ -1,6 +1,6 @@
 // Plan 12 of the $27 path: each script names a report through its own rn( key, today ), which reads
-// the names the PHP handed in report_names (HDLV2_Report_Names::for_script(): nothing with the switch
-// off, both names with it on). Off, the script prints today's words; on, the class's names.
+// the names the PHP handed in report_names (HDLV2_Report_Names::config(): no key with the switch off,
+// both names with it on). Off, the script prints today's words; on, the class's names.
 // Run:  node tests/report-names/test-script-names.mjs
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -28,10 +28,9 @@ for (const [file, cfg] of Object.entries(scripts)) {
   const run = (names) => {
     const win = { [cfg]: names === undefined ? {} : { report_names: names } };
     // eslint-disable-next-line no-new-func
-    return new Function('window', cfg, `${m[0]}; return [rn('paid', 'Full Report'), rn('consultation', 'Trajectory Plan'), rn('free', 'Rate of ageing report')];`)(win, win[cfg]);
+    return new Function('window', 'root', cfg, `${m[0]}; return [rn('paid', 'Full Report'), rn('consultation', 'Trajectory Plan'), rn('free', 'Rate of ageing report')];`)(win, win, win[cfg]);
   };
   check(`${file}: switch off (no report_names) prints today's words`, JSON.stringify(run(undefined)) === JSON.stringify(['Full Report', 'Trajectory Plan', 'Rate of ageing report']));
-  check(`${file}: switch off as PHP sends it (an empty list) prints today's words`, JSON.stringify(run([])) === JSON.stringify(['Full Report', 'Trajectory Plan', 'Rate of ageing report']));
   check(`${file}: switch on prints the class's names; the free report keeps today's`, JSON.stringify(run(on)) === JSON.stringify(['Longevity Report', 'Comprehensive Report', 'Rate of ageing report']));
 }
 console.log(`\nPASS=${pass} FAIL=${fail}`);

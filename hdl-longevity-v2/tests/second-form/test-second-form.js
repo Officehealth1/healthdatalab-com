@@ -23,7 +23,15 @@ function ok(cond, label) { (cond ? PASS++ : FAIL++); console.log((cond ? 'PASS  
 const J = JSON.stringify;
 
 const REL = 'hdl-longevity-v2/assets/js/hdlv2-staged-form.js';
-const src = fs.readFileSync(path.join(__dirname, '..', '..', 'assets', 'js', 'hdlv2-staged-form.js'), 'utf8');
+// v0.48.96 (plan 12): a report name is the switch-off value of rn( key, today ); read each call back
+// as the words it prints with hdlv2_ff_report_names off, so these checks still read today's source.
+const asToday = (s) => s
+  .replace(/\$\{rn\('[a-z]+', '([^']+)'\)\}/g, '$1')
+  .replace(/(['"]) \+ rn\('[a-z]+', '([^']+)'\) \+ \1/g, '$2')
+  .replace(/rn\('[a-z]+', '([^']+)'\) \+ (['"])/g, '$2$1')
+  .replace(/(['"]) \+ rn\('[a-z]+', '([^']+)'\)/g, '$2$1')
+  .replace(/\brn\('[a-z]+', '([^']+)'\)/g, "'$1'");
+const src = asToday(fs.readFileSync(path.join(__dirname, '..', '..', 'assets', 'js', 'hdlv2-staged-form.js'), 'utf8'));
 const old = execFileSync('git', ['show', 'b0b1352:' + REL], { cwd: __dirname, encoding: 'utf8', maxBuffer: 8 << 20 });
 
 function fnIn(text, name) {
@@ -205,7 +213,10 @@ const block = oldWiz.slice(a, b);
 const H1 = (t) => t.replace("(single ? 'Your assessment' : 'More Health Details \\u2014 Stage 3')", "'Your Full Report'")
   .replace("+ '<div class=\"hdlv2-header\"><h2>' + 'Your Full Report'", "+ brandBar(serverData) + '<div class=\"hdlv2-header\"><h2>' + 'Your Full Report'")
   // v0.48.50 (W41) — the units switch redraws the section.
-  .replace("    bindFieldListeners();\n", "    bindFieldListeners();\n    bindUnits(function () { renderWizardSection(data); });\n");
+  .replace("    bindFieldListeners();\n", "    bindFieldListeners();\n    bindUnits(function () { renderWizardSection(data); });\n")
+  // v0.48.96 (plan 12) — the header names the report through rn(); read back with the switch off, the
+  // two literals around it read as one.
+  .replace("'Your Full Report' + '</h2><p>'", "'Your Full Report</h2><p>'");
 ok(newWiz === H1(oldWiz.slice(0, a) + '    var content = wizardSectionContent(sec, s1d, d);\n\n' + oldWiz.slice(b)),
   'renderWizardSection is b0b1352\'s text with only the content block moved out (and the H1 header)');
 HELPERS.filter((h) => fnIn(old, h)).forEach((h) => ok(fn(h) === fnIn(old, h), h + '() unchanged since b0b1352'));

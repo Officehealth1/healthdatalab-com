@@ -14,6 +14,8 @@
   'use strict';
 
   var CFG = window.hdlv2_consult || {};
+  // v0.48.96 — a report's name: the class's (report_names, hdlv2_ff_report_names on) or today's words.
+  function rn(key, today) { var c = window.hdlv2_consult, n = c && c.report_names; return (n && n[key]) || today; }
   if (!CFG.api_base) return;
 
   var root = document.getElementById('hdlv2-consultation');
@@ -288,10 +290,10 @@
     // "Generate Final Report" button — that button hits the duplicate
     // guard in HDLV2_Final_Report::generate() and is a flat no-op.
     if (state.data && state.data.final_report) {
-      return '<p class="hdlv2-consult-hint">Trajectory Plan already generated. Use the <strong>Consultation Addenda</strong> section below to add follow-up notes and refresh the plan.</p>';
+      return '<p class="hdlv2-consult-hint">' + rn('consultation', 'Trajectory Plan') + ' already generated. Use the <strong>Consultation Addenda</strong> section below to add follow-up notes and refresh the plan.</p>';
     }
 
-    return '<button id="hdlv2-action-btn" class="hdlv2-btn hdlv2-consult-generate-btn" type="button">Generate Trajectory Plan</button>'
+    return '<button id="hdlv2-action-btn" class="hdlv2-btn hdlv2-consult-generate-btn" type="button">Generate ' + rn('consultation', 'Trajectory Plan') + '</button>'
       + '<p class="hdlv2-consult-hint">Your notes will be organised into a structured summary for the report.</p>';
   }
 
@@ -644,7 +646,7 @@
         saveNotes(raw).then(function (savedOK) {
           if (!savedOK) {
             actionBtn.disabled = false;
-            actionBtn.textContent = 'Generate Trajectory Plan';
+            actionBtn.textContent = 'Generate ' + rn('consultation', 'Trajectory Plan');
             setOrganiseStatus('error', 'Could not save your notes. Please try again.');
             return;
           }
@@ -666,13 +668,13 @@
               window.scrollTo({ top: document.getElementById('hdlv2-action-wrap').offsetTop - 24, behavior: 'smooth' });
             } else {
               actionBtn.disabled = false;
-              actionBtn.textContent = 'Generate Trajectory Plan';
+              actionBtn.textContent = 'Generate ' + rn('consultation', 'Trajectory Plan');
               setOrganiseStatus('error', (res && res.message) || 'Something went wrong. Please try again.');
             }
           })
           .catch(function () {
             actionBtn.disabled = false;
-            actionBtn.textContent = 'Generate Trajectory Plan';
+            actionBtn.textContent = 'Generate ' + rn('consultation', 'Trajectory Plan');
             setOrganiseStatus('error', 'Connection error. Please try again.');
           });
         });
@@ -1287,7 +1289,7 @@
     if (hasAnyBackground || /* always show the group so the practitioner sees the empty state too */ true) {
       h += '<div class="hdlv2-field-group hdlv2-background-group">';
       h +=   '<h5 class="hdlv2-field-group-title">Health Background</h5>';
-      h +=   '<p class="hdlv2-background-helper">Captured in the Full Report form \u2014 short notes the client typed; expand during your consultation.</p>';
+      h +=   '<p class="hdlv2-background-helper">Captured in the ' + rn('paid', 'Full Report') + ' form \u2014 short notes the client typed; expand during your consultation.</p>';
       bgFields.forEach(function (f) {
         var v = s3[f.key];
         var hasVal = typeof v === 'string' && v.trim() !== '';
@@ -1565,7 +1567,7 @@
     }
     function restoreButton() {
       btn.disabled = false;
-      btn.textContent = 'Generate Trajectory Plan';
+      btn.textContent = 'Generate ' + rn('consultation', 'Trajectory Plan');
     }
 
     btn.addEventListener('click', function () {
@@ -1573,16 +1575,16 @@
       var clientName = state.data.client_name || 'this client';
       var ask = (window.HDLV2UI && window.HDLV2UI.confirm)
         ? window.HDLV2UI.confirm({
-            title: 'Generate the Trajectory Plan for ' + clientName + '?',
-            body: 'This will replace the Full Report.',
-            confirmLabel: 'Generate Trajectory Plan',
+            title: 'Generate the ' + rn('consultation', 'Trajectory Plan') + ' for ' + clientName + '?',
+            body: 'This will replace the ' + rn('paid', 'Full Report') + '.',
+            confirmLabel: 'Generate ' + rn('consultation', 'Trajectory Plan'),
             cancelLabel: 'Cancel'
           })
-        : Promise.resolve(window.confirm('Generate the Trajectory Plan for ' + clientName + '? This will replace the Full Report.'));
+        : Promise.resolve(window.confirm('Generate the ' + rn('consultation', 'Trajectory Plan') + ' for ' + clientName + '? This will replace the ' + rn('paid', 'Full Report') + '.'));
       ask.then(function (confirmed) {
         if (!confirmed) return;
         btn.disabled = true;
-        showBusyLabel('Generating Trajectory Plan…');
+        showBusyLabel('Generating ' + rn('consultation', 'Trajectory Plan') + '…');
 
         // After 8s, swap to a softer "still working" message so the practitioner
         // knows the request hasn't hung. Cleared on response.
@@ -1638,9 +1640,9 @@
     var reportUrl = token ? (window.location.origin + '/longevity-draft-report/?t=' + encodeURIComponent(token)) : '';
     root.innerHTML = '<div style="max-width:620px;margin:48px auto;padding:0 20px;text-align:center;font-family:Inter,-apple-system,sans-serif;">'
       + '<div style="background:#ecfdf5;border:1px solid #a7f3d0;border-radius:14px;padding:28px 24px;">'
-      +   '<div style="font-family:Poppins,Inter,sans-serif;font-size:18px;font-weight:600;color:#065f46;margin:0 0 6px;">Final report generated</div>'
+      +   '<div style="font-family:Poppins,Inter,sans-serif;font-size:18px;font-weight:600;color:#065f46;margin:0 0 6px;">' + rn('consultation', 'Final report') + ' generated</div>'
       +   '<div style="color:#047857;font-size:13px;margin:0 0 18px;">The client and PDF have been delivered via email.</div>'
-      +   (reportUrl ? '<a href="' + esc(reportUrl) + '" style="display:inline-block;background:#10b981;color:#fff;padding:10px 22px;border-radius:48px;font-size:14px;font-weight:600;text-decoration:none;font-family:Poppins,Inter,sans-serif;">View the final report \u2192</a>' : 'Refresh this page to view the final layout.')
+      +   (reportUrl ? '<a href="' + esc(reportUrl) + '" style="display:inline-block;background:#10b981;color:#fff;padding:10px 22px;border-radius:48px;font-size:14px;font-weight:600;text-decoration:none;font-family:Poppins,Inter,sans-serif;">View the ' + rn('consultation', 'final report') + ' \u2192</a>' : 'Refresh this page to view the final layout.')
       + '</div>'
       + '</div>';
   }
@@ -1686,13 +1688,13 @@
 
   // Replace the whole consultation panel with an honest "preparing" card.
   function showReportPreparing(kind) {
-    var title = (kind === 'regen') ? 'Updating the Trajectory Plan…' : 'Preparing the final report…';
+    var title = (kind === 'regen') ? 'Updating the ' + rn('consultation', 'Trajectory Plan') + '…' : 'Preparing the ' + rn('consultation', 'final report') + '…';
     root.innerHTML =
       '<div class="hdlv2-report-preparing" style="max-width:680px;margin:40px auto;padding:0 20px;font-family:Inter,-apple-system,BlinkMacSystemFont,sans-serif;">'
       + '<div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:14px;padding:26px 24px;text-align:center;">'
       +   '<h3 style="font-family:Poppins,Inter,sans-serif;font-size:18px;font-weight:600;color:#1e3a5f;margin:0 0 10px;">' + esc(title) + '</h3>'
       +   '<p style="color:#2c3e50;font-size:14px;line-height:1.55;margin:0 0 8px;">This usually takes a minute or two. You can stay on this page &mdash; <strong>the report will appear here automatically</strong> when it&rsquo;s ready. You don&rsquo;t need to refresh.</p>'
-      +   '<p style="color:#5b6b7b;font-size:13px;line-height:1.5;margin:0;">It is also saved to the client&rsquo;s Trajectory Plan, so it is safe to leave this page and come back later.</p>'
+      +   '<p style="color:#5b6b7b;font-size:13px;line-height:1.5;margin:0;">It is also saved to the client&rsquo;s ' + rn('consultation', 'Trajectory Plan') + ', so it is safe to leave this page and come back later.</p>'
       +   '<p class="hdlv2-rp-status" id="hdlv2-rp-status" role="status" aria-live="polite" style="color:#3b82f6;font-size:13px;font-weight:600;margin:16px 0 0;">' + esc(REPORT_PREP_MESSAGES[0]) + '</p>'
       + '</div>'
       + '<div aria-hidden="true" style="margin-top:18px;opacity:0.65;">' + HDLV2Loading.skeleton('consultation') + '</div>'
@@ -1818,8 +1820,8 @@
       '<div style="max-width:620px;margin:48px auto;padding:0 20px;text-align:center;font-family:Inter,-apple-system,sans-serif;">'
       + '<div style="background:#fffbeb;border:1px solid #fde68a;border-radius:14px;padding:26px 24px;">'
       +   '<div style="font-family:Poppins,Inter,sans-serif;font-size:17px;font-weight:600;color:#92400e;margin:0 0 6px;">Still preparing&hellip;</div>'
-      +   '<div style="color:#b45309;font-size:13px;line-height:1.5;margin:0 0 18px;">This is taking a little longer than usual. It will appear on the client&rsquo;s Trajectory Plan when it&rsquo;s ready &mdash; please check back shortly.</div>'
-      +   (reportUrl ? '<a href="' + esc(reportUrl) + '" style="display:inline-block;background:#d97706;color:#fff;padding:10px 22px;border-radius:48px;font-size:14px;font-weight:600;text-decoration:none;font-family:Poppins,Inter,sans-serif;margin:0 8px 8px 0;">View the Trajectory Plan →</a>' : '')
+      +   '<div style="color:#b45309;font-size:13px;line-height:1.5;margin:0 0 18px;">This is taking a little longer than usual. It will appear on the client&rsquo;s ' + rn('consultation', 'Trajectory Plan') + ' when it&rsquo;s ready &mdash; please check back shortly.</div>'
+      +   (reportUrl ? '<a href="' + esc(reportUrl) + '" style="display:inline-block;background:#d97706;color:#fff;padding:10px 22px;border-radius:48px;font-size:14px;font-weight:600;text-decoration:none;font-family:Poppins,Inter,sans-serif;margin:0 8px 8px 0;">View the ' + rn('consultation', 'Trajectory Plan') + ' →</a>' : '')
       +   '<button id="hdlv2-report-refresh" type="button" style="background:#fff;color:#92400e;border:1px solid #fde68a;padding:10px 22px;border-radius:48px;font-size:14px;font-weight:600;cursor:pointer;font-family:Poppins,Inter,sans-serif;">Refresh</button>'
       + '</div>'
       + '</div>';
@@ -2154,7 +2156,7 @@
         +     '<line x1="12" y1="16" x2="12.01" y2="16"></line>'
         +   '</svg>'
         +   '<div class="hdlv2-phase-n-banner__body">'
-        +     '<strong>Trajectory Plan was recovered.</strong> '
+        +     '<strong>' + rn('consultation', 'Trajectory Plan') + ' was recovered.</strong> '
         +     'A corrupted state was repaired on ' + esc(recoveredDate) + '. '
         +     'The displayed report content reflects an earlier version. '
         +     'Click <strong>Save &amp; Update Plan</strong> once to publish the latest content to your client.'
@@ -2168,7 +2170,7 @@
     // entry stays open; older entries collapse so the timeline is scannable.
     var timelineHtml = addenda.length
       ? addenda.map(function (a, i) { return renderAddendumCard(a, i === 0); }).join('')
-      : '<p class="hdlv2-addenda-empty">No addenda yet. Add the first one below — anything that has changed since the Trajectory Plan was generated.</p>';
+      : '<p class="hdlv2-addenda-empty">No addenda yet. Add the first one below — anything that has changed since the ' + rn('consultation', 'Trajectory Plan') + ' was generated.</p>';
 
     var defaultDate = formatDateTimeLocalNow();
 
@@ -2177,7 +2179,7 @@
       +   '<h4>Consultation Addenda</h4>'
       +   '<span class="hdlv2-addenda-count">' + addenda.length + ' ' + (addenda.length === 1 ? 'entry' : 'entries') + '</span>'
       + '</div>'
-      + '<p class="hdlv2-consult-hint">Add timestamped observations after the Trajectory Plan has been generated. Past addenda are read-only — Matthew\'s rule: never change past information, only add to it.</p>'
+      + '<p class="hdlv2-consult-hint">Add timestamped observations after the ' + rn('consultation', 'Trajectory Plan') + ' has been generated. Past addenda are read-only — Matthew\'s rule: never change past information, only add to it.</p>'
 
       + '<div class="hdlv2-addenda-timeline">' + timelineHtml + '</div>'
 
@@ -2201,7 +2203,7 @@
 
       +   '<label class="hdlv2-addendum-label" style="margin-top:4px;">Note</label>'
       +   '<div class="hdlv2-consult-notes-bar">'
-      +     '<textarea id="hdlv2-addendum-text" class="hdlv2-consult-notes-input" rows="6" placeholder="What has changed since the Trajectory Plan? Observations, allergies, lifestyle changes, lab results."></textarea>'
+      +     '<textarea id="hdlv2-addendum-text" class="hdlv2-consult-notes-input" rows="6" placeholder="What has changed since the ' + rn('consultation', 'Trajectory Plan') + '? Observations, allergies, lifestyle changes, lab results."></textarea>'
       +     '<div class="hdlv2-consult-notes-iconbar" id="hdlv2-addendum-audio"></div>'
       +   '</div>'
 
@@ -2412,13 +2414,13 @@
     var modalOpts = hasAddendum
       ? {
           title: 'Save addendum and re-issue the plan?',
-          body: 'This will:\n• Save your addendum (timestamped, never deleted)\n• Re-run the AI with the original consultation + every addendum\n• Generate a new Trajectory Plan and Flight Plan\n• Send a fresh email + PDF to your client (they will receive a second email)',
+          body: 'This will:\n• Save your addendum (timestamped, never deleted)\n• Re-run the AI with the original consultation + every addendum\n• Generate a new ' + rn('consultation', 'Trajectory Plan') + ' and Flight Plan\n• Send a fresh email + PDF to your client (they will receive a second email)',
           confirmLabel: 'Yes, save and update',
           cancelLabel: 'Cancel'
         }
       : {
           title: 'Re-issue the plan now?',
-          body: 'No new addendum to save — your AI summary edits above are already auto-saved. Continuing will:\n• Re-run the AI with the existing consultation + addenda\n• Generate a new Trajectory Plan and Flight Plan\n• Send a fresh email + PDF to your client (they will receive a second email)',
+          body: 'No new addendum to save — your AI summary edits above are already auto-saved. Continuing will:\n• Re-run the AI with the existing consultation + addenda\n• Generate a new ' + rn('consultation', 'Trajectory Plan') + ' and Flight Plan\n• Send a fresh email + PDF to your client (they will receive a second email)',
           confirmLabel: 'Yes, re-issue plan',
           cancelLabel: 'Cancel'
         };
@@ -2621,13 +2623,13 @@
     wrap.innerHTML = ''
       + '<div class="hdlv2-update-success">'
       +   '<div class="hdlv2-update-success-icon">✓</div>'
-      +   '<h4>Trajectory Plan regenerated</h4>'
+      +   '<h4>' + rn('consultation', 'Trajectory Plan') + ' regenerated</h4>'
       +   '<p class="hdlv2-update-success-meta">Generated <strong>' + esc(generatedAt) + '</strong> · client + practitioner emails on the way.</p>'
       // v0.34.3 — explicit hint that the report opens in a new tab so the
       // consultation page stays open with all in-progress state preserved
       // (audio component, brief autosave, etc.).
       +   '<p class="hdlv2-update-success-hint">Opens in a new tab — this consultation stays open so you can keep adding addenda below.</p>'
-      +   (reportUrl ? '<a class="hdlv2-update-success-link" href="' + esc(reportUrl) + '" target="_blank" rel="noopener">View the new Trajectory Plan →</a>' : '')
+      +   (reportUrl ? '<a class="hdlv2-update-success-link" href="' + esc(reportUrl) + '" target="_blank" rel="noopener">View the new ' + rn('consultation', 'Trajectory Plan') + ' →</a>' : '')
       // v0.34.3 — renamed from "Refresh to add another addendum" (sounded
       // like a cache-bust). Implementation stays as window.location.reload
       // — soft re-render would touch DOM, audio component lifecycle, and

@@ -78,6 +78,7 @@ class FakeRequest {
     public function get_json_params() { return $this->params; }
 }
 
+require_once dirname( __DIR__, 2 ) . '/includes/class-hdlv2-report-names.php'; // v0.48.96: the report names
 require dirname( __DIR__, 2 ) . '/includes/sprint-2c/class-hdlv2-client-draft-view.php';
 
 global $wpdb;

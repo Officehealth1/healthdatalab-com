@@ -99,7 +99,7 @@ class HDLV2_Final_Report_PDF_Service {
 			absint( $report_id )
 		) );
 		if ( ! $report ) {
-			return new WP_Error( 'hdlv2_frpdf_not_found', 'Final report not found.', array( 'status' => 404 ) );
+			return new WP_Error( 'hdlv2_frpdf_not_found', HDLV2_Report_Names::say( 'consultation', 'Final report' ) . ' not found.', array( 'status' => 404 ) );
 		}
 		$progress = $wpdb->get_row( $wpdb->prepare(
 			"SELECT * FROM {$wpdb->prefix}hdlv2_form_progress WHERE id = %d", (int) $report->form_progress_id
@@ -177,7 +177,7 @@ class HDLV2_Final_Report_PDF_Service {
 
 		$client_user = get_userdata( (int) $report->client_user_id );
 		$fname       = sanitize_file_name( ( $client_user ? $client_user->display_name : 'client' )
-			. ' — Final longevity report — ' . current_time( 'j F Y' ) . '.pdf' );
+			. ' — ' . HDLV2_Report_Names::say( 'consultation', 'Final longevity report' ) . ' — ' . current_time( 'j F Y' ) . '.pdf' );
 
 		$doc = self::api_post( '/documents', array( 'document' => array(
 			'document_template_id' => self::template_id(),

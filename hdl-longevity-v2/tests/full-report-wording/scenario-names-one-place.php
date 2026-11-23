@@ -8,11 +8,12 @@
  *   O.1  "Longevity Report" / "Comprehensive Report" appear in no surface but the class.
  *   O.2  every line that names a report today calls say() or rn() on that same line.
  *   O.3  each script that calls rn() reads report_names from its own localized config, and the PHP
- *        that localizes it hands HDLV2_Report_Names::for_script().
+ *        that localizes it passes that config through HDLV2_Report_Names::config().
  *
  * Left as they are, by the plan: the AI prompts (pinned, changed only with a recorded approval), the
  * free report's widget (its names are a later plan, with the Altituding side), comments, log lines,
  * identifiers (full_report, report_type 'final').
+ *   O.4  the PHP constants that keep today's words are named where they are read.
  *
  * Run:  php scenario-names-one-place.php [plugin-root]   (self-asserting, exit 0/1)
  */
@@ -58,9 +59,17 @@ $PHP = array(
     'includes/sprint-4/class-hdlv2-practitioner-dashboard.php',
     'includes/sprint-4/class-hdlv2-products.php',
 );
-// Lines that feed the AI, not a person: kept, with the prompts (see above).
-$PROMPT_LINES = array(
-    'includes/sprint-2c/class-hdlv2-auto-consultation.php' => array( 'Full Report form (deep assessment):' ),
+// Lines kept as they are, each with its reason. A PHP constant cannot call the class: those keep today's
+// words and are named where they are read (O.4 checks the readers).
+$KEPT = array(
+    'includes/sprint-2c/class-hdlv2-auto-consultation.php' => array( 'Full Report form (deep assessment):' ), // feeds the AI
+    'includes/sprint-2c/class-hdlv2-final-report.php'      => array( 'link-only Final Report email suppressed' ), // a log line
+    'includes/sprint-2c/class-hdlv2-healthspan-timeline.php' => array( "'written' => 'Your Full Report is being written.", "'bought'  => 'Your Full Report is bought." ),
+    'includes/sprint-4/class-hdlv2-products.php'           => array(
+        "'Your personalised Trajectory Plan, as a PDF and on this page.'", "'It comes with your Full Report. A family pack",
+        "const TL_UPGRADE = 'An upgrade to your Full Report'", "const TL_ABOUT   = 'An upgrade to your Full Report.",
+        "array( 'Full Report', 'Trajectory Plan' ),", // what named() looks for
+    ),
 );
 
 $TODAY = '/full (longevity )?report|trajectory plan|final (longevity )?report|finali[sz]ed longevity report/i';
@@ -88,7 +97,7 @@ foreach ( $surfaces as $f ) {
     foreach ( $lines as $n => $l ) {
         if ( preg_match( $NEW, $l ) ) $new_left[] = "$f:$n  " . substr( trim( $l ), 0, 110 );
         if ( ! preg_match( $TODAY, $l ) ) continue;
-        foreach ( $PROMPT_LINES[ $f ] ?? array() as $ok ) if ( false !== strpos( $l, $ok ) ) continue 2;
+        foreach ( $KEPT[ $f ] ?? array() as $ok ) if ( false !== strpos( $l, $ok ) ) continue 2;
         $call = '.js' === substr( $f, -3 ) ? '/\brn\(/' : '/HDLV2_Report_Names::say\(/';
         if ( ! preg_match( $call, $l ) ) $today_left[] = "$f:$n  " . substr( trim( $l ), 0, 110 );
     }
@@ -110,9 +119,17 @@ foreach ( $SCRIPTS as $js => list( $cfg, $phps ) ) {
     check( "O.3 $js: rn() reads $cfg.report_names", (bool) $helper );
     foreach ( $phps as $php ) {
         $p = (string) @file_get_contents( $ROOT . $php );
-        check( "O.3   $php hands report_names from the class", false !== strpos( $p, "'report_names'" ) && false !== strpos( $p, 'HDLV2_Report_Names::for_script()' ) );
+        $via = 'HDLV2_HT' === $cfg ? (bool) preg_match( '/\$data = HDLV2_Report_Names::config\( \$data \);/', $p )
+            : (bool) preg_match( "/wp_localize_script\\( '[\\w-]+', '" . $cfg . "', HDLV2_Report_Names::config\\( array\\(/", $p );
+        check( "O.3   $php passes $cfg through HDLV2_Report_Names::config()", $via );
     }
 }
+
+echo "── O.4 the constants are named where they are read ──\n";
+$prod = (string) @file_get_contents( $ROOT . 'includes/sprint-4/class-hdlv2-products.php' );
+check( 'O.4 products: the locked panel\'s lines and the Timeline upgrade note go through named()', false !== strpos( $prod, "array_map( array( __CLASS__, 'named' ), \$about )" ) && 2 === substr_count( $prod, 'self::named( self::TL_UPGRADE )' ) );
+$ht = (string) @file_get_contents( $ROOT . 'includes/sprint-2c/class-hdlv2-healthspan-timeline.php' );
+check( 'O.4 Healthspan Timeline: the waiting line is read through wait_line(), never straight from WAIT_LINES', 2 === substr_count( $ht, 'self::wait_line( $paid )' ) && 1 === substr_count( $ht, 'self::WAIT_LINES[' ) );
 
 echo "\nPASS=$PASS FAIL=$FAIL\n";
 exit( $FAIL === 0 ? 0 : 1 );

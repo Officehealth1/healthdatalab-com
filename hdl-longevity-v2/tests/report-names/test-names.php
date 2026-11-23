@@ -5,7 +5,7 @@
  * absent = off. Against the REAL classes, no network, frozen clock. The names in this file are made up.
  *
  *   N  HDLV2_Report_Names::say(): today's words with the switch off or "0"; the names on; the free
- *      report keeps today's words either way; for_script() hands a script nothing when off.
+ *      report keeps today's words either way; config() leaves a script's config untouched when off.
  *   L  reviewed_line(): the account that did the consultation, its display name as plain text
  *      (WordPress stores display names HTML-encoded; tags dropped), the date; "Reviewed with your
  *      practitioner" with no usable name; nothing with no practitioner account or the switch off.
@@ -86,14 +86,14 @@ $R = 'HDLV2_Report_Names';
 echo "── N. the names ──\n";
 sw( null );
 check( 'N1 switch absent: say() gives back the caller\'s words of today', 'Full Report' === $R::say( 'paid', 'Full Report' ) && 'Trajectory Plan' === $R::say( 'consultation', 'Trajectory Plan' ) );
-check( 'N2 switch absent: a script gets no names', array() === $R::for_script() );
+check( 'N2 switch absent: a script\'s config is untouched (no new key)', array( 'a' => 1 ) === $R::config( array( 'a' => 1 ) ) );
 sw( '0' );
-check( 'N3 switch "0": still today\'s words, still no names for a script', 'Final Report' === $R::say( 'consultation', 'Final Report' ) && array() === $R::for_script() );
+check( 'N3 switch "0": still today\'s words, a script\'s config untouched', 'Final Report' === $R::say( 'consultation', 'Final Report' ) && array( 'a' => 1 ) === $R::config( array( 'a' => 1 ) ) );
 sw( '1' );
 check( 'N4 switch on: the $27 report is "Longevity Report"', 'Longevity Report' === $R::say( 'paid', 'Full Report' ) );
 check( 'N5 switch on: the report made after a consultation is "Comprehensive Report"', 'Comprehensive Report' === $R::say( 'consultation', 'Trajectory Plan' ) );
 check( 'N6 switch on: the free report keeps today\'s words (its name is a later plan)', 'Rate of ageing report' === $R::say( 'free', 'Rate of ageing report' ) );
-check( 'N7 switch on: a script gets exactly the two names, by key', array( 'paid' => 'Longevity Report', 'consultation' => 'Comprehensive Report' ) === $R::for_script() );
+check( 'N7 switch on: a script\'s config gains report_names, the two names by key', array( 'a' => 1, 'report_names' => array( 'paid' => 'Longevity Report', 'consultation' => 'Comprehensive Report' ) ) === $R::config( array( 'a' => 1 ) ) );
 
 echo "── L. the reviewed line ──\n";
 check( 'L1 the account\'s display name and the date', 'Reviewed with you by Nora Quill, 23 November 2026' === $R::reviewed_line( 4, '23 November 2026' ) );

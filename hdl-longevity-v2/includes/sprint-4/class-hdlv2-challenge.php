@@ -514,6 +514,6 @@ class HDLV2_Challenge {
         $o = HDLV2_Offer::get();
         return '<aside class="cd30-offer"><h3>' . esc_html( $o['hook'] ) . '</h3>'
              . '<p>Today ' . esc_html( HDLV2_Offer::money( $o['full_today_price'], $o ) ) . '</p>'
-             . '<a class="cd30-offer-btn" href="' . esc_url( $o['url'] ) . '">Go deeper with the Full Report</a></aside>';
+             . '<a class="cd30-offer-btn" href="' . esc_url( $o['url'] ) . '">Go deeper with the ' . HDLV2_Report_Names::say( 'paid', 'Full Report' ) . '</a></aside>';
     }
 }

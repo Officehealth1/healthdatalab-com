@@ -56,6 +56,11 @@ class HDLV2_Healthspan_Timeline {
         'bought'  => 'Your Full Report is bought. Finish its questions, and your loved ones unlock when the report lands.',
     );
 
+    /** v0.48.96 (plan 12) — a waiting line with the report named (hdlv2_ff_report_names); off, the line above. */
+    private static function wait_line( $paid ) {
+        return str_replace( 'Full Report', HDLV2_Report_Names::say( 'paid', 'Full Report' ), self::WAIT_LINES[ $paid ] );
+    }
+
     public static function init() {
         add_shortcode( 'hdlv2_healthspan_timeline', array( __CLASS__, 'render_shortcode' ) );
         add_action( 'template_redirect', array( __CLASS__, 'no_cache_page' ) );
@@ -181,6 +186,7 @@ class HDLV2_Healthspan_Timeline {
         wp_enqueue_style( 'hdlv2-draft-fonts', 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@600;700&display=swap', array(), null );
         wp_enqueue_script( 'hdl-trajectory-chart', HDLV2_PLUGIN_URL . 'assets/js/hdl-trajectory-chart-hero.js', array(), HDLV2_VERSION, true );
         wp_enqueue_script( 'hdlv2-healthspan-timeline', HDLV2_PLUGIN_URL . 'assets/js/hdlv2-healthspan-timeline.js', array( 'hdl-trajectory-chart' ), HDLV2_VERSION, true );
+        $data = HDLV2_Report_Names::config( $data );
         wp_add_inline_script( 'hdlv2-healthspan-timeline', 'window.HDLV2_HT = ' . wp_json_encode( $data, JSON_HEX_TAG | JSON_HEX_AMP ) . ';', 'before' );
         // v0.48.60 — the first paint: the title, the subtitle and the first two panels as blocks; boot() replaces it all.
         return '<div id="hdlv2-ht-root" class="hdlv2-ht"><header class="ht-top"><h1 id="ht-title">' . esc_html( $data['title'] ) . '</h1>'
@@ -371,8 +377,8 @@ class HDLV2_Healthspan_Timeline {
             }
         } elseif ( '' !== $paid && 'preview' === $mode ) {
             // DA2 stands (the report is the gate): a buyer is not sold the report again while it is written.
-            $data['offer']     = array( 'line' => self::WAIT_LINES[ $paid ], 'wait' => true );
-            $data['wait_line'] = self::WAIT_LINES[ $paid ];
+            $data['offer']     = array( 'line' => self::wait_line( $paid ), 'wait' => true );
+            $data['wait_line'] = self::wait_line( $paid );
         }
         $card = self::card();
         if ( $card ) {
@@ -390,12 +396,12 @@ class HDLV2_Healthspan_Timeline {
     private static function offer( $practitioner_id ) {
         $o = HDLV2_Offer::get();
         if ( '' === $o['url'] || ( null !== $practitioner_id && ! HDLV2_Offer::applies_to( $practitioner_id ) ) ) {
-            return array( 'line' => 'Your loved ones unlock with the full report.' );
+            return array( 'line' => 'Your loved ones unlock with the ' . HDLV2_Report_Names::say( 'paid', 'full report' ) . '.' );
         }
         // v0.48.73 — one price for everyone (no code), so the open page and a known client see the same line.
         return array(
-            'line'   => 'Your loved ones unlock with the full report (today ' . HDLV2_Offer::money( $o['full_today_price'], $o ) . ').',
-            'button' => 'Get the full report',
+            'line'   => 'Your loved ones unlock with the ' . HDLV2_Report_Names::say( 'paid', 'full report' ) . ' (today ' . HDLV2_Offer::money( $o['full_today_price'], $o ) . ').',
+            'button' => 'Get the ' . HDLV2_Report_Names::say( 'paid', 'full report' ),
             'url'    => $o['url'],
         );
     }
@@ -428,8 +434,8 @@ class HDLV2_Healthspan_Timeline {
         }
         $sum = (float) $offer['full_today_price'] + (float) $offer['timeline_upgrade_price'];
         return array( 'offer' => array(
-            'line'   => 'Your loved ones unlock with the Full Report and the Timeline upgrade (' . HDLV2_Offer::money( floor( $sum ) == $sum ? (string) (int) $sum : number_format( $sum, 2, '.', '' ), $offer ) . ' together).',
-            'button' => 'Get the full report',
+            'line'   => 'Your loved ones unlock with the ' . HDLV2_Report_Names::say( 'paid', 'Full Report' ) . ' and the Timeline upgrade (' . HDLV2_Offer::money( floor( $sum ) == $sum ? (string) (int) $sum : number_format( $sum, 2, '.', '' ), $offer ) . ' together).',
+            'button' => 'Get the ' . HDLV2_Report_Names::say( 'paid', 'full report' ),
             'url'    => $offer['url'],
         ) );
     }

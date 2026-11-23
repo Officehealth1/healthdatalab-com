@@ -17,6 +17,8 @@
   'use strict';
 
   var CFG = window.hdlv2_form || {};
+  // v0.48.96 — a report's name: the class's (report_names, hdlv2_ff_report_names on) or today's words.
+  function rn(key, today) { var c = window.hdlv2_form, n = c && c.report_names; return (n && n[key]) || today; }
 
   // Stage 1 question icon mapping. Files served from
   // /wp-content/plugins/hdl-longevity-v2/assets/images/stage1-icons/.
@@ -1082,10 +1084,10 @@
               ? '<p class="hdlv2-s1-lede">Your gauge is a snapshot. One questionnaire turns it into a plan.</p>'
               +   '<ol class="hdlv2-s1-next-list">'
               +     '<li><strong>One questionnaire.</strong> What matters to you, then your health details. About 15 minutes.</li>'
-              : '<p class="hdlv2-s1-lede">Your gauge is a snapshot. The Full Report turns it into a plan.</p>'
+              : '<p class="hdlv2-s1-lede">Your gauge is a snapshot. The ' + rn('paid', 'Full Report') + ' turns it into a plan.</p>'
               +   '<ol class="hdlv2-s1-next-list">'
-              +     '<li><strong>The Full Report.</strong> What matters most to you, then your real measurements: the full picture, reviewed by your practitioner.</li>' )
-      +         '<li><strong>Your Trajectory Plan arrives.</strong> Reviewed by your practitioner, with your weekly Flight Plan to follow.</li>'
+              +     '<li><strong>The ' + rn('paid', 'Full Report') + '.</strong> What matters most to you, then your real measurements: the full picture, reviewed by your practitioner.</li>' )
+      +         '<li><strong>Your ' + rn('consultation', 'Trajectory Plan') + ' arrives.</strong> Reviewed by your practitioner, with your weekly Flight Plan to follow.</li>'
       +       '</ol>'
       // Phase 17 (v0.22.26) two CTAs preserved.
       //   Primary: continue the assessment in-line (Stage 2).
@@ -1093,7 +1095,7 @@
       //     (`practitioner_cta_link` from /form/load) only rendered when
       //     a link is configured, otherwise the button is hidden.
       +       '<div class="hdlv2-s1-buttons">'
-      +         '<button id="hdlv2-goto-s2" class="hdlv2-s1-btn hdlv2-s1-btn-primary" type="button">' + (singleForm ? 'Continue your assessment \u2192' : 'Continue to your Full Report \u2192') + '</button>'
+      +         '<button id="hdlv2-goto-s2" class="hdlv2-s1-btn hdlv2-s1-btn-primary" type="button">' + (singleForm ? 'Continue your assessment \u2192' : 'Continue to your ' + rn('paid', 'Full Report') + ' \u2192') + '</button>'
       +         '<p class="hdlv2-s1-email-note">We\u2019ve also sent this link to your email.</p>'
       +         ( pracCtaLink
               ? '<a id="hdlv2-book-session" class="hdlv2-s1-btn hdlv2-s1-btn-secondary" href="' + esc(pracCtaLink) + '" target="_blank" rel="noopener">' + esc(pracCtaText) + '</a>'
@@ -1172,7 +1174,7 @@
     box.innerHTML =
         '<p>Your pace-of-ageing snapshot has been calculated from your 9 answers. '
       + 'A more detailed personalised read will be available shortly \u2014 if it doesn\u2019t appear, refresh this page.</p>'
-      + '<p>This isn\u2019t a verdict \u2014 it\u2019s a starting picture. Most of these levers are within your control. The Full Report captures what matters to you, then turns your real measurements into your plan.</p>';
+      + '<p>This isn\u2019t a verdict \u2014 it\u2019s a starting picture. Most of these levers are within your control. The ' + rn('paid', 'Full Report') + ' captures what matters to you, then turns your real measurements into your plan.</p>';
   }
 
   // ══════════════════════════════════════════════════════════════
@@ -1809,7 +1811,7 @@
       + (clear
         ? '<p class="hdlv2-who-help">How you age affects the people who matter to you.</p>'
           + (S1_IMG_BASE ? '<div class="hdlv2-who-pics">' + motionFigure('hdlv2-who-pic', TAP_MOTION.sittingOut) + motionFigure('hdlv2-who-pic', TAP_MOTION.joiningIn) + '</div>' : '')
-          + '<p class="hdlv2-who-help">To personalise your Full Report, feel free to share who is important to you.</p>'
+          + '<p class="hdlv2-who-help">To personalise your ' + rn('paid', 'Full Report') + ', feel free to share who is important to you.</p>'
         : '<p class="hdlv2-who-help">Name them. We\u2019ll remember them for your timeline.</p>')
       + '<div class="hdlv2-who-rows">' + rows.map(function (p, i) { return whoForRow(i, p); }).join('') + '</div>'
       + '<button type="button" class="hdlv2-who-add"' + (rows.length >= WHO_MAX ? ' hidden' : '') + '>+ Add another</button>'
@@ -1968,7 +1970,7 @@
     //   - Title now reads "More Health Details \u2014 Stage 3" (was "Full Health Detail").
     //   - Skip helper line standardised: same phrasing on every section.
     root.innerHTML = '<div class="hdlv2-card">'
-      + brandBar(serverData) + '<div class="hdlv2-header"><h2>' + 'Your Full Report' + '</h2><p>' + esc(sec.title) + '</p></div>'
+      + brandBar(serverData) + '<div class="hdlv2-header"><h2>' + 'Your ' + rn('paid', 'Full Report') + '</h2><p>' + esc(sec.title) + '</p></div>'
       + dots
       + (isFirst ? '<div class="hdlv2-wizard-info">Don\u2019t worry if you don\u2019t know the details. Just do your best. Your practitioner or the report can still be generated if you haven\u2019t got all these details.</div>' : '')
       + '<div class="hdlv2-form-body">' + content
@@ -2225,7 +2227,7 @@
               : '')
             + 'If an answer is not right, tap Change.'
           : 'We filled in what we could from your first answers. Pick any row marked Unknown, and tap Change if one is not right.') + '</p>'
-        + '<p class="hdlv2-s1-prompt">Your answers here build your full longevity report.</p>'
+        + '<p class="hdlv2-s1-prompt">Your answers here build your ' + rn('paid', 'full longevity report') + '.</p>'
         + '<div id="hdlv2-tap-rows" class="hdlv2-tap-rows">' + tapFirstRows(first) + '</div>'
         + '<button type="button" id="hdlv2-tap-next" class="hdlv2-btn hdlv2-s1-next">Looks right, carry on</button>';
     } else if (field) {
@@ -2252,7 +2254,7 @@
 
     // v0.48.92 (plan 8; hdlv2_ff_form_focus) — hdlv2-focus carries the larger question, labels and pictures.
     root.innerHTML = '<div class="hdlv2-card' + (CFG.form_focus ? ' hdlv2-focus' : '') + '">'
-      + brandBar(serverData) + '<div class="hdlv2-header"><h2>Your Full Report</h2></div>'
+      + brandBar(serverData) + '<div class="hdlv2-header"><h2>Your ' + rn('paid', 'Full Report') + '</h2></div>'
       + '<div class="hdlv2-s1">'
       +   '<div class="hdlv2-s1-header">'
       +     (tapStep > 0 ? '<button type="button" id="hdlv2-tap-back" class="hdlv2-nav-back hdlv2-s1-back-btn" aria-label="Go back to the previous step">&#8592; Previous</button>' : '')
@@ -2504,7 +2506,7 @@
     // DRAFT COPY for the owner: the congratulations, the e-mail line and the upgrade heading.
     if (CFG.form_focus) {
       var extra = s1.timeline_owned === true
-        ? '<p class="hdlv2-ty-lead">Your Healthspan Timeline is yours. It opens when your Full Report lands.</p>'
+        ? '<p class="hdlv2-ty-lead">Your Healthspan Timeline is yours. It opens when your ' + rn('paid', 'Full Report') + ' lands.</p>'
         : timelineBlockHtml(s1.timeline_offer);
       root.innerHTML = '<div class="hdlv2-card hdlv2-ty-card">'
         + thankYouHeader(pracName, pracLogo)
@@ -2512,18 +2514,18 @@
         + '<div class="hdlv2-ty-body">'
         +   (S1_IMG_BASE ? motionFigure('hdlv2-ty-finished', FINISH_PICTURE) : '')
         // deriveFirstName() gives 'there' when no usable name is known: then no name at all.
-        +   '<h2 class="hdlv2-ty-h1">Congratulations' + (firstName === 'there' ? '' : ', ' + esc(firstName)) + '. Your Full Report is filled in.</h2>'
+        +   '<h2 class="hdlv2-ty-h1">Congratulations' + (firstName === 'there' ? '' : ', ' + esc(firstName)) + '. Your ' + rn('paid', 'Full Report') + ' is filled in.</h2>'
         +   '<p class="hdlv2-ty-lead">Your results are on their way to your email and should arrive within a few minutes.</p>'
         +   '<p class="hdlv2-ty-subhead">What happens next</p>'
         +   '<ol class="hdlv2-ty-list">'
-        +     '<li>Check your inbox for your Full Report.</li>'
+        +     '<li>Check your inbox for your ' + rn('paid', 'Full Report') + '.</li>'
         +   '</ol>'
         +   '<p class="hdlv2-ty-note">' + noteLine + '</p>'
         + '</div>'
         + thankYouFooter()
         + '</div>'
         + (extra ? '<div class="hdlv2-card hdlv2-ty-card hdlv2-ty-upgrade">'
-          + '<h2 class="hdlv2-ty-upgrade-title">An upgrade for your Full Report</h2>' + extra + '</div>' : '');
+          + '<h2 class="hdlv2-ty-upgrade-title">An upgrade for your ' + rn('paid', 'Full Report') + '</h2>' + extra + '</div>' : '');
       return;
     }
 
@@ -2532,12 +2534,12 @@
       + '<div class="hdlv2-ty-banner"><h1>Full&nbsp;Report&nbsp;complete</h1></div>'
       + '<div class="hdlv2-ty-body">'
       +   '<h2 class="hdlv2-ty-h1">Thanks, ' + esc(firstName) + ' — your assessment is in.</h2>'
-      +   '<p class="hdlv2-ty-lead">From what you’ve told us we’ve built your full longevity report. It’s on its way to your email and should arrive within a few minutes.</p>'
+      +   '<p class="hdlv2-ty-lead">From what you’ve told us we’ve built your ' + rn('paid', 'full longevity report') + '. It’s on its way to your email and should arrive within a few minutes.</p>'
       +   '<p class="hdlv2-ty-subhead">What happens next</p>'
       +   '<ol class="hdlv2-ty-list">'
-      +     '<li>Check your inbox for your Full Report.</li>'
+      +     '<li>Check your inbox for your ' + rn('paid', 'Full Report') + '.</li>'
       +   '</ol>'
-      +   (s1.timeline_owned === true ? '<p class="hdlv2-ty-lead">Your Healthspan Timeline is yours. It opens when your Full Report lands.</p>' : '')
+      +   (s1.timeline_owned === true ? '<p class="hdlv2-ty-lead">Your Healthspan Timeline is yours. It opens when your ' + rn('paid', 'Full Report') + ' lands.</p>' : '')
       +   '<p class="hdlv2-ty-note">' + noteLine + '</p>'
       + '</div>'
       + timelineBlockHtml(s1.timeline_offer)

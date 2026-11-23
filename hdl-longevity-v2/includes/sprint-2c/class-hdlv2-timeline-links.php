@@ -282,7 +282,7 @@ class HDLV2_Timeline_Links {
             return self::gone();
         }
         if ( ! HDLV2_Healthspan_Timeline::report_row( (int) $row->id ) ) {
-            return new WP_Error( 'full_report_needed', 'This client needs a Full Report first.', array( 'status' => 409 ) );
+            return new WP_Error( 'full_report_needed', 'This client needs a ' . HDLV2_Report_Names::say( 'paid', 'Full Report' ) . ' first.', array( 'status' => 409 ) );
         }
         global $wpdb;
         $packs = $wpdb->prefix . 'hdlv2_timeline_packs';
@@ -583,7 +583,7 @@ class HDLV2_Timeline_Links {
             return new WP_Error( 'not_owner', 'Only the client can invite people to their timeline.', array( 'status' => 403 ) );
         }
         if ( ! HDLV2_Healthspan_Timeline::report_row( (int) $row->id ) ) {
-            return new WP_Error( 'full_report_needed', 'Linking people comes with the full report.', array( 'status' => 403 ) );
+            return new WP_Error( 'full_report_needed', 'Linking people comes with the ' . HDLV2_Report_Names::say( 'paid', 'full report' ) . '.', array( 'status' => 403 ) );
         }
         // v0.48.82 (plan 3) — with the Timeline upgrade on, linking people is part of the Timeline: a Stripe
         // buyer who did not take it is refused here as the page keeps them in preview.

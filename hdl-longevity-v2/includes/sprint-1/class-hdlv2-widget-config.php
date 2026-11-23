@@ -3021,11 +3021,11 @@ class HDLV2_Widget_Config {
         // v0.48.15 — Matthew 2026-10-13: the client reads "the Full Report",
         // never "Stage 2/3". The practitioner's name leads so the client
         // knows who opened it.
-        $subject = sprintf( '%s has opened your Full Report — HealthDataLab', $practitioner_name );
+        $subject = sprintf( '%s has opened your ' . HDLV2_Report_Names::say( 'paid', 'Full Report' ) . ' — HealthDataLab', $practitioner_name );
 
         // ── Body ───────────────────────────────────────────────────────────
         $body  = '<p style="margin:0 0 16px;font-size:16px;color:#1a1a1a;font-family:Inter,-apple-system,BlinkMacSystemFont,\'Segoe UI\',sans-serif;">Dear ' . esc_html( $first_name ) . ',</p>';
-        $body .= '<p style="margin:0 0 16px;font-size:15px;color:#333333;line-height:1.7;font-family:Inter,-apple-system,sans-serif;">Your practitioner, <strong style="color:#1a1a1a;">' . esc_html( $practitioner_name ) . '</strong>, has opened the Full Report of your Longevity assessment.</p>';
+        $body .= '<p style="margin:0 0 16px;font-size:15px;color:#333333;line-height:1.7;font-family:Inter,-apple-system,sans-serif;">Your practitioner, <strong style="color:#1a1a1a;">' . esc_html( $practitioner_name ) . '</strong>, has opened the ' . HDLV2_Report_Names::say( 'paid', 'Full Report' ) . ' of your Longevity assessment.</p>';
         $body .= '<p style="margin:0 0 16px;font-size:15px;color:#333333;line-height:1.7;font-family:Inter,-apple-system,sans-serif;">This is the <em style="color:#004F59;font-style:italic;">Why</em>. In your own words, what matters to you and why is this work worth doing? Your answers will feed into your reports and weekly flight plans, and on days when motivation dips, your reflections will help you find your footing again.</p>';
         $body .= '<p style="margin:0 0 22px;font-size:15px;color:#333333;line-height:1.7;font-family:Inter,-apple-system,sans-serif;">Set aside 5&ndash;20 minutes in a quiet place and complete it in one sitting.</p>';
 
@@ -3060,7 +3060,7 @@ class HDLV2_Widget_Config {
         // shared HDLV2_Email_Templates::base_layout() so every email
         // reads as one design system. Banner title and practitioner
         // logo/name are resolved inside the shared header renderer.
-        $message = HDLV2_Email_Templates::base_layout( $body, (int) $practitioner_id, 'Your Full Report' );
+        $message = HDLV2_Email_Templates::base_layout( $body, (int) $practitioner_id, 'Your ' . HDLV2_Report_Names::say( 'paid', 'Full Report' ) );
 
         return wp_mail( $client_email, $subject, $message, self::invite_headers( $practitioner_name, $practitioner_email ) );
     }

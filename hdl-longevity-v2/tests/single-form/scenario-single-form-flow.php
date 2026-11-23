@@ -277,6 +277,7 @@ function scheduled_for( $id ) {
 }
 function s2( $row ) { return json_decode( $row->stage2_data, true ) ?: array(); }
 
+require_once dirname( __DIR__, 2 ) . '/includes/class-hdlv2-report-names.php'; // v0.48.96: the report names
 require __DIR__ . '/../../includes/class-hdlv2-env.php';
 require __DIR__ . '/../../includes/sprint-2/class-hdlv2-why-picks.php';
 require __DIR__ . '/../../includes/sprint-1/class-hdlv2-offer.php'; // v0.48.15 — partner_line

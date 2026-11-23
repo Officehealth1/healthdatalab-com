@@ -106,6 +106,7 @@ class FakeWpdb {
 }
 $GLOBALS['wpdb'] = new FakeWpdb();
 
+require_once dirname( __DIR__, 2 ) . '/includes/class-hdlv2-report-names.php'; // v0.48.96: the report names
 require __DIR__ . '/../../includes/sprint-4/class-hdlv2-message-thread-view.php';
 require_once __DIR__ . '/../../includes/sprint-1/class-hdlv2-offer.php';
 require_once __DIR__ . '/../../includes/sprint-4/class-hdlv2-challenge.php';

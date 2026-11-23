@@ -122,7 +122,7 @@ class HDLV2_Client_Draft_View {
             return rest_ensure_response( array(
                 'status'  => 'incomplete',
                 'type'    => 'draft',
-                'message' => 'Complete your full assessment to see your Full Report.',
+                'message' => 'Complete your full assessment to see your ' . HDLV2_Report_Names::say( 'paid', 'Full Report' ) . '.',
             ) );
         }
 
@@ -416,10 +416,10 @@ class HDLV2_Client_Draft_View {
             true
         );
 
-        wp_localize_script( 'hdlv2-draft-report', 'HDLV2_DRAFT_REPORT', array(
+        wp_localize_script( 'hdlv2-draft-report', 'HDLV2_DRAFT_REPORT', HDLV2_Report_Names::config( array(
             'rest_url' => esc_url_raw( rest_url( 'hdl-v2/v1/reports/draft' ) ),
             'nonce'    => wp_create_nonce( 'wp_rest' ),
-        ) );
+        ) ) );
 
         wp_enqueue_style(
             'hdlv2-draft-report',
@@ -472,7 +472,7 @@ class HDLV2_Client_Draft_View {
                     wp_localize_script( 'hdlv2-client-nav-bar', 'hdlv2_nav_bar', array(
                         'clients_url' => home_url( '/clients/' ),
                         'client_name' => $nav_client_name,
-                        'page_label'  => 'Trajectory Plan',
+                        'page_label'  => HDLV2_Report_Names::say( 'consultation', 'Trajectory Plan' ),
                         'api_base'    => rest_url( 'hdl-v2/v1' ),
                         'nonce'       => wp_create_nonce( 'wp_rest' ),
                     ) );
@@ -485,7 +485,7 @@ class HDLV2_Client_Draft_View {
         <div id="hdlv2-draft-report-root" class="hdlv2-dr">
             <div class="hdlv2-dr-loading" data-hdlv2-state="loading">
                 <div class="hdlv2-dr-loading-icon"></div>
-                <h3>Preparing your Full Report</h3>
+                <h3>Preparing your <?php echo esc_html( HDLV2_Report_Names::say( 'paid', 'Full Report' ) ); ?></h3>
                 <p>We're running your results through our analysis<span class="hdlv2-dr-loading-dots"></span></p>
                 <p style="font-size:12px;color:#888;margin-top:16px;">This usually takes 20 – 60 seconds.</p>
             </div>

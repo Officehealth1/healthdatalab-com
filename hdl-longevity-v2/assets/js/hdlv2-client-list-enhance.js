@@ -18,6 +18,8 @@
   'use strict';
 
   var CFG = window.hdlv2_client_enhance || {};
+  // v0.48.96 — a report's name: the class's (report_names, hdlv2_ff_report_names on) or today's words.
+  function rn(key, today) { var c = window.hdlv2_client_enhance, n = c && c.report_names; return (n && n[key]) || today; }
   if (!CFG.nonce || !CFG.api_base) return;
 
   var state = {
@@ -990,8 +992,8 @@
       // client is in the journey. "Needs attention" stays unprefixed
       // because it can fire at any stage.
       pending_leads:    { dot: '#3d8da0', label: 'Stage 1: New widget submissions',       items: [], action: 'lead_action',  cls: 'pending' },
-      release_why:      { dot: '#d97706', label: 'Full Report · WHY: ready to open the form',   items: [], action: 'release',      cls: 'release' },
-      awaiting_consult: { dot: '#3b82f6', label: 'Full Report · form: ready to record consultation', items: [], action: 'open_consult', cls: 'consult' },
+      release_why:      { dot: '#d97706', label: rn('paid', 'Full Report') + ' · WHY: ready to open the form',   items: [], action: 'release',      cls: 'release' },
+      awaiting_consult: { dot: '#3b82f6', label: rn('paid', 'Full Report') + ' · form: ready to record consultation', items: [], action: 'open_consult', cls: 'consult' },
       needs_attention:  { dot: '#dc2626', label: 'Needs attention',                              items: [], action: 'view_timeline', cls: 'attn' },
     };
 
@@ -1450,14 +1452,14 @@
       : '<div class="hdlv2-pending-detail-empty">No Stage-1 answer detail was captured for this lead.</div>';
 
     return '<div class="hdlv2-pending-detail">'
-      + '<div class="hdlv2-pending-detail-note">Pre-confirmation lead — not yet an account. Confirm to provision the client and send their Full Report link.</div>'
+      + '<div class="hdlv2-pending-detail-note">Pre-confirmation lead — not yet an account. Confirm to provision the client and send their ' + rn('paid', 'Full Report') + ' link.</div>'
       + contact + answers
       + '</div>';
   }
 
   function renderActionQueueButton(action, c) {
     if (action === 'release') {
-      return '<button type="button" class="hdlv2-aq-btn hdlv2-aq-btn-release" data-aq="release" data-progress-id="' + esc(c.progress_id || 0) + '" data-user-id="' + esc(c.user_id) + '">Open the Full Report form</button>';
+      return '<button type="button" class="hdlv2-aq-btn hdlv2-aq-btn-release" data-aq="release" data-progress-id="' + esc(c.progress_id || 0) + '" data-user-id="' + esc(c.user_id) + '">Open the ' + rn('paid', 'Full Report') + ' form</button>';
     }
     if (action === 'open_consult') {
       var url = CFG.consultation_url + '?progress_id=' + encodeURIComponent(c.progress_id || 0);
@@ -1473,8 +1475,8 @@
     // v0.22.51 — Quim 2026-04-28: spell out where the data is + what the
     // button does. Render path: buildActionMeta() → innerHTML concat at line
     // ~413, so <strong> renders. Static string only — no esc() needed.
-    if (action === 'release')       return 'Their WHY data was sent to your email. <strong>Practitioner Action:</strong> Open the Full Report form.';
-    if (action === 'open_consult')  return 'Full Report form complete — record your consultation notes';
+    if (action === 'release')       return 'Their WHY data was sent to your email. <strong>Practitioner Action:</strong> Open the ' + rn('paid', 'Full Report') + ' form.';
+    if (action === 'open_consult')  return rn('paid', 'Full Report') + ' form complete — record your consultation notes';
     if (action === 'view_timeline' && c.reasons && c.reasons.length) return esc(c.reasons[0]);
     return '';
   }
@@ -1489,12 +1491,12 @@
         // v0.20.10 — themed modal instead of browser-native confirm().
         var ask = (window.HDLV2UI && window.HDLV2UI.confirm)
           ? window.HDLV2UI.confirm({
-              title: 'Open the Full Report form for ' + stub.name + '?',
-              body: 'This emails them the link to the Full Report form and cannot be undone.',
+              title: 'Open the ' + rn('paid', 'Full Report') + ' form for ' + stub.name + '?',
+              body: 'This emails them the link to the ' + rn('paid', 'Full Report') + ' form and cannot be undone.',
               confirmLabel: 'Yes, send invite',
               cancelLabel: 'Cancel'
             })
-          : Promise.resolve(window.confirm('Open the Full Report form for ' + stub.name + '?\n\nThis emails them the link to the Full Report form and cannot be undone.'));
+          : Promise.resolve(window.confirm('Open the ' + rn('paid', 'Full Report') + ' form for ' + stub.name + '?\n\nThis emails them the link to the ' + rn('paid', 'Full Report') + ' form and cannot be undone.'));
         ask.then(function (ok) {
           if (!ok) return;
           releaseFromQueue(btn, stub);
@@ -1917,7 +1919,7 @@
     var dots = deriveJourneyState(c);
     var wrap = document.createElement('span');
     wrap.className = 'hdlv2-mini-stages';
-    wrap.title = 'Stage 1 · Full Report · WHY · Full Report · form · Consultation · Final · Weekly Flight Plan';
+    wrap.title = 'Stage 1 · ' + rn('paid', 'Full Report') + ' · WHY · ' + rn('paid', 'Full Report') + ' · form · Consultation · Final · Weekly Flight Plan';
     // Hash for reconcileRows() so idle polls don't re-render the strip.
     wrap.setAttribute('data-state-hash', (c.status || '') + '|' + (c.has_final_report ? '1' : '0'));
     var html = '';
@@ -2149,10 +2151,10 @@
     if (c.status === 'awaiting_why_release' && c.progress_id) {
       actionBanner = '<div class="hdlv2-action-banner" data-kind="release-why">'
         + '<div class="hdlv2-action-banner-text">'
-        + '<strong>Ready to open the Full Report form for this client</strong>'
-        + '<span>Your client submitted their WHY profile. Release the gate to email them the link to the Full Report form.</span>'
+        + '<strong>Ready to open the ' + rn('paid', 'Full Report') + ' form for this client</strong>'
+        + '<span>Your client submitted their WHY profile. Release the gate to email them the link to the ' + rn('paid', 'Full Report') + ' form.</span>'
         + '</div>'
-        + '<button type="button" class="hdlv2-release-why-btn" data-progress-id="' + c.progress_id + '">Open the Full Report form</button>'
+        + '<button type="button" class="hdlv2-release-why-btn" data-progress-id="' + c.progress_id + '">Open the ' + rn('paid', 'Full Report') + ' form</button>'
         + '</div>';
     }
 
@@ -2371,7 +2373,7 @@
       var rate = null, source = '';
       if (data) {
         if (data.stage3 && typeof data.stage3.rate === 'number') {
-          rate = data.stage3.rate; source = 'From the Full Report form';
+          rate = data.stage3.rate; source = 'From the ' + rn('paid', 'Full Report') + ' form';
         } else if (data.stage1 && typeof data.stage1.rate === 'number') {
           rate = data.stage1.rate; source = 'From Stage 1 quick rate';
         }
@@ -2442,7 +2444,7 @@
           nSub.textContent = 'Week 12 · in 12 weeks';
         } else {
           nVal.textContent = '—';
-          nSub.textContent = 'Set by Final report';
+          nSub.textContent = 'Set by ' + rn('consultation', 'Final report');
         }
       }
     });
@@ -2472,12 +2474,12 @@
     // v0.20.10 — themed modal instead of browser-native confirm().
     var ask = (window.HDLV2UI && window.HDLV2UI.confirm)
       ? window.HDLV2UI.confirm({
-          title: 'Open the Full Report form for ' + (c.name || c.email) + '?',
-          body: 'This emails them the link to the Full Report form and cannot be undone.',
+          title: 'Open the ' + rn('paid', 'Full Report') + ' form for ' + (c.name || c.email) + '?',
+          body: 'This emails them the link to the ' + rn('paid', 'Full Report') + ' form and cannot be undone.',
           confirmLabel: 'Yes, send invite',
           cancelLabel: 'Cancel'
         })
-      : Promise.resolve(window.confirm('Open the Full Report form for ' + (c.name || c.email) + '?\n\nThis emails them the link to the Full Report form and cannot be undone.'));
+      : Promise.resolve(window.confirm('Open the ' + rn('paid', 'Full Report') + ' form for ' + (c.name || c.email) + '?\n\nThis emails them the link to the ' + rn('paid', 'Full Report') + ' form and cannot be undone.'));
     ask.then(function (confirmed) {
       if (!confirmed) return;
       _doReleaseWhy(c, btn, panel);
@@ -2508,10 +2510,10 @@
         var banner = panel.querySelector('.hdlv2-action-banner');
         if (banner) {
           banner.classList.add('hdlv2-action-banner-done');
-          banner.innerHTML = '<div class="hdlv2-action-banner-text"><strong>WHY released</strong><span>Client has been emailed the link to the Full Report form.</span></div>';
+          banner.innerHTML = '<div class="hdlv2-action-banner-text"><strong>WHY released</strong><span>Client has been emailed the link to the ' + rn('paid', 'Full Report') + ' form.</span></div>';
         }
         c.status = 'stage3_in_progress';
-        c.label = 'Full Report form in progress';
+        c.label = rn('paid', 'Full Report') + ' form in progress';
         c.why_released = 1;
       })
       .catch(function () {
@@ -2678,7 +2680,7 @@
     fetchClientRecord(c).then(function (data) {
       var s2 = data && data.stage2;
       if (!s2) {
-        target.innerHTML = '<div class="hdlv2-detail-empty">Client hasn’t completed the Full Report WHY yet.</div>';
+        target.innerHTML = '<div class="hdlv2-detail-empty">Client hasn’t completed the ' + rn('paid', 'Full Report') + ' WHY yet.</div>';
         return;
       }
 
@@ -2724,8 +2726,8 @@
         choices = '<div class="hdlv2-why-choices">'
           + '<div class="hdlv2-score-group"><h4>What they chose</h4>' + picked + '</div>'
           + '<div class="hdlv2-score-group"><h4>Abilities their choices depend on</h4>' + abilities
-          +   '<div class="hdlv2-consult-caption">Need is out of 5: 5 means every choice leans on the ability fully. Scores are out of 5, averaged from the answers listed. They are not a test of the ability itself. Stage 1 answers run 1 to 5, Full Report form answers 0 to 5. The projection to 90 uses published average losses for each ability, age and sex (about 5 to 34% a decade): an estimate.'
-          +     (s2.choices.stage3_done ? '' : ' Full Report form not finished: based on Stage 1 answers only.') + '</div>'
+          +   '<div class="hdlv2-consult-caption">Need is out of 5: 5 means every choice leans on the ability fully. Scores are out of 5, averaged from the answers listed. They are not a test of the ability itself. Stage 1 answers run 1 to 5, ' + rn('paid', 'Full Report') + ' form answers 0 to 5. The projection to 90 uses published average losses for each ability, age and sex (about 5 to 34% a decade): an estimate.'
+          +     (s2.choices.stage3_done ? '' : ' ' + rn('paid', 'Full Report') + ' form not finished: based on Stage 1 answers only.') + '</div>'
           + '</div>'
           + '</div>';
       }
@@ -2740,7 +2742,7 @@
           +   '<div class="hdlv2-dl-doc-ico">' + docIconSVG() + '</div>'
           +   '<div class="hdlv2-dl-doc-body">'
           +     '<span class="hdlv2-dl-doc-title">WHY Profile</span>'
-          +     '<span class="hdlv2-dl-doc-meta">Full Report WHY &middot; practitioner copy &mdash; not sent to the client</span>'
+          +     '<span class="hdlv2-dl-doc-meta">' + rn('paid', 'Full Report') + ' WHY &middot; practitioner copy &mdash; not sent to the client</span>'
           +   '</div>'
           +   '<a class="hdlv2-dl-btn" href="' + esc(s2.pdf_url) + '" target="_blank" rel="noopener" download>' + flightNotesIconSVG() + '<span>Download PDF</span></a>'
           + '</div>'
@@ -2768,7 +2770,7 @@
     fetchClientRecord(c).then(function (data) {
       var s3 = data && data.stage3;
       if (!s3 || !s3.completed_at) {
-        target.innerHTML = '<div class="hdlv2-detail-empty">Client hasn’t completed the Full Report form yet.</div>';
+        target.innerHTML = '<div class="hdlv2-detail-empty">Client hasn’t completed the ' + rn('paid', 'Full Report') + ' form yet.</div>';
         return;
       }
 
@@ -2943,7 +2945,7 @@
       var meds = (s3.medications         || '').trim();
       var cond = (s3.existing_conditions || '').trim();
       var hbBlock = (fh || meds || cond)
-        ? '<h4 class="hdlv2-hb-section-h">Health Background<span class="hdlv2-hb-note">Optional &middot; client free-text &middot; not scored &middot; woven into the Full Report</span></h4>'
+        ? '<h4 class="hdlv2-hb-section-h">Health Background<span class="hdlv2-hb-note">Optional &middot; client free-text &middot; not scored &middot; woven into the ' + rn('paid', 'Full Report') + '</span></h4>'
           + '<div class="hdlv2-hb-grid">'
           +   hbCard('Family history',                  fh,   iconHistory)
           +   hbCard('Current medications',             meds, iconMeds)
@@ -2960,8 +2962,8 @@
         ? '<div class="hdlv2-dl-doc hdlv2-dl-doc--stack">'
           +   '<div class="hdlv2-dl-doc-ico">' + docIconSVG() + '</div>'
           +   '<div class="hdlv2-dl-doc-body">'
-          +     '<span class="hdlv2-dl-doc-title">Full Report</span>'
-          +     '<span class="hdlv2-dl-doc-meta">Made after the Full Report form &middot; the same PDF emailed to the client</span>'
+          +     '<span class="hdlv2-dl-doc-title">' + rn('paid', 'Full Report') + '</span>'
+          +     '<span class="hdlv2-dl-doc-meta">Made after the ' + rn('paid', 'Full Report') + ' form &middot; the same PDF emailed to the client</span>'
           +   '</div>'
           +   '<a class="hdlv2-dl-btn" href="' + esc(s3.pdf_url) + '" target="_blank" rel="noopener" download>' + flightNotesIconSVG() + '<span>Download PDF</span></a>'
           + '</div>'
@@ -2985,7 +2987,7 @@
       var f = data && data.final;
       if (!f || !f.has_report) {
         target.innerHTML = '<div class="hdlv2-detail-empty">'
-          + 'Trajectory Plan hasn’t been generated yet. Open the Consultation tab and click <strong>Generate Trajectory Plan</strong> after reviewing the Full Report.'
+          + rn('consultation', 'Trajectory Plan') + ' hasn’t been generated yet. Open the Consultation tab and click <strong>Generate ' + rn('consultation', 'Trajectory Plan') + '</strong> after reviewing the ' + rn('paid', 'Full Report') + '.'
           + '</div>';
         return;
       }
@@ -3009,7 +3011,7 @@
         + '<div class="hdlv2-dl-doc">'
         +   '<div class="hdlv2-dl-doc-ico">' + docIconSVG() + '</div>'
         +   '<div class="hdlv2-dl-doc-body">'
-        +     '<span class="hdlv2-dl-doc-title">Trajectory Plan</span>'
+        +     '<span class="hdlv2-dl-doc-title">' + rn('consultation', 'Trajectory Plan') + '</span>'
         +     '<span class="hdlv2-dl-doc-meta">Final client report &middot; Generated ' + esc(formatDate(f.generated_at)) + '</span>'
         +     (f.pdf_url ? '' : '<span class="hdlv2-dl-doc-meta">The PDF has been emailed to ' + esc(c.name || 'the client') + ' and to you.</span>')
         +   '</div>'
@@ -3030,7 +3032,7 @@
   // mid-poll (btn.isConnected).
   function loadFlightNotes(c, target) {
     if (deriveJourneyState(c)[2] !== 'done') {
-      target.innerHTML = '<div class="hdlv2-detail-empty">Flight Notes are prepared once the Full Report form is complete.</div>';
+      target.innerHTML = '<div class="hdlv2-detail-empty">Flight Notes are prepared once the ' + rn('paid', 'Full Report') + ' form is complete.</div>';
       return;
     }
     // B11.1 → v0.46.51 — same document card as the Stage-2/3/Final download
@@ -3201,7 +3203,7 @@
     var iris = irisConsultationHtml(c);
     var html;
     if (!c.progress_id) {
-      html = '<div class="hdlv2-detail-empty">No consultation record yet. The client needs to complete the Full Report form first.</div>';
+      html = '<div class="hdlv2-detail-empty">No consultation record yet. The client needs to complete the ' + rn('paid', 'Full Report') + ' form first.</div>';
     } else {
       var url = CFG.consultation_url + '?progress_id=' + c.progress_id;
       // v0.24.3 — the post-Final read-only fork is gone. Both states
@@ -3290,7 +3292,7 @@
         + '<h3>Awaiting self-report</h3>'
         + '<p class="hdlv2-auto-consult-empty">'
         + 'This automation-tier client has been provisioned but has not yet submitted their self-reported answers. '
-        + 'They\'ll receive their Trajectory Plan automatically once they complete the assessment and submit.'
+        + 'They\'ll receive their ' + rn('consultation', 'Trajectory Plan') + ' automatically once they complete the assessment and submit.'
         + '</p>'
         + '</div>';
       return;
@@ -3301,7 +3303,7 @@
       + '<h3>Self-reported data</h3>'
       + '<p class="hdlv2-auto-consult-meta">Submitted ' + esc(auto.submitted_at) + '</p>'
       + '<div class="hdlv2-auto-consult-body">' + esc(auto.body_text) + '</div>'
-      + '<p class="hdlv2-auto-consult-footer">Final report sent automatically. No practitioner finalisation required.</p>'
+      + '<p class="hdlv2-auto-consult-footer">' + rn('consultation', 'Final report') + ' sent automatically. No practitioner finalisation required.</p>'
       + '</div>';
   }
 
@@ -3429,7 +3431,7 @@
       +   '<select class="hdlv2-stalled-select" data-filter="stage" aria-label="Filter by stage reached">'
       +     '<option value="any">Any stage</option>'
       +     '<option value="1">Stage 1 only</option>'
-      +     '<option value="2">Full Report · WHY</option>'
+      +     '<option value="2">' + rn('paid', 'Full Report') + ' · WHY</option>'
       +   '</select></label>'
       + '<label class="hdlv2-stalled-field"><span class="hdlv2-stalled-flabel">Last reply</span>'
       +   '<select class="hdlv2-stalled-select" data-filter="quiet" aria-label="Filter by time since last reply">'
@@ -3566,9 +3568,9 @@
     }
     if (st === 'low_data') {
       return progressJourneyCard(
-        'Completed Stage 1 · Full Report not started',
-        'This client finished their Stage 1 quick insight — their pace-of-ageing result and 9-question answers are in the Stage 1 tab. They haven’t started the Full Report (their WHY) yet. Effort-vs-outcomes tracking begins once they complete the Full Report form and receive their first Weekly Flight Plan.',
-        'Stage 1 ✓ · awaiting the Full Report'
+        'Completed Stage 1 · ' + rn('paid', 'Full Report') + ' not started',
+        'This client finished their Stage 1 quick insight — their pace-of-ageing result and 9-question answers are in the Stage 1 tab. They haven’t started the ' + rn('paid', 'Full Report') + ' (their WHY) yet. Effort-vs-outcomes tracking begins once they complete the ' + rn('paid', 'Full Report') + ' form and receive their first Weekly Flight Plan.',
+        'Stage 1 ✓ · awaiting the ' + rn('paid', 'Full Report')
       );
     }
     return '';

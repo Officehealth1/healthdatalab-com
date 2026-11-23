@@ -134,6 +134,7 @@ class FakeWpdb {
 }
 
 // ── Load real sources ──
+require_once dirname( __DIR__, 2 ) . '/includes/class-hdlv2-report-names.php'; // v0.48.96: the report names
 require __DIR__ . '/../../includes/class-hdlv2-env.php';
 require __DIR__ . '/../../includes/sprint-4/class-hdlv2-checkin.php';
 require __DIR__ . '/../../includes/sprint-4/class-hdlv2-attention-cron.php';

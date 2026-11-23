@@ -48,6 +48,7 @@ class HDLV2_Why_Picks { public static function payload_fields() { return array()
 class HDLV2_Practitioner { public static function get_logo_url() { return ''; } }
 
 $root = dirname( __DIR__, 2 );
+require_once dirname( __DIR__, 2 ) . '/includes/class-hdlv2-report-names.php'; // v0.48.96: the report names
 require $root . '/includes/sprint-2/class-hdlv2-rate-calculator.php';
 require $root . '/includes/sprint-2/class-hdlv2-ai-service.php';
 require $root . '/includes/sprint-2/class-hdlv2-email-templates.php';

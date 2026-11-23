@@ -234,6 +234,7 @@ class HDLV2_Compatibility {
 }
 
 // ── Load real sources ─────────────────────────────────────────────────
+require_once dirname( __DIR__, 2 ) . '/includes/class-hdlv2-report-names.php'; // v0.48.96: the report names
 require __DIR__ . '/../../includes/sprint-2/class-hdlv2-rate-calculator.php';
 require __DIR__ . '/../../includes/sprint-2/class-hdlv2-stage1-commentary.php';
 require __DIR__ . '/../../includes/sprint-1/class-hdlv2-offer.php'; // v0.48.15 — the Stage 1 payload carries the offer

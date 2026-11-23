@@ -9,6 +9,8 @@
 import fs from 'node:fs';
 import vm from 'node:vm';
 import crypto from 'node:crypto';
+// v0.48.96 (plan 12): the scripts name a report through rn(); with hdlv2_ff_report_names off it prints today's words.
+const RN_OFF = 'function rn(key, today) { return today; }\n';
 
 let PASS = 0, FAIL = 0;
 const ok = (c, l) => { c ? PASS++ : FAIL++; console.log((c ? '  PASS  ' : '  FAIL  ') + l); };
@@ -30,7 +32,7 @@ const render = (data, cfg) => {
     deriveFirstName: () => 'Kim', setRootClasses: () => {},
     thankYouHeader: () => '<header>H</header>', thankYouFooter: () => '<footer>F</footer>',
   };
-  vm.runInNewContext(PIC_SRC + '\n' + fns.join('\n') + '\nrenderThankYou(DATA);', Object.assign(ctx, { DATA: data }));
+  vm.runInNewContext(RN_OFF + PIC_SRC + '\n' + fns.join('\n') + '\nrenderThankYou(DATA);', Object.assign(ctx, { DATA: data }));
   return root.innerHTML;
 };
 const BASE = { client_name: 'Kim Lane', client_email: 'kim@example.test', practitioner_name: 'Pat', practitioner_email: 'pat@example.test', practitioner_logo_url: '' };
@@ -117,7 +119,7 @@ ok(cards(h).length === 2 && (two || '').includes('An upgrade for your Full Repor
 h = render(BASE, ON);
 ok(cards(h).length === 1 && !h.includes('An upgrade') && h.includes('Congratulations, Kim.'), 'I10 neither: one card, no upgrade heading');
 // Final review: no usable first name (deriveFirstName gives 'there') must not read "Congratulations, there."
-const renderThere = (data, cfg) => { const root = { innerHTML: '' }; vm.runInNewContext(PIC_SRC + '\n' + fns.join('\n') + '\nrenderThankYou(DATA);', { root, serverData: null, esc,
+const renderThere = (data, cfg) => { const root = { innerHTML: '' }; vm.runInNewContext(RN_OFF + PIC_SRC + '\n' + fns.join('\n') + '\nrenderThankYou(DATA);', { root, serverData: null, esc,
   CFG: Object.assign({ plugin_url: PLUGIN, asset_ver: '0.48.92' }, cfg), window: { hdlv2_form: { plugin_url: PLUGIN } }, document: { getElementsByTagName: () => [] },
   deriveFirstName: () => 'there', setRootClasses: () => {}, thankYouHeader: () => '<header>H</header>', thankYouFooter: () => '<footer>F</footer>', DATA: data }); return root.innerHTML; };
 h = renderThere(BASE, ON);

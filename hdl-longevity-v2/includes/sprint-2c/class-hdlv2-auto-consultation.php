@@ -108,7 +108,7 @@ class HDLV2_Auto_Consultation {
 
             <div class="hdlv2-auto-card hdlv2-auto-success" id="hdlv2-auto-success" hidden>
                 <h2 class="hdlv2-auto-h1">Thank you</h2>
-                <p class="hdlv2-auto-sub">We've received your answers. Your Trajectory Plan is being prepared and will arrive in your inbox shortly.</p>
+                <p class="hdlv2-auto-sub">We've received your answers. Your <?php echo esc_html( HDLV2_Report_Names::say( 'consultation', 'Trajectory Plan' ) ); ?> is being prepared and will arrive in your inbox shortly.</p>
             </div>
         </div>
         <?php
@@ -289,7 +289,7 @@ class HDLV2_Auto_Consultation {
             $this->log_outcome( $request_id, 'already_completed', $user_id, $form_progress_id );
             return new WP_REST_Response( array(
                 'status'     => 'already_completed',
-                'message'    => 'Your answers have already been submitted. Your Trajectory Plan is on its way.',
+                'message'    => 'Your answers have already been submitted. Your ' . HDLV2_Report_Names::say( 'consultation', 'Trajectory Plan' ) . ' is on its way.',
                 'request_id' => $request_id,
             ), 409 );
         }
@@ -320,7 +320,7 @@ class HDLV2_Auto_Consultation {
             return new WP_REST_Response( array(
                 'status'      => 'held_for_review',
                 'addendum_id' => $addendum_id,
-                'message'     => 'Your answers have been received. A practitioner will review them and your Trajectory Plan will arrive shortly.',
+                'message'     => 'Your answers have been received. A practitioner will review them and your ' . HDLV2_Report_Names::say( 'consultation', 'Trajectory Plan' ) . ' will arrive shortly.',
                 'request_id'  => $request_id,
             ), 200 );
         }

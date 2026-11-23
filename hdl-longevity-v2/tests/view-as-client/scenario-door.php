@@ -49,6 +49,7 @@ class DoorWpdb {
 $GLOBALS['wpdb'] = new DoorWpdb();
 
 $I = dirname( __DIR__, 2 ) . '/includes/';
+require_once $I . 'class-hdlv2-report-names.php'; // v0.48.96: the report names
 require $I . 'sprint-4/class-hdlv2-products.php';
 require $I . 'sprint-4/class-hdlv2-client-dashboard.php';
 require $I . 'sprint-4/class-hdlv2-client-status.php';

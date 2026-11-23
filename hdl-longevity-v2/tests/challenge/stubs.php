@@ -148,6 +148,7 @@ class ChallengeWpdb {
     }
 }
 
+require_once dirname( __DIR__, 2 ) . '/includes/class-hdlv2-report-names.php'; // v0.48.96: the report names
 require_once dirname( __DIR__, 2 ) . '/includes/sprint-1/class-hdlv2-offer.php';
 $challenge_src = dirname( __DIR__, 2 ) . '/includes/sprint-4/class-hdlv2-challenge.php';
 if ( file_exists( $challenge_src ) ) {

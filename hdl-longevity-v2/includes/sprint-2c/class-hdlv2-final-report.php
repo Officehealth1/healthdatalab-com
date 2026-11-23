@@ -512,7 +512,7 @@ class HDLV2_Final_Report {
                     '[HDLV2 generate] UPDATE failed for reports.id=%d, progress=%d, consult=%d: %s',
                     (int) $update_existing_id, $progress_id, $consult_id, $wpdb->last_error
                 ) );
-                return new WP_Error( 'db_error', 'Could not update Trajectory Plan row. Please try again.', array( 'status' => 500 ) );
+                return new WP_Error( 'db_error', 'Could not update ' . HDLV2_Report_Names::say( 'consultation', 'Trajectory Plan' ) . ' row. Please try again.', array( 'status' => 500 ) );
             }
             $report_id = (int) $update_existing_id;
         } else {
@@ -525,7 +525,7 @@ class HDLV2_Final_Report {
                     '[HDLV2 generate] INSERT failed for progress=%d, consult=%d: %s',
                     $progress_id, $consult_id, $wpdb->last_error
                 ) );
-                return new WP_Error( 'db_error', 'Could not create Trajectory Plan row. Please try again.', array( 'status' => 500 ) );
+                return new WP_Error( 'db_error', 'Could not create ' . HDLV2_Report_Names::say( 'consultation', 'Trajectory Plan' ) . ' row. Please try again.', array( 'status' => 500 ) );
             }
             $report_id = (int) $wpdb->insert_id;
         }
@@ -536,7 +536,7 @@ class HDLV2_Final_Report {
                 $update_existing_id !== null ? 'UPDATE' : 'INSERT',
                 $progress_id, $consult_id
             ) );
-            return new WP_Error( 'db_error', 'Trajectory Plan write returned no id. Please try again.', array( 'status' => 500 ) );
+            return new WP_Error( 'db_error', HDLV2_Report_Names::say( 'consultation', 'Trajectory Plan' ) . ' write returned no id. Please try again.', array( 'status' => 500 ) );
         }
 
         // Update consultation status
@@ -1442,6 +1442,15 @@ class HDLV2_Final_Report {
         // JSON template.
         $payload = array_merge( $payload, HDLV2_Why_Picks::payload_fields( $progress, $calc_result['scores'] ?? array() ) );
 
+        // v0.48.96 (plan 12) — hdlv2_ff_report_names: the report's name, the name of the form the
+        // client filled in, and "Reviewed with you by {the account that made this report}, {date}".
+        // Plain text, before the pass below. No key with the switch off.
+        if ( HDLV2_Report_Names::on() ) {
+            $payload['report_name']      = HDLV2_Report_Names::say( 'consultation', '' );
+            $payload['paid_report_name'] = HDLV2_Report_Names::say( 'paid', '' );
+            $payload['reviewed_line']    = HDLV2_Report_Names::reviewed_line( $practitioner_id, $payload['report_date'] );
+        }
+
         $html_safe_fields = array(
             'awaken_content', 'lift_content', 'thrive_content',
             'client_key_findings', // v0.46.55 (PDF Fix 1) — HTML <ul><li> digest
@@ -1622,7 +1631,7 @@ class HDLV2_Final_Report {
             ) );
             wp_mail(
                 $client_email,
-                'Your Trajectory Plan is Ready — HealthDataLab',
+                'Your ' . HDLV2_Report_Names::say( 'consultation', 'Trajectory Plan' ) . ' is Ready — HealthDataLab',
                 $html,
                 array( 'Content-Type: text/html; charset=UTF-8' )
             );
@@ -1866,7 +1875,7 @@ class HDLV2_Final_Report {
         if ( ! $existing_final_id ) {
             return new WP_Error(
                 'no_final',
-                'Cannot regenerate: no Trajectory Plan exists yet. Click Generate Trajectory Plan first.',
+                'Cannot regenerate: no ' . HDLV2_Report_Names::say( 'consultation', 'Trajectory Plan' ) . ' exists yet. Click Generate ' . HDLV2_Report_Names::say( 'consultation', 'Trajectory Plan' ) . ' first.',
                 array( 'status' => 409 )
             );
         }
