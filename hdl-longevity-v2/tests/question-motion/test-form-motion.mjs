@@ -34,9 +34,9 @@ const src = [cut('  var S3_OPTIONS = {', '\n  };\n'), cut('  var TEST_HOW = {', 
 const UNITS = '<div class="hdlv2-units" role="radiogroup" aria-label="Units"><button type="button" role="radio" class="hdlv2-units-opt is-on" data-units="metric" aria-checked="true">cm · kg</button><button type="button" role="radio" class="hdlv2-units-opt" data-units="imperial" aria-checked="false">ft in · lb</button></div>';
 const noUnits = (s) => s.split(UNITS).join('');
 
-function run(motion, call) {
+function run(motion, call, extra) {
   const ctx = {
-    window: { hdlv2_form: motion === null ? {} : { plugin_url: BASE, question_motion: motion, asset_ver: '0.48.53' } },
+    window: { hdlv2_form: Object.assign(motion === null ? {} : { plugin_url: BASE, question_motion: motion, asset_ver: '0.48.53' }, extra || {}) },
     document: { getElementById: () => null, getElementsByTagName: () => [] },
     esc: (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'),
     setRootClasses() {}, tapLeave() {}, bindTapRows() {}, bindTapQuestion() {}, bindFieldListeners() {}, bindTapComplete() {}, bindUnits() {},
@@ -51,7 +51,7 @@ function run(motion, call) {
   return ctx;
 }
 const VALS = { physicalActivity: '2', sleepDuration: '4', sleepQuality: '', smokingStatus: '5', socialConnections: '3', dietQuality: '' };
-const step = (motion, n) => run(motion, `wizardSectionContent = function (sec) { return '[section:' + sec.id + ']'; }; tapStep = ${n}; renderTapStep({ stage1_data: { q1_age: 52, q1_sex: 'female' }, second_form_ties: {} }, false); this.OUT = root.innerHTML;`).OUT;
+const step = (motion, n, extra) => run(motion, `wizardSectionContent = function (sec) { return '[section:' + sec.id + ']'; }; tapStep = ${n}; renderTapStep({ stage1_data: { q1_age: 52, q1_sex: 'female' }, second_form_ties: {} }, false); this.OUT = root.innerHTML;`, extra).OUT;
 const rows = (motion) => run(motion, 'this.OUT = tapFirstRows(VALS_);'.replace('VALS_', JSON.stringify(VALS))).OUT;
 const body = (motion) => run(motion, `this.OUT = wizardSectionContent({ id: 'body' }, { q1_age: 52, q1_sex: 'female' }, formData);`).OUT;
 
@@ -128,6 +128,28 @@ ok(/\.hdlv2-tap-motion,\s*\.hdlv2-body-guide \{ margin: 0 0 16px; display: flex;
   'F14.1 phones: 16 px under the caption, 8 px picture to caption');
 ok(/@media \(min-width: 640px\) \{\s*\.hdlv2-tap-motion \{ float: left; margin: 0 20px 16px 0; \}/.test(css), 'F14.2 640 px and wider: 20 px beside the how-box, 16 px under the caption');
 ok(/\.hdlv2-tap-motion \+ \.hdlv2-tap-how \+ \.hdlv2-s1-options \{ clear: both; \}/.test(css), 'F14.3 the answers start below the picture and its caption');
+
+console.log('── v0.48.92 (plan 8, K20, K19; hdlv2_ff_form_focus): the drinks and the larger pictures ──');
+const FOCUS = { form_focus: true };
+const alc = order.indexOf('alcoholConsumption') + 1;
+const drinks = `<figure class="hdlv2-tap-motion"><img src="${BASE}assets/images/motion/g-drinks.svg?ver=0.48.53" alt="" width="96" height="96" loading="eager" decoding="async"><figcaption>A usual week</figcaption></figure>`;
+const alcOn = step(true, alc, FOCUS);
+ok(alc > 0 && alcOn.includes('<p class="hdlv2-tap-reason">') && alcOn.includes(drinks + '<div class="hdlv2-s1-options"'), 'F15.1 motion and focus on: the alcohol question shows the still drinks picture, captioned "A usual week", above its answers');
+ok(!alcOn.includes('hdlv2-tap-how'), 'F15.2 no how-to box is invented for it');
+ok(!step(true, alc).includes('g-drinks.svg') && !step(false, alc, FOCUS).includes('g-drinks.svg') && !step(null, alc, FOCUS).includes('g-drinks.svg'),
+  'F15.3 focus off, or motion off: no drinks picture');
+const asOff = (h) => h.replace(' hdlv2-focus', '');
+for (let n = 1; n < 13; n++) {
+  const f = order[n - 1];
+  if (f === 'alcoholConsumption') continue;
+  if (asOff(step(true, n, FOCUS)) !== step(true, n)) { ok(false, `F15.4.${n} ${f || 'step'}: only the card's focus class changes`); }
+}
+ok(true, 'F15.4 every other step with focus on draws what it draws with focus off, but for the card\'s focus class');
+ok(/<div class="hdlv2-card hdlv2-focus">/.test(step(true, 3, FOCUS)) && !/hdlv2-focus/.test(step(true, 3)), 'F15.5 the card carries hdlv2-focus only with the switch on');
+const focusCss = css.slice(css.indexOf('/* v0.48.92 (plan 8; hdlv2_ff_form_focus)'), css.indexOf('/* end form focus */'));
+ok(/\.hdlv2-focus \.hdlv2-tap-motion img,\s*\.hdlv2-focus \.hdlv2-body-guide img \{ width: 120px; height: 120px; \}/.test(focusCss), 'F15.6 focus on: question pictures 120 px on a phone');
+ok(/@media \(min-width: 640px\) \{\s*\.hdlv2-focus \.hdlv2-tap-motion img,\s*\.hdlv2-focus \.hdlv2-body-guide img \{ width: 144px; height: 144px; \}/.test(focusCss), 'F15.7 focus on: 144 px from 640 px');
+ok(/\.hdlv2-tap-motion \+ \.hdlv2-s1-options \{ clear: both; \}/.test(css), 'F15.8 a picture with no how-to box: the answers still start below it');
 
 console.log(`PASS=${PASS} FAIL=${FAIL}`);
 process.exit(FAIL ? 1 : 0);

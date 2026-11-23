@@ -2654,6 +2654,19 @@
 }
 /* end timeline upgrade */
 
+/* v0.48.92 (plan 8, K23; hdlv2_ff_form_focus) — the finish screen as two cards: finished first, with its
+   picture, then the offer apart, with clear space and its own small heading. No rail on either card. */
+.hdlv2-ty-finished { margin: 0 0 18px; display: flex; justify-content: center; }
+.hdlv2-ty-finished img { width: 120px; height: 120px; border-radius: 50%; background: #f8f9fb; display: block; }
+.hdlv2-ty-upgrade { margin-top: 24px; }
+.hdlv2-ty-upgrade-title { margin: 0; padding: 24px 32px 14px; font-family: 'Poppins', 'Inter', sans-serif; font-size: 13px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #004F59; }
+.hdlv2-ty-upgrade > .hdlv2-ty-lead { padding: 0 32px; }
+@media (max-width: 480px) {
+  .hdlv2-ty-upgrade-title { padding: 20px 16px 12px; }
+  .hdlv2-ty-upgrade > .hdlv2-ty-lead { padding: 0 16px; }
+}
+/* end finish screen */
+
 .hdlv2-ty-link {
   color: #3d8da0;
   text-decoration: none;
@@ -2712,6 +2725,28 @@
   .hdlv2-body-guide img { width: 96px; height: 96px; }
 }
 .hdlv2-tap-row-icon { width: 20px; height: 20px; margin-right: 8px; color: #3d8da0; fill: currentColor; vertical-align: -4px; }
+
+/* v0.48.92 (plan 8; hdlv2_ff_form_focus) — the Full Report form after Matthew's walk. Everything here
+   matches only inside the tap card's .hdlv2-focus, which the script adds with the switch on.
+   K19: the question pictures larger. K20: a picture with no how-to box (the drinks) sits above the answers. */
+.hdlv2-focus .hdlv2-tap-motion img,
+.hdlv2-focus .hdlv2-body-guide img { width: 120px; height: 120px; }
+@media (min-width: 640px) {
+  .hdlv2-focus .hdlv2-tap-motion img,
+  .hdlv2-focus .hdlv2-body-guide img { width: 144px; height: 144px; }
+}
+.hdlv2-tap-motion + .hdlv2-s1-options { clear: both; }
+/* K16, K14, K17: three sizes in one order on every step. The section name (step 1) or the question is the
+   largest text, the card title steps back, the row labels sit above their answers (15 px). */
+.hdlv2-focus .hdlv2-tap-heading { font-family: 'Poppins', sans-serif; font-size: 26px; font-weight: 700; color: #004F59; }
+.hdlv2-focus .hdlv2-header h2 { font-size: 16px; }
+.hdlv2-focus .hdlv2-tap-row-label { font-family: 'Poppins', sans-serif; font-size: 18px; font-weight: 600; color: #004F59; }
+.hdlv2-focus .hdlv2-tap-row-icon { width: 24px; height: 24px; vertical-align: -5px; }
+@media (max-width: 479px) {
+  .hdlv2-focus .hdlv2-tap-heading { font-size: 22px; }
+  .hdlv2-focus .hdlv2-tap-row-label { font-size: 16px; }
+}
+/* end form focus */
 
 /* v0.48.50 (W41) — measurements in cm · kg or ft in · lb: two pills, the active one filled
    teal (no rail); imperial height is two boxes side by side. */

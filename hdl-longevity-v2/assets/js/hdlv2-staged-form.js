@@ -439,18 +439,22 @@
     waist: { file: 'g-waist-hip.svg', caption: 'Waist · Hip', still: true },
     // v0.48.78 (M36; hdlv2_ff_form_clarity) — the pair under "Who are you staying strong for?".
     sittingOut: { file: 'p-sitting-out.svg', caption: 'Sitting out', still: true },
-    joiningIn: { file: 'p-joining-in.svg', caption: 'Joining in', still: true }
+    joiningIn: { file: 'p-joining-in.svg', caption: 'Joining in', still: true },
+    // v0.48.92 (plan 8, K20; hdlv2_ff_form_focus) — four glasses beside the alcohol question.
+    alcoholConsumption: { file: 'g-drinks.svg', caption: 'A usual week', still: true }
   };
+  // v0.48.92 (plan 8, K23; hdlv2_ff_form_focus) — the finish screen's own picture: no caption, so it speaks its alt.
+  var FINISH_PICTURE = { file: 'f-finished.svg', alt: 'You have finished' };
 
   // A picture and its caption. A moving one is a <picture> whose reduced-motion source is
   // file.svg#still on its own address (&still=1): an SVG inside <img> does not see the page's
   // motion setting, and a browser holding the moving picture would reuse it for a bare #still.
   function motionFigure(cls, m) {
     var url = esc(S1_IMG_BASE.replace('silhouettes/', 'motion/') + m.file + '?ver=' + encodeURIComponent(CFG.asset_ver || ''));
-    var img = '<img src="' + url + '" alt="" width="96" height="96" loading="eager" decoding="async">';
+    var img = '<img src="' + url + '" alt="' + esc(m.alt || '') + '" width="96" height="96" loading="eager" decoding="async">';
     return '<figure class="' + cls + '">'
       + (m.still ? img : '<picture><source srcset="' + url + '&amp;still=1#still" media="(prefers-reduced-motion: reduce)">' + img + '</picture>')
-      + '<figcaption>' + esc(m.caption) + '</figcaption></figure>';
+      + (m.caption ? '<figcaption>' + esc(m.caption) + '</figcaption>' : '') + '</figure>';
   }
 
   // Reason line when the person's choices need the ability a question measures.
@@ -1648,7 +1652,8 @@
       +   '</section>')
       // Switch off: today's call, unchanged (tests/who-for reads it).
       +   (CFG.form_clarity ? whoForHtml(peopleFromData(d), true) : whoForHtml(peopleFromData(d)))
-      +   picksTextarea('own_words', 'Anything else? (optional)', d.own_words, '', 600)
+      +   (CFG.form_focus ? picksTextarea('own_words', OWN_WORDS_ASK.label, d.own_words, '', 600, OWN_WORDS_ASK.help)
+          : picksTextarea('own_words', 'Anything else? (optional)', d.own_words, '', 600))
       +   '<button type="button" id="hdlv2-picks-next" class="hdlv2-btn">Next &#8594;</button>'
       + '</div>' + saveIndicator(true) + footer() + '</div>';
 
@@ -1753,10 +1758,18 @@
     redrawRadar();
   }
 
-  function picksTextarea(name, label, value, placeholder, maxlength) {
+  // v0.48.92 (plan 8, K13; hdlv2_ff_form_focus) — Matthew's question for the own-words box (call of 2026-11-21,
+  // 28:47). DRAFT COPY for the owner: one place to change after his walk. The key own_words stays.
+  var OWN_WORDS_ASK = {
+    label: 'Is there anything else that is important to you about your vitality and what you can do in the years ahead? (optional)',
+    help: 'A sentence is enough.'
+  };
+
+  function picksTextarea(name, label, value, placeholder, maxlength, help) {
     var v = value || '';
     return '<div class="hdlv2-field"><label for="hdlv2-f-' + name + '">' + label + '</label>'
-      + '<textarea id="hdlv2-f-' + name + '" data-field="' + name + '" rows="2" maxlength="' + maxlength + '" placeholder="' + esc(placeholder) + '">' + esc(v) + '</textarea>'
+      + (help ? '<p class="hdlv2-field-hint" id="hdlv2-help-' + name + '">' + esc(help) + '</p>' : '')
+      + '<textarea id="hdlv2-f-' + name + '" data-field="' + name + '"' + (help ? ' aria-describedby="hdlv2-help-' + name + '"' : '') + ' rows="2" maxlength="' + maxlength + '" placeholder="' + esc(placeholder) + '">' + esc(v) + '</textarea>'
       + '<div class="hdlv2-field-foot"><span></span><div class="hdlv2-char-count" id="hdlv2-charcount-' + name + '">' + v.length + ' / ' + maxlength + '</div></div></div>';
   }
 
@@ -2202,9 +2215,13 @@
       screen = tapHeading('Here is what you told us')
         // v0.48.78 (M37; hdlv2_ff_form_clarity) — say what a row with no answer wants, without "Unknown";
         // back from step 2 every row is answered, so the middle sentence is left out.
-        + '<p class="hdlv2-s1-prompt">' + (CFG.form_clarity
+        // v0.48.92 — the focus switch draws "Choose one" rows, so it takes the clarity line too (never "Unknown"),
+        // and its middle sentence drops "no answer yet" (K15). DRAFT COPY for the owner.
+        + '<p class="hdlv2-s1-prompt">' + (CFG.form_clarity || CFG.form_focus
           ? 'We filled in what we could from your first answers. '
-            + (TAP_FIRST.some(function (f) { return !first[f]; }) ? 'Some rows have no answer yet: choose one for each. ' : '')
+            + (TAP_FIRST.some(function (f) { return !first[f]; })
+              ? (CFG.form_focus ? 'Choose one for each empty row. ' : 'Some rows have no answer yet: choose one for each. ')
+              : '')
             + 'If an answer is not right, tap Change.'
           : 'We filled in what we could from your first answers. Pick any row marked Unknown, and tap Change if one is not right.') + '</p>'
         + '<p class="hdlv2-s1-prompt">Your answers here build your full longevity report.</p>'
@@ -2216,6 +2233,8 @@
         + (q.hint ? '<p class="hdlv2-s1-prompt">' + esc(q.hint) + '</p>' : '')
         + '<p class="hdlv2-tap-reason">' + tapReason(field, data.second_form_ties) + '</p>'
         + (q.how ? (tm ? motionFigure('hdlv2-tap-motion', tm) : '') + '<p class="hdlv2-tap-how"><strong>How to do it:</strong> ' + esc(q.how) + '</p>' : '')
+        // v0.48.92 (plan 8, K20; hdlv2_ff_form_focus) — a question with a picture and no how-to text.
+        + (!q.how && tm && CFG.form_focus ? motionFigure('hdlv2-tap-motion', tm) : '')
         + '<div class="hdlv2-s1-options" role="radiogroup" aria-labelledby="hdlv2-tap-title">' + tapCards(field, d[field]) + '</div>'
         + '<button type="button" id="hdlv2-tap-skip" class="hdlv2-tap-skip">Skip this one</button>'
         + '<p class="hdlv2-s1-kbd-hint">Press <kbd>A</kbd>–<kbd>F</kbd> to choose</p>';
@@ -2230,7 +2249,8 @@
         + '<button id="hdlv2-complete-s3" class="hdlv2-btn hdlv2-s1-next">Complete Assessment &#10003;</button>';
     }
 
-    root.innerHTML = '<div class="hdlv2-card">'
+    // v0.48.92 (plan 8; hdlv2_ff_form_focus) — hdlv2-focus carries the larger question, labels and pictures.
+    root.innerHTML = '<div class="hdlv2-card' + (CFG.form_focus ? ' hdlv2-focus' : '') + '">'
       + brandBar(serverData) + '<div class="hdlv2-header"><h2>Your Full Report</h2></div>'
       + '<div class="hdlv2-s1">'
       +   '<div class="hdlv2-s1-header">'
@@ -2258,6 +2278,7 @@
 
   // Screen 1 rows: label, current answer, Change. An unanswered row's cards
   // are open from the start; otherwise one row is open at a time.
+  // v0.48.92 (plan 8, K15; hdlv2_ff_form_focus) — an empty row says only "Choose one".
   function tapFirstRows(vals) {
     return TAP_FIRST.map(function (f) {
       var opt = S3_OPTIONS[f].filter(function (o) { return o.v !== '' && o.v === vals[f]; })[0];
@@ -2267,7 +2288,7 @@
         +   '<span class="hdlv2-tap-row-label" id="hdlv2-tap-label-' + f + '">'
         +     (CFG.question_motion ? '<svg class="hdlv2-tap-row-icon" aria-hidden="true" viewBox="0 0 256 256">' + ROW_ICONS[f] + '</svg>' : '')
         +     esc(TAP_FIRST_LABELS[f]) + '</span>'
-        +   '<span class="hdlv2-tap-row-value' + (opt ? '' : ' is-empty') + '">' + esc(opt ? opt.l : (CFG.form_clarity ? 'No answer yet. Choose one below.' : 'Unknown — please select')) + '</span>'
+        +   '<span class="hdlv2-tap-row-value' + (opt ? '' : ' is-empty') + '">' + esc(opt ? opt.l : (CFG.form_focus ? 'Choose one' : CFG.form_clarity ? 'No answer yet. Choose one below.' : 'Unknown — please select')) + '</span>'
         +   (opt ? '<button type="button" class="hdlv2-tap-change" id="hdlv2-tap-change-' + f + '" data-row="' + f + '" aria-expanded="' + open + '" aria-controls="hdlv2-tap-opts-' + f + '">Change</button>' : '')
         + '</div>'
         + '<div class="hdlv2-s1-options" id="hdlv2-tap-opts-' + f + '" role="radiogroup" aria-labelledby="hdlv2-tap-label-' + f + '" data-row="' + f + '"' + (open ? '' : ' hidden') + '>'
@@ -2285,7 +2306,7 @@
     if (!empty.length) { tapGo(data, 1); return; }
     if (!document.querySelector('.hdlv2-tap-wait')) {
       // v0.48.78 (M37; hdlv2_ff_form_clarity). Read guarded: tests/second-form-copy runs this function without CFG.
-      var wait = typeof CFG !== 'undefined' && CFG.form_clarity ? 'Please choose an answer for each row that has none yet.' : 'Please answer the rows marked Unknown.';
+      var wait = typeof CFG !== 'undefined' && (CFG.form_clarity || CFG.form_focus) ? 'Please choose an answer for each row that has none yet.' : 'Please answer the rows marked Unknown.';
       document.getElementById('hdlv2-tap-next').insertAdjacentHTML('afterend', '<p class="hdlv2-tap-wait" role="status">' + wait + '</p>');
     }
     var first = document.querySelector('#hdlv2-tap-opts-' + empty[0] + ' .hdlv2-s1-opt');
@@ -2476,6 +2497,34 @@
       ? 'If you don’t see the email within 1 hour, check your spam folder or contact <a href="mailto:'
         + esc(pracEmail) + '" class="hdlv2-ty-link">' + esc(pracEmail) + '</a>.'
       : 'If you don’t see the email within 1 hour, check your spam folder.';
+
+    // v0.48.92 (plan 8, K23; hdlv2_ff_form_focus) — "it has to stand out but feel separate": card one says
+    // they have finished, with a picture; the Timeline offer (or the owner's line) is a second card below.
+    // DRAFT COPY for the owner: the congratulations, the e-mail line and the upgrade heading.
+    if (CFG.form_focus) {
+      var extra = s1.timeline_owned === true
+        ? '<p class="hdlv2-ty-lead">Your Healthspan Timeline is yours. It opens when your Full Report lands.</p>'
+        : timelineBlockHtml(s1.timeline_offer);
+      root.innerHTML = '<div class="hdlv2-card hdlv2-ty-card">'
+        + thankYouHeader(pracName, pracLogo)
+        + '<div class="hdlv2-ty-banner"><h1>Full&nbsp;Report&nbsp;complete</h1></div>'
+        + '<div class="hdlv2-ty-body">'
+        +   (S1_IMG_BASE ? motionFigure('hdlv2-ty-finished', FINISH_PICTURE) : '')
+        // deriveFirstName() gives 'there' when no usable name is known: then no name at all.
+        +   '<h2 class="hdlv2-ty-h1">Congratulations' + (firstName === 'there' ? '' : ', ' + esc(firstName)) + '. Your Full Report is filled in.</h2>'
+        +   '<p class="hdlv2-ty-lead">Your results are on their way to your email and should arrive within a few minutes.</p>'
+        +   '<p class="hdlv2-ty-subhead">What happens next</p>'
+        +   '<ol class="hdlv2-ty-list">'
+        +     '<li>Check your inbox for your Full Report.</li>'
+        +   '</ol>'
+        +   '<p class="hdlv2-ty-note">' + noteLine + '</p>'
+        + '</div>'
+        + thankYouFooter()
+        + '</div>'
+        + (extra ? '<div class="hdlv2-card hdlv2-ty-card hdlv2-ty-upgrade">'
+          + '<h2 class="hdlv2-ty-upgrade-title">An upgrade for your Full Report</h2>' + extra + '</div>' : '');
+      return;
+    }
 
     root.innerHTML = '<div class="hdlv2-card hdlv2-ty-card">'
       + thankYouHeader(pracName, pracLogo)

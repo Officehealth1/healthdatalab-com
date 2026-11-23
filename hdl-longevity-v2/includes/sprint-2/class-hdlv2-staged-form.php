@@ -1327,6 +1327,9 @@ class HDLV2_Staged_Form {
             'second_form_wording_v2' => (bool) get_option( 'hdlv2_ff_second_form_wording_v2', false ),
             // v0.48.78 (M35-M37) — no picks panel, the people block's words and pictures, step 1's lines (absent = off).
             'form_clarity'    => (bool) get_option( 'hdlv2_ff_form_clarity', false ),
+            // v0.48.92 (plan 8) — larger question and labels, "Choose one", the drinks picture, Matthew's
+            // own-words question and the two-card finish screen (absent = off).
+            'form_focus'      => (bool) get_option( 'hdlv2_ff_form_focus', false ),
         ) );
 
         return '<div id="hdlv2-assessment" class="hdlv2-assessment-root"></div>';
