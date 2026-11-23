@@ -141,7 +141,7 @@ ok(!step(true, alc).includes('g-drinks.svg') && !step(false, alc, FOCUS).include
 const asOff = (h) => h.replace(' hdlv2-focus', '');
 for (let n = 1; n < 13; n++) {
   const f = order[n - 1];
-  if (f === 'alcoholConsumption') continue;
+  if (f === 'alcoholConsumption' || f === 'skinElasticity') continue; // the pinch: F16.5
   if (asOff(step(true, n, FOCUS)) !== step(true, n)) { ok(false, `F15.4.${n} ${f || 'step'}: only the card's focus class changes`); }
 }
 ok(true, 'F15.4 every other step with focus on draws what it draws with focus off, but for the card\'s focus class');
@@ -150,6 +150,16 @@ const focusCss = css.slice(css.indexOf('/* v0.48.92 (plan 8; hdlv2_ff_form_focus
 ok(/\.hdlv2-focus \.hdlv2-tap-motion img,\s*\.hdlv2-focus \.hdlv2-body-guide img \{ width: 120px; height: 120px; \}/.test(focusCss), 'F15.6 focus on: question pictures 120 px on a phone');
 ok(/@media \(min-width: 640px\) \{\s*\.hdlv2-focus \.hdlv2-tap-motion img,\s*\.hdlv2-focus \.hdlv2-body-guide img \{ width: 144px; height: 144px; \}/.test(focusCss), 'F15.7 focus on: 144 px from 640 px');
 ok(/\.hdlv2-tap-motion \+ \.hdlv2-s1-options \{ clear: both; \}/.test(css), 'F15.8 a picture with no how-to box: the answers still start below it');
+
+console.log('── v0.48.93 (hdlv2_ff_form_focus): the pinch from Gemini\'s four key frames ──');
+const pinch = order.indexOf('skinElasticity') + 1;
+const pinch2 = fig('t-skin-pinch-2.svg', 'Pinch, release');
+const pinchOn = step(true, pinch, FOCUS);
+ok(pinch > 0 && pinchOn.includes(pinch2 + '<p class="hdlv2-tap-how">'), 'F16.1 motion and focus on: the pinch step shows t-skin-pinch-2.svg (its still on its own address), "Pinch, release", before "How to do it"');
+ok(!pinchOn.includes('t-skin-pinch.svg'), 'F16.2 focus on: the live picture is not asked for');
+ok(step(true, pinch).includes(WANT.skinElasticity) && !step(true, pinch).includes('t-skin-pinch-2.svg'), 'F16.3 focus off: the pinch step asks for t-skin-pinch.svg as before');
+ok(!step(false, pinch, FOCUS).includes('t-skin-pinch') && !step(null, pinch, FOCUS).includes('t-skin-pinch'), 'F16.4 motion off: no pinch picture, focus or not');
+ok(asOff(pinchOn).split(pinch2).join(WANT.skinElasticity) === step(true, pinch), 'F16.5 nothing else on the pinch step changes but the file and the card\'s focus class');
 
 console.log(`PASS=${PASS} FAIL=${FAIL}`);
 process.exit(FAIL ? 1 : 0);

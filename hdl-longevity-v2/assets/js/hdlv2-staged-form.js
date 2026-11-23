@@ -435,7 +435,8 @@
   var TAP_MOTION = {
     sitToStand: { file: 't-chair-stands.svg', caption: 'Chair stands' },
     balance: { file: 't-balance.svg', caption: 'One leg' },
-    skinElasticity: { file: 't-skin-pinch.svg', caption: 'Pinch, release' },
+    // v0.48.93 (hdlv2_ff_form_focus) — the pinch from Gemini's four key frames; switch off, the live picture.
+    skinElasticity: { file: CFG.form_focus ? 't-skin-pinch-2.svg' : 't-skin-pinch.svg', caption: 'Pinch, release' },
     waist: { file: 'g-waist-hip.svg', caption: 'Waist · Hip', still: true },
     // v0.48.78 (M36; hdlv2_ff_form_clarity) — the pair under "Who are you staying strong for?".
     sittingOut: { file: 'p-sitting-out.svg', caption: 'Sitting out', still: true },

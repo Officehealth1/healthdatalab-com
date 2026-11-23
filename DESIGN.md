@@ -124,6 +124,13 @@ checks every file against this section.
   curved stroke-6 `#004F59` strokes, round caps, that meet it. The hand lifts
   on one joint at the wrist; thumb and finger open on their own joints. The
   flat hand under it (palm, four fingers, thumb) is a prop.
+- The second skin pinch, `t-skin-pinch-2.svg`, is used only with
+  `hdlv2_ff_form_focus`. It draws four filled `#004F59` poses (ready,
+  pinched, fold standing, flat) whose outlines follow key frames Quim
+  supplied, drawn as our own paths in the family's colours, no raster.
+  The poses change in one step on the 400 ms grid over a 4.8 s loop, and it
+  has no timer arc. Its still is the pinched pose: the one exception to
+  "the static rules draw the final pose".
 - What sinks under a surface (the pinch's ridge flattening back into the
   hand) is hidden by a patch filled `#f8f9fb`, the disc's colour, drawn
   after it and before the surface. A `clipPath` would need `url()`.
