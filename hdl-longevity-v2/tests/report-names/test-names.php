@@ -12,6 +12,8 @@
  *   F  build_pdf_payload() (the consultation route): switch off, byte for byte the payload of 46eda9b
  *      (md5); on, only report_name, paid_report_name and reviewed_line are added, and the line names
  *      practitioner B when the client belongs to A.
+ *   G  the consultation PDF's gauge (Quim, 2026-11-23: the numbers on the arc, as on the Full Report):
+ *      hdlv2_ff_report_gauge_scale on asks for the scaled Stage 3 dial; absent, today's dial.
  *
  * Run:  php tests/report-names/test-names.php [plugin-root] [golden]
  *       "golden" prints the switch-off md5 of the plugin at plugin-root (how GOLDEN_FINAL was taken).
@@ -57,7 +59,8 @@ class WP_Error { public function get_error_message() { return ''; } }
 class Fake_WPDB { public $prefix = 'wp_'; public function prepare( $q ) { return $q; } public function get_var() { return null; } public function get_row( $q = '' ) { return false !== strpos( (string) $q, "report_type = 'final'" ) ? ( $GLOBALS['final_row'] ?? null ) : null; } public function get_results() { return array(); } }
 function mysql2date( $f, $d ) { return date( $f, strtotime( $d ) ); }
 $GLOBALS['wpdb'] = new Fake_WPDB();
-class HDLV2_Staged_Form { public static function format_milestones( $m ) { return ''; } public static function build_gauge_url() { return ''; } }
+// build_gauge_url() answers with its own arguments, so G can read which dial the payload asked for.
+class HDLV2_Staged_Form { public static function format_milestones( $m ) { return ''; } public static function build_gauge_url( ...$a ) { return 'gauge:' . base64_encode( json_encode( $a ) ); } }
 class HDLV2_Why_Picks { public static function payload_fields() { return array(); } public static function block_for_row() { return ''; } }
 class HDLV2_Practitioner { public static function get_logo_url() { return ''; } }
 
@@ -75,7 +78,7 @@ function final_payload( $practitioner_id ) {
 }
 
 // md5 of json_encode( final_payload( 3 ) ) with the switch absent, at 46eda9b (taken with "golden").
-const GOLDEN_FINAL = 'be761031ea655517108f83b15558264d';
+const GOLDEN_FINAL = 'c26990387135fd1fffc8eb47f4e0b4a1';
 if ( 'golden' === ( $argv[2] ?? '' ) ) { sw( null ); echo md5( json_encode( final_payload( 3 ) ) ), "\n"; exit( 0 ); }
 
 $PASS = 0; $FAIL = 0;
@@ -128,6 +131,16 @@ $same = final_payload( 3 );
 unset( $same['report_name'], $same['paid_report_name'], $same['reviewed_line'] );
 sw( null );
 check( 'F7 switch on: nothing else in the payload moves', json_encode( $same ) === json_encode( final_payload( 3 ) ) );
+
+echo "── G. the consultation PDF's gauge ──\n";
+$dial = function () { return json_decode( base64_decode( substr( (string) ( final_payload( 3 )['gauge_url'] ?? '' ), 6 ) ), true ); };
+sw( null ); unset( $GLOBALS['options']['hdlv2_ff_report_gauge_scale'] );
+check( 'G1 gauge switch absent: today\'s Stage 3 dial (no scale)', array( 1.04, array( 'stage3' => true ) ) === $dial() );
+$GLOBALS['options']['hdlv2_ff_report_gauge_scale'] = '1';
+check( 'G2 gauge switch on: the scaled Stage 3 dial, as the Full Report prints', array( 1.04, array( 'stage3' => true, 'scale' => true ) ) === $dial() );
+$GLOBALS['options']['hdlv2_ff_report_gauge_scale'] = '0';
+check( 'G3 gauge switch "0": today\'s dial', array( 1.04, array( 'stage3' => true ) ) === $dial() );
+unset( $GLOBALS['options']['hdlv2_ff_report_gauge_scale'] );
 
 echo "\nPASS=$PASS FAIL=$FAIL\n";
 exit( $FAIL === 0 ? 0 : 1 );

@@ -1091,7 +1091,12 @@ class HDLV2_Final_Report {
         // v0.23.0 — Final Report uses calculate_full (rate range 0.5-2.0).
         // Pass stage3:true so the gauge bounds match. Stage 1 callers
         // (the plain HDLV2_Staged_Form::build_gauge_url() calls) keep the default 0.8-1.4 bounds.
-        $final_gauge_url = self::gauge_url( $calc_result['rate'] ?? 1.0 );
+        // v0.48.96 (plan 12; Quim 2026-11-23) — hdlv2_ff_report_gauge_scale: the consultation PDF's
+        // gauge prints 0.5, 1.0 and 2.0 on its arc, the same dial as the Full Report's (plan 10).
+        // Off, today's dial. gauge_url() itself is unchanged: the client dashboard shows it too.
+        $final_gauge_url = get_option( 'hdlv2_ff_report_gauge_scale', false )
+            ? HDLV2_Staged_Form::build_gauge_url( $calc_result['rate'] ?? 1.0, array( 'stage3' => true, 'scale' => true ) )
+            : self::gauge_url( $calc_result['rate'] ?? 1.0 );
         if ( class_exists( 'HDLV2_Widget_Config' ) && ! empty( $progress->token ) ) {
             $local_gauge = HDLV2_Widget_Config::prerender_gauge_png( $final_gauge_url, $progress->token, 'final' );
             if ( $local_gauge ) {
