@@ -192,7 +192,7 @@ ok(/<div class="hdlv2-card hdlv2-focus">\[brand\]<div class="hdlv2-header"><h2>Y
   'C6.5 the heading stays where it is, under "Your Full Report"; the card carries the focus class');
 ok(step('absent', 0).indexOf('hdlv2-focus') === -1 && step('on', 0).indexOf('hdlv2-focus') === -1, 'C6.6 focus absent: no focus class');
 ok(row(rows('on'), 'physicalActivity').indexOf(NEW.empty) !== -1, 'C6.7 clarity on, focus absent: today\'s "' + NEW.empty + '" stays');
-const fcss = css.slice(css.indexOf('/* v0.48.92 (plan 8'), css.indexOf('/* end form focus */'));
+const fcss = css.slice(css.indexOf('/* v0.48.92 (plan 8; hdlv2_ff_form_focus)'), css.indexOf('/* end form focus */'));
 const narrow = (fcss.match(/@media \(max-width: 479px\) \{([\s\S]*?)\n\}/) || ['', ''])[1];
 const wide = fcss.replace(/@media[^{]*\{[\s\S]*?\n\}/g, '');
 const size = (block, sel) => { const m = new RegExp(sel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\s*\\{([^}]*)\\}').exec(block); const f = m && /font-size:\s*(\d+)px/.exec(m[1]); return f ? +f[1] : NaN; };

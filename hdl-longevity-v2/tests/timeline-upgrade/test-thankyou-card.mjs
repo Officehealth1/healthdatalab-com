@@ -118,7 +118,7 @@ h = render(BASE, ON);
 ok(cards(h).length === 1 && !h.includes('An upgrade') && h.includes('Congratulations, Kim.'), 'I10 neither: one card, no upgrade heading');
 const fy = cut('  function renderThankYou(', '\n  }\n');
 ok(/DRAFT COPY for the owner/.test(fy), 'I11 the new strings are marked draft copy for the owner');
-const up = css.slice(css.indexOf('/* v0.48.92 (plan 8, K23)'), css.indexOf('/* end finish screen */'));
+const up = css.slice(css.indexOf('/* v0.48.92 (plan 8, K23;'), css.indexOf('/* end finish screen */'));
 ok(/\.hdlv2-ty-upgrade \{[^}]*margin-top:\s*24px/.test(up), 'I12 clear space between the two cards');
 ok(up.length > 20 && !/border-left|::before/.test(up) && !/#[0-9a-f]{3,6}\b/gi.test(up.replace(/#004F59|#3d8da0|#2c3e50|#888888|#888\b|#e4e6ea|#f8f9fb|#ffffff/gi, '')), 'I13 no rail, brand colours only');
 

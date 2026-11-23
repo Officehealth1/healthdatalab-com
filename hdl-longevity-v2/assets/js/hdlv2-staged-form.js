@@ -443,16 +443,18 @@
     // v0.48.92 (plan 8, K20; hdlv2_ff_form_focus) — four glasses beside the alcohol question.
     alcoholConsumption: { file: 'g-drinks.svg', caption: 'A usual week', still: true }
   };
+  // v0.48.92 (plan 8, K23; hdlv2_ff_form_focus) — the finish screen's own picture: no caption, so it speaks its alt.
+  var FINISH_PICTURE = { file: 'f-finished.svg', alt: 'You have finished' };
 
   // A picture and its caption. A moving one is a <picture> whose reduced-motion source is
   // file.svg#still on its own address (&still=1): an SVG inside <img> does not see the page's
   // motion setting, and a browser holding the moving picture would reuse it for a bare #still.
   function motionFigure(cls, m) {
     var url = esc(S1_IMG_BASE.replace('silhouettes/', 'motion/') + m.file + '?ver=' + encodeURIComponent(CFG.asset_ver || ''));
-    var img = '<img src="' + url + '" alt="" width="96" height="96" loading="eager" decoding="async">';
+    var img = '<img src="' + url + '" alt="' + esc(m.alt || '') + '" width="96" height="96" loading="eager" decoding="async">';
     return '<figure class="' + cls + '">'
       + (m.still ? img : '<picture><source srcset="' + url + '&amp;still=1#still" media="(prefers-reduced-motion: reduce)">' + img + '</picture>')
-      + '<figcaption>' + esc(m.caption) + '</figcaption></figure>';
+      + (m.caption ? '<figcaption>' + esc(m.caption) + '</figcaption>' : '') + '</figure>';
   }
 
   // Reason line when the person's choices need the ability a question measures.
@@ -2491,6 +2493,33 @@
       ? 'If you don’t see the email within 1 hour, check your spam folder or contact <a href="mailto:'
         + esc(pracEmail) + '" class="hdlv2-ty-link">' + esc(pracEmail) + '</a>.'
       : 'If you don’t see the email within 1 hour, check your spam folder.';
+
+    // v0.48.92 (plan 8, K23; hdlv2_ff_form_focus) — "it has to stand out but feel separate": card one says
+    // they have finished, with a picture; the Timeline offer (or the owner's line) is a second card below.
+    // DRAFT COPY for the owner: the congratulations, the e-mail line and the upgrade heading.
+    if (CFG.form_focus) {
+      var extra = s1.timeline_owned === true
+        ? '<p class="hdlv2-ty-lead">Your Healthspan Timeline is yours. It opens when your Full Report lands.</p>'
+        : timelineBlockHtml(s1.timeline_offer);
+      root.innerHTML = '<div class="hdlv2-card hdlv2-ty-card">'
+        + thankYouHeader(pracName, pracLogo)
+        + '<div class="hdlv2-ty-banner"><h1>Full&nbsp;Report&nbsp;complete</h1></div>'
+        + '<div class="hdlv2-ty-body">'
+        +   (S1_IMG_BASE ? motionFigure('hdlv2-ty-finished', FINISH_PICTURE) : '')
+        +   '<h2 class="hdlv2-ty-h1">Congratulations, ' + esc(firstName) + '. Your Full Report is filled in.</h2>'
+        +   '<p class="hdlv2-ty-lead">Your results are on their way to your email and should arrive within a few minutes.</p>'
+        +   '<p class="hdlv2-ty-subhead">What happens next</p>'
+        +   '<ol class="hdlv2-ty-list">'
+        +     '<li>Check your inbox for your Full Report.</li>'
+        +   '</ol>'
+        +   '<p class="hdlv2-ty-note">' + noteLine + '</p>'
+        + '</div>'
+        + thankYouFooter()
+        + '</div>'
+        + (extra ? '<div class="hdlv2-card hdlv2-ty-card hdlv2-ty-upgrade">'
+          + '<h2 class="hdlv2-ty-upgrade-title">An upgrade for your Full Report</h2>' + extra + '</div>' : '');
+      return;
+    }
 
     root.innerHTML = '<div class="hdlv2-card hdlv2-ty-card">'
       + thankYouHeader(pracName, pracLogo)

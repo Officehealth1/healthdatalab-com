@@ -146,7 +146,7 @@ for (let n = 1; n < 13; n++) {
 }
 ok(true, 'F15.4 every other step with focus on draws what it draws with focus off, but for the card\'s focus class');
 ok(/<div class="hdlv2-card hdlv2-focus">/.test(step(true, 3, FOCUS)) && !/hdlv2-focus/.test(step(true, 3)), 'F15.5 the card carries hdlv2-focus only with the switch on');
-const focusCss = css.slice(css.indexOf('/* v0.48.92 (plan 8'), css.indexOf('/* end form focus */'));
+const focusCss = css.slice(css.indexOf('/* v0.48.92 (plan 8; hdlv2_ff_form_focus)'), css.indexOf('/* end form focus */'));
 ok(/\.hdlv2-focus \.hdlv2-tap-motion img,\s*\.hdlv2-focus \.hdlv2-body-guide img \{ width: 120px; height: 120px; \}/.test(focusCss), 'F15.6 focus on: question pictures 120 px on a phone');
 ok(/@media \(min-width: 640px\) \{\s*\.hdlv2-focus \.hdlv2-tap-motion img,\s*\.hdlv2-focus \.hdlv2-body-guide img \{ width: 144px; height: 144px; \}/.test(focusCss), 'F15.7 focus on: 144 px from 640 px');
 ok(/\.hdlv2-tap-motion \+ \.hdlv2-s1-options \{ clear: both; \}/.test(css), 'F15.8 a picture with no how-to box: the answers still start below it');
