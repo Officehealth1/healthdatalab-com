@@ -1650,7 +1650,8 @@
       +   '</section>')
       // Switch off: today's call, unchanged (tests/who-for reads it).
       +   (CFG.form_clarity ? whoForHtml(peopleFromData(d), true) : whoForHtml(peopleFromData(d)))
-      +   picksTextarea('own_words', 'Anything else? (optional)', d.own_words, '', 600)
+      +   (CFG.form_focus ? picksTextarea('own_words', OWN_WORDS_ASK.label, d.own_words, '', 600, OWN_WORDS_ASK.help)
+          : picksTextarea('own_words', 'Anything else? (optional)', d.own_words, '', 600))
       +   '<button type="button" id="hdlv2-picks-next" class="hdlv2-btn">Next &#8594;</button>'
       + '</div>' + saveIndicator(true) + footer() + '</div>';
 
@@ -1755,10 +1756,18 @@
     redrawRadar();
   }
 
-  function picksTextarea(name, label, value, placeholder, maxlength) {
+  // v0.48.92 (plan 8, K13; hdlv2_ff_form_focus) — Matthew's question for the own-words box (call of 2026-11-21,
+  // 28:47). DRAFT COPY for the owner: one place to change after his walk. The key own_words stays.
+  var OWN_WORDS_ASK = {
+    label: 'Is there anything else that is important to you about your vitality and what you can do in the years ahead? (optional)',
+    help: 'A sentence is enough.'
+  };
+
+  function picksTextarea(name, label, value, placeholder, maxlength, help) {
     var v = value || '';
     return '<div class="hdlv2-field"><label for="hdlv2-f-' + name + '">' + label + '</label>'
-      + '<textarea id="hdlv2-f-' + name + '" data-field="' + name + '" rows="2" maxlength="' + maxlength + '" placeholder="' + esc(placeholder) + '">' + esc(v) + '</textarea>'
+      + (help ? '<p class="hdlv2-field-hint" id="hdlv2-help-' + name + '">' + esc(help) + '</p>' : '')
+      + '<textarea id="hdlv2-f-' + name + '" data-field="' + name + '"' + (help ? ' aria-describedby="hdlv2-help-' + name + '"' : '') + ' rows="2" maxlength="' + maxlength + '" placeholder="' + esc(placeholder) + '">' + esc(v) + '</textarea>'
       + '<div class="hdlv2-field-foot"><span></span><div class="hdlv2-char-count" id="hdlv2-charcount-' + name + '">' + v.length + ' / ' + maxlength + '</div></div></div>';
   }
 
