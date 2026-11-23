@@ -12,7 +12,7 @@
  *   F  build_pdf_payload() (the consultation route): switch off, byte for byte the payload of 46eda9b
  *      (md5); on, only report_name, paid_report_name and reviewed_line are added, and the line names
  *      practitioner B when the client belongs to A.
- *   G  the consultation PDF's gauge (Quim, 2026-11-23: the numbers on the arc, as on the Full Report):
+ *   G  the consultation PDF's gauge (asked for on 2026-11-23: the numbers on the arc, as on the Full Report):
  *      hdlv2_ff_report_gauge_scale on asks for the scaled Stage 3 dial; absent, today's dial.
  *
  * Run:  php tests/report-names/test-names.php [plugin-root] [golden]
