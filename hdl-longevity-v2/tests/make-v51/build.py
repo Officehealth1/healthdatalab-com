@@ -16,6 +16,10 @@ off, or a plugin before 0.48.96):
   #17 the consultation report e-mail to the client (final route): subject, attachment name, preheader,
       eyebrow, header, the finalised line; under the header, the plugin's reviewed_line when it is sent.
   #91 the practitioner's copy (final route): subject, attachment name, header, the finalised line.
+The two PDF modules pass the template a fixed list of fields, so each gains the new ones after
+report_type, built with the module's own JSON-safe expression: #48 (the buyer's PDF) report_name;
+#3 (the consultation PDF) report_name, paid_report_name and reviewed_line. Absent, each is "" and the
+template prints its default (the proof templates: today's words; no reviewed line).
 Every client name printed in these e-mails' HTML and the reviewed line are escaped (escapeHTML). The
 practitioner's name is left as v50 prints it: WordPress stores a display name HTML-encoded already, so
 escaping it again would show "&amp;" for "&". One exception: in the WHY e-mails (#81, #84) its
@@ -25,6 +29,7 @@ consultation PDF from the proof copies whose ids are passed on the command line 
 public repository). Nothing else changes (check.py asserts it).
 """
 import json
+import re
 import sys
 
 NAMES = {
@@ -96,6 +101,19 @@ CHANGES_LIVE = [
 ]
 
 
+# PDF modules: (field the new ones follow, new fields)
+PDF_FIELDS = {48: ("report_type", ["report_name"]), 3: ("report_type", ["report_name", "paid_report_name", "reviewed_line"])}
+
+
+def pdf_lines(payload, after, keys):
+    """The lines to insert after the `after` field, each with the module's own expression around client_name."""
+    expr = re.search(r'"client_name": "(\{\{.*?\}\})",\n', payload).group(1)
+    assert "1.client_name" in expr and expr.count("1.client_name") == 1
+    line = re.search(r'\n  "' + after + r'": "[^\n]*",\n', payload)
+    assert line and payload.count('"' + after + '":') == 1, after
+    return line.end(), "".join('  "' + k + '": "' + expr.replace("1.client_name", "1." + k) + '",\n' for k in keys)
+
+
 def changes(env):
     return CHANGES + (CHANGES_LIVE if env == "live" else [])
 
@@ -123,6 +141,10 @@ def put(m, field, value):
 
 
 def apply(mods, env):
+    for mid, (after, keys) in PDF_FIELDS.items():
+        p = mods[mid]["mapper"]["payload"]
+        at, ins = pdf_lines(p, after, keys)
+        mods[mid]["mapper"]["payload"] = p[:at] + ins + p[at:]
     for mid, field, old, new, times in changes(env):
         text = get(mods[mid], field)
         assert text.count(old) == times, f"#{mid} {field}: {old[:50]!r} found {text.count(old)} times, want {times}"

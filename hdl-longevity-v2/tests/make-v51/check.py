@@ -13,6 +13,8 @@ Exit 0 = pass. Run against v50 itself and it must fail.
      e-mails' HTML go through escapeHTML, and in the WHY e-mails the practitioner's name in alt= too;
      the buyer's greeting splits on a space (the first name).
   4  The test site's e-mail fences unchanged; the live file never mentions the test site.
+  5  The two PDF modules pass the new fields to the template (#48 report_name; #3 report_name,
+     paid_report_name, reviewed_line), each with the module's own JSON-safe expression; nothing else moves.
 """
 import json
 import os
@@ -21,7 +23,7 @@ import sys
 
 sys.dont_write_bytecode = True  # importing build.py must not leave a __pycache__ in the repository
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from build import ALT_NEW, NAMES, changes, get, walk  # noqa: E402
+from build import ALT_NEW, NAMES, PDF_FIELDS, changes, get, pdf_lines, walk  # noqa: E402
 
 fails = []
 base = json.load(open(sys.argv[1], encoding="utf-8"))
@@ -41,6 +43,15 @@ for mid, field, old, new, times in changes(env):
     if text.count(new) != times:
         fails.append(f"#{mid} {field}: v51 text not found {times} times: {new[:60]!r}")
     touched[key] = text.replace(new, old)
+for mid, (after, keys) in PDF_FIELDS.items():
+    at, ins = pdf_lines(B[mid]["mapper"]["payload"], after, keys)
+    want = B[mid]["mapper"]["payload"][:at] + ins + B[mid]["mapper"]["payload"][at:]
+    if C[mid]["mapper"].get("payload") != want:
+        fails.append(f"#{mid} payload is not v50's with {', '.join(keys)} added after {after}")
+    touched[(mid, "payload")] = B[mid]["mapper"]["payload"]
+    for k in keys:
+        if C[mid]["mapper"].get("payload", "").count('"' + k + '":') != 1:
+            fails.append(f"#{mid} payload does not pass {k} once")
 for (mid, field), text in touched.items():
     if text != get(B[mid], field):
         fails.append(f"#{mid} {field} differs from v50 beyond build.py's changes")
