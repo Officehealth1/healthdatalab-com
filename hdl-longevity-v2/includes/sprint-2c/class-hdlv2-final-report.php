@@ -1090,7 +1090,7 @@ class HDLV2_Final_Report {
         // (post-consultation) rate doesn't collide with the Stage 1 cache.
         // v0.23.0 — Final Report uses calculate_full (rate range 0.5-2.0).
         // Pass stage3:true so the gauge bounds match. Stage 1 callers
-        // (build_gauge_url at lines 1245/1259) keep the default 0.8-1.4 bounds.
+        // (the plain HDLV2_Staged_Form::build_gauge_url() calls) keep the default 0.8-1.4 bounds.
         $final_gauge_url = self::gauge_url( $calc_result['rate'] ?? 1.0 );
         if ( class_exists( 'HDLV2_Widget_Config' ) && ! empty( $progress->token ) ) {
             $local_gauge = HDLV2_Widget_Config::prerender_gauge_png( $final_gauge_url, $progress->token, 'final' );
@@ -1673,66 +1673,6 @@ class HDLV2_Final_Report {
      */
     public static function gauge_url( $rate ) {
         return HDLV2_Staged_Form::build_gauge_url( $rate, array( 'stage3' => true ) );
-    }
-
-    /**
-     * Build QuickChart.io gauge URL for the rate of ageing.
-     * Same visual style as the widget and Stage 1 emails.
-     */
-    private static function build_gauge_url( $rate ) {
-        $clamped = max( 0.8, min( 1.4, round( (float) $rate, 2 ) ) );
-
-        if ( $clamped <= 0.9 ) {
-            $sub_text = 'Slower'; $sub_color = 'rgba(67, 191, 85, 1)';
-        } elseif ( $clamped <= 1.1 ) {
-            $sub_text = 'Average'; $sub_color = 'rgba(65, 165, 238, 1)';
-        } else {
-            $sub_text = 'Faster'; $sub_color = 'rgba(255, 111, 75, 1)';
-        }
-
-        $cfg = array(
-            'type' => 'gauge',
-            'data' => array(
-                'labels'   => array( 'Slower', 'Average', 'Faster' ),
-                'datasets' => array( array(
-                    'data'            => array( 0.9, 1.1, 1.4 ),
-                    'value'           => $clamped,
-                    'minValue'        => 0.8,
-                    'maxValue'        => 1.4,
-                    'backgroundColor' => array( 'rgba(67,191,85,0.95)', 'rgba(65,165,238,0.95)', 'rgba(255,111,75,0.95)' ),
-                    'borderWidth'     => 1,
-                    'borderColor'     => 'rgba(255,255,255,0.8)',
-                    'borderRadius'    => 5,
-                ) ),
-            ),
-            'options' => array(
-                'layout'  => array( 'padding' => array( 'top' => 30, 'bottom' => 15, 'left' => 15, 'right' => 15 ) ),
-                'plugins' => array( 'datalabels' => array( 'display' => false ) ),
-                'needle'  => array(
-                    'radiusPercentage' => 2.5, 'widthPercentage' => 4.0, 'lengthPercentage' => 68,
-                    'color' => '#004F59', 'shadowColor' => 'rgba(0,79,89,0.4)', 'shadowBlur' => 8, 'shadowOffsetY' => 4,
-                    'borderWidth' => 2, 'borderColor' => 'rgba(255,255,255,1.0)',
-                ),
-                // v0.28.10 — valueLabel + subtitle disabled (PDFMonkey template
-                // now renders the value below the gauge and band labels as a
-                // rotated SVG overlay above the dial). Note: this private method
-                // is dead code (Final Report calls Staged_Form's build_gauge_url
-                // — see line 470) but kept in sync to prevent future drift.
-                'valueLabel' => array(
-                    'display' => false, 'fontSize' => 36, 'fontFamily' => "'Inter',sans-serif", 'fontWeight' => 'bold',
-                    'color' => '#004F59', 'backgroundColor' => 'transparent', 'bottomMarginPercentage' => -10, 'padding' => 8,
-                ),
-                'centerArea' => array( 'displayText' => false, 'backgroundColor' => 'transparent' ),
-                'arc'        => array( 'borderWidth' => 0, 'padding' => 2, 'margin' => 3, 'roundedCorners' => true ),
-                'subtitle'   => array(
-                    'display' => false, 'text' => $sub_text, 'color' => $sub_color,
-                    'font' => array( 'size' => 20, 'weight' => 'bold', 'family' => "'Inter',sans-serif" ),
-                    'padding' => array( 'top' => 8 ),
-                ),
-            ),
-        );
-
-        return 'https://quickchart.io/chart?c=' . rawurlencode( wp_json_encode( $cfg ) ) . '&w=380&h=340&bkg=white';
     }
 
     /**

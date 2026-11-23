@@ -2084,6 +2084,9 @@ class HDLV2_Staged_Form {
      *                     untouched (template renders the value below the
      *                     image). Practitioner panel sets this so the
      *                     centred numeric reads inside the dial.
+     *   bool  scale       v0.48.94 — the scale printed on the curve: the low and
+     *                     high ends under the two ends, the middle of the average
+     *                     band just outside it. The Full Report PDF only.
      * }
      */
     public static function build_gauge_url( $rate, $opts = array() ) {
@@ -2160,7 +2163,38 @@ class HDLV2_Staged_Form {
             ),
         );
 
-        return 'https://quickchart.io/chart?w=380&h=340&bkg=white&c=' . urlencode( wp_json_encode( $cfg ) );
+        if ( empty( $opts['scale'] ) ) {
+            return 'https://quickchart.io/chart?w=380&h=340&bkg=white&c=' . urlencode( wp_json_encode( $cfg ) );
+        }
+
+        // As HDLV2_Widget_Config::stage1_report_gauge_url() does it: a part of no width under each end,
+        // whose value datalabels prints. The middle of the average band is printed from the average part
+        // itself: a part of no width there would cut that band in two and draw a seam. The coloured
+        // parts, their borders and the needle draw as before (pixel-equal with the labels off, 2026-11-23).
+        $ds    = &$cfg['data']['datasets'][0];
+        $clear = 'rgba(0,0,0,0)';
+        list( $green, $amber, $red ) = $ds['backgroundColor'];
+        $ds['data']            = array( $minValue, $slower_edge, $average_edge, $maxValue, $maxValue );
+        $ds['backgroundColor'] = array( $clear, $green, $amber, $red, $clear );
+        $ds['borderWidth']     = array( 0, 1, 1, 1, 0 );
+        $ds['datalabels']      = array(
+            'display'   => array( true, false, true, false, true ),
+            'anchor'    => array( 'center', 'end', 'end', 'end', 'center' ),
+            'align'     => array( 'bottom', 'end', 'end', 'end', 'bottom' ),
+            'offset'    => 2,
+            'color'     => '#2c3e50',
+            'font'      => array( 'size' => 22, 'weight' => 'bold' ), // a family list makes QuickChart drop the bold
+            'formatter' => 'HDLV2_SCALE_TEXT',
+        );
+        unset( $ds );
+        $cfg['options']['plugins'] = array( 'datalabels' => array( 'display' => true ) );
+
+        // JSON prints 1.0 as "1": one decimal needs datalabels' formatter, a function, which QuickChart
+        // takes in a GET config (its documented label examples do the same). The texts are numbers this
+        // method formats; nothing from outside reaches the function.
+        $texts = array( number_format( $minValue, 1 ), '', number_format( ( $slower_edge + $average_edge ) / 2, 1 ), '', number_format( $maxValue, 1 ) );
+        $json  = str_replace( '"HDLV2_SCALE_TEXT"', '(v,c)=>' . wp_json_encode( $texts ) . '[c.dataIndex]', wp_json_encode( $cfg ) );
+        return 'https://quickchart.io/chart?w=380&h=340&bkg=white&c=' . urlencode( $json );
     }
 
     // ──────────────────────────────────────────────────────────────
@@ -2411,6 +2445,12 @@ class HDLV2_Staged_Form {
             'medications'         => (string) ( $s3_data_for_payload['medications']         ?? '' ),
             'existing_conditions' => (string) ( $s3_data_for_payload['existing_conditions'] ?? '' ),
         );
+
+        // v0.48.94 (plan 10, K26 and K42) — hdlv2_ff_report_gauge_scale: the Full Report PDF's gauge
+        // prints its scale. Off, the payload is byte for byte the one above.
+        if ( get_option( 'hdlv2_ff_report_gauge_scale', false ) ) {
+            $payload['gauge_url'] = self::build_gauge_url( $rate_num, array( 'stage3' => true, 'scale' => true ) );
+        }
 
         // D-2 — report-PDF callback fields (Make downloads the PDF, then POSTs
         // pdf_url back to /reports/pdf-callback). report_id is re-queried here so
