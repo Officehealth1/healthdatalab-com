@@ -713,7 +713,7 @@ class HDLV2_Flight_Plan {
         // v0.49.01 (plan 14 C5) — the six-week block (hdlv2_ff_flight_cycle; absent = null = today's plan).
         // Asked before the force delete below, so a block that waits never costs the client this week's plan.
         $cycle = class_exists( 'HDLV2_Flight_Cycle' ) ? HDLV2_Flight_Cycle::before_plan( (int) $client_id, (int) $practitioner_id, $week_start, $trigger, $context ) : null;
-        if ( is_wp_error( $cycle ) ) return $cycle;
+        if ( is_wp_error( $cycle ) ) return 'cycle_waits' === $cycle->get_error_code() ? null : $cycle; // a wait by design is a no-op, never a failure alert
         if ( $cycle ) $context['cycle_block'] = $cycle['block'];
 
         if ( $existing_id && $force ) {

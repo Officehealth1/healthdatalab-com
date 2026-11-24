@@ -179,7 +179,7 @@ TXT;
     public static function outline_line( $outline, $week ) {
         foreach ( preg_split( '/\R/', (string) $outline ) as $line ) {
             if ( preg_match( '/^[\s*#\-]*week\s*' . (int) $week . '\s*[:.\-]\**\s*(.+?)\s*\.?\s*$/i', $line, $m ) ) {
-                return $m[1];
+                return mb_substr( $m[1], 0, 200 ); // one aim, never a page of text carried into every later prompt
             }
         }
         return '(no outline yet)';
@@ -214,6 +214,33 @@ TXT;
         if ( ! self::on() ) {
             return null;
         }
+        // Two plans crossing a block's end at once (the check-in's job and the cron) must not both pay for
+        // the review and e-mail it: one per-client lock, the block read again inside it.
+        $c    = self::current( $client_id );
+        $lock = $c && $week_start > $c->end_date;
+        if ( $lock && ! self::lock( $client_id ) ) {
+            return new WP_Error( 'cycle_busy', 'The six-week plan is being updated. Try again.', array( 'status' => 409 ) );
+        }
+        try {
+            return self::place( $client_id, $practitioner_id, $week_start, $trigger, $context );
+        } finally {
+            if ( $lock ) {
+                self::unlock( $client_id );
+            }
+        }
+    }
+
+    private static function lock( $client_id ) {
+        global $wpdb;
+        return '1' === (string) $wpdb->get_var( $wpdb->prepare( 'SELECT GET_LOCK(%s, 30)', 'hdlv2_fc_' . (int) $client_id ) );
+    }
+
+    private static function unlock( $client_id ) {
+        global $wpdb;
+        $wpdb->query( $wpdb->prepare( 'SELECT RELEASE_LOCK(%s)', 'hdlv2_fc_' . (int) $client_id ) );
+    }
+
+    private static function place( $client_id, $practitioner_id, $week_start, $trigger, $context ) {
         $staff = in_array( $trigger, self::STAFF_TRIGGERS, true );
         $c     = self::current( $client_id );
         if ( $c && 'paused' === $c->status && ! $staff ) {
@@ -235,7 +262,7 @@ TXT;
             if ( 'auto_repair' === $trigger ) {
                 return null; // a repair redoes an old plan; it is not "the next plan" a block starts with
             }
-            $c = self::start_block( $client_id, $practitioner_id, $week_start );
+            $c = self::start_block( $client_id, $practitioner_id, $week_start, $staff );
             if ( ! $c ) {
                 return null;
             }
@@ -265,8 +292,12 @@ TXT;
         }
     }
 
-    /** A new active block from $week_start, only after a final report; null when none. */
-    public static function start_block( $client_id, $practitioner_id, $week_start ) {
+    /**
+     * A new active block from $week_start, only after a final report; null when none. $extend_link only for a
+     * practitioner's act (the final report, their regenerate, "Start next six weeks"): a block that starts by
+     * itself never lengthens the link, so the fixed 90-day window of 2026-07-10 (B4) cannot slide forever.
+     */
+    public static function start_block( $client_id, $practitioner_id, $week_start, $extend_link = false ) {
         global $wpdb;
         $fp = $wpdb->get_row( $wpdb->prepare(
             "SELECT * FROM {$wpdb->prefix}hdlv2_form_progress WHERE client_user_id = %d AND deleted_at IS NULL ORDER BY id DESC LIMIT 1",
@@ -296,10 +327,13 @@ TXT;
         if ( ! $ok ) {
             return self::current( $client_id ); // another request made this number a moment ago (unique per client)
         }
-        // C6: the client's link lasts at least to the block's end plus 14 days. GREATEST never shortens it;
-        // a NULL (expired for good) stays NULL.
+        if ( ! $extend_link ) {
+            return self::current( $client_id );
+        }
+        // C6: a live link lasts at least to the block's end plus 14 days; GREATEST never shortens it. A link
+        // that has already ended is not brought back (it still needs the practitioner's re-issue).
         $wpdb->query( $wpdb->prepare(
-            "UPDATE {$wpdb->prefix}hdlv2_form_progress SET token_expires_at = GREATEST(token_expires_at, %s) WHERE id = %d AND deleted_at IS NULL",
+            "UPDATE {$wpdb->prefix}hdlv2_form_progress SET token_expires_at = GREATEST(token_expires_at, %s) WHERE id = %d AND deleted_at IS NULL AND token_expires_at > UTC_TIMESTAMP()",
             self::day( $end )->modify( '+14 days' )->format( 'Y-m-d 23:59:59' ),
             (int) $fp->id
         ) );
@@ -620,6 +654,17 @@ TXT;
         if ( ! $client ) {
             return self::not_found();
         }
+        if ( ! self::lock( $client ) ) {
+            return new WP_Error( 'cycle_busy', 'The six-week plan is being updated. Try again.', array( 'status' => 409 ) );
+        }
+        try {
+            return self::start_next( $client );
+        } finally {
+            self::unlock( $client );
+        }
+    }
+
+    private static function start_next( $client ) {
         $old = self::current( $client );
         if ( $old && 'active' === $old->status ) {
             return new WP_Error( 'cycle_running', 'The six weeks are already running.', array( 'status' => 409 ) );
@@ -630,7 +675,7 @@ TXT;
             "SELECT id FROM {$wpdb->prefix}hdlv2_flight_plans WHERE client_id = %d AND week_start = %s AND deleted_at IS NULL AND status IN ('generated','delivered','active') LIMIT 1",
             $client, $this_week
         ) );
-        $new = self::start_block( $client, 0, $live ? date( 'Y-m-d', strtotime( 'next monday' ) ) : $this_week );
+        $new = self::start_block( $client, 0, $live ? date( 'Y-m-d', strtotime( 'next monday' ) ) : $this_week, true );
         if ( ! $new || ( $old && (int) $new->id === (int) $old->id ) ) {
             return new WP_Error( 'no_final_report', 'The six weeks start after the final report.', array( 'status' => 409 ) );
         }
