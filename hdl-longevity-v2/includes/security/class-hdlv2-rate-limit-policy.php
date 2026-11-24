@@ -138,6 +138,8 @@ class HDLV2_Rate_Limit_Policy {
             // dedup buckets don't clash). AI-burn tier because it re-fires
             // generate_final_report + generate_milestones (~$0.05/run).
             array( 'POST', '#^/hdl-v2/v1/consultation/save-and-update-plan$#',  self::TIER_AI_BURN ),
+            // v0.48.98 (plan 13) — the health analysis: two Claude calls per press (prompt 1, then prompt 2).
+            array( 'POST', '#^/hdl-v2/v1/consultation/health-analysis$#',       self::TIER_AI_BURN ),
             array( 'POST', '#^/hdl-v2/v1/flight-plan/[0-9]+/generate$#',        self::TIER_AI_BURN ),
             array( 'GET',  '#^/hdl-v2/v1/flight-notes/pdf$#',                   self::TIER_AI_BURN ),
 
@@ -206,6 +208,8 @@ class HDLV2_Rate_Limit_Policy {
             // cooldown + daily cap.
             // v0.46.62 — pre-send staged milestone edit; cheap DB write, no AI.
             array( 'POST', '#^/hdl-v2/v1/consultation/milestones-stage-edit$#', self::TIER_WRITE ),
+            // v0.48.98 (plan 13) — save or approve the client's health note; a DB write, no AI.
+            array( 'POST', '#^/hdl-v2/v1/consultation/health-note$#',           self::TIER_WRITE ),
             array( 'POST', '#^/hdl-v2/v1/flight-plan/[0-9]+/edit$#',            self::TIER_WRITE ),
             array( 'POST', '#^/hdl-v2/v1/checkin/submit$#',                     self::TIER_WRITE ),
             // v0.48.23 — the 30-day challenge tick: one INSERT IGNORE, no AI.

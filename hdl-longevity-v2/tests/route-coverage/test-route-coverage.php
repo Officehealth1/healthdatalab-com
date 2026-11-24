@@ -103,6 +103,19 @@ foreach ( $routes as $key => $pair ) {
     echo "FAIL  $key -> NULL TIER (unmapped — no per-caller limit)\n"; $fail++;
 }
 
+// ── 3. Routes whose tier is part of their design (found in the source AND on that tier) ──
+$EXPECT = array(
+    // v0.48.98 (plan 13) — the health analysis: two Claude calls per press; saving the note is a write.
+    'POST /hdl-v2/v1/consultation/health-analysis' => HDLV2_Rate_Limit_Policy::TIER_AI_BURN,
+    'POST /hdl-v2/v1/consultation/health-note'     => HDLV2_Rate_Limit_Policy::TIER_WRITE,
+);
+foreach ( $EXPECT as $key => $want ) {
+    list( $method, $route ) = explode( ' ', $key, 2 );
+    $tier = HDLV2_Rate_Limit_Policy::tier_for_request( $method, $route );
+    if ( isset( $routes[ $key ] ) && $tier === $want ) { echo "PASS  $key is registered and on tier $want\n"; continue; }
+    echo "FAIL  $key -> " . ( isset( $routes[ $key ] ) ? 'registered' : 'NOT registered' ) . ', tier ' . var_export( $tier, true ) . ", want $want\n"; $fail++;
+}
+
 echo "\n" . count( $routes ) . " hdl-v2/v1 routes · $ok mapped · $skip allow-listed · $fail unmapped\n";
 echo ( $fail ? "ROUTE COVERAGE: FAIL\n" : "ROUTE COVERAGE: PASS\n" );
 exit( $fail ? 1 : 0 );

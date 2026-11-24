@@ -125,6 +125,10 @@
       +   renderClientBrief(data)
       + '</div>'
 
+      // v0.48.98 (plan 13) — Health analysis: the practitioner's case analysis and the client's note,
+      // only with hdlv2_ff_health_analysis on (the settings then carry health_analysis).
+      + (CFG.health_analysis ? '<div class="hdlv2-consult-section hdlv2-health" id="hdlv2-health"></div>' : '')
+
       // Consultation Notes — pre-Final only. Post-Final the AI summary in
       // the action wrap below is the canonical view; the raw textarea
       // disappears so the practitioner has a single, unambiguous source of
@@ -170,6 +174,7 @@
     bindActionButton();
     bindRefreshBrief();
     bindBriefAutoSaveListeners();   // v0.33.1 — Brief is now inline-editable
+    if (CFG.health_analysis) mountHealth(data.health_analysis || {});
     bindAddendumForm();
 
     // v0.22.7 — Mount the SAME premium draft-report renderer the client
@@ -1175,6 +1180,156 @@
         setBriefSaveStatus('error', 'Connection error');
       });
     });
+  }
+
+  // ── HEALTH ANALYSIS (v0.48.98, plan 13; hdlv2_ff_health_analysis) ──
+  //   One press writes both texts with Matthew's two prompts: a case analysis for the practitioner
+  //   (never shown to the client) and a short note for the client's report. The note prints only once
+  //   approved here; typing after approval changes the status line at once, and the approved text is
+  //   what prints until the new one is approved. Nothing saves while typing.
+  var health = null;  // the server's block: { analysis_html, written, note, approved }
+
+  function healthStatus(h, typed) {
+    if (!h.approved) return 'Not approved. It will not print in the report.';
+    if (typed !== h.note) return 'Changed. Approve it again to print the new text.';
+    return 'Approved ' + h.approved + '. It prints in the next report you generate.';
+  }
+
+  function healthPanel(h) {
+    var text = h.analysis_html
+      ? '<div class="hdlv2-organised-body hdlv2-rich-text">' + h.analysis_html + '</div>'
+        + '<p class="hdlv2-consult-hint">Written ' + esc(h.written) + '</p>'
+      : '';
+    var note = (h.analysis_html || h.note)
+      ? '<label for="hdlv2-health-note" class="hdlv2-health-label">Note for the client\'s report</label>'
+        + '<div class="hdlv2-consult-notes-bar"><textarea id="hdlv2-health-note" class="hdlv2-consult-notes-input hdlv2-health-note" rows="8" maxlength="4000">' + esc(h.note) + '</textarea></div>'
+        + '<p id="hdlv2-health-status" class="hdlv2-health-status" role="status">' + esc(healthStatus(h, h.note)) + '</p>'
+        + '<div class="hdlv2-health-actions">'
+        +   '<button type="button" id="hdlv2-health-approve" class="hdlv2-consult-organise-btn">Approve for the report</button>'
+        +   (h.approved ? '<button type="button" id="hdlv2-health-withdraw" class="hdlv2-btn-secondary">Take out of the report</button>' : '')
+        + '</div>'
+      : '';
+    return '<h4>Health analysis</h4>'
+      + '<p class="hdlv2-consult-hint">For you only. The client never sees this part.</p>'
+      + '<div id="hdlv2-health-body" class="hdlv2-health-body">' + text + '</div>'
+      + '<p id="hdlv2-health-error" class="hdlv2-health-error" role="alert"></p>'
+      + '<div id="hdlv2-health-ask" class="hdlv2-health-actions">'
+      +   '<button type="button" id="hdlv2-health-write" class="hdlv2-btn-secondary">' + (h.analysis_html ? 'Write again' : 'Write health analysis') + '</button>'
+      + '</div>'
+      + note;
+  }
+
+  function mountHealth(h) {
+    health = h;
+    var box = document.getElementById('hdlv2-health');
+    if (!box) return;
+    box.innerHTML = healthPanel(h);
+    document.getElementById('hdlv2-health-write').addEventListener('click', function () {
+      if (health.approved) askWriteAgain(); else writeHealth();
+    });
+    var ta = document.getElementById('hdlv2-health-note');
+    if (!ta) return;
+    ta.addEventListener('input', function () {
+      document.getElementById('hdlv2-health-status').textContent = healthStatus(health, ta.value);
+    });
+    document.getElementById('hdlv2-health-approve').addEventListener('click', function () { saveHealthNote(true); });
+    var out = document.getElementById('hdlv2-health-withdraw');
+    if (out) out.addEventListener('click', function () { saveHealthNote(false); });
+  }
+
+  // Redrawing the panel drops the keyboard's place; put it back on the control that was used.
+  function focusHealth(id) {
+    var el = document.getElementById(id);
+    if (el) el.focus();
+  }
+
+  // Writing again would replace an approved note: ask first, in the page, in two steps.
+  function askWriteAgain() {
+    var ask = document.getElementById('hdlv2-health-ask');
+    ask.innerHTML = '<span class="hdlv2-health-question">This replaces the approved note. Write again?</span>'
+      + '<button type="button" id="hdlv2-health-yes" class="hdlv2-btn-secondary">Write again</button>'
+      + '<button type="button" id="hdlv2-health-no" class="hdlv2-btn-secondary">Cancel</button>';
+    document.getElementById('hdlv2-health-yes').addEventListener('click', function () { mountHealth(health); writeHealth(); });
+    document.getElementById('hdlv2-health-no').addEventListener('click', function () {
+      mountHealth(health);
+      document.getElementById('hdlv2-health-write').focus();
+    });
+    document.getElementById('hdlv2-health-yes').focus();
+  }
+
+  function writeHealth() {
+    var body = document.getElementById('hdlv2-health-body');
+    var btn = document.getElementById('hdlv2-health-write');
+    var err = document.getElementById('hdlv2-health-error');
+    var before = body.innerHTML;
+    // The note cannot be approved while it is being rewritten.
+    var locked = ['hdlv2-health-write', 'hdlv2-health-note', 'hdlv2-health-approve', 'hdlv2-health-withdraw']
+      .map(function (id) { return document.getElementById(id); }).filter(Boolean);
+    locked.forEach(function (el) { el.disabled = true; });
+    err.textContent = '';
+    body.innerHTML = HDLV2Loading.skeleton('brief') + '<p id="hdlv2-health-wait" class="hdlv2-consult-hint" role="status" tabindex="-1">Writing. This can take a minute.</p>';
+    focusHealth('hdlv2-health-wait');
+    var key = (window.hdlv2RateLimit && window.hdlv2RateLimit.idempotencyKey)
+      ? window.hdlv2RateLimit.idempotencyKey()
+      : 'ha-' + state.progressId + '-' + Date.now();
+    fetch(CFG.api_base + '/health-analysis', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': CFG.nonce, 'Idempotency-Key': key },
+      body: JSON.stringify({ progress_id: state.progressId })
+    })
+      // No answer, or an answer that is not WordPress's JSON (a proxy's timeout page): the server may still
+      // have finished, so read back what it saved. WordPress's own JSON errors keep the line below.
+      .then(function (r) { return r.json().catch(function () { return { dropped: true }; }); }, function () { return { dropped: true }; })
+      .then(function (res) {
+        if (res && res.dropped) return readBackHealth();
+        if (!res || !res.analysis_html) throw res;
+        mountHealth(res);
+        focusHealth('hdlv2-health-write');
+        if (res.note_written === false) {
+          document.getElementById('hdlv2-health-error').textContent = 'The analysis is ready. The client\'s note could not be written. Please try again.';
+        }
+      })
+      .catch(function () {
+        body.innerHTML = before;
+        locked.forEach(function (el) { el.disabled = false; });
+        focusHealth('hdlv2-health-write');
+        err.textContent = 'The analysis could not be written. Nothing was changed. Please try again.';
+      });
+  }
+
+  // The connection dropped (a proxy timeout, a lost network): the server may have finished, so show what it
+  // saved rather than claim nothing changed.
+  function readBackHealth() {
+    return fetch(CFG.api_base + '/' + state.progressId, { headers: { 'X-WP-Nonce': CFG.nonce } })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        mountHealth((data && data.health_analysis) || health);
+        focusHealth('hdlv2-health-write');
+        document.getElementById('hdlv2-health-error').textContent = 'The connection dropped while it was writing. What you see is what was saved.';
+      }, function () {
+        mountHealth(health);
+        focusHealth('hdlv2-health-write');
+        document.getElementById('hdlv2-health-error').textContent = 'The connection dropped while it was writing. Reload the page to see what was saved.';
+      });
+  }
+
+  function saveHealthNote(approve) {
+    var ta = document.getElementById('hdlv2-health-note');
+    var status = document.getElementById('hdlv2-health-status');
+    fetch(CFG.api_base + '/health-note', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': CFG.nonce },
+      body: JSON.stringify({ progress_id: state.progressId, note: ta.value, approve: approve })
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (res) {
+        if (!res || typeof res.note !== 'string') throw res;
+        mountHealth({ analysis_html: health.analysis_html, written: health.written, note: res.note, approved: res.approved });
+        focusHealth('hdlv2-health-approve');
+      })
+      .catch(function (res) {
+        status.textContent = (res && res.message) || 'The note could not be saved. Please try again.';
+      });
   }
 
   function renderReportSection(cls, title, content) {

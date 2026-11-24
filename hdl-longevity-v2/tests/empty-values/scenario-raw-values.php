@@ -49,6 +49,7 @@ class HDLV2_Practitioner { public static function get_logo_url() { return ''; } 
 
 $root = dirname( __DIR__, 2 );
 require_once dirname( __DIR__, 2 ) . '/includes/class-hdlv2-report-names.php'; // v0.48.96: the report names
+require_once dirname( __DIR__, 2 ) . '/includes/sprint-2c/class-hdlv2-health-analysis.php'; // v0.48.98: build_pdf_payload() asks it for the approved note
 require $root . '/includes/sprint-2/class-hdlv2-rate-calculator.php';
 require $root . '/includes/sprint-2/class-hdlv2-ai-service.php';
 require $root . '/includes/sprint-2/class-hdlv2-email-templates.php';
