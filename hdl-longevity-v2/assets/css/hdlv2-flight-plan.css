@@ -990,12 +990,14 @@
   opacity: 0.85;
 }
 .fp-day-column.fp-day-locked .fp-action[data-locked] { cursor: default; }
+.fp-day-column.fp-day-locked .fp-action { flex-wrap: wrap; } /* "Missed" drops below a long word in a narrow column */
 .fp-missed {
   margin-left: auto;
   padding-left: 6px;
   font-size: 10px;
   color: #888;
   white-space: nowrap;
+  flex-shrink: 0;
 }
 .fp-cycle-review {
   margin: 0;
