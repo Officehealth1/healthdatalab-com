@@ -110,11 +110,11 @@ class HDLV2_Idempotency {
     public static function wrap_ai( $req, $scope, $fn ) { return $fn(); }
 }
 class HDLV2_Env {
-    public static function gate( $what ) { $GLOBALS['calls'][] = 'env_gate:' . $what; return false; }
+    public static function gate( $what ) { $GLOBALS['calls'][] = 'env_gate:' . $what; return ! empty( $GLOBALS['env_live'] ); } // a test site unless a test says live
     public static function client_campaign_gate( $what ) { $GLOBALS['calls'][] = 'campaign:' . $what; return false; }
 }
 class HDLV2_Context_Builder {
-    public static function build_context( $client_id, $tier ) { $GLOBALS['calls'][] = 'context:' . (int) $client_id; return array( 'engagement_signal' => 'medium' ); }
+    public static function build_context( $client_id, $tier ) { $GLOBALS['calls'][] = 'context:' . (int) $client_id; return array( 'engagement_signal' => $GLOBALS['engagement'] ?? 'medium' ); }
 }
 
 /** The tables, as rows; queries matched on their table and WHERE columns, the way the real table answers. */
@@ -153,7 +153,7 @@ class AC_Wpdb {
         foreach ( $this->t[ $name ] as $r ) {
             $r = (object) $r;
             if ( null !== ( $v = $this->num( $q, '(?<![\.\w])id' ) ) && (int) $r->id !== $v ) continue;
-            foreach ( array( 'form_progress_id', 'practitioner_user_id', 'client_user_id', 'client_id' ) as $c ) {
+            foreach ( array( 'form_progress_id', 'practitioner_user_id', 'client_user_id', 'client_id', 'flight_plan_id' ) as $c ) {
                 if ( null !== ( $v = $this->num( $q, '(?<![\.\w])' . $c ) ) && (int) ( $r->$c ?? -1 ) !== $v ) continue 2;
             }
             if ( preg_match( "/token = '([a-f0-9]+)'/", $q, $m ) && ( $r->token ?? '' ) !== $m[1] ) continue;

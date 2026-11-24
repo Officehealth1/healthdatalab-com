@@ -1426,6 +1426,11 @@ class HDLV2_Client_Status {
             if ( '' !== $view_as ) {
                 $entry['view_as_url'] = $view_as;
             }
+            // v0.49.02 (plan 14 fix C8) — a six-week block that waits for the practitioner puts one item in
+            // "What needs you today". Absent with hdlv2_ff_flight_cycle off, so the payload is as before.
+            if ( class_exists( 'HDLV2_Flight_Cycle' ) && HDLV2_Flight_Cycle::review_due( $client_id ) ) {
+                $entry['fc_review_due'] = true;
+            }
             $result[] = $entry;
         }
 
