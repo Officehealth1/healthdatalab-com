@@ -27,6 +27,7 @@ class FakeWpdb {
     public function get_charset_collate() { return ''; }
     public function get_var( $q ) {
         if ( preg_match( "/COLUMN_NAME = 'timeline_(granted_by|granted_at|grant_revoked_at)'/", $q ) ) return '1'; // Phase AQ (v3.36): modelled as done; its own tests are in tests/access/
+        if ( preg_match( "/COLUMN_NAME = '(cycle_id|cycle_week|ticked_late|ticked_by)'/", $q ) || ( false !== strpos( $q, 'INFORMATION_SCHEMA.TABLES' ) && false !== strpos( $q, 'hdlv2_flight_cycles' ) ) ) return '1'; // Phase AR (v3.37): modelled as done; its own tests are in tests/flight-cycle/
         if ( false !== strpos( $q, 'INFORMATION_SCHEMA.COLUMNS' ) && preg_match( "/COLUMN_NAME = '(\w+)'/", $q, $m ) ) return in_array( $m[1], $this->cols, true ) ? '1' : '0';
         return '0';
     }

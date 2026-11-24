@@ -79,7 +79,7 @@ $GLOBALS['current_user'] = 122;
 check( 'W1.2 the owning practitioner passes the same check (validate_client_access :137-141, the right their Flight Plan tab on /clients/ uses)',
     true === $va->invoke( $fp, new WP_REST_Request( array() ), 508 ) );
 $src = file_get_contents( $P . 'sprint-5/class-hdlv2-flight-plan.php' );
-$tick = substr( $src, strpos( $src, 'public function rest_tick(' ), 1600 );
+$tick = substr( $src, strpos( $src, 'public function rest_tick(' ), 2400 ); // 2400: v0.49.01 put the day check (plan 14 C3) between the two
 check( 'W1.3 in rest_tick the access check comes before the write', strpos( $tick, 'validate_client_access' ) < strpos( $tick, '$wpdb->update(' ) );
 
 echo "W2 /challenge/tick\n";

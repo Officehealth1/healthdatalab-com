@@ -27,6 +27,7 @@ class FakeWpdb {
     public function prepare( $q, ...$args ) { foreach ( $args as $a ) { $q = preg_replace( '/%[sd]/', is_int( $a ) ? (string) $a : "'" . $a . "'", $q, 1 ); } return $q; }
     public function get_charset_collate() { return ''; }
     public function get_var( $q ) {
+        if ( preg_match( "/COLUMN_NAME = '(cycle_id|cycle_week|ticked_late|ticked_by)'/", $q ) || ( false !== strpos( $q, 'INFORMATION_SCHEMA.TABLES' ) && false !== strpos( $q, 'hdlv2_flight_cycles' ) ) ) return '1'; // Phase AR (v3.37): modelled as done; its own tests are in tests/flight-cycle/
         if ( false !== strpos( $q, 'INFORMATION_SCHEMA.COLUMNS' ) && preg_match( "/COLUMN_NAME = '(\w+)'/", $q, $m ) ) return in_array( $m[1], $this->cols, true ) ? '1' : '0';
         return '0';
     }
@@ -81,7 +82,7 @@ ok( 'M.8 fresh installs: the CREATE TABLE text carries the three columns', $ddl 
 
 $loader = file_get_contents( dirname( __DIR__, 2 ) . '/hdl-longevity-v2.php' );
 preg_match( "/define\\( 'HDLV2_VERSION', '([0-9.]+)' \\);/", $loader, $v ); preg_match( '/\\* Version: ([0-9.]+)/', $loader, $h ); preg_match( "/define\\( 'HDLV2_DB_VERSION', '([0-9.]+)' \\);/", $loader, $d );
-ok( 'M.9 loader: header == constant == 0.49.00, DB 3.36', ( $v[1] ?? '' ) === '0.49.00' && ( $h[1] ?? '' ) === '0.49.00' && ( $d[1] ?? '' ) === '3.36' );
+ok( 'M.9 loader: header == constant, 0.49.00 or later, DB 3.36 or later (0.49.01 moved it to 3.37, plan 14 C)', ( $v[1] ?? '' ) === ( $h[1] ?? '-' ) && version_compare( $v[1] ?? '0', '0.49.00', '>=' ) && version_compare( $d[1] ?? '0', '3.36', '>=' ) );
 ok( 'M.10 the loader loads the access class', false !== strpos( $loader, "require_once HDLV2_PLUGIN_DIR . 'includes/security/class-hdlv2-access.php';" ) );
 
 echo "\nPASS=$pass FAIL=$fail\n";

@@ -111,6 +111,9 @@ $EXPECT = array(
     // v0.49.00 (plan 14 A4) — the Timeline grant: a practitioner's write, give or take back.
     'POST /hdl-v2/v1/timeline-access/give'         => HDLV2_Rate_Limit_Policy::TIER_WRITE,
     'POST /hdl-v2/v1/timeline-access/take-back'    => HDLV2_Rate_Limit_Policy::TIER_WRITE,
+    // v0.49.01 (plan 14 C5) — the six weeks: pause, or start the next (a practitioner's write).
+    'POST /hdl-v2/v1/flight-cycle/pause'           => HDLV2_Rate_Limit_Policy::TIER_WRITE,
+    'POST /hdl-v2/v1/flight-cycle/start'           => HDLV2_Rate_Limit_Policy::TIER_WRITE,
 );
 foreach ( $EXPECT as $key => $want ) {
     list( $method, $route ) = explode( ' ', $key, 2 );

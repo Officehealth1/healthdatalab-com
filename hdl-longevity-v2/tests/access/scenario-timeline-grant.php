@@ -90,7 +90,8 @@ $products = file_get_contents( ac_root() . '/includes/sprint-4/class-hdlv2-produ
 check( 'T.20 the practitioner\'s product strip carries the control', false !== strpos( $products, 'HDLV2_Access::grant_control( $client_id )' ) );
 $js = file_get_contents( ac_root() . '/assets/js/hdlv2-client-list-enhance.js' );
 preg_match( '/function bindTimelineGrant\(.*?\n  \}\n/s', $js, $m );
-$fn = $m[0] ?? '';
+preg_match( '/function twoStep\(.*?\n  \}\n/s', $js, $m2 ); // v0.49.01: the two steps shared with the six-week control
+$fn = ( $m[0] ?? '' ) . ( $m2[0] ?? '' );
 check( 'T.21 the script asks in two steps on the page ("Yes, give access" / "Cancel"), no browser popup',
     '' !== $fn && false !== strpos( $fn, 'Yes, give access' ) && false !== strpos( $fn, 'Yes, take it back' ) && false !== strpos( $fn, 'Cancel' ) && false === strpos( $fn, 'window.confirm' ) && false === strpos( $fn, 'alert(' ) );
 check( 'T.22 the script posts with the REST nonce to the two routes', false !== strpos( $fn, "'X-WP-Nonce'" ) && false !== strpos( $fn, "'/timeline-access/'" ) );
