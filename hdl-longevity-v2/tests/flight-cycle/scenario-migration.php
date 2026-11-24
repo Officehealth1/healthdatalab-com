@@ -91,7 +91,7 @@ ok( 'M.10 fresh installs: the plans and ticks CREATE TABLE texts carry the four 
 
 $loader = file_get_contents( dirname( __DIR__, 2 ) . '/hdl-longevity-v2.php' );
 preg_match( "/define\\( 'HDLV2_VERSION', '([0-9.]+)' \\);/", $loader, $v ); preg_match( '/\\* Version: ([0-9.]+)/', $loader, $h ); preg_match( "/define\\( 'HDLV2_DB_VERSION', '([0-9.]+)' \\);/", $loader, $d );
-ok( 'M.11 loader: header == constant == 0.49.01, DB 3.37', ( $v[1] ?? '' ) === '0.49.01' && ( $h[1] ?? '' ) === '0.49.01' && ( $d[1] ?? '' ) === '3.37' );
+ok( 'M.11 loader: header == constant == 0.49.02 (plan 14 fixes; DB stays 3.37)', ( $v[1] ?? '' ) === '0.49.02' && ( $h[1] ?? '' ) === '0.49.02' && ( $d[1] ?? '' ) === '3.37' );
 ok( 'M.12 the loader loads the flight cycle class', false !== strpos( $loader, "require_once HDLV2_PLUGIN_DIR . 'includes/sprint-5/class-hdlv2-flight-cycle.php';" ) );
 
 echo "\nPASS=$pass FAIL=$fail\n";
