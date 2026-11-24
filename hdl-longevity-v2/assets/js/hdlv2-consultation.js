@@ -1237,6 +1237,12 @@
     if (out) out.addEventListener('click', function () { saveHealthNote(false); });
   }
 
+  // Redrawing the panel drops the keyboard's place; put it back on the control that was used.
+  function focusHealth(id) {
+    var el = document.getElementById(id);
+    if (el) el.focus();
+  }
+
   // Writing again would replace an approved note: ask first, in the page, in two steps.
   function askWriteAgain() {
     var ask = document.getElementById('hdlv2-health-ask');
@@ -1261,7 +1267,8 @@
       .map(function (id) { return document.getElementById(id); }).filter(Boolean);
     locked.forEach(function (el) { el.disabled = true; });
     err.textContent = '';
-    body.innerHTML = HDLV2Loading.skeleton('brief') + '<p class="hdlv2-consult-hint">Writing. This can take a minute.</p>';
+    body.innerHTML = HDLV2Loading.skeleton('brief') + '<p id="hdlv2-health-wait" class="hdlv2-consult-hint" role="status" tabindex="-1">Writing. This can take a minute.</p>';
+    focusHealth('hdlv2-health-wait');
     var key = (window.hdlv2RateLimit && window.hdlv2RateLimit.idempotencyKey)
       ? window.hdlv2RateLimit.idempotencyKey()
       : 'ha-' + state.progressId + '-' + Date.now();
@@ -1277,6 +1284,7 @@
         if (res && res.dropped) return readBackHealth();
         if (!res || !res.analysis_html) throw res;
         mountHealth(res);
+        focusHealth('hdlv2-health-write');
         if (res.note_written === false) {
           document.getElementById('hdlv2-health-error').textContent = 'The analysis is ready. The client\'s note could not be written. Please try again.';
         }
@@ -1284,6 +1292,7 @@
       .catch(function () {
         body.innerHTML = before;
         locked.forEach(function (el) { el.disabled = false; });
+        focusHealth('hdlv2-health-write');
         err.textContent = 'The analysis could not be written. Nothing was changed. Please try again.';
       });
   }
@@ -1295,9 +1304,11 @@
       .then(function (r) { return r.json(); })
       .then(function (data) {
         mountHealth((data && data.health_analysis) || health);
+        focusHealth('hdlv2-health-write');
         document.getElementById('hdlv2-health-error').textContent = 'The connection dropped while it was writing. What you see is what was saved.';
       }, function () {
         mountHealth(health);
+        focusHealth('hdlv2-health-write');
         document.getElementById('hdlv2-health-error').textContent = 'The connection dropped while it was writing. Reload the page to see what was saved.';
       });
   }
@@ -1314,6 +1325,7 @@
       .then(function (res) {
         if (!res || typeof res.note !== 'string') throw res;
         mountHealth({ analysis_html: health.analysis_html, written: health.written, note: res.note, approved: res.approved });
+        focusHealth('hdlv2-health-approve');
       })
       .catch(function (res) {
         status.textContent = (res && res.message) || 'The note could not be saved. Please try again.';

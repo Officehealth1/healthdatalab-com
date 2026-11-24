@@ -23,7 +23,7 @@ const ok = (c, l) => { c ? PASS++ : FAIL++; console.log((c ? '  PASS  ' : '  FAI
 const js = fs.readFileSync(new URL('../../assets/js/hdlv2-consultation.js', import.meta.url), 'utf8');
 const cut = (head, end) => { const at = js.indexOf(head); return at < 0 ? '' : js.slice(at, js.indexOf(end, at) + end.length); };
 const fn = (name) => cut('  function ' + name + '(', '\n  }\n');
-const NAMES = ['healthStatus', 'healthPanel', 'mountHealth', 'writeHealth', 'readBackHealth', 'askWriteAgain', 'saveHealthNote'];
+const NAMES = ['healthStatus', 'healthPanel', 'mountHealth', 'focusHealth', 'writeHealth', 'readBackHealth', 'askWriteAgain', 'saveHealthNote'];
 const line = (head) => cut(head, '\n');
 const SRC = [line('  function esc('), line('  var health = '), ...NAMES.map(fn)].join('\n');
 ok(NAMES.every((n) => fn(n) !== '') && line('  var health = ') !== '', 'the panel functions are top-level in the consultation script');
@@ -180,6 +180,29 @@ await b.timeout();
 ok(b.calls.length === 2 && b.calls[1].url === '/wp-json/hdl-v2/v1/consultation/10', 'S8.5 a proxy timeout (an HTML page, not JSON): it reads back too');
 await b.answer({ health_analysis: { analysis_html: '<p>Finished anyway.</p>', written: '24 Nov 2026, 09:21', note: 'N.', approved: '' } });
 ok(text(b).includes('Finished anyway.') && $(b, 'hdlv2-health-error').textContent.startsWith('The connection dropped'), 'S8.6 and shows what was saved, never "Nothing was changed"');
+
+console.log('── S9 the keyboard keeps its place (task 10 walk: focus fell to the page top) ──');
+b = boot({ analysis_html: '', written: '', note: '', approved: '' });
+$(b, 'hdlv2-health-write').click();
+const wait = $(b, 'hdlv2-health-wait');
+ok(wait && b.p.doc.active === wait && /tabindex="-1"/.test(wait.attrs) && /role="status"/.test(wait.attrs), 'S9.1 while it writes, the keyboard rests on the wait line (role="status")');
+await b.answer(WRITTEN);
+ok(b.p.doc.active === $(b, 'hdlv2-health-write'), 'S9.2 written: the keyboard is on "Write again"');
+$(b, 'hdlv2-health-approve').click();
+await b.answer({ success: true, note: WRITTEN.note, approved: '24 Nov 2026' });
+ok(b.p.doc.active === $(b, 'hdlv2-health-approve'), 'S9.3 approved: the keyboard stays on "Approve for the report"');
+$(b, 'hdlv2-health-withdraw').click();
+await b.answer({ success: true, note: WRITTEN.note, approved: '' });
+ok(b.p.doc.active === $(b, 'hdlv2-health-approve'), 'S9.4 taken out ("Take out" is gone): the keyboard is on "Approve for the report"');
+b = boot({ analysis_html: '<p>Old.</p>', written: '23 Nov 2026, 10:00', note: 'Old note.', approved: '' });
+$(b, 'hdlv2-health-write').click();
+await b.answer({ code: 'analysis_failed', message: 'x', data: { status: 502 } });
+ok(b.p.doc.active === $(b, 'hdlv2-health-write'), 'S9.5 prompt 1 fails: the keyboard is back on the button');
+b = boot({ analysis_html: '<p>Old.</p>', written: '23 Nov 2026, 10:00', note: 'Old note.', approved: '' });
+$(b, 'hdlv2-health-write').click();
+await b.drop();
+await b.answer({ health_analysis: { analysis_html: '<p>New.</p>', written: '24 Nov 2026, 09:20', note: 'New note.', approved: '' } });
+ok(b.p.doc.active === $(b, 'hdlv2-health-write'), 'S9.6 the connection drops: after the read-back the keyboard is on the button');
 
 console.log('── S7 the switch, pop-ups, controls ──');
 ok(/\(CFG\.health_analysis \? '<div class="hdlv2-consult-section hdlv2-health" id="hdlv2-health"><\/div>' : ''\)/.test(js), 'S7.1 the panel is in the screen only when the settings say health_analysis');
