@@ -32,4 +32,21 @@ foreach ( array( 'closed' => 'closed by the delete', 'active' => 'left open' ) a
     check( "R.4 old block $label: the week-1 page shows no review of the first life", null === $v['review'] && '' === $v['notice'] );
     check( "R.5 old block $label: the panel shows no review of the first life", false === strpos( $C::panel_control( 13 ), 'Review of the first life.' ) );
 }
+// The daily pass and an old block left open past its end (security review of 359c77c): the new life is under
+// practitioner Nora (4); the old block (Ada's, form 14) is closed quietly, with no AI call and no e-mail to Ada.
+$w = ri_world( 'active' );
+$w->t['form_progress'][1]['practitioner_user_id'] = 4;
+$C::roll_due();
+$c = cyc( $w );
+check( 'R.6 the pass closes the old form row\'s block quietly: no AI call, no e-mail, no next block from it',
+    'closed' === $c[0]['status'] && null !== $c[0]['closed_at'] && 1 === count( $c ) && array() === HDLV2_AI_Service::$prompts && array() === HDLV2_Email_Templates::$sent && array() === HDLV2_Flight_Plan_Auto_Jobs::$jobs );
+$p = $C::before_plan( 13, 4, '2026-11-23', 'final_report', $ctx );
+$c = cyc( $w );
+check( 'R.7 the new life\'s first block is Nora\'s, on form 15', is_array( $p ) && 4 === (int) $c[1]['practitioner_id'] && 15 === (int) $c[1]['form_progress_id'] );
+// A block the pass closes starts the next one for the live form row's practitioner, not the block's stored one.
+$w = sw_world();
+$C::before_plan( 13, 3, '2026-10-12', 'final_report', $ctx );
+$w->t['form_progress'][0]['practitioner_user_id'] = 4; // the client moved to Nora on the same form row
+$C::roll_due();
+check( 'R.8 the next block takes the live form row\'s practitioner', 4 === (int) cyc( $w )[1]['practitioner_id'] );
 done();

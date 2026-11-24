@@ -318,11 +318,18 @@ TXT;
                 if ( ! $c || 'active' !== $c->status || $c->end_date >= self::today() ) {
                     continue; // another pass got here first
                 }
+                if ( (int) $c->form_progress_id !== self::live_form( $cid ) ) {
+                    // A block of a form row that is no longer the client's (removed, invited again, maybe by
+                    // another practitioner): closed quietly, no AI call, no e-mail, no next block from it.
+                    self::set( $c->id, array( 'status' => 'closed', 'closed_at' => current_time( 'mysql' ) ) );
+                    continue;
+                }
                 $c = self::close_block( $c, HDLV2_Context_Builder::build_context( $cid, 2 ) );
                 if ( 'closed' === $c->status ) {
                     // The next block starts here, by itself, so the link is not lengthened (the queued job runs
                     // with the final report's trigger, which would lengthen it); the job then makes its week 1.
-                    self::start_block( $cid, (int) $c->practitioner_id, date( 'Y-m-d', strtotime( 'monday this week' ) ), false );
+                    // Its practitioner is the live form row's (0 = start_block reads it).
+                    self::start_block( $cid, 0, date( 'Y-m-d', strtotime( 'monday this week' ) ), false );
                     if ( class_exists( 'HDLV2_Flight_Plan_Auto_Jobs' ) ) {
                         HDLV2_Flight_Plan_Auto_Jobs::enqueue_for( $cid, 'current' );
                     }
