@@ -3,7 +3,7 @@
  * Plugin Name: HDL Longevity V2 — Staged Workflow
  * Plugin URI: https://healthdatalab.net
  * Description: V2 longevity workflow: staged intake, WHY profiling, practitioner consultations, weekly flight plans, and AI coaching. Runs alongside the existing Health Data Lab plugin.
- * Version: 0.49.00
+ * Version: 0.49.01
  * Author: Health Data Lab
  * Author URI: https://healthdatalab.net
  * License: Proprietary
@@ -22,8 +22,8 @@ if ( ! defined( 'ABSPATH' ) ) {
 // register_activation_hook callbacks, which fire synchronously during
 // `wp plugin activate`, can reference them. The activator needs
 // HDLV2_DB_VERSION / HDLV2_VERSION at call time to update version options.
-define( 'HDLV2_VERSION', '0.49.00' );
-define( 'HDLV2_DB_VERSION', '3.36' );
+define( 'HDLV2_VERSION', '0.49.01' );
+define( 'HDLV2_DB_VERSION', '3.37' );
 
 // Client funnel token (hdlv2_form_progress.token) lifetime. FIXED window
 // from issuance: set when the token is created and refreshed ONLY when the
@@ -1050,6 +1050,8 @@ final class HDL_Longevity_V2 {
 
         // Sprint 5: Flight Plan
         require_once HDLV2_PLUGIN_DIR . 'includes/sprint-5/class-hdlv2-flight-plan.php';
+        // v0.49.01 (plan 14 C) — the six-week Flight Plan (hdlv2_ff_flight_cycle; absent = off).
+        require_once HDLV2_PLUGIN_DIR . 'includes/sprint-5/class-hdlv2-flight-cycle.php';
         require_once HDLV2_PLUGIN_DIR . 'includes/sprint-5/class-hdlv2-flight-plan-renderer.php';
         // v0.46.x — async manual Flight Plan generation (queue-backed, like reports).
         require_once HDLV2_PLUGIN_DIR . 'includes/sprint-5/class-hdlv2-flight-plan-jobs.php';

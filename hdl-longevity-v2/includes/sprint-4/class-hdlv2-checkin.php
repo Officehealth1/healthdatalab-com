@@ -102,6 +102,12 @@ class HDLV2_Checkin {
         $progress = $this->get_progress_from_token( $params['token'] ?? '' );
         if ( is_wp_error( $progress ) ) return $progress;
 
+        // v0.49.01 (plan 14 C6) — with the six-week switch on, a confirmed week is not sent again: a second
+        // send turned the row back to draft and a second confirm re-ran every effect. Before the AI call.
+        if ( class_exists( 'HDLV2_Flight_Cycle' ) && HDLV2_Flight_Cycle::checkin_sent( (int) $progress->client_user_id, $this->get_week_start() ) ) {
+            return new WP_Error( 'checkin_sent', "This week's check-in is already sent.", array( 'status' => 409 ) );
+        }
+
         // AI-burn idempotency: rest_submit calls Claude (Opus 4.8) for the
         // weekly check-in extraction. Without wrapping, a duplicate submission
         // (network retry, double-click) charges Claude twice. Scope is per

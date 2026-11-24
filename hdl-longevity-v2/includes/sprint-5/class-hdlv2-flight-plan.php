@@ -331,7 +331,7 @@ class HDLV2_Flight_Plan {
             }
         }
 
-        return rest_ensure_response( array(
+        $response = array(
             'plan' => array(
                 'id'                  => (int) $plan->id,
                 'week_number'         => (int) $plan->week_number,
@@ -367,7 +367,14 @@ class HDLV2_Flight_Plan {
                     'ticked'      => (bool) $t->ticked,
                 );
             }, $ticks ),
-        ) );
+        );
+        // v0.49.01 (plan 14 C3/C7) — each day's state and counts, and the plan's place in the six weeks
+        // (hdlv2_ff_flight_cycle; absent = the answer as before).
+        if ( class_exists( 'HDLV2_Flight_Cycle' ) && HDLV2_Flight_Cycle::on() ) {
+            $response['plan']['days']  = HDLV2_Flight_Cycle::day_summary( $ticks, $plan->week_start, $plan->effective_start_day ?? 'monday', HDLV2_Flight_Cycle::today() );
+            $response['plan']['cycle'] = HDLV2_Flight_Cycle::plan_view( $plan );
+        }
+        return rest_ensure_response( $response );
     }
 
     // ── REST: Generate ──
@@ -469,6 +476,14 @@ class HDLV2_Flight_Plan {
         $auth = $this->validate_client_access( $request, (int) $tick_row->client_id );
         if ( is_wp_error( $auth ) ) return $auth;
 
+        // v0.49.01 (plan 14 C3) — days close (hdlv2_ff_flight_cycle; absent = no field added, no refusal):
+        // a client's locked day answers 409 `day_closed`; yesterday is stored as late; who ticked is stored.
+        $cycle_fields = array();
+        if ( class_exists( 'HDLV2_Flight_Cycle' ) && HDLV2_Flight_Cycle::on() ) {
+            $cycle_fields = HDLV2_Flight_Cycle::tick_fields( (int) $tick_row->flight_plan_id, $tick_id, $ticked, (int) $tick_row->client_id );
+            if ( is_wp_error( $cycle_fields ) ) return $cycle_fields;
+        }
+
         $wpdb->update(
             $wpdb->prefix . 'hdlv2_flight_plan_ticks',
             // v0.35.4 — Always stamp ticked_at, not just on tick=1. The
@@ -479,7 +494,7 @@ class HDLV2_Flight_Plan {
             // last-action timestamp (whether tick or untick) means the
             // digest advances on every action. No callers depend on
             // ticked_at being NULL — verified by grep across plugin tree.
-            array( 'ticked' => $ticked ? 1 : 0, 'ticked_at' => current_time( 'mysql' ) ),
+            array_merge( array( 'ticked' => $ticked ? 1 : 0, 'ticked_at' => current_time( 'mysql' ) ), $cycle_fields ),
             array( 'id' => $tick_id )
         );
 
@@ -516,6 +531,18 @@ class HDLV2_Flight_Plan {
             $where['day'] = $day;
         }
 
+        if ( class_exists( 'HDLV2_Flight_Cycle' ) && HDLV2_Flight_Cycle::on() ) {
+            // v0.49.01 (plan 14 C3) — day by day, a client's locked days left alone (all locked → 409).
+            $per_day = HDLV2_Flight_Cycle::tick_all_fields( $plan_id, $where['day'] ?? '', $ticked, (int) $plan_client );
+            if ( is_wp_error( $per_day ) ) return $per_day;
+            foreach ( $per_day as $d => $cycle_fields ) {
+                $wpdb->update(
+                    $wpdb->prefix . 'hdlv2_flight_plan_ticks',
+                    array_merge( array( 'ticked' => $ticked ? 1 : 0, 'ticked_at' => current_time( 'mysql' ) ), $cycle_fields ),
+                    array( 'flight_plan_id' => $plan_id, 'day' => $d )
+                );
+            }
+        } else {
         $wpdb->update(
             $wpdb->prefix . 'hdlv2_flight_plan_ticks',
             // v0.35.4 — Always stamp ticked_at, not just on tick=1. The
@@ -529,6 +556,7 @@ class HDLV2_Flight_Plan {
             array( 'ticked' => $ticked ? 1 : 0, 'ticked_at' => current_time( 'mysql' ) ),
             $where
         );
+        }
 
         $this->calculate_adherence( $plan_id, true );
 
@@ -681,6 +709,12 @@ class HDLV2_Flight_Plan {
             // checkin/final-report, so this is the common path.
             return (int) $existing_id;
         }
+
+        // v0.49.01 (plan 14 C5) — the six-week block (hdlv2_ff_flight_cycle; absent = null = today's plan).
+        // Asked before the force delete below, so a block that waits never costs the client this week's plan.
+        $cycle = class_exists( 'HDLV2_Flight_Cycle' ) ? HDLV2_Flight_Cycle::before_plan( (int) $client_id, (int) $practitioner_id, $week_start, $trigger, $context ) : null;
+        if ( is_wp_error( $cycle ) ) return 'cycle_waits' === $cycle->get_error_code() ? null : $cycle; // a wait by design is a no-op, never a failure alert
+        if ( $cycle ) $context['cycle_block'] = $cycle['block'];
 
         if ( $existing_id && $force ) {
             // Practitioner explicitly clicked regenerate. Drop the existing
@@ -841,7 +875,7 @@ class HDLV2_Flight_Plan {
 
         // Store with new metadata columns
         global $wpdb;
-        $wpdb->insert( $wpdb->prefix . 'hdlv2_flight_plans', array(
+        $wpdb->insert( $wpdb->prefix . 'hdlv2_flight_plans', array_merge( array(
             'client_id'             => $client_id,
             'practitioner_id'       => $practitioner_id,
             'week_number'           => $week_num,
@@ -859,7 +893,7 @@ class HDLV2_Flight_Plan {
             'ai_model'              => $model,
             'token_usage'           => wp_json_encode( $token_usage ),
             'generation_attempts'   => $attempts,
-        ) );
+        ), $cycle ? array( 'cycle_id' => $cycle['cycle_id'], 'cycle_week' => $cycle['week'] ) : array() ) );
         $plan_id = (int) $wpdb->insert_id;
 
         // Create tick rows
@@ -2021,7 +2055,7 @@ MILESTONES:
 " . ( $context['milestones'] ? wp_json_encode( $context['milestones'] ) : '(not set)' ) . "
 
 PREVIOUS CHECK-IN SUMMARIES (most recent first, max 4):
-{$checkin_text}
+{$checkin_text}" . ( $context['cycle_block'] ?? '' ) . "
 
 PREVIOUS ADHERENCE SCORES (last 4 weeks):
 {$adherence_text}
@@ -2107,6 +2141,8 @@ TODAY: " . date( 'Y-m-d' );
             $context_for_gate = HDLV2_Context_Builder::build_context( $c->client_user_id, 2 );
             $signal           = $context_for_gate['engagement_signal'] ?? 'medium';
             if ( $signal === 'zero' ) {
+                // v0.49.01 (plan 14 C5) — a six-week block that has ended still gets its review, then waits.
+                if ( class_exists( 'HDLV2_Flight_Cycle' ) ) HDLV2_Flight_Cycle::end_if_due( (int) $c->client_user_id, $week_start, $context_for_gate );
                 $this->log_zero_engagement_skip( $c->client_user_id, $c->practitioner_user_id );
                 $skipped++;
                 continue;

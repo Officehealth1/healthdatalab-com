@@ -24,6 +24,7 @@ class FakeWpdb {
         if ( false !== strpos( $q, "COLUMN_NAME = 'timeline_paid_ref'" ) ) return '1'; // Phase AO (v3.34): modelled as done; its own tests are in tests/timeline-upgrade/
         if ( preg_match( "/COLUMN_NAME = 'health_(analysis|analysis_at|note|note_approved_at|note_approved_by)'/", $q ) ) return '1'; // Phase AP (v3.35): modelled as done; its own tests are in tests/health-analysis/
         if ( preg_match( "/COLUMN_NAME = 'timeline_(granted_by|granted_at|grant_revoked_at)'/", $q ) ) return '1'; // Phase AQ (v3.36): modelled as done; its own tests are in tests/access/
+        if ( preg_match( "/COLUMN_NAME = '(cycle_id|cycle_week|ticked_late|ticked_by)'/", $q ) || ( false !== strpos( $q, 'INFORMATION_SCHEMA.TABLES' ) && false !== strpos( $q, 'hdlv2_flight_cycles' ) ) ) return '1'; // Phase AR (v3.37): modelled as done; its own tests are in tests/flight-cycle/
         if ( false !== strpos( $q, 'COLUMN_TYPE' ) ) return $this->source_type;
         if ( false !== strpos( $q, 'INFORMATION_SCHEMA.TABLES' ) && preg_match( "/TABLE_NAME = '(\w+)'/", $q, $m ) ) return isset( $this->tables[ $m[1] ] ) ? '1' : '0';
         if ( false !== strpos( $q, 'INFORMATION_SCHEMA.COLUMNS' ) && preg_match( "/COLUMN_NAME = '(\w+)'/", $q, $m ) ) return in_array( $m[1], $this->cols, true ) ? '1' : '0';

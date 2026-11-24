@@ -157,7 +157,8 @@
     var dateLabel = _ws.getDate() + ' ' + _m[_ws.getMonth()] + ' – ' + _we.getDate() + ' ' + _m[_we.getMonth()] + ' ' + _we.getFullYear();
 
     var html = '<div class="hdlv2-card">'
-      + '<div class="hdlv2-header"><h2>Week ' + plan.week_number + ' Flight Plan</h2>'
+      // v0.49.01 (plan 14 C7) — inside the six weeks the header counts the block's week (absent = as before).
+      + '<div class="hdlv2-header"><h2>Week ' + (plan.cycle ? plan.cycle.week + ' of ' + plan.cycle.of : plan.week_number) + ' Flight Plan</h2>'
       + '<p>' + dateLabel + '</p></div>';
 
     // Identity statement — the AI sometimes wraps its own output in smart
@@ -307,17 +308,25 @@
       // label than "No actions". Past days are tickable (clients legitimately
       // forget) so they keep the Tick All button — only pre-start days lose
       // it because they were never part of the plan.
-      var _tickAllBtn = _isPreStart
+      // v0.49.01 (plan 14 C3) — with the six-week switch on the server sends each day's state: a locked
+      // day is read-only, its empty boxes read "Missed", and earlier days show their counts.
+      var _dayInfo = plan.days && plan.days[dayName];
+      var _locked  = !!(_dayInfo && _dayInfo.state === 'locked');
+      var _count   = _dayInfo && _dayInfo.state !== 'open'
+        ? '<span class="fp-day-count">done ' + _dayInfo.done + (_locked ? ', missed ' + _dayInfo.missed : '') + '</span>'
+        : '';
+      var _tickAllBtn = (_isPreStart || (_locked && !canEdit))
         ? ''
         : '<button data-day-tick="' + dayName + '" class="fp-day-tickall hdlv2-fp-noprint">Tick all</button>';
 
-      html += '<div class="fp-day-column ' + _dayStateClass + '" data-full-date="' + esc(fullDateLabel) + '"'
+      html += '<div class="fp-day-column ' + _dayStateClass + (_locked ? ' fp-day-locked' : '') + '" data-full-date="' + esc(fullDateLabel) + '"'
         + (_isPreStart ? ' data-prestart="1"' : '')
         + (_isToday    ? ' data-today="1"'    : '')
         + '>'
         + '<div class="fp-day-header">'
         + '<span class="fp-day-short">' + DAY_LABELS[d] + '</span>'
         + '<span class="fp-day-full">' + esc(_fullDayLabels[d]) + ' &middot; ' + esc(fullDateLabel) + '</span>'
+        + _count
         + _tickAllBtn
         + '</div>';
 
@@ -348,8 +357,11 @@
             + '</div>';
           items.forEach(function (t) {
             var state = t.ticked ? 'done' : 'default';
-            html += '<div class="fp-action" data-tick-id="' + t.id + '" data-state="' + state + '" data-day="' + dayName + '" data-category="' + (t.category || '') + '">'
+            var _ro = _locked && !canEdit;
+            html += '<div class="fp-action" data-tick-id="' + t.id + '" data-state="' + state + '" data-day="' + dayName + '" data-category="' + (t.category || '') + '"'
+              + (_ro ? ' data-locked="1" aria-disabled="true"' : '') + '>'
               + '<span class="fp-edit-text">' + esc(cleanActionText(t.action_text)) + '</span>'
+              + (_locked && !t.ticked ? '<span class="fp-missed">Missed</span>' : '')
               + (canEdit && editMode ? '<button type="button" class="fp-pen" data-edit-tick="' + t.id + '" aria-label="Edit this action">' + ICON_PEN + '</button>' : '')
               + '</div>';
           });
@@ -402,6 +414,12 @@
         + '</div></div>';
     }
 
+    // v0.49.01 (plan 14 C7) — the six-week review, once the block's six weeks end.
+    if (plan.cycle && plan.cycle.review) {
+      html += '<div class="fp-section"><h4 class="fp-section-header">\ud83d\udcc8 Your six-week review</h4>'
+        + '<p class="fp-cycle-review">' + esc(plan.cycle.review).replace(/\n/g, '<br>') + '</p></div>';
+    }
+
     // Review prompts
     var reviewPrompts = planData.review_prompts || [];
     if (reviewPrompts.length) {
@@ -414,7 +432,7 @@
     root.innerHTML = html;
 
     // ── Bind tappable action row events ──
-    root.querySelectorAll('.fp-action[data-tick-id]').forEach(function (el) {
+    root.querySelectorAll('.fp-action[data-tick-id]:not([data-locked])').forEach(function (el) {
       el.addEventListener('click', function () {
         cycleActionState(el);
       });
@@ -423,7 +441,7 @@
     // Tick All Days / Untick All — single toggle (v0.46.60). Flips every
     // action; updateAdherence() -> syncTickAllBtn() relabels the button.
     root.querySelector('#hdlv2-fp-tickall').addEventListener('click', function () {
-      var rows = root.querySelectorAll('.fp-action[data-tick-id]');
+      var rows = root.querySelectorAll('.fp-action[data-tick-id]:not([data-locked])');
       if (!rows.length) return;
       var allDone = true;
       rows.forEach(function (el) { if (el.getAttribute('data-state') !== 'done') allDone = false; });
@@ -560,7 +578,7 @@
   function syncTickAllBtn() {
     var btn = root.querySelector('#hdlv2-fp-tickall');
     if (!btn) return;
-    var rows = root.querySelectorAll('.fp-action[data-tick-id]');
+    var rows = root.querySelectorAll('.fp-action[data-tick-id]:not([data-locked])');
     var allDone = rows.length > 0;
     rows.forEach(function (el) { if (el.getAttribute('data-state') !== 'done') allDone = false; });
     if (allDone) {

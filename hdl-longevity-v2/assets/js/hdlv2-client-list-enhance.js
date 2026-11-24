@@ -2274,18 +2274,32 @@
   }
 
   // v0.49.00 (plan 14 A4) — the Timeline grant under the client's tiles (server-built, only with
-  // hdlv2_ff_access_gate on). Two steps on the page: the button asks, "Yes, …" sends, "Cancel" puts it
-  // back. On success the tiles are fetched again, so the Timeline tile and the control show the new state.
+  // hdlv2_ff_access_gate on). v0.49.01 (plan 14 C7) — the six-week Flight Plan's control beside it
+  // (hdlv2_ff_flight_cycle). Both ask in two steps on the page: the button asks, "Yes, …" sends,
+  // "Cancel" puts it back. On success the tiles are fetched again, so tiles and controls show the new state.
   function bindTimelineGrant(slot, reload) {
-    var box = slot.querySelector('.hdlv2-tl-grant');
-    if (!box) return;
-    var btn = box.querySelector('[data-tl-grant]');
+    var box = slot.querySelector('.hdlv2-tl-grant:not(.hdlv2-fc-panel)');
+    if (box) {
+      var btn = box.querySelector('[data-tl-grant]');
+      var action = btn.getAttribute('data-tl-grant');
+      twoStep(box, btn, action === 'give' ? 'Yes, give access' : 'Yes, take it back', '/timeline-access/' + action,
+        { progress_id: parseInt(box.getAttribute('data-progress-id'), 10) }, reload);
+    }
+    var fc = slot.querySelector('.hdlv2-fc-panel');
+    if (fc) {
+      var fcBtn = fc.querySelector('[data-fc-action]');
+      var fcAction = fcBtn.getAttribute('data-fc-action');
+      twoStep(fc, fcBtn, fcAction === 'pause' ? 'Yes, pause' : 'Yes, start', '/flight-cycle/' + fcAction,
+        { client_id: parseInt(fc.getAttribute('data-client-id'), 10) }, reload);
+    }
+  }
+
+  function twoStep(box, btn, yesLabel, path, body, reload) {
     var line = box.querySelector('.hdlv2-tl-grant-line');
-    var action = btn.getAttribute('data-tl-grant');
     btn.addEventListener('click', function () {
       var ask = document.createElement('span');
       ask.className = 'hdlv2-tl-grant-ask';
-      ask.innerHTML = '<button type="button" class="hdlv2-tl-grant-btn is-yes">' + (action === 'give' ? 'Yes, give access' : 'Yes, take it back') + '</button>'
+      ask.innerHTML = '<button type="button" class="hdlv2-tl-grant-btn is-yes">' + esc(yesLabel) + '</button>'
         + '<button type="button" class="hdlv2-tl-grant-btn is-cancel">Cancel</button>';
       btn.hidden = true;
       box.appendChild(ask);
@@ -2295,10 +2309,10 @@
       yes.addEventListener('click', function () {
         yes.disabled = true;
         line.textContent = 'Saving\u2026';
-        fetch(CFG.api_base + '/timeline-access/' + action, {
+        fetch(CFG.api_base + path, {
           method: 'POST', credentials: 'same-origin',
           headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': CFG.nonce },
-          body: JSON.stringify({ progress_id: parseInt(box.getAttribute('data-progress-id'), 10) })
+          body: JSON.stringify(body)
         })
           .then(function (r) { if (!r.ok) throw new Error(String(r.status)); return r.json(); })
           .then(function () { reload(); })
@@ -4602,6 +4616,11 @@
       '.hdlv2-tl-grant-btn.is-yes:hover { background:#004F59; border-color:#004F59; color:#fff; }',
       '.hdlv2-tl-grant-btn:focus-visible { outline:2px solid #3d8da0; outline-offset:2px; }',
       '.hdlv2-tl-grant-btn:disabled { opacity:0.5; cursor:default; }',
+      // v0.49.01 (plan 14 C7) — the six-week control: its last review folds open under the line.
+      '.hdlv2-fc-review { flex-basis:100%; font-size:13px; color:#2c3e50; }',
+      '.hdlv2-fc-review summary { cursor:pointer; color:#3d8da0; font-weight:600; }',
+      '.hdlv2-fc-review summary:focus-visible { outline:2px solid #3d8da0; outline-offset:2px; }',
+      '.hdlv2-fc-review p { margin:6px 0 0; line-height:1.6; max-width:640px; }',
       // v0.48.16 — Reject selected / Cancel wear the single Reject's colours; the inline question line.
       // Scoped under the banner: its outline-pill rule (.hdlv2-aq-banner .hdlv2-aq-btn) is more specific than a bare class.
       '.hdlv2-aq-banner .hdlv2-aq-btn.hdlv2-aq-btn-bulk { background:#3d8da0; color:#fff; border-color:#3d8da0; }',

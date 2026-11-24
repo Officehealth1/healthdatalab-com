@@ -1998,6 +1998,46 @@ class HDLV2_Activator {
             error_log( '[HDLV2] Phase AQ (v3.36) migration: form_progress Timeline grant columns verified.' );
         }
 
+        // Phase AR (DB v3.37) — the six-week Flight Plan (v0.49.01, plan 14 C2): hdlv2_flight_cycles, made by
+        // create_tables() just before, must be there; flight_plans gains cycle_id and cycle_week, the ticks
+        // gain ticked_late and ticked_by. Four nullable columns, each added and verified; nothing deleted,
+        // renamed or written. Additive.
+        if ( version_compare( $current_db_version, '3.37', '<' ) ) {
+            $cycles_table = $p . 'hdlv2_flight_cycles';
+            if ( ! (int) $wpdb->get_var( $wpdb->prepare(
+                "SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES
+                 WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s",
+                $cycles_table
+            ) ) ) {
+                error_log( '[HDLV2] Phase AR (v3.37) FAILED: ' . $cycles_table . ' missing — will retry next boot.' );
+                return false;
+            }
+            $has_col = function ( $table, $col ) use ( $wpdb ) {
+                return (int) $wpdb->get_var( $wpdb->prepare(
+                    "SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+                     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s AND COLUMN_NAME = %s",
+                    $table, $col
+                ) ) > 0;
+            };
+            $columns = array(
+                array( $p . 'hdlv2_flight_plans', 'cycle_id', 'BIGINT(20) UNSIGNED DEFAULT NULL' ),
+                array( $p . 'hdlv2_flight_plans', 'cycle_week', 'TINYINT UNSIGNED DEFAULT NULL' ),
+                array( $p . 'hdlv2_flight_plan_ticks', 'ticked_late', 'TINYINT(1) DEFAULT NULL' ),
+                array( $p . 'hdlv2_flight_plan_ticks', 'ticked_by', 'BIGINT(20) UNSIGNED DEFAULT NULL' ),
+            );
+            foreach ( $columns as $c ) {
+                list( $table, $col, $definition ) = $c;
+                if ( ! $has_col( $table, $col ) ) {
+                    $wpdb->query( "ALTER TABLE `$table` ADD COLUMN $col $definition" );
+                    if ( $wpdb->last_error || ! $has_col( $table, $col ) ) {
+                        error_log( "[HDLV2] Phase AR (v3.37) FAILED: ADD $table.$col — " . $wpdb->last_error . ' — will retry next boot.' );
+                        return false;
+                    }
+                }
+            }
+            error_log( '[HDLV2] Phase AR (v3.37) migration: hdlv2_flight_cycles + plan cycle columns + tick late/by columns verified.' );
+        }
+
         return true;
     }
 
@@ -2348,6 +2388,8 @@ class HDLV2_Activator {
             ai_model VARCHAR(50) DEFAULT NULL,
             token_usage JSON DEFAULT NULL,
             generation_attempts TINYINT UNSIGNED DEFAULT 1,
+            cycle_id BIGINT(20) UNSIGNED DEFAULT NULL,
+            cycle_week TINYINT UNSIGNED DEFAULT NULL,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             delivered_at DATETIME DEFAULT NULL,
             deleted_at DATETIME DEFAULT NULL,
@@ -2371,12 +2413,36 @@ class HDLV2_Activator {
             action_index INT UNSIGNED DEFAULT 0,
             ticked BOOLEAN DEFAULT FALSE,
             ticked_at DATETIME DEFAULT NULL,
+            ticked_late TINYINT(1) DEFAULT NULL,
+            ticked_by BIGINT(20) UNSIGNED DEFAULT NULL,
             deleted_at DATETIME DEFAULT NULL,
             deleted_by BIGINT(20) UNSIGNED DEFAULT NULL,
             PRIMARY KEY (id),
             KEY idx_plan (flight_plan_id),
             KEY idx_client (client_id),
             KEY idx_deleted_at (deleted_at)
+        ) $charset_collate;";
+
+        // v0.49.01 (plan 14 C2, Phase AR) — the six-week Flight Plan: one row per block of six weeks.
+        $table_cycles = $wpdb->prefix . 'hdlv2_flight_cycles';
+        $sql_cycles = "CREATE TABLE $table_cycles (
+            id BIGINT(20) UNSIGNED NOT NULL AUTO_INCREMENT,
+            client_id BIGINT(20) UNSIGNED NOT NULL,
+            practitioner_id BIGINT(20) UNSIGNED NOT NULL,
+            form_progress_id BIGINT(20) UNSIGNED NOT NULL,
+            cycle_number SMALLINT UNSIGNED NOT NULL,
+            start_week DATE NOT NULL,
+            end_date DATE NOT NULL,
+            outline TEXT DEFAULT NULL,
+            outline_at DATETIME DEFAULT NULL,
+            review TEXT DEFAULT NULL,
+            review_at DATETIME DEFAULT NULL,
+            status ENUM('active','review_due','paused','closed') NOT NULL DEFAULT 'active',
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            closed_at DATETIME DEFAULT NULL,
+            PRIMARY KEY (id),
+            UNIQUE KEY client_cycle (client_id, cycle_number),
+            KEY form_progress_id (form_progress_id)
         ) $charset_collate;";
 
         // Sprint 1 (verification flow): Pending leads — submissions awaiting email confirmation.
@@ -2715,5 +2781,6 @@ class HDLV2_Activator {
         dbDelta( $sql_challenge );
         dbDelta( $sql_links );
         dbDelta( $sql_packs );
+        dbDelta( $sql_cycles );
     }
 }
