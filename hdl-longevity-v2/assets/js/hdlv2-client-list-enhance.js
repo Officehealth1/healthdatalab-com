@@ -2257,16 +2257,54 @@
     slot.innerHTML = '<div class="cdp-products" aria-hidden="true">'
       + new Array(6).join('<span class="hdlv2-skel cdp-skel-tile"></span>') + '</div>';
     panel.insertBefore(slot, panel.firstChild);
-    fetch(CFG.api_base + '/dashboard/client/' + encodeURIComponent(c.user_id) + '/products', {
-      headers: { 'X-WP-Nonce': CFG.nonce }, credentials: 'same-origin', cache: 'no-store'
-    })
-      .then(function (r) { return r.ok ? r.json() : null; })
-      .then(function (j) {
-        if (!j || !j.products_html) { slot.remove(); return; }
-        slot.innerHTML = j.products_html;
-        slot.removeAttribute('aria-busy');
+    function load() {
+      fetch(CFG.api_base + '/dashboard/client/' + encodeURIComponent(c.user_id) + '/products', {
+        headers: { 'X-WP-Nonce': CFG.nonce }, credentials: 'same-origin', cache: 'no-store'
       })
-      .catch(function () { slot.remove(); });
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (j) {
+          if (!j || !j.products_html) { slot.remove(); return; }
+          slot.innerHTML = j.products_html;
+          slot.removeAttribute('aria-busy');
+          bindTimelineGrant(slot, load);
+        })
+        .catch(function () { slot.remove(); });
+    }
+    load();
+  }
+
+  // v0.49.00 (plan 14 A4) — the Timeline grant under the client's tiles (server-built, only with
+  // hdlv2_ff_access_gate on). Two steps on the page: the button asks, "Yes, …" sends, "Cancel" puts it
+  // back. On success the tiles are fetched again, so the Timeline tile and the control show the new state.
+  function bindTimelineGrant(slot, reload) {
+    var box = slot.querySelector('.hdlv2-tl-grant');
+    if (!box) return;
+    var btn = box.querySelector('[data-tl-grant]');
+    var line = box.querySelector('.hdlv2-tl-grant-line');
+    var action = btn.getAttribute('data-tl-grant');
+    btn.addEventListener('click', function () {
+      var ask = document.createElement('span');
+      ask.className = 'hdlv2-tl-grant-ask';
+      ask.innerHTML = '<button type="button" class="hdlv2-tl-grant-btn is-yes">' + (action === 'give' ? 'Yes, give access' : 'Yes, take it back') + '</button>'
+        + '<button type="button" class="hdlv2-tl-grant-btn is-cancel">Cancel</button>';
+      btn.hidden = true;
+      box.appendChild(ask);
+      var yes = ask.querySelector('.is-yes');
+      yes.focus();
+      ask.querySelector('.is-cancel').addEventListener('click', function () { ask.remove(); btn.hidden = false; btn.focus(); });
+      yes.addEventListener('click', function () {
+        yes.disabled = true;
+        line.textContent = 'Saving\u2026';
+        fetch(CFG.api_base + '/timeline-access/' + action, {
+          method: 'POST', credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': CFG.nonce },
+          body: JSON.stringify({ progress_id: parseInt(box.getAttribute('data-progress-id'), 10) })
+        })
+          .then(function (r) { if (!r.ok) throw new Error(String(r.status)); return r.json(); })
+          .then(function () { reload(); })
+          .catch(function () { line.textContent = 'Could not save. Try again.'; ask.remove(); btn.hidden = false; btn.focus(); });
+      });
+    });
   }
 
   // v0.41.19 — single source of truth for tab markup. The status arg is one
@@ -4554,6 +4592,16 @@
       '.hdlv2-aq-selectall input, .hdlv2-aq-check { width:16px; height:16px; margin:0; accent-color:#3d8da0; cursor:pointer; }',
       '.hdlv2-aq-btn-bulk { padding:5px 11px; font-size:12px; border:1px solid #3d8da0; background:#3d8da0; color:#fff; border-radius:999px; cursor:pointer; font-weight:600; font-family:inherit; line-height:1.3; }',
       '.hdlv2-aq-btn-bulk:disabled { opacity:0.5; cursor:default; }',
+      // v0.49.00 (plan 14 A4) — the Timeline grant control under the client's tiles.
+      '.hdlv2-tl-grant { display:flex; flex-wrap:wrap; align-items:center; gap:8px 12px; margin:10px 0 16px; font-family: Inter, -apple-system, sans-serif; }',
+      '.hdlv2-tl-grant-line { margin:0; font-size:13px; color:#2c3e50; }',
+      '.hdlv2-tl-grant-ask { display:inline-flex; flex-wrap:wrap; gap:8px; }',
+      '.hdlv2-tl-grant-btn { min-height:32px; padding:6px 14px; font-size:13px; border:1px solid #3d8da0; background:#fff; color:#3d8da0; border-radius:999px; cursor:pointer; font-weight:600; font-family:inherit; line-height:1.3; }',
+      '.hdlv2-tl-grant-btn:hover { border-color:#004F59; color:#004F59; }',
+      '.hdlv2-tl-grant-btn.is-yes { background:#3d8da0; color:#fff; }',
+      '.hdlv2-tl-grant-btn.is-yes:hover { background:#004F59; border-color:#004F59; color:#fff; }',
+      '.hdlv2-tl-grant-btn:focus-visible { outline:2px solid #3d8da0; outline-offset:2px; }',
+      '.hdlv2-tl-grant-btn:disabled { opacity:0.5; cursor:default; }',
       // v0.48.16 — Reject selected / Cancel wear the single Reject's colours; the inline question line.
       // Scoped under the banner: its outline-pill rule (.hdlv2-aq-banner .hdlv2-aq-btn) is more specific than a bare class.
       '.hdlv2-aq-banner .hdlv2-aq-btn.hdlv2-aq-btn-bulk { background:#3d8da0; color:#fff; border-color:#3d8da0; }',

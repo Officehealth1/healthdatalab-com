@@ -49,6 +49,7 @@ class FakeWpdb {
     public function get_var( $q ) {
         if ( preg_match( "/COLUMN_NAME = '(pack_id|seat_invite_id|timeline_paid_ref)'/", $q ) ) return '1'; // Phase AN (v3.33) and AO (v3.34): create_tables() added them first
         if ( preg_match( "/COLUMN_NAME = 'health_(analysis|analysis_at|note|note_approved_at|note_approved_by)'/", $q ) ) return '1'; // Phase AP (v3.35): modelled as done; its own tests are in tests/health-analysis/
+        if ( preg_match( "/COLUMN_NAME = 'timeline_(granted_by|granted_at|grant_revoked_at)'/", $q ) ) return '1'; // Phase AQ (v3.36): modelled as done; its own tests are in tests/access/
         if ( false !== strpos( $q, 'COLUMN_TYPE' ) ) return $this->source_type;
         if ( false !== strpos( $q, 'INFORMATION_SCHEMA.STATISTICS' ) ) return $this->has_ref_key ? '1' : '0';
         if ( false !== strpos( $q, 'INFORMATION_SCHEMA.TABLES' ) ) return '1'; // Phase AL (v3.31): dbDelta made hdlv2_challenge_days
@@ -132,7 +133,7 @@ ok( '14.23 failed ALTER → run_migrations returns false (retries next boot)', f
 $src = file_get_contents( dirname( __DIR__, 2 ) . '/includes/class-hdlv2-activator.php' );
 ok( '14.24 fresh installs get the column too (CREATE TABLE)', 1 === preg_match( "/CREATE TABLE \\\$table_widget \\([^;]*ticket_page_url VARCHAR\\(500\\) NOT NULL DEFAULT ''/s", $src ) );
 $loader = file_get_contents( dirname( __DIR__, 2 ) . '/hdl-longevity-v2.php' );
-ok( '14.25 loader constant is 3.35 (v0.48.98)', false !== strpos( $loader, "define( 'HDLV2_DB_VERSION', '3.35' );" ) );
+ok( '14.25 loader constant is 3.36 (v0.49.00)', false !== strpos( $loader, "define( 'HDLV2_DB_VERSION', '3.36' );" ) );
 
 echo "\nPASS=$pass FAIL=$fail\n";
 exit( $fail ? 1 : 0 );

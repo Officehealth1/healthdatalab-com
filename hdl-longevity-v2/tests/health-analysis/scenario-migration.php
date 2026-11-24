@@ -26,6 +26,7 @@ class FakeWpdb {
     public function prepare( $q, ...$args ) { foreach ( $args as $a ) { $q = preg_replace( '/%[sd]/', is_int( $a ) ? (string) $a : "'" . $a . "'", $q, 1 ); } return $q; }
     public function get_charset_collate() { return ''; }
     public function get_var( $q ) {
+        if ( preg_match( "/COLUMN_NAME = 'timeline_(granted_by|granted_at|grant_revoked_at)'/", $q ) ) return '1'; // Phase AQ (v3.36): modelled as done; its own tests are in tests/access/
         if ( false !== strpos( $q, 'INFORMATION_SCHEMA.COLUMNS' ) && preg_match( "/COLUMN_NAME = '(\w+)'/", $q, $m ) ) return in_array( $m[1], $this->cols, true ) ? '1' : '0';
         return '0';
     }
@@ -78,7 +79,7 @@ ok( 'M.7 fresh installs: the CREATE TABLE text carries the five columns', $ddl &
 
 $loader = file_get_contents( dirname( __DIR__, 2 ) . '/hdl-longevity-v2.php' );
 preg_match( "/define\\( 'HDLV2_VERSION', '([0-9.]+)' \\);/", $loader, $v ); preg_match( '/\\* Version: ([0-9.]+)/', $loader, $h ); preg_match( "/define\\( 'HDLV2_DB_VERSION', '([0-9.]+)' \\);/", $loader, $d );
-ok( 'M.8 loader: header == constant == 0.48.98, DB 3.35', ( $v[1] ?? '' ) === '0.48.98' && ( $h[1] ?? '' ) === '0.48.98' && ( $d[1] ?? '' ) === '3.35' );
+ok( 'M.8 loader: header == constant, DB 3.35 or later (0.49.00 moved it to 3.36, plan 14)', ( $v[1] ?? '' ) === ( $h[1] ?? '-' ) && version_compare( $v[1] ?? '0', '0.48.98', '>=' ) && version_compare( $d[1] ?? '0', '3.35', '>=' ) );
 ok( 'M.9 the loader loads the new class', false !== strpos( $loader, "require_once HDLV2_PLUGIN_DIR . 'includes/sprint-2c/class-hdlv2-health-analysis.php';" ) );
 
 echo "\nPASS=$pass FAIL=$fail\n";

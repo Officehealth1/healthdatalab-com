@@ -1969,6 +1969,35 @@ class HDLV2_Activator {
             error_log( '[HDLV2] Phase AP (v3.35) migration: consultation_notes health analysis columns verified.' );
         }
 
+        // Phase AQ (DB v3.36) — the Timeline grant (v0.49.00, plan 14 A4): form_progress gains who gave the
+        // Timeline without the $10, when, and when it was taken back. Three nullable columns, each added and
+        // verified; no old row is written. Additive.
+        if ( version_compare( $current_db_version, '3.36', '<' ) ) {
+            $fp_table = $p . 'hdlv2_form_progress';
+            $has_col  = function ( $col ) use ( $wpdb, $fp_table ) {
+                return (int) $wpdb->get_var( $wpdb->prepare(
+                    "SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+                     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s AND COLUMN_NAME = %s",
+                    $fp_table, $col
+                ) ) > 0;
+            };
+            $columns = array(
+                'timeline_granted_by'       => 'BIGINT(20) UNSIGNED DEFAULT NULL',
+                'timeline_granted_at'       => 'DATETIME DEFAULT NULL',
+                'timeline_grant_revoked_at' => 'DATETIME DEFAULT NULL',
+            );
+            foreach ( $columns as $col => $definition ) {
+                if ( ! $has_col( $col ) ) {
+                    $wpdb->query( "ALTER TABLE `$fp_table` ADD COLUMN $col $definition" );
+                    if ( $wpdb->last_error || ! $has_col( $col ) ) {
+                        error_log( "[HDLV2] Phase AQ (v3.36) FAILED: ADD $col — " . $wpdb->last_error . ' — will retry next boot.' );
+                        return false;
+                    }
+                }
+            }
+            error_log( '[HDLV2] Phase AQ (v3.36) migration: form_progress Timeline grant columns verified.' );
+        }
+
         return true;
     }
 
@@ -2128,6 +2157,9 @@ class HDLV2_Activator {
             flags_scanned_at DATETIME DEFAULT NULL,
             flags_scan_status VARCHAR(20) DEFAULT NULL,
             source ENUM('practitioner','automation') NOT NULL DEFAULT 'practitioner',
+            timeline_granted_by BIGINT(20) UNSIGNED DEFAULT NULL,
+            timeline_granted_at DATETIME DEFAULT NULL,
+            timeline_grant_revoked_at DATETIME DEFAULT NULL,
             PRIMARY KEY (id),
             UNIQUE KEY token (token),
             KEY client_user_id (client_user_id),

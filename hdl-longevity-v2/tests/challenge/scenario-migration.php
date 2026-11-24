@@ -42,6 +42,7 @@ class FakeWpdb {
     public function get_var( $q ) {
         if ( false !== strpos( $q, "COLUMN_NAME = 'timeline_paid_ref'" ) ) return '1'; // Phase AO (v3.34): modelled as done; its own tests are in tests/timeline-upgrade/
         if ( preg_match( "/COLUMN_NAME = 'health_(analysis|analysis_at|note|note_approved_at|note_approved_by)'/", $q ) ) return '1'; // Phase AP (v3.35): modelled as done; its own tests are in tests/health-analysis/
+        if ( preg_match( "/COLUMN_NAME = 'timeline_(granted_by|granted_at|grant_revoked_at)'/", $q ) ) return '1'; // Phase AQ (v3.36): modelled as done; its own tests are in tests/access/
         if ( preg_match( "/COLUMN_NAME = '(pack_id|seat_invite_id)'/", $q ) ) return '1'; // Phase AN (v3.33): create_tables() added them first
         if ( false !== strpos( $q, 'COLUMN_TYPE' ) ) return $this->source_type;
         if ( false !== strpos( $q, 'INFORMATION_SCHEMA.TABLES' ) && preg_match( "/TABLE_NAME = '(\w+)'/", $q, $m ) ) {

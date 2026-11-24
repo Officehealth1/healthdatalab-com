@@ -61,7 +61,9 @@ class HDLV2_Timeline_Upgrade {
                 return true;
             }
         }
-        return ! $tickets;
+        // v0.49.00 (plan 14 A4) — or the practitioner (or an admin) gave it: HDLV2_Access::decide()'s
+        // Timeline row (hdlv2_ff_access_gate; off = a stored grant counts for nothing).
+        return ! $tickets || ( class_exists( 'HDLV2_Access' ) && HDLV2_Access::timeline_granted( $row ) );
     }
 
     /**

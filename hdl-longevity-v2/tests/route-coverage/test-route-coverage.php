@@ -108,6 +108,9 @@ $EXPECT = array(
     // v0.48.98 (plan 13) — the health analysis: two Claude calls per press; saving the note is a write.
     'POST /hdl-v2/v1/consultation/health-analysis' => HDLV2_Rate_Limit_Policy::TIER_AI_BURN,
     'POST /hdl-v2/v1/consultation/health-note'     => HDLV2_Rate_Limit_Policy::TIER_WRITE,
+    // v0.49.00 (plan 14 A4) — the Timeline grant: a practitioner's write, give or take back.
+    'POST /hdl-v2/v1/timeline-access/give'         => HDLV2_Rate_Limit_Policy::TIER_WRITE,
+    'POST /hdl-v2/v1/timeline-access/take-back'    => HDLV2_Rate_Limit_Policy::TIER_WRITE,
 );
 foreach ( $EXPECT as $key => $want ) {
     list( $method, $route ) = explode( ' ', $key, 2 );

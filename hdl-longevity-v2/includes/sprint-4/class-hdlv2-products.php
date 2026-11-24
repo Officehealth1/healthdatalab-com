@@ -95,7 +95,9 @@ class HDLV2_Products {
         if ( ! $client_id || ! HDLV2_Compatibility::practitioner_owns_client( get_current_user_id(), $client_id ) ) {
             return new WP_Error( 'not_found', 'No such client.', array( 'status' => 404 ) );
         }
-        return rest_ensure_response( array( 'products_html' => self::render_strip( self::for_client( $client_id ), true ) ) );
+        // v0.49.00 (plan 14 A4) — the Timeline grant control under the strip (hdlv2_ff_access_gate; off = '').
+        return rest_ensure_response( array( 'products_html' => self::render_strip( self::for_client( $client_id ), true )
+            . ( class_exists( 'HDLV2_Access' ) ? HDLV2_Access::grant_control( $client_id ) : '' ) ) );
     }
 
     /**

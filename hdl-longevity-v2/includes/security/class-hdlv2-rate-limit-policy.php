@@ -210,6 +210,8 @@ class HDLV2_Rate_Limit_Policy {
             array( 'POST', '#^/hdl-v2/v1/consultation/milestones-stage-edit$#', self::TIER_WRITE ),
             // v0.48.98 (plan 13) — save or approve the client's health note; a DB write, no AI.
             array( 'POST', '#^/hdl-v2/v1/consultation/health-note$#',           self::TIER_WRITE ),
+            // v0.49.00 (plan 14 A4) — the Timeline grant, give or take back (a practitioner's write).
+            array( 'POST', '#^/hdl-v2/v1/timeline-access/(give|take-back)$#',   self::TIER_WRITE ),
             array( 'POST', '#^/hdl-v2/v1/flight-plan/[0-9]+/edit$#',            self::TIER_WRITE ),
             array( 'POST', '#^/hdl-v2/v1/checkin/submit$#',                     self::TIER_WRITE ),
             // v0.48.23 — the 30-day challenge tick: one INSERT IGNORE, no AI.
