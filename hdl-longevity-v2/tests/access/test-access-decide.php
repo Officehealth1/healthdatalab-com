@@ -52,6 +52,7 @@ check( 'L.3 switch on: an admin may Confirm any lead (scope null)', null === HDL
 check( 'L.4 switch on: a practitioner stays scoped to their own leads', 3 === HDLV2_Access::lead_scope( 3 ) );
 check( 'L.5 switch on: a signed-out caller is scoped to user 0, never "any"', 0 === HDLV2_Access::lead_scope( 0 ) );
 $src = file_get_contents( ac_root() . '/includes/sprint-1/class-hdlv2-widget-config.php' );
-check( 'L.6 the pending list and the single Confirm both ask lead_scope()', 2 === substr_count( $src, 'HDLV2_Access::lead_scope( $user_id )' ) );
+check( 'L.6 the pending list, the single Confirm, the single Reject and the bulk actions all ask lead_scope()', 4 === substr_count( $src, 'HDLV2_Access::lead_scope( $user_id )' ) );
+check( 'L.7 an admin\'s Reject and bulk act for the lead\'s own practitioner, never the admin', false !== strpos( $src, 'self::reject_lead_row( $id, (int) $lead->practitioner_user_id )' ) && false !== strpos( $src, 'self::confirm_lead_row( $lead, (int) $lead->practitioner_user_id, true )' ) );
 
 done();

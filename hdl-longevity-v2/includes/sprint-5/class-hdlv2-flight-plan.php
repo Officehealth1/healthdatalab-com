@@ -2198,6 +2198,7 @@ TODAY: " . date( 'Y-m-d' );
             ) );
             if ( $progress ) $client_id = (int) $progress->client_user_id;
         }
+        $by_link = (bool) $client_id; // v0.49.00 (plan 14): the client's own link, not a typed ?client_id
         // Practitioner viewing a client
         if ( ! $client_id && isset( $_GET['client_id'] ) ) {
             $client_id = absint( $_GET['client_id'] );
@@ -2216,8 +2217,11 @@ TODAY: " . date( 'Y-m-d' );
         }
 
         // v0.49.00 (plan 14 A3) — with the access gate on, a client it locks sees the greyed card. The
-        // owning practitioner and an admin always see the plan page.
-        if ( $client_id && class_exists( 'HDLV2_Access' ) && HDLV2_Access::on() ) {
+        // owning practitioner and an admin always see the plan page. Only the client sees it (their own
+        // link, or signed in as themselves): the card names their practitioner, so a typed ?client_id
+        // keeps today's empty shell (its data calls answer 403 as before).
+        $own_view = $by_link || ( $client_id && (int) get_current_user_id() === (int) $client_id );
+        if ( $client_id && $own_view && class_exists( 'HDLV2_Access' ) && HDLV2_Access::on() ) {
             $gate_row = HDLV2_Access::client_row( $client_id );
             if ( $gate_row && HDLV2_Access::OPEN !== HDLV2_Access::state( $gate_row, 'flight_plan', get_current_user_id() ) ) {
                 wp_enqueue_style( 'hdlv2-form', HDLV2_PLUGIN_URL . 'assets/css/hdlv2-form.css', array( 'hdlv2-loading-css' ), HDLV2_VERSION );

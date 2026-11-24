@@ -2535,11 +2535,14 @@ class HDLV2_Widget_Config {
         $ids = array_keys( $ids );
 
         // Ownership first, for the whole list. The ids are integers.
-        $rows = $wpdb->get_results( $wpdb->prepare(
+        // v0.49.00 (plan 14 A4) — with the access gate on an admin may act on any practitioner's leads; each
+        // lead is then confirmed or rejected for its own practitioner.
+        $scope = class_exists( 'HDLV2_Access' ) ? HDLV2_Access::lead_scope( $user_id ) : $user_id;
+        $owner = null === $scope ? '' : $wpdb->prepare( 'practitioner_user_id = %d AND ', $scope );
+        $rows  = $wpdb->get_results(
             "SELECT * FROM {$wpdb->prefix}hdlv2_widget_leads
-             WHERE practitioner_user_id = %d AND id IN (" . implode( ',', $ids ) . ')',
-            $user_id
-        ) );
+             WHERE {$owner}id IN (" . implode( ',', $ids ) . ')'
+        );
         $by_id = array();
         foreach ( (array) $rows as $row ) {
             $by_id[ (int) $row->id ] = $row;
@@ -2553,7 +2556,7 @@ class HDLV2_Widget_Config {
         foreach ( $ids as $id ) {
             $lead = $by_id[ $id ];
             if ( 'reject' === $action ) {
-                if ( 'pending' !== $lead->status || ! self::reject_lead_row( $id, $user_id ) ) {
+                if ( 'pending' !== $lead->status || ! self::reject_lead_row( $id, (int) $lead->practitioner_user_id ) ) {
                     $out['already'][] = $id; // confirmed, rejected, or actioned since the read
                 } else {
                     $out['rejected'][] = $id;
@@ -2563,7 +2566,7 @@ class HDLV2_Widget_Config {
             } elseif ( 'pending' !== $lead->status ) {
                 $out['failed'][] = array( 'id' => $id, 'code' => 'lead_rejected' );
             } else {
-                $done = self::confirm_lead_row( $lead, $user_id, true );
+                $done = self::confirm_lead_row( $lead, (int) $lead->practitioner_user_id, true );
                 if ( ! $done ) {
                     $out['failed'][] = array( 'id' => $id, 'code' => 'confirm_failed' );
                 } elseif ( $done['already'] ) {
@@ -2649,6 +2652,11 @@ class HDLV2_Widget_Config {
             return new WP_Error( 'missing_lead_id', 'lead_id is required.', array( 'status' => 400 ) );
         }
 
+        // v0.49.00 (plan 14 A4) — with the access gate on an admin may reject any practitioner's lead, for
+        // that practitioner (the update still matches the lead's own owner).
+        if ( null === ( class_exists( 'HDLV2_Access' ) ? HDLV2_Access::lead_scope( $user_id ) : $user_id ) ) {
+            $user_id = (int) $wpdb->get_var( $wpdb->prepare( "SELECT practitioner_user_id FROM {$wpdb->prefix}hdlv2_widget_leads WHERE id = %d", $lead_id ) );
+        }
         if ( ! self::reject_lead_row( $lead_id, $user_id ) ) {
             return new WP_Error( 'lead_not_found', 'Lead not found or already actioned.', array( 'status' => 404 ) );
         }

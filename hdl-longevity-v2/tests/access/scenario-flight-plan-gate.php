@@ -47,6 +47,12 @@ $GLOBALS['current_user'] = 0; $_GET = array( 'token' => $tok['finn'] );
 check( 'F.13 page, Finn: the plan page as today', $ROOT === $fp->render_shortcode( array() ) );
 $GLOBALS['current_user'] = 3; $_GET = array( 'client_id' => 9 );
 check( 'F.14 page, her practitioner viewing Ivy: the plan page (staff), never the card', false === strpos( $fp->render_shortcode( array() ), 'hdlv2-locked-card' ) );
+$GLOBALS['current_user'] = 0; $_GET = array( 'client_id' => 9 );
+check( 'F.14b page, a signed-out visitor typing ?client_id=: today\'s empty shell, never the card (it would name her practitioner)', $ROOT === $fp->render_shortcode( array() ) );
+$GLOBALS['current_user'] = 4;
+check( 'F.14c page, another practitioner typing ?client_id=: today\'s shell, not the card', $ROOT === $fp->render_shortcode( array() ) );
+$GLOBALS['current_user'] = 11;
+check( 'F.14d page, another client typing ?client_id=9 while signed in: today\'s shell, not the card', $ROOT === $fp->render_shortcode( array() ) );
 $GLOBALS['current_user'] = 0; $_GET = array();
 
 $GLOBALS['calls'] = array();
