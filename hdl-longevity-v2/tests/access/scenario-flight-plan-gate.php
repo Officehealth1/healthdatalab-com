@@ -10,7 +10,7 @@
  */
 require __DIR__ . '/stubs.php';
 error_reporting( E_ALL & ~E_DEPRECATED & ~E_WARNING ); // a running plan's view reads columns the fake row leaves out; only the door is under test
-ac_load( array( 'security/class-hdlv2-access.php', 'sprint-5/class-hdlv2-flight-plan.php' ) );
+ac_load( array( 'security/class-hdlv2-access.php', 'sprint-5/class-hdlv2-flight-plan.php', 'sprint-5/class-hdlv2-flight-plan-jobs.php' ) );
 if ( ! class_exists( 'HDLV2_Access' ) ) { check( 'HDLV2_Access exists', false ); done(); }
 $fp  = HDLV2_Flight_Plan::get_instance();
 $tok = array( 'ivy' => str_repeat( 'b', 64 ), 'finn' => str_repeat( 'c', 64 ), 'rosa' => str_repeat( 'd', 64 ) );
@@ -60,6 +60,18 @@ $fp->cron_generate_all();
 check( 'F.15 the weekly cron: nothing started for Ivy (no context built, no generation)', ! in_array( 'context:9', $GLOBALS['calls'], true ) && ! preg_grep( '/client:9$/', $GLOBALS['calls'] ) );
 check( 'F.16 the weekly cron: Finn still reaches generation (his context is built)', in_array( 'context:11', $GLOBALS['calls'], true ) );
 
+// A4: the automatic plan job of a confirmed check-in ('next') asks the door; the practitioner's kinds do not.
+$job = (object) array( 'attempts' => 2, 'max_attempts' => 2 ); // the last attempt: a failure here would alert the practitioner
+$GLOBALS['calls'] = array(); $n = count( $w->writes );
+$r = HDLV2_Flight_Plan_Auto_Jobs::handle( array( 'client_id' => 9, 'target_week' => 'next' ), $job );
+check( 'F.21 the check-in\'s plan job for Ivy (locked): a no-op success, no context, no AI', is_array( $r ) && true === $r['success'] && 0 === $r['plan_id'] && ! in_array( 'context:9', $GLOBALS['calls'], true ) );
+check( 'F.22 ... and no failure alert (nothing written)', count( $w->writes ) === $n );
+function fg_reached( $r ) { return $r instanceof WP_Error && 'no_key' === $r->get_error_code(); } // generate() ran: it stops at the missing AI key in tests
+$r = HDLV2_Flight_Plan_Auto_Jobs::handle( array( 'client_id' => 11, 'target_week' => 'next' ), (object) array( 'attempts' => 1, 'max_attempts' => 2 ) );
+check( 'F.23 the check-in\'s plan job for Finn (final report): goes on to generation', fg_reached( $r ) );
+check( 'F.24 the practitioner\'s manual job for Ivy: not asked, goes on to generation as today', fg_reached( HDLV2_Flight_Plan_Jobs::handle( array( 'client_id' => 9, 'practitioner_id' => 3 ), $job ) ) );
+check( 'F.25 the final report\'s kind (current): not asked, goes on to generation as today', fg_reached( HDLV2_Flight_Plan_Auto_Jobs::handle( array( 'client_id' => 9, 'target_week' => 'current' ), (object) array( 'attempts' => 1, 'max_attempts' => 2 ) ) ) );
+
 // ── Switch absent: today ──
 $w = ac_world(); ac_switch( null );
 check( 'F.17 switch absent, Ivy by her link: current plan goes through (today)', ! is_wp_error( $cur( 9, $tok['ivy'] ) ) );
@@ -70,5 +82,6 @@ $GLOBALS['calls'] = array();
 $fp->cron_generate_all();
 check( 'F.19 switch absent: the cron reaches Ivy as today', in_array( 'context:9', $GLOBALS['calls'], true ) );
 check( 'F.20 switch absent: the gate read nothing (no report query)', ! preg_grep( '/hdlv2_reports/', $w->queries ) );
+check( 'F.26 switch absent: the check-in\'s plan job for Ivy goes on as today', fg_reached( HDLV2_Flight_Plan_Auto_Jobs::handle( array( 'client_id' => 9, 'target_week' => 'next' ), (object) array( 'attempts' => 1, 'max_attempts' => 2 ) ) ) );
 
 done();
