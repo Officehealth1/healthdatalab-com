@@ -146,6 +146,9 @@
           + '</div>'
           + '<div id="hdlv2-notes-status" class="hdlv2-save-status"></div>'
           + '</div>'
+          // v0.49.03 (plan 14 part B) — questions to ask now, beside the notes it reads; only with
+          // hdlv2_ff_live_questions on (the settings then carry live_questions).
+          + (CFG.live_questions ? '<div class="hdlv2-consult-section hdlv2-liveq" id="hdlv2-liveq"></div>' : '')
         ))
 
       // Action wrap — pre-Final shows the textarea-stage button or the
@@ -175,6 +178,7 @@
     bindRefreshBrief();
     bindBriefAutoSaveListeners();   // v0.33.1 — Brief is now inline-editable
     if (CFG.health_analysis) mountHealth(data.health_analysis || {});
+    if (CFG.live_questions) mountLiveQuestions();
     bindAddendumForm();
 
     // v0.22.7 — Mount the SAME premium draft-report renderer the client
@@ -222,8 +226,9 @@
         useAsIsOnly: true,
         // v0.17.0 — uploaded files go server-side via Deepgram instead of
         // browser Whisper. Required because a 1-hour consultation recording
-        // would hit the 120s browser-Whisper timeout. Live recording
-        // (via mic) is unaffected — it still uses the browser Speech API.
+        // would hit the 120s browser-Whisper timeout. v0.49.03: live recording
+        // (via mic) also goes to our own server after each stop; the browser's
+        // speech service has been off since 2026-07-15 (Matthew's sign-off).
         asyncUpload: true,
         // v0.47.2 — clinical dictation pauses are long; auto-stop only after
         // 30s of real acoustic silence (audio-driven, never cuts off speech).
@@ -1181,6 +1186,87 @@
       });
     });
   }
+
+  // ── QUESTIONS TO ASK NOW (v0.49.03, plan 14 part B; hdlv2_ff_live_questions) ──
+  //   One press sends the notes box as it is (what was typed and every recording already stopped) and
+  //   gets up to five questions back, each with why, a red flag first. No speech or microphone code
+  //   here: the recorder above is the only listener. Nothing is stored; the questions shown in this
+  //   visit go back as `asked` so none repeats.
+  var liveAsked = [];
+  var liveBusyTimer = null;
+
+  function liveCard() {
+    return '<h4>Questions to ask now</h4>'
+      + '<div class="hdlv2-health-actions"><button type="button" id="hdlv2-liveq-ask" class="hdlv2-btn-secondary">Suggest questions</button></div>'
+      + '<p class="hdlv2-consult-hint">Uses your notes and every recording you have stopped.</p>'
+      + '<p id="hdlv2-liveq-busy" class="hdlv2-consult-hint" role="status" hidden>Stop the recording to include what was just said.</p>'
+      + '<p id="hdlv2-liveq-error" class="hdlv2-health-error" role="alert"></p>'
+      + '<div id="hdlv2-liveq-body" class="hdlv2-liveq-body" aria-live="polite"></div>';
+  }
+
+  function mountLiveQuestions() {
+    var box = document.getElementById('hdlv2-liveq');
+    if (!box || !document.getElementById('hdlv2-consult-notes')) return;
+    box.innerHTML = liveCard();
+    document.getElementById('hdlv2-liveq-ask').addEventListener('click', askLiveQuestions);
+    if (liveBusyTimer) clearTimeout(liveBusyTimer); // one check at a time, even after a redraw
+    liveBusy();
+  }
+
+  // The second line shows only while the recorder records or a stopped take is still being turned into text.
+  // Checked each second; the check stops itself once the card is gone (no interval left running).
+  function liveBusy() {
+    var hint = document.getElementById('hdlv2-liveq-busy');
+    if (!hint) { liveBusyTimer = null; return; }
+    hint.hidden = !(state.consultAudio && typeof state.consultAudio.isBusy === 'function' && state.consultAudio.isBusy());
+    liveBusyTimer = setTimeout(liveBusy, 1000);
+  }
+
+  // The answer as text: the red flag first, then each question with its why.
+  function liveList(res) {
+    var html = res.red_flag ? '<p class="hdlv2-liveq-flag"><strong>Red flag:</strong> ' + esc(res.red_flag) + '</p>' : '';
+    if (res.questions.length) {
+      html += '<ol class="hdlv2-liveq-list">' + res.questions.map(function (q) {
+        return '<li><span class="hdlv2-liveq-q">' + esc(q.question) + '</span>'
+          + (q.why ? '<span class="hdlv2-liveq-why">Why: ' + esc(q.why) + '</span>' : '') + '</li>';
+      }).join('') + '</ol>';
+    } else if (!res.red_flag) {
+      html += '<p class="hdlv2-consult-hint">Nothing to add yet.</p>';
+    }
+    return html;
+  }
+
+  function askLiveQuestions() {
+    var btn = document.getElementById('hdlv2-liveq-ask');
+    var body = document.getElementById('hdlv2-liveq-body');
+    var err = document.getElementById('hdlv2-liveq-error');
+    var notes = document.getElementById('hdlv2-consult-notes');
+    var before = body.innerHTML;
+    btn.disabled = true;
+    err.textContent = '';
+    body.innerHTML = HDLV2Loading.skeleton('brief');
+    var key = (window.hdlv2RateLimit && window.hdlv2RateLimit.idempotencyKey)
+      ? window.hdlv2RateLimit.idempotencyKey()
+      : 'lq-' + state.progressId + '-' + Date.now();
+    fetch(CFG.api_base + '/live-questions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': CFG.nonce, 'Idempotency-Key': key },
+      body: JSON.stringify({ progress_id: state.progressId, heard: notes ? notes.value : '', asked: liveAsked })
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (res) {
+        if (!res || !Array.isArray(res.questions)) throw res;
+        body.innerHTML = liveList(res);
+        res.questions.forEach(function (q) { liveAsked.push(q.question); });
+        btn.disabled = false;
+      })
+      .catch(function () {
+        body.innerHTML = before;
+        btn.disabled = false;
+        err.textContent = 'Could not get questions. Try again.';
+      });
+  }
+  // ── END QUESTIONS TO ASK NOW ──
 
   // ── HEALTH ANALYSIS (v0.48.98, plan 13; hdlv2_ff_health_analysis) ──
   //   One press writes both texts with Matthew's two prompts: a case analysis for the practitioner

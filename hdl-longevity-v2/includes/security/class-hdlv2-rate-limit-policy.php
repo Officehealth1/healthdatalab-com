@@ -140,6 +140,8 @@ class HDLV2_Rate_Limit_Policy {
             array( 'POST', '#^/hdl-v2/v1/consultation/save-and-update-plan$#',  self::TIER_AI_BURN ),
             // v0.48.98 (plan 13) — the health analysis: two Claude calls per press (prompt 1, then prompt 2).
             array( 'POST', '#^/hdl-v2/v1/consultation/health-analysis$#',       self::TIER_AI_BURN ),
+            // v0.49.03 (plan 14 part B) — questions to ask now: one Claude call per press.
+            array( 'POST', '#^/hdl-v2/v1/consultation/live-questions$#',        self::TIER_AI_BURN ),
             array( 'POST', '#^/hdl-v2/v1/flight-plan/[0-9]+/generate$#',        self::TIER_AI_BURN ),
             array( 'GET',  '#^/hdl-v2/v1/flight-notes/pdf$#',                   self::TIER_AI_BURN ),
 
