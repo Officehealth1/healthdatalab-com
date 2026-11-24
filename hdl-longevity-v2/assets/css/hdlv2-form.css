@@ -2772,3 +2772,13 @@
 .hdlv2-units-opt.is-on { background: #3d8da0; color: #fff; }
 .hdlv2-units-opt:focus-visible { outline: 2px solid #3d8da0; outline-offset: 2px; }
 .hdlv2-units-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+
+/* v0.49.00 (plan 14 A3) — the greyed card a locked section shows (HDLV2_Access::card()). */
+.hdlv2-locked-card { max-width: 560px; margin: 60px auto; padding: 36px 32px; background: #f8f9fb; border: 1px solid #e4e6ea; border-radius: 14px; text-align: center; font-family: Inter, -apple-system, sans-serif; }
+.hdlv2-locked-head { display: inline-flex; align-items: center; gap: 8px; margin: 0 0 10px; font-family: Poppins, Inter, sans-serif; font-size: 20px; font-weight: 600; color: #2c3e50; }
+.hdlv2-locked-head svg { width: 16px; height: 16px; color: #888; flex: none; }
+.hdlv2-locked-line { margin: 0 0 24px; font-size: 15px; line-height: 1.5; color: #2c3e50; }
+.hdlv2-locked-btn { display: inline-block; background: #3d8da0; color: #fff; padding: 11px 24px; border-radius: 48px; font-size: 14px; font-weight: 600; text-decoration: none; font-family: Poppins, Inter, sans-serif; }
+.hdlv2-locked-btn:hover { background: #004F59; color: #fff; }
+.hdlv2-locked-btn:focus-visible { outline: 2px solid #004F59; outline-offset: 3px; }
+@media (max-width: 480px) { .hdlv2-locked-card { margin: 32px 16px; padding: 28px 20px; } }

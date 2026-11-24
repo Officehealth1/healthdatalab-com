@@ -3,7 +3,7 @@
  * Plugin Name: HDL Longevity V2 — Staged Workflow
  * Plugin URI: https://healthdatalab.net
  * Description: V2 longevity workflow: staged intake, WHY profiling, practitioner consultations, weekly flight plans, and AI coaching. Runs alongside the existing Health Data Lab plugin.
- * Version: 0.48.98
+ * Version: 0.49.00
  * Author: Health Data Lab
  * Author URI: https://healthdatalab.net
  * License: Proprietary
@@ -22,8 +22,8 @@ if ( ! defined( 'ABSPATH' ) ) {
 // register_activation_hook callbacks, which fire synchronously during
 // `wp plugin activate`, can reference them. The activator needs
 // HDLV2_DB_VERSION / HDLV2_VERSION at call time to update version options.
-define( 'HDLV2_VERSION', '0.48.98' );
-define( 'HDLV2_DB_VERSION', '3.35' );
+define( 'HDLV2_VERSION', '0.49.00' );
+define( 'HDLV2_DB_VERSION', '3.36' );
 
 // Client funnel token (hdlv2_form_progress.token) lifetime. FIXED window
 // from issuance: set when the token is created and refreshed ONLY when the
@@ -938,6 +938,8 @@ final class HDL_Longevity_V2 {
         require_once HDLV2_PLUGIN_DIR . 'includes/security/class-hdlv2-rate-limit-middleware.php';
         require_once HDLV2_PLUGIN_DIR . 'includes/security/class-hdlv2-rate-limit-status.php';
         require_once HDLV2_PLUGIN_DIR . 'includes/security/class-hdlv2-idempotency.php';
+        // v0.49.00 (plan 14 A) — one door check for the paid sections (hdlv2_ff_access_gate; absent = off).
+        require_once HDLV2_PLUGIN_DIR . 'includes/security/class-hdlv2-access.php';
         require_once HDLV2_PLUGIN_DIR . 'includes/security/class-hdlv2-webhook-monitor.php';
         // B.5 — class-hdlv2-webhook-retry.php removed (dead code; see init() note).
         // v0.41.26 (W4) — Altituding Stripe → HDL automation tier endpoint.

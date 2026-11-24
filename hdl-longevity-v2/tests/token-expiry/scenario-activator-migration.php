@@ -62,6 +62,7 @@ class FakeWpdb {
     public function get_var( $q ) {
         if ( preg_match( "/COLUMN_NAME = '(pack_id|seat_invite_id|timeline_paid_ref)'/", $q ) ) return '1'; // Phase AN (v3.33) and AO (v3.34): create_tables() added them first
         if ( preg_match( "/COLUMN_NAME = 'health_(analysis|analysis_at|note|note_approved_at|note_approved_by)'/", $q ) ) return '1'; // Phase AP (v3.35): modelled as done; its own tests are in tests/health-analysis/
+        if ( preg_match( "/COLUMN_NAME = 'timeline_(granted_by|granted_at|grant_revoked_at)'/", $q ) ) return '1'; // Phase AQ (v3.36): modelled as done; its own tests are in tests/access/
         $this->queries[] = $q;
         if ( false !== stripos( $q, 'GET_LOCK' ) ) {
             return $this->lock_granted ? '1' : '0';

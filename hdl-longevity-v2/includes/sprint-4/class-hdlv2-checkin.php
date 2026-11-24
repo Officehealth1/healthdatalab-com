@@ -518,6 +518,20 @@ class HDLV2_Checkin {
                  . '</div>';
         }
 
+        // v0.49.00 (plan 14 A3) — with the access gate on, a client it locks sees the greyed card instead
+        // of the form. An unknown or expired link keeps today's path (the routes answer it).
+        if ( class_exists( 'HDLV2_Access' ) && HDLV2_Access::on() ) {
+            global $wpdb;
+            $gate_row = $wpdb->get_row( $wpdb->prepare(
+                "SELECT id, client_user_id, practitioner_user_id FROM {$wpdb->prefix}hdlv2_form_progress
+                 WHERE token = %s AND deleted_at IS NULL AND token_expires_at > UTC_TIMESTAMP() LIMIT 1",
+                $effective_token
+            ) );
+            if ( $gate_row && HDLV2_Access::OPEN !== HDLV2_Access::state( $gate_row, 'checkin', get_current_user_id() ) ) {
+                return HDLV2_Access::card( 'checkin', $gate_row );
+            }
+        }
+
         // Flight-plan page slug is configurable via filter so sites that rename
         // the page still get a working "View your Flight Plan" link post-confirm.
         $flight_plan_slug = apply_filters( 'hdlv2_flight_plan_slug', 'my-flight-plan' );
@@ -769,6 +783,13 @@ class HDLV2_Checkin {
         ) );
         if ( ! $progress ) {
             return new WP_Error( 'not_found', 'Assessment not found.', array( 'status' => 404 ) );
+        }
+        // v0.49.00 (plan 14 A2) — the access gate (hdlv2_ff_access_gate; off = nothing read): a client with
+        // no final report and no plan yet gets 403 `locked` on every check-in route, so nothing is stored
+        // and a check-in never starts a plan for them.
+        $locked = class_exists( 'HDLV2_Access' ) ? HDLV2_Access::door( $progress, 'checkin', get_current_user_id() ) : null;
+        if ( $locked ) {
+            return $locked;
         }
         return $progress;
     }

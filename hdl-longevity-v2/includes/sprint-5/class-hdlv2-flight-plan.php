@@ -148,7 +148,10 @@ class HDLV2_Flight_Plan {
         // separate path above. Same row, same source of truth — practitioner
         // sees ticks the moment the client sets them, and vice versa.
         if ( $user_id && $client_id && (int) $user_id === (int) $client_id ) {
-            return true;
+            // v0.49.00 (plan 14 A2) — the access gate (off = nothing read): no plan yet and no final
+            // report → 403 `locked`.
+            $locked = class_exists( 'HDLV2_Access' ) ? HDLV2_Access::client_door( $client_id, 'flight_plan', $user_id ) : null;
+            return $locked ? $locked : true;
         }
 
         // Token-based client auth
@@ -179,6 +182,12 @@ class HDLV2_Flight_Plan {
         // If client_id provided, verify ownership
         if ( $client_id && (int) $progress->client_user_id !== (int) $client_id ) {
             return new WP_Error( 'forbidden', 'Access denied.', array( 'status' => 403 ) );
+        }
+
+        // v0.49.00 (plan 14 A2) — the access gate, as for the signed-in client above.
+        $locked = class_exists( 'HDLV2_Access' ) ? HDLV2_Access::client_door( (int) $progress->client_user_id, 'flight_plan', $user_id ) : null;
+        if ( $locked ) {
+            return $locked;
         }
 
         return $progress;
@@ -2080,6 +2089,10 @@ TODAY: " . date( 'Y-m-d' );
             ) );
             if ( $existing ) continue;
 
+            // v0.49.00 (plan 14 A2) — the access gate (off = nothing read): no plan is started for a client
+            // it locks (no final report and no plan yet).
+            if ( class_exists( 'HDLV2_Access' ) && HDLV2_Access::client_door( (int) $c->client_user_id, 'flight_plan' ) ) continue;
+
             // v0.31.0 — R7: zero-engagement gating. If the client hasn't
             // ticked anything AND hasn't checked in for 14 days, generating
             // another plan produces "stale shelfware" — the AI has no
@@ -2199,6 +2212,16 @@ TODAY: " . date( 'Y-m-d' );
             $uid = get_current_user_id();
             if ( $uid && ! HDLV2_Compatibility::is_practitioner( $uid ) ) {
                 $client_id = (int) $uid;
+            }
+        }
+
+        // v0.49.00 (plan 14 A3) — with the access gate on, a client it locks sees the greyed card. The
+        // owning practitioner and an admin always see the plan page.
+        if ( $client_id && class_exists( 'HDLV2_Access' ) && HDLV2_Access::on() ) {
+            $gate_row = HDLV2_Access::client_row( $client_id );
+            if ( $gate_row && HDLV2_Access::OPEN !== HDLV2_Access::state( $gate_row, 'flight_plan', get_current_user_id() ) ) {
+                wp_enqueue_style( 'hdlv2-form', HDLV2_PLUGIN_URL . 'assets/css/hdlv2-form.css', array( 'hdlv2-loading-css' ), HDLV2_VERSION );
+                return HDLV2_Access::card( 'flight_plan', $gate_row );
             }
         }
 

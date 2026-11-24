@@ -2217,16 +2217,19 @@ class HDLV2_Widget_Config {
     public function rest_list_pending_leads( $request ) {
         global $wpdb;
         $user_id = get_current_user_id();
+        // v0.49.00 (plan 14 A4) — with the access gate on, an admin sees every practitioner's pending leads
+        // (null scope); everyone else, as before, their own.
+        $scope = class_exists( 'HDLV2_Access' ) ? HDLV2_Access::lead_scope( $user_id ) : $user_id;
+        $owner = null === $scope ? '' : $wpdb->prepare( 'practitioner_user_id = %d AND ', $scope );
 
-        $rows = $wpdb->get_results( $wpdb->prepare(
+        $rows = $wpdb->get_results(
             "SELECT id, visitor_name, visitor_email, visitor_age, rate_of_ageing,
                     stage1_data, created_at, visitor_country, visitor_region
              FROM {$wpdb->prefix}hdlv2_widget_leads
-             WHERE practitioner_user_id = %d AND status = 'pending'
+             WHERE {$owner}status = 'pending'
              ORDER BY created_at DESC
-             LIMIT 50",
-            $user_id
-        ) );
+             LIMIT 50"
+        );
 
         // F3 (0.47.45) — whitelist of Stage-1 answer fields surfaced in the
         // main-list "Pending confirmation" dropdown. Only the 9 questionnaire
@@ -2317,14 +2320,20 @@ class HDLV2_Widget_Config {
 
         // IDOR check baked into the WHERE clause: a different practitioner's
         // lead_id returns null → 404, no information leaked.
-        $lead = $wpdb->get_row( $wpdb->prepare(
-            "SELECT * FROM {$wpdb->prefix}hdlv2_widget_leads
-             WHERE id = %d AND practitioner_user_id = %d LIMIT 1",
-            $lead_id, $user_id
-        ) );
+        // v0.49.00 (plan 14 A4) — with the access gate on an admin may Confirm any practitioner's lead; the
+        // client is still made for the lead's own practitioner ($user_id below becomes that owner).
+        $scope = class_exists( 'HDLV2_Access' ) ? HDLV2_Access::lead_scope( $user_id ) : $user_id;
+        $lead  = null === $scope
+            ? $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$wpdb->prefix}hdlv2_widget_leads WHERE id = %d LIMIT 1", $lead_id ) )
+            : $wpdb->get_row( $wpdb->prepare(
+                "SELECT * FROM {$wpdb->prefix}hdlv2_widget_leads
+                 WHERE id = %d AND practitioner_user_id = %d LIMIT 1",
+                $lead_id, $scope
+            ) );
         if ( ! $lead ) {
             return new WP_Error( 'lead_not_found', 'Lead not found.', array( 'status' => 404 ) );
         }
+        $user_id = (int) $lead->practitioner_user_id;
 
         // Idempotency — already confirmed: return existing token, no side
         // effects. Looking up form_progress by (email, practitioner) avoids
