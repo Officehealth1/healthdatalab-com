@@ -1021,6 +1021,12 @@
   display: block;
   margin-top: 2px;
   font-size: 10px;
-  color: #888;
+  font-weight: 600;
+  color: inherit; /* the header's white: the old grey read at about 2.6:1 on the teal header */
+}
+/* A closed day's header is dimmed less than an open past day (0.7), so its text keeps 4.5:1. */
+.fp-day-column.fp-day-locked .fp-day-header,
+.fp-day-column .fp-day-header:has(.fp-day-closed) {
+  opacity: 0.85;
 }
 .fp-action[data-locked] { cursor: default; }

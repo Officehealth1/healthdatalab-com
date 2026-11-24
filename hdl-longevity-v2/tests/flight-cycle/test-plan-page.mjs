@@ -144,5 +144,11 @@ ok(render.includes("plan.cycle && plan.cycle.notice ? '<p class=\"fp-cycle-notic
 ok(render.includes("closedDays[dayName] ? '<span class=\"fp-day-closed\" role=\"status\">This day is closed.</span>'") && render.includes('drawnDays = dayStatesKey(plan.days);'), 'C9.15 a redraw keeps "This day is closed." and records the drawn day states');
 ok(!/window\.(alert|confirm)\(/.test(js), 'no native pop-up in the page script');
 
+// ── The line is readable where it sits: white header text (4.5:1 on the day header), not grey #888 (about 2.6:1).
+const css = fs.readFileSync(new URL('../../assets/css/hdlv2-flight-plan.css', import.meta.url), 'utf8');
+const rule = (sel) => { const m = css.match(new RegExp(sel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\s*\\{([^}]*)\\}')); return m ? m[1] : ''; };
+ok(/color:\s*inherit/.test(rule('.fp-day-closed')) && !/#888/.test(rule('.fp-day-closed')), 'C9.16 "This day is closed." takes the header\'s white text, not grey');
+ok(/opacity:\s*0\.85/.test(rule('.fp-day-column.fp-day-locked .fp-day-header,\n.fp-day-column .fp-day-header:has(.fp-day-closed)')), 'C9.17 a closed day\'s header is dimmed less than an open past day (0.85, not 0.7), so its text keeps 4.5:1');
+
 console.log(`\nPASS=${PASS} FAIL=${FAIL}`);
 process.exit(FAIL ? 1 : 0);
