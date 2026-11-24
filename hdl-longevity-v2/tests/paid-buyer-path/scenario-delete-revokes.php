@@ -54,7 +54,9 @@ class FakeWpdb {
         foreach ( $args as $a ) { $q = preg_replace( '/%[sd]/', is_int( $a ) ? (string) $a : "'" . $a . "'", $q, 1 ); }
         return $q;
     }
+    public $all = array();
     public function query( $q ) {
+        $this->all[] = preg_replace( '/\s+/', ' ', $q );
         if ( false === strpos( $q, 'hdlv2_widget_invites' ) ) return 0;
         $q = preg_replace( '/\s+/', ' ', $q ) . ' ';
         foreach ( $GLOBALS['tickets'] as $id => $t ) {
@@ -88,6 +90,11 @@ ok( 'a challenge link left alone', ! in_array( 7, $r, true ) );
 ok( 'another practitioner\'s ticket untouched', ! in_array( 8, $r, true ) );
 ok( 'another client\'s ticket untouched', ! in_array( 9, $r, true ) );
 ok( 'the response counts the three revoked links', is_array( $out ) && 3 === ( $out['invites_cancelled'] ?? null ) );
+$fc = array_values( preg_grep( '/hdlv2_flight_cycles/', $wpdb->all ) );
+ok( 'plan 14 fix C1: one write on the six-week blocks, closing this practitioner\'s open ones for the client',
+    1 === count( $fc ) && 0 === strpos( trim( $fc[0] ), 'UPDATE wp_hdlv2_flight_cycles SET status = \'closed\', closed_at = ' )
+    && false !== strpos( $fc[0], 'WHERE practitioner_id = 3 AND client_id = 7 AND closed_at IS NULL' ) );
+ok( 'plan 14 fix C1: no six-week row is removed', ! preg_grep( '/DELETE[^;]*hdlv2_flight_cycles/', $wpdb->all ) );
 
 echo "\n$pass passed, $fail failed\n";
 exit( $fail ? 1 : 0 );

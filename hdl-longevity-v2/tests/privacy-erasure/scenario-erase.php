@@ -39,6 +39,7 @@ function seed_person( $db, $uid, $email, $tag, $email_case = null ) {
         $db->insert( 'wp_hdlv2_flight_plan_ticks', array( 'flight_plan_id' => $s['plan'], 'client_id' => $uid, 'day' => 'mon' ) );
         $db->insert( 'wp_hdlv2_monthly_summaries', array( 'client_id' => $uid, 'practitioner_id' => PRAC_A, 'summary' => 's' ) );
         $db->insert( 'wp_hdlv2_challenge_days', array( 'client_user_id' => $uid, 'day_no' => 1, 'note' => 'n' ) );
+        $db->insert( 'wp_hdlv2_flight_cycles', array( 'client_id' => $uid, 'practitioner_id' => PRAC_A, 'form_progress_id' => $s['pid'], 'outline' => 'Week 1: walk', 'review' => 'walked most days', 'status' => 'closed' ) ); // plan 14 fix C1
         $db->insert( 'wp_hdl_user_credits', array( 'user_id' => $uid, 'credits' => 2 ) );
         $db->insert( 'wp_hdl_usage_logs', array( 'user_id' => $uid, 'ip' => '203.0.113.9' ) );
         $db->insert( 'wp_hdl_credit_purchases', array( 'user_id' => $uid, 'stripe_payment_id' => "pi_$tag" ) );
@@ -208,6 +209,7 @@ $answers = hdl_erase_all( 'Alice@Example.test' );
 $msgs    = messages_of( $answers );
 ok( 'E2.1 four pages, the last done', 4 === count( $answers ) && $answers[3]['done'] && ! $answers[0]['done'] && ! $answers[2]['done'] );
 ok( 'E2.2 no row of Alice left in any store (payment rows apart): ' . implode( ', ', rows_left( $db, $tables, $a ) ), ! rows_left( $db, $tables, $a ) );
+ok( 'E2.2b (plan 14 fix C1) her six-week blocks are gone; Bob\'s block stays', ! $db->get_var( 'SELECT COUNT(*) FROM wp_hdlv2_flight_cycles WHERE client_id = 10' ) && 1 === (int) $db->get_var( 'SELECT COUNT(*) FROM wp_hdlv2_flight_cycles WHERE client_id = 20' ) );
 ok( 'E2.3 her own timeline: links, the ticket she sent and her pack are gone', ! $db->get_var( "SELECT COUNT(*) FROM wp_hdlv2_timeline_links WHERE id = {$a['own_link']}" ) && ! $db->get_var( "SELECT COUNT(*) FROM wp_hdlv2_widget_invites WHERE external_ref = 'tl:{$a['own_link']}'" ) );
 ok( 'E2.4 her eight jobs are gone (record, consultation, report, plan, user and token keyed)', 8 === count( $a_jobs ) && ! $db->get_var( 'SELECT COUNT(*) FROM wp_hdlv2_jobs WHERE id IN (' . implode( ',', $a_jobs ) . ')' ) );
 $gone = array_filter( files_of( $a, 'alice' ), 'file_exists' );
