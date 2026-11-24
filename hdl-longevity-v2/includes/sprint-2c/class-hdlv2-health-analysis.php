@@ -426,9 +426,10 @@ HDLV2_PROMPT_CLIENT;
     /**
      * The form and its consultation, when the caller owns the client or is an admin (the save-brief rule).
      * Anyone else gets a 404, so another practitioner cannot tell the form exists. The consultation is the
-     * owner's newest row for this form: the one the screen shows.
+     * owner's newest row for this form: the one the screen shows. v0.49.03: public, so the questions to ask
+     * now (plan 14 part B) use the same rule.
      */
-    private static function owned( $progress_id ) {
+    public static function owned( $progress_id ) {
         if ( ! $progress_id ) {
             return new WP_Error( 'missing_id', 'Progress ID required.', array( 'status' => 400 ) );
         }
