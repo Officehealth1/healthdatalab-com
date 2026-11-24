@@ -595,6 +595,10 @@ class HDLV2_Checkin {
             ) );
             if ( $exists ) continue;
 
+            // v0.49.00 (plan 14 A5) — the access gate (off = nothing read): no reminder to a client the
+            // check-in door locks; its link would only open the greyed card.
+            if ( class_exists( 'HDLV2_Access' ) && HDLV2_Access::client_door( (int) $c->client_user_id, 'checkin' ) ) continue;
+
             // Cooldown: skip if we already emailed this client within the last 3 days.
             $cooldown_key = 'hdlv2_checkin_remind_' . (int) $c->client_user_id;
             if ( get_transient( $cooldown_key ) ) continue;

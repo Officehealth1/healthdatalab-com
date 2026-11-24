@@ -111,7 +111,7 @@ class HDLV2_Idempotency {
 }
 class HDLV2_Env {
     public static function gate( $what ) { $GLOBALS['calls'][] = 'env_gate:' . $what; return false; }
-    public static function client_campaign_gate( $what ) { return false; }
+    public static function client_campaign_gate( $what ) { $GLOBALS['calls'][] = 'campaign:' . $what; return false; }
 }
 class HDLV2_Context_Builder {
     public static function build_context( $client_id, $tier ) { $GLOBALS['calls'][] = 'context:' . (int) $client_id; return array( 'engagement_signal' => 'medium' ); }

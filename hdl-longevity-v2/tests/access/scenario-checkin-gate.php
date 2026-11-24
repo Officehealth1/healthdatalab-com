@@ -4,7 +4,7 @@
  * REAL HDLV2_Checkin. Switch on: a client with no final report and no plan gets 403 `locked` on every
  * route and nothing is stored or started; the page shows the greyed card instead of the form. A client
  * with a final report, or with a plan already running, goes through. Switch absent: today's behaviour,
- * and the gate reads nothing from the database.
+ * and the gate reads nothing from the database. The weekly reminder skips a locked client (switch on only).
  *
  * Run: php tests/access/scenario-checkin-gate.php   Exit: 0 all pass, 1 any fail
  */
@@ -44,11 +44,19 @@ check( 'C.14 page, her practitioner opening her link: the form (staff are always
 $GLOBALS['current_user'] = 4;
 check( 'C.15 page, another practitioner opening her link: the card (not her practitioner)', false !== strpos( $ci->render_shortcode( array() ), 'hdlv2-locked-card' ) );
 
+$GLOBALS['calls'] = array(); $GLOBALS['current_user'] = 0; $_GET = array();
+$ci->send_reminders();
+check( 'C.19 the weekly reminder skips Ivy (it would only lead to the card)', ! in_array( 'campaign:checkin_reminder client:9', $GLOBALS['calls'], true ) );
+check( 'C.20 the weekly reminder still reaches Finn and Rosa', in_array( 'campaign:checkin_reminder client:11', $GLOBALS['calls'], true ) && in_array( 'campaign:checkin_reminder client:13', $GLOBALS['calls'], true ) );
+
 // ── Switch absent: today ──
 $w = ac_world(); ac_switch( null );
 check( 'C.16 switch absent, Ivy: history goes through (today)', ! is_wp_error( $ci->rest_history( new FakeRequest( array( 'token' => $tok['ivy'] ) ) ) ) );
 $_GET = array( 'token' => $tok['ivy'] );
 check( 'C.17 switch absent, Ivy: the page is the form, byte for byte', $ROOT === $ci->render_shortcode( array() ) );
 check( 'C.18 switch absent: the gate read nothing (no report or plan query)', ! preg_grep( '/hdlv2_(reports|flight_plans)/', $w->queries ) );
+$GLOBALS['calls'] = array(); $_GET = array();
+$ci->send_reminders();
+check( 'C.21 switch absent: the weekly reminder reaches Ivy as today', in_array( 'campaign:checkin_reminder client:9', $GLOBALS['calls'], true ) );
 
 done();
