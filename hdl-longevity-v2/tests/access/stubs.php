@@ -1,7 +1,7 @@
 <?php
 /**
  * Plan 14, Part A (the access gate): WP stubs and a fake $wpdb holding the tables the doors read
- * (form_progress, reports, flight_plans, flight_plan_ticks, checkins, widget_invites). The REAL classes
+ * (form_progress, reports, flight_plans, flight_plan_ticks, checkins, widget_invites, widget_leads). The REAL classes
  * are loaded by ac_load(). Every write is recorded, so "a locked door stores nothing" is checkable.
  * No network. The names are made up.
  */
@@ -120,7 +120,7 @@ class HDLV2_Context_Builder {
 /** The tables, as rows; queries matched on their table and WHERE columns, the way the real table answers. */
 class AC_Wpdb {
     public $prefix = 'wp_'; public $last_error = ''; public $insert_id = 0;
-    public $t = array( 'form_progress' => array(), 'reports' => array(), 'flight_plans' => array(), 'flight_plan_ticks' => array(), 'checkins' => array(), 'widget_invites' => array() );
+    public $t = array( 'form_progress' => array(), 'reports' => array(), 'flight_plans' => array(), 'flight_plan_ticks' => array(), 'checkins' => array(), 'widget_invites' => array(), 'widget_leads' => array() );
     public $writes = array();
     public $queries = array();
     public function prepare( $q, ...$args ) {
@@ -130,7 +130,7 @@ class AC_Wpdb {
     }
     private function table( $q ) {
         // The longest name first: flight_plan_ticks before flight_plans.
-        foreach ( array( 'flight_plan_ticks', 'flight_plans', 'form_progress', 'reports', 'checkins', 'widget_invites' ) as $name ) {
+        foreach ( array( 'flight_plan_ticks', 'flight_plans', 'form_progress', 'reports', 'checkins', 'widget_invites', 'widget_leads' ) as $name ) {
             if ( false !== strpos( $q, 'hdlv2_' . $name ) ) return $name;
         }
         return null;
@@ -161,6 +161,10 @@ class AC_Wpdb {
             if ( preg_match( "/report_type = '(\w+)'/", $q, $m ) && ( $r->report_type ?? '' ) !== $m[1] ) continue;
             if ( preg_match( "/client_email\) = '([^']+)'/", $q, $m ) && strtolower( $r->client_email ?? '' ) !== $m[1] ) continue;
             if ( preg_match( "/week_start = '([\d-]+)'/", $q, $m ) && ( $r->week_start ?? '' ) !== $m[1] ) continue;
+            if ( 'widget_leads' === $name ) {   // the lead queries also filter on status and on an id list
+                if ( preg_match( "/status = '(\w+)'/", $q, $m ) && ( $r->status ?? '' ) !== $m[1] ) continue;
+                if ( preg_match( '/\bid IN \(([\d,]+)\)/', $q, $m ) && ! in_array( (int) $r->id, array_map( 'intval', explode( ',', $m[1] ) ), true ) ) continue;
+            }
             $out[] = $r;
         }
         if ( false !== stripos( $q, 'ORDER BY id DESC' ) ) usort( $out, function ( $a, $b ) { return $b->id - $a->id; } );

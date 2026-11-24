@@ -2223,7 +2223,7 @@ class HDLV2_Widget_Config {
         $owner = null === $scope ? '' : $wpdb->prepare( 'practitioner_user_id = %d AND ', $scope );
 
         $rows = $wpdb->get_results(
-            "SELECT id, visitor_name, visitor_email, visitor_age, rate_of_ageing,
+            "SELECT id, practitioner_user_id, visitor_name, visitor_email, visitor_age, rate_of_ageing,
                     stage1_data, created_at, visitor_country, visitor_region
              FROM {$wpdb->prefix}hdlv2_widget_leads
              WHERE {$owner}status = 'pending'
@@ -2281,6 +2281,17 @@ class HDLV2_Widget_Config {
                     $r->visitor_region ?? ''
                 ),
             );
+            // v0.49.02 (plan 14 fix A2) — an admin's list (null scope) says whose lead each one is: `own`, and
+            // for another practitioner's lead that practitioner's name, drawn as "for {name}". No tick box
+            // for it: bulk actions stay on the caller's own leads.
+            if ( null === $scope ) {
+                $own = (int) $r->practitioner_user_id === (int) $user_id;
+                $out[ count( $out ) - 1 ]['own'] = $own;
+                if ( ! $own ) {
+                    $prac = get_userdata( (int) $r->practitioner_user_id );
+                    $out[ count( $out ) - 1 ]['owner_name'] = $prac ? (string) $prac->display_name : '';
+                }
+            }
         }
         return rest_ensure_response( array( 'leads' => $out, 'bulk_min' => self::BULK_MIN_PENDING ) );
     }
@@ -2535,14 +2546,13 @@ class HDLV2_Widget_Config {
         $ids = array_keys( $ids );
 
         // Ownership first, for the whole list. The ids are integers.
-        // v0.49.00 (plan 14 A4) — with the access gate on an admin may act on any practitioner's leads; each
-        // lead is then confirmed or rejected for its own practitioner.
-        $scope = class_exists( 'HDLV2_Access' ) ? HDLV2_Access::lead_scope( $user_id ) : $user_id;
-        $owner = null === $scope ? '' : $wpdb->prepare( 'practitioner_user_id = %d AND ', $scope );
-        $rows  = $wpdb->get_results(
+        // v0.49.02 (plan 14 fix A2) — the caller's own leads only, an admin included: an admin acts on
+        // another practitioner's lead one at a time (rest_confirm_lead / rest_reject_lead).
+        $rows = $wpdb->get_results( $wpdb->prepare(
             "SELECT * FROM {$wpdb->prefix}hdlv2_widget_leads
-             WHERE {$owner}id IN (" . implode( ',', $ids ) . ')'
-        );
+             WHERE practitioner_user_id = %d AND id IN (" . implode( ',', $ids ) . ')',
+            $user_id
+        ) );
         $by_id = array();
         foreach ( (array) $rows as $row ) {
             $by_id[ (int) $row->id ] = $row;
@@ -2556,7 +2566,7 @@ class HDLV2_Widget_Config {
         foreach ( $ids as $id ) {
             $lead = $by_id[ $id ];
             if ( 'reject' === $action ) {
-                if ( 'pending' !== $lead->status || ! self::reject_lead_row( $id, (int) $lead->practitioner_user_id ) ) {
+                if ( 'pending' !== $lead->status || ! self::reject_lead_row( $id, $user_id ) ) {
                     $out['already'][] = $id; // confirmed, rejected, or actioned since the read
                 } else {
                     $out['rejected'][] = $id;
@@ -2566,7 +2576,7 @@ class HDLV2_Widget_Config {
             } elseif ( 'pending' !== $lead->status ) {
                 $out['failed'][] = array( 'id' => $id, 'code' => 'lead_rejected' );
             } else {
-                $done = self::confirm_lead_row( $lead, (int) $lead->practitioner_user_id, true );
+                $done = self::confirm_lead_row( $lead, $user_id, true );
                 if ( ! $done ) {
                     $out['failed'][] = array( 'id' => $id, 'code' => 'confirm_failed' );
                 } elseif ( $done['already'] ) {

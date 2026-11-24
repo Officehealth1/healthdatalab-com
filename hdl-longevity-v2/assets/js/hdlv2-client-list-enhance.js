@@ -1058,17 +1058,20 @@
         // that left the queue are dropped so the count stays honest.
         // v0.48.16 — shown only from state.bulkMin pending leads (10), with
         // "Reject selected" beside it; under that the queue is as before.
-        var bulkOn = bulkControlsVisible(g.items.length, state.bulkMin);
+        // v0.49.02 (plan 14 fix A2) — an admin's list also holds other practitioners' leads (own === false):
+        // no tick box for those, so bulk counts and acts on the caller's own leads only.
+        var ownLeads = g.items.filter(function (lead) { return lead.own !== false; });
+        var bulkOn = bulkControlsVisible(ownLeads.length, state.bulkMin);
         var liveIds = {};
-        if (bulkOn) g.items.forEach(function (lead) { liveIds[lead.id] = true; });
+        if (bulkOn) ownLeads.forEach(function (lead) { liveIds[lead.id] = true; });
         Object.keys(_selectedLeads).forEach(function (id) { if (!liveIds[id]) delete _selectedLeads[id]; });
         html += '<div class="hdlv2-aq-group hdlv2-aq-group-' + g.cls + '">'
           +   '<div class="hdlv2-aq-group-head"><span class="hdlv2-aq-dot" style="background:' + g.dot + '"></span><span class="hdlv2-aq-group-label">' + esc(g.label) + '</span><span class="hdlv2-aq-count">' + g.items.length + '</span>'
-          +     (bulkOn ? '<span class="hdlv2-aq-bulk">' + bulkBarHtml(g.items.length) + '</span>' : '')
+          +     (bulkOn ? '<span class="hdlv2-aq-bulk">' + bulkBarHtml(ownLeads.length) + '</span>' : '')
           +   '</div>'
           +   '<ul class="hdlv2-aq-list">';
         g.items.forEach(function (lead) {
-          html += renderPendingLeadAQRow(lead, bulkOn);
+          html += renderPendingLeadAQRow(lead, bulkOn && lead.own !== false);
         });
         html += '</ul></div>';
         return;
@@ -1132,6 +1135,7 @@
       // v0.47.83 — server-built location string ("Texas, US"); empty for
       // legacy/geo-blocked leads, which render exactly as before.
       +     (lead.location ? ' &middot; 📍 ' + esc(lead.location) : '')
+      +     (lead.own === false && lead.owner_name ? ' &middot; for ' + esc(lead.owner_name) : '')
       +   '</div>'
       +   '<div class="hdlv2-aq-item-action" style="display:flex;gap:5px;">'
       +     '<button type="button" class="hdlv2-aq-btn hdlv2-aq-btn-pending-details" data-aq="lead-details" data-lead-id="' + esc(lead.id) + '" aria-expanded="' + (isOpen ? 'true' : 'false') + '" title="Review this lead’s Stage-1 details">' + (isOpen ? 'Hide details' : 'View details') + '</button>'
