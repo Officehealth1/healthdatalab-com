@@ -1256,7 +1256,10 @@
     var btn = document.getElementById('hdlv2-health-write');
     var err = document.getElementById('hdlv2-health-error');
     var before = body.innerHTML;
-    btn.disabled = true;
+    // The note cannot be approved while it is being rewritten.
+    var locked = ['hdlv2-health-write', 'hdlv2-health-note', 'hdlv2-health-approve', 'hdlv2-health-withdraw']
+      .map(function (id) { return document.getElementById(id); }).filter(Boolean);
+    locked.forEach(function (el) { el.disabled = true; });
     err.textContent = '';
     body.innerHTML = HDLV2Loading.skeleton('brief') + '<p class="hdlv2-consult-hint">Writing. This can take a minute.</p>';
     var key = (window.hdlv2RateLimit && window.hdlv2RateLimit.idempotencyKey)
@@ -1267,8 +1270,9 @@
       headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': CFG.nonce, 'Idempotency-Key': key },
       body: JSON.stringify({ progress_id: state.progressId })
     })
-      .then(function (r) { return r.json(); })
+      .then(function (r) { return r.json(); }, function () { return { dropped: true }; })
       .then(function (res) {
+        if (res && res.dropped) return readBackHealth();
         if (!res || !res.analysis_html) throw res;
         mountHealth(res);
         if (res.note_written === false) {
@@ -1277,8 +1281,22 @@
       })
       .catch(function () {
         body.innerHTML = before;
-        btn.disabled = false;
+        locked.forEach(function (el) { el.disabled = false; });
         err.textContent = 'The analysis could not be written. Nothing was changed. Please try again.';
+      });
+  }
+
+  // The connection dropped (a proxy timeout, a lost network): the server may have finished, so show what it
+  // saved rather than claim nothing changed.
+  function readBackHealth() {
+    return fetch(CFG.api_base + '/' + state.progressId, { headers: { 'X-WP-Nonce': CFG.nonce } })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        mountHealth((data && data.health_analysis) || health);
+        document.getElementById('hdlv2-health-error').textContent = 'The connection dropped while it was writing. What you see is what was saved.';
+      }, function () {
+        mountHealth(health);
+        document.getElementById('hdlv2-health-error').textContent = 'The connection dropped while it was writing. Reload the page to see what was saved.';
       });
   }
 

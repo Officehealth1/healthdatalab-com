@@ -296,18 +296,28 @@ HDLV2_PROMPT_CLIENT;
         }
         $analysis = trim( $analysis );
         $at       = current_time( 'mysql' );
-        $wpdb->update( $table, array(
+        $saved    = $wpdb->update( $table, array(
             'health_analysis'         => $analysis,
             'health_analysis_at'      => $at,
             'health_note_approved_at' => null,
             'health_note_approved_by' => null,
         ), array( 'id' => (int) $consult->id ) );
+        if ( false === $saved ) { // not saved: stop before paying for prompt 2
+            error_log( sprintf( '[HDLV2 health] analysis not saved: consult=%d analysis_len=%d', (int) $consult->id, strlen( $analysis ) ) );
+            return new WP_Error( 'analysis_failed', 'The analysis could not be written. Nothing was changed. Please try again.', array( 'status' => 502 ) );
+        }
 
         $note = HDLV2_AI_Service::run_prompt( strtr( self::PROMPT_CLIENT, $in + array( '{{PRACTITIONER_ANALYSIS}}' => $analysis ) ), self::LIMIT_NOTE );
         $note_written = ! is_wp_error( $note ) && '' !== trim( (string) $note );
         if ( $note_written ) {
             $note = mb_substr( trim( $note ), 0, self::NOTE_MAX );
-            $wpdb->update( $table, array( 'health_note' => $note ), array( 'id' => (int) $consult->id ) );
+            // The stamp is cleared again with the new text: an approval that landed while prompt 2 ran (a second
+            // tab) was for the old text and must not stand on this one.
+            $wpdb->update( $table, array(
+                'health_note'             => $note,
+                'health_note_approved_at' => null,
+                'health_note_approved_by' => null,
+            ), array( 'id' => (int) $consult->id ) );
         } else {
             error_log( sprintf( '[HDLV2 health] note failed: consult=%d code=%s analysis_len=%d', (int) $consult->id, is_wp_error( $note ) ? $note->get_error_code() : 'empty', strlen( $analysis ) ) );
             $note = (string) $consult->health_note;
@@ -334,10 +344,12 @@ HDLV2_PROMPT_CLIENT;
     /**
      * Escape everything, turn **text** into <strong>, keep the lines: a blank line starts a paragraph, a
      * line break stays a line break. Nothing else (no link is made clickable). No raw line break is left,
-     * because Make's PDF module turns every one into a space.
+     * because Make's PDF module turns every one into a space. A backslash becomes "/" and a tab spaces, the
+     * payload's own pass for its other fields (Make writes the text into JSON); other control characters go.
      */
     public static function to_html( $text ) {
-        $text = trim( str_replace( "\r", '', (string) $text ) );
+        $text = strtr( str_replace( "\r", '', (string) $text ), array( '\\' => '/', "\t" => '    ' ) );
+        $text = trim( preg_replace( '/[\x00-\x08\x0B-\x1F\x7F]/', '', $text ) );
         if ( '' === $text ) return '';
         $html  = preg_replace( '/\*\*([^*\n]+)\*\*/', '<strong>$1</strong>', htmlspecialchars( $text, ENT_QUOTES, 'UTF-8' ) );
         $paras = preg_split( "/\n[ \t]*\n\s*/", $html );
@@ -387,8 +399,13 @@ HDLV2_PROMPT_CLIENT;
         $found  = self::owned( (int) ( $params['progress_id'] ?? 0 ) );
         if ( is_wp_error( $found ) ) return $found;
         $consult = $found[1];
-        $note    = sanitize_textarea_field( (string) ( $params['note'] ?? '' ) );
+        // Plain text, kept as typed ("BP <130/80" stays): it is escaped wherever it is shown or printed and never
+        // read as HTML. Control characters other than line breaks and tabs go.
+        $note    = trim( preg_replace( '/[\x00-\x08\x0B-\x1F\x7F]/', '', str_replace( "\r", '', (string) ( $params['note'] ?? '' ) ) ) );
         $approve = true === ( $params['approve'] ?? false );
+        if ( ! mb_check_encoding( $note, 'UTF-8' ) ) {
+            return new WP_Error( 'note_not_text', 'The note could not be read. Please type it again.', array( 'status' => 400 ) );
+        }
         if ( mb_strlen( $note ) > self::NOTE_MAX ) {
             return new WP_Error( 'note_too_long', 'The note is longer than 4,000 characters.', array( 'status' => 400 ) );
         }

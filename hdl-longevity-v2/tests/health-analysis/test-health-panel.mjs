@@ -23,7 +23,7 @@ const ok = (c, l) => { c ? PASS++ : FAIL++; console.log((c ? '  PASS  ' : '  FAI
 const js = fs.readFileSync(new URL('../../assets/js/hdlv2-consultation.js', import.meta.url), 'utf8');
 const cut = (head, end) => { const at = js.indexOf(head); return at < 0 ? '' : js.slice(at, js.indexOf(end, at) + end.length); };
 const fn = (name) => cut('  function ' + name + '(', '\n  }\n');
-const NAMES = ['healthStatus', 'healthPanel', 'mountHealth', 'writeHealth', 'askWriteAgain', 'saveHealthNote'];
+const NAMES = ['healthStatus', 'healthPanel', 'mountHealth', 'writeHealth', 'readBackHealth', 'askWriteAgain', 'saveHealthNote'];
 const line = (head) => cut(head, '\n');
 const SRC = [line('  function esc('), line('  var health = '), ...NAMES.map(fn)].join('\n');
 ok(NAMES.every((n) => fn(n) !== '') && line('  var health = ') !== '', 'the panel functions are top-level in the consultation script');
@@ -73,17 +73,19 @@ function page() {
 
 function boot(block) {
   const p = page(), calls = [];
-  let pending = null;
-  const fetch = (url, opts) => new Promise((resolve) => {
+  let pending = null, dropping = null;
+  const fetch = (url, opts = {}) => new Promise((resolve, reject) => {
     calls.push({ url, opts, body: JSON.parse(opts.body || '{}') });
     pending = (data) => resolve({ json: () => Promise.resolve(data) });
+    dropping = () => reject(new TypeError('Failed to fetch'));
   });
   const ctx = { document: p.document, fetch, CFG: { api_base: '/wp-json/hdl-v2/v1/consultation', nonce: 'N1', health_analysis: 1 },
     state: { progressId: 10 }, HDLV2Loading: { skeleton: (k) => '<div class="SKEL-' + k + '"></div>' },
     window: { hdlv2RateLimit: { idempotencyKey: () => 'uuid-0001-test' } }, Date };
   vm.createContext(ctx);
   vm.runInContext(SRC + '\nmountHealth(' + JSON.stringify(block) + ');', ctx);
-  return { p, ctx, calls, answer: async (data) => { pending(data); await new Promise((r) => setTimeout(r, 0)); await new Promise((r) => setTimeout(r, 0)); } };
+  const tick = async () => { for (let i = 0; i < 4; i++) await new Promise((r) => setTimeout(r, 0)); };
+  return { p, ctx, calls, answer: async (data) => { pending(data); await tick(); }, drop: async () => { dropping(); await tick(); } };
 }
 const $ = (b, id) => b.p.reg[id] || null;
 const text = (b) => b.p.reg['hdlv2-health'].innerHTML;
@@ -160,6 +162,16 @@ b = boot({ analysis_html: '', written: '', note: '', approved: '' });
 $(b, 'hdlv2-health-write').click();
 await b.answer(Object.assign({}, WRITTEN, { note: '', note_written: false }));
 ok(text(b).includes('Late eating may fit.') && $(b, 'hdlv2-health-error').textContent === 'The analysis is ready. The client\'s note could not be written. Please try again.', 'S6.4 prompt 2 fails: the analysis shows, the second error line');
+
+console.log('── S8 while it writes; the connection drops ──');
+b = boot({ analysis_html: '<p>Old.</p>', written: '23 Nov 2026, 10:00', note: 'Old note.', approved: '' });
+$(b, 'hdlv2-health-write').click();
+ok($(b, 'hdlv2-health-note').disabled && $(b, 'hdlv2-health-approve').disabled, 'S8.1 while it writes, the note box and "Approve" cannot be used');
+await b.drop();
+ok(b.calls.length === 2 && b.calls[1].url === '/wp-json/hdl-v2/v1/consultation/10' && !b.calls[1].opts.method, 'S8.2 the connection drops: it reads back what was saved');
+await b.answer({ consultation: {}, health_analysis: { analysis_html: '<p>New.</p>', written: '24 Nov 2026, 09:20', note: 'New note.', approved: '' } });
+ok(text(b).includes('<p>New.</p>') && $(b, 'hdlv2-health-note').value === 'New note.', 'S8.3 what the server saved is shown');
+ok($(b, 'hdlv2-health-error').textContent === 'The connection dropped while it was writing. What you see is what was saved.', 'S8.4 the line says so (never "Nothing was changed")');
 
 console.log('── S7 the switch, pop-ups, controls ──');
 ok(/\(CFG\.health_analysis \? '<div class="hdlv2-consult-section hdlv2-health" id="hdlv2-health"><\/div>' : ''\)/.test(js), 'S7.1 the panel is in the screen only when the settings say health_analysis');

@@ -99,11 +99,16 @@ echo "── R3 the stamp ──\n";
 list( $s, $d ) = call( R_NOTE, 3, array( 'progress_id' => 10, 'note' => "Edited note.\n<b>Bold?</b>", 'approve' => true ) );
 $r = row( $w );
 check( 'R3.1 approve: 200, who and when stamped', 200 === $s && '2026-11-24 09:14:05' === $r->health_note_approved_at && 3 === (int) $r->health_note_approved_by );
-check( 'R3.2 the text as it stood is saved, tags taken out', "Edited note.\nBold?" === $r->health_note && "Edited note.\nBold?" === ( $d['note'] ?? '' ) && '24 Nov 2026' === ( $d['approved'] ?? '' ) );
+check( 'R3.2 the text as it stood is saved, as typed (escaped where it is shown, never read as HTML)', "Edited note.\n<b>Bold?</b>" === $r->health_note && "Edited note.\n<b>Bold?</b>" === ( $d['note'] ?? '' ) && '24 Nov 2026' === ( $d['approved'] ?? '' ) );
+call( R_NOTE, 3, array( 'progress_id' => 10, 'note' => "Aim for BP <130/80 and HDL >1.0 mmol/L at 100%25.\x07", 'approve' => false ) );
+check( 'R3.2b "<", ">" and "%25" kept as typed; a control character taken out', 'Aim for BP <130/80 and HDL >1.0 mmol/L at 100%25.' === row( $w )->health_note );
+list( $s ) = call( R_NOTE, 3, array( 'progress_id' => 10, 'note' => "Bad \xC3\x28 bytes", 'approve' => true ) );
+check( 'R3.2c text that is not UTF-8: 400', 400 === $s );
+call( R_NOTE, 3, array( 'progress_id' => 10, 'note' => "Edited note.\n<b>Bold?</b>", 'approve' => true ) );
 list( $s ) = call( R_NOTE, 3, array( 'progress_id' => 10, 'note' => "  \n ", 'approve' => true ) );
-check( 'R3.3 an empty text with approve: 400, the stamp kept', 400 === $s && null !== row( $w )->health_note_approved_at && "Edited note.\nBold?" === row( $w )->health_note );
+check( 'R3.3 an empty text with approve: 400, the stamp kept', 400 === $s && null !== row( $w )->health_note_approved_at && "Edited note.\n<b>Bold?</b>" === row( $w )->health_note );
 list( $s ) = call( R_NOTE, 3, array( 'progress_id' => 10, 'note' => str_repeat( 'x', 4001 ), 'approve' => true ) );
-check( 'R3.4 more than 4,000 characters: 400, nothing saved', 400 === $s && "Edited note.\nBold?" === row( $w )->health_note );
+check( 'R3.4 more than 4,000 characters: 400, nothing saved', 400 === $s && "Edited note.\n<b>Bold?</b>" === row( $w )->health_note );
 list( $s ) = call( R_NOTE, 3, array( 'progress_id' => 10, 'note' => 'Changed text, not approved.', 'approve' => false ) );
 $r = row( $w );
 check( 'R3.5 saving without approving: saved, the stamp cleared', 200 === $s && 'Changed text, not approved.' === $r->health_note && null === $r->health_note_approved_at && null === $r->health_note_approved_by );
@@ -128,6 +133,22 @@ list( $s, $d ) = call( R_WRITE, 3, array( 'progress_id' => 10 ), array( 'Idempot
 $r = row( $w );
 check( 'R4.2 prompt 2 fails: 200, the new analysis stays', 200 === $s && ANALYSIS . ' v3' === $r->health_analysis );
 check( 'R4.3 the old note stays, unapproved; the answer says it was not written', 'Admin approved.' === $r->health_note && null === $r->health_note_approved_at && false === ( $d['note_written'] ?? null ) && 'Admin approved.' === ( $d['note'] ?? '' ) && '' === ( $d['approved'] ?? 'x' ) );
+// The race the review found: an approval that lands while the note is being written (a second tab, or the box
+// still live) must not stand on the text prompt 2 then writes.
+call( R_NOTE, 3, array( 'progress_id' => 10, 'note' => 'Approved before.', 'approve' => true ) );
+$GLOBALS['ai_replies'] = array( ANALYSIS . ' v4', function () use ( $w ) {
+    $w->update( 'wp_hdlv2_consultation_notes', array( 'health_note_approved_at' => '2026-11-24 09:15:00', 'health_note_approved_by' => 3 ), array( 'id' => 55 ) );
+    return NOTE . ' v4';
+} );
+call( R_WRITE, 3, array( 'progress_id' => 10 ), array( 'Idempotency-Key' => 'ha-test-key-0005' ) );
+$r = row( $w );
+check( 'R4.5 an approval landing between the two calls does not stand on the new note', NOTE . ' v4' === $r->health_note && null === $r->health_note_approved_at && null === $r->health_note_approved_by );
+call( R_NOTE, 3, array( 'progress_id' => 10, 'note' => 'Approved again.', 'approve' => true ) );
+$before = (array) row( $w ); $n_calls = count( $GLOBALS['ai_calls'] );
+$w->fail_updates = 1;
+$GLOBALS['ai_replies'] = array( ANALYSIS . ' v5', NOTE . ' v5' );
+list( $s ) = call( R_WRITE, 3, array( 'progress_id' => 10 ), array( 'Idempotency-Key' => 'ha-test-key-0006' ) );
+check( 'R4.6 the analysis cannot be saved: an error, prompt 2 not paid for, every column as before', $s >= 500 && $n_calls + 1 === count( $GLOBALS['ai_calls'] ) && $before === (array) row( $w ) );
 $logged = (string) file_get_contents( $log );
 check( 'R4.4 the failures were logged, with no client words in the log', '' !== $logged && false === strpos( $logged, 'Bloating' ) && false === strpos( $logged, 'Admin approved' ) && false === strpos( $logged, 'bloating' ) );
 
@@ -135,7 +156,7 @@ echo "── R5 the load ──\n";
 $d = load( 3 );
 $b = $d['health_analysis'] ?? null;
 check( 'R5.1 switch on: one block on the load', is_array( $b ) );
-check( 'R5.2 the block: the analysis as safe HTML, its time, the note, the stamp', is_array( $b ) && HDLV2_Health_Analysis::to_html( ANALYSIS . ' v3' ) === ( $b['analysis_html'] ?? '' ) && '24 Nov 2026, 09:14' === ( $b['written'] ?? '' ) && 'Admin approved.' === ( $b['note'] ?? '' ) && '' === ( $b['approved'] ?? 'x' ) );
+check( 'R5.2 the block: the analysis as safe HTML, its time, the note, the stamp', is_array( $b ) && HDLV2_Health_Analysis::to_html( ANALYSIS . ' v4' ) === ( $b['analysis_html'] ?? '' ) && '24 Nov 2026, 09:14' === ( $b['written'] ?? '' ) && 'Approved again.' === ( $b['note'] ?? '' ) && '24 Nov 2026' === ( $b['approved'] ?? '' ) );
 check( 'R5.3 the stored raw analysis is not sent (only its safe HTML)', is_array( $b ) && ! array_key_exists( 'analysis', $b ) && false === strpos( json_encode( $d ), '**Late eating' ) );
 $w2 = ha_world(); $w2->t['form_progress'][0]['pre_consult_summary'] = json_encode( array( 'health_summary' => 'cached' ) );
 $b = load( 3 )['health_analysis'] ?? null;

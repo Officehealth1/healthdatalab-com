@@ -98,6 +98,7 @@ check( 'I8.3 & and quotes escaped; a web address is not made a link', false !== 
 check( 'I8.4 a blank line starts a paragraph, a line break is kept', '<p>RED FLAG<br>- What: <strong>chest pain</strong> on stairs</p><p>' === substr( $h, 0, strlen( '<p>RED FLAG<br>- What: <strong>chest pain</strong> on stairs</p><p>' ) ) );
 check( 'I8.5 no raw line break left (Make turns each into a space)', false === strpos( $h, "\n" ) );
 check( 'I8.6 empty text → empty', '' === HDLV2_Health_Analysis::to_html( "  \n " ) );
+check( 'I8.7 a backslash becomes /, a tab spaces, other control characters go (the payload\'s own pass, for Make\'s JSON)', '<p>a/u003cimg b    c d</p>' === HDLV2_Health_Analysis::to_html( "a\\u003cimg b\tc d\x07" ) );
 
 echo "── I9 the Client Brief ──\n";
 check( 'I9.1 the Brief\'s request to the model: byte for byte 7b7f88f\'s', GOLDEN_BRIEF === brief_body() );

@@ -65,6 +65,7 @@ function delete_transient( $k ) { unset( $GLOBALS['transients'][ $k ] ); return 
 function wp_remote_post( $url, $args = array() ) {
     $GLOBALS['ai_calls'][] = json_decode( $args['body'] ?? '{}', true );
     $r = array_shift( $GLOBALS['ai_replies'] );
+    if ( $r instanceof Closure ) $r = $r(); // a reply that also does something while the call runs (a second tab)
     if ( is_array( $r ) ) return array( 'response' => array( 'code' => $r['code'] ), 'body' => json_encode( array( 'error' => array( 'message' => 'stubbed failure' ) ) ) );
     return array( 'response' => array( 'code' => 200 ), 'body' => json_encode( array( 'content' => array( array( 'type' => 'text', 'text' => (string) $r ) ) ) ) );
 }
@@ -153,8 +154,10 @@ class HA_Wpdb {
     }
     public function get_col( $q ) { return array(); }
     public function query( $q ) { $this->queries[] = $q; return 1; }
+    public $fail_updates = 0;   // the next N updates fail (return false), as a lost connection would
     public function update( $table, $data, $where ) {
         $this->updates[] = array( $table, $data, $where );
+        if ( $this->fail_updates > 0 ) { $this->fail_updates--; $this->last_error = 'Lost connection (simulated)'; return false; }
         $name = $this->table( $table );
         $n = 0;
         foreach ( $this->t[ $name ] as $i => $r ) {
