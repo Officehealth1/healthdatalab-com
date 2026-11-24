@@ -4593,7 +4593,7 @@
       '.hdlv2-aq-btn-bulk { padding:5px 11px; font-size:12px; border:1px solid #3d8da0; background:#3d8da0; color:#fff; border-radius:999px; cursor:pointer; font-weight:600; font-family:inherit; line-height:1.3; }',
       '.hdlv2-aq-btn-bulk:disabled { opacity:0.5; cursor:default; }',
       // v0.49.00 (plan 14 A4) — the Timeline grant control under the client's tiles.
-      '.hdlv2-tl-grant { display:flex; flex-wrap:wrap; align-items:center; gap:8px 12px; margin:10px 0 0; font-family: Inter, -apple-system, sans-serif; }',
+      '.hdlv2-tl-grant { display:flex; flex-wrap:wrap; align-items:center; gap:8px 12px; margin:10px 0 16px; font-family: Inter, -apple-system, sans-serif; }',
       '.hdlv2-tl-grant-line { margin:0; font-size:13px; color:#2c3e50; }',
       '.hdlv2-tl-grant-ask { display:inline-flex; flex-wrap:wrap; gap:8px; }',
       '.hdlv2-tl-grant-btn { min-height:32px; padding:6px 14px; font-size:13px; border:1px solid #3d8da0; background:#fff; color:#3d8da0; border-radius:999px; cursor:pointer; font-weight:600; font-family:inherit; line-height:1.3; }',
