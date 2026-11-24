@@ -464,6 +464,21 @@ class HDLV2_Consultation {
             'callback'            => array( $this, 'rest_save_and_update_plan' ),
             'permission_callback' => array( $this, 'check_practitioner_auth' ),
         ) );
+
+        // v0.48.98 (plan 13) — the health analysis: write both texts, save / approve the client's note.
+        // Registered only with hdlv2_ff_health_analysis on (off, both answer 404); ownership in the handlers.
+        if ( HDLV2_Health_Analysis::on() ) {
+            register_rest_route( $ns, '/consultation/health-analysis', array(
+                'methods'             => 'POST',
+                'callback'            => array( 'HDLV2_Health_Analysis', 'rest_write' ),
+                'permission_callback' => array( $this, 'check_practitioner_auth' ),
+            ) );
+            register_rest_route( $ns, '/consultation/health-note', array(
+                'methods'             => 'POST',
+                'callback'            => array( 'HDLV2_Health_Analysis', 'rest_note' ),
+                'permission_callback' => array( $this, 'check_practitioner_auth' ),
+            ) );
+        }
     }
 
     /**
@@ -863,7 +878,7 @@ class HDLV2_Consultation {
             if ( ! empty( $maybe ) ) $calc_result = $maybe;
         }
 
-        return rest_ensure_response( array(
+        $out = array(
             'progress_id'        => $progress_id,
             // v0.46.62 — pre-send milestone editing feature flag (constant or
             // option). Drives whether the consultation review panel shows the
@@ -942,7 +957,12 @@ class HDLV2_Consultation {
             // so the banner self-clears once the practitioner refreshes.
             // Returns null on clean installs (no Phase N damage).
             'phase_n_recovered_at' => get_transient( 'hdlv2_phase_n_recovered_' . (int) $progress_id ) ?: null,
-        ) );
+        );
+        // v0.48.98 (plan 13) — the health analysis panel's texts, only with hdlv2_ff_health_analysis on.
+        if ( HDLV2_Health_Analysis::on() ) {
+            $out['health_analysis'] = HDLV2_Health_Analysis::screen_block( $consult );
+        }
+        return rest_ensure_response( $out );
     }
 
     // ──────────────────────────────────────────────────────────────
@@ -2115,6 +2135,7 @@ class HDLV2_Consultation {
             HDLV2_VERSION
         );
 
+        // v0.48.98 — health_analysis (plan 13) is added only with hdlv2_ff_health_analysis on.
         wp_localize_script( 'hdlv2-consultation', 'hdlv2_consult', HDLV2_Report_Names::config( array(
             'api_base'    => rest_url( 'hdl-v2/v1/consultation' ),
             // v0.25.2 — list endpoint for the new /consultation/ landing
@@ -2122,7 +2143,7 @@ class HDLV2_Consultation {
             'list_url'    => rest_url( 'hdl-v2/v1/consultations/list' ),
             'clients_url' => home_url( '/clients/' ),
             'nonce'       => wp_create_nonce( 'wp_rest' ),
-        ) ) );
+        ) + HDLV2_Health_Analysis::config( array() ) ) );
 
         // v0.21.0 — Practitioner nav spine: sticky top bar with
         // "← Back to clients" + breadcrumb + freshness. Resolves the client

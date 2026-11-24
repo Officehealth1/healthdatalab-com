@@ -3,7 +3,7 @@
  * Plugin Name: HDL Longevity V2 — Staged Workflow
  * Plugin URI: https://healthdatalab.net
  * Description: V2 longevity workflow: staged intake, WHY profiling, practitioner consultations, weekly flight plans, and AI coaching. Runs alongside the existing Health Data Lab plugin.
- * Version: 0.48.97
+ * Version: 0.48.98
  * Author: Health Data Lab
  * Author URI: https://healthdatalab.net
  * License: Proprietary
@@ -22,8 +22,8 @@ if ( ! defined( 'ABSPATH' ) ) {
 // register_activation_hook callbacks, which fire synchronously during
 // `wp plugin activate`, can reference them. The activator needs
 // HDLV2_DB_VERSION / HDLV2_VERSION at call time to update version options.
-define( 'HDLV2_VERSION', '0.48.97' );
-define( 'HDLV2_DB_VERSION', '3.34' );
+define( 'HDLV2_VERSION', '0.48.98' );
+define( 'HDLV2_DB_VERSION', '3.35' );
 
 // Client funnel token (hdlv2_form_progress.token) lifetime. FIXED window
 // from issuance: set when the token is created and refreshed ONLY when the
@@ -903,6 +903,10 @@ final class HDL_Longevity_V2 {
 
         // v0.48.96 — the report names in one place (hdlv2_ff_report_names; absent = off).
         require_once HDLV2_PLUGIN_DIR . 'includes/class-hdlv2-report-names.php';
+
+        // v0.48.98 — the health analysis (hdlv2_ff_health_analysis; absent = off): Matthew's two prompts,
+        // the practitioner's analysis on the consultation screen, the approved client note in the report.
+        require_once HDLV2_PLUGIN_DIR . 'includes/sprint-2c/class-hdlv2-health-analysis.php';
 
         // Compatibility bridge (read-only V1 access)
         require_once HDLV2_PLUGIN_DIR . 'includes/class-hdlv2-compatibility.php';

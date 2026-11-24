@@ -24,19 +24,21 @@ const js = fs.readFileSync(new URL('../../assets/js/hdlv2-consultation.js', impo
 const cut = (head, end) => { const at = js.indexOf(head); return at < 0 ? '' : js.slice(at, js.indexOf(end, at) + end.length); };
 const fn = (name) => cut('  function ' + name + '(', '\n  }\n');
 const NAMES = ['healthStatus', 'healthPanel', 'mountHealth', 'writeHealth', 'askWriteAgain', 'saveHealthNote'];
-const SRC = [fn('esc'), cut('  var health = ', ';\n'), ...NAMES.map(fn)].join('\n');
-ok(NAMES.every((n) => fn(n) !== '') && cut('  var health = ', ';\n') !== '', 'the panel functions are top-level in the consultation script');
+const line = (head) => cut(head, '\n');
+const SRC = [line('  function esc('), line('  var health = '), ...NAMES.map(fn)].join('\n');
+ok(NAMES.every((n) => fn(n) !== '') && line('  var health = ') !== '', 'the panel functions are top-level in the consultation script');
 
 const unesc = (s) => String(s).replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, '&');
 
-/** A page of fake elements: setting innerHTML (re)creates the elements whose ids the markup names. */
+/** A page of fake elements: setting innerHTML (re)creates the elements whose ids the markup names, each
+ *  holding its own inner markup (tags matched with nesting), and drops the ids the old markup held. */
 function page() {
   const reg = {}, doc = { active: null };
   const mk = (id, tag = 'div', inner = '') => {
     const handlers = {};
-    const e = { id, tag, _html: '', textContent: '', disabled: false, value: '', handlers,
+    const e = { id, tag, _html: inner, kids: [], textContent: '', disabled: false, value: '', handlers,
       get innerHTML() { return e._html; },
-      set innerHTML(h) { e._html = h; scan(h); },
+      set innerHTML(h) { e.kids.forEach((k) => delete reg[k]); e._html = h; e.kids = scan(h); },
       addEventListener(t, f) { (handlers[t] = handlers[t] || []).push(f); },
       fire(t) { (handlers[t] || []).forEach((f) => f.call(e, { target: e })); },
       click() { if (!e.disabled) e.fire('click'); },
@@ -46,18 +48,27 @@ function page() {
     return e;
   };
   function scan(h) {
-    const re = /<(\w+)([^>]*?)\sid="([^"]+)"([^>]*)>([\s\S]*?)<\/\1>|<(\w+)([^>]*?)\sid="([^"]+)"([^>]*)\/?>/g;
+    const ids = [], re = /<(\w+)\b([^>]*)>/g;
     let m;
     while ((m = re.exec(h))) {
-      const tag = m[1] || m[6], id = m[3] || m[8], inner = m[5] || '';
-      reg[id] = mk(id, tag, inner);
-      reg[id].attrs = (m[2] || m[7] || '') + (m[4] || m[9] || '');
-      if (/\sdisabled/.test(reg[id].attrs)) reg[id].disabled = true;
-      if (inner && /\sid="/.test(inner)) scan(inner);
+      const tag = m[1], attrs = m[2], idm = attrs.match(/\sid="([^"]+)"/);
+      if (!idm) continue;
+      const from = m.index + m[0].length, tags = new RegExp('<' + tag + '\\b[^>]*>|</' + tag + '>', 'g');
+      let depth = 1, to = h.length, t;
+      tags.lastIndex = from;
+      while ((t = tags.exec(h))) { if (t[0][1] === '/') { if (--depth === 0) { to = t.index; break; } } else depth++; }
+      const el = mk(idm[1], tag, h.slice(from, to));
+      el.attrs = attrs;
+      if (/\sdisabled/.test(attrs)) el.disabled = true;
+      reg[idm[1]] = el;
+      ids.push(idm[1]);
     }
+    return ids;
   }
+  // createElement serves the script's own esc(): text in, the browser's escaping out (& < > only).
+  const createElement = () => { let t = ''; return { set textContent(v) { t = String(v); }, get innerHTML() { return t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); } }; };
   reg['hdlv2-health'] = mk('hdlv2-health');
-  return { reg, doc, document: { getElementById: (id) => reg[id] || null } };
+  return { reg, doc, document: { getElementById: (id) => reg[id] || null, createElement } };
 }
 
 function boot(block) {
@@ -131,10 +142,10 @@ ok($(b, 'hdlv2-health-status').textContent === 'The note is empty.', 'S4.10 a re
 console.log('── S5 write again while approved ──');
 b = boot({ analysis_html: '<p>Old.</p>', written: '23 Nov 2026, 10:00', note: 'Approved note.', approved: '23 Nov 2026' });
 $(b, 'hdlv2-health-write').click();
-ok(b.calls.length === 0 && text(b).includes('This replaces the approved note. Write again?'), 'S5.1 first press: asks in the page, sends nothing');
+ok(b.calls.length === 0 && $(b, 'hdlv2-health-ask').innerHTML.includes('This replaces the approved note. Write again?'), 'S5.1 first press: asks in the page, sends nothing');
 ok($(b, 'hdlv2-health-yes') && $(b, 'hdlv2-health-no') && b.p.doc.active === $(b, 'hdlv2-health-yes'), 'S5.2 two real buttons; the keyboard lands on "Write again"');
 $(b, 'hdlv2-health-no').click();
-ok(b.calls.length === 0 && $(b, 'hdlv2-health-write') && !text(b).includes('This replaces'), 'S5.3 Cancel: back as before, nothing sent');
+ok(b.calls.length === 0 && $(b, 'hdlv2-health-write') && !$(b, 'hdlv2-health-ask').innerHTML.includes('This replaces') && !text(b).includes('This replaces'), 'S5.3 Cancel: back as before, nothing sent');
 ok(b.p.doc.active === $(b, 'hdlv2-health-write'), 'S5.4 the keyboard returns to the button');
 $(b, 'hdlv2-health-write').click();
 $(b, 'hdlv2-health-yes').click();
@@ -142,7 +153,7 @@ ok(b.calls.length === 1 && b.calls[0].url.endsWith('/health-analysis'), 'S5.5 se
 
 console.log('── S6 failures ──');
 await b.answer({ code: 'analysis_failed', message: 'x', data: { status: 502 } });
-ok(text(b).includes('<p>Old.</p>') && text(b).includes('Written 23 Nov 2026, 10:00'), 'S6.1 prompt 1 fails: what was there comes back');
+ok($(b, 'hdlv2-health-body').innerHTML.includes('<p>Old.</p>') && $(b, 'hdlv2-health-body').innerHTML.includes('Written 23 Nov 2026, 10:00') && !$(b, 'hdlv2-health-body').innerHTML.includes('SKEL'), 'S6.1 prompt 1 fails: what was there comes back');
 ok($(b, 'hdlv2-health-error').textContent === 'The analysis could not be written. Nothing was changed. Please try again.' && /role="alert"/.test($(b, 'hdlv2-health-error').attrs), 'S6.2 the first error line (role="alert")');
 ok(!$(b, 'hdlv2-health-write').disabled, 'S6.3 the button can be pressed again');
 b = boot({ analysis_html: '', written: '', note: '', approved: '' });
@@ -153,7 +164,7 @@ ok(text(b).includes('Late eating may fit.') && $(b, 'hdlv2-health-error').textCo
 console.log('── S7 the switch, pop-ups, controls ──');
 ok(/\(CFG\.health_analysis \? '<div class="hdlv2-consult-section hdlv2-health" id="hdlv2-health"><\/div>' : ''\)/.test(js), 'S7.1 the panel is in the screen only when the settings say health_analysis');
 ok(/if \(CFG\.health_analysis\) mountHealth\(data\.health_analysis \|\| \{\}\);/.test(js), 'S7.2 it is mounted only then');
-ok(!/\b(confirm|alert|prompt)\s*\(/.test(SRC.replace(fn('esc'), '')), 'S7.3 no native pop-up in the panel\'s code');
+ok(!/\b(confirm|alert|prompt)\s*\(/.test(SRC.replace(line('  function esc('), '')), 'S7.3 no native pop-up in the panel\'s code');
 ok(!/<div[^>]*onclick|<span[^>]*onclick/.test(SRC), 'S7.4 every control is a real <button> (no clickable div or span)');
 
 console.log('\nPASS=' + PASS + ' FAIL=' + FAIL);

@@ -44,6 +44,7 @@ class FakeWpdb {
     public function get_charset_collate() { return ''; }
     public function get_var( $q ) {
         if ( false !== strpos( $q, "COLUMN_NAME = 'timeline_paid_ref'" ) ) return '1'; // Phase AO (v3.34): modelled as done; its own tests are in tests/timeline-upgrade/
+        if ( preg_match( "/COLUMN_NAME = 'health_(analysis|analysis_at|note|note_approved_at|note_approved_by)'/", $q ) ) return '1'; // Phase AP (v3.35): modelled as done; its own tests are in tests/health-analysis/
         if ( preg_match( "/COLUMN_NAME = '(pack_id|seat_invite_id)'/", $q ) ) return '1'; // Phase AN (v3.33): create_tables() added them first
         // Phase AL (v3.31): modelled as done (dbDelta made the table, the ENUM has 'challenge').
         if ( false !== strpos( $q, 'COLUMN_TYPE' ) ) return "enum('practitioner','automation','paid_stage1','full_report','challenge','timeline_link')";

@@ -1584,33 +1584,7 @@ class HDLV2_AI_Service {
             return new WP_Error( 'no_api_key', 'HDLV2_ANTHROPIC_API_KEY not configured.' );
         }
 
-        $age    = $stage1_data['q1_age'] ?? $stage1_data['age'] ?? 'unknown';
-        $sex    = $stage1_data['q1_sex'] ?? $stage1_data['gender'] ?? 'unknown';
-        $rate   = isset( $calc_result['rate'] ) ? $calc_result['rate'] : null;
-        $bioage = isset( $calc_result['bio_age'] ) ? $calc_result['bio_age'] : null;
-        $scores = isset( $calc_result['scores'] ) && is_array( $calc_result['scores'] ) ? $calc_result['scores'] : array();
-        $why    = is_array( $why_profile ) ? ( $why_profile['distilled_why'] ?? '' ) : '';
-
-        $facts = "CLIENT DATA\nAge: $age\nSex: $sex\n";
-        if ( $rate !== null )   $facts .= "Rate of ageing: $rate\n";
-        if ( $bioage !== null ) $facts .= "Biological age: $bioage\n";
-        if ( $why )             $facts .= "Client WHY: $why\n";
-        // v0.48.10 — single-form picks block, facts use (set only when non-empty).
-        if ( is_array( $why_profile ) ) $facts .= (string) ( $why_profile['picks_block'] ?? '' );
-        if ( ! empty( $stage3_data ) ) {
-            $facts .= "\nHEALTH INPUTS\n";
-            foreach ( $stage3_data as $k => $v ) {
-                if ( $v === '' || $v === null || $v === 'skip' || $k === 'server_result' ) continue;
-                $facts .= "- $k: $v\n";
-            }
-        }
-        if ( ! empty( $scores ) ) {
-            $facts .= "\nDERIVED SCORES (0-5 scale, higher is better)\n";
-            foreach ( $scores as $k => $v ) {
-                if ( ! is_numeric( $v ) ) continue;
-                $facts .= "- $k: $v\n";
-            }
-        }
+        $facts = self::client_facts( $stage1_data, $stage3_data, $calc_result, $why_profile );
 
         // v0.33.0 — Append practitioner addenda (post-Final clinical
         // observations) so the Brief stays in sync with the latest plan
@@ -1676,6 +1650,55 @@ class HDLV2_AI_Service {
         $parsed['follow_up_actions'] = isset( $parsed['follow_up_actions'] ) && is_array( $parsed['follow_up_actions'] ) ? array_values( $parsed['follow_up_actions'] ) : array();
         $parsed['additional_notes']  = isset( $parsed['additional_notes'] )  ? (string) $parsed['additional_notes']  : '';
         return $parsed;
+    }
+
+    /**
+     * The client's facts as one text block: age, sex, rate, biological age, the WHY, the picks block,
+     * every Stage 3 answer and the derived scores. Read by the Client Brief and (v0.48.98, plan 13) by the
+     * health analysis prompts' {{FORM_DATA}}, so both read the same facts.
+     */
+    public static function client_facts( $stage1_data, $stage3_data, $calc_result, $why_profile ) {
+        $age    = $stage1_data['q1_age'] ?? $stage1_data['age'] ?? 'unknown';
+        $sex    = $stage1_data['q1_sex'] ?? $stage1_data['gender'] ?? 'unknown';
+        $rate   = isset( $calc_result['rate'] ) ? $calc_result['rate'] : null;
+        $bioage = isset( $calc_result['bio_age'] ) ? $calc_result['bio_age'] : null;
+        $scores = isset( $calc_result['scores'] ) && is_array( $calc_result['scores'] ) ? $calc_result['scores'] : array();
+        $why    = is_array( $why_profile ) ? ( $why_profile['distilled_why'] ?? '' ) : '';
+
+        $facts = "CLIENT DATA\nAge: $age\nSex: $sex\n";
+        if ( $rate !== null )   $facts .= "Rate of ageing: $rate\n";
+        if ( $bioage !== null ) $facts .= "Biological age: $bioage\n";
+        if ( $why )             $facts .= "Client WHY: $why\n";
+        // v0.48.10 — single-form picks block, facts use (set only when non-empty).
+        if ( is_array( $why_profile ) ) $facts .= (string) ( $why_profile['picks_block'] ?? '' );
+        if ( ! empty( $stage3_data ) ) {
+            $facts .= "\nHEALTH INPUTS\n";
+            foreach ( $stage3_data as $k => $v ) {
+                if ( $v === '' || $v === null || $v === 'skip' || $k === 'server_result' ) continue;
+                $facts .= "- $k: $v\n";
+            }
+        }
+        if ( ! empty( $scores ) ) {
+            $facts .= "\nDERIVED SCORES (0-5 scale, higher is better)\n";
+            foreach ( $scores as $k => $v ) {
+                if ( ! is_numeric( $v ) ) continue;
+                $facts .= "- $k: $v\n";
+            }
+        }
+        return $facts;
+    }
+
+    /**
+     * v0.48.98 (plan 13) — send one filled prompt, whole, as the user message, with no system text (the
+     * health analysis prompts are Matthew's own words; nothing of ours goes before them). The plugin's model.
+     * Returns the text or a WP_Error.
+     */
+    public static function run_prompt( $prompt, $max_tokens ) {
+        $api_key = self::get_api_key();
+        if ( ! $api_key ) {
+            return new WP_Error( 'no_api_key', 'No AI key is configured.' );
+        }
+        return self::call_claude( $api_key, null, (string) $prompt, (int) $max_tokens );
     }
 
     // ──────────────────────────────────────────────────────────────
@@ -1927,6 +1950,9 @@ PROMPT;
                 array( 'role' => 'user', 'content' => $user_prompt ),
             ),
         );
+        if ( null === $system ) {
+            unset( $body['system'] ); // v0.48.98 — run_prompt(): no system text at all
+        }
 
         $response = wp_remote_post( self::API_URL, array(
             'headers' => array(

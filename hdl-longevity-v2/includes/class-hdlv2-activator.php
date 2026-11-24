@@ -1938,6 +1938,37 @@ class HDLV2_Activator {
             error_log( '[HDLV2] Phase AO (v3.34) migration: widget_invites.timeline_paid_ref verified; ' . (int) $stamped . ' Full Report tickets stamped included.' );
         }
 
+        // Phase AP (DB v3.35) — the health analysis (v0.48.98, plan 13): consultation_notes gains the
+        // practitioner's analysis and its time, the client's note, and who approved the note and when.
+        // Five nullable columns, each added and verified; no old row is written. Additive.
+        if ( version_compare( $current_db_version, '3.35', '<' ) ) {
+            $consult_table = $p . 'hdlv2_consultation_notes';
+            $has_col       = function ( $col ) use ( $wpdb, $consult_table ) {
+                return (int) $wpdb->get_var( $wpdb->prepare(
+                    "SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+                     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s AND COLUMN_NAME = %s",
+                    $consult_table, $col
+                ) ) > 0;
+            };
+            $columns = array(
+                'health_analysis'         => 'LONGTEXT DEFAULT NULL',
+                'health_analysis_at'      => 'DATETIME DEFAULT NULL',
+                'health_note'             => 'LONGTEXT DEFAULT NULL',
+                'health_note_approved_at' => 'DATETIME DEFAULT NULL',
+                'health_note_approved_by' => 'BIGINT(20) UNSIGNED DEFAULT NULL',
+            );
+            foreach ( $columns as $col => $definition ) {
+                if ( ! $has_col( $col ) ) {
+                    $wpdb->query( "ALTER TABLE `$consult_table` ADD COLUMN $col $definition" );
+                    if ( $wpdb->last_error || ! $has_col( $col ) ) {
+                        error_log( "[HDLV2] Phase AP (v3.35) FAILED: ADD $col — " . $wpdb->last_error . ' — will retry next boot.' );
+                        return false;
+                    }
+                }
+            }
+            error_log( '[HDLV2] Phase AP (v3.35) migration: consultation_notes health analysis columns verified.' );
+        }
+
         return true;
     }
 
@@ -2177,6 +2208,11 @@ class HDLV2_Activator {
             raw_audio_url VARCHAR(500) DEFAULT NULL,
             ai_organised_notes LONGTEXT DEFAULT NULL,
             staged_milestones LONGTEXT DEFAULT NULL,
+            health_analysis LONGTEXT DEFAULT NULL,
+            health_analysis_at DATETIME DEFAULT NULL,
+            health_note LONGTEXT DEFAULT NULL,
+            health_note_approved_at DATETIME DEFAULT NULL,
+            health_note_approved_by BIGINT(20) UNSIGNED DEFAULT NULL,
             practitioner_approved TINYINT(1) DEFAULT 0,
             approved_at DATETIME DEFAULT NULL,
             started_at DATETIME DEFAULT NULL,

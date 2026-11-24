@@ -1465,12 +1465,21 @@ class HDLV2_Final_Report {
             );
         }
 
+        // v0.48.98 (plan 13) — hdlv2_ff_health_analysis: the client's health note, printed at the end of the
+        // Analysis section, only once a practitioner has approved it. HTML from to_html() (escaped, with
+        // its own line breaks). No key otherwise. The practitioner's analysis is never sent.
+        $health_note = HDLV2_Health_Analysis::approved_note( $progress->id );
+        if ( '' !== $health_note ) {
+            $payload['health_note'] = HDLV2_Health_Analysis::to_html( $health_note );
+        }
+
         $html_safe_fields = array(
             'awaken_content', 'lift_content', 'thrive_content',
             'client_key_findings', // v0.46.55 (PDF Fix 1) — HTML <ul><li> digest
             'results_narrative', 'ai_body_composition_analysis',
             'ai_longevity_influences_explanation', 'ai_results_summary',
             'iris_analysis_html', // capture-only iris section (HTML; tags must survive strtr)
+            'health_note',        // v0.48.98 — escaped by to_html(); its <strong>, <p> and <br> must survive
         );
         array_walk_recursive( $payload, function ( &$v, $k ) use ( $html_safe_fields ) {
             if ( is_string( $v ) && ! in_array( $k, $html_safe_fields, true ) ) {
