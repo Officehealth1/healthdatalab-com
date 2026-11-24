@@ -227,6 +227,9 @@ class HDLV2_Access {
         if ( false === $wpdb->update( $wpdb->prefix . 'hdlv2_form_progress', $data, array( 'id' => $id ) ) ) {
             return new WP_Error( 'save_failed', 'Could not save. Try again.', array( 'status' => 500 ) );
         }
+        // v0.49.02 (plan 14 fix A5) — a trace of every give and take-back: the form row, who acted, which act.
+        // The row keeps only the last give; this line keeps them all. No name, no e-mail.
+        error_log( sprintf( '[HDLV2 Access] Timeline %s: form %d, by user %d', $give ? 'give' : 'take-back', $id, $uid ) );
         return rest_ensure_response( array( 'granted' => $give, 'at' => $now ) );
     }
 }

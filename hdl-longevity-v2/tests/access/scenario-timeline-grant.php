@@ -96,4 +96,19 @@ check( 'T.21 the script asks in two steps on the page ("Yes, give access" / "Can
     '' !== $fn && false !== strpos( $fn, 'Yes, give access' ) && false !== strpos( $fn, 'Yes, take it back' ) && false !== strpos( $fn, 'Cancel' ) && false === strpos( $fn, 'window.confirm' ) && false === strpos( $fn, 'alert(' ) );
 check( 'T.22 the script posts with the REST nonce to the two routes', false !== strpos( $fn, "'X-WP-Nonce'" ) && false !== strpos( $fn, "'/timeline-access/'" ) );
 
+// A5 (plan 14 fix): each give and take-back leaves one log line: the form row, the acting user, the act. No name, no e-mail.
+$log = tempnam( sys_get_temp_dir(), 'hdlv2-grant-' );
+ini_set( 'error_log', $log );
+$w = tl_world(); ac_switch( '1' ); $GLOBALS['routes'] = array(); HDLV2_Access::register_routes();
+$GLOBALS['current_user'] = 4; $call( 'give', array( 'progress_id' => 10 ) );   // refused: not hers
+$GLOBALS['current_user'] = 3; $call( 'give', array( 'progress_id' => 10 ) ); $call( 'take-back', array( 'progress_id' => 10 ) );
+$GLOBALS['current_user'] = 1; $call( 'give', array( 'progress_id' => 10 ) );
+$lines = array_values( preg_grep( '/HDLV2 Access/', file( $log, FILE_IGNORE_NEW_LINES ) ) );
+ini_set( 'error_log', '/dev/null' ); @unlink( $log );
+check( 'T.23 three acts, three lines; the refused call wrote none', 3 === count( $lines ) );
+check( 'T.24 the line\'s shape: "[HDLV2 Access] Timeline give: form 10, by user 3"', false !== strpos( $lines[0] ?? '', '[HDLV2 Access] Timeline give: form 10, by user 3' ) );
+check( 'T.25 the take-back names its actor: "Timeline take-back: form 10, by user 3"; the admin\'s give: "by user 1"',
+    false !== strpos( $lines[1] ?? '', '[HDLV2 Access] Timeline take-back: form 10, by user 3' ) && false !== strpos( $lines[2] ?? '', '[HDLV2 Access] Timeline give: form 10, by user 1' ) );
+check( 'T.26 no name and no e-mail in any line', ! preg_grep( '/@|Ivy|Ada|Admin/', $lines ) );
+
 done();
