@@ -73,11 +73,12 @@ function page() {
 
 function boot(block) {
   const p = page(), calls = [];
-  let pending = null, dropping = null;
+  let pending = null, dropping = null, htmlPage = null;
   const fetch = (url, opts = {}) => new Promise((resolve, reject) => {
     calls.push({ url, opts, body: JSON.parse(opts.body || '{}') });
     pending = (data) => resolve({ json: () => Promise.resolve(data) });
     dropping = () => reject(new TypeError('Failed to fetch'));
+    htmlPage = () => resolve({ ok: false, status: 524, json: () => Promise.reject(new SyntaxError('Unexpected token <')) });
   });
   const ctx = { document: p.document, fetch, CFG: { api_base: '/wp-json/hdl-v2/v1/consultation', nonce: 'N1', health_analysis: 1 },
     state: { progressId: 10 }, HDLV2Loading: { skeleton: (k) => '<div class="SKEL-' + k + '"></div>' },
@@ -85,7 +86,7 @@ function boot(block) {
   vm.createContext(ctx);
   vm.runInContext(SRC + '\nmountHealth(' + JSON.stringify(block) + ');', ctx);
   const tick = async () => { for (let i = 0; i < 4; i++) await new Promise((r) => setTimeout(r, 0)); };
-  return { p, ctx, calls, answer: async (data) => { pending(data); await tick(); }, drop: async () => { dropping(); await tick(); } };
+  return { p, ctx, calls, answer: async (data) => { pending(data); await tick(); }, drop: async () => { dropping(); await tick(); }, timeout: async () => { htmlPage(); await tick(); } };
 }
 const $ = (b, id) => b.p.reg[id] || null;
 const text = (b) => b.p.reg['hdlv2-health'].innerHTML;
@@ -172,6 +173,13 @@ ok(b.calls.length === 2 && b.calls[1].url === '/wp-json/hdl-v2/v1/consultation/1
 await b.answer({ consultation: {}, health_analysis: { analysis_html: '<p>New.</p>', written: '24 Nov 2026, 09:20', note: 'New note.', approved: '' } });
 ok(text(b).includes('<p>New.</p>') && $(b, 'hdlv2-health-note').value === 'New note.', 'S8.3 what the server saved is shown');
 ok($(b, 'hdlv2-health-error').textContent === 'The connection dropped while it was writing. What you see is what was saved.', 'S8.4 the line says so (never "Nothing was changed")');
+
+b = boot({ analysis_html: '<p>Old.</p>', written: '23 Nov 2026, 10:00', note: 'Old note.', approved: '' });
+$(b, 'hdlv2-health-write').click();
+await b.timeout();
+ok(b.calls.length === 2 && b.calls[1].url === '/wp-json/hdl-v2/v1/consultation/10', 'S8.5 a proxy timeout (an HTML page, not JSON): it reads back too');
+await b.answer({ health_analysis: { analysis_html: '<p>Finished anyway.</p>', written: '24 Nov 2026, 09:21', note: 'N.', approved: '' } });
+ok(text(b).includes('Finished anyway.') && $(b, 'hdlv2-health-error').textContent.startsWith('The connection dropped'), 'S8.6 and shows what was saved, never "Nothing was changed"');
 
 console.log('── S7 the switch, pop-ups, controls ──');
 ok(/\(CFG\.health_analysis \? '<div class="hdlv2-consult-section hdlv2-health" id="hdlv2-health"><\/div>' : ''\)/.test(js), 'S7.1 the panel is in the screen only when the settings say health_analysis');

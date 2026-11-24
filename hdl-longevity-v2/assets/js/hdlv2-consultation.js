@@ -1270,7 +1270,9 @@
       headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': CFG.nonce, 'Idempotency-Key': key },
       body: JSON.stringify({ progress_id: state.progressId })
     })
-      .then(function (r) { return r.json(); }, function () { return { dropped: true }; })
+      // No answer, or an answer that is not WordPress's JSON (a proxy's timeout page): the server may still
+      // have finished, so read back what it saved. WordPress's own JSON errors keep the line below.
+      .then(function (r) { return r.json().catch(function () { return { dropped: true }; }); }, function () { return { dropped: true }; })
       .then(function (res) {
         if (res && res.dropped) return readBackHealth();
         if (!res || !res.analysis_html) throw res;
