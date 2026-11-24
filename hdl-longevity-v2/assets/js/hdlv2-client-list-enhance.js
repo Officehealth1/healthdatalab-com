@@ -995,12 +995,15 @@
       release_why:      { dot: '#d97706', label: rn('paid', 'Full Report') + ' · WHY: ready to open the form',   items: [], action: 'release',      cls: 'release' },
       awaiting_consult: { dot: '#3b82f6', label: rn('paid', 'Full Report') + ' · form: ready to record consultation', items: [], action: 'open_consult', cls: 'consult' },
       needs_attention:  { dot: '#dc2626', label: 'Needs attention',                              items: [], action: 'view_timeline', cls: 'attn' },
+      // v0.49.02 (plan 14 fix C8) — a six-week block that waits for the practitioner (server flag, switch on only).
+      fc_review:        { dot: '#3d8da0', label: 'Six-week Flight Plan',                         items: [], action: 'fc_review',     cls: 'fc' },
     };
 
     list.forEach(function (c) {
       if (c.status === 'awaiting_why_release') groups.release_why.items.push(c);
       else if (c.status === 'awaiting_consult') groups.awaiting_consult.items.push(c);
       else if (c.status === 'needs_attention')   groups.needs_attention.items.push(c);
+      if (c.fc_review_due) groups.fc_review.items.push(c);
     });
     // Pending leads come from a separate state slice (different REST
     // endpoint), so they slot in here rather than in the .forEach above.
@@ -1009,7 +1012,7 @@
     });
 
     var body = state.actionQueueEl.querySelector('[data-role="body"]');
-    var total = groups.pending_leads.items.length + groups.release_why.items.length + groups.awaiting_consult.items.length + groups.needs_attention.items.length;
+    var total = groups.pending_leads.items.length + groups.release_why.items.length + groups.awaiting_consult.items.length + groups.needs_attention.items.length + groups.fc_review.items.length;
 
     // v0.22.25 — header count pill stays in sync with the body. Always
     // visible while collapsed so the practitioner sees "(5)" at a glance.
@@ -1058,17 +1061,20 @@
         // that left the queue are dropped so the count stays honest.
         // v0.48.16 — shown only from state.bulkMin pending leads (10), with
         // "Reject selected" beside it; under that the queue is as before.
-        var bulkOn = bulkControlsVisible(g.items.length, state.bulkMin);
+        // v0.49.02 (plan 14 fix A2) — an admin's list also holds other practitioners' leads (own === false):
+        // no tick box for those, so bulk counts and acts on the caller's own leads only.
+        var ownLeads = g.items.filter(function (lead) { return lead.own !== false; });
+        var bulkOn = bulkControlsVisible(ownLeads.length, state.bulkMin);
         var liveIds = {};
-        if (bulkOn) g.items.forEach(function (lead) { liveIds[lead.id] = true; });
+        if (bulkOn) ownLeads.forEach(function (lead) { liveIds[lead.id] = true; });
         Object.keys(_selectedLeads).forEach(function (id) { if (!liveIds[id]) delete _selectedLeads[id]; });
         html += '<div class="hdlv2-aq-group hdlv2-aq-group-' + g.cls + '">'
           +   '<div class="hdlv2-aq-group-head"><span class="hdlv2-aq-dot" style="background:' + g.dot + '"></span><span class="hdlv2-aq-group-label">' + esc(g.label) + '</span><span class="hdlv2-aq-count">' + g.items.length + '</span>'
-          +     (bulkOn ? '<span class="hdlv2-aq-bulk">' + bulkBarHtml(g.items.length) + '</span>' : '')
+          +     (bulkOn ? '<span class="hdlv2-aq-bulk">' + bulkBarHtml(ownLeads.length) + '</span>' : '')
           +   '</div>'
           +   '<ul class="hdlv2-aq-list">';
         g.items.forEach(function (lead) {
-          html += renderPendingLeadAQRow(lead, bulkOn);
+          html += renderPendingLeadAQRow(lead, bulkOn && lead.own !== false);
         });
         html += '</ul></div>';
         return;
@@ -1132,6 +1138,7 @@
       // v0.47.83 — server-built location string ("Texas, US"); empty for
       // legacy/geo-blocked leads, which render exactly as before.
       +     (lead.location ? ' &middot; 📍 ' + esc(lead.location) : '')
+      +     (lead.own === false && lead.owner_name ? ' &middot; for ' + esc(lead.owner_name) : '')
       +   '</div>'
       +   '<div class="hdlv2-aq-item-action" style="display:flex;gap:5px;">'
       +     '<button type="button" class="hdlv2-aq-btn hdlv2-aq-btn-pending-details" data-aq="lead-details" data-lead-id="' + esc(lead.id) + '" aria-expanded="' + (isOpen ? 'true' : 'false') + '" title="Review this lead’s Stage-1 details">' + (isOpen ? 'Hide details' : 'View details') + '</button>'
@@ -1468,6 +1475,9 @@
     if (action === 'view_timeline') {
       return '<button type="button" class="hdlv2-aq-btn hdlv2-aq-btn-attn" data-aq="expand" data-user-id="' + esc(c.user_id) + '">View timeline</button>';
     }
+    if (action === 'fc_review') {
+      return '<button type="button" class="hdlv2-aq-btn" data-aq="expand" data-user-id="' + esc(c.user_id) + '">Open</button>';
+    }
     return '';
   }
 
@@ -1478,6 +1488,7 @@
     if (action === 'release')       return 'Their WHY data was sent to your email. <strong>Practitioner Action:</strong> Open the ' + rn('paid', 'Full Report') + ' form.';
     if (action === 'open_consult')  return rn('paid', 'Full Report') + ' form complete — record your consultation notes';
     if (action === 'view_timeline' && c.reasons && c.reasons.length) return esc(c.reasons[0]);
+    if (action === 'fc_review')     return 'Six-week review ready';
     return '';
   }
 
@@ -2290,13 +2301,16 @@
       var fcBtn = fc.querySelector('[data-fc-action]');
       var fcAction = fcBtn.getAttribute('data-fc-action');
       twoStep(fc, fcBtn, fcAction === 'pause' ? 'Yes, pause' : 'Yes, start', '/flight-cycle/' + fcAction,
-        { client_id: parseInt(fc.getAttribute('data-client-id'), 10) }, reload);
+        { client_id: parseInt(fc.getAttribute('data-client-id'), 10) }, reload, fcBtn.getAttribute('data-fc-confirm'));
     }
   }
 
-  function twoStep(box, btn, yesLabel, path, body, reload) {
+  // askLine (v0.49.02, plan 14 fix C11): what "Yes" will do, shown in the status line while it asks.
+  function twoStep(box, btn, yesLabel, path, body, reload, askLine) {
     var line = box.querySelector('.hdlv2-tl-grant-line');
     btn.addEventListener('click', function () {
+      var was = line.textContent;
+      if (askLine) line.textContent = askLine;
       var ask = document.createElement('span');
       ask.className = 'hdlv2-tl-grant-ask';
       ask.innerHTML = '<button type="button" class="hdlv2-tl-grant-btn is-yes">' + esc(yesLabel) + '</button>'
@@ -2305,7 +2319,7 @@
       box.appendChild(ask);
       var yes = ask.querySelector('.is-yes');
       yes.focus();
-      ask.querySelector('.is-cancel').addEventListener('click', function () { ask.remove(); btn.hidden = false; btn.focus(); });
+      ask.querySelector('.is-cancel').addEventListener('click', function () { ask.remove(); line.textContent = was; btn.hidden = false; btn.focus(); });
       yes.addEventListener('click', function () {
         yes.disabled = true;
         line.textContent = 'Saving\u2026';

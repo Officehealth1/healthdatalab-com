@@ -299,7 +299,7 @@ class HDLV2_Privacy_Eraser {
             }
         }
         if ( $uids ) {
-            foreach ( array( 'hdlv2_flight_plan_ticks' => 'client_id', 'hdlv2_flight_plans' => 'client_id', 'hdlv2_checkins' => 'client_id', 'hdlv2_timeline' => 'client_id', 'hdlv2_monthly_summaries' => 'client_id', 'hdlv2_challenge_days' => 'client_user_id' ) as $t => $col ) {
+            foreach ( array( 'hdlv2_flight_plan_ticks' => 'client_id', 'hdlv2_flight_plans' => 'client_id', 'hdlv2_checkins' => 'client_id', 'hdlv2_timeline' => 'client_id', 'hdlv2_monthly_summaries' => 'client_id', 'hdlv2_challenge_days' => 'client_user_id', 'hdlv2_flight_cycles' => 'client_id' ) as $t => $col ) {
                 if ( self::has( $t ) ) {
                     $c[ $t ] = self::run( "DELETE FROM {$p}$t WHERE $col IN ($uids)" );
                 }

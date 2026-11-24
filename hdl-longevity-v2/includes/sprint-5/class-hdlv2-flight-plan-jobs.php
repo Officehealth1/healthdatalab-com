@@ -155,6 +155,14 @@ class HDLV2_Flight_Plan_Auto_Jobs {
 			return new WP_Error( 'missing_dep', 'HDLV2_Flight_Plan is not available.' );
 		}
 
+		// v0.49.02 (plan 14 fix A4) — the check-in's kind ('next', queued by a confirmed check-in) asks the
+		// access door (hdlv2_ff_access_gate; absent = null, nothing read): a locked client is a no-op, never a
+		// failure alert. Not asked: 'current', queued by the final report (a final report exists, so the door
+		// is open) and by the practitioner's "Start next six weeks"; the manual job above is the practitioner's.
+		if ( 'next' === $target && class_exists( 'HDLV2_Access' ) && HDLV2_Access::client_door( $cid, 'flight_plan' ) ) {
+			return array( 'success' => true, 'plan_id' => 0 );
+		}
+
 		// generate_for_client returns: int plan_id (new), null (no-op — a live
 		// plan already exists = success), or WP_Error (generation failed).
 		$result = HDLV2_Flight_Plan::get_instance()->generate_for_client( $cid, $target );

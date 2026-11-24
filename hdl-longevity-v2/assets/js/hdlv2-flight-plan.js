@@ -63,6 +63,10 @@
     // Without this, a poll firing between flushTicks's debounced POST and
     // its server commit can revert the optimistic data-state for ~20s.
     var lastTickFlushAt = 0;
+    // v0.49.02 (plan 14 fix C9) — the six weeks: days the server refused a tick on ("This day is closed."),
+    // kept across a re-render; and the day states the page last drew, so the poll redraws a day that closed.
+    var closedDays = {};
+    var drawnDays = '';
     // v0.27.1 — fix #16 (/ultrareview): hoisted to mount-scope so a plan
     // regeneration mid-session can clear the previous PDF-poll setInterval
     // before a new one starts. Previously the old timer kept polling
@@ -147,6 +151,7 @@
   function renderPlan(plan, ticks) {
     lastPlan = plan; lastTicks = ticks || [];
     currentPlanId = plan.id;
+    drawnDays = dayStatesKey(plan.days);
     var planData = plan.plan_data || {};
     var dailyPlan = planData.daily_plan || planData;
 
@@ -159,7 +164,9 @@
     var html = '<div class="hdlv2-card">'
       // v0.49.01 (plan 14 C7) — inside the six weeks the header counts the block's week (absent = as before).
       + '<div class="hdlv2-header"><h2>Week ' + (plan.cycle ? plan.cycle.week + ' of ' + plan.cycle.of : plan.week_number) + ' Flight Plan</h2>'
-      + '<p>' + dateLabel + '</p></div>';
+      + '<p>' + dateLabel + '</p></div>'
+      // v0.49.02 (plan 14 fix C8) — one line when the six weeks have ended or are paused.
+      + (plan.cycle && plan.cycle.notice ? '<p class="fp-cycle-notice" role="status">' + esc(plan.cycle.notice) + '</p>' : '');
 
     // Identity statement — the AI sometimes wraps its own output in smart
     // quotes, and we add our own; strip any leading/trailing quotes from the
@@ -328,6 +335,7 @@
         + '<span class="fp-day-full">' + esc(_fullDayLabels[d]) + ' &middot; ' + esc(fullDateLabel) + '</span>'
         + _count
         + _tickAllBtn
+        + (closedDays[dayName] ? '<span class="fp-day-closed" role="status">This day is closed.</span>' : '')
         + '</div>';
 
       if (_isPreStart) {
@@ -532,6 +540,7 @@
 
   // ── 2-state toggle: default ↔ done ──
   function cycleActionState(el) {
+    if (el.hasAttribute('data-locked')) return; // a day the server closed after the page was drawn
     var state = el.getAttribute('data-state') || 'default';
     var tickId = parseInt(el.getAttribute('data-tick-id'), 10);
     var next, ticked;
@@ -552,10 +561,20 @@
     var ids = Object.keys(pendingTicks);
     if (ids.length) lastTickFlushAt = Date.now();
     ids.forEach(function (id) {
+      var ticked = pendingTicks[id];
       fetch(CFG.api_base + '/tick', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': CFG.nonce },
-        body: JSON.stringify({ tick_id: parseInt(id, 10), ticked: pendingTicks[id], token: token })
+        body: JSON.stringify({ tick_id: parseInt(id, 10), ticked: ticked, token: token })
+      }).then(function (r) {
+        return refusedDay(r).then(function (closed) {
+          if (!closed) return;
+          var el = root.querySelector('.fp-action[data-tick-id="' + id + '"]');
+          if (!el) return;
+          el.setAttribute('data-state', ticked ? 'default' : 'done'); // the box goes back
+          dayClosed(el.getAttribute('data-day'));
+          updateAdherence();
+        });
       }).catch(function () {});
     });
     pendingTicks = {};
@@ -568,7 +587,44 @@
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': CFG.nonce },
       body: JSON.stringify(body)
+    }).then(function (r) {
+      return refusedDay(r).then(function (closed) {
+        if (!closed) return;
+        if (day) dayClosed(day);
+        pull(); // the boxes go back to what the server holds
+      });
     }).catch(function () {});
+  }
+
+  // v0.49.02 (plan 14 fix C9) — 409 `day_closed`: the server refused a tick on a closed day.
+  function refusedDay(r) {
+    if (!r || r.status !== 409) return Promise.resolve(false);
+    return r.json().then(function (e) { return !!(e && e.code === 'day_closed'); }, function () { return false; });
+  }
+
+  // The day reads "This day is closed." (kept across a re-render) and its boxes stop answering.
+  function dayClosed(day) {
+    if (!day) return;
+    closedDays[day] = true;
+    root.querySelectorAll('.fp-action[data-day="' + day + '"]').forEach(function (el) {
+      el.setAttribute('data-locked', '1');
+      el.setAttribute('aria-disabled', 'true');
+    });
+    var any = root.querySelector('.fp-action[data-day="' + day + '"]');
+    var head = any && any.closest('.fp-day-column') && any.closest('.fp-day-column').querySelector('.fp-day-header');
+    if (head && !head.querySelector('.fp-day-closed')) {
+      var line = document.createElement('span');
+      line.className = 'fp-day-closed';
+      line.setAttribute('role', 'status');
+      line.textContent = 'This day is closed.';
+      head.appendChild(line);
+    }
+  }
+
+  // Each day's state as one string ('' with the switch off: no days sent), to see a day that closed.
+  function dayStatesKey(days) {
+    if (!days) return '';
+    return Object.keys(days).map(function (d) { return d + ':' + days[d].state; }).join(',');
   }
 
   // ── Single Tick-All toggle label sync (v0.46.60) ──
@@ -697,6 +753,11 @@
       // flip a just-ticked row back to default.
       if (Date.now() - lastTickFlushAt < 5000) return;
 
+      pull();
+    }
+
+    // The fetch of refresh(), without its waits: a refused tick (C9) asks for the server's state at once.
+    function pull() {
       var url = CFG.api_base + '/' + clientId + '/current';
       if (token) url += '?token=' + encodeURIComponent(token);
       fetch(url, { headers: { 'X-WP-Nonce': CFG.nonce } })
@@ -705,7 +766,9 @@
           if (!data || !data.plan) return;
           // Plan was regenerated mid-session (Reset to Week 1 / new week)
           // — full re-render so newly-created tick rows can be bound.
-          if (currentPlanId !== null && data.plan.id !== currentPlanId) {
+          // v0.49.02 (plan 14 fix C9) — also when a day's state changed (a day closed at midnight): it is
+          // drawn again read-only, with its "Missed" boxes.
+          if ((currentPlanId !== null && data.plan.id !== currentPlanId) || dayStatesKey(data.plan.days) !== drawnDays) {
             renderPlan(data.plan, data.ticks);
             return;
           }

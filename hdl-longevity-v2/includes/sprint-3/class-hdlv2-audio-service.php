@@ -166,6 +166,43 @@ class HDLV2_Audio_Service {
         return ( $prac && $prac === $uid );
     }
 
+    /**
+     * v0.49.02 (plan 14 fix A1, C13) — check-in sound sent by link asks the check-in door before anything
+     * is stored, queued or paid: a client the access gate locks gets 403 `locked`; with the six-week switch,
+     * a week whose check-in is confirmed gets 409 `checkin_sent`. null = go on. A practitioner, every other
+     * context and both switches absent: null, nothing read. (/audio/extract takes no link: see its callback.)
+     */
+    private function checkin_door( $context, $token ) {
+        $uid = get_current_user_id();
+        if ( 'weekly_checkin' !== $context || ( $uid && HDLV2_Compatibility::is_practitioner( $uid ) ) ) {
+            return null;
+        }
+        $gate  = class_exists( 'HDLV2_Access' ) && HDLV2_Access::on();
+        $cycle = class_exists( 'HDLV2_Flight_Cycle' ) && HDLV2_Flight_Cycle::on();
+        if ( ( ! $gate && ! $cycle ) || ! is_string( $token ) || ! preg_match( '/^[a-f0-9]{64}$/', $token ) ) {
+            return null; // a bad link is refused by check_audio_permission, as today
+        }
+        if ( class_exists( 'HDL_Stage1_Ticket' ) ) {
+            $token = HDL_Stage1_Ticket::form_token( $token );
+        }
+        global $wpdb;
+        $row = $wpdb->get_row( $wpdb->prepare(
+            "SELECT id, client_user_id, practitioner_user_id FROM {$wpdb->prefix}hdlv2_form_progress WHERE token = %s AND deleted_at IS NULL AND token_expires_at > UTC_TIMESTAMP()",
+            $token
+        ) );
+        if ( ! $row ) {
+            return null;
+        }
+        $locked = $gate ? HDLV2_Access::door( $row, 'checkin', $uid ) : null;
+        if ( $locked ) {
+            return $locked;
+        }
+        if ( $cycle && HDLV2_Flight_Cycle::checkin_sent( (int) $row->client_user_id, date( 'Y-m-d', strtotime( 'monday this week' ) ) ) ) {
+            return new WP_Error( 'checkin_sent', "This week's check-in is already sent.", array( 'status' => 409 ) );
+        }
+        return null;
+    }
+
     // ──────────────────────────────────────────────────────────────
     //  REST: TRANSCRIBE ASYNC  (v0.17.0 — Deepgram + job queue)
     // ──────────────────────────────────────────────────────────────
@@ -198,6 +235,10 @@ class HDLV2_Audio_Service {
                 if ( $ref && ! $this->caller_owns_consultation( $ref ) ) {
                     return new WP_Error( 'forbidden', 'You do not have access to this consultation.', array( 'status' => 403 ) );
                 }
+            }
+            $shut = $this->checkin_door( $ctx, $request->get_param( 'token' ) );
+            if ( $shut ) {
+                return $shut;
             }
 
             $files = $request->get_file_params();
@@ -346,6 +387,9 @@ class HDLV2_Audio_Service {
         global $wpdb;
         $is_practitioner = ( ( $uid = (int) get_current_user_id() ) && HDLV2_Compatibility::is_practitioner( $uid ) );
         $progress        = null;
+        // Plan 14 fix A1 (2026-11-24): $tok is not in this callback's `use`, so this branch never runs and
+        // every caller by link gets the 403 below; no page script calls this route. Pinned by
+        // tests/access/scenario-audio-door.php E.1: hand it the link only together with checkin_door().
         if ( $tok ) {
             // v0.47.53 (B4) — expired tokens must not bind AI-burn work.
             $progress = $wpdb->get_row( $wpdb->prepare(

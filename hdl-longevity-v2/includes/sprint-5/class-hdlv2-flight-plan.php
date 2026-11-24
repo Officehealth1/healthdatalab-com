@@ -2086,6 +2086,12 @@ TODAY: " . date( 'Y-m-d' );
         global $wpdb;
         $today = strtolower( date( 'l' ) );
 
+        // v0.49.02 (plan 14 fix C2) — the six-week blocks whose last day has passed get their review first
+        // (hdlv2_ff_flight_cycle; absent = nothing read). It has its own test-site guard and lock.
+        if ( class_exists( 'HDLV2_Flight_Cycle' ) ) {
+            HDLV2_Flight_Cycle::roll_due();
+        }
+
         // v0.41.17 — `AND fp.deleted_at IS NULL`. Don't generate weekly
         // Flight Plans for soft-deleted clients.
         // GROUP BY both selected columns (instead of SELECT DISTINCT) so the
@@ -2141,8 +2147,6 @@ TODAY: " . date( 'Y-m-d' );
             $context_for_gate = HDLV2_Context_Builder::build_context( $c->client_user_id, 2 );
             $signal           = $context_for_gate['engagement_signal'] ?? 'medium';
             if ( $signal === 'zero' ) {
-                // v0.49.01 (plan 14 C5) — a six-week block that has ended still gets its review, then waits.
-                if ( class_exists( 'HDLV2_Flight_Cycle' ) ) HDLV2_Flight_Cycle::end_if_due( (int) $c->client_user_id, $week_start, $context_for_gate );
                 $this->log_zero_engagement_skip( $c->client_user_id, $c->practitioner_user_id );
                 $skipped++;
                 continue;

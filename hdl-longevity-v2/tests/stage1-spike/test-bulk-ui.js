@@ -46,7 +46,7 @@ if (summary) {
 // Wiring.
 ok(/data-aq="lead-reject-selected"/.test(src) && /Reject selected \(/.test(src), 'a Reject selected (N) button');
 ok(/hdlv2-aq-btn-bulk hdlv2-aq-btn-pending-reject/.test(src), 'Reject selected uses the same classes plus the single Reject colour');
-ok(/bulkControlsVisible\(g\.items\.length, state\.bulkMin\)/.test(src), 'tick boxes + Select all render only when visible');
+ok(/bulkControlsVisible\(ownLeads\.length, state\.bulkMin\)/.test(src) && /renderPendingLeadAQRow\(lead, bulkOn && lead\.own !== false\)/.test(src), 'tick boxes + Select all render only when visible, on the caller\'s own leads (plan 14 fix A2)');
 ok(/state\.bulkMin = /.test(src) && /data\.bulk_min/.test(src), 'bulk_min read from the pending-leads reply');
 ok(src.includes("' leads? Each one gets their next-step email.'") && src.includes("' leads? They leave your list.'"), 'the two inline questions');
 ok(/role="status"/.test(src.slice(src.indexOf('function bindBulkActions'))), 'the inline question line is role=status');

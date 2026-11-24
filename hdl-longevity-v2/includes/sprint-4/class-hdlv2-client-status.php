@@ -404,6 +404,17 @@ class HDLV2_Client_Status {
             $now, $practitioner_id, $practitioner_id, $client_id
         ) );
 
+        // 7a) v0.49.02 (plan 14 fix C1) — this practitioner's open six-week blocks for the client are closed
+        // (no row removed; a block of another practitioner stays). Works with hdlv2_ff_flight_cycle absent too.
+        $wpdb->query( $wpdb->prepare(
+            "UPDATE {$prefix}hdlv2_flight_cycles
+             SET status = 'closed', closed_at = %s
+             WHERE practitioner_id = %d
+               AND client_id = %d
+               AND closed_at IS NULL",
+            $now, $practitioner_id, $client_id
+        ) );
+
         // 7b) v0.48.34 — Healthspan Timeline links this client made (their lanes of loved ones)
         // or consented to as someone's invitee: deleted with the record (DB6).
         $cascade_counts['hdlv2_timeline_links'] = class_exists( 'HDLV2_Timeline_Links' )
@@ -1414,6 +1425,11 @@ class HDLV2_Client_Status {
             $view_as = class_exists( 'HDLV2_Client_Dashboard' ) ? HDLV2_Client_Dashboard::view_as_url( $progress_id ) : '';
             if ( '' !== $view_as ) {
                 $entry['view_as_url'] = $view_as;
+            }
+            // v0.49.02 (plan 14 fix C8) — a six-week block that waits for the practitioner puts one item in
+            // "What needs you today". Absent with hdlv2_ff_flight_cycle off, so the payload is as before.
+            if ( class_exists( 'HDLV2_Flight_Cycle' ) && HDLV2_Flight_Cycle::review_due( $client_id ) ) {
+                $entry['fc_review_due'] = true;
             }
             $result[] = $entry;
         }

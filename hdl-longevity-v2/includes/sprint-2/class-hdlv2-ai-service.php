@@ -1691,14 +1691,14 @@ class HDLV2_AI_Service {
     /**
      * v0.48.98 (plan 13) — send one filled prompt, whole, as the user message, with no system text (the
      * health analysis prompts are Matthew's own words; nothing of ours goes before them). The plugin's model.
-     * Returns the text or a WP_Error.
+     * Returns the text or a WP_Error. v0.49.02 (plan 14 fix C12): $usage receives the token counts.
      */
-    public static function run_prompt( $prompt, $max_tokens ) {
+    public static function run_prompt( $prompt, $max_tokens, &$usage = null ) {
         $api_key = self::get_api_key();
         if ( ! $api_key ) {
             return new WP_Error( 'no_api_key', 'No AI key is configured.' );
         }
-        return self::call_claude( $api_key, null, (string) $prompt, (int) $max_tokens );
+        return self::call_claude( $api_key, null, (string) $prompt, (int) $max_tokens, null, $usage );
     }
 
     // ──────────────────────────────────────────────────────────────
@@ -1941,7 +1941,8 @@ PROMPT;
     //  PRIVATE: API CALL
     // ──────────────────────────────────────────────────────────────
 
-    private static function call_claude( $api_key, $system, $user_prompt, $max_tokens = 1000, $model = null ) {
+    /** $usage (v0.49.02, optional): the answer's token counts, array( input_tokens, output_tokens ), when it came back. */
+    private static function call_claude( $api_key, $system, $user_prompt, $max_tokens = 1000, $model = null, &$usage = null ) {
         $body = array(
             'model'      => $model ?: self::MODEL,
             'max_tokens' => $max_tokens,
@@ -1976,6 +1977,7 @@ PROMPT;
             return new WP_Error( 'claude_api_error', $err_msg );
         }
 
+        $usage   = array( 'input_tokens' => (int) ( $body['usage']['input_tokens'] ?? 0 ), 'output_tokens' => (int) ( $body['usage']['output_tokens'] ?? 0 ) );
         $content = $body['content'][0]['text'] ?? '';
         if ( ! $content ) {
             return new WP_Error( 'claude_empty', 'Empty response from Claude API' );

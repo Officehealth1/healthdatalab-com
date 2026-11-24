@@ -10,6 +10,15 @@ if ( ! defined( 'ABSPATH' ) ) exit;
 
 class HDLV2_Checkin {
 
+    /**
+     * v0.49.02 (plan 14 fix C6) — the two flags the system writes itself; every other flag comes from the
+     * client's own words (the AI summary). The six-week block reads these to tell the two apart. The texts
+     * are the ones stored since before 0.49, so nothing stored changes.
+     */
+    const FLAG_LOW_ADHERENCE   = 'Low adherence for 2+ consecutive weeks';
+    const FLAG_MISSED_CHECKINS = 'Missed check-ins';
+    const SYSTEM_FLAGS         = array( self::FLAG_LOW_ADHERENCE, self::FLAG_MISSED_CHECKINS );
+
     private static $instance = null;
     public static function get_instance() {
         if ( null === self::$instance ) self::$instance = new self();
@@ -382,7 +391,7 @@ class HDLV2_Checkin {
 
             // Both weeks ≤30% (equivalent to ≤3/10 scaled)
             if ( $prev_overall <= 30 && $curr_overall <= 30 ) {
-                $flags[] = array( 'trigger' => 'Low adherence for 2+ consecutive weeks', 'severity' => 'medium', 'detail' => sprintf( 'Current: %d%%, Previous: %d%%', $curr_overall, $prev_overall ) );
+                $flags[] = array( 'trigger' => self::FLAG_LOW_ADHERENCE, 'severity' => 'medium', 'detail' => sprintf( 'Current: %d%%, Previous: %d%%', $curr_overall, $prev_overall ) );
             }
         }
 
@@ -397,7 +406,7 @@ class HDLV2_Checkin {
         if ( $last_confirmed ) {
             $gap_weeks = floor( ( strtotime( $checkin->week_start ) - strtotime( $last_confirmed ) ) / ( 7 * DAY_IN_SECONDS ) );
             if ( $gap_weeks >= 3 ) {
-                $flags[] = array( 'trigger' => 'Missed check-ins', 'severity' => 'medium', 'detail' => sprintf( '%d weeks since last check-in', $gap_weeks ) );
+                $flags[] = array( 'trigger' => self::FLAG_MISSED_CHECKINS, 'severity' => 'medium', 'detail' => sprintf( '%d weeks since last check-in', $gap_weeks ) );
             }
         }
 

@@ -237,6 +237,7 @@ function hdl_erase_schema( $db ) {
         'hdlv2_flight_plan_ticks'   => 'id INTEGER PRIMARY KEY, flight_plan_id INT, client_id INT, day TEXT',
         'hdlv2_monthly_summaries'   => 'id INTEGER PRIMARY KEY, client_id INT, practitioner_id INT, summary TEXT',
         'hdlv2_challenge_days'      => 'id INTEGER PRIMARY KEY, client_user_id INT, day_no INT, note TEXT',
+        'hdlv2_flight_cycles'       => 'id INTEGER PRIMARY KEY, client_id INT, practitioner_id INT, form_progress_id INT, outline TEXT, review TEXT, status TEXT, closed_at TEXT',
         'hdlv2_timeline_links'      => 'id INTEGER PRIMARY KEY, owner_progress_id INT, invite_id INT, label TEXT, status TEXT, lead_id INT, shared_rate REAL, shared_age INT, shared_sex TEXT, withdraw_token_hash TEXT, withdrawn_at TEXT, updated_at TEXT, pack_id INT',
         'hdlv2_timeline_packs'      => 'id INTEGER PRIMARY KEY, owner_progress_id INT, seats_total INT, seats_used INT, status TEXT',
         'hdlv2_jobs'                => 'id INTEGER PRIMARY KEY, job_type TEXT, reference_id INT, payload TEXT, result TEXT',

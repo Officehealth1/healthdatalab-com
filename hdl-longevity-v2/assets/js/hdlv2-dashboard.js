@@ -1056,6 +1056,7 @@
       +     '<div style="font-weight:600;color:#222;font-size:13px;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + (esc(lead.visitor_name) || '<em style="color:#888;font-style:italic;font-weight:400;">No name</em>') + '</div>'
       +     '<div style="font-size:11px;color:#888;margin-top:2px;line-height:1.35;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'
       +       esc(lead.visitor_email) + ageStr + ' &middot; ' + rate + '&times;' + (submittedAt ? ' &middot; ' + esc(submittedAt) : '')
+      +       (lead.own === false && lead.owner_name ? ' &middot; for ' + esc(lead.owner_name) : '')
       +     '</div>'
       +   '</div>'
       +   '<div style="display:flex;gap:5px;flex-shrink:0;">'
