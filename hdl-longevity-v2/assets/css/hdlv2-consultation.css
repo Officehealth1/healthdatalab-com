@@ -1220,7 +1220,11 @@ body.hdlv2-wide-page .hdlv2-consult-layout {
   border: 1px solid #e4e6ea;
   border-radius: 10px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  /* On the page body, outside the screen's root: the screen's own type and list numbers, not the theme's. */
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  color: #2c3e50;
 }
+.hdlv2-listen-dock .hdlv2-liveq-list { list-style: decimal; }
 .hdlv2-listen-head {
   display: flex;
   flex-direction: column;
