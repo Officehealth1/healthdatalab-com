@@ -1262,10 +1262,9 @@ body.hdlv2-wide-page .hdlv2-consult-layout {
   .hdlv2-listen-dock {
     right: 0;
     left: 0;
-    bottom: 0;
+    bottom: 40px; /* the language switcher's row stays free below it */
     width: 100%;
     max-height: 60vh;
-    border-radius: 10px 10px 0 0;
   }
 }
 @media (prefers-reduced-motion: reduce) {
