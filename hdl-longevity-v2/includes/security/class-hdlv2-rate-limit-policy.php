@@ -28,10 +28,13 @@ class HDLV2_Rate_Limit_Policy {
 
     // v0.49.04 (plan 15) — "Listen" on the consultation screen. Two groups of their own, so listening never uses up
     // the AI-burn 30 an hour that "Generate report" draws from. Practitioner-only, counted per signed-in user.
-    const TIER_LISTEN         = 'listen';      // POST /audio/listen-piece: one piece of speech every 15 s at most
+    // v0.49.05 — each number is the most the page can send in an hour, so an hour of steady talk is never cut
+    // short (240 and 40 stopped it at about 38 and 30 minutes). Money is held by the day guard
+    // (HDLV2_Live_Listen::DAY_MINUTES), not by these.
+    const TIER_LISTEN         = 'listen';      // POST /audio/listen-piece: one piece of speech every 6 s at most
     const TIER_LISTEN_ASK     = 'listen-ask';  // POST /consultation/live-questions/auto: questions asked by themselves
-    const LISTEN_PER_HOUR     = 240;
-    const LISTEN_ASK_PER_HOUR = 40;
+    const LISTEN_PER_HOUR     = 600;           // 3,600 s over the 6 s shortest piece (MIN_MS in hdlv2-live-listen.js)
+    const LISTEN_ASK_PER_HOUR = 80;            // 3,600 s over the 45 s rule (listenMaybeAsk in hdlv2-consultation.js)
 
     /**
      * Tier configuration. All windows are 1 hour (3600s).

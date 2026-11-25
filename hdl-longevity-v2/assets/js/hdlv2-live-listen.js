@@ -71,7 +71,7 @@ window.HDLV2LiveListen = (function () {
     // One recorder for one piece; null when the browser refuses it.
     function begin() {
       var r;
-      var bps = /mp4|aac/.test(type) ? 64000 : 32000; // as the mic records
+      var bps = /mp4|aac/.test(type) ? 48000 : 32000; // mp4 (Safari): a 30 s piece stays well under the server's 256 KB
       try { r = type ? new MediaRecorder(stream, { mimeType: type, audioBitsPerSecond: bps }) : new MediaRecorder(stream); } catch (e) { return null; }
       var p = { rec: r, chunks: [], startedAt: Date.now(), heard: false };
       r.addEventListener('dataavailable', function (e) { if (e.data && e.data.size) p.chunks.push(e.data); });

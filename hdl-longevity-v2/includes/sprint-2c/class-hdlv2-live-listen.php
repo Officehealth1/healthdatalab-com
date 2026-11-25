@@ -11,7 +11,8 @@
  * "Suggest questions" (HDLV2_Live_Questions, unchanged), asked by the page on its own path
  * /consultation/live-questions/auto.
  *
- * Money: each practitioner has 240 pieces an hour (rate-limit group `listen`); the whole site has DAY_MINUTES of
+ * Money: each practitioner has 600 pieces an hour (rate-limit group `listen`: the most the page can cut, so an
+ * hour of talk is never stopped by it); what holds the money is the day guard: the whole site has DAY_MINUTES of
  * sound a day (about $3.36 at Deepgram's pay-as-you-go price with hint words, read 2026-11-25). When Deepgram
  * says the credit is used up, the route says so in our own words and one alert e-mail goes that day.
  *
@@ -27,7 +28,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 class HDLV2_Live_Listen {
 
     const OPTION      = 'hdlv2_ff_live_listen';
-    const PIECE_MAX   = 262144;  // 256 KB: 30 s at 64 kbps (Safari) with room; a piece is cut at 30 s
+    const PIECE_MAX   = 262144;  // 256 KB: 30 s at 48 kbps (Safari's mp4, 180,000 bytes) with room; a piece is cut at 30 s
     const EST_BPS     = 750;     // bytes a second at Opus's lowest rate (6 kbps): the estimate counted before Deepgram
                                  // answers can only be too high, never too low; the answer corrects it
     const TIMEOUT     = 15;      // seconds; a piece must come back while the talk goes on, so not the queue
@@ -66,8 +67,9 @@ class HDLV2_Live_Listen {
     /**
      * Hint words: the client's own medicine and condition names from the form (stage 3 `medications`,
      * `existing_conditions`), split at commas, semicolons and lines, cleaned to letters, digits, spaces and hyphens.
-     * A part of up to four words is kept whole ("type 2 diabetes"); a longer part keeps only its long words, which
-     * is where medicine names sit.
+     * A part of up to four words is kept whole ("type 2 diabetes"). Every word of seven letters or more is also a
+     * hint by itself (v0.49.05: "atorvastatin 20mg" alone did not teach "atorvastatin"), and a longer part gives
+     * only those. Single words come first, so they are the ones kept when the list is cut at KEYTERMS.
      * ponytail: a guess at names in free text; a list of known medicines would be sharper, add one if the run shows misses.
      */
     public static function keyterms( $progress ) {
@@ -75,16 +77,25 @@ class HDLV2_Live_Listen {
         $s3    = is_array( $s3 ) ? $s3 : array();
         $text  = (string) ( $s3['medications'] ?? '' ) . "\n" . (string) ( $s3['existing_conditions'] ?? '' );
         $text  = preg_replace( '/<[^>]*>[^<]*<\/[^>]*>|<[^>]*>/u', ' ', $text ); // a tag and what it wraps are not names
-        $terms = array();
+        $singles = array();
+        $phrases = array();
         foreach ( preg_split( '/[,;\/\n\r]+/u', $text ) as $part ) {
             $part  = trim( preg_replace( '/\s+/u', ' ', preg_replace( '/[^\p{L}\p{N} \-]+/u', ' ', $part ) ) );
             $words = '' === $part ? array() : explode( ' ', $part );
-            $pick  = count( $words ) <= 4 ? array( $part ) : array_filter( $words, function ( $w ) { return mb_strlen( $w ) >= 7; } );
-            foreach ( $pick as $t ) {
-                $t = trim( mb_substr( $t, 0, self::KEYTERM_LEN ) );
-                if ( mb_strlen( $t ) >= 3 && ! isset( $terms[ mb_strtolower( $t ) ] ) ) {
-                    $terms[ mb_strtolower( $t ) ] = $t;
+            foreach ( $words as $w ) {
+                if ( mb_strlen( $w ) >= 7 ) {
+                    $singles[] = $w;
                 }
+            }
+            if ( count( $words ) <= 4 ) {
+                $phrases[] = $part;
+            }
+        }
+        $terms = array();
+        foreach ( array_merge( $singles, $phrases ) as $t ) {
+            $t = trim( mb_substr( $t, 0, self::KEYTERM_LEN ) );
+            if ( mb_strlen( $t ) >= 3 && ! isset( $terms[ mb_strtolower( $t ) ] ) ) {
+                $terms[ mb_strtolower( $t ) ] = $t;
             }
         }
         return array_slice( array_values( $terms ), 0, self::KEYTERMS );
@@ -127,6 +138,8 @@ class HDLV2_Live_Listen {
         $scope = 'listen:' . (int) $consult->id . ':' . get_current_user_id();
         return HDLV2_Idempotency::wrap_ai( $request, $scope, function () use ( $progress, $consult, $seq, $file, $bytes, $mime ) {
             // Two pieces at the same moment may both pass this check and overshoot the day by a piece or two: accepted.
+            // ponytail: the day's count is read here and written below, so two listeners at one moment can lose a
+            // piece's seconds. Fine for one listener at a time; an atomic count before several listen at once.
             $day = (float) get_transient( self::day_key() );
             if ( $day >= self::DAY_MINUTES * 60 ) {
                 self::log( $consult, $bytes, 0, 0, 'resting' );

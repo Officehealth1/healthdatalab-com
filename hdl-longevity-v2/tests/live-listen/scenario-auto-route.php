@@ -3,9 +3,10 @@
  * Plan 15 T1: POST /consultation/live-questions/auto, the questions asked by themselves while listening.
  *   A.1 the same callback as the manual route (no second handler), and it answers as the manual one does.
  *   A.2 tiers: auto on listen-ask, the piece on listen, the manual route still on AI-burn.
- *   A.3 the middleware: 40 automatic asks an hour per practitioner, the 41st refused with Retry-After; the
+ *   A.3 the middleware: 80 automatic asks an hour per practitioner (one every 45 s), the 81st refused with
+ *       Retry-After; the
  *       manual route is not touched by them (its own bucket).
- *   A.4 the piece route: 240 an hour per practitioner, the 241st refused.
+ *   A.4 the piece route: 600 an hour per practitioner (one every 6 s, the shortest piece), the 601st refused.
  *   A.5 the two numbers are named constants in the policy.
  * Run: php tests/live-listen/scenario-auto-route.php   Exit: 0 all pass, 1 any fail
  */
@@ -31,23 +32,23 @@ check( 'A.2 auto: listen-ask; piece: listen; manual: ai-burn', HDLV2_Rate_Limit_
     && HDLV2_Rate_Limit_Policy::TIER_AI_BURN === HDLV2_Rate_Limit_Policy::tier_for_request( 'POST', R_LQ ) );
 
 function mw( $route, $uid ) { $GLOBALS['current_user'] = $uid; return HDLV2_Rate_Limit_Middleware::check_request( null, null, new LL_Request( array(), array(), array(), $route ) ); }
-echo "── A.3 forty an hour ──\n";
+echo "── A.3 eighty an hour ──\n";
 $GLOBALS['transients'] = array();
 $ok = true;
-for ( $i = 1; $i <= 40; $i++ ) $ok = $ok && null === mw( R_AUTO, 3 );
-$r41 = mw( R_AUTO, 3 );
-check( 'A.3a forty pass', $ok );
-check( 'A.3b the 41st: 429 with Retry-After, tier listen-ask', $r41 instanceof WP_REST_Response && 429 === $r41->get_status() && (int) ( $r41->headers['Retry-After'] ?? 0 ) > 0 && 'listen-ask' === ( $r41->headers['X-RateLimit-Tier'] ?? '' ) );
+for ( $i = 1; $i <= 80; $i++ ) $ok = $ok && null === mw( R_AUTO, 3 );
+$r81 = mw( R_AUTO, 3 );
+check( 'A.3a eighty pass', $ok );
+check( 'A.3b the 81st: 429 with Retry-After, tier listen-ask', $r81 instanceof WP_REST_Response && 429 === $r81->get_status() && (int) ( $r81->headers['Retry-After'] ?? 0 ) > 0 && 'listen-ask' === ( $r81->headers['X-RateLimit-Tier'] ?? '' ) );
 check( 'A.3c the manual route still passes (its own bucket)', null === mw( R_LQ, 3 ) );
-check( 'A.3d another practitioner has their own forty', null === mw( R_AUTO, 4 ) );
+check( 'A.3d another practitioner has their own eighty', null === mw( R_AUTO, 4 ) );
 
-echo "── A.4 two hundred and forty an hour ──\n";
+echo "── A.4 six hundred an hour ──\n";
 $GLOBALS['transients'] = array();
 $ok = true;
-for ( $i = 1; $i <= 240; $i++ ) $ok = $ok && null === mw( R_PIECE, 3 );
+for ( $i = 1; $i <= 600; $i++ ) $ok = $ok && null === mw( R_PIECE, 3 );
 $r = mw( R_PIECE, 3 );
-check( 'A.4 240 pass, the 241st is refused', $ok && $r instanceof WP_REST_Response && 429 === $r->get_status() && 'listen' === ( $r->headers['X-RateLimit-Tier'] ?? '' ) );
+check( 'A.4 600 pass, the 601st is refused', $ok && $r instanceof WP_REST_Response && 429 === $r->get_status() && 'listen' === ( $r->headers['X-RateLimit-Tier'] ?? '' ) );
 
 echo "── A.5 named numbers ──\n";
-check( 'A.5 LISTEN_PER_HOUR = 240, LISTEN_ASK_PER_HOUR = 40', 240 === HDLV2_Rate_Limit_Policy::LISTEN_PER_HOUR && 40 === HDLV2_Rate_Limit_Policy::LISTEN_ASK_PER_HOUR );
+check( 'A.5 LISTEN_PER_HOUR = 600, LISTEN_ASK_PER_HOUR = 80', 600 === HDLV2_Rate_Limit_Policy::LISTEN_PER_HOUR && 80 === HDLV2_Rate_Limit_Policy::LISTEN_ASK_PER_HOUR );
 done();

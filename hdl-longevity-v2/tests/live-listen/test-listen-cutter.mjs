@@ -17,6 +17,7 @@
  *   C.12 stop(): the last piece with sound is sent, then the microphone is freed, "off".
  *   C.13 the meter runs on timers (no animation frames, no setInterval); the type pick and the loudness are the
  *        audio component's own functions, not a copy.
+ *   C.14 (gate fix G6) the recorder's rate: mp4 (Safari) at 48000 bits a second, WebM at 32000.
  * Run: node tests/live-listen/test-listen-cutter.mjs   Exit: 0 all pass, 1 any fail
  */
 import fs from 'node:fs';
@@ -51,10 +52,10 @@ function world(opts = {}) {
   let gum = 0;
   const recs = [], log = [];
   class MediaRecorder {
-    static isTypeSupported(t) { return t === 'audio/webm;codecs=opus'; }
+    static isTypeSupported(t) { return opts.mp4 ? /^audio\/mp4/.test(t) : t === 'audio/webm;codecs=opus'; }
     constructor(s, o) {
       if (opts.oneAtATime && recs.some((r) => r.state === 'recording')) throw new Error('NotSupportedError');
-      this.stream = s; this.mimeType = (o && o.mimeType) || 'audio/webm'; this.state = 'inactive'; this.l = {}; this.n = recs.length + 1; recs.push(this);
+      this.stream = s; this.mimeType = (o && o.mimeType) || 'audio/webm'; this.bps = o && o.audioBitsPerSecond; this.state = 'inactive'; this.l = {}; this.n = recs.length + 1; recs.push(this);
     }
     addEventListener(t, f) { (this.l[t] = this.l[t] || []).push(f); }
     start() { this.state = 'recording'; log.push('start' + this.n); }
@@ -187,6 +188,12 @@ ok(!/requestAnimationFrame|setInterval/.test(LISTEN), 'C.13a the meter runs on t
 ok(/HDLAudioComponent\.pickType\(/.test(LISTEN) && /HDLAudioComponent\.rms\(/.test(LISTEN) && !/isTypeSupported/.test(LISTEN) && /pickType:\s*pickType/.test(AUDIO) && /rms:\s*rms/.test(AUDIO),
   'C.13b the type pick and the loudness are the audio component\'s own functions');
 ok(!/SpeechRecognition/.test(LISTEN) && !/\balert\(|\bconfirm\(|\bprompt\(/.test(LISTEN), 'C.13c no browser speech service and no native pop-up');
+
+// C.14 (gate fix G6): a 30 s mp4 piece at 64 kbps sat within 6 % of the server's 256 KB cap
+w = world({ mp4: true }); w.L.start(); await flush();
+ok(/mp4/.test(w.recs[0].mimeType) && w.recs[0].bps === 48000, 'C.14a an mp4 recorder (Safari) is made with 48000 bits a second');
+w = world(); w.L.start(); await flush();
+ok(/webm/.test(w.recs[0].mimeType) && w.recs[0].bps === 32000, 'C.14b a WebM recorder stays at 32000');
 
 console.log(`\nPASS=${PASS} FAIL=${FAIL}`);
 process.exit(FAIL ? 1 : 0);

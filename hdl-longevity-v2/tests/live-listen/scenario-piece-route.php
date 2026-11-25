@@ -7,7 +7,8 @@
  *  P.2  the boundary: no file 400; seq not a whole number 400; a type that is not audio 415; over 256 KB 413 (the
  *       plan's 2 MB, lowered after two security reviews: a low-rate 2 MB piece could hold many minutes).
  *  P.3  a good piece: { seq, text }, one Deepgram call, nova-3, a 15-second limit, the client's own medicine and
- *       condition names as hint words (cleaned, capped).
+ *       condition names as hint words (cleaned, capped). P.3f (gate fix G3): a long word inside a short part is a
+ *       hint by itself as well as in its phrase, single words before phrases when the list is cut.
  *  P.4  the same Idempotency-Key twice: Deepgram once.
  *  P.5  Deepgram fails: 502 with our own sentence, none of its body.
  *  P.6  a piece with no speech: 200 with empty text.
@@ -69,6 +70,15 @@ $clean = true;
 foreach ( $terms as $t ) $clean = $clean && preg_match( '/^[\p{L}\p{N} \-]{1,40}$/u', $t );
 check( 'P.3d each hint word is letters, digits, spaces and hyphens, at most 40 characters; nothing of the script tag', $clean && ! in_array( 'script', array_map( 'strtolower', $terms ), true ) && count( $terms ) <= HDLV2_Live_Listen::KEYTERMS );
 check( 'P.3e the sound goes as sent, with its own type', 'audio/webm' === ( $args['headers']['Content-Type'] ?? '' ) );
+$kt = function ( $meds ) { return HDLV2_Live_Listen::keyterms( (object) array( 'stage3_data' => json_encode( array( 'medications' => $meds ) ) ) ); };
+$terms = $kt( 'atorvastatin 20mg, metformin 500mg twice daily, vitamin D3' );
+$low   = array_map( 'mb_strtolower', $terms );
+check( 'P.3f a medicine name is a hint by itself and its phrase stays', in_array( 'atorvastatin', $terms, true ) && in_array( 'metformin', $terms, true ) && in_array( 'atorvastatin 20mg', $terms, true ) && in_array( 'vitamin D3', $terms, true ) );
+check( 'P.3f no hint word twice', count( $low ) === count( array_unique( $low ) ) && array( 'Atorvastatin', 'Atorvastatin 20mg' ) === $kt( 'Atorvastatin 20mg, atorvastatin 20mg, ATORVASTATIN' ) );
+$many = array();
+for ( $i = 0; $i < 60; $i++ ) $many[] = 'medicine' . chr( 97 + $i % 26 ) . chr( 97 + intdiv( $i, 26 ) ) . ' 10mg';
+$cut = $kt( implode( ', ', $many ) );
+check( 'P.3f more than 50: cut at 50, the single long words before the phrases', HDLV2_Live_Listen::KEYTERMS === count( $cut ) && array() === array_filter( $cut, function ( $t ) { return false !== strpos( $t, ' ' ); } ) );
 
 echo "── P.4 one key twice ──\n";
 $GLOBALS['ai_replies'] = array( ll_dg(), ll_dg() );
