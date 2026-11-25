@@ -48,6 +48,9 @@ class HDLV2_Deepgram_Service {
      *     @type bool   $diarize    Speaker diarisation (default: false)
      *     @type bool   $punctuate  Punctuation (default: true)
      *     @type bool   $smart_format  Smart formatting: numbers, dates, etc. (default: true)
+     *     @type string $mime       Content type of the sound (default: from the file's extension)
+     *     @type int    $timeout    HTTP timeout in seconds (default: HTTP_TIMEOUT_SEC)
+     *     @type array  $keyterms   Hint words for nova-3 (v0.49.04, plan 15): each sent as its own keyterm
      * }
      * @return array|WP_Error {
      *     @type string $transcript   Plain text transcript
@@ -84,12 +87,16 @@ class HDLV2_Deepgram_Service {
         }
 
         $url = self::API_URL . '?' . http_build_query( $params );
+        // Deepgram takes one keyterm parameter per term (a phrase keeps its spaces, encoded), so not http_build_query.
+        foreach ( (array) ( $opts['keyterms'] ?? array() ) as $term ) {
+            $url .= '&keyterm=' . rawurlencode( (string) $term );
+        }
 
         // Derive Content-Type from file extension — Deepgram sniffs the audio
         // format but an accurate content-type speeds detection + reduces ambiguous
         // failures on .m4a (iOS Voice Memos) and .webm (browser MediaRecorder).
         $ext  = strtolower( pathinfo( $file_path, PATHINFO_EXTENSION ) );
-        $mime = self::ext_to_mime( $ext );
+        $mime = isset( $opts['mime'] ) ? (string) $opts['mime'] : self::ext_to_mime( $ext );
 
         // Read file contents. Deepgram accepts raw binary body.
         $body = file_get_contents( $file_path );
@@ -103,7 +110,7 @@ class HDLV2_Deepgram_Service {
                 'Content-Type'  => $mime,
             ),
             'body'    => $body,
-            'timeout' => self::HTTP_TIMEOUT_SEC,
+            'timeout' => isset( $opts['timeout'] ) ? (int) $opts['timeout'] : self::HTTP_TIMEOUT_SEC,
         ) );
 
         if ( is_wp_error( $response ) ) {

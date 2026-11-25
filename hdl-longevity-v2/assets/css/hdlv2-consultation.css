@@ -1203,6 +1203,74 @@ body.hdlv2-wide-page .hdlv2-consult-layout {
 .hdlv2-liveq-q { font-weight: 500; } /* inline, so the number sits beside the first line */
 .hdlv2-liveq-why { display: block; font-size: 12px; color: #666; }
 
+/* v0.49.04 (plan 15) — "Listen": the questions in one card pinned to the window's bottom right corner (only with
+   hdlv2_ff_live_listen; the in-column block above is then not drawn). Hairline and the faint table shadow only;
+   no bar beside it. Its own scroll; folded, one line. At 1024px and below a sheet across the bottom. */
+.hdlv2-listen-dock {
+  position: fixed;
+  right: 22px;
+  bottom: 22px;
+  width: 360px;
+  max-height: 60vh;
+  display: flex;
+  flex-direction: column;
+  z-index: 9999;
+  background: #fff;
+  border: 1px solid #e4e6ea;
+  border-radius: 10px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+.hdlv2-listen-head {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 16px;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+}
+.hdlv2-listen-title { font-family: 'Poppins', 'Inter', sans-serif; font-size: 14px; font-weight: 600; color: #3d8da0; }
+.hdlv2-listen-peek { font-size: 12px; color: #888; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.hdlv2-listen-peek:empty { display: none; }
+.hdlv2-listen-body { padding: 0 16px 12px; overflow-y: auto; min-height: 0; }
+.hdlv2-listen-body[hidden] { display: none; }
+.hdlv2-listen-dock .hdlv2-health-actions .hdlv2-consult-organise-btn { width: auto; }
+.hdlv2-listen-dock #hdlv2-listen[aria-pressed="true"] { background: #004F59; }
+.hdlv2-listen-dock button:focus-visible { outline: 2px solid #3d8da0; outline-offset: 2px; }
+.hdlv2-listen-dock .hdlv2-consult-hint:empty { display: none; }
+.hdlv2-liveq-asked {
+  display: inline-block;
+  margin: 4px 0 0;
+  padding: 3px 10px;
+  font-size: 12px;
+  color: #3d8da0;
+  background: #fff;
+  border: 1px solid #e4e6ea;
+  border-radius: 8px;
+  cursor: pointer;
+}
+.hdlv2-liveq-asked[aria-pressed="true"] { color: #888; cursor: default; }
+.hdlv2-liveq-done .hdlv2-liveq-q,
+.hdlv2-liveq-done .hdlv2-liveq-why { text-decoration: line-through; color: #888; }
+@media (max-width: 1024px) {
+  .hdlv2-listen-dock {
+    right: 0;
+    left: 0;
+    bottom: 0;
+    width: 100%;
+    max-height: 60vh;
+    border-radius: 10px 10px 0 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hdlv2-listen-dock * { animation: none !important; transition: none !important; }
+}
+
 /* ──────────────────────────────────────────────────────────────────────
    CONSULTATIONS LIST VIEW — /consultation/ with no ?progress_id
    v0.47.96: one table in the Clients-page theme. Measurements are the

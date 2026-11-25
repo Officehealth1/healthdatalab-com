@@ -311,7 +311,8 @@ class HDLV2_Privacy_Requests {
         }
     }
 
-    private static function alert_to() {
+    /** The plugin's alert addresses (hdlv2_stage1_alert_to, else the site e-mail); public since v0.49.04 so Listen's credit alert shares it. */
+    public static function alert_to() {
         $to = array_filter( array_map( 'trim', explode( ',', (string) get_option( 'hdlv2_stage1_alert_to', '' ) ) ) );
         return $to ? array_values( $to ) : array( (string) get_option( 'admin_email' ) );
     }

@@ -134,7 +134,8 @@ w.settle().drop(); await tick(); await tick();
 ok(w.p.reg['hdlv2-liveq-body'].innerHTML === shown && w.p.reg['hdlv2-liveq-error'].textContent === 'Could not get questions. Try again.', 'K.7b no answer at all: the same');
 
 // K.9
-ok(js.includes("(CFG.live_questions ? '<div class=\"hdlv2-consult-section hdlv2-liveq\" id=\"hdlv2-liveq\"></div>' : '')") && js.includes('if (CFG.live_questions) mountLiveQuestions();'), 'K.9 the card and its mount only with the live_questions setting');
+// v0.49.04 (plan 15): with live_listen the same setting draws the pinned card instead (tests/live-listen/test-listen-dock.mjs).
+ok(js.includes("(CFG.live_questions ? (CFG.live_listen") && js.includes(": '<div class=\"hdlv2-consult-section hdlv2-liveq\" id=\"hdlv2-liveq\"></div>') : '')") && js.includes('if (CFG.live_questions) mountLiveQuestions();'), 'K.9 the card and its mount only with the live_questions setting');
 ok(!/window\.(alert|confirm|prompt)\(/.test(NAMES.map(fn).join('\n')), 'K.9b no native pop-up in the card');
 
 console.log(`\nPASS=${PASS} FAIL=${FAIL}`);

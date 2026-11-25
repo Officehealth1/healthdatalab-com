@@ -26,6 +26,13 @@ class HDLV2_Rate_Limit_Policy {
     // the consumer READ limits untouched.
     const TIER_PRAC_READ = 'prac-read';
 
+    // v0.49.04 (plan 15) — "Listen" on the consultation screen. Two groups of their own, so listening never uses up
+    // the AI-burn 30 an hour that "Generate report" draws from. Practitioner-only, counted per signed-in user.
+    const TIER_LISTEN         = 'listen';      // POST /audio/listen-piece: one piece of speech every 15 s at most
+    const TIER_LISTEN_ASK     = 'listen-ask';  // POST /consultation/live-questions/auto: questions asked by themselves
+    const LISTEN_PER_HOUR     = 240;
+    const LISTEN_ASK_PER_HOUR = 40;
+
     /**
      * Tier configuration. All windows are 1 hour (3600s).
      *
@@ -51,6 +58,14 @@ class HDLV2_Rate_Limit_Policy {
             self::TIER_PUBLIC => array(
                 'per_ip_limit' => 60,
                 'window'       => 3600,
+            ),
+            self::TIER_LISTEN => array(
+                'per_practitioner_limit' => self::LISTEN_PER_HOUR,
+                'window'                 => 3600,
+            ),
+            self::TIER_LISTEN_ASK => array(
+                'per_practitioner_limit' => self::LISTEN_ASK_PER_HOUR,
+                'window'                 => 3600,
             ),
             self::TIER_BYPASS => null,
         );
@@ -142,6 +157,9 @@ class HDLV2_Rate_Limit_Policy {
             array( 'POST', '#^/hdl-v2/v1/consultation/health-analysis$#',       self::TIER_AI_BURN ),
             // v0.49.03 (plan 14 part B) — questions to ask now: one Claude call per press.
             array( 'POST', '#^/hdl-v2/v1/consultation/live-questions$#',        self::TIER_AI_BURN ),
+            // v0.49.04 (plan 15) — "Listen": the pieces and the automatic asks, each in its own group.
+            array( 'POST', '#^/hdl-v2/v1/audio/listen-piece$#',                 self::TIER_LISTEN ),
+            array( 'POST', '#^/hdl-v2/v1/consultation/live-questions/auto$#',   self::TIER_LISTEN_ASK ),
             array( 'POST', '#^/hdl-v2/v1/flight-plan/[0-9]+/generate$#',        self::TIER_AI_BURN ),
             array( 'GET',  '#^/hdl-v2/v1/flight-notes/pdf$#',                   self::TIER_AI_BURN ),
 

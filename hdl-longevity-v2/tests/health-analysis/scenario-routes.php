@@ -18,7 +18,7 @@ $log = tempnam( sys_get_temp_dir(), 'ha-log' );
 ini_set( 'error_log', $log );
 ha_load( array(
     'security/class-hdlv2-idempotency.php', 'sprint-2/class-hdlv2-ai-service.php', 'sprint-2/class-hdlv2-email-templates.php',
-    'class-hdlv2-report-names.php', 'sprint-2c/class-hdlv2-health-analysis.php', 'sprint-2c/class-hdlv2-live-questions.php',
+    'class-hdlv2-report-names.php', 'sprint-2c/class-hdlv2-health-analysis.php', 'sprint-2c/class-hdlv2-live-questions.php', 'sprint-2c/class-hdlv2-live-listen.php',
     'sprint-2c/class-hdlv2-consultation.php',
 ) );
 $have = class_exists( 'HDLV2_Health_Analysis' );

@@ -8,7 +8,7 @@
 require dirname( __DIR__ ) . '/health-analysis/stubs.php';
 ha_load( array(
     'security/class-hdlv2-idempotency.php', 'sprint-2/class-hdlv2-ai-service.php', 'sprint-2/class-hdlv2-email-templates.php',
-    'class-hdlv2-report-names.php', 'sprint-2c/class-hdlv2-health-analysis.php', 'sprint-2c/class-hdlv2-live-questions.php',
+    'class-hdlv2-report-names.php', 'sprint-2c/class-hdlv2-health-analysis.php', 'sprint-2c/class-hdlv2-live-questions.php', 'sprint-2c/class-hdlv2-live-listen.php',
 ) );
 function lq_switch( $v ) { if ( null === $v ) unset( $GLOBALS['options']['hdlv2_ff_live_questions'] ); else $GLOBALS['options']['hdlv2_ff_live_questions'] = $v; }
 /** The prompt text the model was sent by the newest AI call. */
