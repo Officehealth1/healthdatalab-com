@@ -145,7 +145,8 @@ class HDLV2_Deepgram_Service {
 
         $transcript = trim( (string) $alt['transcript'] );
         if ( $transcript === '' ) {
-            return new WP_Error( 'empty_transcript', 'No speech detected in audio.' );
+            // v0.49.04 — the seconds go with it: Deepgram bills a silent file too (plan 15's day counter reads them).
+            return new WP_Error( 'empty_transcript', 'No speech detected in audio.', array( 'duration_sec' => isset( $data['metadata']['duration'] ) ? (float) $data['metadata']['duration'] : null ) );
         }
 
         return array(

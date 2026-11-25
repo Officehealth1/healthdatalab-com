@@ -27,7 +27,8 @@ if ( ! defined( 'ABSPATH' ) ) {
 class HDLV2_Live_Listen {
 
     const OPTION      = 'hdlv2_ff_live_listen';
-    const PIECE_MAX   = 2097152; // 2 MB: a 30-second piece is about 120 KB at 32 kbps
+    const PIECE_MAX   = 524288;  // 512 KB: about 64 s at 64 kbps (Safari) and 128 s at 32 kbps; a piece is cut at 30 s
+    const EST_BPS     = 4000;    // bytes a second at the recorder's 32 kbps: the estimate counted before Deepgram answers
     const TIMEOUT     = 15;      // seconds; a piece must come back while the talk goes on, so not the queue
     const DAY_MINUTES = 600;     // minutes of sound a UTC day for the whole site
     const KEYTERMS    = 50;      // Deepgram: "focus on the most important 20-50 terms" (500 tokens at most)
@@ -130,13 +131,18 @@ class HDLV2_Live_Listen {
                 self::log( $consult, $bytes, 0, 0, 'resting' );
                 return new WP_Error( 'listen_resting', self::RESTING, array( 'status' => 429 ) );
             }
+            // The piece is counted before Deepgram is asked (an estimate from its size), then corrected to the seconds
+            // Deepgram reports, silent pieces included; a failed call keeps the estimate (it may have been billed).
+            $est = $bytes / self::EST_BPS;
+            set_transient( self::day_key(), $day + $est, 2 * DAY_IN_SECONDS );
             $out = HDLV2_Deepgram_Service::transcribe_file( $file['tmp_name'], array(
                 'mime'     => $mime,
                 'timeout'  => self::TIMEOUT,
                 'keyterms' => self::keyterms( $progress ),
             ) );
             if ( is_wp_error( $out ) && 'empty_transcript' === $out->get_error_code() ) {
-                $out = array( 'transcript' => '', 'duration_sec' => null ); // a piece with no speech is not a failure
+                // A piece with no speech is not a failure.
+                $out = array( 'transcript' => '', 'duration_sec' => $out->get_error_data()['duration_sec'] ?? null );
             }
             if ( is_wp_error( $out ) ) {
                 $status = (int) ( $out->get_error_data()['status'] ?? 0 );
@@ -147,8 +153,8 @@ class HDLV2_Live_Listen {
                 }
                 return new WP_Error( 'listen_failed', self::MISSED, array( 'status' => 502 ) );
             }
-            $sec = (float) ( $out['duration_sec'] ?? 0 );
-            set_transient( self::day_key(), $day + $sec, 2 * DAY_IN_SECONDS );
+            $sec = null === $out['duration_sec'] ? $est : (float) $out['duration_sec'];
+            set_transient( self::day_key(), (float) get_transient( self::day_key() ) - $est + $sec, 2 * DAY_IN_SECONDS );
             $text = (string) $out['transcript'];
             self::log( $consult, $bytes, $sec, mb_strlen( $text ), 'ok' );
             return rest_ensure_response( array( 'seq' => $seq, 'text' => $text ) );
