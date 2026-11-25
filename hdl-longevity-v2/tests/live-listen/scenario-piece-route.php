@@ -4,8 +4,8 @@
  *   P.1  who: signed out 401, a client 403, another practitioner 404 (plan 13's owned(), called: the same answer
  *        "Suggest questions" gives), an admin passes. A missing nonce: WordPress drops the cookie session, so the
  *        call arrives signed out and gets the 401 of P.1a; the route's permission is check_practitioner_auth.
- *  P.2  the boundary: no file 400; seq not a whole number 400; a type that is not audio 415; over 512 KB 413 (the
- *       plan's 2 MB, lowered after the security review: a low-rate 2 MB piece could hold many minutes).
+ *  P.2  the boundary: no file 400; seq not a whole number 400; a type that is not audio 415; over 256 KB 413 (the
+ *       plan's 2 MB, lowered after two security reviews: a low-rate 2 MB piece could hold many minutes).
  *  P.3  a good piece: { seq, text }, one Deepgram call, nova-3, a 15-second limit, the client's own medicine and
  *       condition names as hint words (cleaned, capped).
  *  P.4  the same Idempotency-Key twice: Deepgram once.
@@ -51,7 +51,7 @@ check( 'P.2a no file: 400', 400 === ll_call( R_PIECE, 3, $good )[0] );
 check( 'P.2b seq not a whole number: 400', 400 === ll_call( R_PIECE, 3, array( 'progress_id' => 10, 'seq' => '1; DROP' ), array(), array( 'audio' => ll_file() ) )[0]
     && 400 === ll_call( R_PIECE, 3, array( 'progress_id' => 10, 'seq' => -1 ), array(), array( 'audio' => ll_file() ) )[0] );
 check( 'P.2c not audio: 415', 415 === ll_call( R_PIECE, 3, $good, array(), array( 'audio' => ll_file( 3000, 'text' ) ) )[0] );
-check( 'P.2d over 512 KB: 413', 413 === ll_call( R_PIECE, 3, $good, array(), array( 'audio' => ll_file( 512 * 1024 + 1 ) ) )[0] && 512 * 1024 === HDLV2_Live_Listen::PIECE_MAX );
+check( 'P.2d over 256 KB: 413', 413 === ll_call( R_PIECE, 3, $good, array(), array( 'audio' => ll_file( 256 * 1024 + 1 ) ) )[0] && 256 * 1024 === HDLV2_Live_Listen::PIECE_MAX );
 check( 'P.2e none of these reached Deepgram', empty( $GLOBALS['http_urls'] ) );
 
 echo "── P.3 a good piece ──\n";
@@ -101,12 +101,12 @@ check( 'P.8a the counter holds the seconds Deepgram reported (16.4)', abs( 16.4 
 check( 'P.8b the limit is a named number: 600 minutes a day', 600 === HDLV2_Live_Listen::DAY_MINUTES );
 $GLOBALS['transients'] = array();
 $GLOBALS['ai_replies'] = array( function () { $GLOBALS['seen_during'] = (float) get_transient( ll_day_key() ); return ll_dg( '', 7.5 ); } );
-ll_call( R_PIECE, 3, $good, array(), array( 'audio' => ll_file( 40000 ) ) );
-check( 'P.8d the estimate is counted before Deepgram answers (40,000 bytes = 10 s)', abs( 10.0 - (float) $GLOBALS['seen_during'] ) < 0.01 );
+ll_call( R_PIECE, 3, $good, array(), array( 'audio' => ll_file( 30000 ) ) );
+check( 'P.8d the estimate is counted before Deepgram answers, at the lowest rate (30,000 bytes = 40 s)', abs( 40.0 - (float) $GLOBALS['seen_during'] ) < 0.01 );
 check( 'P.8e a silent piece counts the seconds Deepgram billed (7.5)', abs( 7.5 - (float) get_transient( ll_day_key() ) ) < 0.01 );
 $GLOBALS['ai_replies'] = array( array( 'raw' => array( 500, '{}' ) ) );
-ll_call( R_PIECE, 3, $good, array(), array( 'audio' => ll_file( 40000 ) ) );
-check( 'P.8f a failed call keeps its estimate (7.5 + 10)', abs( 17.5 - (float) get_transient( ll_day_key() ) ) < 0.01 );
+ll_call( R_PIECE, 3, $good, array(), array( 'audio' => ll_file( 30000 ) ) );
+check( 'P.8f a failed call keeps its estimate (7.5 + 40)', abs( 47.5 - (float) get_transient( ll_day_key() ) ) < 0.01 );
 set_transient( ll_day_key(), HDLV2_Live_Listen::DAY_MINUTES * 60 );
 $n = count( $GLOBALS['http_urls'] );
 list( $s, $d ) = ll_call( R_PIECE, 3, $good, array(), array( 'audio' => ll_file() ) );

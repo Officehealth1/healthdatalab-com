@@ -27,8 +27,9 @@ if ( ! defined( 'ABSPATH' ) ) {
 class HDLV2_Live_Listen {
 
     const OPTION      = 'hdlv2_ff_live_listen';
-    const PIECE_MAX   = 524288;  // 512 KB: about 64 s at 64 kbps (Safari) and 128 s at 32 kbps; a piece is cut at 30 s
-    const EST_BPS     = 4000;    // bytes a second at the recorder's 32 kbps: the estimate counted before Deepgram answers
+    const PIECE_MAX   = 262144;  // 256 KB: 30 s at 64 kbps (Safari) with room; a piece is cut at 30 s
+    const EST_BPS     = 750;     // bytes a second at Opus's lowest rate (6 kbps): the estimate counted before Deepgram
+                                 // answers can only be too high, never too low; the answer corrects it
     const TIMEOUT     = 15;      // seconds; a piece must come back while the talk goes on, so not the queue
     const DAY_MINUTES = 600;     // minutes of sound a UTC day for the whole site
     const KEYTERMS    = 50;      // Deepgram: "focus on the most important 20-50 terms" (500 tokens at most)
