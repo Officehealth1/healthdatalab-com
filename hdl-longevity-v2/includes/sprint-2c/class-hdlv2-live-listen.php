@@ -12,7 +12,7 @@
  * /consultation/live-questions/auto.
  *
  * Money: each practitioner has 600 pieces an hour (rate-limit group `listen`: the most the page can cut, so an
- * hour of talk is never stopped by it); what holds the money is the day guard: the whole site has DAY_MINUTES of
+ * hour of talk is never stopped by it); what holds Deepgram's bill is the day guard: the whole site has DAY_MINUTES of
  * sound a day (about $3.36 at Deepgram's pay-as-you-go price with hint words, read 2026-11-25). When Deepgram
  * says the credit is used up, the route says so in our own words and one alert e-mail goes that day.
  *
@@ -67,9 +67,11 @@ class HDLV2_Live_Listen {
     /**
      * Hint words: the client's own medicine and condition names from the form (stage 3 `medications`,
      * `existing_conditions`), split at commas, semicolons and lines, cleaned to letters, digits, spaces and hyphens.
-     * A part of up to four words is kept whole ("type 2 diabetes"). Every word of seven letters or more is also a
-     * hint by itself (v0.49.05: "atorvastatin 20mg" alone did not teach "atorvastatin"), and a longer part gives
-     * only those. Single words come first, so they are the ones kept when the list is cut at KEYTERMS.
+     * A part of up to four words is kept whole ("type 2 diabetes"), and each of its words of seven letters or more
+     * is also a hint by itself (v0.49.05: "atorvastatin 20mg" alone did not teach "atorvastatin"). A longer part
+     * is a sentence: it gives only its long words. Order, which decides what is kept when the list is cut at
+     * KEYTERMS: the single words of short parts, the short parts, then a sentence's long words (mostly ordinary
+     * words such as "currently"; they must not push a medicine out).
      * ponytail: a guess at names in free text; a list of known medicines would be sharper, add one if the run shows misses.
      */
     public static function keyterms( $progress ) {
@@ -79,20 +81,22 @@ class HDLV2_Live_Listen {
         $text  = preg_replace( '/<[^>]*>[^<]*<\/[^>]*>|<[^>]*>/u', ' ', $text ); // a tag and what it wraps are not names
         $singles = array();
         $phrases = array();
+        $loose   = array();
         foreach ( preg_split( '/[,;\/\n\r]+/u', $text ) as $part ) {
             $part  = trim( preg_replace( '/\s+/u', ' ', preg_replace( '/[^\p{L}\p{N} \-]+/u', ' ', $part ) ) );
             $words = '' === $part ? array() : explode( ' ', $part );
+            $short = count( $words ) <= 4;
             foreach ( $words as $w ) {
                 if ( mb_strlen( $w ) >= 7 ) {
-                    $singles[] = $w;
+                    if ( $short ) { $singles[] = $w; } else { $loose[] = $w; }
                 }
             }
-            if ( count( $words ) <= 4 ) {
+            if ( $short ) {
                 $phrases[] = $part;
             }
         }
         $terms = array();
-        foreach ( array_merge( $singles, $phrases ) as $t ) {
+        foreach ( array_merge( $singles, $phrases, $loose ) as $t ) {
             $t = trim( mb_substr( $t, 0, self::KEYTERM_LEN ) );
             if ( mb_strlen( $t ) >= 3 && ! isset( $terms[ mb_strtolower( $t ) ] ) ) {
                 $terms[ mb_strtolower( $t ) ] = $t;

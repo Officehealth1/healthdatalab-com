@@ -79,6 +79,9 @@ $many = array();
 for ( $i = 0; $i < 60; $i++ ) $many[] = 'medicine' . chr( 97 + $i % 26 ) . chr( 97 + intdiv( $i, 26 ) ) . ' 10mg';
 $cut = $kt( implode( ', ', $many ) );
 check( 'P.3f more than 50: cut at 50, the single long words before the phrases', HDLV2_Live_Listen::KEYTERMS === count( $cut ) && array() === array_filter( $cut, function ( $t ) { return false !== strpos( $t, ' ' ); } ) );
+$wordy = str_repeat( 'She currently takes several different tablets because sometimes mornings feel difficult, ', 9 ) . 'Zocor 20mg, Plavix 75mg, HRT patch';
+$kept  = $kt( $wordy );
+check( 'P.3f a wordy form: the short parts keep their places, the long words of a sentence come last', in_array( 'Zocor 20mg', $kept, true ) && in_array( 'Plavix 75mg', $kept, true ) && in_array( 'HRT patch', $kept, true ) && 'currently' === $kept[3] );
 
 echo "── P.4 one key twice ──\n";
 $GLOBALS['ai_replies'] = array( ll_dg(), ll_dg() );
