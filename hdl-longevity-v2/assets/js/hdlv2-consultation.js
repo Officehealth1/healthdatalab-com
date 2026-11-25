@@ -151,10 +151,8 @@
           // v0.49.03 (plan 14 part B) — questions to ask now, beside the notes it reads; only with
           // hdlv2_ff_live_questions on (the settings then carry live_questions).
           // v0.49.04 (plan 15) — with "Listen" on (live_listen) the block is a card pinned to the window's corner
-          // instead, so the column gets shorter.
-          + (CFG.live_questions ? (CFG.live_listen
-              ? '<div class="hdlv2-liveq hdlv2-listen-dock" id="hdlv2-listen-dock" role="region" aria-label="Questions to ask now"></div>'
-              : '<div class="hdlv2-consult-section hdlv2-liveq" id="hdlv2-liveq"></div>') : '')
+          // instead (mountListen puts it on the page's body), so the column gets shorter.
+          + (CFG.live_questions ? (CFG.live_listen ? '' : '<div class="hdlv2-consult-section hdlv2-liveq" id="hdlv2-liveq"></div>') : '')
         ))
 
       // Action wrap — pre-Final shows the textarea-stage button or the
@@ -1337,7 +1335,24 @@
 
   function mountListen() {
     var dock = document.getElementById('hdlv2-listen-dock');
-    if (!dock || !document.getElementById('hdlv2-consult-notes')) { if (listen && listen.isOn()) listen.stop(); return; }
+    if (!document.getElementById('hdlv2-consult-notes')) { // after the final report: no notes box, no card
+      if (listen && listen.isOn()) listen.stop();
+      if (dock && dock.parentNode) dock.parentNode.removeChild(dock);
+      return;
+    }
+    if (!dock) {
+      // On the page's body, not in the column: a theme section with a transform would pin the card to itself and
+      // the site footer would cover it (seen in the walk). One card, kept across redraws of the screen.
+      dock = document.createElement('div');
+      dock.id = 'hdlv2-listen-dock';
+      dock.className = 'hdlv2-liveq hdlv2-listen-dock';
+      dock.setAttribute('role', 'region');
+      dock.setAttribute('aria-label', 'Questions to ask now');
+      dock.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape') { foldListen(true); document.getElementById('hdlv2-listen-fold').focus(); }
+      });
+      document.body.appendChild(dock);
+    }
     dock.innerHTML = listenDock();
     document.getElementById('hdlv2-liveq-ask').addEventListener('click', askLiveQuestions);
     document.getElementById('hdlv2-listen').addEventListener('click', toggleListen);
@@ -1347,9 +1362,6 @@
     document.getElementById('hdlv2-liveq-body').addEventListener('click', function (e) {
       var b = e.target && e.target.closest ? e.target.closest('[data-asked]') : null;
       if (b) markAsked(parseInt(b.getAttribute('data-asked'), 10));
-    });
-    dock.addEventListener('keydown', function (e) {
-      if (e.key === 'Escape') { foldListen(true); document.getElementById('hdlv2-listen-fold').focus(); }
     });
     listenState(listen && listen.isOn() ? 'listening' : 'off'); // a redraw while listening keeps it on
     // A sheet across the bottom of a tablet or phone starts folded, so it does not cover the notes box.

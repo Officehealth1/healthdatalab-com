@@ -1205,11 +1205,12 @@ body.hdlv2-wide-page .hdlv2-consult-layout {
 
 /* v0.49.04 (plan 15) — "Listen": the questions in one card pinned to the window's bottom right corner (only with
    hdlv2_ff_live_listen; the in-column block above is then not drawn). Hairline and the faint table shadow only;
-   no bar beside it. Its own scroll; folded, one line. At 1024px and below a sheet across the bottom. */
+   no bar beside it. Its own scroll; folded, one line. At 1024px and below a sheet across the bottom. Desktop: 56px up,
+   so the site's language switcher in the corner stays visible. */
 .hdlv2-listen-dock {
   position: fixed;
   right: 22px;
-  bottom: 22px;
+  bottom: 56px;
   width: 360px;
   max-height: 60vh;
   display: flex;

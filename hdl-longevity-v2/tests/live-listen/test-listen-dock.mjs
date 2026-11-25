@@ -54,14 +54,15 @@ function dom() {
     return e;
   }
   function scan(h) { const ids = [], re = /<(\w+)\b([^>]*)>/g; let m; while ((m = re.exec(h))) { const idm = m[2].match(/\sid="([^"]+)"/); if (idm) { reg[idm[1]] = mk(idm[1], m[1], m[2]); ids.push(idm[1]); } } return ids; }
-  const document = { getElementById: (id) => reg[id] || null, get activeElement() { return active; },
-    createElement: () => { let t = ''; return { set textContent(v) { t = String(v); }, get innerHTML() { return t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); } }; } };
+  // createElement serves esc() (textContent in, escaped innerHTML out) and the card made on the page body.
+  const createElement = () => { const e = mk('', 'div'); Object.defineProperty(e, 'textContent', { set(v) { e._html = String(v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }, get() { return e._html; } }); return e; };
+  const body = { kids: [], appendChild: (e) => { body.kids.push(e); reg[e.id] = e; } };
+  const document = { getElementById: (id) => reg[id] || null, get activeElement() { return active; }, createElement, body };
   return { reg, document, mk, scan };
 }
 
 function boot() {
   const d = dom();
-  d.reg['hdlv2-listen-dock'] = d.mk('hdlv2-listen-dock', 'div');
   const notes = d.reg['hdlv2-consult-notes'] = d.mk('hdlv2-consult-notes', 'textarea');
   notes.value = 'Saved notes.';
   const bar = d.reg['hdlv2-consult-audio'] = d.mk('hdlv2-consult-audio', 'div');
@@ -88,6 +89,9 @@ const ANS = { questions: [{ question: 'How do you sleep?', why: 'wakes at 3 am' 
 
 // D.1
 let w = boot();
+ok(w.d.document.body.kids.length === 1 && w.d.reg['hdlv2-listen-dock'] === w.d.document.body.kids[0] && w.d.reg['hdlv2-listen-dock'].getAttribute('role') === 'region', 'D.0a the card is made once, on the page body, as a labelled region');
+w.run('mountListen()');
+ok(w.d.document.body.kids.length === 1, 'D.0c a redraw keeps one card');
 const $ = (id) => w.d.reg[id];
 ok($('hdlv2-listen') && $('hdlv2-liveq-ask') && $('hdlv2-listen-status') && $('hdlv2-listen').getAttribute('aria-pressed') === 'false', 'D.0 the card: "Listen" (aria-pressed), "Suggest questions", a status line');
 $('hdlv2-listen').click();
@@ -163,7 +167,8 @@ ok(w.d.reg['hdlv2-listen'].disabled === false, 'D.7d and back when it is not');
 
 // D.8
 const render = cut('  function renderConsultation(', '\n  }\n');
-ok(/CFG\.live_listen\s*\?/.test(render) && /hdlv2-listen-dock/.test(render) && /hdlv2-listen-micnote/.test(render), 'D.8a with live_listen the screen draws the card instead of the in-column block');
+ok(/CFG\.live_listen \? '' : '<div class="hdlv2-consult-section hdlv2-liveq"/.test(render) && /hdlv2-listen-micnote/.test(render) && /document\.body\.appendChild\(dock\)/.test(fn('mountListen')),
+  'D.8a with live_listen the column block is not drawn; the card goes on the page body (a theme section cannot pin it)');
 const listenSrc = cut('  // ── LISTEN', '  // ── END LISTEN ──');
 ok(listenSrc !== '' && !/\balert\(|\bconfirm\(|\bprompt\(/.test(listenSrc) && !/getUserMedia|SpeechRecognition/.test(listenSrc), 'D.8b no native pop-up, no microphone code in the screen (the engine owns it)');
 w = boot(); w.d.reg['hdlv2-listen'].click();
