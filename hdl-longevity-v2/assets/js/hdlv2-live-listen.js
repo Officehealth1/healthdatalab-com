@@ -13,6 +13,9 @@
  * States handed to onState: starting, listening, paused, missed, limit, resting, unavailable, denied, off.
  * The words for them are the screen's (hdlv2-consultation.js).
  *
+ * v0.49.06: onLevel (optional) gets the loudness of each tick for the card's bars, 0 to 1, and 0 unless the tick
+ * counts as sound here. The same reading that cuts the pieces; no second timer or analyser.
+ *
  * @package HDL_Longevity_V2
  * @since 0.49.04
  */
@@ -99,7 +102,9 @@ window.HDLV2LiveListen = (function () {
           if (paused && document.visibilityState === 'visible') { paused = false; state('listening'); }
           var level = -1;
           if (analyser && ctx && ctx.state === 'running') { analyser.getByteTimeDomainData(buf); level = window.HDLAudioComponent.rms(buf); }
-          var sound = level < 0 || level > window.HDLAudioComponent.SOUND_LEVEL; // not measuring counts as sound: never cut a talker
+          var heard = level > window.HDLAudioComponent.SOUND_LEVEL;
+          var sound = level < 0 || heard; // not measuring counts as sound: never cut a talker
+          if (o.onLevel) o.onLevel(heard ? Math.min(1, level) : 0); // the bars lie flat unless this is sound
           if (sound) { cur.heard = true; quietSince = 0; } else if (!quietSince) { quietSince = now; }
           var age = now - cur.startedAt;
           if (age >= MAX_MS || (age >= MIN_MS && quietSince && now - quietSince >= QUIET_MS)) cut();

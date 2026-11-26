@@ -1213,6 +1213,7 @@ body.hdlv2-wide-page .hdlv2-consult-layout {
   bottom: 56px;
   width: 360px;
   max-height: 60vh;
+  max-height: 60dvh; /* a phone's toolbars count: the card never runs under them */
   display: flex;
   flex-direction: column;
   z-index: 9999;
@@ -1269,10 +1270,78 @@ body.hdlv2-wide-page .hdlv2-consult-layout {
     bottom: 40px; /* the language switcher's row stays free below it */
     width: 100%;
     max-height: 60vh;
+    max-height: 60dvh;
   }
+}
+
+/* v0.49.06 (plan 15, after Quim's own voice test) — two signs that the card hears, and a tidier set.
+   The bars beside "Listening" take their height from --hdlv2-listen-level (0 to 1, set by the script from the
+   microphone's real loudness; 0 in silence). The strip shows the newest words in a window three lines high,
+   held at its lower edge so the last line is always the one on show. Rows part by a hairline, "Asked" sits at
+   the right, the red flag's label has its own line. No bar beside anything; the fade is the card's own edge. */
+.hdlv2-listen-statusrow { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+.hdlv2-listen-statusrow .hdlv2-consult-hint { margin: 0; font-size: 12px; color: #666; }
+.hdlv2-listen-meter { display: inline-flex; align-items: center; gap: 2px; height: 16px; flex: none; }
+.hdlv2-listen-meter span {
+  width: 3px;
+  height: calc(3px + var(--hdlv2-listen-level, 0) * 13px);
+  border-radius: 2px;
+  background: #3d8da0;
+  transition: height 0.12s ease-out;
+}
+.hdlv2-listen-meter span:nth-child(2),
+.hdlv2-listen-meter span:nth-child(4) { height: calc(3px + var(--hdlv2-listen-level, 0) * 9px); }
+.hdlv2-listen-meter span:nth-child(1),
+.hdlv2-listen-meter span:nth-child(5) { height: calc(3px + var(--hdlv2-listen-level, 0) * 5px); }
+.hdlv2-listen-heard {
+  margin-top: 10px;
+  padding: 8px 12px;
+  background: #f8f9fb;
+  border: 1px solid #e4e6ea;
+  border-radius: 8px;
+}
+.hdlv2-listen-heard-label,
+.hdlv2-liveq-flag-label {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+.hdlv2-listen-heard-label { color: #666; }
+.hdlv2-liveq-flag-label { margin-bottom: 2px; }
+.hdlv2-listen-heard-clip {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end; /* longer than three lines: the first lines leave at the top */
+  max-height: 4.5em;
+  margin-top: 2px;
+  overflow: hidden;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.hdlv2-listen-heard-clip p { margin: 0; color: #2c3e50; overflow-wrap: anywhere; }
+.hdlv2-listen-dock.is-listening .hdlv2-listen-heard-clip p::after {
+  content: '';
+  display: inline-block;
+  width: 2px;
+  height: 1em;
+  margin-left: 3px;
+  vertical-align: -2px;
+  background: #3d8da0;
+  animation: hdlv2-pulse 1s infinite;
+}
+.hdlv2-liveq-updated { margin: 0 0 8px; font-size: 12px; color: #666; }
+.hdlv2-listen-dock .hdlv2-liveq-list li { position: relative; margin: 0; padding: 10px 68px 10px 0; }
+.hdlv2-listen-dock .hdlv2-liveq-list li + li { border-top: 1px solid #e4e6ea; }
+.hdlv2-listen-dock .hdlv2-liveq-asked { position: absolute; top: 10px; right: 0; margin: 0; }
+.hdlv2-listen-body.is-more {
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 32px), transparent);
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 32px), transparent);
 }
 @media (prefers-reduced-motion: reduce) {
   .hdlv2-listen-dock * { animation: none !important; transition: none !important; }
+  .hdlv2-listen-meter span { height: 3px !important; } /* the bars do not move; the word "Listening" stays */
 }
 
 /* ──────────────────────────────────────────────────────────────────────

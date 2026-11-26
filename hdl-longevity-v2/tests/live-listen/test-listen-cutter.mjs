@@ -18,6 +18,8 @@
  *   C.13 the meter runs on timers (no animation frames, no setInterval); the type pick and the loudness are the
  *        audio component's own functions, not a copy.
  *   C.14 (gate fix G6) the recorder's rate: mp4 (Safari) at 48000 bits a second, WebM at 32000.
+ *   C.15 (the card, v0.49.06) onLevel: the loudness on each tick while on, 0 to 1; 0 unless the tick counts as
+ *        sound; 0 when the meter cannot measure; nothing after stop().
  * Run: node tests/live-listen/test-listen-cutter.mjs   Exit: 0 all pass, 1 any fail
  */
 import fs from 'node:fs';
@@ -66,7 +68,7 @@ function world(opts = {}) {
     constructor() { this.state = 'running'; }
     resume() {} close() { this.state = 'closed'; }
     createMediaStreamSource() { return { connect() {} }; }
-    createAnalyser() { return { fftSize: 512, getByteTimeDomainData(d) { for (let i = 0; i < d.length; i++) d[i] = sound.loud ? (i % 2 ? 168 : 88) : (i % 2 ? 129 : 127); } }; }
+    createAnalyser() { return { fftSize: 512, getByteTimeDomainData(d) { for (let i = 0; i < d.length; i++) d[i] = sound.flat ? 128 : sound.loud ? (i % 2 ? 168 : 88) : (i % 2 ? 129 : 127); } }; }
   }
   const posts = [];
   const fetch = (url, o) => new Promise((resolve, reject) => {
@@ -86,10 +88,10 @@ function world(opts = {}) {
   vm.createContext(ctx);
   vm.runInContext(AUDIO, ctx);
   vm.runInContext(LISTEN, ctx);
-  const texts = [], states = [];
+  const texts = [], states = [], levels = [];
   const L = ctx.HDLV2LiveListen.create({ url: '/wp-json/hdl-v2/v1/audio/listen-piece', nonce: 'n0nce', progressId: 10,
-    onText: (seq, text) => texts.push([seq, text]), onState: (s) => states.push(s) });
-  return { ctx, L, advance, sound, track, recs, log, posts, texts, states, hold, winL, gum: () => gum, now: () => now };
+    onText: (seq, text) => texts.push([seq, text]), onState: (s) => states.push(s), onLevel: opts.noLevel ? undefined : (v) => levels.push(v) });
+  return { ctx, L, advance, sound, track, recs, log, posts, texts, states, levels, hold, winL, gum: () => gum, now: () => now };
 }
 const flush = async () => { for (let i = 0; i < 6; i++) await Promise.resolve(); await new Promise((r) => setImmediate(r)); };
 const speak = (w, ms) => { w.sound.loud = true; w.advance(ms); };
@@ -194,6 +196,20 @@ w = world({ mp4: true }); w.L.start(); await flush();
 ok(/mp4/.test(w.recs[0].mimeType) && w.recs[0].bps === 48000, 'C.14a an mp4 recorder (Safari) is made with 48000 bits a second');
 w = world(); w.L.start(); await flush();
 ok(/webm/.test(w.recs[0].mimeType) && w.recs[0].bps === 32000, 'C.14b a WebM recorder stays at 32000');
+
+// C.15 (the card, v0.49.06): the page's meter is fed from the tick that already reads the loudness
+w = world(); w.L.start(); await flush();
+speak(w, 500);
+ok(w.levels.length === 5 && w.levels.every((v) => typeof v === 'number' && v > 0 && v <= 1), 'C.15a sound: one level a tick (100 ms), each above 0 and at most 1');
+quiet(w, 300);
+ok(w.levels.length === 8 && w.levels.slice(5).every((v) => v === 0), 'C.15b quiet (under the level that counts as sound): 0, so the bars lie flat');
+w.sound.flat = true; w.advance(200);
+ok(w.levels.length === 10 && w.levels.slice(8).every((v) => v === 0), 'C.15c the meter cannot measure (-1): handed over as 0, never a negative number');
+w.L.stop(); await flush(); w.advance(1000); await flush();
+ok(w.levels.length === 10, 'C.15d nothing after stop()');
+w = world({ noLevel: true }); w.L.start(); await flush();
+speak(w, 6100); quiet(w, 800); await flush();
+ok(w.posts.length === 1 && w.levels.length === 0 && /o\.onLevel/.test(LISTEN), 'C.15e onLevel is optional: without it the engine cuts and sends as before');
 
 console.log(`\nPASS=${PASS} FAIL=${FAIL}`);
 process.exit(FAIL ? 1 : 0);
