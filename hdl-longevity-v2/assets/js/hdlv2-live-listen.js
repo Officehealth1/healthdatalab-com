@@ -104,7 +104,8 @@ window.HDLV2LiveListen = (function () {
           if (analyser && ctx && ctx.state === 'running') { analyser.getByteTimeDomainData(buf); level = window.HDLAudioComponent.rms(buf); }
           var heard = level > window.HDLAudioComponent.SOUND_LEVEL;
           var sound = level < 0 || heard; // not measuring counts as sound: never cut a talker
-          if (o.onLevel) o.onLevel(heard ? Math.min(1, level) : 0); // the bars lie flat unless this is sound
+          // The bars lie flat unless this is sound. The page's drawing must never stop the cutting below.
+          if (o.onLevel) { try { o.onLevel(heard ? Math.min(1, level) : 0); } catch (e) {} }
           if (sound) { cur.heard = true; quietSince = 0; } else if (!quietSince) { quietSince = now; }
           var age = now - cur.startedAt;
           if (age >= MAX_MS || (age >= MIN_MS && quietSince && now - quietSince >= QUIET_MS)) cut();

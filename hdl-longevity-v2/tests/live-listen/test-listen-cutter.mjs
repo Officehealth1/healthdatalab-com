@@ -19,7 +19,9 @@
  *        audio component's own functions, not a copy.
  *   C.14 (gate fix G6) the recorder's rate: mp4 (Safari) at 48000 bits a second, WebM at 32000.
  *   C.15 (the card, v0.49.06) onLevel: the loudness on each tick while on, 0 to 1; 0 unless the tick counts as
- *        sound; 0 when the meter cannot measure; nothing after stop().
+ *        sound; 0 when the meter cannot measure; nothing after stop(). A callback that throws never stops the
+ *        cutting (independent review).
+ *   C.16 a meter that cannot measure counts as sound: the piece is sent, not dropped as silent.
  * Run: node tests/live-listen/test-listen-cutter.mjs   Exit: 0 all pass, 1 any fail
  */
 import fs from 'node:fs';
@@ -90,7 +92,7 @@ function world(opts = {}) {
   vm.runInContext(LISTEN, ctx);
   const texts = [], states = [], levels = [];
   const L = ctx.HDLV2LiveListen.create({ url: '/wp-json/hdl-v2/v1/audio/listen-piece', nonce: 'n0nce', progressId: 10,
-    onText: (seq, text) => texts.push([seq, text]), onState: (s) => states.push(s), onLevel: opts.noLevel ? undefined : (v) => levels.push(v) });
+    onText: (seq, text) => texts.push([seq, text]), onState: (s) => states.push(s), onLevel: opts.noLevel ? undefined : (v) => { levels.push(v); if (opts.levelThrows) throw new Error('a broken meter on the page'); } });
   return { ctx, L, advance, sound, track, recs, log, posts, texts, states, levels, hold, winL, gum: () => gum, now: () => now };
 }
 const flush = async () => { for (let i = 0; i < 6; i++) await Promise.resolve(); await new Promise((r) => setImmediate(r)); };
@@ -210,6 +212,15 @@ ok(w.levels.length === 10, 'C.15d nothing after stop()');
 w = world({ noLevel: true }); w.L.start(); await flush();
 speak(w, 6100); quiet(w, 800); await flush();
 ok(w.posts.length === 1 && w.levels.length === 0 && /o\.onLevel/.test(LISTEN), 'C.15e onLevel is optional: without it the engine cuts and sends as before');
+w = world({ levelThrows: true }); w.L.start(); await flush();
+let threw = false;
+try { speak(w, 6100); quiet(w, 800); await flush(); } catch (e) { threw = true; }
+ok(!threw && w.posts.length === 1 && w.L.isOn() && w.levels.length > 60, 'C.15f a page callback that throws on every tick: the engine still cuts and sends');
+
+// C.16 (independent review): the half of the sound rule that the level hand-over was written beside
+w = world(); w.L.start(); await flush();
+w.sound.flat = true; w.advance(6100); w.sound.flat = false; quiet(w, 800); await flush();
+ok(w.posts.length === 1, 'C.16 the meter cannot measure for 6 s: that counts as sound, the piece is sent');
 
 console.log(`\nPASS=${PASS} FAIL=${FAIL}`);
 process.exit(FAIL ? 1 : 0);

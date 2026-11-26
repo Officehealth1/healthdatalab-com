@@ -1227,7 +1227,10 @@
     var busy = !!(state.consultAudio && typeof state.consultAudio.isBusy === 'function' && state.consultAudio.isBusy());
     hint.hidden = !busy;
     var lb = document.getElementById('hdlv2-listen'); // v0.49.04: one listener at a time
-    if (lb) lb.disabled = busy && !(listen && listen.isOn());
+    if (lb) {
+      lb.disabled = busy && !(listen && listen.isOn());
+      listenMore(); // v0.49.06: a resized window or a new line in the card reports to nobody; this check sees it
+    }
     liveBusyTimer = setTimeout(liveBusy, 1000);
   }
 
@@ -1342,7 +1345,8 @@
       +   '<p id="hdlv2-liveq-error" class="hdlv2-health-error" role="alert"></p>'
       +   '<div id="hdlv2-listen-heard" class="hdlv2-listen-heard" hidden>'
       +     '<span class="hdlv2-listen-heard-label">Heard just now</span>'
-      +     '<div class="hdlv2-listen-heard-clip"><p id="hdlv2-listen-heard-text"></p></div>'
+      // A client's own words: kept off the site's page translator, which would send them to its service.
+      +     '<div class="hdlv2-listen-heard-clip"><p id="hdlv2-listen-heard-text" class="notranslate" translate="no"></p></div>'
       +   '</div>'
       +   '<div id="hdlv2-liveq-body" class="hdlv2-liveq-body" aria-live="polite"></div>'
       + '</div>';
@@ -2179,6 +2183,9 @@
       + '</div>'
       + '<div aria-hidden="true" style="margin-top:18px;opacity:0.65;">' + HDLV2Loading.skeleton('consultation') + '</div>'
       + '</div>';
+    // v0.49.06 — the notes box is gone with the screen, the pinned card is not (it sits on the page body): stop
+    // listening and take the card away, or the microphone stays open and pieces are sent that land nowhere.
+    if (CFG.live_listen) mountListen();
     startReportPrepTicker(document.getElementById('hdlv2-rp-status'));
   }
 

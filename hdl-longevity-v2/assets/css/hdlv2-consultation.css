@@ -1333,9 +1333,22 @@ body.hdlv2-wide-page .hdlv2-consult-layout {
 }
 /* padding by name: the site theme gives every paragraph but the last one 1em below (seen in the walk) */
 .hdlv2-liveq-updated { margin: 0 0 8px; padding: 0; font-size: 12px; color: #666; }
-.hdlv2-listen-dock .hdlv2-liveq-list li { position: relative; margin: 0; padding: 10px 68px 10px 0; }
+/* A row is a small grid (number, words, "Asked"): the button takes the width its label needs in any language the
+   site's switcher turns it into, and no word runs under it. A grid row draws no list marker, so the number is a counter. */
+.hdlv2-listen-dock .hdlv2-liveq-list { padding-left: 0; counter-reset: hdlv2-liveq; }
+.hdlv2-listen-dock .hdlv2-liveq-list li {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr) auto;
+  margin: 0;
+  padding: 10px 0;
+  counter-increment: hdlv2-liveq;
+}
+.hdlv2-listen-dock .hdlv2-liveq-list li::before { content: counter(hdlv2-liveq) '.'; grid-row: 1 / span 2; }
+.hdlv2-listen-dock .hdlv2-liveq-q,
+.hdlv2-listen-dock .hdlv2-liveq-why { grid-column: 2; }
 .hdlv2-listen-dock .hdlv2-liveq-list li + li { border-top: 1px solid #e4e6ea; }
-.hdlv2-listen-dock .hdlv2-liveq-asked { position: absolute; top: 10px; right: 0; margin: 0; }
+.hdlv2-listen-dock .hdlv2-liveq-asked { grid-column: 3; grid-row: 1 / span 2; align-self: start; margin: 0 0 0 12px; }
+.hdlv2-listen-body { scroll-padding-bottom: 40px; } /* a control reached by the keyboard stops clear of the fade */
 .hdlv2-listen-body.is-more {
   -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 32px), transparent);
   mask-image: linear-gradient(to bottom, #000 calc(100% - 32px), transparent);
