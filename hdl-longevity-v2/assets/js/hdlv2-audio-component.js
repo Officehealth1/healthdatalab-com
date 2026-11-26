@@ -98,6 +98,33 @@ window.HDLAudioComponent = (function () {
     document.head.appendChild(s);
   }
 
+  // v0.49.04 (plan 15) — shared with hdlv2-live-listen.js, so "Listen" records and measures exactly as the mic does.
+  // The recorder type: the first this browser supports, opus first; '' lets the browser choose.
+  function pickType() {
+    var preferred = [
+      'audio/webm;codecs=opus',
+      'audio/webm',
+      'audio/ogg;codecs=opus',
+      'audio/ogg',
+      'audio/mp4;codecs=mp4a.40.2',
+      'audio/mp4'
+    ];
+    if (typeof MediaRecorder !== 'undefined' && typeof MediaRecorder.isTypeSupported === 'function') {
+      for (var i = 0; i < preferred.length; i++) {
+        if (MediaRecorder.isTypeSupported(preferred[i])) return preferred[i];
+      }
+    }
+    return '';
+  }
+  // Loudness of one analyser buffer (getByteTimeDomainData): the RMS of normalised samples, or -1 for a perfectly
+  // flat 128 buffer (no real samples yet: a real mic always has a noise floor).
+  var SOUND_LEVEL = 0.015; // RMS above this is sound; ~quiet-room floor
+  function rms(data) {
+    var sum = 0, flat = true;
+    for (var i = 0; i < data.length; i++) { var d = data[i]; if (d !== 128) flat = false; var v = (d - 128) / 128; sum += v * v; }
+    return flat ? -1 : Math.sqrt(sum / data.length);
+  }
+
   // ── Public factory ──
   function create(container, opts) {
     injectStyles();
@@ -479,20 +506,7 @@ window.HDLAudioComponent = (function () {
     this.fallbackStream = stream;
     this.audioChunks = chunks;
 
-    var preferred = [
-      'audio/webm;codecs=opus',
-      'audio/webm',
-      'audio/ogg;codecs=opus',
-      'audio/ogg',
-      'audio/mp4;codecs=mp4a.40.2',
-      'audio/mp4'
-    ];
-    var chosenType = '';
-    if (typeof MediaRecorder !== 'undefined' && typeof MediaRecorder.isTypeSupported === 'function') {
-      for (var i = 0; i < preferred.length; i++) {
-        if (MediaRecorder.isTypeSupported(preferred[i])) { chosenType = preferred[i]; break; }
-      }
-    }
+    var chosenType = pickType();
     // 32 kbps opus is ample for ASR and keeps a 1-hour consultation ~14 MB
     // (well under the server cap). mp4/aac needs a touch more to stay clean.
     var bps = (chosenType && /mp4|mpeg|aac/.test(chosenType)) ? 64000 : 32000;
@@ -672,7 +686,6 @@ window.HDLAudioComponent = (function () {
       src.connect(analyser);
       var data = new Uint8Array(analyser.fftSize);
       this._lastSoundAt = Date.now();
-      var THRESH = 0.015; // RMS of normalised samples; ~quiet-room floor
       this._silenceInterval = setInterval(function () {
         if (!self.isRecording) { self._disarmSilenceMeter(); return; }
         try {
@@ -688,13 +701,11 @@ window.HDLAudioComponent = (function () {
             return;
           }
           analyser.getByteTimeDomainData(data);
-          var sum = 0, flat = true;
-          for (var i = 0; i < data.length; i++) { var d = data[i]; if (d !== 128) flat = false; var v = (d - 128) / 128; sum += v * v; }
+          var level = rms(data);
           // A perfectly flat 128 buffer means no real samples are flowing yet
           // (not a silent room — a real mic always has a noise floor). Keep alive.
-          if (flat) { self._lastSoundAt = Date.now(); return; }
-          var rms = Math.sqrt(sum / data.length);
-          if (rms > THRESH) {
+          if (level < 0) { self._lastSoundAt = Date.now(); return; }
+          if (level > SOUND_LEVEL) {
             self._lastSoundAt = Date.now();
           } else if (Date.now() - self._lastSoundAt > self.idleStopMs) {
             self._disarmSilenceMeter();
@@ -1685,5 +1696,5 @@ window.HDLAudioComponent = (function () {
     return d.innerHTML;
   }
 
-  return { create: create };
+  return { create: create, pickType: pickType, rms: rms, SOUND_LEVEL: SOUND_LEVEL };
 })();

@@ -64,8 +64,11 @@ function delete_transient( $k ) { unset( $GLOBALS['transients'][ $k ] ); return 
 
 function wp_remote_post( $url, $args = array() ) {
     $GLOBALS['ai_calls'][] = json_decode( $args['body'] ?? '{}', true );
+    $GLOBALS['http_urls'][] = $url;   // plan 15: the Deepgram calls are checked by their address and options
+    $GLOBALS['http_args'][] = $args;
     $r = array_shift( $GLOBALS['ai_replies'] );
     if ( $r instanceof Closure ) $r = $r(); // a reply that also does something while the call runs (a second tab)
+    if ( is_array( $r ) && isset( $r['raw'] ) ) return array( 'response' => array( 'code' => $r['raw'][0] ), 'body' => $r['raw'][1] ); // a non-Anthropic answer, as is
     if ( is_array( $r ) ) return array( 'response' => array( 'code' => $r['code'] ), 'body' => json_encode( array( 'error' => array( 'message' => 'stubbed failure' ) ) ) );
     return array( 'response' => array( 'code' => 200 ), 'body' => json_encode( array( 'content' => array( array( 'type' => 'text', 'text' => (string) $r ) ) ) ) );
 }

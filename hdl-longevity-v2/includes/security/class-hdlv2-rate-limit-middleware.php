@@ -173,6 +173,23 @@ class HDLV2_Rate_Limit_Middleware {
                 return null;
             }
 
+            // v0.49.04 (plan 15) — the two "Listen" groups are practitioner-only: one bucket per signed-in user.
+            // Anyone signed out already paid the IP backstop above and is refused by the route itself.
+            if ( HDLV2_Rate_Limit_Policy::TIER_LISTEN === $tier || HDLV2_Rate_Limit_Policy::TIER_LISTEN_ASK === $tier ) {
+                if ( ! is_user_logged_in() ) {
+                    return null;
+                }
+                $bk_l = HDLV2_Rate_Limiter::bucket_key( array( $tier, 'prac', (int) get_current_user_id() ) );
+                $r_l  = HDLV2_Rate_Limiter::consume( $bk_l, $cfg['per_practitioner_limit'], $cfg['window'] );
+                if ( ! $r_l['allowed'] ) {
+                    self::log_block( $tier, self::block_identity( null ), $route );
+                    return self::make_429( $r_l, $tier );
+                }
+                self::$last_consumed = $r_l;
+                self::$last_tier     = $tier;
+                return null;
+            }
+
             if ( $token ) {
                 $identity = array( 'token', $token );
             } elseif ( is_user_logged_in() ) {

@@ -26,6 +26,17 @@ class HDLV2_Rate_Limit_Policy {
     // the consumer READ limits untouched.
     const TIER_PRAC_READ = 'prac-read';
 
+    // v0.49.04 (plan 15) — "Listen" on the consultation screen. Two groups of their own, so listening never uses up
+    // the AI-burn 30 an hour that "Generate report" draws from. Practitioner-only, counted per signed-in user.
+    // v0.49.05 — each number is the most the page can send in an hour, so an hour of steady talk is never cut
+    // short (240 and 40 stopped it at about 38 and 30 minutes). The sound's cost is held by the day guard
+    // (HDLV2_Live_Listen::DAY_MINUTES), not by these. The automatic questions have no day total: 80 an hour for
+    // each practitioner is their only ceiling.
+    const TIER_LISTEN         = 'listen';      // POST /audio/listen-piece: one piece of speech every 6 s at most
+    const TIER_LISTEN_ASK     = 'listen-ask';  // POST /consultation/live-questions/auto: questions asked by themselves
+    const LISTEN_PER_HOUR     = 600;           // 3,600 s over the 6 s shortest piece (MIN_MS in hdlv2-live-listen.js)
+    const LISTEN_ASK_PER_HOUR = 80;            // 3,600 s over the 45 s rule (listenMaybeAsk in hdlv2-consultation.js)
+
     /**
      * Tier configuration. All windows are 1 hour (3600s).
      *
@@ -51,6 +62,14 @@ class HDLV2_Rate_Limit_Policy {
             self::TIER_PUBLIC => array(
                 'per_ip_limit' => 60,
                 'window'       => 3600,
+            ),
+            self::TIER_LISTEN => array(
+                'per_practitioner_limit' => self::LISTEN_PER_HOUR,
+                'window'                 => 3600,
+            ),
+            self::TIER_LISTEN_ASK => array(
+                'per_practitioner_limit' => self::LISTEN_ASK_PER_HOUR,
+                'window'                 => 3600,
             ),
             self::TIER_BYPASS => null,
         );
@@ -142,6 +161,9 @@ class HDLV2_Rate_Limit_Policy {
             array( 'POST', '#^/hdl-v2/v1/consultation/health-analysis$#',       self::TIER_AI_BURN ),
             // v0.49.03 (plan 14 part B) — questions to ask now: one Claude call per press.
             array( 'POST', '#^/hdl-v2/v1/consultation/live-questions$#',        self::TIER_AI_BURN ),
+            // v0.49.04 (plan 15) — "Listen": the pieces and the automatic asks, each in its own group.
+            array( 'POST', '#^/hdl-v2/v1/audio/listen-piece$#',                 self::TIER_LISTEN ),
+            array( 'POST', '#^/hdl-v2/v1/consultation/live-questions/auto$#',   self::TIER_LISTEN_ASK ),
             array( 'POST', '#^/hdl-v2/v1/flight-plan/[0-9]+/generate$#',        self::TIER_AI_BURN ),
             array( 'GET',  '#^/hdl-v2/v1/flight-notes/pdf$#',                   self::TIER_AI_BURN ),
 

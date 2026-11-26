@@ -489,6 +489,22 @@ class HDLV2_Consultation {
                 'permission_callback' => array( $this, 'check_practitioner_auth' ),
             ) );
         }
+
+        // v0.49.04 (plan 15) — "Listen": only with hdlv2_ff_live_listen AND hdlv2_ff_live_questions on (off, both
+        // answer 404). The pieces of speech, and the questions asked by themselves on the same callback as the
+        // button (its own path, so its own rate-limit group).
+        if ( HDLV2_Live_Listen::on() ) {
+            register_rest_route( $ns, '/audio/listen-piece', array(
+                'methods'             => 'POST',
+                'callback'            => array( 'HDLV2_Live_Listen', 'rest_piece' ),
+                'permission_callback' => array( $this, 'check_practitioner_auth' ),
+            ) );
+            register_rest_route( $ns, '/consultation/live-questions/auto', array(
+                'methods'             => 'POST',
+                'callback'            => array( 'HDLV2_Live_Questions', 'rest_suggest' ),
+                'permission_callback' => array( $this, 'check_practitioner_auth' ),
+            ) );
+        }
     }
 
     /**
@@ -2130,6 +2146,10 @@ class HDLV2_Consultation {
             true
         );
 
+        // v0.49.04 (plan 15) — the listening script, only with "Listen" on (off: not loaded). The screen looks for it
+        // only when "Listen" is pressed, so it is not a dependency.
+        HDLV2_Live_Listen::enqueue();
+
         wp_enqueue_script(
             'hdlv2-consultation',
             HDLV2_PLUGIN_URL . 'assets/js/hdlv2-consultation.js',
@@ -2146,7 +2166,8 @@ class HDLV2_Consultation {
         );
 
         // v0.48.98 — health_analysis (plan 13) is added only with hdlv2_ff_health_analysis on;
-        // v0.49.03 — live_questions (plan 14 part B) only with hdlv2_ff_live_questions on.
+        // v0.49.03 — live_questions (plan 14 part B) only with hdlv2_ff_live_questions on;
+        // v0.49.04 — live_listen and listen_url (plan 15) only with "Listen" on as well.
         wp_localize_script( 'hdlv2-consultation', 'hdlv2_consult', HDLV2_Report_Names::config( array(
             'api_base'    => rest_url( 'hdl-v2/v1/consultation' ),
             // v0.25.2 — list endpoint for the new /consultation/ landing
@@ -2154,7 +2175,7 @@ class HDLV2_Consultation {
             'list_url'    => rest_url( 'hdl-v2/v1/consultations/list' ),
             'clients_url' => home_url( '/clients/' ),
             'nonce'       => wp_create_nonce( 'wp_rest' ),
-        ) + HDLV2_Health_Analysis::config( array() ) + HDLV2_Live_Questions::config( array() ) ) );
+        ) + HDLV2_Health_Analysis::config( array() ) + HDLV2_Live_Questions::config( array() ) + HDLV2_Live_Listen::config( array() ) ) );
 
         // v0.21.0 — Practitioner nav spine: sticky top bar with
         // "← Back to clients" + breadcrumb + freshness. Resolves the client

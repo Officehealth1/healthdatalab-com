@@ -140,6 +140,8 @@
           +   '<textarea id="hdlv2-consult-notes" class="hdlv2-consult-notes-input" rows="10" placeholder="Write your consultation notes here — observations, health history, recommendations, follow-ups. You can also tap the mic to record, or attach an audio file.">' + esc(consult.raw_notes || consult.typed_notes || '') + '</textarea>'
           +   '<div class="hdlv2-consult-notes-iconbar" id="hdlv2-consult-audio"></div>'
           + '</div>'
+          // v0.49.04 (plan 15) — shown while "Listen" is on (the mic and upload icons are disabled then).
+          + (CFG.live_listen ? '<p id="hdlv2-listen-micnote" class="hdlv2-consult-hint" hidden>Listening is on.</p>' : '')
           + '<div class="hdlv2-addendum-reminder" role="note">'
           +   '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>'
           +   '<span><strong>Before you stop the recording</strong> — read out any notes you wrote on the FLIGHT sheet so they\'re captured in the transcript.</span>'
@@ -148,7 +150,9 @@
           + '</div>'
           // v0.49.03 (plan 14 part B) — questions to ask now, beside the notes it reads; only with
           // hdlv2_ff_live_questions on (the settings then carry live_questions).
-          + (CFG.live_questions ? '<div class="hdlv2-consult-section hdlv2-liveq" id="hdlv2-liveq"></div>' : '')
+          // v0.49.04 (plan 15) — with "Listen" on (live_listen) the block is a card pinned to the window's corner
+          // instead (mountListen puts it on the page's body), so the column gets shorter.
+          + (CFG.live_questions ? (CFG.live_listen ? '' : '<div class="hdlv2-consult-section hdlv2-liveq" id="hdlv2-liveq"></div>') : '')
         ))
 
       // Action wrap — pre-Final shows the textarea-stage button or the
@@ -1194,6 +1198,7 @@
   //   visit go back as `asked` so none repeats.
   var liveAsked = [];
   var liveBusyTimer = null;
+  var liveShown = [];
 
   function liveCard() {
     return '<h4>Questions to ask now</h4>'
@@ -1205,6 +1210,7 @@
   }
 
   function mountLiveQuestions() {
+    if (CFG.live_listen) { mountListen(); return; }
     var box = document.getElementById('hdlv2-liveq');
     if (!box || !document.getElementById('hdlv2-consult-notes')) return;
     box.innerHTML = liveCard();
@@ -1218,17 +1224,30 @@
   function liveBusy() {
     var hint = document.getElementById('hdlv2-liveq-busy');
     if (!hint) { liveBusyTimer = null; return; }
-    hint.hidden = !(state.consultAudio && typeof state.consultAudio.isBusy === 'function' && state.consultAudio.isBusy());
+    var busy = !!(state.consultAudio && typeof state.consultAudio.isBusy === 'function' && state.consultAudio.isBusy());
+    hint.hidden = !busy;
+    var lb = document.getElementById('hdlv2-listen'); // v0.49.04: one listener at a time
+    if (lb) {
+      lb.disabled = busy && !(listen && listen.isOn());
+      listenMore(); // v0.49.06: a resized window or a new line in the card reports to nobody; this check sees it
+    }
     liveBusyTimer = setTimeout(liveBusy, 1000);
   }
 
   // The answer as text: the red flag first, then each question with its why.
   function liveList(res) {
-    var html = res.red_flag ? '<p class="hdlv2-liveq-flag"><strong>Red flag:</strong> ' + esc(res.red_flag) + '</p>' : '';
+    // v0.49.06 — in the pinned card (the listen switch on) a set says when it landed and the flag's label has its own line.
+    var html = CFG.live_listen ? '<p class="hdlv2-liveq-updated">Updated ' + new Date().toTimeString().slice(0, 5) + '</p>' : '';
+    if (res.red_flag) {
+      html += '<p class="hdlv2-liveq-flag">' + (CFG.live_listen ? '<strong class="hdlv2-liveq-flag-label">Red flag</strong>' : '<strong>Red flag:</strong> ') + esc(res.red_flag) + '</p>';
+    }
     if (res.questions.length) {
-      html += '<ol class="hdlv2-liveq-list">' + res.questions.map(function (q) {
+      html += '<ol class="hdlv2-liveq-list">' + res.questions.map(function (q, i) {
         return '<li><span class="hdlv2-liveq-q">' + esc(q.question) + '</span>'
-          + (q.why ? '<span class="hdlv2-liveq-why">Why: ' + esc(q.why) + '</span>' : '') + '</li>';
+          + (q.why ? '<span class="hdlv2-liveq-why">Why: ' + esc(q.why) + '</span>' : '')
+          // v0.49.04 (plan 15) — while listening the sets replace each other; "Asked" keeps a question from coming back.
+          + (CFG.live_listen ? '<button type="button" class="hdlv2-liveq-asked" data-asked="' + i + '" aria-pressed="false">Asked</button>' : '')
+          + '</li>';
       }).join('') + '</ol>';
     } else if (!res.red_flag) {
       html += '<p class="hdlv2-consult-hint">Nothing to add yet.</p>';
@@ -1236,7 +1255,10 @@
     return html;
   }
 
-  function askLiveQuestions() {
+  // auto === true: asked by itself while listening (v0.49.04, plan 15), on its own path and rate-limit group; the
+  // questions on show stay until the new set lands (a skeleton only when there are none).
+  function askLiveQuestions(auto) {
+    auto = auto === true;
     var btn = document.getElementById('hdlv2-liveq-ask');
     var body = document.getElementById('hdlv2-liveq-body');
     var err = document.getElementById('hdlv2-liveq-error');
@@ -1244,29 +1266,250 @@
     var before = body.innerHTML;
     btn.disabled = true;
     err.textContent = '';
-    body.innerHTML = HDLV2Loading.skeleton('brief');
+    if (!auto || !before) body.innerHTML = HDLV2Loading.skeleton('brief');
+    listenAsking = true;
+    listenWords = 0;
+    listenAskedAt = Date.now();
     var key = (window.hdlv2RateLimit && window.hdlv2RateLimit.idempotencyKey)
       ? window.hdlv2RateLimit.idempotencyKey()
       : 'lq-' + state.progressId + '-' + Date.now();
-    fetch(CFG.api_base + '/live-questions', {
+    var headers = { 'Content-Type': 'application/json', 'X-WP-Nonce': CFG.nonce, 'Idempotency-Key': key };
+    if (auto) headers['X-HDLV2-Bg'] = '1'; // its limit is said on the card, not in the site's "Give us a moment" box
+    fetch(CFG.api_base + (auto ? '/live-questions/auto' : '/live-questions'), {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': CFG.nonce, 'Idempotency-Key': key },
+      headers: headers,
       body: JSON.stringify({ progress_id: state.progressId, heard: notes ? notes.value : '', asked: liveAsked })
     })
       .then(function (r) { return r.json(); })
       .then(function (res) {
         if (!res || !Array.isArray(res.questions)) throw res;
         body.innerHTML = liveList(res);
-        res.questions.forEach(function (q) { liveAsked.push(q.question); });
+        liveShown = res.questions.map(function (q) { return q.question; });
+        // Without "Listen" every question shown goes back as asked, so none repeats; with it, only those marked.
+        if (!CFG.live_listen) res.questions.forEach(function (q) { liveAsked.push(q.question); });
         btn.disabled = false;
+        listenAsking = false;
+        if (CFG.live_listen) listenPeek();
       })
-      .catch(function () {
+      .catch(function (res) {
         body.innerHTML = before;
         btn.disabled = false;
+        listenAsking = false;
+        if (auto && res && res.code === 'rate_limit_exceeded') { listenAutoOff = true; listenState('limit'); return; }
         err.textContent = 'Could not get questions. Try again.';
       });
   }
   // ── END QUESTIONS TO ASK NOW ──
+
+  // ── LISTEN (v0.49.04, plan 15; hdlv2_ff_live_listen with hdlv2_ff_live_questions) ──
+  //   "Listen" hands the microphone to HDLV2LiveListen (its own script: pieces of speech to our server, then
+  //   Deepgram). Each piece's words go at the end of the notes box, which saves itself as typing does; questions
+  //   are asked by themselves once 40 new words and 45 s have passed since the last ask. The card is pinned to the
+  //   window's corner and never takes the focus.
+  //   v0.49.06 — two signs that it hears: five bars beside "Listening" that follow the microphone's real loudness
+  //   (flat in silence), and the strip "Heard just now" with the newest words. The notes box still keeps every word.
+  var LISTEN_LINES = {
+    starting: 'Starting…',
+    listening: 'Listening',
+    paused: 'Paused: bring this tab to the front.',
+    missed: 'A few seconds were not heard.',
+    limit: 'The hourly limit is reached. Press Suggest questions when you need them.',
+    resting: 'Listening is resting for today. You can still record and press Suggest questions.',
+    unavailable: 'Listening is not available right now. You can still type your notes.',
+    denied: 'The microphone is not allowed for this page. You can still type your notes.',
+    off: ''
+  };
+  var listen = null;
+  var listenWords = 0;
+  var listenAskedAt = 0;
+  var listenAsking = false;
+  var listenAutoOff = false;
+  var listenKey = 'off';
+  var listenTail = '';
+
+  function listenDock() {
+    return '<button type="button" class="hdlv2-listen-head" id="hdlv2-listen-fold" aria-expanded="true" aria-controls="hdlv2-listen-body">'
+      +   '<span class="hdlv2-listen-title">Questions to ask now</span>'
+      +   '<span class="hdlv2-listen-peek" id="hdlv2-listen-peek"></span>'
+      + '</button>'
+      + '<div class="hdlv2-listen-body" id="hdlv2-listen-body">'
+      +   '<div class="hdlv2-health-actions">'
+      +     '<button type="button" id="hdlv2-listen" class="hdlv2-consult-organise-btn" aria-pressed="false">Listen</button>'
+      +     '<button type="button" id="hdlv2-liveq-ask" class="hdlv2-btn-secondary">Suggest questions</button>'
+      +   '</div>'
+      +   '<div class="hdlv2-listen-statusrow">'
+      +     '<span id="hdlv2-listen-meter" class="hdlv2-listen-meter" aria-hidden="true" hidden><span></span><span></span><span></span><span></span><span></span></span>'
+      +     '<p id="hdlv2-listen-status" class="hdlv2-consult-hint" role="status"></p>'
+      +   '</div>'
+      +   '<p id="hdlv2-liveq-busy" class="hdlv2-consult-hint" hidden>Stop the recording to include what was just said.</p>'
+      +   '<p id="hdlv2-liveq-error" class="hdlv2-health-error" role="alert"></p>'
+      +   '<div id="hdlv2-listen-heard" class="hdlv2-listen-heard" hidden>'
+      +     '<span class="hdlv2-listen-heard-label">Heard just now</span>'
+      // A client's own words: kept off the site's page translator, which would send them to its service.
+      +     '<div class="hdlv2-listen-heard-clip"><p id="hdlv2-listen-heard-text" class="notranslate" translate="no"></p></div>'
+      +   '</div>'
+      +   '<div id="hdlv2-liveq-body" class="hdlv2-liveq-body" aria-live="polite"></div>'
+      + '</div>';
+  }
+
+  function mountListen() {
+    var dock = document.getElementById('hdlv2-listen-dock');
+    if (!document.getElementById('hdlv2-consult-notes')) { // after the final report: no notes box, no card
+      if (listen && listen.isOn()) listen.stop();
+      if (dock && dock.parentNode) dock.parentNode.removeChild(dock);
+      return;
+    }
+    if (!dock) {
+      // On the page's body, not in the column: a theme section with a transform would pin the card to itself and
+      // the site footer would cover it (seen in the walk). One card, kept across redraws of the screen.
+      dock = document.createElement('div');
+      dock.id = 'hdlv2-listen-dock';
+      dock.className = 'hdlv2-liveq hdlv2-listen-dock';
+      dock.setAttribute('role', 'region');
+      dock.setAttribute('aria-label', 'Questions to ask now');
+      dock.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape') { foldListen(true); document.getElementById('hdlv2-listen-fold').focus(); }
+      });
+      document.body.appendChild(dock);
+    }
+    dock.innerHTML = listenDock();
+    document.getElementById('hdlv2-liveq-ask').addEventListener('click', askLiveQuestions);
+    document.getElementById('hdlv2-listen').addEventListener('click', toggleListen);
+    document.getElementById('hdlv2-listen-fold').addEventListener('click', function () {
+      foldListen(document.getElementById('hdlv2-listen-fold').getAttribute('aria-expanded') === 'true');
+    });
+    document.getElementById('hdlv2-liveq-body').addEventListener('click', function (e) {
+      var b = e.target && e.target.closest ? e.target.closest('[data-asked]') : null;
+      if (b) markAsked(parseInt(b.getAttribute('data-asked'), 10));
+    });
+    document.getElementById('hdlv2-listen-body').addEventListener('scroll', listenMore);
+    listenStrip(); // a redraw keeps the heard words
+    listenState(listen && listen.isOn() ? 'listening' : 'off'); // a redraw while listening keeps it on
+    // A sheet across the bottom of a tablet or phone starts folded, so it does not cover the notes box.
+    if (window.matchMedia && window.matchMedia('(max-width: 1024px)').matches) foldListen(true);
+    if (liveBusyTimer) clearTimeout(liveBusyTimer);
+    liveBusy();
+  }
+
+  function toggleListen() {
+    if (listen && listen.isOn()) { listen.stop(); return; }
+    if (!window.HDLV2LiveListen) { listenState('unavailable'); return; }
+    if (!listen) {
+      listen = window.HDLV2LiveListen.create({ url: CFG.listen_url, nonce: CFG.nonce, progressId: state.progressId, onText: listenHeard, onState: listenState, onLevel: listenLevel });
+    }
+    listenAutoOff = false;
+    listen.start();
+  }
+
+  // The status line, the "Listen" button, the bars and the mic icons follow the engine's state.
+  function listenState(key) {
+    var on = !!(listen && listen.isOn());
+    listenKey = key;
+    var line = document.getElementById('hdlv2-listen-status');
+    if (line) line.textContent = LISTEN_LINES[key] || '';
+    var btn = document.getElementById('hdlv2-listen');
+    if (btn) btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+    var bar = document.getElementById('hdlv2-consult-audio');
+    if (bar) Array.prototype.forEach.call(bar.querySelectorAll('button, input'), function (el) { el.disabled = on; });
+    var note = document.getElementById('hdlv2-listen-micnote');
+    if (note) note.hidden = !on;
+    var dock = document.getElementById('hdlv2-listen-dock');
+    if (dock) dock.classList.toggle('is-listening', on); // the strip's caret blinks only while listening
+    var meter = document.getElementById('hdlv2-listen-meter');
+    if (meter) meter.hidden = !on || key === 'starting';
+    listenLevel(0);
+    listenPeek();
+  }
+
+  // The bars: one number from 0 to 1 for the stylesheet. The engine hands 0 unless it counts the tick as sound, so
+  // they lie flat in silence. Square root: speech sits low on a straight scale (about 0.05 to 0.2).
+  function listenLevel(level) {
+    var meter = document.getElementById('hdlv2-listen-meter');
+    if (!meter) return;
+    var v = listenKey === 'paused' || !(level > 0) ? 0 : Math.min(1, Math.sqrt(level) * 2);
+    var s = String(Math.round(v * 100) / 100);
+    if (meter.style.getPropertyValue('--hdlv2-listen-level') !== s) meter.style.setProperty('--hdlv2-listen-level', s);
+  }
+
+  // Words at the end of the notes box. What the practitioner is typing, the cursor, the selection and the box's
+  // scroll stay as they are; an input event saves the notes as typing does.
+  function appendToNotes(text) {
+    var notesEl = document.getElementById('hdlv2-consult-notes');
+    if (!notesEl || !text) return;
+    var typing = document.activeElement === notesEl;
+    var a = notesEl.selectionStart, b = notesEl.selectionEnd, top = notesEl.scrollTop;
+    notesEl.value += (notesEl.value.trim() ? '\n\n' : '') + text;
+    if (typing) { notesEl.setSelectionRange(a, b); notesEl.scrollTop = top; } else { notesEl.scrollTop = notesEl.scrollHeight; }
+    notesEl.dispatchEvent(new Event('input'));
+  }
+
+  function listenHeard(seq, text) {
+    appendToNotes(text);
+    // The strip keeps only the newest words (the notes box has them all): about three lines' worth, cut at a word.
+    listenTail = (listenTail + ' ' + text).trim();
+    if (listenTail.length > 320) listenTail = '… ' + listenTail.slice(-320).replace(/^\S*\s+/, '');
+    listenStrip();
+    listenWords += String(text).split(/\s+/).filter(Boolean).length;
+    listenMaybeAsk();
+  }
+
+  // "Heard just now": the words as text (never as HTML), hidden until there are some.
+  function listenStrip() {
+    var strip = document.getElementById('hdlv2-listen-heard');
+    var words = document.getElementById('hdlv2-listen-heard-text');
+    if (!strip || !words) return;
+    words.textContent = listenTail;
+    strip.hidden = !listenTail;
+    listenMore();
+  }
+
+  // A soft fade at the card's lower edge while there is more below.
+  function listenMore() {
+    var body = document.getElementById('hdlv2-listen-body');
+    if (body) body.classList.toggle('is-more', body.scrollHeight - body.scrollTop - body.clientHeight > 8);
+  }
+
+  // 40 new words and 45 s since the last ask, and none in flight.
+  function listenMaybeAsk() {
+    if (listenAutoOff || listenAsking || listenWords < 40 || Date.now() - listenAskedAt < 45000) return;
+    if (!document.getElementById('hdlv2-liveq-body')) return;
+    askLiveQuestions(true);
+  }
+
+  function foldListen(fold) {
+    var dock = document.getElementById('hdlv2-listen-dock');
+    var head = document.getElementById('hdlv2-listen-fold');
+    var body = document.getElementById('hdlv2-listen-body');
+    if (!dock || !head || !body) return;
+    dock.classList.toggle('is-folded', fold);
+    head.setAttribute('aria-expanded', fold ? 'false' : 'true');
+    body.hidden = fold;
+    listenPeek();
+  }
+
+  // Folded, the head is one line: the state and the first question.
+  function listenPeek() {
+    var peek = document.getElementById('hdlv2-listen-peek');
+    var body = document.getElementById('hdlv2-listen-body');
+    if (!peek) return;
+    var line = document.getElementById('hdlv2-listen-status');
+    peek.textContent = body && body.hidden ? [line ? line.textContent : '', liveShown[0] || ''].filter(Boolean).join(' · ') : '';
+    listenMore(); // every change to the card passes here: a new set, a new state, fold and unfold
+  }
+
+  function markAsked(i) {
+    var q = liveShown[i];
+    if (!q) return;
+    if (liveAsked.indexOf(q) === -1) liveAsked.push(q);
+    var body = document.getElementById('hdlv2-liveq-body');
+    var btn = body && body.querySelector ? body.querySelector('[data-asked="' + i + '"]') : null;
+    if (!btn) return;
+    btn.setAttribute('aria-pressed', 'true');
+    btn.disabled = true;
+    var li = btn.closest ? btn.closest('li') : null;
+    if (li) li.classList.add('hdlv2-liveq-done');
+  }
+  // ── END LISTEN ──
 
   // ── HEALTH ANALYSIS (v0.48.98, plan 13; hdlv2_ff_health_analysis) ──
   //   One press writes both texts with Matthew's two prompts: a case analysis for the practitioner
@@ -1940,6 +2183,9 @@
       + '</div>'
       + '<div aria-hidden="true" style="margin-top:18px;opacity:0.65;">' + HDLV2Loading.skeleton('consultation') + '</div>'
       + '</div>';
+    // v0.49.06 — the notes box is gone with the screen, the pinned card is not (it sits on the page body): stop
+    // listening and take the card away, or the microphone stays open and pieces are sent that land nowhere.
+    if (CFG.live_listen) mountListen();
     startReportPrepTicker(document.getElementById('hdlv2-rp-status'));
   }
 
