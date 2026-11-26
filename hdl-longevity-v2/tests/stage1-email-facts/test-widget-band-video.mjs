@@ -100,7 +100,13 @@ if (fnSrc && coverSrc && playSrc) {
   const btn = on.slice(on.indexOf('<button'), on.indexOf('</button>'));
   ok(btn.replace(/<[^>]+>/g, '').trim() === NAME && btn.indexOf('aria-label') === -1, 'the button\'s name is its own words, "' + NAME + '": they show if the picture does not load');
   ok(btn.indexOf(NAME) > 0 && btn.indexOf(NAME) < btn.indexOf('<img'), 'the words sit under the picture, not over it');
-  ok(on.indexOf('.hdlw-film-cover:focus-visible{outline:2px solid var(--hdl-accent,#3d8da0);outline-offset:-4px;}') > 0, 'a focus ring in the widget\'s own style, drawn inside the clipped box');
+  // Seen on the test site 2026-11-27: an outline on the button is painted under the picture, so no ring showed.
+  // The ring is the button's ::after, drawn over the picture, inside the clipped box: the widget's 2px accent
+  // line with a white line round it, so it shows on the dark and the light parts of a photograph.
+  ok(on.indexOf('.hdlw-film-cover:focus-visible{outline:0;}'
+    + '.hdlw-film-cover:focus-visible::after{content:"";position:absolute;top:4px;right:4px;bottom:4px;left:4px;border:2px solid var(--hdl-accent,#3d8da0);border-radius:8px;box-shadow:0 0 0 2px #fff;pointer-events:none;}') > 0,
+    'a focus ring drawn over the picture: the widget\'s accent line with a white line round it');
+  ok(btn.indexOf('<img') > 0 && on.indexOf('outline-offset:-4px') === -1, 'no outline left under the picture');
   ok(on.indexOf('<svg') === -1, 'no play icon drawn over it (the picture has one)');
 
   const press = (id, attached = true) => {

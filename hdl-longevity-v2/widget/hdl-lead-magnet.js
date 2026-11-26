@@ -182,7 +182,10 @@
     var film = /\/embed\/([A-Za-z0-9_-]{11})"/.exec(frame);
     if (!film || typeof cover !== 'string' || !/^https:\/\/[^\s"'<>]+$/.test(cover)) return frame;
     return frame.replace(/<iframe[\s\S]*<\/iframe>/, function () {
-      return '<style>.hdlw-film-cover:focus-visible{outline:2px solid var(--hdl-accent,#3d8da0);outline-offset:-4px;}</style>'
+      // The focus ring is the button's ::after, over the picture: an outline on the button itself is painted
+      // under it. The widget's accent line with a white line round it shows on every part of a photograph.
+      return '<style>.hdlw-film-cover:focus-visible{outline:0;}'
+        + '.hdlw-film-cover:focus-visible::after{content:"";position:absolute;top:4px;right:4px;bottom:4px;left:4px;border:2px solid var(--hdl-accent,#3d8da0);border-radius:8px;box-shadow:0 0 0 2px #fff;pointer-events:none;}</style>'
         + '<button type="button" class="hdlw-film-cover" data-film="' + film[1] + '" '
         + 'style="position:relative;display:block;width:100%;height:100%;margin:0;padding:0 16px;border:0;background:#f8f9fb;color:#004F59;font:inherit;font-weight:600;cursor:pointer;">'
         + 'Play: Matthew explains your result'
