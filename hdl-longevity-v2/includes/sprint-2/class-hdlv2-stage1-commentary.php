@@ -148,6 +148,29 @@ class HDLV2_Stage1_Commentary {
         return $out;
     }
 
+    /**
+     * v0.49.08 (plan 16) — Matthew's picture for the result film: the thumbnail in the Stage 1
+     * e-mail and, behind hdlv2_ff_stage1_film_cover, the film's cover on the result page. One
+     * picture for the three bands. The date is in the file's name so a later picture gets a new
+     * name and no mail program shows a stale one.
+     */
+    const FILM_COVER = 'assets/images/stage1-film-cover-2026-11.jpg';
+
+    /** @return string the picture's public address. */
+    public static function film_cover_url() {
+        return HDLV2_PLUGIN_URL . self::FILM_COVER;
+    }
+
+    /**
+     * The cover's address for the widget's two settings payloads: there only with
+     * hdlv2_ff_stage1_film_cover on. Absent, neither payload gains a key and the page is today's.
+     *
+     * @return array
+     */
+    public static function film_cover_fields() {
+        return get_option( 'hdlv2_ff_stage1_film_cover', false ) ? array( 'film_cover_url' => self::film_cover_url() ) : array();
+    }
+
     // ──────────────────────────────────────────────────────────────
     //  PARAGRAPH 1 — HEADLINE (rate band)
     // ──────────────────────────────────────────────────────────────

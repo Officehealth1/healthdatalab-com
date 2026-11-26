@@ -268,7 +268,7 @@ $p['safety_ack'] = array( 'notice' => 'a', 'version' => $C::VERSION, 'country' =
 post_lead( $p );
 drain_last_lead( $wpdb );
 $make = null; foreach ( $GLOBALS['captured_posts'] as $cp ) { if ( false !== strpos( $cp['url'], 'hook.example.test/stage1' ) ) $make = json_decode( $cp['args']['body'], true ); }
-check( 'M1 Stage 1 payload keeps its 36 keys (same as a lead with no ticks)', is_array( $make ) && is_array( $plain ) && 36 === count( $make ) && count( $plain ) === count( $make ) );
+check( 'M1 Stage 1 payload keeps its 37 keys (same as a lead with no ticks; v0.49.08: + band_video_thumb_url)', is_array( $make ) && is_array( $plain ) && 37 === count( $make ) && count( $plain ) === count( $make ) );
 check( 'M2 outbound stage1_data has no _safety_ack, _safety or _safety_flags', is_array( $make['stage1_data'] ?? null ) && ! array_key_exists( '_safety_ack', $make['stage1_data'] ) && ! array_key_exists( '_safety', $make['stage1_data'] ) && ! array_key_exists( '_safety_flags', $make['stage1_data'] ) );
 
 echo "── T-no-branch: signposting only ──\n";

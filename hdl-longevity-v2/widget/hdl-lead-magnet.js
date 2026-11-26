@@ -174,6 +174,33 @@
       + 'style="display:block;width:100%;height:100%;border:0;"></iframe></div>';
   }
 
+  // v0.49.08 (plan 16; hdlv2_ff_stage1_film_cover) — Matthew's picture as the film's cover, in the same
+  // 16:9 box. Nothing of YouTube's loads until the visitor presses it. The button's name is its own
+  // words under the picture, so they still show, and still play, if the picture does not load.
+  // No cover address (the switch absent), or one that is not a plain https address: the frame as given.
+  function filmCoverHtml(frame, cover) {
+    var film = /\/embed\/([A-Za-z0-9_-]{11})"/.exec(frame);
+    if (!film || typeof cover !== 'string' || !/^https:\/\/[^\s"'<>]+$/.test(cover)) return frame;
+    return frame.replace(/<iframe[\s\S]*<\/iframe>/, function () {
+      return '<style>.hdlw-film-cover:focus-visible{outline:2px solid var(--hdl-accent,#3d8da0);outline-offset:-4px;}</style>'
+        + '<button type="button" class="hdlw-film-cover" data-film="' + film[1] + '" '
+        + 'style="position:relative;display:block;width:100%;height:100%;margin:0;padding:0 16px;border:0;background:#f8f9fb;color:#004F59;font:inherit;font-weight:600;cursor:pointer;">'
+        + 'Play: Matthew explains your result'
+        + '<img src="' + cover + '" alt="" loading="lazy" style="position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover;">'
+        + '</button>';
+    });
+  }
+
+  // The press on the cover: today's frame takes the button's place and starts playing.
+  function playFilm(btn) {
+    var box = btn.parentNode;
+    var frame = bandVideoHtml('film', { film: btn.getAttribute('data-film') });
+    if (!box || !frame) return;
+    box.innerHTML = frame.slice(frame.indexOf('<iframe'), frame.lastIndexOf('</div>'))
+      .replace('" title=', '?autoplay=1" title=').replace('allow="', 'allow="autoplay; ');
+    if (box.firstChild) box.firstChild.focus();
+  }
+
   // ---------- SAFETY NOTICE BY COUNTRY (v0.48.66) ----------
   // cfg.safetyNotice = HDLV2_Safety_Content::public_payload(), present only when
   // hdlv2_ff_safety_notice_v2 is on. The words, the rows and the numbers all come
@@ -957,11 +984,14 @@
     cfg.bandVideos = (publicCfg && publicCfg.band_videos) || (invite && invite.band_videos) || null; // v0.48.50 (W9)
     cfg.safetyNotice = (publicCfg && publicCfg.safety_notice) || (invite && invite.safety_notice) || null; // v0.48.66
     cfg.resultOffer = (publicCfg && publicCfg.result_offer) || (invite && invite.result_offer) || null; // v0.48.77 (2c)
+    // v0.49.08 (plan 16) — the film's cover; '' with hdlv2_ff_stage1_film_cover absent.
+    cfg.filmCover = String((publicCfg && publicCfg.film_cover_url) || (invite && invite.film_cover_url) || '');
     // v0.48.89 (A10) — the settings answer came after pullPublicConfig's cut-off: it still fills these
     // two, which the result page first reads minutes later, and nothing else. A result already drawn stays.
     if (late) late.fill = function (lateCfg) {
       cfg.bandVideos = lateCfg.band_videos || null;
       cfg.resultOffer = lateCfg.result_offer || null;
+      cfg.filmCover = String(lateCfg.film_cover_url || '');
     };
     // v0.48.80 (2f) — hdlv2_ff_stage1_resume: continue where you stopped. Public settings only, never with an invite.
     cfg.resume = !!(publicCfg && publicCfg.resume_enabled) && !invite;
@@ -982,6 +1012,11 @@
       el.style.setProperty('--hdl-accent', c);
       el.style.setProperty('--hdl-accent-deep', c);
     } catch (e) { /* no-op: CSSStyleDeclaration always exists on HTMLElement */ }
+    // v0.49.08 (plan 16) — a press on the film's cover plays it; no cover on the page, nothing to press.
+    el.addEventListener('click', function (e) {
+      var cover = e.target && e.target.closest && e.target.closest('.hdlw-film-cover');
+      if (cover) playFilm(cover);
+    });
     var answers = {};
     var currentStep = 0;
     var totalSteps = STEP_COUNT;
@@ -2042,7 +2077,7 @@
         +       '<h2>Your Health Gauge</h2>'
         +       '<p class="hdlw-r-lede">A snapshot of how fast you\u2019re ageing today, based on your quick answers.</p>'
         +       '<img class="hdlw-r-gauge-img" src="' + gaugeUrl(rate) + '" alt="Rate of ageing gauge \u2014 ' + rateDisplay + '">'
-        +       ( cfg.resultOffer && !offerHref ? '' : bandVideoHtml(bandKey, cfg.bandVideos) || (offerHref ? bandVideoHtml('film', { film: cfg.resultOffer.video_url }) : '') ) // v0.48.83 (2j): the films sell the $27 report, so with the switch on no button means no film
+        +       filmCoverHtml( ( cfg.resultOffer && !offerHref ? '' : bandVideoHtml(bandKey, cfg.bandVideos) || (offerHref ? bandVideoHtml('film', { film: cfg.resultOffer.video_url }) : '') ), cfg.filmCover ) // v0.48.83 (2j): the films sell the $27 report, so with the switch on no button means no film; v0.49.08 (plan 16): his picture over it with hdlv2_ff_stage1_film_cover on
         +     '</div>'
         +     '<div class="hdlw-r-stat">'
         +       '<p class="hdlw-r-stat-label">Rate of Ageing</p>'

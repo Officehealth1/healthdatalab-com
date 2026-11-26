@@ -29,7 +29,10 @@ const filmOf = (t) => {
 };
 const hrefOf = (t) => cutIn(t, '      var offerHref = ', ';\n').replace('var offerHref = ', '').replace(/;\n$/, '');
 
-const SRC = { now: { fns: fnsOf(now), film: filmOf(now), href: hrefOf(now) }, base: { fns: fnsOf(base), film: filmOf(base), href: hrefOf(base) } };
+// v0.49.08 (plan 16): today's film line hands its film to filmCoverHtml. No cover address is set here
+// (cfg.filmCover, the switch absent), so it must hand the film back as it is: every check below still
+// compares with the base.
+const SRC = { now: { fns: fnsOf(now).concat(cutIn(now, '  function filmCoverHtml(', '\n  }\n')), film: filmOf(now), href: hrefOf(now) }, base: { fns: fnsOf(base), film: filmOf(base), href: hrefOf(base) } };
 ok(Object.values(SRC).every((s) => s.fns.every(Boolean) && s.film && s.href), 'the functions, the film line and the button line are found, now and at ' + BASE);
 
 /** What the gauge card draws under the gauge, with `which` source's own pieces. */

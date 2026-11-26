@@ -10,6 +10,9 @@
  *     map absent the markup is b462b02's byte for byte.
  *   - the band comes from renderResult's own bandClass (good/avg/warn), not a third copy of the edges.
  *   - cfg.bandVideos is read from both payloads (public config and invite).
+ *   - v0.49.08 (plan 16; hdlv2_ff_stage1_film_cover): filmCoverHtml(frame, cover) puts Matthew's picture
+ *     over the film as a button and playFilm(button) swaps it for today's frame with autoplay. With no
+ *     cover address the frame comes back untouched, so the switch absent is today's markup byte for byte.
  * Run: node tests/stage1-email-facts/test-widget-band-video.mjs   Exit: 0 all pass, 1 any fail
  */
 import fs from 'node:fs';
@@ -74,6 +77,55 @@ const fnW9 = cutIn(w9, '  function bandVideoHtml(', '\n  }\n');
 const fnBlock = w9.slice(w9.indexOf('  // v0.48.50 (W9)'), w9.indexOf(fnW9) + fnW9.length + 1);
 ok(fnW9 === fnSrc && w9.replace(cutIn(w9, '    function renderResult() {', '\n    }\n'), rrOld).replace(cfgLine, '').replace(fnBlock, '') === old,
   'W9 (426fadd) changed nothing else in the widget since b462b02, and its function is the one shipped now');
+
+// v0.49.08 (plan 16) — hdlv2_ff_stage1_film_cover: Matthew's picture over the film; the frame loads on the press.
+console.log('── the film\'s cover ──');
+const coverSrc = cutIn(js, '  function filmCoverHtml(', '\n  }\n'), playSrc = cutIn(js, '  function playFilm(', '\n  }\n');
+ok(coverSrc !== '' && playSrc !== '', 'filmCoverHtml and playFilm are top-level functions of the widget');
+if (fnSrc && coverSrc && playSrc) {
+  const COVER = 'https://plugin.example.test/wp-content/plugins/hdl-longevity-v2/assets/images/stage1-film-cover-2026-11.jpg';
+  const NAME = 'Play: Matthew explains your result';
+  const cover = (frame, url) => { const c = { out: '' }; vm.runInNewContext(coverSrc + '\nout = filmCoverHtml(' + JSON.stringify(frame) + ', ' + JSON.stringify(url) + ');', c); return c.out; };
+  const today = want('zUCwXaMM9Y4');
+  ok(cover(today, '') === today && cover(today, undefined) === today && cover(today, null) === today, 'switch absent (no address): today\'s markup, byte for byte');
+  ok(cover('', COVER) === '', 'no film: nothing, cover or not');
+  ok(['http://x.test/a.jpg', 'javascript:alert(1)', COVER + '" onerror="x', COVER + ' x', '//x.test/a.jpg', COVER + '<b>'].every((u) => cover(today, u) === today),
+    'an address that is not a plain https one: today\'s frame');
+  const on = cover(today, COVER);
+  ok(on.indexOf('<iframe') === -1 && on.indexOf('youtube') === -1, 'switch on: no frame and no YouTube address before the press');
+  ok(on.startsWith('<div class="hdlw-band-video" style="margin:18px auto 0;max-width:640px;aspect-ratio:16/9;border-radius:12px;overflow:hidden;background:#f8f9fb;">') && on.endsWith('</div>'),
+    'the same 16:9 box');
+  ok((on.match(/<button type="button" class="hdlw-film-cover" data-film="zUCwXaMM9Y4"/g) || []).length === 1 && (on.match(/<button/g) || []).length === 1, 'one button, type button, carrying the film');
+  ok(on.indexOf('<img src="' + COVER + '" alt="" loading="lazy"') > 0 && (on.match(/<img/g) || []).length === 1, 'the picture inside it: empty alt, lazy');
+  const btn = on.slice(on.indexOf('<button'), on.indexOf('</button>'));
+  ok(btn.replace(/<[^>]+>/g, '').trim() === NAME && btn.indexOf('aria-label') === -1, 'the button\'s name is its own words, "' + NAME + '": they show if the picture does not load');
+  ok(btn.indexOf(NAME) > 0 && btn.indexOf(NAME) < btn.indexOf('<img'), 'the words sit under the picture, not over it');
+  ok(on.indexOf('.hdlw-film-cover:focus-visible{outline:2px solid var(--hdl-accent,#3d8da0);outline-offset:-4px;}') > 0, 'a focus ring in the widget\'s own style, drawn inside the clipped box');
+  ok(on.indexOf('<svg') === -1, 'no play icon drawn over it (the picture has one)');
+
+  const press = (id, attached = true) => {
+    const box = { innerHTML: 'BUTTON', focused: 0, get firstChild() { return { focus: () => { box.focused++; } }; } };
+    const c = { btn: { parentNode: attached ? box : null, getAttribute: (n) => (n === 'data-film' ? id : null) } };
+    vm.runInNewContext(fnSrc + playSrc + '\nplayFilm(btn);', c);
+    return box;
+  };
+  const playing = '<iframe src="https://www.youtube-nocookie.com/embed/zUCwXaMM9Y4?autoplay=1" title="Matthew on your result" loading="lazy" '
+    + 'allow="autoplay; accelerometer; encrypted-media; gyroscope; picture-in-picture" allowfullscreen '
+    + 'style="display:block;width:100%;height:100%;border:0;"></iframe>';
+  const played = press('zUCwXaMM9Y4');
+  ok(played.innerHTML === playing, 'after the press: today\'s one nocookie frame in the same box, with ?autoplay=1 and leave to autoplay');
+  ok(played.focused === 1, 'focus moves to the film, not back to the top of the page');
+  ok(press('"><script>x</script>').innerHTML === 'BUTTON' && press(null).innerHTML === 'BUTTON', 'a film id that is not a YouTube id: the button stays');
+  ok(press('zUCwXaMM9Y4', false).innerHTML === 'BUTTON', 'a press on a button already gone: nothing');
+
+  ok(js.indexOf("    cfg.filmCover = String((publicCfg && publicCfg.film_cover_url) || (invite && invite.film_cover_url) || '');") > 0, 'cfg.filmCover read from the public config or the invite payload');
+  ok(js.indexOf("      cfg.filmCover = String(lateCfg.film_cover_url || '');") > 0, 'a late settings answer fills it too');
+  ok(/el\.addEventListener\('click', function \(e\) \{\s*var cover = e\.target && e\.target\.closest && e\.target\.closest\('\.hdlw-film-cover'\);\s*if \(cover\) playFilm\(cover\);\s*\}\);/.test(js),
+    'one click listener on the widget\'s own root plays it (Enter and Space press a button)');
+  const rrNow = cutIn(js, '    function renderResult() {', '\n    }\n');
+  ok((rrNow.match(/filmCoverHtml\(/g) || []).length === 1 && rrNow.indexOf("+       filmCoverHtml( ( cfg.resultOffer && !offerHref ? '' : bandVideoHtml(bandKey, cfg.bandVideos) || (offerHref ? bandVideoHtml('film', { film: cfg.resultOffer.video_url }) : '') ), cfg.filmCover )") > 0,
+    'renderResult hands the film it draws today, and the cover\'s address, to filmCoverHtml (one call)');
+}
 
 console.log(`\nPASS=${PASS} FAIL=${FAIL}`);
 process.exit(FAIL ? 1 : 0);
