@@ -65,6 +65,13 @@ $base = array( // md5 of each method's source at 4a0fa73: the flag-off page is b
 // pins above still prove the flag-off source byte for byte.
 $as_today = function ( $s ) {
     $s = preg_replace( "/HDLV2_Report_Names::say\\( [^,]+, '([^']+)' \\)/", "'$1'", $s );
+    // v0.49.07 (plan 16): Stage 1 takes "about two minutes" in hero_for_state, path_for_state and
+    // steps_grid; read back as the base's words, so the pins hold every other byte.
+    $s = str_replace(
+        array( '9 questions, about two minutes.', 'snapshot &mdash; about two minutes &mdash;' ),
+        array( '9 questions, ~3 minutes.', 'snapshot &mdash; about three minutes &mdash;' ),
+        $s
+    );
     return str_replace( "' . '", '', $s );
 };
 $changed = array_keys( array_filter( $base, function ( $md5, $n ) use ( $dash, $as_today ) { return md5( $as_today( method_src( $dash, $n ) ) ) !== $md5; }, ARRAY_FILTER_USE_BOTH ) );

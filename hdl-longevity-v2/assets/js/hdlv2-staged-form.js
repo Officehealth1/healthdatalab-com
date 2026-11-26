@@ -722,7 +722,7 @@
     // Stage 1 wrapper — .hdlv2-s1 animates in on every re-render via CSS keyframes.
     // Counter sits above the bar; body lives inside so the fade+slide covers it too.
     var html = '<div class="hdlv2-card">' + progressBar(1)
-      + '<div class="hdlv2-header"><h2>Quick Health Insight</h2><p>10 quick questions, takes about 60 seconds</p></div>'
+      + '<div class="hdlv2-header"><h2>Quick Health Insight</h2><p>10 quick questions, takes about two minutes</p></div>'
       + '<div class="hdlv2-s1">'
       +   '<div class="hdlv2-s1-header">'
       +     backBtn

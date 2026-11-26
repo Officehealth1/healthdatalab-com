@@ -2161,7 +2161,7 @@ class HDLV2_Client_Dashboard {
         );
 
         $subs = array(
-            'brand-new'   => 'Your practitioner has invited you in. Start with a 9-question snapshot &mdash; about three minutes &mdash; to see your pace of ageing.',
+            'brand-new'   => 'Your practitioner has invited you in. Start with a 9-question snapshot &mdash; about two minutes &mdash; to see your pace of ageing.',
             'stage1-done' => 'Your practitioner is reviewing your Stage 1 result. They&rsquo;ll email you when the next step is ready.',
             'stage2-done' => 'Your practitioner is preparing your full assessment. They&rsquo;ll email you when it&rsquo;s ready to start.',
             'stage3-done' => 'Your practitioner is reviewing everything to write your personalised report and Flight Plan.',
@@ -2200,7 +2200,7 @@ class HDLV2_Client_Dashboard {
             $h .= '<div class="cd-path cd-path-cta">';
             $h .= '<div class="cd-path-icon" aria-hidden="true">' . $this->icon( 'play' ) . '</div>';
             $h .= '<h3>Take the quick gauge</h3>';
-            $h .= '<p>9 questions, ~3 minutes. You&rsquo;ll see your pace-of-ageing result straight after, and your practitioner will be notified.</p>';
+            $h .= '<p>9 questions, about two minutes. You&rsquo;ll see your pace-of-ageing result straight after, and your practitioner will be notified.</p>';
             if ( $this->view_as ) {
                 $h .= $this->own_sign_in_note(); // v0.48.40 — the invite link signs the client in
             } elseif ( $invite_token !== '' ) {
@@ -2309,7 +2309,7 @@ class HDLV2_Client_Dashboard {
         $info = isset( $map[ $state ] ) ? $map[ $state ] : $map['brand-new'];
 
         $bodies = array(
-            1 => array( 'Stage 1 &middot; Quick insight',     '9 questions, ~3 minutes. You see your pace-of-ageing gauge straight away.' ),
+            1 => array( 'Stage 1 &middot; Quick insight',     '9 questions, about two minutes. You see your pace-of-ageing gauge straight away.' ),
             2 => array( HDLV2_Report_Names::say( 'paid', 'Full Report' ) . ' &middot; What matters most', 'You pick what matters most to you in your last decade.' ),
             3 => array( HDLV2_Report_Names::say( 'paid', 'Full Report' ) . ' &middot; Your measurements', 'Your real measurements, 5 short sections. Your practitioner reviews them with you.' ),
             4 => array( 'Consultation &middot; ' . HDLV2_Report_Names::say( 'consultation', 'Trajectory Plan' ), 'Your practitioner edits, adds notes, finalises. PDF + Flight Plan delivered to you.' ),

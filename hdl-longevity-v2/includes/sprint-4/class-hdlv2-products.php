@@ -40,7 +40,7 @@ class HDLV2_Products {
 
     /** What each product is, two lines, on the panel a locked tab opens. Placeholder copy: Matthew's words replace it. */
     const ABOUT = array(
-        'stage1'      => array( 'Nine questions, about three minutes.', 'Your pace of ageing, straight away.' ),
+        'stage1'      => array( 'Nine questions, about two minutes.', 'Your pace of ageing, straight away.' ),
         'full_report' => array( 'Your real measurements.', 'Your personalised Trajectory Plan, as a PDF and on this page.' ),
         'timeline'    => array( 'Your healthspan, year by year, as one picture.', 'It comes with your Full Report. A family pack adds seats for the people you choose.' ),
         'flight_plan' => array( 'A plan for the week, every week, after your consultation.', 'Built from your Sunday check-in.' ),
