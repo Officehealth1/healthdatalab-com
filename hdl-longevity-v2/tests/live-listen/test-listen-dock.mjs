@@ -23,6 +23,7 @@
  *        after "Listen" is off and after a redraw.
  *   D.36 the red flag's label is its own element.  D.37 a landed set shows "Updated HH:MM".
  *   D.38 "more below" on the card's scrolling part, off at the end.  D.39 switch off: a set is drawn as before.
+ *   D.40 "reduce motion" in the stylesheet: the bars are held flat and the caret does not blink.
  * Run: node tests/live-listen/test-listen-dock.mjs   Exit: 0 all pass, 1 any fail
  */
 import fs from 'node:fs';
@@ -244,6 +245,12 @@ ok(lb.classList.contains('is-more'), 'D.38c a new set lands longer than the card
 w.run('CFG.live_listen = 0');
 const plain = w.run('liveList(' + JSON.stringify({ questions: ANS.questions, red_flag: 'Tight chest.', nothing: false }) + ')');
 ok(/^<p class="hdlv2-liveq-flag"><strong>Red flag:<\/strong> Tight chest\.<\/p><ol class="hdlv2-liveq-list">/.test(plain) && !/Updated|flag-label|data-asked/.test(plain), 'D.39 the listen switch off: a set is drawn as before (plan 14\'s card)');
+
+// D.40: found by the walk. "*" does not reach a pseudo-element, so the caret kept blinking with "reduce motion" set.
+const sheet = fs.readFileSync(new URL('../../assets/css/hdlv2-consultation.css', import.meta.url), 'utf8');
+const calm = sheet.split('@media (prefers-reduced-motion: reduce) {').slice(1).map((b) => b.slice(0, b.indexOf('\n}'))).find((b) => b.includes('.hdlv2-listen-dock')) || '';
+ok(/\.hdlv2-listen-dock \*::after[^{]*\{[^}]*animation: none !important/.test(calm) && /\.hdlv2-listen-meter span \{ height: 3px !important/.test(calm),
+  'D.40 reduce motion: the bars are held flat and the rule reaches the caret (a pseudo-element)');
 
 console.log(`\nPASS=${PASS} FAIL=${FAIL}`);
 process.exit(FAIL ? 1 : 0);
