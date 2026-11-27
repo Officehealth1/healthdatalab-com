@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 /**
  * v0.49.10 (plan 19; hdlv2_ff_stage1_result_one_column) — the half that MOVES things: oneColumnResult.
+ * v0.49.11 (plan 19 fix v2) — the figures land in today's figure strip; each buy button in one of this layout's two groups.
  * The REAL oneColumnResult, oneColumnHtml and resultOfferHtml are cut from widget/hdl-lead-magnet.js and run in
  * vm on a small hand-rolled DOM (no framework, as in tests/action-unify/scenario-v1-badge-suppress.mjs). The page
  * it arranges is a stand-in for what renderResult writes, with the same classes and ids; check N pins that every
@@ -107,7 +108,7 @@ console.log('── M1. with the offer ──');
   const stats = old.querySelectorAll('.hdlw-r-stat'), drawn = old.querySelector('a.hdlw-r-btn-primary').getAttribute('href');
   const err = run(box), col = box.querySelector('.hdlw-r1');
   ok(err === null && col && box.querySelectorAll('.hdlw-r').length === 1 && old.parentNode === null, 'M1.1 one column takes the old page\'s place; nothing throws');
-  ok(Object.values(keep).every((n) => n && inside(n, col)) && stats.length === 3 && stats.every((n) => inside(n, col) && n.parentNode.className === 'hdlw-r1-figs'), 'M1.2 the SAME nodes are in the column: gauge, three figures, film, save line, e-mail line, boxed note, Book, link card, foot');
+  ok(Object.values(keep).every((n) => n && inside(n, col)) && stats.length === 3 && stats.every((n) => inside(n, col) && n.parentNode.className === 'hdlw-r-stat-strip'), 'M1.2 the SAME nodes are in the column: gauge, three figures, film, save line, e-mail line, boxed note, Book, link card, foot');
   ok(col.querySelectorAll('.hdlw-r-stat-note').length === 0 && col.querySelectorAll('[data-part]').length === 0, 'M1.3 the notes under the figures are gone; no marked place is left');
   const thanks = col.querySelector('[id$="-thanks"]'), buys = thanks.querySelectorAll('a.hdlw-r-btn-primary');
   ok(thanks.hidden === true && buys.length === 2 && buys.every((a) => a.getAttribute('href') === drawn) && drawn === HREF, 'M1.4 a new hidden "-thanks" holds both buttons, each with the drawn button\'s address, character for character');
@@ -116,6 +117,9 @@ console.log('── M1. with the offer ──');
   ok(order.every((p, i) => p >= 0 && (i === 0 || p > order[i - 1])) && inside(keep.mail, thanks) && inside(keep.note, thanks) && inside(keep.book, thanks) && !inside(keep.status, thanks), 'M1.6 in reading order: gauge, figures, film, save line, the offer, link card, foot');
   ok(col.textContent.includes('at about the population average') && !col.textContent.includes('ageing slower') && !col.textContent.includes('What This Means For You') && !col.textContent.includes('Do you know what is creating your number'), 'M1.7 the band is the drawn figure\'s (average); the old card and the old offer words are left out');
   ok(col.textContent.includes('Rosa explains your result') && col.textContent.includes('Hi Ada,'), 'M1.8 the caption and the greeting take the names they are handed');
+  const acts = col.querySelectorAll('.hdlw-r1-act');
+  ok(acts.length === 2 && buys.every((a, i) => a.parentNode === acts[i]) && keep.mail.parentNode === acts[0] && keep.book.parentNode.className === 'hdlw-r-buttons' && acts.every((g) => g.parentNode === buys[0].parentNode.parentNode),
+    'M1.9 each buy button sits in one of this layout\'s two groups, in the same card; the e-mail line is in the first; Book keeps today\'s own group');
 }
 
 console.log('── M2. "hidden" follows the drawn card ──');
@@ -130,6 +134,7 @@ for (const [label, opts, mark] of [['M3 the offer off', { offer: false }, 'Thank
   const err = run(box), col = box.querySelector('.hdlw-r1');
   ok(err === null && col && inside(card, col) && inside(hold, card) && col.textContent.includes(mark), label + ': today\'s own card moves in whole, with its save line');
   ok(!col.textContent.includes('but why') && col.querySelectorAll('a.hdlw-r-btn-primary').length === 0 && col.querySelectorAll('[data-part]').length === 0 && col.querySelectorAll('h2').length === 1, label + ': no "but why", no buy button');
+  ok(col.querySelectorAll('.hdlw-r1-act').length === 0 && col.querySelectorAll('.hdlw-r1-lead').length === 1, label + ': today\'s card carries none of this layout\'s own group or lead classes');
 }
 
 console.log('── M5. when it cannot work ──');

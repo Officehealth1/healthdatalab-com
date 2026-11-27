@@ -12,9 +12,10 @@
   page: no server, no lead, no e-mail. Serve hdl-longevity-v2/ over http and open
     tests/result-one-column/harness.html?layout=1
   then, in the console:  document.querySelector('.hdl-rate-widget').__hdlGoTo(10)
-  Query: layout=1|0 (the switch) · offer=1|0 · film=1|0 · prac=0 (no practitioner name)
+  Query: layout=1|0 (the switch) · offer=1|0 · film=1|0 · cover=1 (the film's cover) · scale=1 (the numbers on the gauge) · prac=0 (no practitioner name)
          save=ok|fail|wait (the answer to the final send)
-         invite=<64 hex>&source=paid_stage1|practitioner&q=a..e (a personal link whose saved answers are all q)
+         invite=<64 hex>&source=paid_stage1|practitioner|timeline_link&q=a..e (a personal link whose saved answers are all q;
+         a Timeline link comes from "Sam Example" and its send answers with a made-up key, so the yes or no card shows)
 -->
 <div class="hdl-rate-widget" data-practitioner-id="206" data-api="https://harness.invalid/wp-json/hdl-v2/v1/widget/lead"></div>
 <script>
@@ -29,11 +30,19 @@
     { practitioner_name: name, logo_url: '', logo_shape: 'square', cta_link: '', cta_text: '', theme_color: '#3d8da0', access_mode: 'open', band_videos: {} },
     on('layout', '1') ? { result_one_column: true } : {},
     on('offer', '1') ? { result_offer: { today: '$27', video_url: '', band_urls: { green: page('slower'), blue: page('average'), red: page('faster') } } } : {},
-    on('film', '1') ? { band_videos: { green: 'K2rQSjwvTws', blue: 'K2rQSjwvTws', red: 'K2rQSjwvTws' } } : {}
+    on('film', '1') ? { band_videos: { green: 'K2rQSjwvTws', blue: 'K2rQSjwvTws', red: 'K2rQSjwvTws' } } : {},
+    // The cover must be an https address: the tool that drives this page answers it with the repository's picture.
+    on('cover', '0') ? { film_cover_url: 'https://harness.invalid/film-cover.jpg' } : {},
+    // The scale on the gauge, as HDLV2_Widget_Config::gauge_scale() answers with hdlv2_ff_gauge_scale on.
+    on('scale', '0') ? { gauge_scale: { data: [0.8, 0.9, 0.9, 1.1, 1.1, 1.4, 1.4],
+      backgroundColor: ['rgba(0,0,0,0)', 'rgba(67,191,85,0.95)', 'rgba(0,0,0,0)', 'rgba(65,165,238,0.95)', 'rgba(0,0,0,0)', 'rgba(255,111,75,0.95)', 'rgba(0,0,0,0)'],
+      borderWidth: [0, 1, 0, 1, 0, 1, 0],
+      datalabels: { display: [true, false, true, false, true, false, true], anchor: ['center', 'end', 'end', 'end', 'end', 'end', 'center'],
+        align: ['bottom', 'end', 'end', 'end', 'end', 'end', 'bottom'], offset: 2, color: '#2c3e50', font: { size: 22, weight: 'bold' } } } } : {}
   );
   var letter = Q.get('q') || 'c', source = Q.get('source') || 'paid_stage1';
   var invite = Object.assign({}, settings, {
-    valid: true, practitioner_id: 206, client_name: 'Ada Example', client_email: 'ada@example.test', source: source,
+    valid: true, practitioner_id: 206, client_name: 'Ada Example', client_email: 'ada@example.test', source: source, link_from: 'Sam Example',
     api_url: 'https://harness.invalid/wp-json/hdl-v2/v1/widget/lead',
     prefill_stage1: { q1_age: 52, q1_sex: 'female', q2a: 2, q2b: 'even', q3: letter, q4: letter, q5: letter, q6: letter, q7: letter, q8: letter, q9: letter }
   });
@@ -48,7 +57,8 @@
       var save = Q.get('save') || 'ok';
       if (save === 'wait') return new Promise(function () {});
       if (save === 'fail') return answer(500, { code: 'harness_refused', message: 'The harness refused this send.' }, 400);
-      var made = 'harness'; // a practitioner's invite answers with the made-up link the page then shows
+      var made = 'harness'; // a practitioner's invite answers with the made-up link the page then shows; a Timeline link with a made-up key
+      if (source === 'timeline_link' && Q.get('invite')) return answer(200, { success: true, link_key: made }, 400);
       return answer(200, source === 'practitioner' && Q.get('invite') ? { form_token: made } : { success: true }, 400);
     }
     return Promise.reject(new Error('the harness answers no other address'));
