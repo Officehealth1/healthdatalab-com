@@ -1109,7 +1109,7 @@ class HDLV2_Widget_Config {
      * The Stage 1 report's gauge: the dial only. The PDF prints the rate and the interpretation pill
      * in its own type beside it (v0.30.0), so the image carries neither. v0.48.41 — public: the
      * client dashboard's Stage 1 card and Today's preview show this same picture.
-     * v0.48.75 — flag hdlv2_ff_gauge_scale: the scale 0.8 · 0.9 · 1.1 · 1.4 printed on the curve.
+     * v0.48.75 — flag hdlv2_ff_gauge_scale: the scale 0.8 · 0.9 · 1.1 · 1.4 printed on the curve (gauge_scale()).
      */
     public static function stage1_report_gauge_url( $rate ) {
         if ( ! $rate ) return '';
@@ -1118,7 +1118,7 @@ class HDLV2_Widget_Config {
             'type' => 'gauge',
             'data' => array( 'labels' => array('Slower','Average','Faster'), 'datasets' => array( array(
                 'data' => array(0.9,1.1,1.4), 'value' => $clamped, 'minValue' => 0.8, 'maxValue' => 1.4,
-                'backgroundColor' => array('rgba(67,191,85,0.95)','rgba(65,165,238,0.95)','rgba(255,111,75,0.95)'),
+                'backgroundColor' => self::GAUGE_PARTS,
                 'borderWidth' => 1, 'borderColor' => 'rgba(255,255,255,0.8)', 'borderRadius' => 5,
             ) ) ),
             'options' => array(
@@ -1133,17 +1133,37 @@ class HDLV2_Widget_Config {
                 'subtitle' => array('display'=>false),
             ),
         );
-        if ( get_option( 'hdlv2_ff_gauge_scale', false ) ) {
-            // A part of no width at each scale value: datalabels prints the part's value exactly
-            // where the colour changes. The coloured parts, their borders and the needle draw as
-            // before (pixel-equal with the labels off, 2026-11-17).
-            $ds    = &$cfg['data']['datasets'][0];
-            $clear = 'rgba(0,0,0,0)';
-            list( $green, $blue, $red ) = $ds['backgroundColor'];
-            $ds['data']            = array( 0.8, 0.9, 0.9, 1.1, 1.1, 1.4, 1.4 );
-            $ds['backgroundColor'] = array( $clear, $green, $clear, $blue, $clear, $red, $clear );
-            $ds['borderWidth']     = array( 0, 1, 0, 1, 0, 1, 0 );
-            $ds['datalabels']      = array(
+        $scale = self::gauge_scale();
+        if ( $scale ) {
+            $cfg['data']['datasets'][0]              = array_merge( $cfg['data']['datasets'][0], $scale );
+            $cfg['options']['plugins']['datalabels'] = array( 'display' => true );
+        }
+        return 'https://quickchart.io/chart?c=' . rawurlencode( wp_json_encode( $cfg ) ) . '&w=380&h=340&bkg=white';
+    }
+
+    /** The three coloured parts of a Stage 1 gauge: slower, average, faster. */
+    const GAUGE_PARTS = array( 'rgba(67,191,85,0.95)', 'rgba(65,165,238,0.95)', 'rgba(255,111,75,0.95)' );
+
+    /**
+     * The scale on a Stage 1 gauge's curve, 0.8 · 0.9 · 1.1 · 1.4, as settings for the gauge's parts;
+     * array() with hdlv2_ff_gauge_scale absent. The one place that knows where the four marks sit: the
+     * PDF's gauge takes them from here, and so does the result page's gauge, which the widget draws
+     * (v0.49.09, plan 18: they ride as gauge_scale in the widget's two settings answers).
+     *
+     * @return array
+     */
+    public static function gauge_scale() {
+        if ( ! get_option( 'hdlv2_ff_gauge_scale', false ) ) return array();
+        // A part of no width at each scale value: datalabels prints the part's value exactly
+        // where the colour changes. The coloured parts, their borders and the needle draw as
+        // before (pixel-equal with the labels off, 2026-11-17).
+        $clear = 'rgba(0,0,0,0)';
+        list( $green, $blue, $red ) = self::GAUGE_PARTS;
+        return array(
+            'data'            => array( 0.8, 0.9, 0.9, 1.1, 1.1, 1.4, 1.4 ),
+            'backgroundColor' => array( $clear, $green, $clear, $blue, $clear, $red, $clear ),
+            'borderWidth'     => array( 0, 1, 0, 1, 0, 1, 0 ),
+            'datalabels'      => array(
                 'display' => array( true, false, true, false, true, false, true ),
                 // 0.8 and 1.4 under the two ends; 0.9 and 1.1 just outside the curve.
                 'anchor'  => array( 'center', 'end', 'end', 'end', 'end', 'end', 'center' ),
@@ -1151,11 +1171,8 @@ class HDLV2_Widget_Config {
                 'offset'  => 2,
                 'color'   => '#2c3e50',
                 'font'    => array( 'size' => 22, 'weight' => 'bold' ), // a family list makes QuickChart drop the bold
-            );
-            unset( $ds );
-            $cfg['options']['plugins']['datalabels'] = array( 'display' => true );
-        }
-        return 'https://quickchart.io/chart?c=' . rawurlencode( wp_json_encode( $cfg ) ) . '&w=380&h=340&bkg=white';
+            ),
+        );
     }
 
     /**
@@ -2765,6 +2782,7 @@ class HDLV2_Widget_Config {
           + ( HDLV2_Offer::applies_to( (int) $row->practitioner_user_id ) ? HDLV2_Offer::public_config_fields() : array() ) // v0.48.15 — the locked panel's price line
           + HDLV2_Offer::result_offer_fields( (int) $row->practitioner_user_id ) // v0.48.77 — the result page's offer (switch on only)
           + HDLV2_Stage1_Commentary::film_cover_fields() // v0.49.08 — the film's cover (hdlv2_ff_stage1_film_cover on only)
+          + array_filter( array( 'gauge_scale' => self::gauge_scale() ) ) // v0.49.09 — the scale on the result page's gauge (hdlv2_ff_gauge_scale on only)
           + ( get_option( 'hdlv2_ff_input_checks', false ) ? array( 'age_typed' => true ) : array() ) ) ); // v0.48.97 (plan 11) — the age box starts empty
     }
 
@@ -3311,7 +3329,8 @@ class HDLV2_Widget_Config {
             'source'                         => $source,
         ) + ( class_exists( 'HDLV2_Safety_Content' ) && HDLV2_Safety_Content::enabled() ? array( 'safety_notice' => HDLV2_Safety_Content::public_payload() ) : array() ) + $link // v0.48.66
           + HDLV2_Offer::result_offer_fields( (int) $invite->practitioner_id ) // v0.48.77 — the result page's offer (switch on only)
-          + HDLV2_Stage1_Commentary::film_cover_fields() ); // v0.49.08 — the film's cover (hdlv2_ff_stage1_film_cover on only)
+          + HDLV2_Stage1_Commentary::film_cover_fields() // v0.49.08 — the film's cover (hdlv2_ff_stage1_film_cover on only)
+          + array_filter( array( 'gauge_scale' => self::gauge_scale() ) ) ); // v0.49.09 — the scale on the result page's gauge (hdlv2_ff_gauge_scale on only)
     }
 
     /**

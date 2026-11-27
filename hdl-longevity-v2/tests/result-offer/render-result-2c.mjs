@@ -63,6 +63,9 @@ export const EDITS = [
   [String.raw`        +       ( cfg.resultOffer && !offerHref ? '' : bandVideoHtml(bandKey, cfg.bandVideos) || (offerHref ? bandVideoHtml('film', { film: cfg.resultOffer.video_url }) : '') ) // v0.48.83 (2j): the films sell the $27 report, so with the switch on no button means no film
 `, String.raw`        +       filmCoverHtml( ( cfg.resultOffer && !offerHref ? '' : bandVideoHtml(bandKey, cfg.bandVideos) || (offerHref ? bandVideoHtml('film', { film: cfg.resultOffer.video_url }) : '') ), cfg.filmCover ) // v0.48.83 (2j): the films sell the $27 report, so with the switch on no button means no film; v0.49.08 (plan 16): his picture over it with hdlv2_ff_stage1_film_cover on
 `],
+  // v0.49.09 (plan 18; hdlv2_ff_gauge_scale) — the gauge picture is handed the server's scale for its curve
+  // (tests/gauge-scale/test-page-gauge.mjs). Nothing else in renderResult moved.
+  [String.raw`src="' + gaugeUrl(rate) + '" alt=`, String.raw`src="' + gaugeUrl(rate, cfg.gaugeScale) + '" alt=`],
   // Walk W1 (plan 4, 2026-11-19): gate row F25's "Start again" is drawn as a link.
   [String.raw`
         + '.hdlw-r-card p.hdlw-r-price{font-size:13px;color:#888;margin:0;}'

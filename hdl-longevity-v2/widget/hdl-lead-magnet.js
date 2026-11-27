@@ -120,7 +120,11 @@
 
   // ---------- QUICKCHART GAUGE (0.8-1.4 range) ----------
 
-  function gaugeUrl(rate) {
+  // v0.49.09 (plan 18; hdlv2_ff_gauge_scale) — `scale`: the server's settings for the scale on the curve
+  // (0.8 · 0.9 · 1.1 · 1.4), the ones the PDF's gauge is drawn with. Absent, the picture is today's.
+  // Only those four settings are taken, and only when every part ends at one of this gauge's own
+  // edges: an answer cannot move the needle, the range or where a colour ends.
+  function gaugeUrl(rate, scale) {
     var clamped = Math.max(0.8, Math.min(1.4, parseFloat(rate.toFixed(2))));
     var interp, interpColor;
     if (clamped <= 0.9) { interp = 'Slower'; interpColor = 'rgba(67, 191, 85, 1)'; }
@@ -157,6 +161,15 @@
         subtitle: { display:true, text:interp, color:interpColor, font:{size:20,weight:'bold',family:"'Inter',sans-serif"}, padding:{top:8} }
       }
     };
+    var ds = cfg.data.datasets[0];
+    var edges = [ds.minValue].concat(ds.data);
+    if (scale && Array.isArray(scale.data) && scale.data.length && scale.data.every(function (v) { return edges.indexOf(v) >= 0; })) {
+      ds.data = scale.data;
+      ds.backgroundColor = scale.backgroundColor;
+      ds.borderWidth = scale.borderWidth;
+      ds.datalabels = scale.datalabels;
+      cfg.options.plugins.datalabels.display = true;
+    }
     return 'https://quickchart.io/chart?c=' + encodeURIComponent(JSON.stringify(cfg)) + '&w=380&h=340&bkg=white';
   }
 
@@ -989,12 +1002,15 @@
     cfg.resultOffer = (publicCfg && publicCfg.result_offer) || (invite && invite.result_offer) || null; // v0.48.77 (2c)
     // v0.49.08 (plan 16) — the film's cover; '' with hdlv2_ff_stage1_film_cover absent.
     cfg.filmCover = String((publicCfg && publicCfg.film_cover_url) || (invite && invite.film_cover_url) || '');
+    // v0.49.09 (plan 18) — the scale on the result's gauge; null with hdlv2_ff_gauge_scale absent.
+    cfg.gaugeScale = (publicCfg && publicCfg.gauge_scale) || (invite && invite.gauge_scale) || null;
     // v0.48.89 (A10) — the settings answer came after pullPublicConfig's cut-off: it still fills these
     // two, which the result page first reads minutes later, and nothing else. A result already drawn stays.
     if (late) late.fill = function (lateCfg) {
       cfg.bandVideos = lateCfg.band_videos || null;
       cfg.resultOffer = lateCfg.result_offer || null;
       cfg.filmCover = String(lateCfg.film_cover_url || '');
+      cfg.gaugeScale = lateCfg.gauge_scale || null;
     };
     // v0.48.80 (2f) — hdlv2_ff_stage1_resume: continue where you stopped. Public settings only, never with an invite.
     cfg.resume = !!(publicCfg && publicCfg.resume_enabled) && !invite;
@@ -2079,7 +2095,7 @@
         +       '<span class="hdlw-r-eyebrow">Pace of Ageing</span>'
         +       '<h2>Your Health Gauge</h2>'
         +       '<p class="hdlw-r-lede">A snapshot of how fast you\u2019re ageing today, based on your quick answers.</p>'
-        +       '<img class="hdlw-r-gauge-img" src="' + gaugeUrl(rate) + '" alt="Rate of ageing gauge \u2014 ' + rateDisplay + '">'
+        +       '<img class="hdlw-r-gauge-img" src="' + gaugeUrl(rate, cfg.gaugeScale) + '" alt="Rate of ageing gauge \u2014 ' + rateDisplay + '">'
         +       filmCoverHtml( ( cfg.resultOffer && !offerHref ? '' : bandVideoHtml(bandKey, cfg.bandVideos) || (offerHref ? bandVideoHtml('film', { film: cfg.resultOffer.video_url }) : '') ), cfg.filmCover ) // v0.48.83 (2j): the films sell the $27 report, so with the switch on no button means no film; v0.49.08 (plan 16): his picture over it with hdlv2_ff_stage1_film_cover on
         +     '</div>'
         +     '<div class="hdlw-r-stat">'
