@@ -5,7 +5,10 @@
  * "Stage 1" or "check" in the plugin's own code, and fails while one of them is neither
  * "about two minutes" nor named in NOT_STAGE1 with its reason. A new time near those words fails here
  * until someone says what it is.
- * Part 2 names each screen and e-mail that tells a person how long the nine questions take.
+ * Part 1 is a net, not a proof: it sees a time only within about 200 characters of one of those words
+ * (run on the old words it caught six of the seven lines). Part 2 is the proof for the places we know:
+ * it names each screen and e-mail that tells a person how long the nine questions take. A new such
+ * place is added to part 2 by hand.
  * Run: node tests/stage1-time/test-stage1-time.mjs   Exit: 0 all pass, 1 any fail
  */
 import fs from 'node:fs';
