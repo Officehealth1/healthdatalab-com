@@ -98,8 +98,13 @@ ok(!/border-left|::before|text-transform:uppercase|font-style:italic|linear-grad
 ok([...css.matchAll(/line-height:([\d.]+)/g)].every((m) => parseFloat(m[1]) >= 1.5 || /hdlw-r1-band|hero-title/.test(css.slice(css.lastIndexOf('}', m.index) + 1, m.index))), 'text lines are set at 1.5 or more');
 const colours = [...new Set([...css.matchAll(/#[0-9a-fA-F]{3,6}\b/g)].map((m) => m[0].toLowerCase()))];
 ok(colours.every((c) => ['#3d8da0', '#004f59', '#2c3e50', '#e4e6ea', '#f8f9fb', '#fafbfc', '#fff', '#ffffff'].includes(c)), 'colours are the brand\'s own (' + colours.join(' ') + ')');
-ok(/p\.hdlw-r-offer-email a\{color:#004F59;\}/.test(css) && [...css.matchAll(/hdlw-r1-band\{font-size:(\d+)px/g)].every((m) => +m[1] >= 24),
-  'contrast: the "Start again" link is dark teal on white (9.3 to 1); a heading on teal (3.8 to 1) is never under 24 px');
+const bandRules = [...css.matchAll(/([^{}]*hdlw-r1-band[^{}]*)\{([^}]*)\}/g)];
+ok(/p\.hdlw-r-offer-email a\{color:#004F59;\}/.test(css) && /\.hdlw-r1 h1\.hdlw-r1-band,\.hdlw-r1 h2\.hdlw-r1-band\{[^}]*color:#fff;[^}]*font-size:32px/.test(css)
+  && bandRules.length >= 3 && bandRules.flatMap((m) => [...m[2].matchAll(/font-size:(\d+)px/g)]).every((m) => +m[1] >= 24),
+  'contrast: the "Start again" link is dark teal on white (9.3 to 1); both headings on teal (3.8 to 1) set their own white and size, never under 24 px');
+const btnRules = [...css.matchAll(/([^{}]*hdlw-r-btn-primary[^{}]*)\{/g)].map((m) => m[1]);
+ok(btnRules.length >= 3 && btnRules.every((sel) => sel.split(',').filter((x) => x.includes('btn-primary')).every((x) => x.includes('.hdlw-r1-card a.hdlw-r-btn-primary'))),
+  'the button rules reach only this layout\'s own two buttons: a Timeline link\'s "yes" stays the size of its "no" (' + btnRules.length + ' rules)');
 ok(!full.includes('—') && !full.includes('–'), 'no dash stands in for punctuation');
 
 console.log('── T1.6 the states ──');
@@ -117,7 +122,7 @@ ok(odd !== '' && Object.values(E).every((s) => !text(odd).includes(s.split('.')[
 const all = [full, euro, noFilm, noPrac, noOffer, odd, frame({ band: 'avg' }), frame({ band: 'warn' })];
 ok(all.every((h) => h !== '' && !/undefined|null|NaN/.test(text(h))), 'no state prints "undefined"');
 ok(all.every((h) => !/0\.85|43\.4|\b51\b|Matthew/.test(h)) && !/0\.85|43\.4|\b51\b|Matthew/.test(words + fn + mover), 'none of the drawing\'s sample values (0.85, 43.4, 51, his name) is in the markup or the code');
-ok(frame({ first: '<b>x', prac: '"><i>' }).indexOf('<b>x') < 0 && frame({ first: '<b>x', prac: '"><i>' }).indexOf('<i>') < 0, 'a name is escaped');
+{ const x = frame({ first: '<b>x', prac: '"><i>' }); ok(x.includes('Hi &lt;b&gt;x,') && x.includes('&quot;&gt;&lt;i&gt; explains your result') && !x.includes('<b>x') && !x.includes('<i>'), 'a name is escaped'); }
 
 console.log('── T1.5 and how it is wired ──');
 const rr = cut('    function renderResult() {', '\n    }\n');
@@ -129,7 +134,15 @@ const chosen = (on) => { const c = { cfg: { resultOneColumn: on }, renderResult:
 ok(chosen(false) === 'today' && chosen(undefined) === 'today', 'switch absent: the result is drawn by renderResult itself');
 ok(chosen(true) === 'one column', 'switch on: by resultOneColumn');
 const wrap = cut('    function resultOneColumn() {', '\n    }\n');
-ok(/^\s*function resultOneColumn\(\) \{\s*renderResult\(\);\s*oneColumnResult\(contentEl, \{/.test(wrap), 'which first lets renderResult draw and send as today, then arranges what it drew');
+ok(/^\s*function resultOneColumn\(\) \{\s*renderResult\(\);\s*try \{\s*oneColumnResult\(contentEl, \{/.test(wrap) && /\} catch \(e\) \{/.test(wrap), 'which first lets renderResult draw and send as today, then arranges what it drew; a failure there leaves today\'s page');
+// The wrapper itself, run with stand-ins: what it hands the arranger.
+const handed = (name, prac, offer) => { const c = { got: null, id: 'hdlw-206', contentEl: {}, answers: { _name: name }, cfg: { pracName: prac, resultOffer: offer }, renderResult: () => {}, oneColumnResult: (box, d) => { c.got = d; } };
+  try { vm.runInNewContext(wrap + '\nresultOneColumn();', c); } catch (e) { return {}; } return c.got || {}; };
+ok(handed('Ada Walker', 'Rosa Example', { today: '$27' }).first === 'Ada' && handed('Ada Walker', 'Rosa Example', { today: '$27' }).prac === 'Rosa' && handed('Ada', 'Rosa', { today: '\u20ac31' }).today === '\u20ac31' && handed('Ada', 'Rosa', null).today === '', 'first names and the offer\'s price are handed on; no offer, no price');
+ok(['Dr Rosa Example', 'Dr. Rosa Example', 'dr rosa example', 'Prof. Rosa Example', 'Mrs Rosa Example', ' Ms Rosa'].every((n) => handed('Ada', n, null).prac.toLowerCase() === 'rosa') && handed('Ada', 'Drew Example', null).prac === 'Drew' && handed('Ada', '', null).prac === '', 'a title in front of the practitioner\'s name is not taken for the first name ("Dr explains your result"); "Drew" stays Drew');
+{ const c = { id: 'x', contentEl: {}, answers: {}, cfg: {}, renderResult: () => {}, oneColumnResult: () => { throw new Error('boom'); }, threw: false };
+  try { vm.runInNewContext(wrap + '\nresultOneColumn();', c); } catch (e) { c.threw = true; }
+  ok(!c.threw, 'a failure in the arranging does not stop the page (the step arrows and the safety line still run)'); }
 const cfgLine = cut('    cfg.resultOneColumn = ', ';');
 const read = (publicCfg, invite) => { const c = { cfg: {}, publicCfg, invite }; try { vm.runInNewContext(cfgLine, c); } catch (e) { return 'error'; } return c.cfg.resultOneColumn; };
 ok(read({ result_one_column: true }, null) === true && read(null, { result_one_column: true }) === true && read({}, null) === false && read(null, null) === false, 'cfg.resultOneColumn is read from both settings answers; absent is false');

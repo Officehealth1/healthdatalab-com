@@ -879,8 +879,9 @@
     return '<style>'
       + '.hdlw-r.hdlw-r1{max-width:640px;margin:0 auto;text-align:left;color:#2c3e50;}'
       // White on the brand's teal is 3.8 to 1: enough for a heading of 24 px or more (3 to 1), not for small
-      // text, so only the two headings sit on it and neither goes under 24 px.
-      + '.hdlw-r1-band{margin:0 0 16px;padding:20px 28px;border-radius:14px;background:#3d8da0;}'
+      // text, so only the two headings sit on it and neither goes under 24 px. Colour and size are set here,
+      // on the tag, so a host page's own heading rule does not undo them (the family is hdlw-r-hero-title's).
+      + '.hdlw-r1 h1.hdlw-r1-band,.hdlw-r1 h2.hdlw-r1-band{margin:0 0 16px;padding:20px 28px;border-radius:14px;background:#3d8da0;color:#fff;font-size:32px;line-height:1.2;}'
       + '.hdlw-r1 h2.hdlw-r1-band{font-size:26px;}'
       + '.hdlw-r1 .hdlw-r1-card{margin:0 0 16px;text-align:left;}'
       + '.hdlw-r1 .hdlw-r1-card > :last-child{margin-bottom:0;}'
@@ -899,11 +900,12 @@
       + '.hdlw-r1 .hdlw-r1-card a + p.hdlw-r1-small{margin-top:12px;}'
       + '.hdlw-r1 .hdlw-r1-card p.hdlw-r1-sign{margin:0 0 10px;font-weight:600;}'
       + '.hdlw-r1 .hdlw-r1-card p.hdlw-r-offer-email a{color:#004F59;}' // the page's teal link is 3.8 to 1 on white; this is 9.3
-      + '.hdlw-r1 .hdlw-r-btn-primary{font-size:16px;line-height:1.5;padding:14px 28px;}'
-      + '.hdlw-r1 .hdlw-r-btn-primary.hdlw-r1-wide{display:block;max-width:none;}'
-      + '.hdlw-r1 .hdlw-r-btn-primary:focus-visible,.hdlw-r1 .hdlw-r-offer-email a:focus-visible{outline:2px solid #3d8da0;outline-offset:3px;}'
+      // The button rules reach this layout's own two buttons only: a Timeline link's yes and no stay the same size.
+      + '.hdlw-r1 .hdlw-r1-card a.hdlw-r-btn-primary{font-size:16px;line-height:1.5;padding:14px 28px;}'
+      + '.hdlw-r1 .hdlw-r1-card a.hdlw-r-btn-primary.hdlw-r1-wide{display:block;max-width:none;}'
+      + '.hdlw-r1 .hdlw-r1-card a.hdlw-r-btn-primary:focus-visible,.hdlw-r1 .hdlw-r1-card p.hdlw-r-offer-email a:focus-visible{outline:2px solid #3d8da0;outline-offset:3px;}'
       + '.hdlw-r1 .hdlw-r-status{margin:0 0 16px;font-size:15px;line-height:1.6;color:#2c3e50;font-style:normal;}'
-      + '@media (max-width:640px){.hdlw-r1-band{padding:16px 20px;}.hdlw-r1 h2.hdlw-r1-band{font-size:24px;}.hdlw-r1-top{grid-template-columns:1fr;}.hdlw-r1 .hdlw-r-btn-primary{font-size:15px;padding:14px 16px;}}'
+      + '@media (max-width:640px){.hdlw-r1 h1.hdlw-r1-band,.hdlw-r1 h2.hdlw-r1-band{padding:16px 20px;font-size:24px;}.hdlw-r1-top{grid-template-columns:1fr;}.hdlw-r1 .hdlw-r1-card a.hdlw-r-btn-primary{font-size:15px;padding:14px 16px;}}'
       + '</style>'
       + '<h1 class="hdlw-r1-band hdlw-r-hero-title">How Fast You are Ageing?</h1>'
       // hdlw-r-gauge-card: a Timeline link's notice (linkNotice) is set in front of the card that carries this class.
@@ -949,26 +951,34 @@
     var old = box.querySelector('.hdlw-r');
     if (!old) return; // renderResult went back to the contact step: no result was drawn
     var q = function (sel) { return old.querySelector(sel); };
+    // By comparing ids, not by a selector built from one: the id carries the embed's own practitioner id.
+    var byId = function (name) {
+      var all = old.querySelectorAll('[id]');
+      for (var k = 0; k < all.length; k++) if (all[k].id === d.id + '-' + name) return all[k];
+      return null;
+    };
     var note = q('.hdlw-r-stat-note');
     var band = note ? (/\b(good|avg|warn)\b/.exec(note.className) || [])[1] : ''; // the band renderResult worked out
-    var thanks = q('#' + d.id + '-thanks');
+    var thanks = byId('thanks');
     // The offer shows when today's card carries its price line; its button holds the buy address.
     var buy = thanks && thanks.querySelector('.hdlw-r-price') ? thanks.querySelector('a.hdlw-r-btn-primary') : null;
     var book = thanks ? thanks.querySelector('.hdlw-r-btn-secondary') : null;
+    // Today's second card (the thank-you, or an invite's next steps): the card around the save line.
+    var next = byId('status') || byId('continue');
+    while (next && next !== old && !/\bhdlw-r-card\b/.test(next.className)) next = next.parentNode;
     var parts = {
       gauge: [q('.hdlw-r-gauge-img')],
       stats: old.querySelectorAll('.hdlw-r-stat'),
       film: [q('.hdlw-band-video')],
-      status: [q('#' + d.id + '-status')],
+      status: [byId('status')],
       mail: [thanks && thanks.querySelector('.hdlw-r-offer-email')],
       note: [thanks && thanks.querySelector('.hdlw-r-offer-note')],
       book: [book && book.parentNode],
-      next: [q('.hdlw-r-twocol-right > .hdlw-r-card + .hdlw-r-card')],
-      link: [q('#' + d.id + '-link')],
+      next: [next === old ? null : next],
+      link: [byId('link')],
       foot: [q('.hdlw-r-prac-foot')]
     };
     var notes = old.querySelectorAll('.hdlw-r-stat-note');
-    for (var n = 0; n < notes.length; n++) notes[n].parentNode.removeChild(notes[n]);
     var col = document.createElement('div');
     col.className = 'hdlw-r hdlw-r1';
     col.innerHTML = oneColumnHtml({
@@ -976,13 +986,15 @@
       offer: buy ? { href: buy.getAttribute('href'), today: d.today } : null
     });
     var places = col.querySelectorAll('[data-part]');
+    var shown = col.querySelector('[id$="-thanks"]');
+    // From here on nodes move; everything that could fail has already run, so a failure leaves today's page whole.
+    for (var n = 0; n < notes.length; n++) notes[n].parentNode.removeChild(notes[n]);
     for (var i = 0; i < places.length; i++) {
       var live = parts[places[i].getAttribute('data-part')] || [];
       for (var j = 0; j < live.length; j++) if (live[j]) places[i].parentNode.insertBefore(live[j], places[i]);
       places[i].parentNode.removeChild(places[i]);
     }
-    var shown = col.querySelector('#' + d.id + '-thanks');
-    if (buy && shown) shown.hidden = thanks.hidden; // saved() has already run where nothing is sent (the practitioner's preview)
+    if (buy && shown) shown.hidden = thanks.hidden; // saved() may already have run (a page that sends nothing)
     old.parentNode.replaceChild(col, old);
   }
 
@@ -2482,12 +2494,17 @@
     // and sends exactly as today, then what it drew is set in Matthew's order (oneColumnResult).
     function resultOneColumn() {
       renderResult();
-      oneColumnResult(contentEl, {
-        id: id,
-        first: String(answers._name || '').split(/\s+/)[0],
-        prac: String(cfg.pracName || '').split(/\s+/)[0],
-        today: cfg.resultOffer ? cfg.resultOffer.today : ''
-      });
+      try {
+        oneColumnResult(contentEl, {
+          id: id,
+          first: String(answers._name || '').split(/\s+/)[0],
+          // The practitioner's first name for the caption and the sign-off: a title in front is not a name.
+          prac: String(cfg.pracName || '').replace(/^\s*(?:dr|prof|mr|mrs|ms|miss)\.?\s+/i, '').split(/\s+/)[0],
+          today: cfg.resultOffer ? cfg.resultOffer.today : ''
+        });
+      } catch (e) {
+        // The arranging failed before it moved anything: today's page stays, drawn and sent as usual.
+      }
     }
 
     // v0.29.1 — Expose a step-jumper on the host element so the practitioner
