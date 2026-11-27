@@ -2,6 +2,8 @@
 /**
  * v0.49.10 (plan 19; hdlv2_ff_stage1_result_one_column) — the half that MOVES things: oneColumnResult.
  * v0.49.11 (plan 19 fix v2) — the figures land in today's figure strip; each buy button in one of this layout's two groups.
+ * v0.49.12 — M6: the two sample charts it is handed reach the column only with the offer; the block a Timeline
+ *   link's notice is set in front of holds the heading and the gauge.
  * The REAL oneColumnResult, oneColumnHtml and resultOfferHtml are cut from widget/hdl-lead-magnet.js and run in
  * vm on a small hand-rolled DOM (no framework, as in tests/action-unify/scenario-v1-badge-suppress.mjs). The page
  * it arranges is a stand-in for what renderResult writes, with the same classes and ids; check N pins that every
@@ -32,6 +34,8 @@ class El {
   removeChild(c) { const i = this.childNodes.indexOf(c); if (i < 0) throw new Error('not a child'); this.childNodes.splice(i, 1); c.parentNode = null; return c; }
   replaceChild(n, o) { this.insertBefore(n, o); return this.removeChild(o); }
   set innerHTML(html) { this.childNodes.forEach((c) => { if (c instanceof El) c.parentNode = null; }); this.childNodes = []; parse(String(html), this); }
+  set textContent(v) { this.innerHTML = ''; this.childNodes = [String(v)]; }
+  addEventListener(type, fn) { (this.heard = this.heard || {})[type] = fn; }
   get textContent() { return this.childNodes.map((c) => (c instanceof El ? (c.tagName === 'STYLE' ? '' : c.textContent) : c)).join(''); }
   all() { return this.childNodes.filter((c) => c instanceof El).flatMap((c) => [c, ...c.all()]); }
   querySelectorAll(sel) { return this.all().filter((e) => matches(e, sel.trim().split(/\s+/))); }
@@ -126,6 +130,23 @@ console.log('── M2. "hidden" follows the drawn card ──');
 { const box = page({ saved: true }); run(box); ok(box.querySelector('[id$="-thanks"]').hidden === false, 'M2.1 already saved when arranged: the offer shows'); }
 for (const band of ['good', 'warn']) { const box = page({ band }); run(box); ok(box.textContent.includes(band === 'good' ? 'ageing slower' : 'ageing faster'), 'M2.2 ' + band + ': its own sentence'); }
 { const box = page({ film: false }); run(box); ok(!box.querySelector('.hdlw-band-video') && !box.textContent.includes('explains your result') && box.querySelectorAll('[data-part]').length === 0, 'M2.3 no film drawn: no film, no caption, no empty place'); }
+
+console.log('── M6. the two sample charts, and the block the result sits in ──');
+{ const CH = { abilities: 'https://w.test/a.webp', standing: 'https://w.test/s.webp' };
+  const withCharts = (opts) => { const box = page(opts); try { ctx.oneColumnResult(box, { id: 'hdlw-206', first: 'Ada', prac: 'Rosa', today: '$27', charts: CH }); } catch (e) { return null; } return box.querySelector('.hdlw-r1'); };
+  const a = withCharts({}), b = withCharts({ offer: false });
+  const row = a && a.querySelector('.hdlw-r1-charts'), pics = row ? row.querySelectorAll('img') : [];
+  ok(pics.length === 2 && pics[0].getAttribute('src') === CH.abilities && pics[1].getAttribute('src') === CH.standing && a.textContent.includes('this is what you get:') && a.textContent.includes('Examples from a Full Report.'),
+    'M6.1 with the offer the two pictures it is handed sit in the column, under "this is what you get:", named as examples');
+  ok(!!b && !b.querySelector('.hdlw-r1-charts') && !b.textContent.includes('this is what you get') && !b.textContent.includes('Examples from'), 'M6.2 without the offer: no charts and no line about them');
+  const block = a && a.querySelector('.hdlw-r-gauge-card');
+  ok(!!block && block.parentNode === a && /\bhdlw-r1-block\b/.test(block.className) && inside(a.querySelector('.hdlw-r-gauge-img'), block) && inside(a.querySelector('.hdlw-r-hero-title'), block),
+    'M6.3 the block a Timeline link\'s notice is set in front of holds the heading and the gauge: the notice lands over the heading, not between it and its card');
+  // A picture that does not load (the folder not on the server yet, a blocked address): the browser tells the row.
+  const heard = row && row.heard && row.heard.error; let threw = false;
+  try { if (heard) { heard({ target: pics[0] }); heard({ target: pics[1] }); } } catch (e) { threw = true; }
+  ok(!!heard && !threw && !a.querySelector('.hdlw-r1-charts') && !a.querySelector('.hdlw-r1-eg') && a.textContent.includes('For a small investment of $27.') && !a.textContent.includes('this is what you get') && a.querySelectorAll('a.hdlw-r-btn-primary').length === 2,
+    'M6.4 a sample picture that fails to load takes the pair and its line away, and the price line ends as today\'s; both buttons stay; the second failure does nothing more'); }
 
 console.log('── M3. without the offer; M4. a practitioner\'s invite ──');
 for (const [label, opts, mark] of [['M3 the offer off', { offer: false }, 'Thank you.'], ['M4 a practitioner\'s invite', { invite: true, book: true }, 'What Happens Next']]) {

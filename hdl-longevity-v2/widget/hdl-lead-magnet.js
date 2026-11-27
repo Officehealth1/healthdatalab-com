@@ -871,41 +871,55 @@
   };
 
   // The column's words and order, with a marked place (data-part) for each part renderResult drew.
-  // d: { id, esc, first, prac, band: good|avg|warn, film: true|false, offer: { href, today } | null }.
-  // v0.49.11 (plan 19 fix v2): made of the result page's own parts (its hero, cards, small label, serif
-  // heading, figure cards, button and price line) so it reads as the same page. Only what differs is styled
-  // here, and the rules for the two button groups reach this layout's own groups only (hdlw-r1-act): a card
-  // renderResult drew that moves in whole (an invite's next steps, a Timeline link's yes and no) keeps its own.
+  // d: { id, esc, first, prac, band: good|avg|warn, film: true|false, offer: { href, today } | null,
+  //      charts: { abilities, standing } | null }.
+  // v0.49.11 (plan 19 fix v2): made of the result page's own parts (its hero, cards, figure cards, button and
+  // price line) so it reads as the same page. Only what differs is styled here, and the rules for the two
+  // button groups reach this layout's own groups only (hdlw-r1-act): a card renderResult drew that moves in
+  // whole (an invite's next steps, a Timeline link's yes and no) keeps its own.
+  // v0.49.12: the drawing's blocks, in its order. Each of its two bands is the page's hero panel holding one
+  // heading, joined to its card. Block 1: the gauge with the three figures beside it, then the greeting, the
+  // opening line, the band's line and the film. Block 2: "but why", the offer, two sample charts.
   function oneColumnHtml(d) {
-    var esc = d.esc, o = d.offer, band = ONE_COLUMN_BAND[d.band];
+    var esc = d.esc, o = d.offer, band = ONE_COLUMN_BAND[d.band], ch = o && d.charts ? d.charts : null;
     var part = function (name) { return '<span data-part="' + name + '"></span>'; };
-    // One inner width for everything in the hero and the cards: 560 px, less on a narrow screen.
+    // A sample chart from a Full Report: a made-up person's, named as an example under the pair.
+    var chart = function (src, alt, label) {
+      return '<figure><img src="' + esc(src) + '" alt="' + alt + '" width="540" height="540" loading="lazy"><figcaption>' + label + '</figcaption></figure>';
+    };
+    // One inner width for everything in the panels and the cards: 560 px, less on a narrow screen.
     var side = 'clamp(22px,calc((100% - 560px) / 2),110px)';
     return '<style>'
       + '.hdlw-r.hdlw-r1{max-width:780px;margin:0 auto;text-align:left;}'
       + '.hdlw-r1 .hdlw-r-hero,.hdlw-r1 .hdlw-r-card{padding-left:' + side + ';padding-right:' + side + ';}'
-      // The hero holds three sentences of small white text, so its ground is the brand's two teals, dark
-      // to mid, ending short of the mid teal: under the page's own soft highlight white then measures 4.5
-      // to 1 or more on every part of it, at every width from 390 to 1440 px (today's light end gives 2.5).
+      // The panel's ground is the brand's two teals, dark to mid, ending short of the mid teal: under the
+      // page's own soft highlight white measures 4.5 to 1 or more on every part of it (today's light end: 2.5).
       + '.hdlw-r1 .hdlw-r-hero{background:linear-gradient(135deg,#004F59 0%,#3d8da0 150%);}'
-      + '.hdlw-r1 .hdlw-r-hero-greeting,.hdlw-r1 .hdlw-r-hero-body{opacity:1;}'
-      // White is set on the tags: on this darker ground a host page's own heading or paragraph colour must not win.
-      + '.hdlw-r1 .hdlw-r-hero h1,.hdlw-r1 .hdlw-r-hero p{color:#fff;}'
-      + '.hdlw-r1 .hdlw-r-hero-body{max-width:33em;}'
-      + '.hdlw-r1 .hdlw-r-eyebrow{color:#004F59;}' // 11 px: the page's teal is 3.8 to 1 on white, this is 9.3
+      // Set on the tags: a host page's own heading colour, margin or padding must not win on this ground.
+      // (Its font size can still win over the title's, as it can on today's hero.)
+      + '.hdlw-r1 .hdlw-r-hero h1,.hdlw-r1 .hdlw-r-hero h2{margin:0;padding:0;color:#fff;}'
+      // A heading panel and its card are one block: no gap and no line between them. Block 1 carries
+      // hdlw-r-gauge-card, which today's stylesheet centres: text-align here is what outranks that.
+      + '.hdlw-r1 .hdlw-r1-block{margin:0 0 16px;text-align:left;}'
+      + '.hdlw-r1 .hdlw-r1-block>.hdlw-r-hero{margin:0;padding-top:22px;padding-bottom:22px;border-radius:14px 14px 0 0;}'
+      + '.hdlw-r1 .hdlw-r1-block>.hdlw-r-card{margin:0;border-top:0;border-radius:0 0 14px 14px;}'
+      // The result: the gauge, and the three figures one under the other beside it. The row wraps by its own
+      // width, not the screen's: in a narrow box (a phone, a sidebar) the figures go under the gauge.
+      + '.hdlw-r1 .hdlw-r1-result{display:flex;flex-wrap:wrap;align-items:center;gap:20px 24px;}'
       // The gauge picture carries its own empty white band over the curve: its frame cuts most of it off.
-      + '.hdlw-r1 .hdlw-r1-gauge{overflow:hidden;}'
+      + '.hdlw-r1 .hdlw-r1-gauge{flex:1.7 1 260px;min-width:0;overflow:hidden;text-align:center;}'
       + '.hdlw-r1 .hdlw-r-gauge-img{max-width:440px;margin-top:-10%;}'
-      + '.hdlw-r1 .hdlw-r-stat-strip{margin:20px 0 0;}'
-      + '.hdlw-r1 .hdlw-r-stat{padding:18px 10px;}'
+      + '.hdlw-r1 .hdlw-r-stat-strip{flex:1 1 170px;grid-template-columns:1fr;gap:8px;margin:0;}'
+      + '.hdlw-r1 .hdlw-r-stat{padding:10px;}'
       + '.hdlw-r1 .hdlw-r-card p{line-height:1.6;}'
       // Inside a card the card's paragraph rule would win over the figure's own: said again here.
-      + '.hdlw-r1 .hdlw-r-stat p.hdlw-r-stat-label{margin:0 0 8px;font-size:12px;line-height:1.5;color:#555;}'
-      + '.hdlw-r1 .hdlw-r-stat p.hdlw-r-stat-value{margin:0;font-size:30px;line-height:1.1;color:#111;}'
-      + '.hdlw-r1 .hdlw-r-card h2{margin:0 0 12px;}'
+      + '.hdlw-r1 .hdlw-r-stat p.hdlw-r-stat-label{margin:0 0 6px;font-size:12px;line-height:1.5;color:#555;}'
+      + '.hdlw-r1 .hdlw-r-stat p.hdlw-r-stat-value{margin:0;font-size:26px;line-height:1.1;color:#111;}'
       + '.hdlw-r1 .hdlw-r1-read{margin:28px 0 0;text-align:left;}'
       + '.hdlw-r1 .hdlw-r1-read p{max-width:33em;}'
+      + '.hdlw-r1 .hdlw-r-card p.hdlw-r1-hi{margin:0 0 6px;font-size:17px;line-height:1.5;font-weight:600;color:#111;}'
       + '.hdlw-r1 .hdlw-r-card p.hdlw-r1-lead{max-width:30em;margin:0 0 8px;font-size:17px;line-height:1.5;font-weight:600;color:#111;}'
+      + '.hdlw-r1 .hdlw-r-card p+p.hdlw-r1-lead{margin-top:18px;}'
       // Named through the card, so this grey outranks the page's own price-line rule (#888) wherever that rule sits.
       + '.hdlw-r1 .hdlw-r-card p.hdlw-r1-small,.hdlw-r1 .hdlw-r-card .hdlw-r1-act p{margin:0;font-size:13px;line-height:1.5;color:#555;}'
       + '.hdlw-r1 .hdlw-r-card p.hdlw-r1-cap{margin:10px 0 0;text-align:center;}'
@@ -913,6 +927,12 @@
       + '.hdlw-r1 .hdlw-r1-act p{max-width:34em;text-align:center;text-wrap:balance;}'
       + '.hdlw-r1 .hdlw-r1-act p.hdlw-r-offer-email{max-width:none;margin:0 0 4px;}'
       + '.hdlw-r1 .hdlw-r-card p.hdlw-r-offer-email a{color:#004F59;}' // the page's teal link is 3.8 to 1 on white
+      // The two sample charts, side by side under the price line; one under the other in a narrow box.
+      + '.hdlw-r1 .hdlw-r1-charts{display:flex;flex-wrap:wrap;justify-content:center;gap:16px;margin:-8px 0 0;}'
+      + '.hdlw-r1 .hdlw-r1-charts figure{flex:1 1 200px;max-width:260px;margin:0;text-align:center;}'
+      + '.hdlw-r1 .hdlw-r1-charts img{display:block;width:100%;height:auto;border:1px solid #e4e6ea;border-radius:12px;}'
+      + '.hdlw-r1 .hdlw-r1-charts figcaption{margin:8px 0 0;font-size:14px;line-height:1.5;font-weight:600;color:#2c3e50;}'
+      + '.hdlw-r1 .hdlw-r-card p.hdlw-r1-eg{margin:6px 0 24px;text-align:center;}'
       + '.hdlw-r1 .hdlw-r-card p.hdlw-r-offer-note{margin:0 0 8px;}'
       + '.hdlw-r1 .hdlw-r1-sign{margin:24px 0 0;padding:24px 0 0;border-top:1px solid #e4e6ea;}'
       + ".hdlw-r1 .hdlw-r1-act p.hdlw-r1-name{font-family:'Source Serif Pro',Georgia,serif;font-size:18px;color:#2c3e50;}"
@@ -924,47 +944,55 @@
       + '.hdlw-r1 a:focus-visible{outline:2px solid #3d8da0;outline-offset:3px;}'
       + '.hdlw-r1 .hdlw-r-status{margin:0 0 16px;font-size:15px;line-height:1.6;color:#2c3e50;font-style:normal;}'
       + '</style>'
-      + '<section class="hdlw-r-hero">'
-      +   '<div class="hdlw-r-hero-row"><div>'
-      +     '<p class="hdlw-r-hero-greeting">Hi' + (d.first ? ' ' + esc(d.first) : '') + ',</p>'
-      +     '<h1 class="hdlw-r-hero-title">How fast you are ageing?</h1>'
-      // The line under the title shares a string with the row's end: tests/result-offer cuts renderResult's
-      // own hero line out of this file by the text that opens it, and must keep finding that one first.
-      +   '</div></div><p class="hdlw-r-hero-body">Your results are in. So many people never look until it’s late in the game. You just did, and that matters.</p>'
-      + '</section>'
-      // hdlw-r-gauge-card: a Timeline link's notice (linkNotice) is set in front of the card that carries this class.
-      + '<div class="hdlw-r-card hdlw-r-gauge-card">'
-      +   '<span class="hdlw-r-eyebrow">Pace of Ageing</span>'
-      +   '<div class="hdlw-r1-gauge">' + part('gauge') + '</div>'
-      +   '<div class="hdlw-r-stat-strip">' + part('stats') + '</div>'
-      +   (band ? '<div class="hdlw-r1-read"><p class="hdlw-r1-lead">' + band[0] + '</p><p>' + band[1] + '</p></div>' : '')
-      +   (d.film ? part('film') + (d.prac ? '<p class="hdlw-r1-small hdlw-r1-cap">' + esc(d.prac) + ' explains your result</p>' : '') : '')
+      // hdlw-r-gauge-card: a Timeline link's notice (linkNotice) is set in front of the block that carries this class.
+      + '<div class="hdlw-r-gauge-card hdlw-r1-block">'
+      +   '<section class="hdlw-r-hero"><h1 class="hdlw-r-hero-title">How fast you are ageing?</h1></section>'
+      +   '<div class="hdlw-r-card">'
+      +     '<div class="hdlw-r1-result">'
+      +       '<div class="hdlw-r1-gauge">' + part('gauge') + '</div>'
+      +       '<div class="hdlw-r-stat-strip">' + part('stats') + '</div>'
+      +     '</div>'
+      +     '<div class="hdlw-r1-read">'
+      +       '<p class="hdlw-r1-hi">Hi' + (d.first ? ' ' + esc(d.first) : '') + ',</p>'
+      +       '<p>Your results are in. So many people never look until it’s late in the game. You just did, and that matters.</p>'
+      +       (band ? '<p class="hdlw-r1-lead">' + band[0] + '</p><p>' + band[1] + '</p>' : '')
+      +     '</div>'
+      +     (d.film ? part('film') + (d.prac ? '<p class="hdlw-r1-small hdlw-r1-cap">' + esc(d.prac) + ' explains your result</p>' : '') : '')
+      +   '</div>'
       + '</div>'
       // With the offer: his "but why" part, shown by saved() as today's offer card is. Without it (the offer
       // off, a practitioner's invite, a report already bought): today's own card, as renderResult drew it.
       + (o
         ? part('status')
           + '<div id="' + esc(d.id) + '-thanks" hidden>'
-          +   '<div class="hdlw-r-card">'
-          +     '<h2>… but why?</h2>'
-          +     '<div class="hdlw-r1-read" style="margin:0;">'
-          +       '<p class="hdlw-r1-lead">Your number shows where you’re heading. Not why.</p>'
-          +       '<p>Without the why, any change is a guess. Your Full Longevity Report shows what’s driving your number and where to focus first.</p>'
-          +     '</div>'
-          +     '<div class="hdlw-r-buttons hdlw-r1-act">'
-          +       part('mail')
-          +       '<a class="hdlw-r-btn-primary" href="' + esc(o.href) + '">Show me what’s driving my number</a>'
-          +       '<p class="hdlw-r-price">For a small investment of ' + esc(o.today) + '.</p>'
-          +     '</div>'
-          +     part('note')
+          +   '<div class="hdlw-r1-block">'
+          +     '<div class="hdlw-r-hero"><h2 class="hdlw-r-hero-title">… but why?</h2></div>'
+          +     '<div class="hdlw-r-card">'
+          +       '<div class="hdlw-r1-read" style="margin:0;">'
+          +         '<p class="hdlw-r1-lead">Your number shows where you’re heading. Not why.</p>'
+          +         '<p>Without the why, any change is a guess. Your Full Longevity Report shows what’s driving your number and where to focus first.</p>'
+          +       '</div>'
+          +       '<div class="hdlw-r-buttons hdlw-r1-act">'
+          +         part('mail')
+          +         '<a class="hdlw-r-btn-primary" href="' + esc(o.href) + '">Show me what’s driving my number</a>'
+          +         '<p class="hdlw-r-price">For a small investment of ' + esc(o.today) + (ch ? ', this is what you get:' : '.') + '</p>'
+          +       '</div>'
+          +       (ch
+            ? '<div class="hdlw-r1-charts">'
+              + chart(ch.abilities, 'Example radar chart of six abilities: strength, mobility, balance, stamina, mind and connection.', 'Your abilities')
+              + chart(ch.standing, 'Example radar chart of twenty health measures, each scored from 1 to 5.', 'Where you stand')
+              + '</div><p class="hdlw-r1-small hdlw-r1-eg">Examples from a Full Report.</p>'
+            : '')
+          +       part('note')
           // These two lines read as in resultOfferHtml (tests/result-one-column pins them equal).
-          +     '<p class="hdlw-r1-small">None of this replaces your doctor. Keep them in the loop.</p>'
-          +     '<div class="hdlw-r-buttons hdlw-r1-act hdlw-r1-sign">'
-          +       (d.prac ? '<p class="hdlw-r1-name">' + esc(d.prac) + '</p>' : '')
-          +       '<a class="hdlw-r-btn-primary" href="' + esc(o.href) + '">Show me (' + esc(o.today) + ')</a>'
-          +       '<p>Your free report is on its way to your inbox.</p>'
+          +       '<p class="hdlw-r1-small">None of this replaces your doctor. Keep them in the loop.</p>'
+          +       '<div class="hdlw-r-buttons hdlw-r1-act hdlw-r1-sign">'
+          +         (d.prac ? '<p class="hdlw-r1-name">' + esc(d.prac) + '</p>' : '')
+          +         '<a class="hdlw-r-btn-primary" href="' + esc(o.href) + '">Show me (' + esc(o.today) + ')</a>'
+          +         '<p>Your free report is on its way to your inbox.</p>'
+          +       '</div>'
+          +       part('book')
           +     '</div>'
-          +     part('book')
           +   '</div>'
           + '</div>'
         : part('next'))
@@ -974,8 +1002,8 @@
 
   // The parts renderResult drew go into the column's marked places: the same nodes, so its reply handlers
   // (saved, failed, held), the film's cover and a Timeline link's card keep working on them untouched.
-  // Left out of this layout: the hero's own words and its pill, the gauge card's heading and grey line (its
-  // small label is kept), the notes under the figures, the "What This Means For You" card and, with the
+  // Left out of this layout: the hero's own words and its pill, the gauge card's small label, heading and grey
+  // line, the notes under the figures, the "What This Means For You" card and, with the
   // offer, today's offer words (the email line, the boxed note and a Book button are kept).
   function oneColumnResult(box, d) {
     var old = box.querySelector('.hdlw-r');
@@ -1013,8 +1041,17 @@
     col.className = 'hdlw-r hdlw-r1';
     col.innerHTML = oneColumnHtml({
       id: d.id, esc: escHtml, first: d.first, prac: d.prac, band: band, film: !!parts.film[0],
-      offer: buy ? { href: buy.getAttribute('href'), today: d.today } : null
+      offer: buy ? { href: buy.getAttribute('href'), today: d.today } : null,
+      charts: buy ? d.charts : null
     });
+    // A sample chart that does not load takes the pair and its line with it, and the price line ends as today's.
+    var charts = col.querySelector('.hdlw-r1-charts'), eg = col.querySelector('.hdlw-r1-eg'), price = col.querySelector('.hdlw-r-price');
+    if (charts) charts.addEventListener('error', function () {
+      if (!charts.parentNode) return; // the second picture, after the first took the row away
+      charts.parentNode.removeChild(charts);
+      if (eg && eg.parentNode) eg.parentNode.removeChild(eg);
+      if (price) price.textContent = price.textContent.replace(', this is what you get:', '.');
+    }, true); // error does not bubble: heard on its way down to the picture
     var places = col.querySelectorAll('[data-part]');
     var shown = col.querySelector('[id$="-thanks"]');
     // From here on nodes move; everything that could fail has already run, so a failure leaves today's page whole.
@@ -2530,7 +2567,12 @@
           first: String(answers._name || '').split(/\s+/)[0],
           // The practitioner's first name for the caption and the sign-off: a title in front is not a name.
           prac: String(cfg.pracName || '').replace(/^\s*(?:dr|prof|mr|mrs|ms|miss)\.?\s+/i, '').split(/\s+/)[0],
-          today: cfg.resultOffer ? cfg.resultOffer.today : ''
+          today: cfg.resultOffer ? cfg.resultOffer.today : '',
+          // Two sample charts from a Full Report: the plugin's own files, beside its other pictures.
+          charts: IMG_BASE ? {
+            abilities: IMG_BASE.replace('silhouettes/', 'samples/') + 'full-report-abilities.webp?ver=' + encodeURIComponent(cfg.assetVer || ''),
+            standing: IMG_BASE.replace('silhouettes/', 'samples/') + 'full-report-where-you-stand.webp?ver=' + encodeURIComponent(cfg.assetVer || '')
+          } : null
         });
       } catch (e) {
         // The arranging failed before it moved anything: today's page stays, drawn and sent as usual.
