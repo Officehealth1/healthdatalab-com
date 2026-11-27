@@ -434,7 +434,7 @@ class HDLV2_Practitioner_Dashboard {
         // element, so the teal numbered circles still render.
         $t .= '<h2 class="hdlv2-pdt-section-title">How the assessment unfolds</h2>';
         $t .= '<ul class="hdlv2-pdt-steps">';
-        $t .= '<li><strong>Stage 1 &middot; Quick insight</strong>9 questions, ~3 minutes. Pace-of-ageing gauge sent by email.</li>';
+        $t .= '<li><strong>Stage 1 &middot; Quick insight</strong>9 questions, about two minutes. Pace-of-ageing gauge sent by email.</li>';
         $t .= '<li><strong>' . HDLV2_Report_Names::say( 'paid', 'Full Report' ) . ' &middot; WHY</strong>You release this stage when ready. Client records their motivation; AI distils it.</li>';
         $t .= '<li><strong>' . HDLV2_Report_Names::say( 'paid', 'Full Report' ) . ' &middot; form</strong>21 measurements, 5 sections. Writes the ' . HDLV2_Report_Names::say( 'paid', 'Full Report' ) . ' by itself, for your review.</li>';
         $t .= '<li><strong>Consultation &middot; ' . HDLV2_Report_Names::say( 'consultation', 'Trajectory Plan' ) . '</strong>You edit, add notes, finalise. PDF + Flight Plan delivered to the client.</li>';

@@ -3141,7 +3141,7 @@ class HDLV2_Widget_Config {
 
         $body  = '<p style="margin:0 0 16px;font-size:16px;color:#1a1a1a;font-family:Inter,-apple-system,BlinkMacSystemFont,\'Segoe UI\',sans-serif;">Dear ' . esc_html( $first_name ) . ',</p>';
         $body .= $p . '<strong style="color:#1a1a1a;">' . esc_html( $practitioner_name ) . '</strong> has set up your Stage 1 Longevity assessment.</p>';
-        $body .= $p . 'It is nine short questions and takes about ten minutes. When you finish, your Stage 1 report is emailed to you.</p>';
+        $body .= $p . 'It is nine short questions and takes about two minutes. When you finish, your Stage 1 report is emailed to you.</p>';
         $body .= '<table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center" style="margin:8px auto 24px;"><tr>';
         $body .= '<td align="center" bgcolor="#004F59" style="border-radius:2px;">';
         $body .= '<a href="' . esc_url( $link_url ) . '" target="_blank" style="display:inline-block;padding:14px 30px;font-size:13.5px;font-weight:600;letter-spacing:0.04em;color:#ffffff;text-decoration:none;font-family:Inter,-apple-system,BlinkMacSystemFont,\'Segoe UI\',sans-serif;">Start Stage 1 &rarr;</a>';
