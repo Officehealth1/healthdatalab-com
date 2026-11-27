@@ -1176,6 +1176,16 @@ class HDLV2_Widget_Config {
     }
 
     /**
+     * v0.49.10 (plan 19) — the Stage 1 result page in one column, for the widget's two settings answers:
+     * a key only with hdlv2_ff_stage1_result_one_column on. Absent, neither answer changes and the page is today's.
+     *
+     * @return array
+     */
+    private static function result_one_column_fields() {
+        return get_option( 'hdlv2_ff_stage1_result_one_column', false ) ? array( 'result_one_column' => true ) : array();
+    }
+
+    /**
      * Build the QuickChart gauge URL for a rate. Centralised so all 3 callers
      * (verification email, practitioner notify, Make.com PDF payload) match.
      */
@@ -2783,6 +2793,7 @@ class HDLV2_Widget_Config {
           + HDLV2_Offer::result_offer_fields( (int) $row->practitioner_user_id ) // v0.48.77 — the result page's offer (switch on only)
           + HDLV2_Stage1_Commentary::film_cover_fields() // v0.49.08 — the film's cover (hdlv2_ff_stage1_film_cover on only)
           + array_filter( array( 'gauge_scale' => self::gauge_scale() ) ) // v0.49.09 — the scale on the result page's gauge (hdlv2_ff_gauge_scale on only)
+          + self::result_one_column_fields() // v0.49.10 — the result page in one column (hdlv2_ff_stage1_result_one_column on only)
           + ( get_option( 'hdlv2_ff_input_checks', false ) ? array( 'age_typed' => true ) : array() ) ) ); // v0.48.97 (plan 11) — the age box starts empty
     }
 
@@ -3330,7 +3341,8 @@ class HDLV2_Widget_Config {
         ) + ( class_exists( 'HDLV2_Safety_Content' ) && HDLV2_Safety_Content::enabled() ? array( 'safety_notice' => HDLV2_Safety_Content::public_payload() ) : array() ) + $link // v0.48.66
           + HDLV2_Offer::result_offer_fields( (int) $invite->practitioner_id ) // v0.48.77 — the result page's offer (switch on only)
           + HDLV2_Stage1_Commentary::film_cover_fields() // v0.49.08 — the film's cover (hdlv2_ff_stage1_film_cover on only)
-          + array_filter( array( 'gauge_scale' => self::gauge_scale() ) ) ); // v0.49.09 — the scale on the result page's gauge (hdlv2_ff_gauge_scale on only)
+          + array_filter( array( 'gauge_scale' => self::gauge_scale() ) ) // v0.49.09 — the scale on the result page's gauge (hdlv2_ff_gauge_scale on only)
+          + self::result_one_column_fields() ); // v0.49.10 — the result page in one column (hdlv2_ff_stage1_result_one_column on only)
     }
 
     /**

@@ -858,6 +858,134 @@
       + '<p>Your free report is on its way to your inbox.</p>';
   }
 
+  // v0.49.10 (plan 19; hdlv2_ff_stage1_result_one_column) — the Stage 1 result in ONE column, in the order of
+  // Matthew's drawing of 26 November 2026: the number, what it means for this person, the film, "but why",
+  // the offer. The sentences are his (the drawing is his sign-off on them). Nothing about the person is
+  // worked out here: the band, the figures, the film, the buy address and the save states are the ones
+  // renderResult drew, moved into this column by oneColumnResult.
+  var ONE_COLUMN_BAND = {
+    warn: ['You’re currently ageing faster than the population average.', 'That isn’t a verdict.', 'It’s the clearest signal you’ll get that something is pushing your number up.'],
+    avg: ['You’re ageing at about the population average.', 'That sounds fine, until you remember the average road is the one where the stairs, the floor and lifting the suitcase slowly get harder.'],
+    good: ['You’re ageing slower than the population average.', 'Something you’re doing is working.', 'The question is what, and what’s quietly working against you.']
+  };
+
+  // The column's words and order, with a marked place (data-part) for each part renderResult drew.
+  // d: { id, esc, first, prac, band: good|avg|warn, film: true|false, offer: { href, today } | null }.
+  // Each sentence is its own line; one sentence a block stands out, no more (set for a reader with dyslexia).
+  function oneColumnHtml(d) {
+    var esc = d.esc, o = d.offer;
+    var part = function (name) { return '<span data-part="' + name + '"></span>'; };
+    var say = function (list, key) { return '<div class="hdlw-r1-say">' + list.map(function (line, i) { return '<p' + (key && i === 0 ? ' class="hdlw-r1-key"' : '') + '>' + line + '</p>'; }).join('') + '</div>'; };
+    return '<style>'
+      + '.hdlw-r.hdlw-r1{max-width:640px;margin:0 auto;text-align:left;color:#2c3e50;}'
+      // White on the brand's teal is 3.8 to 1: enough for a heading of 24 px or more (3 to 1), not for small
+      // text, so only the two headings sit on it and neither goes under 24 px.
+      + '.hdlw-r1-band{margin:0 0 16px;padding:20px 28px;border-radius:14px;background:#3d8da0;}'
+      + '.hdlw-r1 h2.hdlw-r1-band{font-size:26px;}'
+      + '.hdlw-r1 .hdlw-r1-card{margin:0 0 16px;text-align:left;}'
+      + '.hdlw-r1 .hdlw-r1-card > :last-child{margin-bottom:0;}'
+      + '.hdlw-r1-top{display:grid;grid-template-columns:minmax(0,1fr) 220px;gap:8px 24px;align-items:center;margin:0 0 24px;}'
+      + '.hdlw-r1-top .hdlw-r-gauge-img{margin:0;max-width:none;}'
+      + '.hdlw-r1-figs .hdlw-r-stat{display:flex;justify-content:space-between;align-items:baseline;gap:12px;margin:0;padding:12px 0;border:0;border-bottom:1px solid #e4e6ea;border-radius:0;text-align:left;}'
+      + '.hdlw-r1-figs .hdlw-r-stat:last-child{border-bottom:0;}'
+      + '.hdlw-r1 .hdlw-r1-figs p.hdlw-r-stat-label{margin:0;font-size:15px;font-weight:500;line-height:1.5;letter-spacing:0;text-transform:none;color:#2c3e50;}'
+      + '.hdlw-r1 .hdlw-r1-figs p.hdlw-r-stat-value{margin:0;font-size:22px;line-height:1.5;white-space:nowrap;color:#2c3e50;}'
+      + '.hdlw-r1 .hdlw-r1-card p{margin:0;font-size:17px;line-height:1.6;color:#2c3e50;}'
+      + '.hdlw-r1 .hdlw-r1-say{margin:0 0 20px;}'
+      + '.hdlw-r1 .hdlw-r1-say.hdlw-r1-hi{margin-bottom:8px;}'
+      + '.hdlw-r1 .hdlw-r1-card p.hdlw-r1-key{font-weight:600;color:#004F59;}'
+      + '.hdlw-r1 .hdlw-r1-card p.hdlw-r1-cap{margin:10px 0 0;font-size:15px;}'
+      + '.hdlw-r1 .hdlw-r1-card p.hdlw-r1-small,.hdlw-r1 .hdlw-r1-card p.hdlw-r-offer-email,.hdlw-r1 .hdlw-r1-card p.hdlw-r-offer-note{margin:0 0 20px;font-size:15px;line-height:1.6;}'
+      + '.hdlw-r1 .hdlw-r1-card a + p.hdlw-r1-small{margin-top:12px;}'
+      + '.hdlw-r1 .hdlw-r1-card p.hdlw-r1-sign{margin:0 0 10px;font-weight:600;}'
+      + '.hdlw-r1 .hdlw-r1-card p.hdlw-r-offer-email a{color:#004F59;}' // the page's teal link is 3.8 to 1 on white; this is 9.3
+      + '.hdlw-r1 .hdlw-r-btn-primary{font-size:16px;line-height:1.5;padding:14px 28px;}'
+      + '.hdlw-r1 .hdlw-r-btn-primary.hdlw-r1-wide{display:block;max-width:none;}'
+      + '.hdlw-r1 .hdlw-r-btn-primary:focus-visible,.hdlw-r1 .hdlw-r-offer-email a:focus-visible{outline:2px solid #3d8da0;outline-offset:3px;}'
+      + '.hdlw-r1 .hdlw-r-status{margin:0 0 16px;font-size:15px;line-height:1.6;color:#2c3e50;font-style:normal;}'
+      + '@media (max-width:640px){.hdlw-r1-band{padding:16px 20px;}.hdlw-r1 h2.hdlw-r1-band{font-size:24px;}.hdlw-r1-top{grid-template-columns:1fr;}.hdlw-r1 .hdlw-r-btn-primary{font-size:15px;padding:14px 16px;}}'
+      + '</style>'
+      + '<h1 class="hdlw-r1-band hdlw-r-hero-title">How Fast You are Ageing?</h1>'
+      // hdlw-r-gauge-card: a Timeline link's notice (linkNotice) is set in front of the card that carries this class.
+      + '<div class="hdlw-r-card hdlw-r-gauge-card hdlw-r1-card">'
+      +   '<div class="hdlw-r1-top">' + part('gauge') + '<div class="hdlw-r1-figs">' + part('stats') + '</div></div>'
+      +   '<div class="hdlw-r1-say hdlw-r1-hi"><p>Hi' + (d.first ? ' ' + esc(d.first) : '') + ',</p></div>'
+      +   say(['Your results are in.', 'So many people never look until it’s late in the game.', 'You just did, and that matters.'])
+      +   (ONE_COLUMN_BAND[d.band] ? say(ONE_COLUMN_BAND[d.band], true) : '')
+      +   (d.film ? part('film') + (d.prac ? '<p class="hdlw-r1-cap">' + esc(d.prac) + ' explains your result</p>' : '') : '')
+      + '</div>'
+      // With the offer: his "but why" part, shown by saved() as today's offer card is. Without it (the offer
+      // off, a practitioner's invite, a report already bought): today's own card, as renderResult drew it.
+      + (o
+        ? part('status')
+          + '<div id="' + esc(d.id) + '-thanks" hidden>'
+          +   '<h2 class="hdlw-r1-band hdlw-r-hero-title">… but why?</h2>'
+          +   '<div class="hdlw-r-card hdlw-r1-card">'
+          +     say(['Your number shows where you’re heading. Not why.'], true)
+          +     say(['Without the why, any change is a guess.', 'Your Full Longevity Report shows what’s driving your number and where to focus first.'])
+          +     part('mail')
+          +     '<a class="hdlw-r-btn-primary hdlw-r1-wide" href="' + esc(o.href) + '">Show me what’s driving my number</a>'
+          +     '<p class="hdlw-r1-small">For a small investment of ' + esc(o.today) + '.</p>'
+          +     part('note')
+          // These two lines read as in resultOfferHtml (tests/result-one-column pins them equal).
+          +     '<p class="hdlw-r1-small">None of this replaces your doctor. Keep them in the loop.</p>'
+          +     (d.prac ? '<p class="hdlw-r1-sign">' + esc(d.prac) + '</p>' : '')
+          +     '<a class="hdlw-r-btn-primary" href="' + esc(o.href) + '">Show me (' + esc(o.today) + ')</a>'
+          +     '<p class="hdlw-r1-small">Your free report is on its way to your inbox.</p>'
+          +     part('book')
+          +   '</div>'
+          + '</div>'
+        : part('next'))
+      + part('link')
+      + part('foot');
+  }
+
+  // The parts renderResult drew go into the column's marked places: the same nodes, so its reply handlers
+  // (saved, failed, held), the film's cover and a Timeline link's card keep working on them untouched.
+  // Left out of this layout: the hero, the gauge card's three heading lines, the notes under the figures,
+  // the "What This Means For You" card and, with the offer, today's offer words (the email line, the boxed
+  // note and a Book button are kept).
+  function oneColumnResult(box, d) {
+    var old = box.querySelector('.hdlw-r');
+    if (!old) return; // renderResult went back to the contact step: no result was drawn
+    var q = function (sel) { return old.querySelector(sel); };
+    var note = q('.hdlw-r-stat-note');
+    var band = note ? (/\b(good|avg|warn)\b/.exec(note.className) || [])[1] : ''; // the band renderResult worked out
+    var thanks = q('#' + d.id + '-thanks');
+    // The offer shows when today's card carries its price line; its button holds the buy address.
+    var buy = thanks && thanks.querySelector('.hdlw-r-price') ? thanks.querySelector('a.hdlw-r-btn-primary') : null;
+    var book = thanks ? thanks.querySelector('.hdlw-r-btn-secondary') : null;
+    var parts = {
+      gauge: [q('.hdlw-r-gauge-img')],
+      stats: old.querySelectorAll('.hdlw-r-stat'),
+      film: [q('.hdlw-band-video')],
+      status: [q('#' + d.id + '-status')],
+      mail: [thanks && thanks.querySelector('.hdlw-r-offer-email')],
+      note: [thanks && thanks.querySelector('.hdlw-r-offer-note')],
+      book: [book && book.parentNode],
+      next: [q('.hdlw-r-twocol-right > .hdlw-r-card + .hdlw-r-card')],
+      link: [q('#' + d.id + '-link')],
+      foot: [q('.hdlw-r-prac-foot')]
+    };
+    var notes = old.querySelectorAll('.hdlw-r-stat-note');
+    for (var n = 0; n < notes.length; n++) notes[n].parentNode.removeChild(notes[n]);
+    var col = document.createElement('div');
+    col.className = 'hdlw-r hdlw-r1';
+    col.innerHTML = oneColumnHtml({
+      id: d.id, esc: escHtml, first: d.first, prac: d.prac, band: band, film: !!parts.film[0],
+      offer: buy ? { href: buy.getAttribute('href'), today: d.today } : null
+    });
+    var places = col.querySelectorAll('[data-part]');
+    for (var i = 0; i < places.length; i++) {
+      var live = parts[places[i].getAttribute('data-part')] || [];
+      for (var j = 0; j < live.length; j++) if (live[j]) places[i].parentNode.insertBefore(live[j], places[i]);
+      places[i].parentNode.removeChild(places[i]);
+    }
+    var shown = col.querySelector('#' + d.id + '-thanks');
+    if (buy && shown) shown.hidden = thanks.hidden; // saved() has already run where nothing is sent (the practitioner's preview)
+    old.parentNode.replaceChild(col, old);
+  }
+
   function buyLink(el, publicCfg) {
     var url = safeBuyUrl((publicCfg && publicCfg.buy_url) || el.getAttribute('data-buy-url') || '');
     return url ? '<a class="hdlw-buy" href="' + escHtml(url) + '">Buy the report</a>' : '';
@@ -1004,6 +1132,9 @@
     cfg.filmCover = String((publicCfg && publicCfg.film_cover_url) || (invite && invite.film_cover_url) || '');
     // v0.49.09 (plan 18) — the scale on the result's gauge; null with hdlv2_ff_gauge_scale absent.
     cfg.gaugeScale = (publicCfg && publicCfg.gauge_scale) || (invite && invite.gauge_scale) || null;
+    // v0.49.10 (plan 19; hdlv2_ff_stage1_result_one_column) — the result in one column. Not filled by a late
+    // settings answer: a visitor whose settings came late sees today's page.
+    cfg.resultOneColumn = !!((publicCfg && publicCfg.result_one_column) || (invite && invite.result_one_column));
     // v0.48.89 (A10) — the settings answer came after pullPublicConfig's cut-off: it still fills these
     // two, which the result page first reads minutes later, and nothing else. A result already drawn stays.
     if (late) late.fill = function (lateCfg) {
@@ -1125,7 +1256,7 @@
       if (cfg.resume && step <= 9) kept.set(answers, step);
       updateProgress();
       updateStep(step);
-      var renderers = [renderQ1, renderQ2, renderQ3, renderQ4, renderQ5, renderQ6, renderQ7, renderQ8, renderQ9, renderContact, renderResult];
+      var renderers = [renderQ1, renderQ2, renderQ3, renderQ4, renderQ5, renderQ6, renderQ7, renderQ8, renderQ9, renderContact, cfg.resultOneColumn ? resultOneColumn : renderResult];
       renderers[step]();
       updateNavArrows();
     }
@@ -2345,6 +2476,18 @@
         // No API (the practitioner's dashboard preview): nothing to save.
         saved({});
       }
+    }
+
+    // v0.49.10 (plan 19; hdlv2_ff_stage1_result_one_column) — the result in one column: renderResult draws
+    // and sends exactly as today, then what it drew is set in Matthew's order (oneColumnResult).
+    function resultOneColumn() {
+      renderResult();
+      oneColumnResult(contentEl, {
+        id: id,
+        first: String(answers._name || '').split(/\s+/)[0],
+        prac: String(cfg.pracName || '').split(/\s+/)[0],
+        today: cfg.resultOffer ? cfg.resultOffer.today : ''
+      });
     }
 
     // v0.29.1 — Expose a step-jumper on the host element so the practitioner
