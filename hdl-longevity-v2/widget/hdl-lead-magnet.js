@@ -122,6 +122,8 @@
 
   // v0.49.09 (plan 18; hdlv2_ff_gauge_scale) — `scale`: the server's settings for the scale on the curve
   // (0.8 · 0.9 · 1.1 · 1.4), the ones the PDF's gauge is drawn with. Absent, the picture is today's.
+  // Only those four settings are taken, and only when every part ends at one of this gauge's own
+  // edges: an answer cannot move the needle, the range or where a colour ends.
   function gaugeUrl(rate, scale) {
     var clamped = Math.max(0.8, Math.min(1.4, parseFloat(rate.toFixed(2))));
     var interp, interpColor;
@@ -159,8 +161,13 @@
         subtitle: { display:true, text:interp, color:interpColor, font:{size:20,weight:'bold',family:"'Inter',sans-serif"}, padding:{top:8} }
       }
     };
-    if (scale && typeof scale === 'object') {
-      for (var k in scale) cfg.data.datasets[0][k] = scale[k];
+    var ds = cfg.data.datasets[0];
+    var edges = [ds.minValue].concat(ds.data);
+    if (scale && Array.isArray(scale.data) && scale.data.length && scale.data.every(function (v) { return edges.indexOf(v) >= 0; })) {
+      ds.data = scale.data;
+      ds.backgroundColor = scale.backgroundColor;
+      ds.borderWidth = scale.borderWidth;
+      ds.datalabels = scale.datalabels;
       cfg.options.plugins.datalabels.display = true;
     }
     return 'https://quickchart.io/chart?c=' + encodeURIComponent(JSON.stringify(cfg)) + '&w=380&h=340&bkg=white';

@@ -92,7 +92,9 @@ array_map( 'unlink', glob( $GLOBALS['up'] . '/hdlv2-gauges/*' ) ?: array() );
 $src = file_get_contents( dirname( __DIR__, 2 ) . '/includes/sprint-1/class-hdlv2-widget-config.php' );
 $read = "get_option( 'hdlv2_ff_gauge_scale'";
 ok( 'the flag is read once, in gauge_scale(), which stage1_report_gauge_url() draws with (v0.49.09); build_gauge_url() (the practitioner\'s notice) never reads it',
-    1 === substr_count( $src, $read ) && strpos( $src, 'function stage1_report_gauge_url' ) < strpos( $src, $read ) && strpos( $src, $read ) < strpos( $src, 'function build_gauge_url' ) );
+    1 === substr_count( $src, $read ) && strpos( $src, 'function stage1_report_gauge_url' ) < strpos( $src, $read ) && strpos( $src, $read ) < strpos( $src, 'function build_gauge_url' )
+    // gauge_scale() has three callers: the PDF's gauge and the widget's two settings answers.
+    && 3 === substr_count( $src, 'self::gauge_scale()' ) );
 
 echo "\nPASS=$pass FAIL=$fail\n";
 exit( $fail ? 1 : 0 );

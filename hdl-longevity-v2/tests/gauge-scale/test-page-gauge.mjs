@@ -54,6 +54,18 @@ for (const [rate, word] of [[0.86, 'Slower'], [1, 'Average'], [1.25, 'Faster']])
 }
 ok(url(1.11, scale) !== url(1.11) && url(1.11, scale).startsWith('https://quickchart.io/chart?c=') && url(1.11, scale).endsWith('&w=380&h=340&bkg=white'), 'P1 the same service and the same picture size as today');
 
+console.log('── G. the answer is not trusted (independent review, 2026-11-27) ──');
+// Only the four scale settings are taken, and only when every part ends at one of the page's own edges
+// (0.8, 0.9, 1.1, 1.4): a wrong or hostile answer cannot move the needle, the range or a colour's edge.
+const hostile = Object.assign({}, scale, { value: 0.85, minValue: 0.1, maxValue: 9, borderColor: 'red', label: 'x' });
+const h = cfgOf(url(1.25, hostile)).data.datasets[0];
+ok(h.value === 1.25 && h.minValue === 0.8 && h.maxValue === 1.4 && h.borderColor === 'rgba(255,255,255,0.8)' && !('label' in h), 'G.1 extra keys in the answer are dropped: needle 1.25, range 0.8 to 1.4, border as today');
+ok(url(1.25, hostile) === url(1.25, scale), 'G.2 and the picture is the one the clean answer gives');
+for (const [bad, why] of [[[], 'an empty list'], [{}, 'an empty object'], ['x', 'a string'], [{ data: 'x' }, 'parts that are not a list'],
+  [Object.assign({}, scale, { data: [0.8, 1.0, 1.0, 1.3, 1.3, 1.4, 1.4] }), 'parts that end at other values (the colours\' edges would move)']]) {
+  ok(url(1.25, bad) === url(1.25), 'G.3 ' + why + ': today\'s picture');
+}
+
 console.log('── W. how the scale reaches the gauge ──');
 const cfgLine = cut('    cfg.gaugeScale = ', ';');
 const read = (publicCfg, invite) => { const c = { cfg: {}, publicCfg, invite }; vm.runInNewContext(cfgLine, c); return c.cfg.gaugeScale; };
