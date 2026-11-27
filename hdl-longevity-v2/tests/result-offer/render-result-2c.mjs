@@ -58,6 +58,11 @@ export const EDITS = [
   [String.raw`        +       ( bandVideoHtml(bandKey, cfg.bandVideos) || (offerHref ? bandVideoHtml('film', { film: cfg.resultOffer.video_url }) : '') )
 `, String.raw`        +       ( cfg.resultOffer && !offerHref ? '' : bandVideoHtml(bandKey, cfg.bandVideos) || (offerHref ? bandVideoHtml('film', { film: cfg.resultOffer.video_url }) : '') ) // v0.48.83 (2j): the films sell the $27 report, so with the switch on no button means no film
 `],
+  // v0.49.08 (plan 16; hdlv2_ff_stage1_film_cover) — the film it draws today goes through filmCoverHtml with
+  // the cover's address (tests/stage1-email-facts/test-widget-band-video.mjs). Nothing else in renderResult moved.
+  [String.raw`        +       ( cfg.resultOffer && !offerHref ? '' : bandVideoHtml(bandKey, cfg.bandVideos) || (offerHref ? bandVideoHtml('film', { film: cfg.resultOffer.video_url }) : '') ) // v0.48.83 (2j): the films sell the $27 report, so with the switch on no button means no film
+`, String.raw`        +       filmCoverHtml( ( cfg.resultOffer && !offerHref ? '' : bandVideoHtml(bandKey, cfg.bandVideos) || (offerHref ? bandVideoHtml('film', { film: cfg.resultOffer.video_url }) : '') ), cfg.filmCover ) // v0.48.83 (2j): the films sell the $27 report, so with the switch on no button means no film; v0.49.08 (plan 16): his picture over it with hdlv2_ff_stage1_film_cover on
+`],
   // Walk W1 (plan 4, 2026-11-19): gate row F25's "Start again" is drawn as a link.
   [String.raw`
         + '.hdlw-r-card p.hdlw-r-price{font-size:13px;color:#888;margin:0;}'

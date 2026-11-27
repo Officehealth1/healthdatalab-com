@@ -4,7 +4,7 @@
  * HDLV2_Offer::band_url() (green → -slower, blue → -average, red → -faster, anything else the
  * plain url) and personal() using it, so the Stage 1 e-mail's picture and button and the PDF's
  * page-2 card open the band page with no Make or PDF change. Drives the REAL HDLV2_Offer and the
- * real rest_capture_lead + drain (36 keys).
+ * real rest_capture_lead + drain (37 keys since v0.49.08: + band_video_thumb_url).
  *
  * Run:  php scenario-band-url.php   (self-asserting, exit 0/1)
  */
@@ -42,7 +42,7 @@ $make = null;
 foreach ( $GLOBALS['captured_posts'] as $c ) {
     if ( false !== strpos( $c['url'], 'hook.example.test/stage1' ) ) $make = json_decode( $c['args']['body'], true );
 }
-check( 'L.1 the webhook fired with 36 keys (count unchanged)', is_array( $make ) && 36 === count( $make ) );
+check( 'L.1 the webhook fired with 37 keys (count unchanged)', is_array( $make ) && 37 === count( $make ) );
 check( 'L.2 band red, offer_url the faster page with the e-mail', is_array( $make ) && 'red' === $make['band']
     && 'https://altituding.com/full-report-faster#email=' . rawurlencode( 'band@example.test' ) === $make['offer_url'] );
 $posts = array_filter( $GLOBALS['captured_posts'], function ( $c ) { return false === strpos( $c['url'], 'hook.example.test' ); } );

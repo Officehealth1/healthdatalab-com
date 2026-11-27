@@ -4,7 +4,7 @@
  * HDLV2_Offer::personal() adds &own=<time>.<64 hex> to the offer link's fragment only with the switch on,
  * a good e-mail and a practitioner; inbox_pass_ok() checks it (own e-mail, practitioner, 3 days, not from
  * the future, the site's own salt). Switch off: the link is today's, byte for byte. Drives the REAL
- * HDLV2_Offer, the real rest_capture_lead + drain (36 keys) and the real public config answers.
+ * HDLV2_Offer, the real rest_capture_lead + drain (37 keys since v0.49.08: + band_video_thumb_url) and the real public config answers.
  *
  * Run:  php scenario-inbox-pass.php   (self-asserting, exit 0/1)
  */
@@ -86,7 +86,7 @@ post_lead( lead_params( 'band@example.test' ) );
 drain_last_lead( $wpdb );
 $on = $make();
 $lead_own = is_array( $on ) && preg_match( '/&own=([^&]*)$/', $on['offer_url'], $mm ) ? $mm[1] : '';
-check( 'IP7.1 still 36 keys', is_array( $on ) && 36 === count( $on ) );
+check( 'IP7.1 still 37 keys', is_array( $on ) && 37 === count( $on ) );
 check( 'IP7.2 offer_url = the band page, #email=, &own= for this lead and practitioner',
     is_array( $on ) && 0 === strpos( $on['offer_url'], 'https://altituding.com/full-report-faster#email=' . rawurlencode( 'band@example.test' ) . '&own=' )
     && $ok( $lead_own, 'band@example.test', 206 ) );
@@ -96,7 +96,7 @@ $wpdb = fresh_wpdb( 'open' );
 post_lead( lead_params( 'band@example.test' ) );
 drain_last_lead( $wpdb );
 $off = $make();
-check( 'IP7.4 switch off: 36 keys and offer_url is today\'s', is_array( $off ) && 36 === count( $off )
+check( 'IP7.4 switch off: 37 keys and offer_url is today\'s', is_array( $off ) && 37 === count( $off )
     && 'https://altituding.com/full-report-faster#email=' . rawurlencode( 'band@example.test' ) === $off['offer_url'] );
 
 echo "── IP8. the public config answers never carry a pass ──\n";

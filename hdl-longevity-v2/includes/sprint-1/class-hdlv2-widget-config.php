@@ -1474,6 +1474,7 @@ class HDLV2_Widget_Config {
 
             $offer_show  = ( $args['offer_show'] ?? true ) && HDLV2_Offer::applies_to( $practitioner_id );
             $band        = HDLV2_Stage1_Commentary::band_key( $rate );
+            $band_video  = HDLV2_Stage1_Commentary::band_videos( $practitioner_id )[ $band ] ?? '';
             $pdf_payload = array(
                 // v0.22.8 — Make.com Final Report scenario now gates each route
                 // by report_type (Route 1 = final, Route 2 = stage1, Route 3 =
@@ -1532,7 +1533,10 @@ class HDLV2_Widget_Config {
                 // v0.48.50 — the band and its video for the Stage 1 email (W10);
                 // one edge with the result page's words (HDLV2_Stage1_Commentary::band_key).
                 'band'                   => $band,
-                'band_video_url'         => HDLV2_Stage1_Commentary::band_videos( $practitioner_id )[ $band ] ?? '',
+                'band_video_url'         => $band_video,
+                // v0.49.08 (plan 16) — the film's picture for the e-mail to show as the link to the
+                // film; '' when the band has no film. A string either way, like its neighbours.
+                'band_video_thumb_url'   => '' !== $band_video ? HDLV2_Stage1_Commentary::film_cover_url() : '',
             )
             // v0.48.15 — the Full Report offer for page 2 (string keys, one
             // setting: HDLV2_Offer). offer_show "0" hides page 2 for a buyer who
@@ -2760,6 +2764,7 @@ class HDLV2_Widget_Config {
         ) + ( class_exists( 'HDLV2_Safety_Content' ) && HDLV2_Safety_Content::enabled() ? array( 'safety_notice' => HDLV2_Safety_Content::public_payload() ) : array() ) // v0.48.66 — the notice's words and numbers
           + ( HDLV2_Offer::applies_to( (int) $row->practitioner_user_id ) ? HDLV2_Offer::public_config_fields() : array() ) // v0.48.15 — the locked panel's price line
           + HDLV2_Offer::result_offer_fields( (int) $row->practitioner_user_id ) // v0.48.77 — the result page's offer (switch on only)
+          + HDLV2_Stage1_Commentary::film_cover_fields() // v0.49.08 — the film's cover (hdlv2_ff_stage1_film_cover on only)
           + ( get_option( 'hdlv2_ff_input_checks', false ) ? array( 'age_typed' => true ) : array() ) ) ); // v0.48.97 (plan 11) — the age box starts empty
     }
 
@@ -3305,7 +3310,8 @@ class HDLV2_Widget_Config {
             // public path (no "Continue to Stage 2").
             'source'                         => $source,
         ) + ( class_exists( 'HDLV2_Safety_Content' ) && HDLV2_Safety_Content::enabled() ? array( 'safety_notice' => HDLV2_Safety_Content::public_payload() ) : array() ) + $link // v0.48.66
-          + HDLV2_Offer::result_offer_fields( (int) $invite->practitioner_id ) ); // v0.48.77 — the result page's offer (switch on only)
+          + HDLV2_Offer::result_offer_fields( (int) $invite->practitioner_id ) // v0.48.77 — the result page's offer (switch on only)
+          + HDLV2_Stage1_Commentary::film_cover_fields() ); // v0.49.08 — the film's cover (hdlv2_ff_stage1_film_cover on only)
     }
 
     /**

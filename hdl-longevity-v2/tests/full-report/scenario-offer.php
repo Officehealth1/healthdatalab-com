@@ -2,9 +2,9 @@
 /**
  * Task 2/7 — the one offer setting and the Stage 1 payload that carries it.
  * HDLV2_Offer::get() defaults + partial override, the nine payload keys as
- * strings, money as "$27", and the real rest_capture_lead + drain firing 36 keys (v0.48.50: + band, band_video_url, offer_code_ends).
+ * strings, money as "$27", and the real rest_capture_lead + drain firing 37 keys (v0.48.50: + band, band_video_url, offer_code_ends; v0.49.08: + band_video_thumb_url).
  * v0.48.73 (flat $27, Matthew 2026-11-16): no code and no list price; offer_code, offer_list and
- * offer_code_ends ride as '' (Make's 36-key contract), offer_url carries no code, and no lead asks
+ * offer_code_ends ride as '' (Make's contract), offer_url carries no code, and no lead asks
  * Altituding for a code.
  *
  * Run:  php scenario-offer.php   (self-asserting, exit 0/1)
@@ -53,7 +53,7 @@ $make = null;
 foreach ( $GLOBALS['captured_posts'] as $c ) {
     if ( false !== strpos( $c['url'], 'hook.example.test/stage1' ) ) $make = json_decode( $c['args']['body'], true );
 }
-check( 'P.1 the webhook fired with 36 keys', is_array( $make ) && 36 === count( $make ) );
+check( 'P.1 the webhook fired with 37 keys', is_array( $make ) && 37 === count( $make ) );
 check( 'P.2 a free lead gets offer_show "1"', is_array( $make ) && '1' === ( $make['offer_show'] ?? null ) );
 $GLOBALS['options']['hdlv2_stage1_offer'] = array( 'practitioner_id' => 122 );
 $wpdb = fresh_wpdb( 'open' );
@@ -61,7 +61,7 @@ post_lead( lead_params( 'other@example.test' ) );
 drain_last_lead( $wpdb );
 $m2 = null;
 foreach ( $GLOBALS['captured_posts'] as $c ) { if ( false !== strpos( $c['url'], 'hook.example.test/stage1' ) ) $m2 = json_decode( $c['args']['body'], true ); }
-check( 'P.4 another practitioner\'s lead: still 36 keys, offer_show "0"', is_array( $m2 ) && 36 === count( $m2 ) && '0' === $m2['offer_show'] );
+check( 'P.4 another practitioner\'s lead: still 37 keys, offer_show "0"', is_array( $m2 ) && 37 === count( $m2 ) && '0' === $m2['offer_show'] );
 check( 'P.3 the ten keys ride as strings', is_array( $make ) && 10 === count( array_filter( array_intersect_key( $make, array_flip( $keys ) ), 'is_string' ) ) );
 check( 'P.5 the offer lead\'s payload: no code, no list price, no end date; the link without code, the e-mail in its fragment', is_array( $make )
     && '' === $make['offer_code'] && '' === $make['offer_list'] && '' === $make['offer_code_ends']

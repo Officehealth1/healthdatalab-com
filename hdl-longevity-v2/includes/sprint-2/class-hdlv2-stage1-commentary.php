@@ -148,6 +148,36 @@ class HDLV2_Stage1_Commentary {
         return $out;
     }
 
+    /**
+     * v0.49.08 (plan 16) — Matthew's picture for the result film: the thumbnail in the Stage 1
+     * e-mail and, behind hdlv2_ff_stage1_film_cover, the film's cover on the result page. One
+     * picture for the three bands. The date is in the file's name so a later picture gets a new
+     * name and no mail program shows a stale one.
+     */
+    const FILM_COVER = 'assets/images/stage1-film-cover-2026-11.jpg';
+
+    /**
+     * The picture's public address. The Stage 1 values go to Make from a cron run under WP-CLI,
+     * where WordPress writes the plugin's own address as http:// even on an https site (no
+     * request, so is_ssl() is false); the address follows the site's own instead.
+     *
+     * @return string
+     */
+    public static function film_cover_url() {
+        $url = HDLV2_PLUGIN_URL . self::FILM_COVER;
+        return 0 === strpos( (string) get_option( 'home' ), 'https://' ) ? preg_replace( '#^http://#', 'https://', $url ) : $url;
+    }
+
+    /**
+     * The cover's address for the widget's two settings payloads: there only with
+     * hdlv2_ff_stage1_film_cover on. Absent, neither payload gains a key and the page is today's.
+     *
+     * @return array
+     */
+    public static function film_cover_fields() {
+        return get_option( 'hdlv2_ff_stage1_film_cover', false ) ? array( 'film_cover_url' => self::film_cover_url() ) : array();
+    }
+
     // ──────────────────────────────────────────────────────────────
     //  PARAGRAPH 1 — HEADLINE (rate band)
     // ──────────────────────────────────────────────────────────────

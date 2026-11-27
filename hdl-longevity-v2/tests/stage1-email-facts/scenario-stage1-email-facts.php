@@ -1,7 +1,8 @@
 <?php
 /**
  * v0.48.50 — the three facts the Stage 1 email needs (W10, W15): the band, the
- * band's video and the code's end date, on the Make payload (33 → 36 keys).
+ * band's video and the code's end date, on the Make payload (33 → 36 keys); v0.49.08 (plan 16) adds
+ * the film's picture, band_video_thumb_url (37 keys), and the page cover's address on both widget payloads.
  *   - band: green / blue / red on the widget's word edges (rate <= 0.95 green,
  *     <= 1.05 blue, else red), one PHP copy pinned equal to the widget's.
  *   - band_video_url: hdlv2_stage1_band_videos[band], or '' (option absent or no URL for that band).
@@ -53,9 +54,9 @@ if ( method_exists( 'HDLV2_Stage1_Commentary', 'band_key' ) ) {
     check( 'E.4 no rate: no band', '' === HDLV2_Stage1_Commentary::band_key( null ) && '' === HDLV2_Stage1_Commentary::band_key( 0 ) && '' === HDLV2_Stage1_Commentary::band_key( '' ) );
 }
 
-echo "── F. the payload: 36 keys, constants absent ──\n";
+echo "── F. the payload: 37 keys, constants absent ──\n";
 list( $make, $call ) = fire_at( 0.90 );
-check( 'F.1 36 keys', is_array( $make ) && 36 === count( $make ) );
+check( 'F.1 37 keys', is_array( $make ) && 37 === count( $make ) );
 check( 'F.2 band green at 0.90', 'green' === ( $make['band'] ?? null ) );
 check( 'F.3 band_video_url empty with the option absent', '' === ( $make['band_video_url'] ?? null ) );
 check( 'F.4 no code, no end date, no list price; an old saved code never rides', '' === ( $make['offer_code_ends'] ?? null ) && '' === $make['offer_code'] && '' === $make['offer_list'] );
@@ -72,7 +73,7 @@ list( $make, $call ) = fire_at( 1.00 );
 check( 'G.1 no call to the code function', null === $call );
 check( 'G.2 offer_code and offer_code_ends stay empty', is_array( $make ) && '' === $make['offer_code'] && '' === $make['offer_code_ends'] );
 check( 'G.3 band blue at 1.00', 'blue' === ( $make['band'] ?? null ) );
-check( 'G.4 still 36 keys', is_array( $make ) && 36 === count( $make ) );
+check( 'G.4 still 37 keys', is_array( $make ) && 37 === count( $make ) );
 list( $make ) = fire_at( 1.00, 'not an email' );
 check( 'G.5 an invalid email: the blue band\'s page alone', is_array( $make ) && 'https://alt.example.test/full-report-average' === $make['offer_url'] );
 
@@ -93,25 +94,27 @@ check( 'H.6 absent option: an empty map', array() === HDLV2_Stage1_Commentary::b
 
 echo "── I. no offer: the facts still ride, no code call ──\n";
 list( $make, $call ) = fire_at( 1.10, 'ivy@example.test', false );
-check( 'I.1 offer_show "0": 36 keys, band red, offer_code_ends \'\', no code call', is_array( $make ) && 36 === count( $make ) && 'red' === $make['band'] && '' === $make['offer_code_ends'] && null === $call );
+check( 'I.1 offer_show "0": 37 keys, band red, offer_code_ends \'\', no code call', is_array( $make ) && 37 === count( $make ) && 'red' === $make['band'] && '' === $make['offer_code_ends'] && null === $call );
 
 echo "── J. the public config carries the map for the widget (the offer's practitioner, 206 here) ──\n";
 $GLOBALS['options']['hdlv2_stage1_band_videos'] = array( 'green' => 'https://youtu.be/K2rQSjwvTws' );
 /** band_videos as each public builder sends it, JSON-encoded (an object either way). */
-function public_map( $prac ) {
+function public_cfg( $prac ) {
     $wpdb = fresh_wpdb( 'open' );
     $wpdb->config->practitioner_user_id = $prac;
     $r = widget_instance()->rest_get_public_config( new FakeRequest( array( 'practitioner_id' => $prac ) ) )->get_data();
-    return json_encode( $r['config']['band_videos'] ?? 'missing' );
+    return $r['config'];
 }
-function invite_map( $prac ) {
+function invite_cfg( $prac ) {
     $wpdb = fresh_wpdb( 'open' );
     $wpdb->config->practitioner_user_id = $prac;
     $wpdb->invite = invite_row( array( 'practitioner_id' => $prac, 'source' => 'practitioner' ) );
     $link = $wpdb->invite->token;
     $r = widget_instance()->rest_verify_invite( new FakeRequest( array( 'token' => $link ) ) );
-    return json_encode( is_array( $r ) ? ( $r['band_videos'] ?? 'missing' ) : 'error' );
+    return is_array( $r ) ? $r : array( 'band_videos' => 'error' );
 }
+function public_map( $prac ) { return json_encode( public_cfg( $prac )['band_videos'] ?? 'missing' ); }
+function invite_map( $prac ) { return json_encode( invite_cfg( $prac )['band_videos'] ?? 'missing' ); }
 check( 'J.1 public-config sends the map as an object', '{"green":"https:\\/\\/youtu.be\\/K2rQSjwvTws"}' === public_map( 206 ) );
 check( 'J.2 the invite check sends the map as an object', '{"green":"https:\\/\\/youtu.be\\/K2rQSjwvTws"}' === invite_map( 206 ) );
 unset( $GLOBALS['options']['hdlv2_stage1_band_videos'] );
@@ -123,7 +126,7 @@ $GLOBALS['options']['hdlv2_stage1_band_videos'] = array( 'green' => 'https://you
 list( $own ) = fire_at( 0.90, 'ivy@example.test', true, 122 );
 list( $other ) = fire_at( 0.90, 'ivy@example.test', true, 117 );
 check( 'L.1 practitioner 122 (the offer\'s): the payload carries the green video', is_array( $own ) && 'https://youtu.be/K2rQSjwvTws' === $own['band_video_url'] );
-check( 'L.2 practitioner 117: band still green, band_video_url \'\', still 36 keys', is_array( $other ) && 'green' === $other['band'] && '' === $other['band_video_url'] && 36 === count( $other ) );
+check( 'L.2 practitioner 117: band still green, band_video_url \'\', still 37 keys', is_array( $other ) && 'green' === $other['band'] && '' === $other['band_video_url'] && 37 === count( $other ) );
 check( 'L.3 public-config: 122 gets the map, 117 gets {}', false !== strpos( public_map( 122 ), 'K2rQSjwvTws' ) && '{}' === public_map( 117 ) );
 check( 'L.4 the invite check: 122 gets the map, 117 gets {}', false !== strpos( invite_map( 122 ), 'K2rQSjwvTws' ) && '{}' === invite_map( 117 ) );
 check( 'L.5 band_videos( 117 ) is empty, band_videos( 122 ) has the three', array() === HDLV2_Stage1_Commentary::band_videos( 117 ) && 3 === count( HDLV2_Stage1_Commentary::band_videos( 122 ) ) );
@@ -131,6 +134,28 @@ $GLOBALS['options']['hdlv2_stage1_offer']['practitioner_id'] = 0;
 check( 'L.6 the offer set to every practitioner (0): 117 gets the map too', 3 === count( HDLV2_Stage1_Commentary::band_videos( 117 ) ) && false !== strpos( public_map( 117 ), 'K2rQSjwvTws' ) );
 $GLOBALS['options']['hdlv2_stage1_offer']['practitioner_id'] = 206;
 unset( $GLOBALS['options']['hdlv2_stage1_band_videos'] );
+
+echo "── M. the film's picture for the e-mail (v0.49.08, plan 16) ──\n";
+$cover = HDLV2_PLUGIN_URL . 'assets/images/stage1-film-cover-2026-11.jpg';
+$GLOBALS['options']['hdlv2_stage1_band_videos'] = array( 'green' => 'https://youtu.be/K2rQSjwvTws' );
+list( $with ) = fire_at( 0.90 );
+list( $without ) = fire_at( 1.00 );
+check( 'M.1 a band with a film: band_video_thumb_url is the picture\'s https address, beside band_video_url',
+    is_array( $with ) && 'https://youtu.be/K2rQSjwvTws' === $with['band_video_url'] && 0 === strpos( $cover, 'https://' ) && $cover === ( $with['band_video_thumb_url'] ?? null ) );
+check( 'M.2 a band with no film: an empty string', is_array( $without ) && '' === $without['band_video_url'] && '' === ( $without['band_video_thumb_url'] ?? null ) );
+check( 'M.3 37 keys either way', is_array( $with ) && 37 === count( $with ) && is_array( $without ) && 37 === count( $without ) );
+$file = __DIR__ . '/../../assets/images/stage1-film-cover-2026-11.jpg';
+$size = is_file( $file ) ? getimagesize( $file ) : false;
+check( 'M.4 the picture is in the plugin: a JPEG, 1280 x 720, under 150 KB',
+    $size && 1280 === $size[0] && 720 === $size[1] && IMAGETYPE_JPEG === $size[2] && filesize( $file ) < 150 * 1024 );
+
+echo "── N. the page cover's address: only with hdlv2_ff_stage1_film_cover on ──\n";
+check( 'N.1 switch absent: neither widget payload names a cover', ! array_key_exists( 'film_cover_url', public_cfg( 206 ) ) && ! array_key_exists( 'film_cover_url', invite_cfg( 206 ) ) );
+$GLOBALS['options']['hdlv2_ff_stage1_film_cover'] = '1';
+check( 'N.2 switch on: both carry the picture\'s address', $cover === ( public_cfg( 206 )['film_cover_url'] ?? null ) && $cover === ( invite_cfg( 206 )['film_cover_url'] ?? null ) );
+list( $on ) = fire_at( 0.90 );
+check( 'N.3 the switch moves nothing in the e-mail\'s values', $on == $with );
+unset( $GLOBALS['options']['hdlv2_ff_stage1_film_cover'], $GLOBALS['options']['hdlv2_stage1_band_videos'] );
 
 check( 'K.1 the key never reaches a log line', false === strpos( file_get_contents( $log ), $stub_access ) );
 @unlink( $log );
