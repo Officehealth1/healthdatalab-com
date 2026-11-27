@@ -889,6 +889,8 @@
       // to 1 or more on every part of it, at every width from 390 to 1440 px (today's light end gives 2.5).
       + '.hdlw-r1 .hdlw-r-hero{background:linear-gradient(135deg,#004F59 0%,#3d8da0 150%);}'
       + '.hdlw-r1 .hdlw-r-hero-greeting,.hdlw-r1 .hdlw-r-hero-body{opacity:1;}'
+      // White is set on the tags: on this darker ground a host page's own heading or paragraph colour must not win.
+      + '.hdlw-r1 .hdlw-r-hero h1,.hdlw-r1 .hdlw-r-hero p{color:#fff;}'
       + '.hdlw-r1 .hdlw-r-hero-body{max-width:33em;}'
       + '.hdlw-r1 .hdlw-r-eyebrow{color:#004F59;}' // 11 px: the page's teal is 3.8 to 1 on white, this is 9.3
       // The gauge picture carries its own empty white band over the curve: its frame cuts most of it off.
@@ -904,7 +906,8 @@
       + '.hdlw-r1 .hdlw-r1-read{margin:28px 0 0;text-align:left;}'
       + '.hdlw-r1 .hdlw-r1-read p{max-width:33em;}'
       + '.hdlw-r1 .hdlw-r-card p.hdlw-r1-lead{max-width:30em;margin:0 0 8px;font-size:17px;line-height:1.5;font-weight:600;color:#111;}'
-      + '.hdlw-r1 .hdlw-r-card p.hdlw-r1-small,.hdlw-r1 .hdlw-r1-act p{margin:0;font-size:13px;line-height:1.5;color:#555;}'
+      // Named through the card, so this grey outranks the page's own price-line rule (#888) wherever that rule sits.
+      + '.hdlw-r1 .hdlw-r-card p.hdlw-r1-small,.hdlw-r1 .hdlw-r-card .hdlw-r1-act p{margin:0;font-size:13px;line-height:1.5;color:#555;}'
       + '.hdlw-r1 .hdlw-r-card p.hdlw-r1-cap{margin:10px 0 0;text-align:center;}'
       + '.hdlw-r1 .hdlw-r1-act{margin:24px 0;}'
       + '.hdlw-r1 .hdlw-r1-act p{max-width:34em;text-align:center;text-wrap:balance;}'
@@ -913,8 +916,11 @@
       + '.hdlw-r1 .hdlw-r-card p.hdlw-r-offer-note{margin:0 0 8px;}'
       + '.hdlw-r1 .hdlw-r1-sign{margin:24px 0 0;padding:24px 0 0;border-top:1px solid #e4e6ea;}'
       + ".hdlw-r1 .hdlw-r1-act p.hdlw-r1-name{font-family:'Source Serif Pro',Georgia,serif;font-size:18px;color:#2c3e50;}"
-      // One ring for every link the keyboard reaches. No rule here names a button: both of this layout's
-      // buttons keep the page's one size, and a Timeline link's yes and no stay a pair.
+      // The same side space for BOTH of this layout's buttons, so the longer label stays on one line on a
+      // 360 px phone and the two keep one height. Their width, height and radius are the page's. No other
+      // rule here reaches a button: a Timeline link's yes and no stay a pair.
+      + '.hdlw-r1 .hdlw-r1-act a.hdlw-r-btn-primary{padding-left:12px;padding-right:12px;}'
+      // One ring for every link the keyboard reaches.
       + '.hdlw-r1 a:focus-visible{outline:2px solid #3d8da0;outline-offset:3px;}'
       + '.hdlw-r1 .hdlw-r-status{margin:0 0 16px;font-size:15px;line-height:1.6;color:#2c3e50;font-style:normal;}'
       + '</style>'

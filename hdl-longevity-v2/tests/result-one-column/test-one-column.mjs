@@ -114,8 +114,9 @@ const own = ['.hdlw-r-hero{', '.hdlw-r-hero-row{', '.hdlw-r-hero-greeting{', '.h
   '.hdlw-r-stat-strip{display:grid;grid-template-columns:repeat(3,1fr)', '.hdlw-r-stat{', '.hdlw-r-stat-label{', '.hdlw-r-stat-value{', '.hdlw-r-buttons{display:flex;flex-direction:column;align-items:center;', '.hdlw-r-btn-primary{', '.hdlw-r-card p.hdlw-r-price{'];
 ok(own.every((r) => rr.includes(r)), 'P1 each of those parts is still styled by today\'s stylesheet (' + own.filter((r) => !rr.includes(r)).join(' ') + ')');
 const grounds = rules.filter((r) => /background/.test(r.decl));
-ok(!full.includes('hdlw-r1-band') && grounds.length === 1 && grounds[0].sel === '.hdlw-r1 .hdlw-r-hero' && rules.every((r) => !/\bh[12]\b/.test(r.sel) || !/background|padding|border|color/.test(r.decl)),
-  'P1 no coloured bar is used as a heading: the only ground set here is the hero\'s; a heading gets no ground, box or colour of its own');
+ok(!full.includes('hdlw-r1-band') && grounds.length === 1 && grounds[0].sel === '.hdlw-r1 .hdlw-r-hero' && rules.every((r) => !/\bh[12]\b/.test(r.sel) || !/background|padding|border/.test(r.decl)),
+  'P1 no coloured bar is used as a heading: the only ground set here is the hero\'s; a heading gets no ground and no box of its own');
+ok(/\.hdlw-r1 \.hdlw-r-hero h1,\.hdlw-r1 \.hdlw-r-hero p\{color:#fff;\}/.test(css), 'P1 the hero\'s words are set white on the tag: a host page\'s own heading or paragraph colour cannot turn them dark on the dark teal');
 
 console.log('── P2 the buttons ──');
 const groups = [...body.matchAll(/<div class="(hdlw-r-buttons[^"]*)">([\s\S]*?)<\/div>/g)].map((m) => ({ cls: m[1].split(' '), inner: m[2] }));
@@ -123,12 +124,19 @@ ok(groups.length === 2 && groups.every((g) => g.cls.includes('hdlw-r-buttons') &
   'P2 each button is the one component, alone in one of this layout\'s two groups, to the same address');
 ok(groups.length === 2 && groups[0].inner.startsWith('<span data-part="mail"></span><a ') && />For a small investment of \$27\.<\/p>$/.test(groups[0].inner) && />Rosa<\/p><a /.test(groups[1].inner) && groups[1].inner.endsWith('>' + INBOX + '</p>'),
   'P2 the small lines sit with their button: the e-mail line over the first and the price under it; the name over the second and the inbox line under it');
-ok(!/btn-(primary|secondary)/.test(css) && rules.every((r) => !/hdlw-r1-(act|sign)/.test(r.sel) || !/(^|;)(width|max-width|min-width|height|align-items|justify-content|float|left|right|transform|margin-left|margin-right|padding-left|padding-right):/.test(r.decl) || /\bp\b/.test(r.sel.split(' ').pop())),
-  'P2 no rule here sizes, rounds or moves a button or its group: width, height, radius and centre are today\'s for both');
+// Every rule here that can reach something to press, by its last part: a link, a button, or one of their classes.
+const reach = (sel) => sel.split(',').some((x) => { const last = x.trim().split(/[\s>+~]+/).pop(); return /^(a|button)(?![\w-])/.test(last) || /btn-|hdlw-film-cover|hdlw-r-again|hdlw-buy/.test(last); });
+const press = rules.filter((r) => reach(r.sel)).map((r) => r.sel + '{' + r.decl + '}').sort();
+ok(JSON.stringify(press) === JSON.stringify(['.hdlw-r1 .hdlw-r-card p.hdlw-r-offer-email a{color:#004F59;}', '.hdlw-r1 .hdlw-r1-act a.hdlw-r-btn-primary{padding-left:12px;padding-right:12px;}', '.hdlw-r1 a:focus-visible{outline:2px solid #3d8da0;outline-offset:3px;}'].sort())
+  && rules.every((r) => !/[*\[]|:(first|last|nth|only|not|is|where|has)/.test(r.sel)),
+  'P2 three rules here can reach something to press and no more: the "Start again" link\'s colour, the same side space for BOTH of this layout\'s buttons (the longer label stays on one line on a 360 px phone), one ring for every link. Width, height, radius and centre stay the page\'s; a Timeline link\'s yes and no are reached by none (' + press.length + ')');
+ok(rules.every((r) => !/hdlw-r1-(act|sign)$/.test(r.sel.trim()) || !/(^|;)(width|max-width|min-width|height|display|align-items|justify-content|float|left|right|transform|margin-left|margin-right|padding-left|padding-right):/.test(r.decl)), 'P2 no rule here moves or resizes a button\'s group');
 ok(/\.hdlw-r1 \.hdlw-r1-sign\{margin:24px 0 0;padding:24px 0 0;border-top:1px solid #e4e6ea;\}/.test(css), 'P2 the sign-off group is set apart by a hairline over it, with no side space of its own');
 ok(!/\.hdlw-r-buttons/.test(css) && rules.filter((r) => /hdlw-r1-act/.test(r.sel)).length >= 2,
   'the group rules reach this layout\'s own two groups only: an invite\'s card and a Timeline link\'s yes and no keep today\'s spacing and size');
-ok(/\.hdlw-r1 a:focus-visible\{outline:2px solid #3d8da0;outline-offset:3px;\}/.test(css), 'every link in the column shows the same ring when the keyboard reaches it');
+
+ok(/\.hdlw-r1 \.hdlw-r-card p\.hdlw-r1-small,\.hdlw-r1 \.hdlw-r-card \.hdlw-r1-act p\{margin:0;font-size:13px;line-height:1\.5;color:#555;\}/.test(css) && rr.includes('.hdlw-r-card p.hdlw-r-price{font-size:13px;color:#888;margin:0;}'),
+  'P2 the small lines\' grey outranks today\'s price-line rule (#888, 3.5 to 1) by its own weight, not by coming later on the page');
 
 console.log('── P3 the text ──');
 const states = [full, frame({ band: 'avg' }), frame({ band: 'warn' }), frame({ offer: null }), frame({ film: false }), frame({ prac: '' }), frame({ first: '' })];
@@ -142,7 +150,9 @@ const lead = rules.find((r) => /p\.hdlw-r1-lead$/.test(r.sel)) || { decl: '' };
 ok(/\.hdlw-r1 \.hdlw-r-card p\{line-height:1\.6;\}/.test(css) && /font-size:17px/.test(lead.decl) && /font-weight:600/.test(lead.decl)
   && rules.every((r) => !/hdlw-r1-read p$/.test(r.sel) || !/font-size|color/.test(r.decl)), 'P3 body text keeps the page\'s size and grey at line height 1.6; only the lead is larger and darker');
 const measure = rules.filter((r) => /(hdlw-r1-read p|hdlw-r-hero-body)$/.test(r.sel) && /max-width/.test(r.decl)).map((r) => +(/max-width:(\d+)em/.exec(r.decl) || [0, 0])[1]);
-ok(measure.length === 2 && measure.every((em) => em >= 30 && em <= 35) && /\.hdlw-r1 \.hdlw-r1-read\{[^}]*text-align:left;/.test(css), 'P3 paragraphs are left-aligned and ' + measure.join(' and ') + ' em wide: about 60 to 70 characters a line');
+const leadEm = +(/max-width:(\d+)em/.exec(lead.decl) || [0, 0])[1];
+ok(measure.length === 2 && measure.every((em) => em >= 30 && em <= 35) && leadEm >= 28 && leadEm <= 35 && /\.hdlw-r1 \.hdlw-r1-read\{[^}]*text-align:left;/.test(css)
+  && rules.every((r) => !/hdlw-r1-(read|lead)|hdlw-r-hero-body/.test(r.sel) || !/text-align:(center|right|justify)/.test(r.decl)), 'P3 paragraphs are left-aligned and ' + measure.join(' and ') + ' em wide (the lead ' + leadEm + '): about 60 to 70 characters a line');
 ok(body.includes('<span data-part="note"></span><p class="hdlw-r1-small">' + DOCTOR + '</p>') && body.includes('<span data-part="film"></span><p class="hdlw-r1-small hdlw-r1-cap">Rosa explains your result</p>'),
   'P3 a small line sits right under the thing it belongs to: the doctor line under the boxed note, the caption under the film');
 
@@ -157,7 +167,7 @@ ok(!/border-left|border-right|::before|::after|text-transform|font-style:italic|
 ok(count(css, 'gradient') === 1 && /\.hdlw-r1 \.hdlw-r-hero\{background:linear-gradient\(135deg,#004F59 0%,#3d8da0 (\d+)%\);\}/.test(css), 'the one gradient is the hero\'s, made of the brand\'s two teals');
 ok(rules.every((r) => [...r.decl.matchAll(/line-height:([\d.]+)/g)].every((m) => parseFloat(m[1]) >= 1.5 || /p\.hdlw-r-stat-value$/.test(r.sel))), 'text lines are set at 1.5 or more (the figure\'s number keeps the page\'s own 1.1)');
 const colours = [...new Set([...css.matchAll(/#[0-9a-fA-F]{3,6}\b/g)].map((m) => m[0].toLowerCase()))];
-ok(colours.every((c) => ['#3d8da0', '#004f59', '#2c3e50', '#e4e6ea', '#555', '#111'].includes(c)) && ['color:#555', 'color:#111'].every((c) => rr.includes(c)), 'colours are the brand\'s own and the page\'s two text greys (' + colours.join(' ') + ')');
+ok(colours.every((c) => ['#3d8da0', '#004f59', '#2c3e50', '#e4e6ea', '#555', '#111', '#fff'].includes(c)) && ['color:#555', 'color:#111'].every((c) => rr.includes(c)), 'colours are the brand\'s own and the page\'s two text greys (' + colours.join(' ') + ')');
 // Small white text on the hero. The lightest point of the gradient is where it ends (100% of a line that runs on to its
 // last stop). The page's own soft highlight (.hdlw-r-hero::before, white at 0.12 fading out) lies over it and takes up
 // to half a point off, so 5 to 1 is asked here; in a browser, at ten widths from 390 to 1440, every point of the panel
@@ -167,8 +177,14 @@ const lightest = hex('#004F59').map((v, i) => v + (hex('#3d8da0')[i] - v) * k);
 ok(stop >= 100 && ratio([255, 255, 255], lightest) >= 5 && rr.includes('.hdlw-r-hero::before{content:"";position:absolute;inset:0;background:radial-gradient(circle at 80% 20%,rgba(255,255,255,0.12),transparent 60%);')
   && /\.hdlw-r1 \.hdlw-r-hero-greeting,\.hdlw-r1 \.hdlw-r-hero-body\{opacity:1;\}/.test(css),
   'contrast: white on the lightest point of the hero\'s gradient is ' + ratio([255, 255, 255], lightest).toFixed(2) + ' to 1 (5 asked, to leave room for the page\'s own highlight, pinned here), and its small text is not thinned');
-ok([['#555', '#fff'], ['#111', '#fff'], ['#2c3e50', '#fff'], ['#004F59', '#fff']].every(([a, b]) => ratio(hex(a), hex(b)) >= 4.5) && /\.hdlw-r1 \.hdlw-r-eyebrow\{color:#004F59;\}/.test(css) && /p\.hdlw-r-offer-email a\{color:#004F59;\}/.test(css)
-  && rules.every((r) => !/color:#(888|3d8da0)/i.test(r.decl)), 'contrast: every text colour set here is 4.5 to 1 or more on white; the small label and the "Start again" link are dark teal, not the page\'s teal (3.8)');
+const inks = rules.flatMap((r) => [...r.decl.matchAll(/(?:^|;)color:([^;]+)/g)].map((m) => ({ sel: r.sel, c: m[1] })));
+ok(inks.length >= 8 && inks.every((i) => /^#[0-9a-fA-F]{3,6}$/.test(i.c) && (i.c.toLowerCase() === '#fff' ? /^(\.hdlw-r1 \.hdlw-r-hero (h1|p),?)+$/.test(i.sel) : ratio(hex(i.c), [255, 255, 255]) >= 4.5))
+  && /\.hdlw-r1 \.hdlw-r-eyebrow\{color:#004F59;\}/.test(css) && /p\.hdlw-r-offer-email a\{color:#004F59;\}/.test(css),
+  'contrast: each of the ' + inks.length + ' text colours set here is 4.5 to 1 or more on white (white itself only on the hero); the small label and the "Start again" link are dark teal, not the page\'s teal (3.8)');
+const sizes = rules.flatMap((r) => [...r.decl.matchAll(/font-size:([^;]+)/g)].map((m) => m[1]));
+ok(sizes.length >= 5 && sizes.every((v) => /^\d+px$/.test(v) && parseInt(v, 10) >= 12), 'no text set here is under 12 px (' + sizes.join(' ') + ')');
+const crop = /\.hdlw-r1 \.hdlw-r-gauge-img\{max-width:440px;margin-top:-(\d+)%;\}/.exec(css);
+ok(crop && +crop[1] <= 10 && /\.hdlw-r1 \.hdlw-r1-gauge\{overflow:hidden;\}/.test(css), 'the gauge\'s frame cuts no more than a tenth of the picture\'s height off its empty top: the scale\'s top number stays in view');
 ok(!full.includes('—') && !full.includes('–'), 'no dash stands in for punctuation');
 
 console.log('── T1.6 the states ──');
@@ -187,6 +203,9 @@ const all = [full, euro, noFilm, noPrac, noOffer, odd, frame({ band: 'avg' }), f
 ok(all.every((h) => h !== '' && !/undefined|null|NaN/.test(text(h))), 'no state prints "undefined"');
 ok(all.every((h) => !/0\.85|43\.4|\b51\b|Matthew/.test(h)) && !/0\.85|43\.4|\b51\b|Matthew/.test(words + fn + mover), 'none of the drawing\'s sample values (0.85, 43.4, 51, his name) is in the markup or the code');
 { const x = frame({ first: '<b>x', prac: '"><i>' }); ok(x.includes('Hi &lt;b&gt;x,') && x.includes('&quot;&gt;&lt;i&gt; explains your result') && !x.includes('<b>x') && !x.includes('<i>'), 'a name is escaped'); }
+{ const bad = '"><img src=x onerror=1>', x = frame({ id: 'hdlw-' + bad, offer: { href: 'https://alt.test/p?a=1&b=' + bad, today: '$1' + bad } }).replace(/<style>[\s\S]*?<\/style>/, '');
+  ok(x !== '' && !x.includes('<img') && count(x, '&quot;&gt;&lt;img src=x onerror=1&gt;') === 5 && count(x, 'href="https://alt.test/p?a=1&amp;b=&quot;') === 2 && x.includes('<div id="hdlw-&quot;&gt;&lt;img src=x onerror=1&gt;-thanks" hidden>'),
+    'the buy address (both buttons), the price (both places) and the id are escaped: markup in any of them stays text'); }
 
 console.log('── T1.5 and how it is wired ──');
 ok(rr !== '' && !/oneColumn|hdlw-r1/.test(rr), 'renderResult knows nothing of this layout');
