@@ -156,9 +156,16 @@ class HDLV2_Stage1_Commentary {
      */
     const FILM_COVER = 'assets/images/stage1-film-cover-2026-11.jpg';
 
-    /** @return string the picture's public address. */
+    /**
+     * The picture's public address. The Stage 1 values go to Make from a cron run under WP-CLI,
+     * where WordPress writes the plugin's own address as http:// even on an https site (no
+     * request, so is_ssl() is false); the address follows the site's own instead.
+     *
+     * @return string
+     */
     public static function film_cover_url() {
-        return HDLV2_PLUGIN_URL . self::FILM_COVER;
+        $url = HDLV2_PLUGIN_URL . self::FILM_COVER;
+        return 0 === strpos( (string) get_option( 'home' ), 'https://' ) ? preg_replace( '#^http://#', 'https://', $url ) : $url;
     }
 
     /**

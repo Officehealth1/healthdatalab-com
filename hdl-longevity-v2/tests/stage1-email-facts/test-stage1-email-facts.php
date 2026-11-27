@@ -5,7 +5,7 @@
  */
 $php  = escapeshellarg( PHP_BINARY );
 $fail = 0;
-foreach ( array( 'scenario-stage1-email-facts.php' ) as $f ) {
+foreach ( array( 'scenario-stage1-email-facts.php', 'scenario-film-cover-scheme.php' ) as $f ) {
     $out = array();
     exec( $php . ' ' . escapeshellarg( __DIR__ . '/' . $f ) . ' 2>/dev/null', $out, $code );
     echo "── $f: " . end( $out ) . "\n";
