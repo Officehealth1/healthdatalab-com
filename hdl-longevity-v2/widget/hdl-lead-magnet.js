@@ -2074,7 +2074,7 @@
         // v0.49.15 (plan 21; hdlv2_ff_stage1_result_stack) — the same page in one column on a wide screen
         // too: the arrangement it already has at 900 px and under, in a centred reading column. 704 px: the
         // film (640 at most) then fills its card edge to edge, in line with the text of the cards under it.
-        // The three figures share a row, as .hdlw-r-stat-strip lays three out. Nothing here applies under 901 px.
+        // The three .hdlw-r-stat cards in .hdlw-r-twocol-left share one row of three. Nothing here applies under 901 px.
         + ( cfg.resultStack
           ? '@media (min-width:901px){'
           +   '.hdlw-r-stack{max-width:704px;margin-left:auto;margin-right:auto;}'
