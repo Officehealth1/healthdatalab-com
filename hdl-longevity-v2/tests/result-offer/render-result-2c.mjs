@@ -109,6 +109,28 @@ export const EDITS = [
         + '</style>'
         + '<div class="hdlw-r' + ( cfg.resultStack ? ' hdlw-r-stack' : '' ) + '">'
 `],
+  // v0.49.16 (plan 22; hdlv2_ff_stage1_result_words) — Matthew's words from his drawing of 26 Nov: the hero line, his
+  // line for each result in place of paragraphs 2 and 3, and the offer card told to use his words
+  // (tests/result-words/test-result-words.mjs). Nothing else in renderResult moved.
+  [String.raw`'<p class="hdlw-r-hero-body">Here\u2019s your starting picture, built from your 9 quick answers.' + (offerHref`,
+   String.raw`'<p class="hdlw-r-hero-body">' + (cfg.resultWords ? 'Your results are in. So many people never look until it\u2019s late in the game. You just did, and that matters.' : 'Here\u2019s your starting picture, built from your 9 quick answers.') + (offerHref`],
+  [String.raw`Most of these levers are within your control.';
+`, String.raw`Most of these levers are within your control.';
+      // v0.49.16 (plan 22; hdlv2_ff_stage1_result_words) — Matthew's line for each result (his drawing of 26 Nov)
+      // in place of paragraphs 2 and 3; the facts paragraph stays.
+      if (cfg.resultWords) {
+        awakenP2 = {
+          good: 'You\u2019re ageing slower than the population average. Something you\u2019re doing is working. The question is what, and what\u2019s quietly working against you.',
+          avg: 'You\u2019re ageing at about the population average. That sounds fine, until you remember the average road is the one where the stairs, the floor and lifting the suitcase slowly get harder.',
+          warn: 'You\u2019re currently ageing faster than the population average. That isn\u2019t a verdict. It\u2019s the clearest signal you\u2019ll get that something is pushing your number up.'
+        }[bandClass];
+        awakenP3 = '';
+      }
+`],
+  [String.raw`        +       '<p>' + escapeHtml(awakenP3) + '</p>'
+`, String.raw`        +       ( awakenP3 ? '<p>' + escapeHtml(awakenP3) + '</p>' : '' )
+`],
+  [String.raw`answers._email, !inviteToken)`, String.raw`answers._email, !inviteToken, cfg.resultWords)`],
 ];
 
 /** The base renderResult with the 2c edits applied, or null when a piece is missing. */

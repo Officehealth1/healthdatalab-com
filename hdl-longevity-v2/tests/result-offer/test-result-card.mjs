@@ -98,7 +98,7 @@ ok(ticket.indexOf('Your Full Report will be sent to <strong>ivy@example.test</st
 ok(on.indexOf('hdlw-r-offer-email') < 0 && card('', OFFER, 'ivy@example.test') === TODAY, 'K9 no address, or switch off: no line, today\'s words exactly');
 
 console.log('── E. the hero sentence ──');
-const heroOf = (offerHref) => run(hero, { offerHref });
+const heroOf = (offerHref) => run(hero, { offerHref, cfg: {} }); // v0.49.16: the hero line reads cfg.resultWords (absent here: the old words)
 ok(heroOf('') === '<p class="hdlw-r-hero-body">Here’s your starting picture, built from your 9 quick answers. Next, your <em>WHY</em> — what really matters to you — turns this snapshot into a plan that’s truly yours.</p>', 'E1 switch off: both sentences, unchanged');
 ok(heroOf('https://alt.test/x') === '<p class="hdlw-r-hero-body">Here’s your starting picture, built from your 9 quick answers.</p>', 'E2 switch on: the first sentence only');
 
