@@ -106,7 +106,9 @@ console.log('── T1. the settings answer takes 7 seconds, past the cut-off; t
     && p.cfg.filmCover === ''
     // v0.49.09 (plan 18): so is the scale on the result's gauge (null here: no switch).
     && p.cfg.gaugeScale === null
-    && Object.keys(p.cfg).sort().join() === Object.keys(EMBED).concat('bandVideos', 'resultOffer', 'filmCover', 'gaugeScale', 'safetyScreen', 'questionMotion').sort().join(), 'T1.4 and only those (with the film cover\'s address and the gauge\'s scale): name, colour, booking link, the Book switch, the safety screen and the pictures stay as built');
+    // v0.49.15 (plan 21): and the one-column result (false here: no switch).
+    && p.cfg.resultStack === false
+    && Object.keys(p.cfg).sort().join() === Object.keys(EMBED).concat('bandVideos', 'resultOffer', 'filmCover', 'gaugeScale', 'resultStack', 'safetyScreen', 'questionMotion').sort().join(), 'T1.4 and only those (with the film cover\'s address, the gauge\'s scale and the one-column setting): name, colour, booking link, the Book switch, the safety screen and the pictures stay as built');
   await p.to(90000);
   for (const band of ['green', 'blue', 'red']) {
     const r = p.result(band);

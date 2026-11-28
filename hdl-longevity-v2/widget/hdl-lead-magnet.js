@@ -1004,6 +1004,8 @@
     cfg.filmCover = String((publicCfg && publicCfg.film_cover_url) || (invite && invite.film_cover_url) || '');
     // v0.49.09 (plan 18) — the scale on the result's gauge; null with hdlv2_ff_gauge_scale absent.
     cfg.gaugeScale = (publicCfg && publicCfg.gauge_scale) || (invite && invite.gauge_scale) || null;
+    // v0.49.15 (plan 21) — the result page in one column at every width; false with hdlv2_ff_stage1_result_stack absent.
+    cfg.resultStack = !!((publicCfg && publicCfg.result_stack) || (invite && invite.result_stack));
     // v0.48.89 (A10) — the settings answer came after pullPublicConfig's cut-off: it still fills these
     // two, which the result page first reads minutes later, and nothing else. A result already drawn stays.
     if (late) late.fill = function (lateCfg) {
@@ -1011,6 +1013,7 @@
       cfg.resultOffer = lateCfg.result_offer || null;
       cfg.filmCover = String(lateCfg.film_cover_url || '');
       cfg.gaugeScale = lateCfg.gauge_scale || null;
+      cfg.resultStack = !!lateCfg.result_stack;
     };
     // v0.48.80 (2f) — hdlv2_ff_stage1_resume: continue where you stopped. Public settings only, never with an invite.
     cfg.resume = !!(publicCfg && publicCfg.resume_enabled) && !invite;
@@ -2068,8 +2071,22 @@
         +   '.hdlw-r-card{padding:22px 22px;}'
         +   '.hdlw-r-prac-foot-row{flex-direction:column;align-items:flex-start;}'
         + '}'
+        // v0.49.15 (plan 21; hdlv2_ff_stage1_result_stack) — the same page in one column on a wide screen
+        // too: the arrangement it already has at 900 px and under, in a centred reading column. 704 px: the
+        // film (640 at most) then fills its card edge to edge, in line with the text of the cards under it.
+        // The three .hdlw-r-stat cards in .hdlw-r-twocol-left share one row of three. Nothing here applies under 901 px.
+        + ( cfg.resultStack
+          ? '@media (min-width:901px){'
+          +   '.hdlw-r-stack{max-width:704px;margin-left:auto;margin-right:auto;}'
+          +   '.hdlw-r-stack .hdlw-r-twocol{grid-template-columns:1fr;gap:16px;}'
+          +   '.hdlw-r-stack .hdlw-r-twocol-left{display:grid;grid-template-columns:repeat(3,1fr);}'
+          +   '.hdlw-r-stack .hdlw-r-twocol-left>*{grid-column:1/-1;}'
+          +   '.hdlw-r-stack .hdlw-r-twocol-left>.hdlw-r-stat{grid-column:auto;}'
+          +   '.hdlw-r-stack .hdlw-r-gauge-img{max-width:360px;}'
+          + '}'
+          : '' )
         + '</style>'
-        + '<div class="hdlw-r">'
+        + '<div class="hdlw-r' + ( cfg.resultStack ? ' hdlw-r-stack' : '' ) + '">'
         // Hero
         + '<section class="hdlw-r-hero">'
         +   '<div class="hdlw-r-hero-row">'

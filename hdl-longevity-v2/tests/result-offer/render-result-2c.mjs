@@ -86,7 +86,29 @@ export const EDITS = [
         var sent`, String.raw`
       function held() {
         finished();
-        var sent`],
+        var sent`],  // v0.49.15 (plan 21; hdlv2_ff_stage1_result_stack) — one class on the root and, with it, the rules that stand the
+  // page in one column from 901 px (tests/result-stack/test-result-stack.mjs). Nothing else in renderResult moved.
+  [String.raw`
+        + '</style>'
+        + '<div class="hdlw-r">'
+`, String.raw`
+        // v0.49.15 (plan 21; hdlv2_ff_stage1_result_stack) — the same page in one column on a wide screen
+        // too: the arrangement it already has at 900 px and under, in a centred reading column. 704 px: the
+        // film (640 at most) then fills its card edge to edge, in line with the text of the cards under it.
+        // The three figures share a row, as .hdlw-r-stat-strip lays three out. Nothing here applies under 901 px.
+        + ( cfg.resultStack
+          ? '@media (min-width:901px){'
+          +   '.hdlw-r-stack{max-width:704px;margin-left:auto;margin-right:auto;}'
+          +   '.hdlw-r-stack .hdlw-r-twocol{grid-template-columns:1fr;gap:16px;}'
+          +   '.hdlw-r-stack .hdlw-r-twocol-left{display:grid;grid-template-columns:repeat(3,1fr);}'
+          +   '.hdlw-r-stack .hdlw-r-twocol-left>*{grid-column:1/-1;}'
+          +   '.hdlw-r-stack .hdlw-r-twocol-left>.hdlw-r-stat{grid-column:auto;}'
+          +   '.hdlw-r-stack .hdlw-r-gauge-img{max-width:360px;}'
+          + '}'
+          : '' )
+        + '</style>'
+        + '<div class="hdlw-r' + ( cfg.resultStack ? ' hdlw-r-stack' : '' ) + '">'
+`],
 ];
 
 /** The base renderResult with the 2c edits applied, or null when a piece is missing. */
