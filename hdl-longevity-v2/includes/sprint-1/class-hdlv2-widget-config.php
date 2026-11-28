@@ -1186,6 +1186,16 @@ class HDLV2_Widget_Config {
     }
 
     /**
+     * v0.49.16 (plan 22) — Matthew's own words from his drawing of 26 Nov on the Stage 1 result page:
+     * result_words for the widget's two settings answers with hdlv2_ff_stage1_result_words on.
+     *
+     * @return array
+     */
+    public static function result_words_fields() {
+        return get_option( 'hdlv2_ff_stage1_result_words', false ) ? array( 'result_words' => true ) : array();
+    }
+
+    /**
      * Build the QuickChart gauge URL for a rate. Centralised so all 3 callers
      * (verification email, practitioner notify, Make.com PDF payload) match.
      */
@@ -2794,6 +2804,7 @@ class HDLV2_Widget_Config {
           + HDLV2_Stage1_Commentary::film_cover_fields() // v0.49.08 — the film's cover (hdlv2_ff_stage1_film_cover on only)
           + array_filter( array( 'gauge_scale' => self::gauge_scale() ) ) // v0.49.09 — the scale on the result page's gauge (hdlv2_ff_gauge_scale on only)
           + self::result_stack_fields() // v0.49.15 — the result page in one column (hdlv2_ff_stage1_result_stack on only)
+          + self::result_words_fields() // v0.49.16 — Matthew's words on the result page (hdlv2_ff_stage1_result_words on only)
           + ( get_option( 'hdlv2_ff_input_checks', false ) ? array( 'age_typed' => true ) : array() ) ) ); // v0.48.97 (plan 11) — the age box starts empty
     }
 
@@ -3342,7 +3353,8 @@ class HDLV2_Widget_Config {
           + HDLV2_Offer::result_offer_fields( (int) $invite->practitioner_id ) // v0.48.77 — the result page's offer (switch on only)
           + HDLV2_Stage1_Commentary::film_cover_fields() // v0.49.08 — the film's cover (hdlv2_ff_stage1_film_cover on only)
           + array_filter( array( 'gauge_scale' => self::gauge_scale() ) ) // v0.49.09 — the scale on the result page's gauge (hdlv2_ff_gauge_scale on only)
-          + self::result_stack_fields() ); // v0.49.15 — the result page in one column (hdlv2_ff_stage1_result_stack on only)
+          + self::result_stack_fields() // v0.49.15 — the result page in one column (hdlv2_ff_stage1_result_stack on only)
+          + self::result_words_fields() ); // v0.49.16 — Matthew's words on the result page (hdlv2_ff_stage1_result_words on only)
     }
 
     /**

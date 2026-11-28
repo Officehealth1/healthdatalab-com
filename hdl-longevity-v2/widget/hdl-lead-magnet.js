@@ -836,20 +836,26 @@
   }
 
   // The thank-you card's words when the offer shows: the Stage 1 e-mail's (v44), in its order.
-  function resultOfferHtml(offer, href, esc, email, canRestart) {
+  // v0.49.16 (plan 22; hdlv2_ff_stage1_result_words) — words: Matthew's heading, two lines and button from his
+  // drawing of 26 Nov in place of the first three lines; the rest of the card is unchanged.
+  function resultOfferHtml(offer, href, esc, email, canRestart, words) {
     // The address line only when the Buy link carries it (then Stripe locks it). "Start again" names this page (an
     // empty href would follow Altituding's <base href="/"> home) and never shows on a ticket: it would reload a used link.
     var again = canRestart && typeof location !== 'undefined' ? String(location.href).split('#')[0] : '';
     var locked = email && String(href).indexOf('#email=') >= 0;
-    return '<h2 class="hdlw-r-thanks-headline">Do you know what is creating your number?</h2>'
-      + '<p>On its own, a number changes nothing.</p>'
-      + '<p>The Full Report shows what pulls yours up and what pulls it down.</p>'
-      + '<p>Advice online is written for everyone. This is written about you.</p>'
+    return ( words
+        ? '<h2 class="hdlw-r-thanks-headline">\u2026 but why?</h2>'
+        + '<p><strong>Your number shows where you\u2019re heading. Not why.</strong></p>'
+        + '<p>Without the why, any change is a guess. Your Full Longevity Report shows what\u2019s driving your number and where to focus first.</p>'
+        : '<h2 class="hdlw-r-thanks-headline">Do you know what is creating your number?</h2>'
+        + '<p>On its own, a number changes nothing.</p>'
+        + '<p>The Full Report shows what pulls yours up and what pulls it down.</p>'
+        + '<p>Advice online is written for everyone. This is written about you.</p>' )
       // Gate row F25: Stripe locks this address, so show it before Buy; "Start again" reloads the questions.
       + ( locked ? '<p class="hdlw-r-offer-email">Your Full Report will be sent to <strong>' + esc(email) + '</strong>.'
           + ( canRestart ? ' Not your address? <a href="' + esc(again) + '">Start again</a>' : '' ) + '</p>' : '' )
       + '<div class="hdlw-r-buttons" style="margin:22px 0;">'
-      +   '<a class="hdlw-r-btn-primary" href="' + esc(href) + '">Yes, give me access to my Full Report</a>'
+      +   '<a class="hdlw-r-btn-primary" href="' + esc(href) + '">' + ( words ? 'Show me what\u2019s driving my number' : 'Yes, give me access to my Full Report' ) + '</a>'
       +   '<p class="hdlw-r-price">For a small investment of ' + esc(offer.today) + '.</p>'
       + '</div>'
       + '<p class="hdlw-r-offer-note"><strong>Important:</strong> this number is an estimate. No test can measure anyone\'s exact rate of ageing. Use it like a compass, not a GPS: a direction and a place to start.</p>'
@@ -1006,6 +1012,8 @@
     cfg.gaugeScale = (publicCfg && publicCfg.gauge_scale) || (invite && invite.gauge_scale) || null;
     // v0.49.15 (plan 21) — the result page in one column at every width; false with hdlv2_ff_stage1_result_stack absent.
     cfg.resultStack = !!((publicCfg && publicCfg.result_stack) || (invite && invite.result_stack));
+    // v0.49.16 (plan 22) — Matthew's words on the result page; false with hdlv2_ff_stage1_result_words absent.
+    cfg.resultWords = !!((publicCfg && publicCfg.result_words) || (invite && invite.result_words));
     // v0.48.89 (A10) — the settings answer came after pullPublicConfig's cut-off: it still fills these
     // two, which the result page first reads minutes later, and nothing else. A result already drawn stays.
     if (late) late.fill = function (lateCfg) {
@@ -1014,6 +1022,7 @@
       cfg.filmCover = String(lateCfg.film_cover_url || '');
       cfg.gaugeScale = lateCfg.gauge_scale || null;
       cfg.resultStack = !!lateCfg.result_stack;
+      cfg.resultWords = !!lateCfg.result_words;
     };
     // v0.48.80 (2f) — hdlv2_ff_stage1_resume: continue where you stopped. Public settings only, never with an invite.
     cfg.resume = !!(publicCfg && publicCfg.resume_enabled) && !invite;
@@ -1891,6 +1900,16 @@
         awakenP3  = 'The good news: a ' + rateDisplay + '\u00d7 rate is well inside the range that responds quickly to focused changes in strength training, sleep consistency and daily movement. Your practitioner will use this gauge as the baseline for everything that follows.';
       }
       var awakenP2 = 'This isn\u2019t a verdict \u2014 it\u2019s a starting picture. The 9 questions captured your activity, sleep, social, smoking and diet patterns. The result reflects today, not tomorrow. Most of these levers are within your control.';
+      // v0.49.16 (plan 22; hdlv2_ff_stage1_result_words) — Matthew's line for each result (his drawing of 26 Nov)
+      // in place of paragraphs 2 and 3; the facts paragraph stays.
+      if (cfg.resultWords) {
+        awakenP2 = {
+          good: 'You\u2019re ageing slower than the population average. Something you\u2019re doing is working. The question is what, and what\u2019s quietly working against you.',
+          avg: 'You\u2019re ageing at about the population average. That sounds fine, until you remember the average road is the one where the stairs, the floor and lifting the suitcase slowly get harder.',
+          warn: 'You\u2019re currently ageing faster than the population average. That isn\u2019t a verdict. It\u2019s the clearest signal you\u2019ll get that something is pushing your number up.'
+        }[bandClass];
+        awakenP3 = '';
+      }
 
       // v0.48.77 (2c) — hdlv2_ff_result_offer: on the paths that show the thank-you card (never the
       // practitioner-invited one) the card sells the Full Report like the Stage 1 e-mail.
@@ -2096,7 +2115,7 @@
         +     '</div>'
         +     '<span class="hdlw-r-hero-pill">Stage 1</span>'
         +   '</div>'
-        +   '<p class="hdlw-r-hero-body">Here\u2019s your starting picture, built from your 9 quick answers.' + (offerHref ? '' : ' Next, your <em>WHY</em> \u2014 what really matters to you \u2014 turns this snapshot into a plan that\u2019s truly yours.') + '</p>'
+        +   '<p class="hdlw-r-hero-body">' + (cfg.resultWords ? 'Your results are in. So many people never look until it\u2019s late in the game. You just did, and that matters.' : 'Here\u2019s your starting picture, built from your 9 quick answers.') + (offerHref ? '' : ' Next, your <em>WHY</em> \u2014 what really matters to you \u2014 turns this snapshot into a plan that\u2019s truly yours.') + '</p>'
         + '</section>'
 
         // v0.22.46 \u2014 2-column page grid below hero.
@@ -2140,7 +2159,7 @@
         +       '<p class="hdlw-r-lede">A plain-English read of your gauge.</p>'
         +       '<p><strong>' + escapeHtml(awakenP1) + '</strong></p>'
         +       '<p>' + escapeHtml(awakenP2) + '</p>'
-        +       '<p>' + escapeHtml(awakenP3) + '</p>'
+        +       ( awakenP3 ? '<p>' + escapeHtml(awakenP3) + '</p>' : '' )
         +     '</div>'
         // v0.35.0 (Phase O) \u2014 branch the "What Happens Next" card on the
         // submission path:
@@ -2180,7 +2199,7 @@
             +   '<div id="' + id + '-status" class="hdlw-r-status" role="status" aria-live="polite">Sending your answers\u2026</div>'
             +   '<div id="' + id + '-thanks" hidden>'
             +     ( offerHref
-                  ? resultOfferHtml(cfg.resultOffer, offerHref, escapeHtml, answers._email, !inviteToken)
+                  ? resultOfferHtml(cfg.resultOffer, offerHref, escapeHtml, answers._email, !inviteToken, cfg.resultWords)
                   : '<h2 class="hdlw-r-thanks-headline">Thank you.</h2>'
                   + '<p class="hdlw-r-thanks-body">Your practitioner has been sent your data. Once they have looked at your data, you will receive another email.</p>' )
             +     ( showBook
